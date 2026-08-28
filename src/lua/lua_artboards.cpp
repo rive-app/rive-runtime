@@ -37,6 +37,9 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     m_stateMachine(m_artboard->defaultStateMachine()),
     m_scriptingContext(scriptingContext)
 {
+    // A scripted artboard is a root: nothing hosts it in another artboard's
+    // focus tree, so it owns its FocusManager and builds its own focus tree.
+    m_artboard->buildFocusTree(m_artboard->ensureFocusManager(), nullptr);
     if (viewModelInstance)
     {
         m_viewModelInstance = viewModelInstance;
@@ -161,8 +164,10 @@ static int apply_gamepad_event(lua_State* L, int atom)
     {
         auto dispatch = [&](const ListenerInvocation& invocation) {
             ScriptedDrawable* dispatched = nullptr;
-            (void)stateMachine->focusManager()->gamepadDispatch(invocation,
-                                                                &dispatched);
+            if (auto* fm = stateMachine->focusManager())
+            {
+                (void)fm->gamepadDispatch(invocation, &dispatched);
+            }
             result = (int)stateMachine->broadcastGamepadToScriptedDrawables(
                 invocation,
                 dispatched);

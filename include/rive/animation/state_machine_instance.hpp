@@ -285,32 +285,11 @@ public:
     void fireSemanticAction(uint32_t semanticNodeId,
                             SemanticActionType actionType);
 
-    /// Get the focus manager for this state machine instance.
-    /// Returns the external focus manager if set, otherwise the internal one.
-    FocusManager* focusManager()
-    {
-        return m_externalFocusManager ? m_externalFocusManager
-                                      : &m_focusManager;
-    }
+    FocusManager* focusManager();
 
     /// Const overload of [focusManager], used by read-only consumers such as
     /// condition evaluation.
-    const FocusManager* focusManager() const
-    {
-        return m_externalFocusManager ? m_externalFocusManager
-                                      : &m_focusManager;
-    }
-
-    /// Check if this state machine is using an external focus manager.
-    bool hasExternalFocusManager() const
-    {
-        return m_externalFocusManager != nullptr;
-    }
-
-    /// Get the internal focus manager (always owned by this
-    /// StateMachineInstance). Useful when you need to operate only on the
-    /// internal manager regardless of whether an external one is set.
-    FocusManager* internalFocusManager() { return &m_focusManager; }
+    const FocusManager* focusManager() const;
 
     /// Parses embedder gamepad batch bytes (same format as JS
     /// `GAMEPAD_BATCH_VERSION` in `registerGamepadInteractions`). Invokes
@@ -415,15 +394,7 @@ private:
     void removeEventListeners();
     void initScriptedObjects();
 
-    // Focus management. m_focusManager stays inline: &m_focusManager escapes
-    // into Artboard::m_activeFocusManager and every FocusNode::manager(),
-    // established unconditionally by buildFocusTree().
-    FocusManager m_focusManager;
-    FocusManager* m_externalFocusManager = nullptr;
-
-    // Cold clusters. Declared after m_focusManager so member destruction
-    // (reverse order) still tears the listener groups down before the manager
-    // they were built against. See state_machine_instance_clusters.hpp.
+    // Cold clusters. See state_machine_instance_clusters.hpp.
     Sidecar<SMIReporting> m_reporting;
     Sidecar<SMIBindables> m_bindables;
     Sidecar<SMIInputExtras> m_inputExtras;

@@ -2156,12 +2156,18 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
     }
     sortHitComponents();
+}
 
-    // Build the focus tree for this artboard. focusManager() returns the
-    // external manager if set (e.g., when Dart owns the manager at edit time),
-    // otherwise the internal one. For nested artboards that need a parent
-    // FocusNode, Dart should call buildFocusTreeWithParent() after init.
-    m_artboardInstance->buildFocusTree(focusManager(), nullptr);
+FocusManager* StateMachineInstance::focusManager()
+{
+    return m_artboardInstance != nullptr ? m_artboardInstance->focusManager()
+                                         : nullptr;
+}
+
+const FocusManager* StateMachineInstance::focusManager() const
+{
+    return m_artboardInstance != nullptr ? m_artboardInstance->focusManager()
+                                         : nullptr;
 }
 
 SMIReporting& StateMachineInstance::ensureReporting()
@@ -2204,13 +2210,6 @@ ScriptedObject* StateMachineInstance::scriptedObject(
 
 StateMachineInstance::~StateMachineInstance()
 {
-    // Clean up focus tree BEFORE the internal FocusManager is destroyed.
-    // The artboard stores a raw pointer to our m_focusManager, so we must
-    // clear it before m_focusManager's implicit destruction at end of dtor.
-    if (m_externalFocusManager == nullptr && m_artboardInstance != nullptr)
-    {
-        m_artboardInstance->cleanupFocusTree();
-    }
 
     // Clean up semantic tree BEFORE the internal SemanticManager is destroyed.
     // Only needed when we own the manager; if external, the parent cleans up.
@@ -2442,25 +2441,9 @@ void StateMachineInstance::applyEvents()
 
 void StateMachineInstance::setExternalFocusManager(FocusManager* manager)
 {
-    if (m_externalFocusManager == manager)
-    {
-        return;
-    }
-
-    // Clean up old focus tree if one was built
-    if (m_artboardInstance != nullptr &&
-        m_artboardInstance->focusManager() != nullptr)
-    {
-        m_artboardInstance->cleanupFocusTree();
-    }
-
-    m_externalFocusManager = manager;
-
-    // Rebuild focus tree with new manager (focusManager() will return the new
-    // external manager if set, or internal if null)
     if (m_artboardInstance != nullptr)
     {
-        m_artboardInstance->buildFocusTree(focusManager(), nullptr);
+        m_artboardInstance->adoptFocusManager(manager);
     }
 }
 
@@ -2517,6 +2500,10 @@ void StateMachineInstance::queueFocusEvent(FocusListenerGroup* group,
 
 void StateMachineInstance::setFocus(FocusData* focusData)
 {
+    if (!focusManager())
+    {
+        return;
+    }
     if (focusData != nullptr)
     {
         auto node = focusData->focusNode();
@@ -2532,8 +2519,11 @@ void StateMachineInstance::setFocus(FocusData* focusData)
 StateMachineInstance::FocusState StateMachineInstance::focusState() const
 {
     FocusState state;
-    const FocusManager* fm =
-        m_externalFocusManager ? m_externalFocusManager : &m_focusManager;
+    const FocusManager* fm = focusManager();
+    if (fm == nullptr)
+    {
+        return state;
+    }
     // primaryFocusPtr() avoids a refcount bump on this poll-friendly path.
     FocusNode* focus = fm->primaryFocusPtr();
     if (focus == nullptr)
@@ -2565,18 +2555,30 @@ void StateMachineInstance::queueFocusTarget(FocusData* focusData)
     {
         return;
     }
+    if (!focusManager())
+    {
+        return;
+    }
     focusManager()->requestFocus(focusData->focusNode(), rootArtboard());
     m_needsAdvance = true;
 }
 
 void StateMachineInstance::queueClearFocus()
 {
+    if (!focusManager())
+    {
+        return;
+    }
     focusManager()->requestClearFocus(rootArtboard());
     m_needsAdvance = true;
 }
 
 void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
 {
+    if (!focusManager())
+    {
+        return;
+    }
     focusManager()->requestTraversal(traversalKind, rootArtboard());
     m_needsAdvance = true;
 }
@@ -2748,7 +2750,10 @@ bool StateMachineInstance::advanceAndApply(float seconds,
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
     bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;
-    focusManager()->dropFocusIfFocusTargetHidden();
+    if (focusManager())
+    {
+        focusManager()->dropFocusIfFocusTargetHidden();
+    }
     if (m_artboardInstance->advanceInternal(
             seconds,
             AdvanceFlags::IsRoot | AdvanceFlags::Animate |
@@ -2770,7 +2775,10 @@ bool StateMachineInstance::advanceAndApply(float seconds,
         // items too, since they share this manager. A target can still need
         // several passes to settle, so a request that doesn't take here is
         // kept for the next iteration.
-        focusManager()->processPendingFocusRequests(rootArtboard());
+        if (focusManager())
+        {
+            focusManager()->processPendingFocusRequests(rootArtboard());
+        }
 
         // Advance all animations.
         if (this->tryChangeState())
@@ -2803,7 +2811,10 @@ bool StateMachineInstance::advanceAndApply(float seconds,
     // Last chance for this frame: picks up a request queued by the loop's
     // final tryChangeState, and drops anything that still can't take so an
     // unreachable target doesn't leave a request queued indefinitely.
-    focusManager()->finishPendingFocusRequests(rootArtboard());
+    if (focusManager())
+    {
+        focusManager()->finishPendingFocusRequests(rootArtboard());
+    }
     if (advanceViewModels)
     {
         // Advance detached scripted view models (created via scripts, not part
@@ -3453,29 +3464,41 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
 
 bool StateMachineInstance::hasFocusNodes()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->hasFocusableContent();
 }
 
 bool StateMachineInstance::focusNext()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->focusNext();
 }
 
 bool StateMachineInstance::focusPrevious()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->focusPrevious();
 }
 
 void StateMachineInstance::clearFocus()
 {
+    if (!focusManager())
+    {
+        return;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     fm->clearFocus();
 }
 
@@ -3484,14 +3507,20 @@ bool StateMachineInstance::keyInput(Key key,
                                     bool isPressed,
                                     bool isRepeat)
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->keyInput(key, modifiers, isPressed, isRepeat);
 }
 
 bool StateMachineInstance::textInput(const std::string& text)
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->textInput(text);
 }

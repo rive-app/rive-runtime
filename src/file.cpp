@@ -1063,6 +1063,14 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
 #endif
         artboardInstance->file(ref_rcp(this));
 
+        // Root instances own the FocusManager for their whole tree; nested
+        // artboards and component-list items adopt it. Established here rather
+        // than by the first state machine so the manager outlives every state
+        // machine built against it, and so the tree is built once instead of
+        // rebuilt per state machine.
+        artboardInstance->buildFocusTree(artboardInstance->ensureFocusManager(),
+                                         nullptr);
+
         // Global view model instances are no longer auto-created here. Callers
         // (e.g. the high-level runtime's autoBind, or explicit
         // setGlobalViewModelInstance) create and bind them on demand.

@@ -32,6 +32,16 @@ namespace rive
 
 namespace
 {
+// A root artboard normally gets its FocusManager from File::instanceArtboard.
+// Tests that build an Artboard directly and instance it skip that path, so
+// give the instance a manager explicitly — otherwise focusManager() is null.
+std::unique_ptr<ArtboardInstance> instanceWithFocus(Artboard& artboard)
+{
+    auto instance = artboard.instance();
+    instance->ensureFocusManager();
+    return instance;
+}
+
 // Minimal builder for the little-endian gamepad batch wire format documented
 // in `gamepad_batch.cpp`, enough to connect a pad and press one button.
 // gamepad_test.cpp has a fuller version for the parsing tests.
@@ -1185,7 +1195,7 @@ TEST_CASE("StateMachineInstance hasFocusNodes ignores non-traversable scopes",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1202,7 +1212,7 @@ TEST_CASE("StateMachineInstance hasFocusNodes sees leaves under a "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1232,7 +1242,7 @@ TEST_CASE("StateMachineInstance hasFocusNodes counts focus data that is "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1361,7 +1371,7 @@ TEST_CASE("FocusActionTraversal perform advances focus with traversalKind next",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1386,7 +1396,7 @@ TEST_CASE("FocusActionTraversal perform moves focus back with traversalKind "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1410,7 +1420,7 @@ TEST_CASE("FocusActionTraversal perform unknown traversalKind defaults to next",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1435,7 +1445,7 @@ TEST_CASE(
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1484,7 +1494,7 @@ TEST_CASE("StateMachineInstance::focusState reports no focus when nothing is "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1499,7 +1509,7 @@ TEST_CASE("StateMachineInstance::focusState reports focused non-keyboard "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1519,7 +1529,7 @@ TEST_CASE("StateMachineInstance::focusState reports keyboard expectation when "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1538,7 +1548,7 @@ TEST_CASE("StateMachineInstance::focusState clears when focus is cleared",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1561,7 +1571,7 @@ TEST_CASE("StateMachineInstance::focusState tracks switches between focusables",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1600,7 +1610,7 @@ TEST_CASE("StateMachineInstance::focusState uses external focus manager when "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1625,7 +1635,7 @@ TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1649,7 +1659,7 @@ TEST_CASE("StateMachineInstance::keyInput and textInput route to the focused "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1681,7 +1691,7 @@ TEST_CASE("StateMachineInstance::keyInput and textInput report unhandled "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1704,15 +1714,17 @@ TEST_CASE("StateMachineInstance::keyInput and textInput use the external focus "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
+    // The artboard owns the manager the state machine uses by default.
+    auto* ownManager = instance->ensureFocusManager();
     MockFocusable internalFocusable;
     internalFocusable.returnValue = true;
     auto internalNode = make_rcp<FocusNode>(&internalFocusable);
-    smi.internalFocusManager()->addChild(nullptr, internalNode);
-    smi.internalFocusManager()->setFocus(internalNode);
+    ownManager->addChild(nullptr, internalNode);
+    ownManager->setFocus(internalNode);
 
     FocusManager external;
     MockFocusable externalFocusable;
@@ -1853,7 +1865,7 @@ TEST_CASE("FocusActionClear perform clears the primary focus",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1875,7 +1887,7 @@ TEST_CASE("FocusActionClear perform is a no-op when nothing is focused",
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -1932,7 +1944,7 @@ TEST_CASE("TransitionFocusCondition evaluate returns false when no target "
 {
     NoOpFactory factory;
     Artboard artboard(&factory);
-    auto instance = artboard.instance();
+    auto instance = instanceWithFocus(artboard);
     StateMachine machine;
     StateMachineInstance smi(&machine, instance.get());
 
@@ -2554,7 +2566,7 @@ TEST_CASE("ArtboardComponentList list scope is registered on shared "
           "[FocusManager][list]")
 {
     auto file = ReadRiveFile("assets/component_list_1.riv");
-    auto artboard = file->artboard("Main")->instance();
+    auto artboard = file->artboardNamed("Main");
     REQUIRE(artboard != nullptr);
     auto vmi = file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(vmi != nullptr);
@@ -2589,7 +2601,7 @@ TEST_CASE("List under Node: when parent has a direct FocusData, "
     // list host). The walk-based fallback from the old findClosest for the
     // no-direct-FocusData case is not used by the focus build anymore.
     auto file = ReadRiveFile("assets/component_list_1.riv");
-    auto artboard = file->artboard("Main")->instance();
+    auto artboard = file->artboardNamed("Main");
     REQUIRE(artboard != nullptr);
     auto vmi = file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(vmi != nullptr);
@@ -2820,6 +2832,107 @@ TEST_CASE("List item focus tree stays under its row when the item's state "
     CHECK(targetRow->manager() == fm);
     CHECK_FALSE(targetRow->children().empty());
     CHECK(list->stateMachineInstance(targetIndex)->focusManager() == fm);
+}
+
+TEST_CASE("State machines over one artboard instance share the artboard's "
+          "FocusManager",
+          "[FocusManager][list]")
+{
+    // The FocusManager belongs to the artboard, not to a state machine. A
+    // second StateMachineInstance over the same ArtboardInstance must reuse it
+    // rather than stand up a second manager and migrate every FocusNode onto
+    // it. That migration is what left persistent nodes -- the component list's
+    // scope and row nodes, which outlive any state machine -- stamped with a
+    // manager that could later die while they still pointed at it.
+    auto file = ReadRiveFile("assets/list_focus_order.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    // Root instances own a manager from the moment they are instanced, before
+    // any state machine exists.
+    auto* fm = artboard->focusManager();
+    REQUIRE(fm != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto first = artboard->stateMachineAt(0);
+    REQUIRE(first != nullptr);
+    CHECK(first->focusManager() == fm);
+    first->advanceAndApply(0.016f);
+
+    REQUIRE(artboard->artboardComponentLists().size() == 1);
+    auto* list = artboard->artboardComponentLists()[0];
+    REQUIRE(list->listScopeFocusNode() != nullptr);
+    REQUIRE(list->listScopeFocusNode()->manager() == fm);
+
+    // This is the shape the Android controller produces: an input queued for a
+    // state machine that has not been instanced yet builds a second one over
+    // the live artboard.
+    auto second = artboard->stateMachineAt(0);
+    REQUIRE(second != nullptr);
+
+    CHECK(second->focusManager() == fm);
+    CHECK(first->focusManager() == fm);
+    CHECK(artboard->focusManager() == fm);
+
+    // The list's persistent nodes were not migrated onto a different manager.
+    auto scope = list->listScopeFocusNode();
+    REQUIRE(scope != nullptr);
+    CHECK(scope->manager() == fm);
+    for (auto& row : scope->children())
+    {
+        CHECK(row->manager() == fm);
+    }
+
+    CHECK(fm->focusNext() == true);
+    CHECK(fm->primaryFocus() != nullptr);
+}
+
+TEST_CASE("Destroying one state machine leaves another's focus tree intact",
+          "[FocusManager][list]")
+{
+    // ~StateMachineInstance used to call cleanupFocusTree() whenever it owned
+    // the manager, ripping out a tree a second state machine over the same
+    // artboard was still using. With the manager owned by the artboard there
+    // is nothing for a state machine to tear down.
+    auto file = ReadRiveFile("assets/list_focus_order.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto* fm = artboard->focusManager();
+    REQUIRE(fm != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto first = artboard->stateMachineAt(0);
+    REQUIRE(first != nullptr);
+    first->advanceAndApply(0.016f);
+
+    auto second = artboard->stateMachineAt(0);
+    REQUIRE(second != nullptr);
+
+    REQUIRE(artboard->artboardComponentLists().size() == 1);
+    auto* list = artboard->artboardComponentLists()[0];
+    REQUIRE(list->listScopeFocusNode() != nullptr);
+
+    first.reset();
+
+    // The manager, the artboard's pointer to it, and the list's scope all
+    // outlive the first state machine.
+    CHECK(artboard->focusManager() == fm);
+    CHECK(second->focusManager() == fm);
+    auto scope = list->listScopeFocusNode();
+    REQUIRE(scope != nullptr);
+    CHECK(scope->manager() == fm);
+
+    // And the surviving state machine can still drive focus through it.
+    CHECK(fm->focusNext() == true);
+    CHECK(fm->primaryFocus() != nullptr);
+    second->advanceAndApply(0.016f);
+    CHECK(fm->primaryFocus() != nullptr);
 }
 
 TEST_CASE("Swappable artboard slot keeps its place in tab order",

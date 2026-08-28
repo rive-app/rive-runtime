@@ -181,7 +181,7 @@ TEST_CASE("Component list state machine listener", "[component_list]")
 {
     auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+    auto artboard = file->artboardNamed("Main");
     REQUIRE(artboard != nullptr);
     auto stateMachine = artboard->stateMachine("State Machine 1");
     REQUIRE(stateMachine != nullptr);

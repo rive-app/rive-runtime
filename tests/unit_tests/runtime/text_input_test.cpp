@@ -386,37 +386,35 @@ TEST_CASE("text input double and triple click select word and line",
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     if (stateMachine == nullptr)
     {
         return;
     }
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     if (textInput == nullptr)
     {
         return;
     }
 
     textInput->rawTextInput()->text("hello world");
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
     // Click near the top-left where the first word renders.
     Vec2D clickPosition(8.0f, 8.0f);
 
     auto pressRelease = [&]() {
-        smi.pointerDown(clickPosition);
-        smi.pointerUp(clickPosition);
+        stateMachine->pointerDown(clickPosition);
+        stateMachine->pointerUp(clickPosition);
     };
 
     // Two rapid clicks should select the word under the pointer.
     pressRelease(); // single
     pressRelease(); // double
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
     if (!textInput->rawTextInput()->cursor().hasSelection())
     {
@@ -434,7 +432,7 @@ TEST_CASE("text input double and triple click select word and line",
     // A third rapid click selects the (visual) line, spanning at least the
     // word.
     pressRelease(); // triple
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
     CHECK(textInput->rawTextInput()->cursor().hasSelection());
     CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() >=
           wordEnd);
@@ -629,20 +627,17 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     if (stateMachine == nullptr)
     {
         // Skip if no state machine
         return;
     }
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-
     // Advance to initialize
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     if (textInput == nullptr)
     {
         // Skip if no text input found
@@ -650,30 +645,33 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     }
 
     // Focus the text input (required for text/key input to be handled)
-    auto focusData = abi->objects<FocusData>().first();
+    auto focusData = artboard->objects<FocusData>().first();
     REQUIRE(focusData != nullptr);
-    smi.setFocus(focusData);
+    stateMachine->setFocus(focusData);
 
     // Clear text first
     textInput->rawTextInput()->text("");
     textInput->rawTextInput()->cursor(Cursor::zero());
 
     // Test textInput through state machine
-    bool handled = smi.textInput("typed text");
+    bool handled = stateMachine->textInput("typed text");
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed text");
 
     // Test keyInput through state machine (backspace)
-    handled = smi.keyInput(Key::backspace, KeyModifiers::none, true, false);
+    handled =
+        stateMachine->keyInput(Key::backspace, KeyModifiers::none, true, false);
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
 
     // With focus cleared there is no target, so the state machine reports the
     // events as unhandled and the text is left alone.
-    smi.clearFocus();
-    CHECK(smi.textInput("more") == false);
-    CHECK(smi.keyInput(Key::backspace, KeyModifiers::none, true, false) ==
-          false);
+    stateMachine->clearFocus();
+    CHECK(stateMachine->textInput("more") == false);
+    CHECK(stateMachine->keyInput(Key::backspace,
+                                 KeyModifiers::none,
+                                 true,
+                                 false) == false);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
 }
 
@@ -683,26 +681,24 @@ TEST_CASE("losing focus clears the text input selection", "[text_input]")
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     REQUIRE(stateMachine != nullptr);
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     REQUIRE(textInput != nullptr);
 
-    auto cursor = abi->objects<TextInputCursor>().first();
+    auto cursor = artboard->objects<TextInputCursor>().first();
     REQUIRE(cursor != nullptr);
 
     // Unfocused: no cursor is drawn.
     CHECK(textInput->isFocused() == false);
     CHECK(cursor->localClockwisePath() == nullptr);
 
-    auto focusData = abi->objects<FocusData>().first();
+    auto focusData = artboard->objects<FocusData>().first();
     REQUIRE(focusData != nullptr);
-    smi.setFocus(focusData);
+    stateMachine->setFocus(focusData);
     CHECK(textInput->isFocused() == true);
     CHECK(cursor->localClockwisePath() != nullptr);
 
@@ -710,7 +706,7 @@ TEST_CASE("losing focus clears the text input selection", "[text_input]")
     textInput->rawTextInput()->selectAll();
     CHECK(textInput->rawTextInput()->cursor().hasSelection());
 
-    smi.clearFocus();
+    stateMachine->clearFocus();
     CHECK(textInput->rawTextInput()->cursor().isCollapsed());
     CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
     CHECK(textInput->isFocused() == false);
@@ -723,48 +719,46 @@ TEST_CASE("the text input cursor blinks while focused", "[text_input]")
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     REQUIRE(stateMachine != nullptr);
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     REQUIRE(textInput != nullptr);
 
-    auto cursor = abi->objects<TextInputCursor>().first();
+    auto cursor = artboard->objects<TextInputCursor>().first();
     REQUIRE(cursor != nullptr);
 
-    auto focusData = abi->objects<FocusData>().first();
+    auto focusData = artboard->objects<FocusData>().first();
     REQUIRE(focusData != nullptr);
 
     // Unfocused, the caret never draws no matter how much time passes.
-    smi.advanceAndApply(0.6f);
+    stateMachine->advanceAndApply(0.6f);
     CHECK(cursor->localClockwisePath() == nullptr);
 
     // Focusing shows the caret, which then toggles every half second.
-    smi.setFocus(focusData);
+    stateMachine->setFocus(focusData);
     CHECK(cursor->localClockwisePath() != nullptr);
-    smi.advanceAndApply(0.5f);
+    stateMachine->advanceAndApply(0.5f);
     CHECK(cursor->localClockwisePath() == nullptr);
-    smi.advanceAndApply(0.5f);
+    stateMachine->advanceAndApply(0.5f);
     CHECK(cursor->localClockwisePath() != nullptr);
 
     // Typing restarts the cycle so the caret stays solid while editing.
-    smi.advanceAndApply(0.4f);
-    smi.textInput("a");
-    smi.advanceAndApply(0.2f);
+    stateMachine->advanceAndApply(0.4f);
+    stateMachine->textInput("a");
+    stateMachine->advanceAndApply(0.2f);
     CHECK(cursor->localClockwisePath() != nullptr);
 
     // Moving the caret restarts it too.
-    smi.advanceAndApply(0.4f);
-    smi.keyInput(Key::left, KeyModifiers::none, true, false);
-    smi.advanceAndApply(0.2f);
+    stateMachine->advanceAndApply(0.4f);
+    stateMachine->keyInput(Key::left, KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.2f);
     CHECK(cursor->localClockwisePath() != nullptr);
 
     // Blurring hides it again.
-    smi.clearFocus();
+    stateMachine->clearFocus();
     CHECK(cursor->localClockwisePath() == nullptr);
 }
 
@@ -815,38 +809,36 @@ TEST_CASE("the caret blink accounts for every elapsed phase", "[text_input]")
     auto file = ReadRiveFile("assets/text_input.riv");
     auto artboard = file->artboardNamed("Text Input - Multiline");
     REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     REQUIRE(stateMachine != nullptr);
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto cursor = abi->objects<TextInputCursor>().first();
+    auto cursor = artboard->objects<TextInputCursor>().first();
     REQUIRE(cursor != nullptr);
-    auto focusData = abi->objects<FocusData>().first();
+    auto focusData = artboard->objects<FocusData>().first();
     REQUIRE(focusData != nullptr);
 
-    smi.setFocus(focusData);
+    stateMachine->setFocus(focusData);
     REQUIRE(cursor->localClockwisePath() != nullptr);
 
     // Two whole phases: back to visible, not hidden.
-    smi.advanceAndApply(1.0f);
+    stateMachine->advanceAndApply(1.0f);
     CHECK(cursor->localClockwisePath() != nullptr);
 
     // Three whole phases: hidden.
-    smi.advanceAndApply(1.5f);
+    stateMachine->advanceAndApply(1.5f);
     CHECK(cursor->localClockwisePath() == nullptr);
 
     // Four whole phases leaves it where it was.
-    smi.advanceAndApply(2.0f);
+    stateMachine->advanceAndApply(2.0f);
     CHECK(cursor->localClockwisePath() == nullptr);
 
     // And the leftover remainder still carries into the next phase: 0.3 after
     // the 2.0 above puts us 0.3 into a phase, so 0.2 more flips it.
-    smi.advanceAndApply(0.3f);
+    stateMachine->advanceAndApply(0.3f);
     CHECK(cursor->localClockwisePath() == nullptr);
-    smi.advanceAndApply(0.2f);
+    stateMachine->advanceAndApply(0.2f);
     CHECK(cursor->localClockwisePath() != nullptr);
 }
 TEST_CASE("obscured text input keeps selected text off the clipboard",

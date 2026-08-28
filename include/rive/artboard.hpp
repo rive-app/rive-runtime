@@ -21,9 +21,11 @@
 #include "rive/typed_children.hpp"
 #include "rive/virtualizing_component.hpp"
 #include "rive/input/focus_node.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/semantic/semantic_node.hpp"
 #include "rive/scripting_slots.hpp"
 
+#include <memory>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -123,6 +125,11 @@ private:
     bool m_didChange = true;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
+    // This artboard's own manager, allocated only by roots — an artboard
+    // opened from a File, a scripted artboard, or one a caller explicitly
+    // asks. Null on source artboards and on nested / component-list
+    // instances, which adopt their root's manager instead.
+    std::unique_ptr<FocusManager> m_ownedFocusManager;
     FocusManager* m_activeFocusManager = nullptr;
     SemanticManager* m_activeSemanticManager = nullptr;
     rcp<SemanticNode> m_semanticBoundaryNode;
@@ -189,14 +196,32 @@ public:
         setLayoutFlag(LayoutComponentFlags::JustAddedToHost, true);
     }
 
-    /// Set the active FocusManager for this artboard. The FocusManager is
-    /// typically owned by a StateMachineInstance.
+    /// Set the active FocusManager for this artboard. Raw setter used by
+    /// buildFocusTree, which is the ordering authority for the walk it is
+    /// running; it does not tear down or rebuild anything. To point an artboard
+    /// at a different manager from the outside, use adoptFocusManager.
     void setActiveFocusManager(FocusManager* manager)
     {
         m_activeFocusManager = manager;
     }
     /// Get the active FocusManager for this artboard.
     FocusManager* focusManager() const { return m_activeFocusManager; }
+
+    /// Create this artboard's own FocusManager if it doesn't have one yet and
+    /// make it active. Idempotent, and a no-op once any manager is active — an
+    /// artboard that has adopted a parent's manager does not allocate one.
+    ///
+    /// Called by whoever establishes a root artboard — File::instanceArtboard
+    /// and ScriptReffedArtboard
+
+    FocusManager* ensureFocusManager();
+
+    /// Point this artboard (and everything it hosts) at a different
+    /// FocusManager, tearing down the tree built against the previous one and
+    /// rebuilding it against [manager]. This is the entry point for a host that
+    /// owns the manager — a parent artboard sharing its own, or Dart/the editor
+    /// supplying one.
+    void adoptFocusManager(FocusManager* manager);
 
 #ifdef WITH_RIVE_TOOLS
     /// Set an external parent FocusNode for this artboard's root-level focus

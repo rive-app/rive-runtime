@@ -3520,6 +3520,10 @@ struct HostArtboard : public RefCnt<HostArtboard>
         stateMachine(artboard->defaultStateMachine()),
         parentDataContext(std::move(parent))
     {
+        // A scripted artboard is a root: nothing hosts it in another
+        // artboard's focus tree, so it owns its FocusManager and builds its
+        // own focus tree.
+        artboard->buildFocusTree(artboard->ensureFocusManager(), nullptr);
         viewModelInstance = boundInstance != nullptr
                                 ? std::move(boundInstance)
                                 : file->createViewModelInstance(artboard.get());

@@ -84,10 +84,28 @@ Artboard::Artboard()
 
 Artboard::~Artboard()
 {
-    // NOTE: Do NOT call cleanupFocusTree() here! The FocusManager is owned by
-    // StateMachineInstance which may already be destroyed before the Artboard.
-    // Focus cleanup should be done explicitly via cleanupFocusTree() before
-    // the artboard is recycled/destroyed (e.g., in ArtboardComponentList).
+    // Tear the focus tree down FIRST, while every component is still alive.
+    // Detaching a focused node clears focus, and that runs blur callbacks
+    // (FocusData::blurred walks parents and siblings) — which must not fire
+    // once the m_Objects loop below has started deleting those siblings.
+    //
+    // Only when we own the manager: an adopted one belongs to a host artboard
+    // or to Dart, either of which may already be gone by the time a finalizer
+    // frees us, so m_activeFocusManager is not safe to touch. Those artboards
+    // are cleaned up explicitly by whoever adopted them —
+    // NestedArtboard::updateArtboard and ArtboardComponentList::removeArtboard
+    // both call cleanupFocusTree() before teardown — and a host being torn
+    // down has already run this same block against the shared manager, so
+    // nothing in a nested subtree is still focused by the time we reach it.
+    if (m_ownedFocusManager != nullptr &&
+        m_activeFocusManager == m_ownedFocusManager.get())
+    {
+#ifdef WITH_RIVE_TOOLS
+        m_ownedFocusManager->setFocusChangedCallback(nullptr);
+        m_ownedFocusManager->setScrollIntoViewCallback(nullptr);
+#endif
+        cleanupFocusTree();
+    }
 
 #ifdef WITH_RIVE_AUDIO
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
@@ -2121,6 +2139,46 @@ void buildFocusTreeVisit(FocusManager* focusManager,
 }
 } // namespace
 
+FocusManager* Artboard::ensureFocusManager()
+{
+    if (m_activeFocusManager != nullptr)
+    {
+        return m_activeFocusManager;
+    }
+    if (m_ownedFocusManager == nullptr)
+    {
+        m_ownedFocusManager = std::make_unique<FocusManager>();
+    }
+    m_activeFocusManager = m_ownedFocusManager.get();
+    return m_activeFocusManager;
+}
+
+void Artboard::adoptFocusManager(FocusManager* manager)
+{
+    // A null manager means "stop borrowing", which falls back to our own if we
+    // have one — the same shape as clearing the old external-manager override.
+    if (manager == nullptr)
+    {
+        manager = m_ownedFocusManager.get();
+    }
+    if (m_activeFocusManager == manager)
+    {
+        return;
+    }
+
+    if (m_activeFocusManager != nullptr)
+    {
+        cleanupFocusTree();
+    }
+
+    m_activeFocusManager = manager;
+
+    if (manager != nullptr)
+    {
+        buildFocusTree(manager, nullptr);
+    }
+}
+
 void Artboard::buildFocusTree(FocusManager* focusManager,
                               rcp<FocusNode> parentFocusNode)
 {
@@ -2238,8 +2296,8 @@ void Artboard::cleanupFocusTree()
         componentList->removeListScopeFocusNode();
     }
 
-    // Clear the active focus manager reference
-    m_activeFocusManager = nullptr;
+    // Fall back to our own manager rather than to "no manager"
+    m_activeFocusManager = m_ownedFocusManager.get();
 }
 
 #ifdef WITH_RIVE_TOOLS
