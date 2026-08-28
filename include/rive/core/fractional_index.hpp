@@ -78,18 +78,69 @@ struct FractionalIndex
     // Strictly smaller valid index (mediant toward min()).
     FractionalIndex prev() const { return between(*this, min()); }
 
-    // Cross-multiply compare: a/b vs c/d → a*d vs c*b. Dart does this
-    // in wrapping 64 bit ints, so the product difference is taken
-    // unsigned and read back as signed to wrap the same way.
+    // Cross-multiply compare: a/b vs c/d → a*d vs c*b, exact in 128
+    // bits like dart's BigInt path on web. A wrapping 64 bit product
+    // goes non-transitive once a mediant ladder grows past 2^32 and
+    // scrambles any sort over the list.
     int compareTo(const FractionalIndex& other) const
     {
-        const uint64_t difference =
-            static_cast<uint64_t>(numerator) *
-                static_cast<uint64_t>(other.denominator) -
-            static_cast<uint64_t>(denominator) *
-                static_cast<uint64_t>(other.numerator);
-        const int64_t signedDifference = static_cast<int64_t>(difference);
-        return signedDifference < 0 ? -1 : (signedDifference > 0 ? 1 : 0);
+        const int leftSign = productSign(numerator, other.denominator);
+        const int rightSign = productSign(other.numerator, denominator);
+        if (leftSign != rightSign)
+        {
+            return leftSign < rightSign ? -1 : 1;
+        }
+        if (leftSign == 0)
+        {
+            return 0;
+        }
+        uint64_t leftHi, leftLo, rightHi, rightLo;
+        mulAbs(numerator, other.denominator, leftHi, leftLo);
+        mulAbs(other.numerator, denominator, rightHi, rightLo);
+        int magnitude = 0;
+        if (leftHi != rightHi)
+        {
+            magnitude = leftHi < rightHi ? -1 : 1;
+        }
+        else if (leftLo != rightLo)
+        {
+            magnitude = leftLo < rightLo ? -1 : 1;
+        }
+        return leftSign > 0 ? magnitude : -magnitude;
+    }
+
+    static int productSign(int64_t x, int64_t y)
+    {
+        if (x == 0 || y == 0)
+        {
+            return 0;
+        }
+        return (x < 0) == (y < 0) ? 1 : -1;
+    }
+
+    // |x| * |y| as a 128 bit value in two 64 bit halves.
+    static void mulAbs(int64_t x, int64_t y, uint64_t& hi, uint64_t& lo)
+    {
+        const uint64_t ux =
+            x < 0 ? ~static_cast<uint64_t>(x) + 1 : static_cast<uint64_t>(x);
+        const uint64_t uy =
+            y < 0 ? ~static_cast<uint64_t>(y) + 1 : static_cast<uint64_t>(y);
+#if defined(__SIZEOF_INT128__)
+        const unsigned __int128 product =
+            static_cast<unsigned __int128>(ux) * uy;
+        hi = static_cast<uint64_t>(product >> 64);
+        lo = static_cast<uint64_t>(product);
+#else
+        const uint64_t xl = ux & 0xffffffffu;
+        const uint64_t xh = ux >> 32;
+        const uint64_t yl = uy & 0xffffffffu;
+        const uint64_t yh = uy >> 32;
+        const uint64_t ll = xl * yl;
+        const uint64_t mid = xl * yh + (ll >> 32);
+        const uint64_t mid2 = xh * yl + (mid & 0xffffffffu);
+        lo = (ll & 0xffffffffu) | (mid2 << 32);
+        hi = xh * yh + (mid >> 32) + (mid2 >> 32);
+#endif
     }
 
     friend constexpr bool operator==(const FractionalIndex& a,
