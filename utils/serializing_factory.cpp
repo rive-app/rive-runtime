@@ -5,7 +5,9 @@
 #include "rive/artboard.hpp"
 #include <cstring>
 #include <stdlib.h>
+#ifndef RIVE_NO_FILESYSTEM
 #include <filesystem>
+#endif
 #include <inttypes.h>
 #include <unordered_map>
 #include <algorithm>
@@ -613,6 +615,7 @@ void SerializingFactory::save(const char* filename)
 void SerializingFactory::saveTarnished(const char* filename)
 {
     auto path = std::string("silvers/tarnished/");
+#ifndef RIVE_NO_FILESYSTEM
     if (!std::filesystem::exists(path))
     {
         if (!std::filesystem::create_directories(path))
@@ -622,6 +625,9 @@ void SerializingFactory::saveTarnished(const char* filename)
     }
     auto fullFileName = path + std::string(filename) + std::string(".sriv");
     save(fullFileName.c_str());
+#else
+    printf("No std::filesystem api support. Ignoring tarnished save.");
+#endif
 }
 
 static bool varUintMatches(uint64_t op,

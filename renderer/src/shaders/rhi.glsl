@@ -223,6 +223,17 @@ $typedef $uint ushort;
                             NAME.$SubpassLoad(2),                              \
                             NAME.$SubpassLoad(3)),                             \
                     _sampleMask)
+// Per-sample fetch of the live 4x color attachment.
+#elif defined(@SUPPORTS_MSAA_DST_TEXEL_FETCH)
+#define DST_COLOR_TEXTURE(NAME) $Texture2DMS<half4> NAME
+
+#define DST_COLOR_FETCH(NAME)                                                  \
+    dst_color_fetch(half4x4(NAME.$Load(_plsCoord, 0),                          \
+                            NAME.$Load(_plsCoord, 1),                          \
+                            NAME.$Load(_plsCoord, 2),                          \
+                            NAME.$Load(_plsCoord, 3)),                         \
+                    _sampleMask)
+
 #else
 #define DST_COLOR_TEXTURE(NAME) $Texture2D NAME
 
