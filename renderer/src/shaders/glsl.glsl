@@ -361,7 +361,7 @@
 #define PLS_CONTEXT_UNPACK , _plsIdx
 
 #ifdef @TARGET_WGSL
-// WGSL has no `coherent` qualifier — naga would propagate it as an invalid
+// WGSL has no `coherent` qualifier - naga would propagate it as an invalid
 // `@coherent` attribute that Tint rejects. WGSL's storage memory model
 // already guarantees the visibility we need across the atomic ops below.
 #define PLS_DECLUI_UAV(IDX, NAME)                                              \
@@ -659,7 +659,8 @@
     layout(location = 0) out DATA_TYPE _fd;                                    \
     void main()
 
-#define FRAG_DATA_MAIN_WITH_CLOCKWISE FRAG_DATA_MAIN
+#define FRAG_DATA_MAIN_WITH_CLOCKWISE(DATA_TYPE, NAME)                         \
+    FRAG_DATA_MAIN(DATA_TYPE, NAME)
 
 #define _clockwise gl_FrontFacing
 

@@ -862,6 +862,7 @@ INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
     return (c1 - c0) / max(1. - c0 * paintAlpha, EPSILON_FP16_NON_DENORM);
 }
 
+#if defined(@RENDER_MODE_CLOCKWISE_ATOMIC) || defined(@PLS_IMPL_STORAGE_BUFFER)
 // Converts an x,y image coordinate into a buffer index, swizzling into
 // BUFFER_IMAGE_TILE_SIZE x BUFFER_IMAGE_TILE_SIZE tiles for better cache
 // performance.
@@ -879,6 +880,7 @@ INLINE uint swizzle_image_buffer_idx(uint2 imageCoord, uint imageWidth)
     idx += ((imageCoord.y & 0x3u) << 2) + (imageCoord.x & 0x3u);
     return idx;
 }
+#endif // @RENDER_MODE_CLOCKWISE_ATOMIC || @PLS_IMPL_STORAGE_BUFFER
 
 #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
 
