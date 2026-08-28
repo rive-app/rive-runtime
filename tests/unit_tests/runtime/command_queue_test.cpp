@@ -6824,6 +6824,52 @@ TEST_CASE("Semantics drainSemanticsDiff maps bounds into view space",
     CHECK(largeHeight / smallHeight == Approx(expectedScale).epsilon(0.01));
 }
 
+TEST_CASE("Semantics drainSemanticsDiff republishes bounds when the viewport "
+          "changes",
+          "[CommandQueue]")
+{
+    SemanticTestListener listener;
+    SemanticFixture fx(&listener, "assets/semantic/tabtest.riv");
+    fx.commandQueue->enableSemantics(fx.stateMachineHandle);
+    fx.warmup();
+    fx.drain(0, Fit::contain, Alignment::center, 1.0f, Vec2D(200.0f, 200.0f));
+    fx.pump();
+
+    REQUIRE(listener.m_diffCount == 1);
+    const uint32_t expectedRootId = listener.m_lastDiff.rootId;
+    REQUIRE(expectedRootId != 0);
+    auto initialNode =
+        std::find_if(listener.m_model.nodes.begin(),
+                     listener.m_model.nodes.end(),
+                     [](const auto& entry) {
+                         return entry.second.role ==
+                                    static_cast<uint32_t>(SemanticRole::tab) &&
+                                entry.second.bounds().width() > 0.0f;
+                     });
+    REQUIRE(initialNode != listener.m_model.nodes.end());
+    const uint32_t nodeId = initialNode->first;
+    const AABB initialBounds = initialNode->second.bounds();
+
+    // No state-machine advance occurs between drains. The changed viewport
+    // alone must republish every current node's mapped geometry. Advance the
+    // test frame id so the expected metadata is distinguishable from a
+    // default-initialized diff.
+    Artboard::incFrameId();
+    const uint64_t expectedFrameNumber = Artboard::frameId();
+    fx.drain(0, Fit::contain, Alignment::center, 1.0f, Vec2D(800.0f, 800.0f));
+    fx.pump();
+
+    REQUIRE(listener.m_diffCount == 2);
+    CHECK(listener.m_lastDiff.frameNumber == expectedFrameNumber);
+    CHECK(listener.m_lastDiff.rootId == expectedRootId);
+    CHECK_FALSE(listener.m_lastDiff.updatedGeometry.empty());
+    const AABB resizedBounds = listener.m_model.nodes.at(nodeId).bounds();
+    CHECK(resizedBounds.width() / initialBounds.width() ==
+          Approx(4.0f).epsilon(0.01));
+    CHECK(resizedBounds.height() / initialBounds.height() ==
+          Approx(4.0f).epsilon(0.01));
+}
+
 TEST_CASE("Semantics requestSemanticFocus errors when not enabled",
           "[CommandQueue]")
 {

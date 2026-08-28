@@ -2357,29 +2357,44 @@ bool CommandServer::processCommands()
                     else
                     {
                         SemanticsDiff diff = manager->drainDiff();
+                        // Compute the transform while locked because it reads
+                        // the artboard bounds.
+                        Mat2D transform;
+                        if (auto* artboard = wrapper->instance->artboard())
+                        {
+                            AABB artboardBounds = artboard->bounds();
+                            AABB surfaceBounds =
+                                AABB(Vec2D{0.0f, 0.0f}, viewBounds);
+                            if (surfaceBounds.width() != 0.0f &&
+                                surfaceBounds.height() != 0.0f)
+                            {
+                                Alignment alignment(alignmentX, alignmentY);
+                                transform =
+                                    rive::computeAlignment(fit,
+                                                           alignment,
+                                                           surfaceBounds,
+                                                           artboardBounds,
+                                                           scaleFactor);
+                            }
+                        }
+
+                        const bool transformChanged =
+                            wrapper->m_hasLastSemanticsTransform &&
+                            wrapper->m_lastSemanticsTransform != transform;
+                        wrapper->m_lastSemanticsTransform = transform;
+                        wrapper->m_hasLastSemanticsTransform = true;
+                        if (transformChanged)
+                        {
+                            // Viewport-only diffs bypass SemanticManager's
+                            // normal metadata population.
+                            diff.frameNumber = Artboard::frameId();
+                            diff.updatedGeometry = manager->boundsSnapshot();
+                            diff.treeVersion = manager->version();
+                            diff.rootId = manager->rootId();
+                        }
+
                         if (!diff.empty())
                         {
-                            // Compute the transform while locked (it reads the
-                            // artboard); identity means no mapping.
-                            Mat2D transform;
-                            if (auto* artboard = wrapper->instance->artboard())
-                            {
-                                AABB artboardBounds = artboard->bounds();
-                                AABB surfaceBounds =
-                                    AABB(Vec2D{0.0f, 0.0f}, viewBounds);
-                                if (surfaceBounds.width() != 0.0f &&
-                                    surfaceBounds.height() != 0.0f)
-                                {
-                                    Alignment alignment(alignmentX, alignmentY);
-                                    transform =
-                                        rive::computeAlignment(fit,
-                                                               alignment,
-                                                               surfaceBounds,
-                                                               artboardBounds,
-                                                               scaleFactor);
-                                }
-                            }
-
                             // Map the owned diff outside the lock.
                             stateMachineLock.unlock();
                             if (transform != Mat2D())
@@ -4198,6 +4213,8 @@ CommandServer::SynchronizedStateMachine& CommandServer::
     SynchronizedStateMachine::operator=(SynchronizedStateMachine&& other)
 {
     instance = std::move(other.instance);
+    m_lastSemanticsTransform = other.m_lastSemanticsTransform;
+    m_hasLastSemanticsTransform = other.m_hasLastSemanticsTransform;
     return *this;
 }
 

@@ -1085,6 +1085,22 @@ SemanticsDiff SemanticManager::drainDiff()
     return consumeDiff();
 }
 
+uint32_t SemanticManager::rootId() const
+{
+    return m_roots.size() == 1 ? m_roots.front()->id() : 0;
+}
+
+std::vector<SemanticsBoundsUpdate> SemanticManager::boundsSnapshot() const
+{
+    std::vector<SemanticsBoundsUpdate> bounds;
+    bounds.reserve(m_lastFlatSnapshot.size());
+    for (const auto& node : m_lastFlatSnapshot)
+    {
+        bounds.push_back({node.id, node.minX, node.minY, node.maxX, node.maxY});
+    }
+    return bounds;
+}
+
 // Returns the diff produced by the most recent refresh() and clears it.
 // Subsequent calls return an empty diff until the next dirty refresh.
 //

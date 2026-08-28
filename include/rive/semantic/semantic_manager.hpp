@@ -59,6 +59,19 @@ public:
     size_t nodeCount() const { return m_nodesById.size(); }
 #endif
 
+    /// Returns the current semantic root when the tree has exactly one root.
+    ///
+    /// @return The unique root node ID, or `0` when the tree has zero or
+    /// multiple roots.
+    uint32_t rootId() const;
+
+    /// Returns artboard-space bounds for every node in the current flat
+    /// snapshot.
+    ///
+    /// Command adapters use this to republish platform-space geometry when only
+    /// their external viewport transform changes.
+    std::vector<SemanticsBoundsUpdate> boundsSnapshot() const;
+
 private:
     void refresh();
     SemanticsDiff consumeDiff();

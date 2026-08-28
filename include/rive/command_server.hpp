@@ -6,6 +6,7 @@
 
 #include "rive/command_queue.hpp"
 #include "rive/hit_result.hpp"
+#include "rive/math/mat2d.hpp"
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -196,6 +197,8 @@ private:
         SynchronizedStateMachine(
             std::unique_ptr<StateMachineInstance> instance);
         std::unique_ptr<StateMachineInstance> instance;
+        Mat2D m_lastSemanticsTransform;
+        bool m_hasLastSemanticsTransform = false;
         // This mutex ensures that a specific state machine instance is not
         // advanced while a synchronized input or focus operation is running.
         std::mutex m_mutex;
