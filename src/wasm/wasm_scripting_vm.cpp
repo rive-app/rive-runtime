@@ -6099,14 +6099,22 @@ void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
     {
         return;
     }
+    // _v2 carries the surface scale; vm modules built before it export
+    // only the four-argument name, which must be called as such.
     wasm_function_inst_t f =
         wasm_runtime_lookup_function(m_state->instance,
-                                     "host_obj_layout_resize");
+                                     "host_obj_layout_resize_v2");
+    bool legacy = f == nullptr;
+    if (legacy)
+    {
+        f = wasm_runtime_lookup_function(m_state->instance,
+                                         "host_obj_layout_resize");
+    }
     if (f == nullptr)
     {
         return;
     }
-    wasm_val_t args[4];
+    wasm_val_t args[5];
     args[0].kind = WASM_I32;
     args[0].of.i32 = (int32_t)m_L;
     args[1].kind = WASM_I32;
@@ -6115,7 +6123,14 @@ void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
     args[2].of.f64 = size.x;
     args[3].kind = WASM_F64;
     args[3].of.f64 = size.y;
-    wasm_runtime_call_wasm_a(m_state->execEnv, f, 0, nullptr, 4, args);
+    args[4].kind = WASM_F64;
+    args[4].of.f64 = displayScale();
+    wasm_runtime_call_wasm_a(m_state->execEnv,
+                             f,
+                             0,
+                             nullptr,
+                             legacy ? 4 : 5,
+                             args);
 }
 
 bool WasmScriptingVM::callLayoutMeasure(ScriptedObject* object,

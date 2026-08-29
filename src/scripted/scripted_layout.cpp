@@ -58,6 +58,7 @@ void ScriptedLayout::controlSize(Vec2D size,
                                  LayoutDirection direction)
 {
     m_size = size;
+    m_sizeKnown = true;
     callScriptedResize(size);
 }
 #else
@@ -80,6 +81,7 @@ void ScriptedLayout::controlSize(Vec2D size,
                                  LayoutDirection direction)
 {
     m_size = size;
+    m_sizeKnown = true;
 }
 #endif
 

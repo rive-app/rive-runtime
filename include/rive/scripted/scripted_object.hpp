@@ -31,6 +31,13 @@ protected:
     int m_context = 0;
     ScriptedContext* m_contextPtr = nullptr;
     virtual void disposeScriptInputs();
+
+public:
+    /// The backend announces display scale changes here; layouts re-run
+    /// their resize callback so scripts see the new scale.
+    virtual void displayScaleChanged() {}
+
+protected:
 #ifdef WITH_RIVE_SCRIPTING
     // Non-owning. The backend tracks every ScriptedObject that points at it
     // (via registerScriptedObject in ensureScriptInitialized) and nulls these

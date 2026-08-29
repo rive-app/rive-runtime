@@ -642,8 +642,9 @@ void ScriptingVM::callLayoutResize(ScriptedObject* object,
     lua_pushvalue(L, -2);
     // Stack: [self, function, self]
     lua_pushvec2d(L, size);
-    // Stack: [self, function, self, size]
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 0)) !=
+    lua_pushnumber(L, displayScale());
+    // Stack: [self, function, self, size, scale]
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 3, 0)) !=
         LUA_OK)
     {
         // Stack: [self, status]

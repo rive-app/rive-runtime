@@ -29,6 +29,9 @@ class ViewModelInstanceValue;
 /// WasmScriptingVM.
 class ScriptBackend
 {
+private:
+    float m_displayScale = 1.0f;
+
 public:
     virtual ~ScriptBackend();
 
@@ -40,6 +43,14 @@ public:
 
     virtual bool valid() const = 0;
     virtual void releaseRef(int ref) = 0;
+
+    /// Device pixels per layout point of the presenting surface; the
+    /// embedder reports it and layout resize callbacks pass it through so
+    /// scripts can size render targets in pixels. A changed value
+    /// re-announces every scripted layout's size, since a display hop
+    /// changes scale without reflowing anything.
+    void displayScale(float scale);
+    float displayScale() const { return m_displayScale; }
 
     /// The editor stores generator refs per context; backends without that
     /// remap return the ref unchanged.

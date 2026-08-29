@@ -2,9 +2,31 @@
 #include "rive/scripted/script_backend.hpp"
 #include "rive/scripted/scripted_object.hpp"
 
+#include <vector>
+
 using namespace rive;
 
 ScriptBackend::~ScriptBackend() { detachScriptedObjects(); }
+
+void ScriptBackend::displayScale(float scale)
+{
+    if (scale == m_displayScale)
+    {
+        return;
+    }
+    m_displayScale = scale;
+    // The callback runs script code that can register or unregister objects
+    // on this backend; walk a snapshot and skip anything since removed.
+    std::vector<ScriptedObject*> objects(m_scriptedObjects.begin(),
+                                         m_scriptedObjects.end());
+    for (ScriptedObject* object : objects)
+    {
+        if (m_scriptedObjects.count(object) != 0)
+        {
+            object->displayScaleChanged();
+        }
+    }
+}
 
 void ScriptBackend::registerScriptedObject(ScriptedObject* object)
 {
