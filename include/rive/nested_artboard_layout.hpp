@@ -20,7 +20,6 @@ public:
     void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
     void markLayoutNodeDirty(
         bool shouldForceUpdateLayoutBounds = false) override;
-    void composeWorldTransform() override;
     void updateConstraints() override;
     StatusCode onAddedClean(CoreContext* context) override;
 
@@ -54,6 +53,7 @@ protected:
     void instanceHeightScaleTypeChanged() override;
 
 private:
+    void applyLayoutPlacement();
     void updateWidthOverride();
     void updateHeightOverride();
     StyleOverrider<NestedArtboardLayout> m_styleOverrider =

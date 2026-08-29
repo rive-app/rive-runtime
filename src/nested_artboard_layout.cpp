@@ -3,6 +3,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/world_transform_component.hpp"
 
 using namespace rive;
 
@@ -59,35 +60,43 @@ void NestedArtboardLayout::markLayoutNodeDirty(
     updateHeightOverride();
 }
 
-// Where the layout put us, less the mounted artboard's own origin, as one base
-// translation — the same shape Shape::layoutBaseTranslation builds for a
-// participant:
+// Where the layout put us, less the mounted artboard's own origin, applied in
+// the parent's frame:
 //
 //   parentWorld * translate(slot - origin) * m_Transform
 //
-// Done here rather than after Super::update so the base's
-// composeWorldTransform/updateConstraints pair stays in order: constraints run
-// against the composed transform, and their result is not overwritten by a
-// later recomposition. Same split LayoutComponent uses.
-void NestedArtboardLayout::composeWorldTransform()
+// Applied after constraints rather than composed before them. A constraint that
+// copies a position (follow path, translation) composes the world transform
+// from its target and replaces our translation outright, so a placement folded
+// into composeWorldTransform is discarded and the artboard renders off by its
+// origin. With no constraint the two orders are the same matrix, so files that
+// do not constrain a nested artboard are unaffected.
+void NestedArtboardLayout::applyLayoutPlacement()
 {
     auto artboard = artboardInstance();
     if (artboard == nullptr)
     {
-        Super::composeWorldTransform();
         return;
     }
     auto base =
         Vec2D(artboard->layoutX(), artboard->layoutY()) - artboard->origin();
-    if (parent()->is<Artboard>())
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<Artboard>())
     {
-        base += parent()->as<Artboard>()->origin();
+        base += parentComponent->as<Artboard>()->origin();
     }
-    Mat2D parentWorld =
-        parent()->is<WorldTransformComponent>()
-            ? parent()->as<WorldTransformComponent>()->worldTransform()
-            : Mat2D();
-    m_WorldTransform = parentWorld * Mat2D::fromTranslation(base) * m_Transform;
+    if (m_ParentTransformComponent != nullptr)
+    {
+        // Rotate/scale into the parent's frame; its translation cancels.
+        const Mat2D& p = m_ParentTransformComponent->worldTransform();
+        m_WorldTransform[4] += p[0] * base.x + p[2] * base.y;
+        m_WorldTransform[5] += p[1] * base.x + p[3] * base.y;
+    }
+    else
+    {
+        m_WorldTransform[4] += base.x;
+        m_WorldTransform[5] += base.y;
+    }
 }
 
 void NestedArtboardLayout::updateConstraints()
@@ -100,6 +109,7 @@ void NestedArtboardLayout::updateConstraints()
         }
     }
     Super::updateConstraints();
+    applyLayoutPlacement();
 }
 
 StatusCode NestedArtboardLayout::onAddedClean(CoreContext* context)
