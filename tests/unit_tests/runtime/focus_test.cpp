@@ -136,6 +136,12 @@ public:
 
     bool eligible = true;
     bool isEligibleForFocusTraversal() const override { return eligible; }
+
+    // Lets a test say which artboard tree a node belongs to, for the
+    // root-scoped focus calls. Null (the default) means "not attributable to
+    // any root", which is how a host-created FocusNode reads.
+    Artboard* artboard = nullptr;
+    Artboard* focusableArtboard() const override { return artboard; }
 };
 
 // =============================================================================
@@ -1954,6 +1960,310 @@ TEST_CASE("TransitionFocusCondition evaluate returns false when no target "
     CHECK(condition->evaluate(&smi, nullptr) == false);
 }
 
+// =============================================================================
+// Re-homing focus when the target disappears
+// =============================================================================
+
+TEST_CASE("FocusManager re-homes focus to a sibling leaf when the target hides",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable parentFocusable, leafAFocusable, leafBFocusable;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto leafA = make_rcp<FocusNode>(&leafAFocusable);
+    auto leafB = make_rcp<FocusNode>(&leafBFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, leafA);
+    manager.addChild(parent, leafB);
+
+    manager.setFocus(parent); // descends to the first leaf
+    REQUIRE(manager.primaryFocus() == leafA);
+
+    // A hides: focus lands on its sibling, not on the parent and not nowhere.
+    leafAFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == leafB);
+    CHECK(leafAFocusable.blurredCount == 1);
+    CHECK(leafBFocusable.focusedCount == 1);
+    // The shared ancestor never lost focus, so it is not re-notified.
+    CHECK(parentFocusable.blurredCount == 0);
+    CHECK(parentFocusable.focusedCount == 1);
+}
+
+TEST_CASE("FocusManager re-homes focus to the parent when it is the only "
+          "remaining stop",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable parentFocusable, leafFocusable;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto leaf = make_rcp<FocusNode>(&leafFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, leaf);
+
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == leaf);
+
+    // No sibling to fall back to, so the parent itself takes focus.
+    leafFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == parent);
+    CHECK(leafFocusable.blurredCount == 1);
+}
+
+TEST_CASE("FocusManager walks past a hidden parent to an eligible grandparent",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable grandFocusable, parentFocusable, leafFocusable;
+    auto grand = make_rcp<FocusNode>(&grandFocusable);
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto leaf = make_rcp<FocusNode>(&leafFocusable);
+    manager.addChild(nullptr, grand);
+    manager.addChild(grand, parent);
+    manager.addChild(parent, leaf);
+
+    manager.setFocus(grand);
+    REQUIRE(manager.primaryFocus() == leaf);
+
+    // The whole parent branch hides: skip it, land on the grandparent.
+    leafFocusable.eligible = false;
+    parentFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == grand);
+}
+
+TEST_CASE("FocusManager clears focus when no ancestor can hold it",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable parentFocusable, leafFocusable;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto leaf = make_rcp<FocusNode>(&leafFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, leaf);
+
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == leaf);
+
+    // Everything up the chain is gone, so focus really does clear.
+    leafFocusable.eligible = false;
+    parentFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusManager re-homing does not land on a non-focusable ancestor",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    // canFocus=false ancestor: authored as a pass-through container.
+    MockFocusable containerFocusable, leafFocusable;
+    auto container = make_rcp<FocusNode>(&containerFocusable);
+    container->canFocus(false);
+    auto leaf = make_rcp<FocusNode>(&leafFocusable);
+    manager.addChild(nullptr, container);
+    manager.addChild(container, leaf);
+
+    manager.setFocus(leaf);
+    REQUIRE(manager.primaryFocus() == leaf);
+
+    leafFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    // The container cannot take focus, and there is nothing above it.
+    CHECK(manager.primaryFocus() == nullptr);
+}
+
+TEST_CASE("FocusManager clears rather than crossing into another root branch",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable rootAFocusable, leafAFocusable, rootBFocusable,
+        leafBFocusable;
+    auto rootA = make_rcp<FocusNode>(&rootAFocusable);
+    auto leafA = make_rcp<FocusNode>(&leafAFocusable);
+    auto rootB = make_rcp<FocusNode>(&rootBFocusable);
+    auto leafB = make_rcp<FocusNode>(&leafBFocusable);
+    manager.addChild(nullptr, rootA);
+    manager.addChild(rootA, leafA);
+    manager.addChild(nullptr, rootB);
+    manager.addChild(rootB, leafB);
+
+    manager.setFocus(rootA);
+    REQUIRE(manager.primaryFocus() == leafA);
+
+    // The whole first root branch goes away. Re-homing stays inside the
+    // ancestor chain, so it stops at rootA rather than continuing into the
+    // second branch — an unrelated tree, a separate artboard in practice.
+    // Focus clears; Tab still reaches rootB, it just isn't jumped to.
+    leafAFocusable.eligible = false;
+    rootAFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == nullptr);
+    CHECK(leafBFocusable.focusedCount == 0);
+}
+
+TEST_CASE("FocusManager clears when a focused root node hides",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable rootAFocusable, rootBFocusable;
+    auto rootA = make_rcp<FocusNode>(&rootAFocusable);
+    auto rootB = make_rcp<FocusNode>(&rootBFocusable);
+    manager.addChild(nullptr, rootA);
+    manager.addChild(nullptr, rootB);
+
+    manager.setFocus(rootA);
+    REQUIRE(manager.primaryFocus() == rootA);
+
+    // Same rule with no ancestors at all to walk: a root node's siblings are
+    // other root branches, so there is nothing in scope to re-home to.
+    rootAFocusable.eligible = false;
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == nullptr);
+    CHECK(rootBFocusable.focusedCount == 0);
+}
+
+// =============================================================================
+// Re-descending focus when a hidden child reappears
+// =============================================================================
+
+TEST_CASE("FocusManager descends focus to a child that becomes eligible",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable parentFocusable, childFocusable;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto child = make_rcp<FocusNode>(&childFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, child);
+
+    // With the child hidden, the parent is a leaf and keeps focus itself.
+    childFocusable.eligible = false;
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == parent);
+    CHECK(parentFocusable.focusedCount == 1);
+
+    // Still a leaf, so an update pass changes nothing.
+    manager.descendFocusToLeaf(nullptr);
+    CHECK(manager.primaryFocus() == parent);
+    CHECK(childFocusable.focusedCount == 0);
+
+    // The child becomes visible: the parent has silently become a scope, and
+    // focus has to follow to the leaf Tab would have picked.
+    childFocusable.eligible = true;
+    manager.descendFocusToLeaf(nullptr);
+    CHECK(manager.primaryFocus() == child);
+    CHECK(childFocusable.focusedCount == 1);
+    // The parent stays on the focus path, so it is neither blurred nor
+    // re-focused.
+    CHECK(parentFocusable.blurredCount == 0);
+    CHECK(parentFocusable.focusedCount == 1);
+
+    // Focus rests on a leaf again; further passes are no-ops.
+    manager.descendFocusToLeaf(nullptr);
+    CHECK(manager.primaryFocus() == child);
+    CHECK(childFocusable.focusedCount == 1);
+}
+
+TEST_CASE("FocusManager only descends focus for the root that just updated",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboardA(&factory);
+    Artboard artboardB(&factory);
+
+    FocusManager manager;
+    MockFocusable parentFocusable, childFocusable;
+    parentFocusable.artboard = &artboardB;
+    childFocusable.artboard = &artboardB;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto child = make_rcp<FocusNode>(&childFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, child);
+
+    childFocusable.eligible = false;
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == parent);
+
+    childFocusable.eligible = true;
+    // Root A advancing must not touch a target living in root B: only B's own
+    // update pass has refreshed what eligibility reads.
+    manager.descendFocusToLeaf(&artboardA);
+    CHECK(manager.primaryFocus() == parent);
+
+    // B's pass does the descent.
+    manager.descendFocusToLeaf(&artboardB);
+    CHECK(manager.primaryFocus() == child);
+}
+
+TEST_CASE("FocusManager scopes descent by where focus would land",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboardA(&factory);
+    Artboard artboardB(&factory);
+
+    FocusManager manager;
+    // A host-created parent: no artboard backs it, so no root owns it. Its
+    // child does live in a real artboard, which is the eligibility the
+    // descent would be acting on.
+    MockFocusable parentFocusable, childFocusable;
+    childFocusable.artboard = &artboardB;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto child = make_rcp<FocusNode>(&childFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, child);
+
+    childFocusable.eligible = false;
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == parent);
+
+    childFocusable.eligible = true;
+    // Scoping on the unattributable parent would let root A descend into
+    // root B's child on B's stale state; scoping on the destination defers.
+    manager.descendFocusToLeaf(&artboardA);
+    CHECK(manager.primaryFocus() == parent);
+
+    // And it still descends — B's own pass claims it, rather than the
+    // unattributable target being deferred forever.
+    manager.descendFocusToLeaf(&artboardB);
+    CHECK(manager.primaryFocus() == child);
+}
+
+TEST_CASE("FocusManager only drops a hidden target for its own root",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboardA(&factory);
+    Artboard artboardB(&factory);
+
+    FocusManager manager;
+    MockFocusable parentFocusable, leafAFocusable, leafBFocusable;
+    parentFocusable.artboard = &artboardB;
+    leafAFocusable.artboard = &artboardB;
+    leafBFocusable.artboard = &artboardB;
+    auto parent = make_rcp<FocusNode>(&parentFocusable);
+    auto leafA = make_rcp<FocusNode>(&leafAFocusable);
+    auto leafB = make_rcp<FocusNode>(&leafBFocusable);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, leafA);
+    manager.addChild(parent, leafB);
+
+    manager.setFocus(parent);
+    REQUIRE(manager.primaryFocus() == leafA);
+
+    leafAFocusable.eligible = false;
+    // Root A's update pass hasn't refreshed anything in root B, so it must
+    // not re-home B's target off what it reads there.
+    manager.dropFocusIfFocusTargetHidden(&artboardA);
+    CHECK(manager.primaryFocus() == leafA);
+
+    // B's own pass does it.
+    manager.dropFocusIfFocusTargetHidden(&artboardB);
+    CHECK(manager.primaryFocus() == leafB);
+}
+
 } // namespace rive
 
 TEST_CASE("Swapping bindable artboard registers nested focus nodes for Tab",
@@ -2111,9 +2421,11 @@ TEST_CASE("FocusManager skips collapsed nodes and fully transparent nodes",
 
     // Hide that focused element; focus must be dropped.
     opacityProp->propertyValue(0);
-    // First advance sets the opacity to 0
+    // The advance that zeroes the opacity is the one that drops the focus:
+    // the check runs after updatePass, so it reads this frame's opacity
+    // rather than the previous frame's.
     stateMachine->advanceAndApply(0.016f);
-    // Next frame the focus is dropped
+    REQUIRE(focusManager->primaryFocus() == nullptr);
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(focusManager->primaryFocus() == nullptr);
     artboard->draw(renderer.get());

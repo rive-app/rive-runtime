@@ -2778,6 +2778,8 @@ bool StateMachineInstance::advanceAndApply(float seconds,
         if (focusManager())
         {
             focusManager()->processPendingFocusRequests(rootArtboard());
+            focusManager()->dropFocusIfFocusTargetHidden(rootArtboard());
+            focusManager()->descendFocusToLeaf(rootArtboard());
         }
 
         // Advance all animations.

@@ -40,9 +40,40 @@ public:
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
 
-    /// Clears primary focus if it targets FocusData that is no longer visible
-    /// in the hierarchy (collapsed, hidden, opacity 0, nested host hidden).
+    /// Re-homes primary focus when its target is no longer visible in the
+    /// hierarchy (collapsed, hidden, opacity 0, nested host paused).
+    ///
+    /// Focus moves to the nearest ancestor that can still offer a focus stop,
+    /// preferring another eligible leaf under that ancestor over the ancestor
+    /// itself, and only clears when no ancestor has one. The walk stays inside
+    /// the ancestor chain — it does not fall out into the manager's other root
+    /// branches, which are unrelated trees. Kept under the original name
+    /// because it is exported through the FFI/wasm bindings.
     void dropFocusIfFocusTargetHidden();
+
+    void dropFocusIfFocusTargetHidden(const Artboard* rootArtboard);
+
+    /// Re-applies the focus-rests-on-a-leaf rule to the current target.
+    ///
+    /// Call after an update pass, for the same reason as
+    /// processPendingFocusRequests: renderOpacity and collapse are what
+    /// eligibility reads, and they are only meaningful once that pass has run.
+    ///
+    /// Scoped to [rootArtboard] for that same reason. A manager can be shared
+    /// across independent roots, and each root updates its own components:
+    /// descending into a node that belongs to another root would measure its
+    /// eligibility against components that root hasn't refreshed yet. The
+    /// scope test is on where focus would LAND, not on where it sits — that is
+    /// the eligibility being claimed. A destination that can't be attributed
+    /// to any root — under a node a host created through the FocusNode API —
+    /// is always descended, since no root's pass would ever claim it.
+    void descendFocusToLeaf(const Artboard* rootArtboard);
+
+    /// descendFocusToLeaf for every root on this manager at once, for a host
+    /// that updates all of its roots together and so can descend whichever one
+    /// the target belongs to.
+    void descendFocusToLeafAllRoots();
+
     bool hasFocus(rcp<FocusNode> node) const; // node or descendant has focus
     bool hasPrimaryFocus(
         rcp<FocusNode> node) const; // node is the primary focus
@@ -273,6 +304,8 @@ private:
     /// @returns true when the request is done with — it took effect, or it
     /// never can (its target is gone). False means "try again later".
     bool applyPendingFocusRequest(const PendingFocusRequest& request);
+    /// Shared body of descendFocusToLeaf and descendFocusToLeafAllRoots.
+    void applyDescendFocusToLeaf(const Artboard* rootArtboard, bool allRoots);
 
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;

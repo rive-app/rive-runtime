@@ -61,16 +61,118 @@ static bool focusNodeEligibleForTraversal(FocusNode* node)
 // eligible leaf.
 static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager);
 
+// The root artboard whose tree `node` sits in, or nullptr when it can't be
+// attributed to one. Walks up the focus tree to the nearest node backed by a
+// Focusable — a structural scope has no artboard of its own, but something
+// above it does — then up the nested-artboard chain, matching
+// StateMachineInstance::rootArtboard so the two agree on what "root" means.
+static const Artboard* focusRootArtboard(FocusNode* node)
+{
+    Artboard* artboard = nullptr;
+    for (FocusNode* n = node; n != nullptr && artboard == nullptr;
+         n = n->parent())
+    {
+        if (n->focusable() != nullptr)
+        {
+            artboard = n->focusable()->focusableArtboard();
+        }
+    }
+    if (artboard == nullptr)
+    {
+        return nullptr;
+    }
+    while (artboard->host() != nullptr &&
+           artboard->host()->parentArtboard() != nullptr)
+    {
+        artboard = artboard->host()->parentArtboard();
+    }
+    return artboard;
+}
+
+// True when `node` belongs to a root OTHER than the one whose update pass just
+// ran, and so has to wait for its own. A node no artboard backs — one a host
+// created through the FocusNode API — belongs to no root and is never
+// deferred: no root's pass would ever claim it, so deferring would mean never.
+static bool belongsToAnotherRoot(FocusNode* node, const Artboard* rootArtboard)
+{
+    const Artboard* root = focusRootArtboard(node);
+    return root != nullptr && root != rootArtboard;
+}
+
 void FocusManager::dropFocusIfFocusTargetHidden()
 {
-    if (m_primaryFocus == nullptr)
+    if (m_primaryFocus == nullptr ||
+        focusNodeEligibleForTraversal(m_primaryFocus.get()))
     {
         return;
     }
-    if (!focusNodeEligibleForTraversal(m_primaryFocus.get()))
+
+    // Walk ancestors outward and take the first that can still offer a focus
+    // stop. getFirstLeaf does the choosing at each level, so it prefers
+    // another eligible leaf under that ancestor (a sibling of what just
+    // disappeared) and settles for the ancestor itself only when it is an
+    // eligible leaf in its own right. That keeps the focus-rests-on-a-leaf
+    // invariant intact.
+    for (FocusNode* ancestor = m_primaryFocus->parent(); ancestor != nullptr;
+         ancestor = ancestor->parent())
     {
-        clearFocus();
+        FocusNode* leaf = getFirstLeaf(ancestor, this);
+        if (leaf != nullptr)
+        {
+            setFocus(ref_rcp(leaf));
+            return;
+        }
     }
+    clearFocus();
+}
+
+void FocusManager::dropFocusIfFocusTargetHidden(const Artboard* rootArtboard)
+{
+    // Scoped for the same reason as processPendingFocusRequests: whether the
+    // target still counts as visible is read from renderOpacity and collapse,
+    // and only its own root's update pass has refreshed those. Testing the
+    // target itself is the right question here — unlike the descent below,
+    // this is a claim about where focus already sits.
+    if (m_primaryFocus == nullptr ||
+        belongsToAnotherRoot(m_primaryFocus.get(), rootArtboard))
+    {
+        return;
+    }
+    dropFocusIfFocusTargetHidden();
+}
+
+void FocusManager::descendFocusToLeaf(const Artboard* rootArtboard)
+{
+    applyDescendFocusToLeaf(rootArtboard, /*allRoots=*/false);
+}
+
+void FocusManager::descendFocusToLeafAllRoots()
+{
+    applyDescendFocusToLeaf(nullptr, /*allRoots=*/true);
+}
+
+void FocusManager::applyDescendFocusToLeaf(const Artboard* rootArtboard,
+                                           bool allRoots)
+{
+    // Fast path for the overwhelmingly common state: focus already rests on a
+    // leaf.
+    if (m_primaryFocus == nullptr || m_primaryFocus->children().empty())
+    {
+        return;
+    }
+    // getFirstLeaf returns the node itself when it is still a leaf, so a
+    // different result means the target has gained eligible traversable
+    // descendants since focus landed on it and is now a scope.
+    FocusNode* leaf = getFirstLeaf(m_primaryFocus.get(), this);
+    if (leaf == nullptr || leaf == m_primaryFocus.get())
+    {
+        return;
+    }
+    if (!allRoots && belongsToAnotherRoot(leaf, rootArtboard))
+    {
+        return;
+    }
+    setFocus(ref_rcp(leaf));
 }
 
 Artboard* FocusManager::primaryFocusArtboard() const
@@ -1163,8 +1265,12 @@ static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager)
             return leaf;
         }
     }
-    if (focusNodeEligibleForTraversal(node) &&
-        !hasEligibleTraversableChildInFocusTree(node))
+    // `children` is already the focusNodeTraversable-filtered child list, which
+    // is the exact predicate hasEligibleTraversableChildInFocusTree applies, so
+    // empty == "no traversable children". Testing it here instead re-uses that
+    // scan rather than repeating it, and short-circuits the ancestor walk in
+    // focusNodeEligibleForTraversal for every non-leaf.
+    if (children.empty() && focusNodeEligibleForTraversal(node))
     {
         return node;
     }
@@ -1186,8 +1292,8 @@ static FocusNode* getLastLeaf(FocusNode* node, const FocusManager* manager)
             return leaf;
         }
     }
-    if (focusNodeEligibleForTraversal(node) &&
-        !hasEligibleTraversableChildInFocusTree(node))
+    // Same reuse as getFirstLeaf.
+    if (children.empty() && focusNodeEligibleForTraversal(node))
     {
         return node;
     }
