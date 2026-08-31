@@ -1184,6 +1184,22 @@ void LayoutComponent::syncLayoutChildren()
     markLayoutNodeDirty();
 }
 
+#ifdef WITH_RIVE_TOOLS
+bool LayoutComponent::collectsForLayout(Component* child)
+{
+    // Runs the real walk rather than a copy of the rule.
+    bool found = false;
+    forEachLayoutProvider(this,
+                          [child, &found](Component* c, LayoutNodeProvider*) {
+                              if (c == child)
+                              {
+                                  found = true;
+                              }
+                          });
+    return found;
+}
+#endif
+
 void LayoutComponent::propagateSize() { propagateSizeToChildren(this); }
 
 void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)

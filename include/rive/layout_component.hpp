@@ -380,6 +380,11 @@ public:
                               m_layout.height());
     }
     size_t numLayoutNodes() override { return 1; }
+#ifdef WITH_RIVE_TOOLS
+    /// Whether the collection walk reaches [child] and takes its node. Not the
+    /// same as [child] finding us by walking up, which passes through anything.
+    bool collectsForLayout(Component* child);
+#endif
     AABB constraintBounds() const override { return localBounds(); }
     AABB localBounds() const override
     {

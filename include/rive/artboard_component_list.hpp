@@ -49,6 +49,11 @@ public:
     void* layoutNode(int index) override;
 #endif
     size_t artboardCount() override { return m_listItems.size(); }
+#ifdef WITH_RIVE_TOOLS
+    /// A mounted item's offset from the list: its layout bounds less the item
+    /// artboard's origin.
+    Vec2D itemPosition(int index);
+#endif
     rcp<ViewModelInstanceListItem> listItem(int index);
     ArtboardInstance* artboardInstance(int index = 0) override;
     /// Logical index of the given instance in the list, or -1 if not found.

@@ -1,0 +1,1130 @@
+# s1__flex-row__none__image__participant
+F s1__flex-row__none__image__participant
+A s1__flex-row__none__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 130.0000 60.0000
+C Subject computedWorld 130.0000 60.0000
+C Subject computedRoot 130.0000 60.0000
+C Subject computedLocal 130.0000 60.0000
+C Subject computedSize 140.0000 120.0000
+# s1__flex-row__none__image__non-participant
+F s1__flex-row__none__image__non-participant
+A s1__flex-row__none__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s1__flex-row__group__image__participant
+F s1__flex-row__group__image__participant
+A s1__flex-row__group__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 130.0000 60.0000
+C Subject computedWorld 130.0000 60.0000
+C Subject computedRoot 130.0000 60.0000
+C Subject computedLocal 130.0000 60.0000
+C Subject computedSize 140.0000 120.0000
+# s1__flex-row__group__image__non-participant
+F s1__flex-row__group__image__non-participant
+A s1__flex-row__group__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-row__solo-active__image__participant
+F s1__flex-row__solo-active__image__participant
+A s1__flex-row__solo-active__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 130.0000 60.0000
+C Subject computedWorld 130.0000 60.0000
+C Subject computedRoot 130.0000 60.0000
+C Subject computedLocal 130.0000 60.0000
+C Subject computedSize 140.0000 120.0000
+# s1__flex-row__solo-active__image__non-participant
+F s1__flex-row__solo-active__image__non-participant
+A s1__flex-row__solo-active__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s1__flex-row__solo-inactive__image__participant
+F s1__flex-row__solo-inactive__image__participant
+A s1__flex-row__solo-inactive__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+# s1__flex-row__solo-inactive__image__non-participant
+F s1__flex-row__solo-inactive__image__non-participant
+A s1__flex-row__solo-inactive__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+# s1__flex-row__group-in-solo__image__participant
+F s1__flex-row__group-in-solo__image__participant
+A s1__flex-row__group-in-solo__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 130.0000 60.0000
+C Subject computedWorld 130.0000 60.0000
+C Subject computedRoot 130.0000 60.0000
+C Subject computedLocal 130.0000 60.0000
+C Subject computedSize 140.0000 120.0000
+# s1__flex-row__group-in-solo__image__non-participant
+F s1__flex-row__group-in-solo__image__non-participant
+A s1__flex-row__group-in-solo__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-row__bone__image__participant
+F s1__flex-row__bone__image__participant
+A s1__flex-row__bone__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-row__bone__image__non-participant
+F s1__flex-row__bone__image__non-participant
+A s1__flex-row__bone__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s1__flex-column__none__image__participant
+F s1__flex-column__none__image__participant
+A s1__flex-column__none__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 100.0000 80.0000
+C Subject computedWorld 100.0000 80.0000
+C Subject computedRoot 100.0000 80.0000
+C Subject computedLocal 100.0000 80.0000
+C Subject computedSize 200.0000 80.0000
+# s1__flex-column__none__image__non-participant
+F s1__flex-column__none__image__non-participant
+A s1__flex-column__none__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s1__flex-column__group__image__participant
+F s1__flex-column__group__image__participant
+A s1__flex-column__group__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 100.0000 80.0000
+C Subject computedWorld 100.0000 80.0000
+C Subject computedRoot 100.0000 80.0000
+C Subject computedLocal 100.0000 80.0000
+C Subject computedSize 200.0000 80.0000
+# s1__flex-column__group__image__non-participant
+F s1__flex-column__group__image__non-participant
+A s1__flex-column__group__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-column__solo-active__image__participant
+F s1__flex-column__solo-active__image__participant
+A s1__flex-column__solo-active__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 100.0000 80.0000
+C Subject computedWorld 100.0000 80.0000
+C Subject computedRoot 100.0000 80.0000
+C Subject computedLocal 100.0000 80.0000
+C Subject computedSize 200.0000 80.0000
+# s1__flex-column__solo-active__image__non-participant
+F s1__flex-column__solo-active__image__non-participant
+A s1__flex-column__solo-active__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s1__flex-column__solo-inactive__image__participant
+F s1__flex-column__solo-inactive__image__participant
+A s1__flex-column__solo-inactive__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+# s1__flex-column__solo-inactive__image__non-participant
+F s1__flex-column__solo-inactive__image__non-participant
+A s1__flex-column__solo-inactive__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+# s1__flex-column__group-in-solo__image__participant
+F s1__flex-column__group-in-solo__image__participant
+A s1__flex-column__group-in-solo__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 100.0000 80.0000
+C Subject computedWorld 100.0000 80.0000
+C Subject computedRoot 100.0000 80.0000
+C Subject computedLocal 100.0000 80.0000
+C Subject computedSize 200.0000 80.0000
+# s1__flex-column__group-in-solo__image__non-participant
+F s1__flex-column__group-in-solo__image__non-participant
+A s1__flex-column__group-in-solo__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-column__bone__image__participant
+F s1__flex-column__bone__image__participant
+A s1__flex-column__bone__image__participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s1__flex-column__bone__image__non-participant
+F s1__flex-column__bone__image__non-participant
+A s1__flex-column__bone__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-row__none__image__non-participant__c-translation
+F s2__flex-row__none__image__non-participant__c-translation
+A s2__flex-row__none__image__non-participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-row__none__image__participant__c-translation
+F s2__flex-row__none__image__participant__c-translation
+A s2__flex-row__none__image__participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 140.0000 120.0000
+# s2__flex-row__none__image__non-participant__c-transform
+F s2__flex-row__none__image__non-participant__c-transform
+A s2__flex-row__none__image__non-participant__c-transform
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-row__none__image__non-participant__c-follow-path
+F s2__flex-row__none__image__non-participant__c-follow-path
+A s2__flex-row__none__image__non-participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-row__none__image__participant__c-follow-path
+F s2__flex-row__none__image__participant__c-follow-path
+A s2__flex-row__none__image__participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 140.0000 120.0000
+# s2__flex-row__group__image__non-participant__c-translation
+F s2__flex-row__group__image__non-participant__c-translation
+A s2__flex-row__group__image__non-participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-row__group__image__participant__c-translation
+F s2__flex-row__group__image__participant__c-translation
+A s2__flex-row__group__image__participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 140.0000 120.0000
+# s2__flex-row__group__image__non-participant__c-transform
+F s2__flex-row__group__image__non-participant__c-transform
+A s2__flex-row__group__image__non-participant__c-transform
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-row__group__image__non-participant__c-follow-path
+F s2__flex-row__group__image__non-participant__c-follow-path
+A s2__flex-row__group__image__non-participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-row__group__image__participant__c-follow-path
+F s2__flex-row__group__image__participant__c-follow-path
+A s2__flex-row__group__image__participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 140.0000 120.0000
+# s2__flex-column__none__image__non-participant__c-translation
+F s2__flex-column__none__image__non-participant__c-translation
+A s2__flex-column__none__image__non-participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-column__none__image__participant__c-translation
+F s2__flex-column__none__image__participant__c-translation
+A s2__flex-column__none__image__participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 80.0000
+# s2__flex-column__none__image__non-participant__c-transform
+F s2__flex-column__none__image__non-participant__c-transform
+A s2__flex-column__none__image__non-participant__c-transform
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-column__none__image__non-participant__c-follow-path
+F s2__flex-column__none__image__non-participant__c-follow-path
+A s2__flex-column__none__image__non-participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 120.0000
+# s2__flex-column__none__image__participant__c-follow-path
+F s2__flex-column__none__image__participant__c-follow-path
+A s2__flex-column__none__image__participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 80.0000
+# s2__flex-column__group__image__non-participant__c-translation
+F s2__flex-column__group__image__non-participant__c-translation
+A s2__flex-column__group__image__non-participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-column__group__image__participant__c-translation
+F s2__flex-column__group__image__participant__c-translation
+A s2__flex-column__group__image__participant__c-translation
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 80.0000
+# s2__flex-column__group__image__non-participant__c-transform
+F s2__flex-column__group__image__non-participant__c-transform
+A s2__flex-column__group__image__non-participant__c-transform
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-column__group__image__non-participant__c-follow-path
+F s2__flex-column__group__image__non-participant__c-follow-path
+A s2__flex-column__group__image__non-participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 140.0000 30.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 442.0000 412.0000
+# s2__flex-column__group__image__participant__c-follow-path
+F s2__flex-column__group__image__participant__c-follow-path
+A s2__flex-column__group__image__participant__c-follow-path
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.1942 140.0000 30.0000
+C Subject computedWorld 140.0000 30.0000
+C Subject computedRoot 140.0000 30.0000
+C Subject computedLocal 140.0000 30.0000
+C Subject computedSize 200.0000 80.0000
+# s7__flex-row__none__image__participant__k-max-under-fill
+F s7__flex-row__none__image__participant__k-max-under-fill
+A s7__flex-row__none__image__participant__k-max-under-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.2262 0.0000 0.0000 0.1942 110.0000 40.0000
+C Subject computedWorld 110.0000 40.0000
+C Subject computedRoot 110.0000 40.0000
+C Subject computedLocal 110.0000 40.0000
+C Subject computedSize 100.0000 80.0000
+# s7__flex-row__none__image__participant__k-min-over-fill
+F s7__flex-row__none__image__participant__k-min-over-fill
+A s7__flex-row__none__image__participant__k-min-over-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4072 0.0000 0.0000 0.3641 150.0000 75.0000
+C Subject computedWorld 150.0000 75.0000
+C Subject computedRoot 150.0000 75.0000
+C Subject computedLocal 150.0000 75.0000
+C Subject computedSize 180.0000 150.0000
+# s7__flex-row__none__image__participant__k-max-percent
+F s7__flex-row__none__image__participant__k-max-percent
+A s7__flex-row__none__image__participant__k-max-percent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.1810 0.0000 0.0000 0.1456 100.0000 30.0000
+C Subject computedWorld 100.0000 30.0000
+C Subject computedRoot 100.0000 30.0000
+C Subject computedLocal 100.0000 30.0000
+C Subject computedSize 80.0000 60.0000
+# s7__flex-column__none__image__participant__k-max-under-fill
+F s7__flex-column__none__image__participant__k-max-under-fill
+A s7__flex-column__none__image__participant__k-max-under-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.2262 0.0000 0.0000 0.1942 50.0000 80.0000
+C Subject computedWorld 50.0000 80.0000
+C Subject computedRoot 50.0000 80.0000
+C Subject computedLocal 50.0000 80.0000
+C Subject computedSize 100.0000 80.0000
+# s7__flex-column__none__image__participant__k-min-over-fill
+F s7__flex-column__none__image__participant__k-min-over-fill
+A s7__flex-column__none__image__participant__k-min-over-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.4525 0.0000 0.0000 0.3641 100.0000 115.0000
+C Subject computedWorld 100.0000 115.0000
+C Subject computedRoot 100.0000 115.0000
+C Subject computedLocal 100.0000 115.0000
+C Subject computedSize 200.0000 150.0000
+# s7__flex-column__none__image__participant__k-max-percent
+F s7__flex-column__none__image__participant__k-max-percent
+A s7__flex-column__none__image__participant__k-max-percent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.1810 0.0000 0.0000 0.1456 40.0000 70.0000
+C Subject computedWorld 40.0000 70.0000
+C Subject computedRoot 40.0000 70.0000
+C Subject computedLocal 40.0000 70.0000
+C Subject computedSize 80.0000 60.0000
+# s9__flex-row__none__image__non-participant__p-hug
+F s9__flex-row__none__image__non-participant__p-hug
+A s9__flex-row__none__image__non-participant__p-hug
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 442.0000 412.0000
+C Container localBounds 0.0000 0.0000 442.0000 412.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 442.0000 412.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s9__flex-row__none__image__non-participant__pk-max-under-fill
+F s9__flex-row__none__image__non-participant__pk-max-under-fill
+A s9__flex-row__none__image__non-participant__pk-max-under-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 100.0000 80.0000
+C Container localBounds 0.0000 0.0000 100.0000 80.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 100.0000 80.0000
+C Subject collected 0.0000
+C Subject world 0.2262 0.0000 0.0000 0.1942 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 100.0000 80.0000
+# s9__flex-row__none__image__non-participant
+F s9__flex-row__none__image__non-participant
+A s9__flex-row__none__image__non-participant
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s9__flex-row__none__image__non-participant__f-contain
+F s9__flex-row__none__image__non-participant__f-contain
+A s9__flex-row__none__image__non-participant__f-contain
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.2913 0.0000 0.0000 0.2913 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 128.7379 120.0000
+# s9__flex-row__none__image__non-participant__f-cover
+F s9__flex-row__none__image__non-participant__f-cover
+A s9__flex-row__none__image__non-participant__f-cover
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.4525 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 200.0000 186.4253
+# s9__flex-row__none__image__non-participant__f-none
+F s9__flex-row__none__image__non-participant__f-none
+A s9__flex-row__none__image__non-participant__f-none
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 442.0000 412.0000
+# s9__flex-row__none__image__non-participant__f-fit-width
+F s9__flex-row__none__image__non-participant__f-fit-width
+A s9__flex-row__none__image__non-participant__f-fit-width
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.4525 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 200.0000 186.4253
+# s9__flex-row__none__image__non-participant__f-fit-height
+F s9__flex-row__none__image__non-participant__f-fit-height
+A s9__flex-row__none__image__non-participant__f-fit-height
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.2913 0.0000 0.0000 0.2913 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 128.7379 120.0000
+# s9__flex-row__none__image__non-participant__f-scale-down
+F s9__flex-row__none__image__non-participant__f-scale-down
+A s9__flex-row__none__image__non-participant__f-scale-down
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.2913 0.0000 0.0000 0.2913 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 128.7379 120.0000
+# s9__flex-row__none__image__non-participant__f-fill
+F s9__flex-row__none__image__non-participant__f-fill
+A s9__flex-row__none__image__non-participant__f-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 100.0000 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 200.0000 120.0000
+# s9__flex-row__none__image__non-participant__p-hug__f-scale-down__pk-min-over-image
+F s9__flex-row__none__image__non-participant__p-hug__f-scale-down__pk-min-over-image
+A s9__flex-row__none__image__non-participant__p-hug__f-scale-down__pk-min-over-image
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 500.0000 500.0000
+C Container localBounds 0.0000 0.0000 500.0000 500.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 500.0000 500.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 250.0000 250.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 250.0000 250.0000
+C Subject computedRoot 250.0000 250.0000
+C Subject computedLocal 250.0000 250.0000
+C Subject computedSize 442.0000 412.0000
+# s9__flex-row__none__image__non-participant__f-contain__a-top-left
+F s9__flex-row__none__image__non-participant__f-contain__a-top-left
+A s9__flex-row__none__image__non-participant__f-contain__a-top-left
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.2913 0.0000 0.0000 0.2913 64.3689 60.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 64.3689 60.0000
+C Subject computedRoot 64.3689 60.0000
+C Subject computedLocal 64.3689 60.0000
+C Subject computedSize 128.7379 120.0000
+# s13__grid__none__image__participant__c2-r2
+F s13__grid__none__image__participant__c2-r2
+A s13__grid__none__image__participant__c2-r2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.1942 130.0000 80.0000
+C Subject computedWorld 130.0000 80.0000
+C Subject computedRoot 130.0000 80.0000
+C Subject computedLocal 130.0000 80.0000
+C Subject computedSize 140.0000 80.0000
+# s13__grid__none__image__non-participant__auto
+F s13__grid__none__image__non-participant__auto
+A s13__grid__none__image__non-participant__auto
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000
+# s13__grid__group__image__participant__c2-r2
+F s13__grid__group__image__participant__c2-r2
+A s13__grid__group__image__participant__c2-r2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.1942 130.0000 80.0000
+C Subject computedWorld 130.0000 80.0000
+C Subject computedRoot 130.0000 80.0000
+C Subject computedLocal 130.0000 80.0000
+C Subject computedSize 140.0000 80.0000
+# s13__grid__group__image__non-participant__auto
+F s13__grid__group__image__non-participant__auto
+A s13__grid__group__image__non-participant__auto
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 442.0000 412.0000
+# s13__grid__solo-active__image__participant__c2-r2
+F s13__grid__solo-active__image__participant__c2-r2
+A s13__grid__solo-active__image__participant__c2-r2
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject world 0.3167 0.0000 0.0000 0.1942 130.0000 80.0000
+C Subject computedWorld 130.0000 80.0000
+C Subject computedRoot 130.0000 80.0000
+C Subject computedLocal 130.0000 80.0000
+C Subject computedSize 140.0000 80.0000
+# s13__grid__solo-active__image__non-participant__auto
+F s13__grid__solo-active__image__non-participant__auto
+A s13__grid__solo-active__image__non-participant__auto
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 0.4525 0.0000 0.0000 0.2913 0.0000 0.0000
+C Subject localBounds -221.0000 -206.0000 442.0000 412.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 120.0000

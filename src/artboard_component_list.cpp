@@ -1433,6 +1433,14 @@ void ArtboardComponentList::updateDataBinds()
     }
 }
 
+#ifdef WITH_RIVE_TOOLS
+Vec2D ArtboardComponentList::itemPosition(int index)
+{
+    auto artboard = artboardInstance(index);
+    return artboard == nullptr ? Vec2D() : artboardPosition(artboard);
+}
+#endif
+
 Vec2D ArtboardComponentList::artboardPosition(ArtboardInstance* artboard)
 {
     auto mat = m_artboardTransforms[artboard];
