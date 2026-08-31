@@ -87,8 +87,8 @@
 
 #include "wasm_export.h"
 
+#include <chrono>
 #include <string.h>
-#include <sys/time.h>
 #include <time.h>
 
 using namespace rive;
@@ -293,9 +293,8 @@ double getNow(wasm_exec_env_t env)
     {
         return 0;
     }
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1.0e6;
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    return std::chrono::duration<double, std::milli>(now).count();
 }
 
 double dateNow(wasm_exec_env_t env)
@@ -307,9 +306,8 @@ double dateNow(wasm_exec_env_t env)
     {
         return atof(fixed);
     }
-    struct timeval tv;
-    gettimeofday(&tv, nullptr);
-    return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+    auto now = std::chrono::system_clock::now().time_since_epoch();
+    return std::chrono::duration<double, std::milli>(now).count();
 }
 
 // sbrk's growth request: enlarge linear memory to cover `size` bytes.

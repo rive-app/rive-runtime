@@ -42,6 +42,16 @@ local wamrConfigDefines = {
 if not _OPTIONS['wasm_hw_bounds'] then
     table.insert(wamrConfigDefines, 'WASM_DISABLE_HW_BOUND_CHECK=1')
 end
+if os.target() == 'windows' then
+    -- We link wamr statically; under clang's msvc mode wasm_export.h and
+    -- wasm_c_api.h otherwise declare every API dllimport.
+    table.insert(wamrConfigDefines, 'WASM_RUNTIME_API_EXTERN=')
+    table.insert(wamrConfigDefines, 'WASM_API_EXTERN=')
+end
+
+local platformDir = os.target() == 'linux' and 'linux'
+    or os.target() == 'windows' and 'windows'
+    or 'darwin'
 
 project('wamr')
 do
@@ -62,8 +72,9 @@ do
     buildoptions({ '-fno-lto' })
     -- The tail-dup knobs need llvm 19; older clangs build correct but
     -- slower dispatch, still caught by the dispatch-site guard where it runs.
+    local devNull = os.ishost('windows') and 'NUL' or '/dev/null'
     local _, tailDupProbe = os.outputof(
-        'clang -fsyntax-only -x c /dev/null' ..
+        'clang -fsyntax-only -x c ' .. devNull ..
             ' -mllvm -tail-dup-pred-size=5000' ..
             ' -mllvm -tail-dup-succ-size=5000 2>&1'
     )
@@ -78,8 +89,13 @@ do
     defines({ 'BH_PLATFORM_DARWIN' })
     filter({ 'system:linux' })
     defines({ 'BH_PLATFORM_LINUX' })
+    filter({ 'system:windows' })
+    defines({
+        'BH_PLATFORM_WINDOWS',
+        'HAVE_STRUCT_TIMESPEC',
+        '_WINSOCK_DEPRECATED_NO_WARNINGS',
+    })
     filter({})
-    local platformDir = os.target() == 'linux' and 'linux' or 'darwin'
     -- Per-lane arch beats host arch: universal builds compile both lanes
     -- on one machine and each must get its own invoke shim and relocs.
     local archOption = _OPTIONS['arch']
@@ -102,8 +118,11 @@ do
     end
     -- em64 is WAMR's x86-64 SysV invoke shim. With WASM_ENABLE_SIMD the
     -- invoke marshaling widens float slots to v128, so the shim must be the
-    -- _simd variant or int registers load from the wrong offsets.
+    -- _simd variant or int registers load from the wrong offsets. Windows
+    -- takes the mingw shim: same Win64 ABI as MSVC targets, and GAS syntax
+    -- that clang's integrated assembler handles without ml64.
     local invokeNative = isArm64 and 'invokeNative_aarch64_simd.s'
+        or os.target() == 'windows' and 'invokeNative_mingw_x64_simd.s'
         or 'invokeNative_em64_simd.s'
     local aotReloc = isArm64 and 'aot_reloc_aarch64.c' or 'aot_reloc_x86_64.c'
     includedirs({
@@ -115,12 +134,9 @@ do
         wamr .. '/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/src',
         wamr .. '/core/shared/include',
         wamr .. '/core/shared/platform/include',
-        -- platform_internal.h comes from the per-platform dir; the runtime
-        -- only builds the ladder/transplant on posix-like hosts today.
-        os.target() == 'linux' and (wamr .. '/core/shared/platform/linux')
-            or (wamr .. '/core/shared/platform/darwin'),
-        wamr .. '/core/shared/platform/common/libc-util',
+        -- platform_internal.h comes from the per-platform dir.
         wamr .. '/core/shared/platform/' .. platformDir,
+        wamr .. '/core/shared/platform/common/libc-util',
         wamr .. '/core/shared/mem-alloc',
         -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
         -- on, which our config always is.
@@ -141,7 +157,10 @@ do
         wamr .. '/core/iwasm/libraries/libc-builtin/*.c',
         wamr .. '/core/iwasm/libraries/libc-wasi/**.c',
         wamr .. '/core/shared/platform/' .. platformDir .. '/*.c',
-        wamr .. '/core/shared/platform/common/posix/*.c',
+        -- Windows replaces the posix layer wholesale; win_atomic is C++.
+        os.target() == 'windows'
+                and (wamr .. '/core/shared/platform/windows/*.cpp')
+            or (wamr .. '/core/shared/platform/common/posix/*.c'),
         wamr .. '/core/shared/platform/common/memory/*.c',
         wamr .. '/core/shared/platform/common/libc-util/*.c',
         wamr .. '/core/shared/mem-alloc/*.c',
@@ -149,6 +168,10 @@ do
         wamr .. '/core/shared/utils/*.c',
         wamr .. '/core/shared/utils/uncommon/*.c',
     })
+    if os.target() == 'windows' then
+        -- Linux perf-map support; leans on pid_t/getpid.
+        removefiles({ wamr .. '/core/iwasm/aot/aot_perf_map.c' })
+    end
 end
 
 return {
@@ -160,10 +183,8 @@ return {
         wamr .. '/core/iwasm/common',
         wamr .. '/core/shared/include',
         wamr .. '/core/shared/platform/include',
-        -- platform_internal.h comes from the per-platform dir; the runtime
-        -- only builds the ladder/transplant on posix-like hosts today.
-        os.target() == 'linux' and (wamr .. '/core/shared/platform/linux')
-            or (wamr .. '/core/shared/platform/darwin'),
+        -- platform_internal.h comes from the per-platform dir.
+        wamr .. '/core/shared/platform/' .. platformDir,
         wamr .. '/core/shared/mem-alloc',
         -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
         -- on, which our config always is.

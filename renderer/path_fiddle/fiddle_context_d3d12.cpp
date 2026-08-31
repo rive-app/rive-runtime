@@ -14,6 +14,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/d3d/d3d_utils.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
+#include "rive/renderer/ore/ore_context.hpp"
 #include <dxgi1_6.h>
 #include <vector>
 

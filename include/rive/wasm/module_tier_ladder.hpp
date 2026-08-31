@@ -80,7 +80,12 @@ private:
         TierSpecies species = TierSpecies::o0;
         std::string wasmPath;
         uint64_t generation = 0;
+#ifdef _WIN32
+        // The ladder compiles out on Windows; only the layout survives.
+        intptr_t pid = -1;
+#else
         pid_t pid = -1;
+#endif
         bool cancelled = false;
     };
 
