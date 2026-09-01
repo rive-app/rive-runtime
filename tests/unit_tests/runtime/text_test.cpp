@@ -928,10 +928,11 @@ TEST_CASE("Vertical Trim", "[text]")
     CHECK(silver.matches("text_vertical_trim_test"));
 }
 
-TEST_CASE("Text box matches layout-controlled size", "[silver]")
+// Renders a text/layout matrix for five frames against the named silver.
+static void checkTextLayoutSilver(const char* asset, const char* silverName)
 {
     rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/layout_text_match.riv", &silver);
+    auto file = ReadRiveFile(asset, &silver);
 
     auto artboard = file->artboardDefault();
     REQUIRE(artboard != nullptr);
@@ -973,7 +974,45 @@ TEST_CASE("Text box matches layout-controlled size", "[silver]")
         artboard->draw(renderer.get());
     }
 
-    CHECK(silver.matches("layout_text_match"));
+    CHECK(silver.matches(silverName));
+}
+
+// These two assets are the same scene and differ only in their header's minor
+// version (see gen_layout_text_match.py), so any difference between the two
+// silvers is attributable to the Text::import gate and nothing else.
+//
+// Below 7.3, m_layoutSizesBox stays false: an auto-sized text keeps
+// content-sized bounds and every overflow mode stays inert, so the six
+// overflow modes in each half of the matrix all render identically.
+TEST_CASE("Text box keeps its content size before 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout_text_match.riv", "layout_text_match");
+}
+
+// At 7.3 the box takes the layout's size and the overflow modes engage, so the
+// matrix fans out. Rows 15-18 cover verticalAlign middle/bottom over both a
+// taller box (minHeight) and a shorter one (maxHeight, where align and line
+// culling interact).
+TEST_CASE("Text box matches layout-controlled size", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout_text_match_7_3.riv",
+                          "layout_text_match_7_3");
+}
+
+// The two assets are the same scene apart from the version stamp and two
+// inert ComponentOrigin children (the editor materialises those on selection;
+// neither file carries a pivotOrigin), so they are authored exports rather
+// than a generated pair.
+TEST_CASE("Middle-aligned hug-layout text before 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout/text_layout_pre_7_3.riv",
+                          "text_layout_pre_7_3");
+}
+
+TEST_CASE("Middle-aligned hug-layout text at 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout/text_layout_7_3.riv",
+                          "text_layout_7_3");
 }
 
 TEST_CASE("Fit font size with varying sizes", "[text]")

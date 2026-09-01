@@ -1,5 +1,6 @@
 #include "rive/text/text.hpp"
 #include "rive/layout/layout_participant.hpp"
+#include "rive/importers/import_stack.hpp"
 using namespace rive;
 #ifdef WITH_RIVE_TEXT
 #include "rive/text_engine.hpp"
@@ -602,19 +603,20 @@ void Text::buildRenderStyles()
     // Step 4: update bounds. A layout-controlled axis uses the layout's size
     // so the text box always matches the layout.
     const float paragraphSpace = fitParagraphSpacing();
+    const float boxWidth = layoutBoxWidth();
+    const float boxHeight = layoutBoxHeight();
     const float autoSizeMaxY =
-        std::isnan(m_layoutHeight)
+        std::isnan(boxHeight)
             ? std::max(minY,
                        totalHeight - paragraphSpace - topTrim - bottomTrim)
-            : minY + m_layoutHeight;
+            : minY + boxHeight;
     switch (effectiveSizing())
     {
         case TextSizing::autoWidth:
-            m_bounds =
-                AABB(0.0f,
-                     minY,
-                     std::isnan(m_layoutWidth) ? maxWidth : m_layoutWidth,
-                     autoSizeMaxY);
+            m_bounds = AABB(0.0f,
+                            minY,
+                            std::isnan(boxWidth) ? maxWidth : boxWidth,
+                            autoSizeMaxY);
             break;
         case TextSizing::autoHeight:
             m_bounds = AABB(0.0f, minY, effectiveWidth(), autoSizeMaxY);
@@ -1532,6 +1534,26 @@ void Text::controlSize(Vec2D size,
                        LayoutDirection direction)
 {}
 #endif
+
+StatusCode Text::import(ImportStack& importStack)
+{
+    // A layout has always sized the text itself (effectiveWidth/Height), but
+    // before 7.3 an auto-sized text still took its *box* from the content, so
+    // the box could disagree with the slot and every overflow mode stayed
+    // inert. Keep that for those files; newer ones box to the slot. See
+    // File::minorVersion.
+    int major = importStack.majorVersion();
+    int minor = importStack.minorVersion();
+    m_layoutSizesBox = major > 7 || (major == 7 && minor >= 3);
+    return Super::import(importStack);
+}
+
+Core* Text::clone() const
+{
+    Text* twin = TextBase::clone()->as<Text>();
+    twin->m_layoutSizesBox = m_layoutSizesBox;
+    return twin;
+}
 
 Vec2D Text::layoutBaseTranslation(LayoutParticipant* participant) const
 {

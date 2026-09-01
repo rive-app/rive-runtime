@@ -237,6 +237,8 @@ public:
     AABB constraintBounds() const override { return localBounds(); }
     void originXChanged() override;
     void originYChanged() override;
+    StatusCode import(ImportStack& importStack) override;
+    Core* clone() const override;
 
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,
@@ -254,11 +256,24 @@ public:
     {
         return std::isnan(m_layoutHeight) ? height() : m_layoutHeight;
     }
-    // Overflow treats the box as fixed once a layout controls our size.
+    // Overflow treats the box as fixed once a layout sizes our box.
     bool overflowAsFixed() const
     {
         return effectiveSizing() == TextSizing::fixed ||
-               !std::isnan(m_layoutWidth);
+               !std::isnan(layoutBoxWidth());
+    }
+    // The size a controlling layout imposes on our *box*, or NAN when it
+    // imposes none. Not the same as effectiveWidth/Height above, which use
+    // m_layoutWidth/Height whenever a layout controls us: before 7.3 the
+    // layout sized the text but an auto-sized box still came from the
+    // content, so these are NAN there. See Text::import.
+    float layoutBoxWidth() const
+    {
+        return m_layoutSizesBox ? m_layoutWidth : NAN;
+    }
+    float layoutBoxHeight() const
+    {
+        return m_layoutSizesBox ? m_layoutHeight : NAN;
     }
     float computedWidth() override { return localBounds().width(); };
     float computedHeight() override { return localBounds().height(); };
@@ -379,6 +394,9 @@ private:
     uint8_t m_layoutWidthScaleType = std::numeric_limits<uint8_t>::max();
     uint8_t m_layoutHeightScaleType = std::numeric_limits<uint8_t>::max();
     LayoutDirection m_layoutDirection = LayoutDirection::inherit;
+    // Whether a controlling layout sizes our box, not just our text. Stamped
+    // at import from the file version; true for anything built in memory.
+    bool m_layoutSizesBox = true;
     Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive
