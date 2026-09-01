@@ -8,6 +8,14 @@ newoption({
     description = 'compile with support for vulkan',
 })
 
+-- For Vulkan-only builds on Apple hosts that lack the Metal toolchain (e.g.
+-- MoltenVK-backed desktop JVM builds): skips Metal shader libraries, Metal
+-- backend sources, and Metal ORE defines.
+newoption({
+    trigger = 'no_metal',
+    description = 'exclude the Metal backend and its shader libraries',
+})
+
 -- Internal capability flag opted into by platform packages.
 newoption({
     trigger = '_console_only_ore_vk',
@@ -49,7 +57,7 @@ end
 -- Only active when --with_rive_canvas is enabled.
 -- RIVE_ORE is defined whenever any ore backend is active, so C++ code can guard
 -- ore API calls without enumerating every backend.
-filter({ 'system:macosx or ios', 'options:with_rive_canvas', 'options:not for_unreal' })
+filter({ 'system:macosx or ios', 'options:with_rive_canvas', 'options:not for_unreal', 'options:not no_metal' })
 do
     defines({ 'ORE_BACKEND_METAL', 'RIVE_ORE' })
 end
@@ -252,7 +260,7 @@ end
 
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
-if os.host() == 'macosx' then
+if os.host() == 'macosx' and not _OPTIONS['no_metal'] then
     if rive_target_os == 'ios' and _OPTIONS['variant'] == 'system' then
         makecommand = makecommand .. ' rive_pls_ios_metallib'
     elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'emulator' then
@@ -418,7 +426,7 @@ do
         buildoptions({ '-fobjc-arc' })
     end
 
-    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:not for_unreal' })
+    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:not for_unreal', 'options:not no_metal' })
     do
         files({ 'src/metal/*.mm' })
     end
@@ -430,7 +438,7 @@ do
         files({ 'src/ore/*.cpp' })
     end
 
-    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not for_unreal' })
+    filter({ 'system:macosx or ios', 'options:not nop-obj-c', 'options:with_rive_canvas', 'options:not for_unreal', 'options:not no_metal' })
     do
         files({ 'src/ore/metal/*.mm' })
     end
