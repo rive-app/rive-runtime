@@ -2,7 +2,7 @@
 
 #include "rive/wasm/module_tier_ladder.hpp"
 
-#ifndef _WIN32
+#ifdef RIVE_WASM_TIER_LADDER
 
 #include <algorithm>
 #include <cerrno>
@@ -472,32 +472,5 @@ void ModuleTierLadder::drain()
 
 } // namespace rive
 
-#else // _WIN32
-
-namespace rive
-{
-// Windows editor execution is a deferred decision; the ladder reports
-// disabled and every module stays on interp.
-ModuleTierLadder& ModuleTierLadder::instance()
-{
-    static ModuleTierLadder* ladder = new ModuleTierLadder();
-    return *ladder;
-}
-ModuleTierLadder::~ModuleTierLadder() {}
-void ModuleTierLadder::configure(const std::string&, const std::string&) {}
-bool ModuleTierLadder::enabled() { return false; }
-void ModuleTierLadder::onArrival(ArrivalCallback) {}
-void ModuleTierLadder::schedule(const std::string&,
-                                uint64_t,
-                                Span<const uint8_t>)
-{}
-void ModuleTierLadder::stagePristine(uint64_t, Span<const uint8_t>) {}
-std::string ModuleTierLadder::artifactPath(uint64_t, TierSpecies)
-{
-    return std::string();
-}
-void ModuleTierLadder::drain() {}
-} // namespace rive
-
-#endif // _WIN32
+#endif // RIVE_WASM_TIER_LADDER
 #endif // WITH_RIVE_SCRIPTING_WASM

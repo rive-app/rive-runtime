@@ -3,16 +3,28 @@
 
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
+// An editor/tools feature: the ladder spawns wamrc subprocesses. Runtime
+// builds stub it out and stay on interp (prelinked artifacts load by
+// registry instead); windows tools builds stay stubbed pending a
+// CreateProcess port.
+#if defined(WITH_RIVE_TOOLS) && !defined(_WIN32)
+#define RIVE_WASM_TIER_LADDER 1
+#endif
+
 #include "rive/span.hpp"
-#include <condition_variable>
 #include <cstdint>
-#include <deque>
 #include <functional>
-#include <mutex>
 #include <string>
+
+#ifdef RIVE_WASM_TIER_LADDER
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <sys/types.h>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#endif
 
 namespace rive
 {
@@ -27,6 +39,8 @@ enum class TierSpecies : uint8_t
     // RIVE_WASM_HW_BOUNDS builds produce or load these.
     hw = 2,
 };
+
+#ifdef RIVE_WASM_TIER_LADDER
 
 // Drives wamrc subprocesses that turn wasm modules into AOT artifacts and
 // reports arrivals for frame-boundary hot swap. File-in/file-out, no IPC:
@@ -88,12 +102,7 @@ private:
         TierSpecies species = TierSpecies::o0;
         std::string wasmPath;
         uint64_t generation = 0;
-#ifdef _WIN32
-        // The ladder compiles out on Windows; only the layout survives.
-        intptr_t pid = -1;
-#else
         pid_t pid = -1;
-#endif
         bool cancelled = false;
     };
 
@@ -125,6 +134,49 @@ private:
     // machine; the -O3 tail rides behind the -O0 rung it bridges.
     static constexpr unsigned kWorkerCount = 2;
 };
+
+#else // RIVE_WASM_TIER_LADDER
+
+// Same surface, all inline: the ladder reports disabled, so the tier
+// paths behind enabled() checks compile away.
+class ModuleTierLadder
+{
+public:
+    static ModuleTierLadder& instance()
+    {
+        static ModuleTierLadder ladder;
+        return ladder;
+    }
+
+    void configure(const std::string&, const std::string&) {}
+    bool enabled() { return false; }
+
+    struct Artifact
+    {
+        uint64_t moduleKey = 0;
+        TierSpecies species = TierSpecies::o0;
+        std::string path;
+    };
+    using ArrivalCallback = std::function<void(const Artifact&)>;
+    void onArrival(ArrivalCallback) {}
+
+    void schedule(const std::string&, uint64_t, Span<const uint8_t>) {}
+    void stagePristine(uint64_t, Span<const uint8_t>) {}
+    std::string artifactPath(uint64_t, TierSpecies) { return std::string(); }
+    void drain() {}
+
+    static constexpr size_t kStraightToO3Bytes = 50 * 1024;
+
+private:
+    // Singleton in both configurations, so code cannot compile against one
+    // and break against the other.
+    ModuleTierLadder() = default;
+    ~ModuleTierLadder() = default;
+    ModuleTierLadder(const ModuleTierLadder&) = delete;
+    ModuleTierLadder& operator=(const ModuleTierLadder&) = delete;
+};
+
+#endif // RIVE_WASM_TIER_LADDER
 
 } // namespace rive
 

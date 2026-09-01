@@ -2,6 +2,10 @@
 
 #include "rive/wasm/wamr_state_transplant.hpp"
 
+// The one TU reading wamr instance internals; runtime builds compile it
+// empty and use the header's inline stub.
+#ifdef RIVE_WASM_TIER_LADDER
+
 #include "aot_runtime.h"
 #include "wasm_runtime.h"
 
@@ -175,4 +179,5 @@ bool wamrTransplantState(wasm_module_inst_t source,
 
 } // namespace rive
 
+#endif // RIVE_WASM_TIER_LADDER
 #endif // WITH_RIVE_SCRIPTING_WASM

@@ -3,11 +3,17 @@
 
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
+// The transplant is the tier ladder's frame-boundary half; it rides the
+// same gate.
+#include "rive/wasm/module_tier_ladder.hpp"
+
 #include "wasm_export.h"
 #include <string>
 
 namespace rive
 {
+
+#ifdef RIVE_WASM_TIER_LADDER
 
 // Copies live mutable state (memories, globals, table entries) from one
 // instance of a module onto a fresh instance of the same module content in
@@ -19,6 +25,19 @@ namespace rive
 bool wamrTransplantState(wasm_module_inst_t source,
                          wasm_module_inst_t destination,
                          std::string& error);
+
+#else // RIVE_WASM_TIER_LADDER
+
+// Only reachable through the disabled ladder's upgrade path.
+inline bool wamrTransplantState(wasm_module_inst_t,
+                                wasm_module_inst_t,
+                                std::string& error)
+{
+    error = "tier transplant not built";
+    return false;
+}
+
+#endif // RIVE_WASM_TIER_LADDER
 
 } // namespace rive
 

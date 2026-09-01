@@ -258,10 +258,20 @@ do
         filter({ 'options:with_rive_scripting' })
         do
             includedirs({ wamr .. '/core/iwasm/include' })
-            -- The tier transplant reads instance internals; layout hinges
-            -- on the same config defines the wamr lib builds with.
-            includedirs(wamrInternalIncludes)
             defines(wamrConfigDefines)
+            -- The tier transplant is the one TU reading instance internals
+            -- (layout hinges on the config defines above); runtime builds
+            -- compile its stub without them. The tests workspace forces
+            -- tools on without the option, so honor both signals.
+            if WITH_RIVE_TOOLS == true then
+                includedirs(wamrInternalIncludes)
+            else
+                filter({
+                    'options:with_rive_scripting',
+                    'options:with_rive_tools',
+                })
+                includedirs(wamrInternalIncludes)
+            end
             filter({ 'options:with_rive_scripting', 'system:macosx' })
             defines({ 'BH_PLATFORM_DARWIN' })
             filter({ 'options:with_rive_scripting', 'system:linux' })
