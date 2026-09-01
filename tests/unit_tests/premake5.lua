@@ -58,6 +58,7 @@ do
         '../../include',
         '../../decoders/include',
         '../../renderer/include',
+        '../../renderer/rive_vk_bootstrap/include',
         '../../renderer/src',
         '../../../rive_native/native/include',
         '../../../texture_compressor/src',
