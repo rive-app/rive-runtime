@@ -54,7 +54,13 @@ TEST_CASE("tier ladder compiles a module to an artifact", "[.][tier-ladder]")
 
     // Under the straight-to-O3 cutoff, so exactly the one artifact.
     CHECK(arrivals.load() == 1);
-    std::string path = ladder.artifactPath(key, TierSpecies::o3);
+    // Guard-page builds ride the hw species as their top rung.
+#ifdef RIVE_WASM_HW_BOUNDS
+    constexpr TierSpecies kTopSpecies = TierSpecies::hw;
+#else
+    constexpr TierSpecies kTopSpecies = TierSpecies::o3;
+#endif
+    std::string path = ladder.artifactPath(key, kTopSpecies);
     REQUIRE(!path.empty());
     CHECK(ladder.artifactPath(key, TierSpecies::o0).empty());
 

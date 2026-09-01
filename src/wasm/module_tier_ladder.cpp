@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
+#include <filesystem>
 #include <fcntl.h>
 #include <cstdlib>
 #include <cstring>
@@ -71,6 +72,17 @@ bool ModuleTierLadder::enabled()
     {
         m_wamrcPath = getenv("RIVE_WAMRC");
     }
+    // Self-configure from env so the first module load, which happens
+    // before any host configure call, can stage its pristine bytes.
+    if (m_cacheDir.empty() && !m_wamrcPath.empty())
+    {
+        const char* dirEnv = getenv("RIVE_AOT_CACHE_DIR");
+        m_cacheDir =
+            dirEnv != nullptr
+                ? dirEnv
+                : (std::filesystem::temp_directory_path() / "rive_aot_cache")
+                      .string();
+    }
     return !m_wamrcPath.empty() && !m_cacheDir.empty();
 }
 
@@ -119,7 +131,10 @@ const std::string& ModuleTierLadder::wamrcVersion()
 
 std::string ModuleTierLadder::keyedCacheDir()
 {
-    std::string dir = m_cacheDir + "/" + wamrcVersion();
+    // The revision folds our wamrc flag choices into the cache key; bump
+    // it whenever species flags change or stale artifacts (like the
+    // pre-codegen-cap -O1 ones) get served on a cache hit.
+    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r3";
     mkdir(m_cacheDir.c_str(), 0755);
     mkdir(dir.c_str(), 0755);
     return dir;
@@ -128,11 +143,17 @@ std::string ModuleTierLadder::keyedCacheDir()
 std::string ModuleTierLadder::artifactName(uint64_t moduleKey,
                                            TierSpecies species)
 {
+    const char* pattern = "%016llx.aot";
+    if (species == TierSpecies::o0)
+    {
+        pattern = "%016llx.o0.aot";
+    }
+    else if (species == TierSpecies::hw)
+    {
+        pattern = "%016llx.hw.aot";
+    }
     char name[64];
-    snprintf(name,
-             sizeof(name),
-             species == TierSpecies::o0 ? "%016llx.o0.aot" : "%016llx.aot",
-             (unsigned long long)moduleKey);
+    snprintf(name, sizeof(name), pattern, (unsigned long long)moduleKey);
     return name;
 }
 
@@ -151,6 +172,52 @@ std::string ModuleTierLadder::artifactPath(uint64_t moduleKey,
         return path;
     }
     return std::string();
+}
+
+// The cache is shared across processes and a name must never be visible
+// half-written: write a process-unique temp, then atomically rename.
+static bool writeFileAtomic(const std::string& path, Span<const uint8_t> bytes)
+{
+    std::string tmpPath = path + "." + std::to_string(getpid()) + ".tmp";
+    FILE* f = fopen(tmpPath.c_str(), "wb");
+    if (f == nullptr)
+    {
+        return false;
+    }
+    size_t written = fwrite(bytes.data(), 1, bytes.size(), f);
+    if (fclose(f) != 0 || written != bytes.size())
+    {
+        unlink(tmpPath.c_str());
+        return false;
+    }
+    if (rename(tmpPath.c_str(), path.c_str()) != 0)
+    {
+        unlink(tmpPath.c_str());
+        return false;
+    }
+    return true;
+}
+
+void ModuleTierLadder::stagePristine(uint64_t moduleKey,
+                                     Span<const uint8_t> moduleBytes)
+{
+    if (!enabled())
+    {
+        return;
+    }
+    std::unique_lock<std::mutex> lock(m_mutex);
+    char wasmName[64];
+    snprintf(wasmName,
+             sizeof(wasmName),
+             "%016llx.wasm",
+             (unsigned long long)moduleKey);
+    std::string wasmPath = keyedCacheDir() + "/" + wasmName;
+    struct stat st;
+    if (stat(wasmPath.c_str(), &st) == 0)
+    {
+        return;
+    }
+    writeFileAtomic(wasmPath, moduleBytes);
 }
 
 void ModuleTierLadder::schedule(const std::string& laneId,
@@ -184,14 +251,21 @@ void ModuleTierLadder::schedule(const std::string& laneId,
              (unsigned long long)moduleKey);
     std::string wasmPath = dir + "/" + wasmName;
 
+    // On guard-page builds the top rung is the hw species: no inline
+    // bounds checks and growth never moves the memory base.
+#ifdef RIVE_WASM_HW_BOUNDS
+    constexpr TierSpecies kTopSpecies = TierSpecies::hw;
+#else
+    constexpr TierSpecies kTopSpecies = TierSpecies::o3;
+#endif
     std::vector<TierSpecies> wanted;
     if (moduleBytes.size() <= kStraightToO3Bytes)
     {
-        wanted = {TierSpecies::o3};
+        wanted = {kTopSpecies};
     }
     else
     {
-        wanted = {TierSpecies::o0, TierSpecies::o3};
+        wanted = {TierSpecies::o0, kTopSpecies};
     }
 
     bool queued = false;
@@ -212,13 +286,14 @@ void ModuleTierLadder::schedule(const std::string& laneId,
         }
         if (!queued)
         {
-            FILE* f = fopen(wasmPath.c_str(), "wb");
-            if (f == nullptr)
+            // A pristine stage from before the in-place load wins; the bytes
+            // passed here may already be loader-rewritten.
+            struct stat wasmStat;
+            if (stat(wasmPath.c_str(), &wasmStat) != 0 &&
+                !writeFileAtomic(wasmPath, moduleBytes))
             {
                 return;
             }
-            fwrite(moduleBytes.data(), 1, moduleBytes.size(), f);
-            fclose(f);
             queued = true;
         }
         m_queue.push_back(
@@ -300,9 +375,32 @@ bool ModuleTierLadder::runWamrc(Job& job)
     std::string tmpPath = finalPath + ".tmp";
 
     std::vector<std::string> args = {wamrc};
-    if (job.species == TierSpecies::o0)
+    if (job.species == TierSpecies::hw)
+    {
+        // Guard-page bounds; native stack checks stay sw (the runtime
+        // builds with WASM_DISABLE_STACK_HW_BOUND_CHECK).
+        args.push_back("--bounds-checks=0");
+        args.push_back("--stack-bounds-checks=1");
+    }
+    else
+    {
+        // sw bounds run on every build; wamrc's default hw-bounds output
+        // segfaults on runtimes without the guard-page trap handler.
+        args.push_back("--bounds-checks=1");
+    }
+    if (job.species == TierSpecies::o0 || job.species == TierSpecies::hw)
     {
         args.push_back("--opt-level=0");
+    }
+    else
+    {
+        // LLVM's optimizing backend miscompiles the strict (constrained)
+        // FP wamrc emits, probabilistically corrupting float-heavy modules
+        // (box2d was the repro; the town's draco trap was the same class).
+        // Our vendored wamrc pins codegen conservative while the IR still
+        // optimizes; lift only against the box2d strict-probe soak.
+        args.push_back("--opt-level=1");
+        args.push_back("--codegen-opt-level=0");
     }
     args.push_back("-o");
     args.push_back(tmpPath);
@@ -314,6 +412,11 @@ bool ModuleTierLadder::runWamrc(Job& job)
     }
     argv.push_back(nullptr);
 
+#ifdef RIVE_ANDROID
+    // No wamrc on device, and posix_spawn needs API 28; the ladder never
+    // schedules compiles here.
+    return false;
+#else
     pid_t pid = -1;
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
@@ -358,6 +461,7 @@ bool ModuleTierLadder::runWamrc(Job& job)
     }
     // Atomic arrival: a partial artifact can never carry the final name.
     return rename(tmpPath.c_str(), finalPath.c_str()) == 0;
+#endif
 }
 
 void ModuleTierLadder::drain()
@@ -387,6 +491,7 @@ void ModuleTierLadder::schedule(const std::string&,
                                 uint64_t,
                                 Span<const uint8_t>)
 {}
+void ModuleTierLadder::stagePristine(uint64_t, Span<const uint8_t>) {}
 std::string ModuleTierLadder::artifactPath(uint64_t, TierSpecies)
 {
     return std::string();

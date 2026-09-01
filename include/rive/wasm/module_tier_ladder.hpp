@@ -22,7 +22,10 @@ namespace rive
 enum class TierSpecies : uint8_t
 {
     o0 = 0, // wamrc -O0: ~2x interp, sub-second for typical modules
-    o3 = 1, // wamrc -O3: native parity, the bits that ship
+    o3 = 1, // wamrc top opt level with sw bounds, runs on every build
+    // No inline bounds checks; needs the guard-page trap handler, so only
+    // RIVE_WASM_HW_BOUNDS builds produce or load these.
+    hw = 2,
 };
 
 // Drives wamrc subprocesses that turn wasm modules into AOT artifacts and
@@ -59,6 +62,11 @@ public:
     void schedule(const std::string& laneId,
                   uint64_t moduleKey,
                   Span<const uint8_t> moduleBytes);
+
+    // Write the module's wamrc input before wasm_runtime_load touches the
+    // buffer: the fast-interp loader rewrites it in place, so bytes staged
+    // at schedule time are no longer valid wasm.
+    void stagePristine(uint64_t moduleKey, Span<const uint8_t> moduleBytes);
 
     // Ready artifact path for a module at the given species, empty if none.
     std::string artifactPath(uint64_t moduleKey, TierSpecies species);

@@ -115,6 +115,18 @@ do
     end
 end
 
+-- Headless collector validation on device targets; a plain executable so it
+-- runs from adb shell without the APK harness. Wasm scripting only: the
+-- source names WasmScriptingVM, which other configurations never declare.
+if _OPTIONS['with_rive_scripting']
+    and (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
+then
+    rive_tools_project('wasm_gc_bench', 'ConsoleApp')
+    do
+        files({ 'wasm_gc_bench/wasm_gc_bench.cpp' })
+    end
+end
+
 rive_tools_project('player', 'RiveTool')
 do
     files({ 'player/player.cpp' })

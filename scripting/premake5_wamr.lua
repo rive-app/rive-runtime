@@ -49,7 +49,11 @@ if os.target() == 'windows' then
     table.insert(wamrConfigDefines, 'WASM_API_EXTERN=')
 end
 
-local platformDir = os.target() == 'linux' and 'linux'
+-- os.target() stays the host under --for_android; the option is the
+-- truth for the platform dir.
+local forAndroid = _OPTIONS['for_android'] ~= nil
+local platformDir = forAndroid and 'android'
+    or os.target() == 'linux' and 'linux'
     or os.target() == 'windows' and 'windows'
     or 'darwin'
 
@@ -72,13 +76,15 @@ do
     buildoptions({ '-fno-lto' })
     -- The tail-dup knobs need llvm 19; older clangs build correct but
     -- slower dispatch, still caught by the dispatch-site guard where it runs.
+    -- The probe runs host clang; cross toolchains (the NDK's) may reject
+    -- the knobs the host accepts, so cross builds keep default dispatch.
     local devNull = os.ishost('windows') and 'NUL' or '/dev/null'
     local _, tailDupProbe = os.outputof(
         'clang -fsyntax-only -x c ' .. devNull ..
             ' -mllvm -tail-dup-pred-size=5000' ..
             ' -mllvm -tail-dup-succ-size=5000 2>&1'
     )
-    if tailDupProbe == 0 then
+    if tailDupProbe == 0 and _OPTIONS['for_android'] == nil then
         buildoptions({
             '-mllvm -tail-dup-pred-size=5000',
             '-mllvm -tail-dup-succ-size=5000',
@@ -89,6 +95,8 @@ do
     defines({ 'BH_PLATFORM_DARWIN' })
     filter({ 'system:linux' })
     defines({ 'BH_PLATFORM_LINUX' })
+    filter({ 'system:android' })
+    defines({ 'BH_PLATFORM_ANDROID' })
     filter({ 'system:windows' })
     defines({
         'BH_PLATFORM_WINDOWS',
@@ -107,9 +115,20 @@ do
     else
         isArm64 = machine == 'arm64' or machine == 'aarch64'
     end
+    local isArm32 = forAndroid and archOption == 'arm'
     -- The quoted string define goes through buildoptions pre-escaped so both
     -- the gmake and ninja generators deliver the quotes to the compiler.
-    if isArm64 then
+    if isArm32 then
+        -- NDK armv7 compiles thumb2 with NEON/VFP by default. Upstream's
+        -- thumb reloc does pointer arithmetic clang 18 makes a hard error.
+        -- The THUMBV7 string matters: the aot loader matches it against
+        -- wamrc's thumbv7 artifacts (bare THUMB defaults to thumbv4t).
+        defines({ 'BUILD_TARGET_THUMB_VFP' })
+        buildoptions({
+            '-DBUILD_TARGET=\\"THUMBV7\\"',
+            '-Wno-int-conversion',
+        })
+    elseif isArm64 then
         defines({ 'BUILD_TARGET_AARCH64' })
         buildoptions({ '-DBUILD_TARGET=\\"AARCH64\\"' })
     else
@@ -118,13 +137,17 @@ do
     end
     -- em64 is WAMR's x86-64 SysV invoke shim. With WASM_ENABLE_SIMD the
     -- invoke marshaling widens float slots to v128, so the shim must be the
-    -- _simd variant or int registers load from the wrong offsets. Windows
-    -- takes the mingw shim: same Win64 ABI as MSVC targets, and GAS syntax
-    -- that clang's integrated assembler handles without ml64.
-    local invokeNative = isArm64 and 'invokeNative_aarch64_simd.s'
+    -- _simd variant or int registers load from the wrong offsets. arm32 has
+    -- no simd invoke variant; its marshaling never widens. Windows takes
+    -- the mingw shim: same Win64 ABI as MSVC targets, and GAS syntax that
+    -- clang's integrated assembler handles without ml64.
+    local invokeNative = isArm32 and 'invokeNative_thumb_vfp.s'
+        or isArm64 and 'invokeNative_aarch64_simd.s'
         or os.target() == 'windows' and 'invokeNative_mingw_x64_simd.s'
         or 'invokeNative_em64_simd.s'
-    local aotReloc = isArm64 and 'aot_reloc_aarch64.c' or 'aot_reloc_x86_64.c'
+    local aotReloc = isArm32 and 'aot_reloc_thumb.c'
+        or isArm64 and 'aot_reloc_aarch64.c'
+        or 'aot_reloc_x86_64.c'
     includedirs({
         wamr .. '/core/iwasm/include',
         wamr .. '/core/iwasm/common',

@@ -122,10 +122,16 @@ struct rive::WasmScriptingVMNatives
 // instance of the same content reloads identical bytes. Entries live for
 // the process; the byte buffer must outlive the module (wasm_runtime_load
 // keeps referencing it).
+static void pregrowAotMemory(wasm_module_inst_t instance);
+
 struct SharedWasmModule
 {
     std::vector<uint8_t> bytes;
     wasm_module_t module = nullptr;
+    // Artifact-backed entries hand every later VM their real tier; without
+    // this a cache hit reports interp while running compiled code.
+    WasmScriptingVM::ExecutionTier tier =
+        WasmScriptingVM::ExecutionTier::interp;
 };
 
 static std::unordered_map<uint64_t, SharedWasmModule>& sharedModuleCache()
@@ -165,11 +171,24 @@ uint32_t WasmScriptingVM::callModule(const char* name,
                                      uint32_t argc,
                                      uint32_t* argv)
 {
+    uint32_t result = 0;
+    callModuleChecked(name, argc, argv, &result);
+    return result;
+}
+
+WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
+    const char* name,
+    uint32_t argc,
+    uint32_t* argv,
+    uint32_t* result)
+{
     wasm_module_inst_t inst = m_state->instance;
     wasm_function_inst_t f = wasm_runtime_lookup_function(inst, name);
     if (f == nullptr)
     {
-        return 0;
+        // Callers probing optional exports read the outcome; a plain
+        // callModule folds this to zero, so probe before relying on it.
+        return CallOutcome::missing;
     }
     uint32_t buf[8] = {0};
     for (uint32_t i = 0; i < argc; i++)
@@ -183,12 +202,25 @@ uint32_t WasmScriptingVM::callModule(const char* name,
         const char* exception = wasm_runtime_get_exception(inst);
         if (exception != nullptr)
         {
-            fprintf(stderr, "wasm call trapped: %s\n", exception);
+            fprintf(stderr, "wasm call trapped in %s: %s\n", name, exception);
+            if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted)
+            {
+                // A bare trap after leak warnings is almost always the
+                // memory ceiling; say so once for hosts that dropped the
+                // warning strings.
+                m_leakTrapContextPrinted = true;
+                fprintf(stderr,
+                        "wasm call trapped after %u script heap leak "
+                        "warnings; the module likely hit its wasmMaxPages "
+                        "ceiling\n",
+                        m_leakWarningCount);
+            }
             wasm_runtime_clear_exception(inst);
         }
-        return 0;
+        return CallOutcome::trapped;
     }
-    return buf[0];
+    *result = buf[0];
+    return CallOutcome::ok;
 }
 
 void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
@@ -1502,7 +1534,10 @@ uint32_t gpuSamplerNewImpl(WasmScriptingVM* vm,
     desc.wrapU = (ore::WrapMode)podDesc->wrapU;
     desc.wrapV = (ore::WrapMode)podDesc->wrapV;
     desc.wrapW = (ore::WrapMode)podDesc->wrapW;
-    desc.compare = (ore::CompareFunction)podDesc->compare;
+    // The guest sends ~0 for "no comparison sampler".
+    desc.compare = podDesc->compare == 0xFFFFFFFFu
+                       ? ore::CompareFunction::none
+                       : (ore::CompareFunction)podDesc->compare;
     desc.minLod = podDesc->minLod;
     desc.maxLod = podDesc->maxLod;
     desc.maxAnisotropy = podDesc->maxAnisotropy;
@@ -4736,6 +4771,44 @@ void WasmScriptingVM::cancelImageDecode(uint32_t token)
     }
 }
 
+void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
+{
+    if (result.ok)
+    {
+        uint32_t byteCount = (uint32_t)result.pixels.size();
+        uint32_t sizeArgs[1] = {byteCount};
+        uint32_t pixelsPtr = callModule("malloc", 1, sizeArgs);
+        if (pixelsPtr == 0)
+        {
+            DecodeResult failure;
+            failure.token = result.token;
+            failure.error = "failed to allocate decoded pixels";
+            deliverDecodeResult(failure);
+            return;
+        }
+        memcpy(resolveModulePtr(pixelsPtr, byteCount),
+               result.pixels.data(),
+               byteCount);
+        uint32_t args[6] = {m_L,
+                            result.token,
+                            result.width,
+                            result.height,
+                            pixelsPtr,
+                            byteCount};
+        callModule("host_image_decoded", 6, args);
+        guestFree(pixelsPtr);
+        return;
+    }
+    uint32_t messagePtr = guestString(result.error.c_str());
+    if (messagePtr == 0)
+    {
+        return;
+    }
+    uint32_t args[3] = {m_L, result.token, messagePtr};
+    callModule("host_image_decode_failed", 3, args);
+    guestFree(messagePtr);
+}
+
 void WasmScriptingVM::resolveImageDecode(uint32_t token,
                                          uint32_t width,
                                          uint32_t height,
@@ -4747,17 +4820,13 @@ void WasmScriptingVM::resolveImageDecode(uint32_t token,
     {
         return;
     }
-    uint32_t sizeArgs[1] = {byteCount};
-    uint32_t pixelsPtr = callModule("malloc", 1, sizeArgs);
-    if (pixelsPtr == 0)
-    {
-        rejectImageDecode(token, "failed to allocate decoded pixels");
-        return;
-    }
-    memcpy(resolveModulePtr(pixelsPtr, byteCount), pixels, byteCount);
-    uint32_t args[6] = {m_L, token, width, height, pixelsPtr, byteCount};
-    callModule("host_image_decoded", 6, args);
-    guestFree(pixelsPtr);
+    DecodeResult result;
+    result.ok = true;
+    result.token = token;
+    result.width = width;
+    result.height = height;
+    result.pixels = Span<const uint8_t>(pixels, byteCount);
+    deliverDecodeResult(result);
 }
 
 void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
@@ -4767,14 +4836,10 @@ void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
     {
         return;
     }
-    uint32_t messagePtr = guestString(message);
-    if (messagePtr == 0)
-    {
-        return;
-    }
-    uint32_t args[3] = {m_L, token, messagePtr};
-    callModule("host_image_decode_failed", 3, args);
-    guestFree(messagePtr);
+    DecodeResult result;
+    result.token = token;
+    result.error = message;
+    deliverDecodeResult(result);
 }
 
 void WasmScriptingVM::setTimeoutMs(int ms)
@@ -4895,11 +4960,24 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         auto& ladder = ModuleTierLadder::instance();
         if (ladder.enabled())
         {
-            std::string path = ladder.artifactPath(moduleKey, TierSpecies::o3);
-            if (!path.empty() && path.size() < sizeof(aotPath))
+#ifdef RIVE_WASM_HW_BOUNDS
+            std::string hwPath =
+                ladder.artifactPath(moduleKey, TierSpecies::hw);
+            if (!hwPath.empty() && hwPath.size() < sizeof(aotPath))
             {
-                memcpy(aotPath, path.c_str(), path.size() + 1);
-                haveAot = true;
+                memcpy(aotPath, hwPath.c_str(), hwPath.size() + 1);
+                haveHwAot = true;
+            }
+#endif
+            if (!haveHwAot)
+            {
+                std::string path =
+                    ladder.artifactPath(moduleKey, TierSpecies::o3);
+                if (!path.empty() && path.size() < sizeof(aotPath))
+                {
+                    memcpy(aotPath, path.c_str(), path.size() + 1);
+                    haveAot = true;
+                }
             }
         }
     }
@@ -4919,6 +4997,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     {
         m_state->module = cached->second.module;
         m_state->ownsModule = false;
+        m_tier = cached->second.tier;
         // The VM's own copy is redundant against the cache entry, but the
         // tier ladder still needs the bytes; entries live for the process.
         m_scheduleBytes = Span<const uint8_t>(cached->second.bytes.data(),
@@ -4944,6 +5023,15 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                 m_tier = ExecutionTier::aotO3;
             }
         }
+        if (!haveAot && !haveHwAot)
+        {
+            // The load below rewrites the buffer in place; wamrc needs the
+            // module as it is now.
+            ModuleTierLadder::instance().stagePristine(
+                m_moduleKey,
+                Span<const uint8_t>(m_moduleBytes.data(),
+                                    m_moduleBytes.size()));
+        }
         m_state->module = wasm_runtime_load(m_moduleBytes.data(),
                                             (uint32_t)m_moduleBytes.size(),
                                             error,
@@ -4957,6 +5045,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             SharedWasmModule entry;
             entry.bytes = std::move(m_moduleBytes);
             entry.module = m_state->module;
+            entry.tier = m_tier;
             auto inserted = cache.emplace(moduleKey, std::move(entry));
             m_state->ownsModule = false;
             m_scheduleBytes =
@@ -4995,6 +5084,10 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_lastError = std::string("module instantiate failed: ") + error;
         return false;
     }
+    if (m_tier != ExecutionTier::interp && !haveHwAot)
+    {
+        pregrowAotMemory(m_state->instance);
+    }
     m_state->execEnv =
         wasm_runtime_create_exec_env(m_state->instance, 512 * 1024);
     if (m_state->execEnv == nullptr)
@@ -5004,31 +5097,27 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     }
     wasm_runtime_set_user_data(m_state->execEnv, this);
 
-    // Frame-arena opt-in, else the leak watch for rasc-linked modules
-    // (riveRegister marks one); their stub allocator never frees, so
-    // unbounded linear-memory growth is content leaking per frame.
-    m_frameArenaOptIn =
-        wasm_runtime_lookup_function(m_state->instance, "__riveFrameArena") !=
-            nullptr &&
-        wasm_runtime_lookup_function(m_state->instance, "__riveFrameRewind") !=
-            nullptr;
+    // The leak watch for rasc-linked modules (riveRegister marks one): the
+    // stub baseline never frees, and sustained growth on a collecting
+    // module is references accumulating.
     const char* leakEnv = getenv("RIVE_WASM_LEAK_WARN");
-    m_leakWatch = !m_frameArenaOptIn &&
-                  wasm_runtime_lookup_function(m_state->instance,
+    m_leakWatch = wasm_runtime_lookup_function(m_state->instance,
                                                "riveRegister") != nullptr &&
                   (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
-    // Frame-scoped handle reaping only composes with the arena: the rewind
-    // is the proof that unreleased per-frame wrappers are unreachable. Both
-    // hooks or neither, else a missing rebase would reap mark-scoped mints.
-    m_reapHandles =
-        m_frameArenaOptIn &&
-        wasm_runtime_lookup_function(m_state->instance, "__riveReapHandles") !=
-            nullptr &&
-        wasm_runtime_lookup_function(m_state->instance,
-                                     "__riveHandlesRebase") != nullptr;
+    m_collectedRuntime =
+        wasm_runtime_lookup_function(m_state->instance, "__riveCollected") !=
+        nullptr;
     m_handleWatch = wasm_runtime_lookup_function(m_state->instance,
                                                  "riveRegister") != nullptr &&
                     (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
+    // Frame collector modules scavenge at every boundary instead of
+    // rewinding or finalizing.
+    m_frameMinor = wasm_runtime_lookup_function(m_state->instance,
+                                                "__riveFrameMinor") != nullptr;
+    // Stub modules report their bump position; page counts go blind once
+    // the aot lanes pregrow to wasmMaxPages.
+    m_heapUsedProbe = wasm_runtime_lookup_function(m_state->instance,
+                                                   "__riveHeapUsed") != nullptr;
 
     callModule("__wasm_call_ctors", 0, nullptr);
     m_L = callModule("host_newstate", 0, nullptr);
@@ -5082,7 +5171,16 @@ bool WasmScriptingVM::maybeUpgradeTier()
         return false;
     }
     ExecutionTier target = ExecutionTier::aotO3;
-    std::string path = ladder.artifactPath(m_moduleKey, TierSpecies::o3);
+    bool hwBounds = false;
+    std::string path;
+#ifdef RIVE_WASM_HW_BOUNDS
+    path = ladder.artifactPath(m_moduleKey, TierSpecies::hw);
+    hwBounds = !path.empty();
+#endif
+    if (path.empty())
+    {
+        path = ladder.artifactPath(m_moduleKey, TierSpecies::o3);
+    }
     if (path.empty() && m_tier < ExecutionTier::aotO0)
     {
         target = ExecutionTier::aotO0;
@@ -5111,7 +5209,8 @@ bool WasmScriptingVM::maybeUpgradeTier()
     if (!applyTierArtifact(
             Span<const uint8_t>(artifact.data(), artifact.size()),
             target,
-            error))
+            error,
+            hwBounds))
     {
         fprintf(stderr, "wasm tier swap failed: %s\n", error.c_str());
         return false;
@@ -5125,41 +5224,34 @@ const char* WasmScriptingVM::frameBoundary()
     {
         return nullptr;
     }
-    if (m_frameArenaOptIn)
+    if (m_frameMinor)
     {
-        if (m_frameArenaPending)
+        uint32_t promoted = callModule("__riveFrameMinor", 0, nullptr);
+        if (getenv("RIVE_FRAME_GC_DEBUG") != nullptr)
         {
-            m_frameArenaPending = false;
-            if (m_reapHandles)
-            {
-                // Everything minted so far becomes mark-scoped state; drop
-                // it from the reap log without releasing.
-                callModule("__riveHandlesRebase", 0, nullptr);
-            }
-            m_frameArenaMark = callModule("__riveFrameArena", 0, nullptr);
-            if (m_frameArenaMark != 0 && !m_frameArenaAnnounced)
-            {
-                m_frameArenaAnnounced = true;
-                return "script frame arena: mark taken, rewinding per frame";
-            }
+            fprintf(stderr, "frameMinor promoted=%u\n", promoted);
+            callModule("__riveFrameVerify", 0, nullptr);
         }
-        else if (m_frameArenaMark != 0)
+        if (!m_frameMinorAnnounced)
         {
-            if (m_reapHandles)
-            {
-                // Before the rewind erases this frame's wrappers: any handle
-                // they minted and never released is provably garbage.
-                callModule("__riveReapHandles", 0, nullptr);
-            }
-            uint32_t args[1] = {m_frameArenaMark};
-            callModule("__riveFrameRewind", 1, args);
+            m_frameMinorAnnounced = true;
+            return "script frame gc: scavenging per frame";
         }
-        return handleLeakWarning();
+        if (const char* warning = handleLeakWarning())
+        {
+            return warning;
+        }
+        return heapGrowthWarning();
     }
     if (const char* warning = handleLeakWarning())
     {
         return warning;
     }
+    return heapGrowthWarning();
+}
+
+const char* WasmScriptingVM::heapGrowthWarning()
+{
     if (!m_leakWatch || !m_advancedOnce)
     {
         return nullptr;
@@ -5170,16 +5262,25 @@ const char* WasmScriptingVM::frameBoundary()
     {
         return nullptr;
     }
-    uint32_t pages = (uint32_t)wasm_memory_get_cur_page_count(memory);
+    // The stub bump position beats page counts when available: pregrown
+    // aot memory never grows.
+    uint32_t pages =
+        m_heapUsedProbe
+            ? std::max(1u, callModule("__riveHeapUsed", 0, nullptr) >> 16)
+            : (uint32_t)wasm_memory_get_cur_page_count(memory);
     if (m_leakBaselinePages == 0)
     {
         m_leakBaselinePages = pages;
+        m_leakFirstBaselinePages = pages;
         return nullptr;
     }
     m_leakFrames++;
+    m_leakTotalFrames++;
     // 8MB past baseline over at least two seconds of frames: far beyond any
     // one-time warmup we have measured, reached in seconds by a per-frame
-    // leak (box2d hand-optimized leaked ~2.1MB/s).
+    // leak (box2d hand-optimized leaked ~2.1MB/s). The watch re-arms after
+    // each warning, so a leaking session keeps hearing about it every 8MB
+    // instead of dying hours after a single line scrolled away.
     constexpr uint32_t kLeakWarnPages = 128;
     constexpr uint32_t kLeakWarnMinFrames = 120;
     if (m_leakFrames < kLeakWarnMinFrames ||
@@ -5187,16 +5288,61 @@ const char* WasmScriptingVM::frameBoundary()
     {
         return nullptr;
     }
-    m_leakWatch = false;
-    char buffer[256];
-    snprintf(buffer,
-             sizeof(buffer),
-             "script heap grew %uMB over %u frames; the stub runtime never "
-             "frees, so per-frame allocations leak. Opt into the frame arena "
-             "(export const __riveFrameArena = true) or use a collecting "
-             "runtime. RIVE_WASM_LEAK_WARN=0 silences this.",
-             (pages - m_leakBaselinePages) / 16,
-             m_leakFrames);
+    if (m_collectedRuntime && !m_leakArmedCollected)
+    {
+        // Linear memory never shrinks, so a collected runtime's one-time
+        // spike would read as growth forever. Demand a second growing
+        // window before the first warning.
+        m_leakArmedCollected = true;
+        m_leakBaselinePages = pages;
+        m_leakFrames = 0;
+        return nullptr;
+    }
+    uint32_t grownMB = (pages - m_leakBaselinePages) / 16;
+    uint32_t frames = m_leakFrames;
+    m_leakBaselinePages = pages;
+    m_leakFrames = 0;
+    m_leakWarningCount++;
+
+    // Time to the wasmMaxPages trap from the average growth rate at 60fps.
+    // Growth arrives in page-doubling steps, so this is an estimate.
+    char projection[96] = {0};
+    uint32_t maxPages = (uint32_t)wasm_memory_get_max_page_count(memory);
+    double pagesPerFrame =
+        (double)(pages - m_leakFirstBaselinePages) / (double)m_leakTotalFrames;
+    if (maxPages > pages && pagesPerFrame > 0.0)
+    {
+        double minutes =
+            (double)(maxPages - pages) / pagesPerFrame / (60.0 * 60.0);
+        snprintf(projection,
+                 sizeof(projection),
+                 "; at this rate every frame traps in roughly %.0f minutes",
+                 minutes < 1.0 ? 1.0 : minutes);
+    }
+    char buffer[384];
+    if (m_collectedRuntime)
+    {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "script heap grew %uMB over %u frames%s; the collector is "
+                 "running, so something is accumulating references (a "
+                 "growing array, map, or cache). RIVE_WASM_LEAK_WARN=0 "
+                 "silences this.",
+                 grownMB,
+                 frames,
+                 projection);
+    }
+    else
+    {
+        snprintf(buffer,
+                 sizeof(buffer),
+                 "script heap grew %uMB over %u frames%s; the stub runtime "
+                 "never frees, so per-frame allocations leak. Set "
+                 "wasmRuntime: frame. RIVE_WASM_LEAK_WARN=0 silences this.",
+                 grownMB,
+                 frames,
+                 projection);
+    }
     m_leakWarning = buffer;
     return m_leakWarning.c_str();
 }
@@ -5260,6 +5406,52 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
     return "unknown";
 }
 
+// Growing linear memory reallocs it, which in-flight AOT frames do not
+// tolerate (fields root cause #3): on an artifact, take the module's whole
+// declared ceiling up front, while no frames are live, so it never grows
+// again. Modules without a declared ceiling keep growth-on-demand.
+static void pregrowAotMemory(wasm_module_inst_t instance)
+{
+    wasm_memory_inst_t memory = wasm_runtime_get_default_memory(instance);
+    if (memory == nullptr)
+    {
+        return;
+    }
+    uint32_t pages = (uint32_t)wasm_memory_get_cur_page_count(memory);
+    uint32_t maxPages = (uint32_t)wasm_memory_get_max_page_count(memory);
+    constexpr uint32_t kUnboundedPages = 65536;
+    if (maxPages >= kUnboundedPages)
+    {
+        fprintf(stderr,
+                "wasm aot: module declares no wasmMaxPages; memory cannot be "
+                "reserved up front, so growth during frames may trap\n");
+        return;
+    }
+    if (maxPages <= pages)
+    {
+        return;
+    }
+    if (!wasm_runtime_enlarge_memory(instance, maxPages - pages))
+    {
+        fprintf(stderr,
+                "wasm aot: pregrow to %u pages failed; growth during frames "
+                "may trap\n",
+                maxPages);
+    }
+}
+
+uint32_t WasmScriptingVM::memoryPages() const
+{
+    if (m_state == nullptr || m_state->instance == nullptr)
+    {
+        return 0;
+    }
+    wasm_memory_inst_t memory =
+        wasm_runtime_get_default_memory(m_state->instance);
+    return memory == nullptr ? 0
+                             : (uint32_t)wasm_memory_get_cur_page_count(memory);
+}
+
 const char* WasmScriptingVM::handleLeakWarning()
 {
     if (!m_handleWatch || !m_advancedOnce)
@@ -5284,7 +5476,11 @@ const char* WasmScriptingVM::handleLeakWarning()
     {
         return nullptr;
     }
-    m_handleWatch = false;
+    // Re-arm so a leaking session keeps warning every 512 handles.
+    uint32_t grown = live + 1 - m_handleBaselineLive;
+    uint32_t frames = m_handleFrames;
+    m_handleBaselineLive = live + 1;
+    m_handleFrames = 0;
     uint32_t counts[(size_t)HandleTable::Tag::node + 1] = {0};
     for (const HandleTable::Slot& slot : m_handles.slots)
     {
@@ -5307,8 +5503,8 @@ const char* WasmScriptingVM::handleLeakWarning()
              "script leaked %u host handles over %u frames (most: %u %s); "
              "resources created per frame need release() or finish(). "
              "RIVE_WASM_LEAK_WARN=0 silences this.",
-             live + 1 - m_handleBaselineLive,
-             m_handleFrames,
+             grown,
+             frames,
              counts[top],
              handleTagName((HandleTable::Tag)top));
     m_leakWarning = buffer;
@@ -5317,7 +5513,8 @@ const char* WasmScriptingVM::handleLeakWarning()
 
 bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
                                         ExecutionTier tier,
-                                        std::string& error)
+                                        std::string& error,
+                                        bool hwBounds)
 {
     auto next = std::make_unique<WamrState>();
     next->artifactBytes.assign(artifactBytes.begin(), artifactBytes.end());
@@ -5330,6 +5527,10 @@ bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
     {
         error = std::string("artifact load failed: ") + loadError;
         return false;
+    }
+    if (hwBounds)
+    {
+        wasm_runtime_set_module_hw_bounds(next->module, true);
     }
     next->instance = wasm_runtime_instantiate(next->module,
                                               512 * 1024,
@@ -5354,6 +5555,12 @@ bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
         return false;
     }
     wasm_runtime_set_user_data(next->execEnv, this);
+    if (!hwBounds)
+    {
+        // Guard-page memory never moves on growth; only the sw lane needs
+        // the ceiling reserved up front.
+        pregrowAotMemory(next->instance);
+    }
     m_state = std::move(next);
     m_tier = tier;
     return true;
@@ -5432,11 +5639,24 @@ bool WasmScriptingVM::requireModule(const std::string& name, int* outResultRef)
            name.size() + 1);
 
     uint32_t requireArgs[2] = {m_L, namePtr};
-    uint32_t status = callModule("host_require", 2, requireArgs);
+    uint32_t status = 0;
+    CallOutcome outcome =
+        callModuleChecked("host_require", 2, requireArgs, &status);
 
     uint32_t freeArgs[1] = {namePtr};
     callModule("free", 1, freeArgs);
 
+    if (outcome != CallOutcome::ok)
+    {
+        // Folding a trap into "status 0" once read as a successful require
+        // with no generator; fail the require instead.
+        m_lastError = outcome == CallOutcome::trapped
+                          ? "module require trapped"
+                          : "module has no host_require export";
+        uint32_t topArgs[2] = {m_L, 0};
+        callModule("host_settop", 2, topArgs);
+        return false;
+    }
     if (status != 0)
     {
         uint32_t strArgs[2] = {m_L, (uint32_t)-1};
@@ -5540,12 +5760,6 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
     {
         status = buf[0];
     }
-    if (m_frameArenaMark != 0)
-    {
-        // A later init's allocations must persist: re-take the mark at the
-        // next boundary instead of rewinding them away.
-        m_frameArenaPending = true;
-    }
     switch (status)
     {
         case 0:
@@ -5582,10 +5796,7 @@ bool WasmScriptingVM::callAdvance(ScriptedObject* object,
     }
     if (!m_advancedOnce)
     {
-        // The mark waits for the first full frame so lazy statics and
-        // steady-state warmup growth land below it.
         m_advancedOnce = true;
-        m_frameArenaPending = m_frameArenaOptIn;
     }
     return results[0].of.i32 != 0;
 }

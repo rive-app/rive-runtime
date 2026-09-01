@@ -269,31 +269,30 @@ public:
     /// no wasm frames on the stack. Returns true when a swap happened.
     bool maybeUpgradeTier();
 
-    /// Frame-arena contract for stub-runtime modules. A module opts in by
-    /// exporting __riveFrameArena and __riveFrameRewind (rt/frame in rasc's
-    /// std). The host takes the arena mark at the first frame boundary after
-    /// the first advance completes, re-takes it after any later script init
-    /// so init allocations persist, and rewinds to it at every other frame
-    /// boundary. The contract: state that must survive a frame lives in
-    /// allocations made before the mark; module-static caches over per-frame
-    /// data register an __onReset hook and drop them on rewind.
-    ///
-    /// Stub-runtime modules without the opt-in get a leak watch instead:
-    /// once linear memory grows well past its post-first-advance baseline
-    /// the call returns a one-time warning for the host's log channel
-    /// (RIVE_WASM_LEAK_WARN=0 silences it, e.g. for benches).
+    /// The per-frame collection point: frame collector modules scavenge
+    /// here (call once during load after init so init promotion lands in
+    /// load time). All rasc modules also get the leak watch: once the heap
+    /// grows well past its post-first-advance baseline the call returns a
+    /// warning for the host's log channel, re-armed per 8MB of further
+    /// growth and carrying a time-to-trap estimate (RIVE_WASM_LEAK_WARN=0
+    /// silences it, e.g. for benches).
     ///
     /// Call once per host frame with no wasm frames live; returns null when
     /// there is nothing to report.
     const char* frameBoundary();
     const char* handleLeakWarning();
+    const char* heapGrowthWarning();
+
+    /// Current size of the module's linear memory in 64KB wasm pages.
+    uint32_t memoryPages() const;
 
     /// Swap execution onto a compiled artifact of this module, carrying
     /// memory, globals, and tables. No wasm frames may be live. On failure
     /// the current instance keeps running.
     bool applyTierArtifact(Span<const uint8_t> artifactBytes,
                            ExecutionTier tier,
-                           std::string& error);
+                           std::string& error,
+                           bool hwBounds = false);
 
     /// Backend seams: host code reaches module memory and module functions
     /// only through these, so a browser backend can substitute staged
@@ -310,6 +309,19 @@ public:
     virtual uint32_t callModule(const char* name,
                                 uint32_t argc,
                                 uint32_t* argv);
+
+    /// The honest variant: distinguishes a missing export from a trap from
+    /// a real zero result, for callers where the difference is a failure.
+    enum class CallOutcome
+    {
+        ok,
+        missing,
+        trapped,
+    };
+    CallOutcome callModuleChecked(const char* name,
+                                  uint32_t argc,
+                                  uint32_t* argv,
+                                  uint32_t* result);
 
     /// Ends module execution like a trap once the current native returns.
     virtual void raiseModuleError(const char* message);
@@ -370,17 +382,34 @@ private:
     /// execution, completed or cancelled entries erase themselves.
     std::unordered_map<uint32_t, rcp<WorkTask>> m_pendingDecodes;
     uint64_t m_decodeOwnerId = 0;
-    // Frame-arena contract state; see frameBoundary().
-    bool m_frameArenaOptIn = false;
-    bool m_frameArenaPending = false;
-    bool m_frameArenaAnnounced = false;
-    uint32_t m_frameArenaMark = 0;
+    // Delivery is synchronous, so the pixels borrow the decoder's buffer.
+    struct DecodeResult
+    {
+        bool ok = false;
+        uint32_t token = 0;
+        uint32_t width = 0;
+        uint32_t height = 0;
+        Span<const uint8_t> pixels;
+        std::string error;
+    };
+    void deliverDecodeResult(const DecodeResult& result);
     bool m_advancedOnce = false;
+    bool m_frameMinor = false;
+    bool m_frameMinorAnnounced = false;
+    /// Module exports __riveHeapUsed; the leak watch reads bump bytes
+    /// instead of page counts, which pregrown aot memory freezes.
+    bool m_heapUsedProbe = false;
+    /// Collected runtimes warn only on a second consecutive growth window.
+    bool m_leakArmedCollected = false;
     bool m_leakWatch = false;
-    uint32_t m_leakBaselinePages = 0;
-    uint32_t m_leakFrames = 0;
     std::string m_leakWarning;
-    bool m_reapHandles = false;
+    uint32_t m_leakBaselinePages = 0;
+    uint32_t m_leakFirstBaselinePages = 0;
+    uint32_t m_leakFrames = 0;
+    uint32_t m_leakTotalFrames = 0;
+    uint32_t m_leakWarningCount = 0;
+    bool m_leakTrapContextPrinted = false;
+    bool m_collectedRuntime = false;
     bool m_handleWatch = false;
     uint32_t m_handleBaselineLive = 0;
     uint32_t m_handleFrames = 0;
