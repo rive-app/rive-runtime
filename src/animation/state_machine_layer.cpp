@@ -38,9 +38,13 @@ StatusCode StateMachineLayer::onAddedDirty(CoreContext* context)
                 break;
         }
     }
-    if (m_Any == nullptr || m_Entry == nullptr || m_Exit == nullptr)
+
+    // Removed m_Exit and m_Any from this validation in order to be able to
+    // support states with no exit or any state in the future once this runtime
+    // has been around for some time
+    if (m_Entry == nullptr)
     {
-        // The layer is corrupt, we must have all three of these states.
+        // The layer is corrupt, we must have an entry state.
         return StatusCode::InvalidObject;
     }
 

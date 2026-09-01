@@ -159,8 +159,15 @@ public:
         m_stateMachineInstance = stateMachineInstance;
         m_artboardInstance = instance;
         assert(m_layer == nullptr);
-        m_anyStateInstance =
-            layer->anyState()->makeInstance(instance).release();
+        // A layer without an any state is degenerate but not fatal: every
+        // other use of m_anyStateInstance is either a delete guard or a
+        // tryChangeState call, both of which handle null. Keeping this
+        // tolerant is what lets StateMachineLayer stop requiring the state
+        // to be present, so exports can eventually omit unused ones.
+        auto anyState = layer->anyState();
+        m_anyStateInstance = anyState == nullptr
+                                 ? nullptr
+                                 : anyState->makeInstance(instance).release();
         m_layer = layer;
         changeState(m_layer->entryState());
     }
