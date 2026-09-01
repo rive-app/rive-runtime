@@ -686,6 +686,29 @@ void CommandQueue::setViewModelInstance(StateMachineHandle handle,
     m_commandStream << requestId;
 }
 
+ViewModelInstanceHandle CommandQueue::mainViewModelInstance(
+    StateMachineHandle handle,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getMainViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+
+    return viewHandle;
+}
+
 void CommandQueue::clearViewModelInstance(StateMachineHandle handle,
                                           uint64_t requestId)
 {
@@ -2160,6 +2183,32 @@ void CommandQueue::processMessages()
                 if (itr != m_viewModelListeners.end())
                 {
                     itr->second->onViewModelDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::stateMachineViewModelInstanceReceived:
+            {
+                StateMachineHandle stateMachineHandle;
+                ViewModelInstanceHandle viewModelInstanceHandle;
+                uint64_t requestId;
+                m_messageStream >> stateMachineHandle;
+                m_messageStream >> viewModelInstanceHandle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalStateMachineListener)
+                {
+                    m_globalStateMachineListener->onViewModelInstanceReceived(
+                        stateMachineHandle,
+                        requestId,
+                        viewModelInstanceHandle);
+                }
+                auto itr = m_stateMachineListeners.find(stateMachineHandle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onViewModelInstanceReceived(
+                        stateMachineHandle,
+                        requestId,
+                        viewModelInstanceHandle);
                 }
                 break;
             }

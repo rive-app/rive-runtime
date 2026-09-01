@@ -422,6 +422,23 @@ public:
                                            uint64_t requestId)
         {}
 
+        /**
+         * Called after mainViewModelInstance or globalViewModelInstance
+         * successfully retrieves a view model instance bound to a state
+         * machine. Lookup failures are reported through onStateMachineError.
+         *
+         * @param stateMachineHandle The state machine from which the view model
+         * instance was retrieved.
+         * @param requestId The request that retrieved the view model instance.
+         * @param viewModelInstanceHandle The confirmed view model instance
+         * handle.
+         */
+        virtual void onViewModelInstanceReceived(
+            const StateMachineHandle stateMachineHandle,
+            uint64_t requestId,
+            ViewModelInstanceHandle viewModelInstanceHandle)
+        {}
+
         // Delivered when an incremental semantic diff is available for this
         // state machine. Emitted only when drainSemanticsDiff produces a
         // non-empty diff. Bounds inside the diff are reported in view space
@@ -683,6 +700,31 @@ public:
                               uint64_t requestId = 0);
 
     /**
+     * Returns a handle to the main view model instance currently bound to the
+     * state machine. This lookup never creates an instance.
+     *
+     * A successful lookup is reported through
+     * StateMachineListener::onViewModelInstanceReceived. If no main instance
+     * is bound, or if the state machine handle is invalid, the lookup reports
+     * through StateMachineListener::onStateMachineError and the returned handle
+     * maps to nothing.
+     *
+     * The optional ViewModelInstanceListener is associated with the returned
+     * handle for subsequent view model instance operations. It is not notified
+     * of lookup success or failure.
+     *
+     * @param stateMachineHandle The state machine whose main instance should
+     * be retrieved.
+     * @param listener The listener to associate with the returned view model
+     * instance handle.
+     * @param requestId The identifier reported with the asynchronous result.
+     */
+    ViewModelInstanceHandle mainViewModelInstance(
+        StateMachineHandle stateMachineHandle,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    /**
      * Removes the main (non-global) view model instance from a state machine
      * without rebinding. Call bind() to create and apply its default main
      * instance.
@@ -717,11 +759,29 @@ public:
                                       std::string name,
                                       uint64_t requestId = 0);
 
-    // Returns a handle to the global view model instance currently bound under
-    // the given name. Never creates: if none is bound, reports a view model
-    // error and the returned handle maps to nothing.
+    /**
+     * Returns a handle to the global view model instance currently bound under
+     * the given name. This lookup never creates an instance.
+     *
+     * A successful lookup is reported through
+     * StateMachineListener::onViewModelInstanceReceived. If no instance is
+     * bound under the name, or if the state machine handle is invalid, the
+     * lookup reports through StateMachineListener::onStateMachineError and the
+     * returned handle maps to nothing.
+     *
+     * The optional ViewModelInstanceListener is associated with the returned
+     * handle for subsequent view model instance operations. It is not notified
+     * of lookup success or failure.
+     *
+     * @param stateMachineHandle The state machine whose global instance should
+     * be retrieved.
+     * @param name The global view model name to look up.
+     * @param listener The listener to associate with the returned view model
+     * instance handle.
+     * @param requestId The identifier reported with the asynchronous result.
+     */
     ViewModelInstanceHandle globalViewModelInstance(
-        StateMachineHandle,
+        StateMachineHandle stateMachineHandle,
         std::string name,
         ViewModelInstanceListener* listener = nullptr,
         uint64_t requestId = 0);
@@ -1137,6 +1197,7 @@ private:
         clearSemanticFocus,
         bindViewModelInstance,
         setViewModelInstance,
+        getMainViewModelInstance,
         clearViewModelInstance,
         setGlobalViewModelInstance,
         clearGlobalViewModelInstance,
@@ -1213,6 +1274,7 @@ private:
         viewModelDeleted,
         stateMachineDeleted,
         stateMachineSettled,
+        stateMachineViewModelInstanceReceived,
         semanticsDiffReceived,
         fileAssetsListed,
         artboardSizeReceived,

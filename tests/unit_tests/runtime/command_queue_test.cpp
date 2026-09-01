@@ -3687,17 +3687,36 @@ TEST_CASE("render image / audio source / font error", "[CommandQueue]")
 class TestStateMachineErrorListener : public CommandQueue::StateMachineListener
 {
 public:
+    struct ReceivedViewModelInstance
+    {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+    };
+
     virtual void onStateMachineError(const StateMachineHandle handle,
                                      uint64_t requestId,
                                      std::string error) override
     {
         CHECK(handle == m_handle);
         CHECK(error.size());
+        m_errorRequestIds.push_back(requestId);
         ++m_receivedErrors;
+    }
+
+    virtual void onViewModelInstanceReceived(
+        const StateMachineHandle stateMachineHandle,
+        uint64_t requestId,
+        ViewModelInstanceHandle viewModelInstanceHandle) override
+    {
+        CHECK(stateMachineHandle == m_handle);
+        m_receivedViewModelInstances.push_back(
+            {viewModelInstanceHandle, requestId});
     }
 
     StateMachineHandle m_handle;
     size_t m_receivedErrors = 0;
+    std::vector<uint64_t> m_errorRequestIds;
+    std::vector<ReceivedViewModelInstance> m_receivedViewModelInstances;
 };
 
 TEST_CASE("state machine error", "[CommandQueue]")
@@ -7132,7 +7151,7 @@ TEST_CASE("Global View Model Names Listed", "[CommandQueue]")
     serverThread.join();
 }
 
-class GlobalInstanceListener : public CommandQueue::ViewModelInstanceListener
+class BoundInstanceListener : public CommandQueue::ViewModelInstanceListener
 {
 public:
     virtual void onViewModelInstanceViewModelNameReceived(
@@ -7145,12 +7164,10 @@ public:
         m_hasNameCallback = true;
     }
 
-    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
-                                          uint64_t requestId,
-                                          std::string error) override
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                          uint64_t,
+                                          std::string) override
     {
-        m_handle = handle;
-        m_error = error;
         m_hasErrorCallback = true;
     }
 
@@ -7158,7 +7175,6 @@ public:
     bool m_hasErrorCallback = false;
     ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
     std::string m_viewModelName;
-    std::string m_error;
 };
 
 class GlobalValueListener : public CommandQueue::ViewModelInstanceListener
@@ -7210,8 +7226,8 @@ TEST_CASE("Clear Main View Model Instance", "[CommandQueue]")
     rcp<ViewModelInstance> originalMain;
     rcp<ViewModelInstance> originalGlobal;
 
-    // The command queue has no main-instance getter, so capture both native
-    // identities after bind() for the isolation checks below.
+    // Capture both native identities after bind() for the isolation checks
+    // below.
     commandQueue->bind(stateMachineHandle);
     commandQueue->runOnce([stateMachineHandle,
                            globalName,
@@ -7302,8 +7318,11 @@ TEST_CASE("Clear Global View Model Instance", "[CommandQueue]")
     REQUIRE(property != fileListener.m_properties.end());
 
     auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    TestStateMachineErrorListener stateMachineListener;
     auto stateMachineHandle =
-        commandQueue->instantiateDefaultStateMachine(artboard);
+        commandQueue->instantiateDefaultStateMachine(artboard,
+                                                     &stateMachineListener);
+    stateMachineListener.m_handle = stateMachineHandle;
 
     // Bind all defaults, then mutate a global that will not be cleared. Its
     // value lets us detect an accidental clear-all/default recreation.
@@ -7345,7 +7364,7 @@ TEST_CASE("Clear Global View Model Instance", "[CommandQueue]")
     commandQueue->clearGlobalViewModelInstance(stateMachineHandle,
                                                clearedGlobalName,
                                                3);
-    GlobalInstanceListener clearedListener;
+    BoundInstanceListener clearedListener;
     commandQueue->globalViewModelInstance(stateMachineHandle,
                                           clearedGlobalName,
                                           &clearedListener,
@@ -7354,7 +7373,7 @@ TEST_CASE("Clear Global View Model Instance", "[CommandQueue]")
     // Rebinding must restore the cleared slot's default while retaining the
     // existing instance (and therefore the mutation) in every untouched slot.
     commandQueue->bind(stateMachineHandle);
-    GlobalInstanceListener reboundListener;
+    BoundInstanceListener reboundListener;
     auto reboundHandle =
         commandQueue->globalViewModelInstance(stateMachineHandle,
                                               clearedGlobalName,
@@ -7393,7 +7412,9 @@ TEST_CASE("Clear Global View Model Instance", "[CommandQueue]")
     server.processCommands();
     commandQueue->processMessages();
 
-    CHECK(clearedListener.m_hasErrorCallback);
+    REQUIRE(stateMachineListener.m_errorRequestIds.size() == 1);
+    CHECK(stateMachineListener.m_errorRequestIds[0] == 4);
+    CHECK_FALSE(clearedListener.m_hasErrorCallback);
     CHECK(reboundListener.m_hasNameCallback);
     CHECK(reboundListener.m_viewModelName == clearedGlobalName);
     CHECK(valueListener.m_hasCallback);
@@ -7454,10 +7475,12 @@ TEST_CASE("Clear View Model Instances Report Invalid State Machine",
     commandQueue->disconnect();
 }
 
-TEST_CASE("Set/Bind/Get Global View Model Instance", "[CommandQueue]")
+TEST_CASE("Get Bound View Model Instances", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandQueue);
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
 
     GlobalNamesListener fileListener;
     std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
@@ -7465,50 +7488,162 @@ TEST_CASE("Set/Bind/Get Global View Model Instance", "[CommandQueue]")
         std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
         &fileListener);
 
-    // Discover a global view model name.
     commandQueue->requestGlobalViewModelNames(fileHandle, 1);
-    wait_for_server(commandQueue.get());
+    server.processCommands();
     commandQueue->processMessages();
     REQUIRE(fileListener.m_hasCallback);
     REQUIRE_FALSE(fileListener.m_names.empty());
     const std::string globalName = fileListener.m_names.front();
 
-    // Default artboard + state machine.
     auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
-    auto stateMachine = commandQueue->instantiateDefaultStateMachine(artboard);
-
-    // Instantiate a default instance of the global view model, set it on the
-    // global slot, and apply with bind().
-    auto globalVmi =
-        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
-                                                          globalName);
-    commandQueue->setGlobalViewModelInstance(stateMachine,
-                                             globalName,
-                                             globalVmi);
+    TestStateMachineErrorListener stateMachineListener;
+    auto stateMachine =
+        commandQueue->instantiateDefaultStateMachine(artboard,
+                                                     &stateMachineListener);
+    stateMachineListener.m_handle = stateMachine;
     commandQueue->bind(stateMachine);
 
-    // Reading the global back yields a handle to the bound instance; confirm it
-    // maps to the same global view model.
-    GlobalInstanceListener okListener;
-    auto fetched = commandQueue->globalViewModelInstance(stateMachine,
-                                                         globalName,
-                                                         &okListener);
-    commandQueue->requestViewModelInstanceViewModelName(fetched, 2);
+    BoundInstanceListener mainListener;
+    auto fetchedMain =
+        commandQueue->mainViewModelInstance(stateMachine, &mainListener, 2);
+    BoundInstanceListener globalListener;
+    auto fetchedGlobal = commandQueue->globalViewModelInstance(stateMachine,
+                                                               globalName,
+                                                               &globalListener,
+                                                               3);
+    commandQueue->requestViewModelInstanceViewModelName(fetchedGlobal, 4);
 
-    // Reading an unknown global name reports an error and maps nothing.
-    GlobalInstanceListener errListener;
-    commandQueue->globalViewModelInstance(stateMachine,
-                                          "not-a-global",
-                                          &errListener,
-                                          3);
-
-    wait_for_server(commandQueue.get());
+    server.processCommands();
     commandQueue->processMessages();
 
-    CHECK(okListener.m_hasNameCallback);
-    CHECK(okListener.m_viewModelName == globalName);
-    CHECK(errListener.m_hasErrorCallback);
+    REQUIRE(stateMachineListener.m_receivedViewModelInstances.size() == 2);
+    CHECK(stateMachineListener.m_receivedViewModelInstances[0].handle ==
+          fetchedMain);
+    CHECK(stateMachineListener.m_receivedViewModelInstances[0].requestId == 2);
+    CHECK(stateMachineListener.m_receivedViewModelInstances[1].handle ==
+          fetchedGlobal);
+    CHECK(stateMachineListener.m_receivedViewModelInstances[1].requestId == 3);
+    CHECK(stateMachineListener.m_errorRequestIds.empty());
+    CHECK_FALSE(mainListener.m_hasErrorCallback);
+    CHECK_FALSE(globalListener.m_hasErrorCallback);
+    CHECK(globalListener.m_hasNameCallback);
+    CHECK(globalListener.m_viewModelName == globalName);
 
     commandQueue->disconnect();
-    serverThread.join();
+}
+
+TEST_CASE("Get Unbound View Model Instances", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    GlobalNamesListener fileListener;
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+    commandQueue->requestGlobalViewModelNames(fileHandle, 1);
+    server.processCommands();
+    commandQueue->processMessages();
+    REQUIRE(fileListener.m_hasCallback);
+    REQUIRE_FALSE(fileListener.m_names.empty());
+
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    TestStateMachineErrorListener stateMachineListener;
+    auto stateMachine =
+        commandQueue->instantiateDefaultStateMachine(artboard,
+                                                     &stateMachineListener);
+    stateMachineListener.m_handle = stateMachine;
+
+    BoundInstanceListener mainListener;
+    commandQueue->mainViewModelInstance(stateMachine, &mainListener, 2);
+    BoundInstanceListener globalListener;
+    commandQueue->globalViewModelInstance(stateMachine,
+                                          fileListener.m_names.front(),
+                                          &globalListener,
+                                          3);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_receivedViewModelInstances.empty());
+    REQUIRE(stateMachineListener.m_errorRequestIds.size() == 2);
+    CHECK(stateMachineListener.m_errorRequestIds[0] == 2);
+    CHECK(stateMachineListener.m_errorRequestIds[1] == 3);
+    CHECK_FALSE(mainListener.m_hasErrorCallback);
+    CHECK_FALSE(globalListener.m_hasErrorCallback);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("Get Global View Model Instance Reports Invalid Name",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/global_variables_test.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    TestStateMachineErrorListener stateMachineListener;
+    auto stateMachine =
+        commandQueue->instantiateDefaultStateMachine(artboard,
+                                                     &stateMachineListener);
+    stateMachineListener.m_handle = stateMachine;
+    commandQueue->bind(stateMachine);
+
+    BoundInstanceListener listener;
+    commandQueue->globalViewModelInstance(stateMachine,
+                                          "not-a-global",
+                                          &listener,
+                                          1);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_receivedViewModelInstances.empty());
+    REQUIRE(stateMachineListener.m_errorRequestIds.size() == 1);
+    CHECK(stateMachineListener.m_errorRequestIds[0] == 1);
+    CHECK_FALSE(listener.m_hasErrorCallback);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("Get View Model Instances Report Invalid State Machine",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    auto stateMachine = reinterpret_cast<StateMachineHandle>(123456);
+    TestStateMachineErrorListener stateMachineListener;
+    stateMachineListener.m_handle = stateMachine;
+    commandQueue->setGlobalStateMachineListener(&stateMachineListener);
+    BoundInstanceListener mainListener;
+    commandQueue->mainViewModelInstance(stateMachine, &mainListener, 1);
+    BoundInstanceListener globalListener;
+    commandQueue->globalViewModelInstance(stateMachine,
+                                          "Global",
+                                          &globalListener,
+                                          2);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_receivedViewModelInstances.empty());
+    REQUIRE(stateMachineListener.m_errorRequestIds.size() == 2);
+    CHECK(stateMachineListener.m_errorRequestIds[0] == 1);
+    CHECK(stateMachineListener.m_errorRequestIds[1] == 2);
+    CHECK_FALSE(mainListener.m_hasErrorCallback);
+    CHECK_FALSE(globalListener.m_hasErrorCallback);
+
+    commandQueue->setGlobalStateMachineListener(nullptr);
+    commandQueue->disconnect();
 }

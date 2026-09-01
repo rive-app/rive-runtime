@@ -2177,27 +2177,97 @@ bool CommandServer::processCommands()
                         m_viewModels[viewHandle] =
                             make_rcp<ViewModelInstanceRuntime>(
                                 viewModelInstance);
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream << CommandQueue::Message::
+                                stateMachineViewModelInstanceReceived;
+                        messageStream << handle;
+                        messageStream << viewHandle;
+                        messageStream << requestId;
                     }
                     else
                     {
-                        ErrorReporter<ViewModelInstanceHandle>(
+                        ErrorReporter<StateMachineHandle>(
                             this,
-                            viewHandle,
+                            handle,
                             requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "No global view model instance bound under name "
-                            << name << " on a state machine";
+                            CommandQueue::Message::stateMachineError)
+                            << "No global view model instance named " << name
+                            << " bound to state machine " << handle;
                     }
                 }
                 else
                 {
-                    ErrorReporter<ViewModelInstanceHandle>(
+                    ErrorReporter<StateMachineHandle>(
                         this,
-                        viewHandle,
+                        handle,
                         requestId,
-                        CommandQueue::Message::viewModelError)
+                        CommandQueue::Message::stateMachineError)
                         << "State machine " << handle
                         << " not found for getting global view model instance.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::getMainViewModelInstance:
+            {
+                StateMachineHandle handle;
+                ViewModelInstanceHandle viewHandle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> viewHandle;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+                {
+                    rcp<ViewModelInstance> viewModelInstance;
+                    {
+                        std::unique_lock<std::mutex> accessLock(
+                            stateMachineWrapper->m_mutex);
+                        if (auto dataContext =
+                                stateMachineWrapper->instance->dataContext())
+                        {
+                            viewModelInstance =
+                                dataContext->mainViewModelInstance();
+                        }
+                    }
+                    if (viewModelInstance != nullptr)
+                    {
+                        m_viewModels[viewHandle] =
+                            make_rcp<ViewModelInstanceRuntime>(
+                                viewModelInstance);
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream << CommandQueue::Message::
+                                stateMachineViewModelInstanceReceived;
+                        messageStream << handle;
+                        messageStream << viewHandle;
+                        messageStream << requestId;
+                    }
+                    else
+                    {
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            requestId,
+                            CommandQueue::Message::stateMachineError)
+                            << "No main view model instance bound to state "
+                               "machine "
+                            << handle;
+                    }
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for getting main view model instance.";
                 }
                 break;
             }
