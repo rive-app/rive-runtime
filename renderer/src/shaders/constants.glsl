@@ -196,21 +196,27 @@
 #define COALESCED_ATOMIC_RESOLVE_IDX SCRATCH_COLOR_PLANE_IDX
 
 // Index of each instanced attribute for image draws.
+// First, the common attributes:
 #define IMAGE_FIRST_ATTRIB_IDX 2
 #define IMAGE_VIEW_MATRIX_ATTRIB_IDX 2
 #define IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX 3
 #define IMAGE_TRANSLATES_ATTRIB_IDX 4
-#define IMAGE_PACKED_ATTRIBS_IDX 5
-#define IMAGE_LAST_ATTRIB_IDX 5
-#define IMAGE_ATTRIB_COUNT (IMAGE_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+#define IMAGE_OPACITY_ATTRIB_IDX 5
+#define IMAGE_CLIP_ID_ATTRIB_IDX 6
+#define IMAGE_BLEND_MODE_ATTRIB_IDX 7
+#define IMAGE_ZINDEX_ATTRIB_IDX 8
 
-// When SPLIT_UINT4_ATTRIBUTES is set (Unreal RHI, whose shader compiler
-// mishandles a uint4 vertex attribute), the packed uint4 is bound as four
-// separate uint attributes at these consecutive locations.
-#define IMAGE_SPLIT_OPACITY_ATTRIB_IDX 5
-#define IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX 6
-#define IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX 7
-#define IMAGE_SPLIT_ZINDEX_ATTRIB_IDX 8
+#define IMAGE_COMMON_LAST_ATTRIB_IDX 8
+#define IMAGE_COMMON_ATTRIB_COUNT                                              \
+    (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+#define IMAGE_RECT_LAST_ATTRIB_IDX IMAGE_COMMON_LAST_ATTRIB_IDX
+#define IMAGE_RECT_ATTRIB_COUNT                                                \
+    (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+#define IMAGE_MESH_LAST_ATTRIB_IDX IMAGE_COMMON_LAST_ATTRIB_IDX
+#define IMAGE_MESH_ATTRIB_COUNT                                                \
+    (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 // MSAA attaches different resources to the framebuffer instead of PLS planes.
 #define MSAA_DEPTH_STENCIL_IDX 1u

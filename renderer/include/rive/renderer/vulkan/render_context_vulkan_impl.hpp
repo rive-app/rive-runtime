@@ -179,7 +179,8 @@ private:
     IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
     IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBuffer)
     IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBuffer)
-    IMPLEMENT_PLS_BUFFER(ImageDrawInstanceBuffer, m_imageDrawInstanceBuffer)
+    IMPLEMENT_PLS_BUFFER(ImageRectInstanceBuffer, m_imageRectInstanceBuffer)
+    IMPLEMENT_PLS_BUFFER(ImageMeshInstanceBuffer, m_imageMeshInstanceBuffer)
 
 #undef IMPLEMENT_PLS_BUFFER
 #undef IMPLEMENT_PLS_STRUCTURED_BUFFER
@@ -402,7 +403,8 @@ private:
     vkutil::BufferPool m_gradSpanBufferPool;
     vkutil::BufferPool m_tessSpanBufferPool;
     vkutil::BufferPool m_triangleBufferPool;
-    vkutil::BufferPool m_imageDrawInstanceBufferPool;
+    vkutil::BufferPool m_imageRectInstanceBufferPool;
+    vkutil::BufferPool m_imageMeshInstanceBufferPool;
 
     // Specific Rive buffers that have been acquired for the current frame.
     // When the frame ends, these get recycled back in their respective pools.
@@ -414,7 +416,8 @@ private:
     rcp<vkutil::Buffer> m_gradSpanBuffer;
     rcp<vkutil::Buffer> m_tessSpanBuffer;
     rcp<vkutil::Buffer> m_triangleBuffer;
-    rcp<vkutil::Buffer> m_imageDrawInstanceBuffer;
+    rcp<vkutil::Buffer> m_imageRectInstanceBuffer;
+    rcp<vkutil::Buffer> m_imageMeshInstanceBuffer;
 
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();

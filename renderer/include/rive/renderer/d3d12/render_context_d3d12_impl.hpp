@@ -172,7 +172,8 @@ public:
     IMPLEMENT_RIVE_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
     IMPLEMENT_RIVE_BUFFER(TessVertexSpanBuffer, m_tessSpanBuffer)
     IMPLEMENT_RIVE_BUFFER(TriangleVertexBuffer, m_triangleBuffer)
-    IMPLEMENT_RIVE_BUFFER(ImageDrawInstanceBuffer, m_imageDrawInstanceBuffer)
+    IMPLEMENT_RIVE_BUFFER(ImageRectInstanceBuffer, m_imageRectInstanceBuffer)
+    IMPLEMENT_RIVE_BUFFER(ImageMeshInstanceBuffer, m_imageMeshInstanceBuffer)
 
 #undef IMPLEMENT_RIVE_BUFFER
 #undef IMPLEMENT_RIVE_STRUCTURED_BUFFER
@@ -246,7 +247,8 @@ private:
     D3D12VolatileBufferPool m_gradSpanBufferPool;
     D3D12VolatileBufferPool m_tessSpanBufferPool;
     D3D12VolatileBufferPool m_triangleBufferPool;
-    D3D12VolatileBufferPool m_imageDrawInstanceBufferPool;
+    D3D12VolatileBufferPool m_imageRectInstanceBufferPool;
+    D3D12VolatileBufferPool m_imageMeshInstanceBufferPool;
 
     // this have to be re created every frame, rtv heaps do not
     D3D12DescriptorHeapPool m_srvUavCbvHeapPool;
@@ -262,7 +264,8 @@ private:
     rcp<D3D12VolatileBuffer> m_gradSpanBuffer;
     rcp<D3D12VolatileBuffer> m_tessSpanBuffer;
     rcp<D3D12VolatileBuffer> m_triangleBuffer;
-    rcp<D3D12VolatileBuffer> m_imageDrawInstanceBuffer;
+    rcp<D3D12VolatileBuffer> m_imageRectInstanceBuffer;
+    rcp<D3D12VolatileBuffer> m_imageMeshInstanceBuffer;
 
     rcp<D3D12DescriptorHeap> m_srvUavCbvHeap;
     // mirrors m_srvUavCbvHeap, needed for clearing resourcess via ClearUAV

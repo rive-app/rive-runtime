@@ -354,7 +354,7 @@ private:
     // LogicalFlush::LayoutCounters.
     struct ResourceAllocationCounts
     {
-        constexpr static int NUM_ELEMENTS = 19;
+        constexpr static int NUM_ELEMENTS = 20;
         using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
         RIVE_ALWAYS_INLINE VecType toVec() const
@@ -384,7 +384,8 @@ private:
         size_t gradSpanBufferCount = 0;
         size_t tessSpanBufferCount = 0;
         size_t triangleVertexBufferCount = 0;
-        size_t imageDrawInstanceBufferCount = 0;
+        size_t imageRectInstanceBufferCount = 0;
+        size_t imageMeshInstanceBufferCount = 0;
         size_t gradTextureHeight = 0;
         size_t tessTextureHeight = 0;
         size_t featherAtlasTextureWidth = 0;
@@ -473,7 +474,8 @@ private:
     WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
     WriteOnlyMappedMemory<gpu::TessVertexSpan> m_tessSpanData;
     WriteOnlyMappedMemory<gpu::TriangleVertex> m_triangleVertexData;
-    WriteOnlyMappedMemory<gpu::ImageDrawInstance> m_imageDrawInstanceData;
+    WriteOnlyMappedMemory<gpu::ImageRectInstance> m_imageRectInstanceData;
+    WriteOnlyMappedMemory<gpu::ImageMeshInstance> m_imageMeshInstanceData;
 
     // Simple allocator for trivially-destructible data that needs to persist
     // until the current frame has completed. All memory in this allocator is
@@ -599,7 +601,7 @@ private:
         // allocated in the render context's various GPU buffers.
         struct ResourceCounters
         {
-            constexpr static int NUM_ELEMENTS = 7;
+            constexpr static int NUM_ELEMENTS = 8;
             using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
             VecType toVec() const
@@ -627,7 +629,8 @@ private:
             // lines, curves, lone joins, emulated caps, etc.
             size_t maxTessellatedSegmentCount = 0;
             size_t maxTriangleVertexCount = 0;
-            size_t imageDrawCount = 0; // imageRect or imageMesh.
+            size_t imageRectCount = 0;
+            size_t imageMeshCount = 0;
         };
 
         // Additional counters for layout state that don't need to be tracked by

@@ -62,9 +62,14 @@ void RenderContextHelperImpl::resizeTriangleVertexBuffer(size_t sizeInBytes)
     m_triangleBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
-void RenderContextHelperImpl::resizeImageDrawInstanceBuffer(size_t sizeInBytes)
+void RenderContextHelperImpl::resizeImageRectInstanceBuffer(size_t sizeInBytes)
 {
-    m_imageDrawInstanceBuffer = makeVertexBufferRing(sizeInBytes);
+    m_imageRectInstanceBuffer = makeVertexBufferRing(sizeInBytes);
+}
+
+void RenderContextHelperImpl::resizeImageMeshInstanceBuffer(size_t sizeInBytes)
+{
+    m_imageMeshInstanceBuffer = makeVertexBufferRing(sizeInBytes);
 }
 
 void* RenderContextHelperImpl::mapFlushUniformBuffer(size_t mapSizeInBytes)
@@ -107,9 +112,14 @@ void* RenderContextHelperImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
     return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void* RenderContextHelperImpl::mapImageDrawInstanceBuffer(size_t mapSizeInBytes)
+void* RenderContextHelperImpl::mapImageRectInstanceBuffer(size_t mapSizeInBytes)
 {
-    return m_imageDrawInstanceBuffer->mapBuffer(mapSizeInBytes);
+    return m_imageRectInstanceBuffer->mapBuffer(mapSizeInBytes);
+}
+
+void* RenderContextHelperImpl::mapImageMeshInstanceBuffer(size_t mapSizeInBytes)
+{
+    return m_imageMeshInstanceBuffer->mapBuffer(mapSizeInBytes);
 }
 
 void RenderContextHelperImpl::unmapFlushUniformBuffer(size_t mapSizeInBytes)
@@ -160,10 +170,17 @@ void RenderContextHelperImpl::unmapTriangleVertexBuffer(size_t mapSizeInBytes)
     m_triangleBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapImageDrawInstanceBuffer(
+void RenderContextHelperImpl::unmapImageRectInstanceBuffer(
     size_t mapSizeInBytes)
 {
-    assert(m_imageDrawInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
-    m_imageDrawInstanceBuffer->unmapAndSubmitBuffer();
+    assert(m_imageRectInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
+    m_imageRectInstanceBuffer->unmapAndSubmitBuffer();
+}
+
+void RenderContextHelperImpl::unmapImageMeshInstanceBuffer(
+    size_t mapSizeInBytes)
+{
+    assert(m_imageMeshInstanceBuffer->mapSizeInBytes() == mapSizeInBytes);
+    m_imageMeshInstanceBuffer->unmapAndSubmitBuffer();
 }
 } // namespace rive::gpu

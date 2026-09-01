@@ -213,7 +213,7 @@
 #endif
 
 // imageDrawAttrs is $device, not $constant: the host binds it at a per-draw
-// offset of baseElement * sizeof(ImageDrawInstance), and macOS requires
+// offset of baseElement * sizeof(ImageRectInstance), and macOS requires
 // constant-address-space offsets to be 256-byte aligned.
 #define IMAGE_RECT_VERTEX_MAIN(NAME,                                           \
                                Attrs,                                          \

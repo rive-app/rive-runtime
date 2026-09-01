@@ -289,45 +289,42 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
         float2 paintCoord = MUL(paintMatrix, fragCoord) + paintTranslate.xy;
-        if (paintType == LINEAR_GRADIENT_PAINT_TYPE ||
-            paintType == RADIAL_GRADIENT_PAINT_TYPE)
+
+        // v_paint.a contains "-row" of the gradient ramp at texel center,
+        // in normalized space.
+        v_paint.a = -uintBitsToFloat(paintData.y);
+        // abs(v_paint.b) contains either:
+        //   - 2 if the gradient ramp spans an entire row.
+        //   - x0 of the gradient ramp in normalized space, if it's a simple
+        //   2-texel ramp.
+        float gradientSpan = paintTranslate.z;
+        // gradientSpan is either ~1 (complex gradients span the whole width
+        // of the texture minus 1px), or 1/GRAD_TEXTURE_WIDTH (simple
+        // gradients span 1px).
+        if (gradientSpan > .9)
         {
-            // v_paint.a contains "-row" of the gradient ramp at texel center,
-            // in normalized space.
-            v_paint.a = -uintBitsToFloat(paintData.y);
-            // abs(v_paint.b) contains either:
-            //   - 2 if the gradient ramp spans an entire row.
-            //   - x0 of the gradient ramp in normalized space, if it's a simple
-            //   2-texel ramp.
-            float gradientSpan = paintTranslate.z;
-            // gradientSpan is either ~1 (complex gradients span the whole width
-            // of the texture minus 1px), or 1/GRAD_TEXTURE_WIDTH (simple
-            // gradients span 1px).
-            if (gradientSpan > .9)
-            {
-                // Complex ramps span an entire row. Set it to 2 to convey this.
-                v_paint.b = 2.;
-            }
-            else
-            {
-                // This is a simple ramp.
-                v_paint.b = paintTranslate.w;
-            }
-            if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
-            {
-                // The paint is a linear gradient.
-                v_paint.g = .0;
-                v_paint.r = paintCoord.x;
-            }
-            else
-            {
-                // The paint is a radial gradient. Mark v_paint.b negative to
-                // indicate this to the fragment shader. (v_paint.b can't be
-                // zero because the gradient ramp is aligned on pixel centers,
-                // so negating it will always produce a negative number.)
-                v_paint.b = -v_paint.b;
-                v_paint.rg = paintCoord.xy;
-            }
+            // Complex ramps span an entire row. Set it to 2 to convey this.
+            v_paint.b = 2.;
+        }
+        else
+        {
+            // This is a simple ramp.
+            v_paint.b = paintTranslate.w;
+        }
+        if (paintType == LINEAR_GRADIENT_PAINT_TYPE)
+        {
+            // The paint is a linear gradient.
+            v_paint.g = .0;
+            v_paint.r = paintCoord.x;
+        }
+        else
+        {
+            // The paint is a radial gradient. Mark v_paint.b negative to
+            // indicate this to the fragment shader. (v_paint.b can't be
+            // zero because the gradient ramp is aligned on pixel centers,
+            // so negating it will always produce a negative number.)
+            v_paint.b = -v_paint.b;
+            v_paint.rg = paintCoord.xy;
         }
     }
 #ifdef @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE
@@ -343,17 +340,19 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #if defined(@ENABLE_MODULATED_IMAGE)
     if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)
     {
-        float2x2 paintMatrix = make_float2x2(
+        float2x2 imageMatrix = make_float2x2(
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 4u));
         float4 paintTranslateAndLOD =
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 5u);
-        float2 paintCoord =
-            MUL(paintMatrix, fragCoord) + paintTranslateAndLOD.xy;
+        float2 imageCoord =
+            MUL(imageMatrix, fragCoord) + paintTranslateAndLOD.xy;
 
+        // Add 1 to the LOD because a z value of 0 means "we don't have an
+        // image"
         v_image =
-            float3(paintCoord.x, paintCoord.y, 1. + paintTranslateAndLOD.z);
+            float3(imageCoord.x, imageCoord.y, 1. + paintTranslateAndLOD.z);
     }
     else
     {

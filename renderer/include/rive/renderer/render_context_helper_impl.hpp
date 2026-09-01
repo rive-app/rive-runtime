@@ -26,7 +26,8 @@ public:
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
     void resizeTriangleVertexBuffer(size_t sizeInBytes) override;
-    void resizeImageDrawInstanceBuffer(size_t sizeInBytes) override;
+    void resizeImageRectInstanceBuffer(size_t sizeInBytes) override;
+    void resizeImageMeshInstanceBuffer(size_t sizeInBytes) override;
 
     void* mapFlushUniformBuffer(size_t mapSizeInBytes) override;
     void* mapPathBuffer(size_t mapSizeInBytes) override;
@@ -36,7 +37,8 @@ public:
     void* mapGradSpanBuffer(size_t mapSizeInBytes) override;
     void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     void* mapTriangleVertexBuffer(size_t mapSizeInBytes) override;
-    void* mapImageDrawInstanceBuffer(size_t mapSizeInBytes) override;
+    void* mapImageRectInstanceBuffer(size_t mapSizeInBytes) override;
+    void* mapImageMeshInstanceBuffer(size_t mapSizeInBytes) override;
 
     void unmapFlushUniformBuffer(size_t mapSizeInBytes) override;
     void unmapPathBuffer(size_t mapSizeInBytes) override;
@@ -46,7 +48,8 @@ public:
     void unmapGradSpanBuffer(size_t mapSizeInBytes) override;
     void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     void unmapTriangleVertexBuffer(size_t mapSizeInBytes) override;
-    void unmapImageDrawInstanceBuffer(size_t mapSizeInBytes) override;
+    void unmapImageRectInstanceBuffer(size_t mapSizeInBytes) override;
+    void unmapImageMeshInstanceBuffer(size_t mapSizeInBytes) override;
 
     double secondsNow() const override
     {
@@ -63,9 +66,13 @@ protected:
     BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
     BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
-    BufferRing* imageDrawInstanceBufferRing()
+    BufferRing* imageRectInstanceBufferRing()
     {
-        return m_imageDrawInstanceBuffer.get();
+        return m_imageRectInstanceBuffer.get();
+    }
+    BufferRing* imageMeshInstanceBufferRing()
+    {
+        return m_imageMeshInstanceBuffer.get();
     }
 
     virtual std::unique_ptr<BufferRing> makeUniformBufferRing(
@@ -85,7 +92,8 @@ private:
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;
     std::unique_ptr<BufferRing> m_triangleBuffer;
-    std::unique_ptr<BufferRing> m_imageDrawInstanceBuffer;
+    std::unique_ptr<BufferRing> m_imageRectInstanceBuffer;
+    std::unique_ptr<BufferRing> m_imageMeshInstanceBuffer;
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
 };

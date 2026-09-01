@@ -135,14 +135,10 @@ ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
      float4,
      @a_imageDrawClipRectInverseMatrix);
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
-#ifdef SPLIT_UINT4_ATTRIBUTES
-ATTR(IMAGE_SPLIT_OPACITY_ATTRIB_IDX, uint, @a_imageDrawOpacity);
-ATTR(IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
-ATTR(IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
-ATTR(IMAGE_SPLIT_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
-#else
-ATTR(IMAGE_PACKED_ATTRIBS_IDX, uint4, @a_imageDrawPacked);
-#endif
+ATTR(IMAGE_OPACITY_ATTRIB_IDX, float, @a_imageDrawOpacity);
+ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
+ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
+ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
 ATTR_BLOCK_END
 #endif
 
@@ -177,18 +173,10 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
                 @a_imageDrawClipRectInverseMatrix,
                 float4);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-#ifdef SPLIT_UINT4_ATTRIBUTES
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, float);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
-    uint4 @a_imageDrawPacked = uint4(@a_imageDrawOpacity,
-                                     @a_imageDrawClipID,
-                                     @a_imageDrawBlendMode,
-                                     @a_imageDrawZIndex);
-#else
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawPacked, uint4);
-#endif
 
     VARYING_INIT(v_texCoord, float2);
     VARYING_INIT(v_edgeCoverage, half);
@@ -260,12 +248,12 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
     }
 #endif
 
-    v_imageOpacity = uintBitsToFloat(@a_imageDrawPacked.x);
+    v_imageOpacity = @a_imageDrawOpacity;
 #ifdef @ENABLE_CLIPPING
-    v_imageClipID = cast_uint_to_ushort(@a_imageDrawPacked.y);
+    v_imageClipID = cast_uint_to_ushort(@a_imageDrawClipID);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawPacked.z);
+    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawBlendMode);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -302,14 +290,10 @@ ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
      float4,
      @a_imageDrawClipRectInverseMatrix);
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
-#ifdef SPLIT_UINT4_ATTRIBUTES
-ATTR(IMAGE_SPLIT_OPACITY_ATTRIB_IDX, uint, @a_imageDrawOpacity);
-ATTR(IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
-ATTR(IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
-ATTR(IMAGE_SPLIT_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
-#else
-ATTR(IMAGE_PACKED_ATTRIBS_IDX, uint4, @a_imageDrawPacked);
-#endif
+ATTR(IMAGE_OPACITY_ATTRIB_IDX, float, @a_imageDrawOpacity);
+ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
+ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
+ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
 ATTR_BLOCK_END
 #endif
 
@@ -345,18 +329,10 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                 @a_imageDrawClipRectInverseMatrix,
                 float4);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-#ifdef SPLIT_UINT4_ATTRIBUTES
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, float);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
-    uint4 @a_imageDrawPacked = uint4(@a_imageDrawOpacity,
-                                     @a_imageDrawClipID,
-                                     @a_imageDrawBlendMode,
-                                     @a_imageDrawZIndex);
-#else
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawPacked, uint4);
-#endif
 
     VARYING_INIT(v_texCoord, float2);
 #ifdef @ENABLE_CLIP_RECT
@@ -384,12 +360,12 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     }
 #endif
 
-    v_imageOpacity = uintBitsToFloat(@a_imageDrawPacked.x);
+    v_imageOpacity = @a_imageDrawOpacity;
 #ifdef @ENABLE_CLIPPING
-    v_imageClipID = cast_uint_to_ushort(@a_imageDrawPacked.y);
+    v_imageClipID = cast_uint_to_ushort(@a_imageDrawClipID);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawPacked.z);
+    v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawBlendMode);
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);

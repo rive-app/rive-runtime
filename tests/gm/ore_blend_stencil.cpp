@@ -186,7 +186,7 @@ public:
         if (!shader.vsModule)
             return;
 
-        VertexAttribute attrs[] = {
+        ore::VertexAttribute attrs[] = {
             {offsetof(BSVertex, x), 0, VertexFormat::float2},
             {offsetof(BSVertex, r), 1, VertexFormat::float4},
         };

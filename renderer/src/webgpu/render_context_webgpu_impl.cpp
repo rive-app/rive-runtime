@@ -3018,38 +3018,62 @@ wgpu::Buffer RenderContextWebGPUImpl::atomicPLSCoverageBuffer()
     return m_atomicPLSCoverageBuffer;
 }
 
-// Appends Rive's ImageDrawInstance attribs. The caller is responsible for
+inline auto getWGPUVertexFormat(VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return WGPUVertexFormat_Float32;
+        case VertexElementFormat::float2:
+            return WGPUVertexFormat_Float32x2;
+        case VertexElementFormat::float3:
+            return WGPUVertexFormat_Float32x3;
+        case VertexElementFormat::float4:
+            return WGPUVertexFormat_Float32x4;
+        case VertexElementFormat::uint8x4:
+            return WGPUVertexFormat_Uint8x4;
+        case VertexElementFormat::sint8x4:
+            return WGPUVertexFormat_Sint8x4;
+        case VertexElementFormat::unorm8x4:
+            return WGPUVertexFormat_Unorm8x4;
+        case VertexElementFormat::snorm8x4:
+            return WGPUVertexFormat_Snorm8x4;
+        case VertexElementFormat::uint16x2:
+            return WGPUVertexFormat_Uint16x2;
+        case VertexElementFormat::sint16x2:
+            return WGPUVertexFormat_Sint16x2;
+        case VertexElementFormat::unorm16x2:
+            return WGPUVertexFormat_Unorm16x2;
+        case VertexElementFormat::snorm16x2:
+            return WGPUVertexFormat_Snorm16x2;
+        case VertexElementFormat::uint16x4:
+            return WGPUVertexFormat_Uint16x4;
+        case VertexElementFormat::sint16x4:
+            return WGPUVertexFormat_Sint16x4;
+        case VertexElementFormat::float16x2:
+            return WGPUVertexFormat_Float16x2;
+        case VertexElementFormat::float16x4:
+            return WGPUVertexFormat_Float16x4;
+        case VertexElementFormat::uint32:
+            return WGPUVertexFormat_Uint32;
+    }
+}
+
+// Appends Rive's ImageRect/MeshInstance attribs. The caller is responsible for
 // placing these in a vertex buffer layout with WGPUVertexStepMode_Instance and
-// arrayStride = sizeof(gpu::ImageDrawInstance).
-template <uint32_t Capacity>
+// arrayStride = sizeof(gpu::ImageRect/MeshInstance).
+template <typename ImageDrawInstance, uint32_t Capacity>
 static void appendImageDrawInstanceAttribs(
     StackVector<WGPUVertexAttribute, Capacity>& attrs)
 {
-    attrs.push_back({
-        .format = WGPUVertexFormat_Float32x4,
-        .offset = (IMAGE_VIEW_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                  sizeof(uint32_t) * 4,
-        .shaderLocation = IMAGE_VIEW_MATRIX_ATTRIB_IDX,
-    });
-    attrs.push_back({
-        .format = WGPUVertexFormat_Float32x4,
-        .offset = (IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX -
-                   IMAGE_FIRST_ATTRIB_IDX) *
-                  sizeof(uint32_t) * 4,
-        .shaderLocation = IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-    });
-    attrs.push_back({
-        .format = WGPUVertexFormat_Float32x4,
-        .offset = (IMAGE_TRANSLATES_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                  sizeof(uint32_t) * 4,
-        .shaderLocation = IMAGE_TRANSLATES_ATTRIB_IDX,
-    }); // translations
-    attrs.push_back({
-        .format = WGPUVertexFormat_Uint32x4,
-        .offset = (IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                  sizeof(uint32_t) * 4,
-        .shaderLocation = IMAGE_PACKED_ATTRIBS_IDX,
-    });
+    for (const auto& attr : ImageDrawInstance::getAttributes())
+    {
+        attrs.push_back({
+            .format = getWGPUVertexFormat(attr.format),
+            .offset = attr.byteOffset,
+            .shaderLocation = attr.attributeIndex,
+        });
+    }
 }
 
 static WGPUBlendOperation wgpuBlendOp(gpu::BlendEquation blendEquation)
@@ -3164,7 +3188,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     StackVector<WGPUVertexBufferLayout, 3> vertexBufferLayouts;
     // The image-draw attribs come last, so the most vertex attribs used across
     // all 3 buffers is determined by the final image attrib.
-    StackVector<WGPUVertexAttribute, IMAGE_LAST_ATTRIB_IDX + 1> attrs;
+    StackVector<WGPUVertexAttribute, MaxVertexAttributeCount + 1> attrs;
     WGPUPrimitiveTopology topology;
     switch (drawType)
     {
@@ -3231,7 +3255,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 .offset = 0,
                 .shaderLocation = 0,
             });
-            appendImageDrawInstanceAttribs(attrs);
+            appendImageDrawInstanceAttribs<ImageRectInstance>(attrs);
 
             vertexBufferLayouts.push_back_n(2, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
             vertexBufferLayouts[0].attributeCount = 1;
@@ -3239,10 +3263,10 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::ImageRectVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
 
-            assert(attrs.size() == 1 + IMAGE_ATTRIB_COUNT);
-            vertexBufferLayouts[1].attributeCount = IMAGE_ATTRIB_COUNT;
+            assert(attrs.size() == 1 + IMAGE_RECT_ATTRIB_COUNT);
+            vertexBufferLayouts[1].attributeCount = IMAGE_RECT_ATTRIB_COUNT;
             vertexBufferLayouts[1].attributes = &attrs[1];
-            vertexBufferLayouts[1].arrayStride = sizeof(gpu::ImageDrawInstance);
+            vertexBufferLayouts[1].arrayStride = sizeof(gpu::ImageRectInstance);
             vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
@@ -3260,7 +3284,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 .offset = 0,
                 .shaderLocation = 1,
             });
-            appendImageDrawInstanceAttribs(attrs);
+            appendImageDrawInstanceAttribs<ImageMeshInstance>(attrs);
 
             vertexBufferLayouts.push_back_n(3, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
 
@@ -3274,10 +3298,10 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             vertexBufferLayouts[1].arrayStride = sizeof(float) * 2;
             vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Vertex;
 
-            assert(attrs.size() == 2 + IMAGE_ATTRIB_COUNT);
-            vertexBufferLayouts[2].attributeCount = IMAGE_ATTRIB_COUNT;
+            assert(attrs.size() == 2 + IMAGE_MESH_ATTRIB_COUNT);
+            vertexBufferLayouts[2].attributeCount = IMAGE_MESH_ATTRIB_COUNT;
             vertexBufferLayouts[2].attributes = &attrs[2];
-            vertexBufferLayouts[2].arrayStride = sizeof(gpu::ImageDrawInstance);
+            vertexBufferLayouts[2].arrayStride = sizeof(gpu::ImageMeshInstance);
             vertexBufferLayouts[2].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
@@ -4802,8 +4826,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // on GL, and we have seen drivers with bugs in their emulation.
                 drawEncoder.SetVertexBuffer(
                     1,
-                    webgpu_buffer(imageDrawInstanceBufferRing()),
-                    batch.baseElement * sizeof(gpu::ImageDrawInstance));
+                    webgpu_buffer(imageRectInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageRectInstance));
                 drawEncoder.SetIndexBuffer(m_imageRectIndexBuffer,
                                            wgpu::IndexFormat::Uint16);
                 drawEncoder.DrawIndexed(batch.indexCountPerInstance,
@@ -4830,8 +4854,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // on GL, and we have seen drivers with bugs in their emulation.
                 drawEncoder.SetVertexBuffer(
                     2,
-                    webgpu_buffer(imageDrawInstanceBufferRing()),
-                    batch.baseElement * sizeof(gpu::ImageDrawInstance));
+                    webgpu_buffer(imageMeshInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageMeshInstance));
                 drawEncoder.SetIndexBuffer(indexBuffer->submittedBuffer(),
                                            wgpu::IndexFormat::Uint16);
                 drawEncoder.DrawIndexed(batch.indexCountPerInstance,

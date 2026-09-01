@@ -9,6 +9,7 @@
 #include "rive/renderer/render_target.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
+#include "image_draw_attributes.hpp"
 #include "rive_render_paint.hpp"
 
 #include "generated/shaders/draw_path.vert.exports.h"
@@ -1062,7 +1063,12 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     }
 }
 
-ImageDrawInstance::ImageDrawInstance(
+#define STATIC_ASSERT_ATTRIB(Class, member, attribIdx)                         \
+    static_assert(                                                             \
+        offsetof(Class, member) ==                                             \
+        Class##Attributes[attribIdx - IMAGE_FIRST_ATTRIB_IDX].byteOffset)
+
+ImageDrawInstanceBase::ImageDrawInstanceBase(
     const Mat2D& matrix,
     float opacity,
     const ClipRectInverseMatrix* clipRectInverseMatrix,
@@ -1070,45 +1076,36 @@ ImageDrawInstance::ImageDrawInstance(
     BlendMode blendMode,
     uint32_t zIndex)
 {
-    // The backends bind the 4 attributes at byte offset i*16, relying on this
-    // grouping.
-    static_assert(ImageDrawInstance::FirstAttribIdx == IMAGE_FIRST_ATTRIB_IDX);
-    static_assert(ImageDrawInstance::LastAttribIdx == IMAGE_LAST_ATTRIB_IDX);
-    static_assert(offsetof(ImageDrawInstance, m_viewMatrix) ==
-                  (IMAGE_VIEW_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                      sizeof(uint32_t) * 4);
-    static_assert(
-        offsetof(ImageDrawInstance, m_clipRectInverseMatrix) ==
-        (IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-            sizeof(uint32_t) * 4);
-    static_assert(offsetof(ImageDrawInstance, m_translate) ==
-                  (IMAGE_TRANSLATES_ATTRIB_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                      sizeof(uint32_t) * 4);
-    static_assert(offsetof(ImageDrawInstance, m_opacity) ==
-                  (IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) *
-                      sizeof(uint32_t) * 4);
+    static_assert(FirstAttribIdx == IMAGE_FIRST_ATTRIB_IDX);
+    static_assert(LastAttribIdx == IMAGE_COMMON_LAST_ATTRIB_IDX);
 
-    // When SPLIT_UINT4_ATTRIBUTES is set (Unreal RHI, whose shader compiler
-    // mishandles a uint4 vertex attribute), the packed uint4 is bound as four
-    // separate uint attributes at consecutive locations.
-    static_assert(IMAGE_SPLIT_OPACITY_ATTRIB_IDX == IMAGE_PACKED_ATTRIBS_IDX);
-    static_assert(
-        offsetof(ImageDrawInstance, m_clipID) ==
-        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
-         (IMAGE_SPLIT_CLIP_ID_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
-            sizeof(uint32_t));
-    static_assert(
-        offsetof(ImageDrawInstance, m_blendMode) ==
-        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
-         (IMAGE_SPLIT_BLEND_MODE_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
-            sizeof(uint32_t));
-    static_assert(
-        offsetof(ImageDrawInstance, m_zIndex) ==
-        ((IMAGE_PACKED_ATTRIBS_IDX - IMAGE_FIRST_ATTRIB_IDX) * 4 +
-         (IMAGE_SPLIT_ZINDEX_ATTRIB_IDX - IMAGE_SPLIT_OPACITY_ATTRIB_IDX)) *
-            sizeof(uint32_t));
-    static_assert(sizeof(ImageDrawInstance) ==
-                  IMAGE_ATTRIB_COUNT * sizeof(uint32_t) * 4);
+    // Check that our attributes start in the right places
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_viewMatrix,
+                         IMAGE_VIEW_MATRIX_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_clipRectInverseMatrix,
+                         IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_translate,
+                         IMAGE_TRANSLATES_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_opacity,
+                         IMAGE_OPACITY_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_clipID,
+                         IMAGE_CLIP_ID_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_blendMode,
+                         IMAGE_BLEND_MODE_ATTRIB_IDX);
+    STATIC_ASSERT_ATTRIB(ImageDrawInstanceBase,
+                         m_zIndex,
+                         IMAGE_ZINDEX_ATTRIB_IDX);
+
+    // Now check that the packed values are at the correct offsets
+    static_assert(offsetof(ImageDrawInstanceBase, m_clipRectInverseTranslate) ==
+                  offsetof(ImageDrawInstanceBase, m_translate) +
+                      2 * sizeof(float));
 
     const Mat2D clipRectInverseMatrixToWrite =
         clipRectInverseMatrix != nullptr
@@ -1123,6 +1120,48 @@ ImageDrawInstance::ImageDrawInstance(
     m_clipID = clipID;
     m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
     m_zIndex = zIndex;
+}
+
+const std::array<VertexAttribute, ImageDrawInstanceBase::AttributeCount>&
+ImageDrawInstanceBase::getAttributes()
+{
+    return ImageDrawInstanceBaseAttributes;
+}
+
+ImageRectInstance::ImageRectInstance(
+    const Mat2D& matrix,
+    float opacity,
+    const ClipRectInverseMatrix* clipRectInverseMatrix,
+    uint32_t clipID,
+    BlendMode blendMode,
+    uint32_t zIndex) :
+    m_commons{matrix, opacity, clipRectInverseMatrix, clipID, blendMode, zIndex}
+{
+    static_assert(offsetof(ImageRectInstance, m_commons) == 0);
+}
+
+const std::array<VertexAttribute, ImageRectInstance::AttributeCount>&
+ImageRectInstance::getAttributes()
+{
+    return ImageRectInstanceAttributes;
+}
+
+ImageMeshInstance::ImageMeshInstance(
+    const Mat2D& matrix,
+    float opacity,
+    const ClipRectInverseMatrix* clipRectInverseMatrix,
+    uint32_t clipID,
+    BlendMode blendMode,
+    uint32_t zIndex) :
+    m_commons{matrix, opacity, clipRectInverseMatrix, clipID, blendMode, zIndex}
+{
+    static_assert(offsetof(ImageMeshInstance, m_commons) == 0);
+}
+
+const std::array<VertexAttribute, ImageMeshInstance::AttributeCount>&
+ImageMeshInstance::getAttributes()
+{
+    return ImageMeshInstanceAttributes;
 }
 
 std::tuple<uint32_t, uint32_t> StorageTextureSize(

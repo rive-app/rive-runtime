@@ -1960,52 +1960,54 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::imageRect:
+            {
+                [encoder setRenderPipelineState:drawPipelineState];
+                [encoder
+                    setVertexBuffer:mtl_buffer(imageRectInstanceBufferRing())
+                             offset:batch.baseElement *
+                                    sizeof(gpu::ImageRectInstance)
+                            atIndex:2];
+                [encoder setCullMode:MTLCullModeNone];
+                assert(desc.interlockMode == gpu::InterlockMode::atomics);
+                [encoder setVertexBuffer:m_imageRectVertexBuffer
+                                  offset:0
+                                 atIndex:0];
+                [encoder
+                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:batch.indexCountPerInstance
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:m_imageRectIndexBuffer
+                        indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
+                            instanceCount:batch.elementCount];
+                break;
+            }
             case DrawType::imageMesh:
             {
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder
-                    setVertexBuffer:mtl_buffer(imageDrawInstanceBufferRing())
+                    setVertexBuffer:mtl_buffer(imageMeshInstanceBufferRing())
                              offset:batch.baseElement *
-                                    sizeof(gpu::ImageDrawInstance)
+                                    sizeof(gpu::ImageMeshInstance)
                             atIndex:2];
                 [encoder setCullMode:MTLCullModeNone];
-                if (drawType == DrawType::imageRect)
-                {
-                    assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                    [encoder setVertexBuffer:m_imageRectVertexBuffer
-                                      offset:0
-                                     atIndex:0];
-                    [encoder
-                        drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                   indexCount:batch.indexCountPerInstance
-                                    indexType:MTLIndexTypeUInt16
-                                  indexBuffer:m_imageRectIndexBuffer
-                            indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
-                                instanceCount:batch.elementCount];
-                }
-                else
-                {
-                    LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
-                                            RenderBufferMetalImpl*,
-                                            batch.vertexBuffer);
-                    LITE_RTTI_CAST_OR_BREAK(
-                        uvBuffer, RenderBufferMetalImpl*, batch.uvBuffer);
-                    LITE_RTTI_CAST_OR_BREAK(
-                        indexBuffer, RenderBufferMetalImpl*, batch.indexBuffer);
-                    [encoder setVertexBuffer:vertexBuffer->submittedBuffer()
-                                      offset:0
-                                     atIndex:0];
-                    [encoder setVertexBuffer:uvBuffer->submittedBuffer()
-                                      offset:0
-                                     atIndex:1];
-                    [encoder
-                        drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                   indexCount:batch.indexCountPerInstance
-                                    indexType:MTLIndexTypeUInt16
-                                  indexBuffer:indexBuffer->submittedBuffer()
-                            indexBufferOffset:batch.baseIndex *
-                                              sizeof(uint16_t)];
-                }
+                LITE_RTTI_CAST_OR_BREAK(
+                    vertexBuffer, RenderBufferMetalImpl*, batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(
+                    uvBuffer, RenderBufferMetalImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(
+                    indexBuffer, RenderBufferMetalImpl*, batch.indexBuffer);
+                [encoder setVertexBuffer:vertexBuffer->submittedBuffer()
+                                  offset:0
+                                 atIndex:0];
+                [encoder setVertexBuffer:uvBuffer->submittedBuffer()
+                                  offset:0
+                                 atIndex:1];
+                [encoder
+                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:batch.indexCountPerInstance
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:indexBuffer->submittedBuffer()
+                        indexBufferOffset:batch.baseIndex * sizeof(uint16_t)];
                 break;
             }
             case DrawType::renderPassInitialize:

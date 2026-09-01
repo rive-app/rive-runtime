@@ -2681,7 +2681,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
     // If we support image paints for paths, the client should draw a
     // rectangular path with an image paint instead of using this draw.
     assert(!context->frameSupportsImagePaintForPaths());
-    m_resourceCounts.imageDrawCount = 1;
+    m_resourceCounts.imageRectCount = 1;
 }
 
 gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
@@ -2719,7 +2719,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     assert(m_vertexBufferRef != nullptr);
     assert(m_uvBufferRef != nullptr);
     assert(m_indexBufferRef != nullptr);
-    m_resourceCounts.imageDrawCount = 1;
+    m_resourceCounts.imageMeshCount = 1;
 }
 
 gpu::DrawBatch* ImageMeshDraw::pushToRenderContext(

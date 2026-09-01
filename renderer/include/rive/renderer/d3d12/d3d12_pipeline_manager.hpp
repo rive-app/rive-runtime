@@ -39,8 +39,7 @@ struct D3D12PipelineProps
 // states
 struct D3D12DrawVertexShader
 {
-    StackVector<D3D12_INPUT_ELEMENT_DESC,
-                gpu::ImageDrawInstance::LastAttribIdx + 1>
+    StackVector<D3D12_INPUT_ELEMENT_DESC, gpu::MaxVertexAttributeCount>
         m_layoutDesc;
     ComPtr<ID3DBlob> m_shader;
 };

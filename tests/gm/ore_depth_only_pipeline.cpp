@@ -69,7 +69,7 @@ public:
         // scope: Pipeline shallow-copies PipelineDesc (mirrors Lua's
         // `ownedVertexLayoutData`), so these must outlive the rcp below.
         // VertexAttribute = { format, offset, shaderSlot }.
-        VertexAttribute attrs[] = {
+        ore::VertexAttribute attrs[] = {
             {0, 0, VertexFormat::float2},
             {8, 1, VertexFormat::float4},
         };

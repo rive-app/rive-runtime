@@ -404,7 +404,7 @@ RenderContextGLImpl::RenderContextGLImpl(
     // We draw imageRects when in atomic mode.
     m_state->bindVAO(m_imageRectVAO);
     glEnableVertexAttribArray(0);
-    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_LAST_ATTRIB_IDX;
+    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_RECT_LAST_ATTRIB_IDX;
          ++loc)
     {
         glEnableVertexAttribArray(loc);
@@ -433,7 +433,7 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
-    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_LAST_ATTRIB_IDX;
+    for (GLuint loc = IMAGE_FIRST_ATTRIB_IDX; loc <= IMAGE_MESH_LAST_ATTRIB_IDX;
          ++loc)
     {
         glEnableVertexAttribArray(loc);
@@ -2140,38 +2140,89 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
     return static_cast<const BufferRingGLImpl*>(bufferRing)->bufferID();
 }
 
-// Setup the per-draw gpu::ImageDrawInstance buffer. GL has no portable
-// baseInstance, so point the instance attributes at this draw's record via a
-// byteOffset instead.
-static void setImageDrawInstanceAttribs(size_t byteOffset)
+enum class CallType
 {
-    glVertexAttribPointer(IMAGE_VIEW_MATRIX_ATTRIB_IDX,
-                          4,
-                          GL_FLOAT,
-                          GL_FALSE,
-                          sizeof(gpu::ImageDrawInstance),
-                          reinterpret_cast<const void*>(byteOffset));
-    glVertexAttribPointer(
-        IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
-        4,
-        GL_FLOAT,
-        GL_FALSE,
-        sizeof(gpu::ImageDrawInstance),
-        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 4));
-    glVertexAttribPointer(
-        IMAGE_TRANSLATES_ATTRIB_IDX,
-        4,
-        GL_FLOAT,
-        GL_FALSE,
-        sizeof(gpu::ImageDrawInstance),
-        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 8));
-    glVertexAttribIPointer(
-        IMAGE_PACKED_ATTRIBS_IDX,
-        4,
-        GL_UNSIGNED_INT,
-        sizeof(gpu::ImageDrawInstance),
-        reinterpret_cast<const void*>(byteOffset + sizeof(uint32_t) * 12));
-    static_assert(sizeof(gpu::ImageDrawInstance) == sizeof(uint32_t) * 16);
+    UnnormalizedFloat,
+    NormalizedFloat,
+    Int,
+};
+struct GLVertexElementFormat
+{
+    GLenum componentType;
+    GLint componentCount;
+    CallType callType;
+};
+inline GLVertexElementFormat getGLVertexElementFormat(
+    VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return {GL_FLOAT, 1, CallType::UnnormalizedFloat};
+        case VertexElementFormat::float2:
+            return {GL_FLOAT, 2, CallType::UnnormalizedFloat};
+        case VertexElementFormat::float3:
+            return {GL_FLOAT, 3, CallType::UnnormalizedFloat};
+        case VertexElementFormat::float4:
+            return {GL_FLOAT, 4, CallType::UnnormalizedFloat};
+        case VertexElementFormat::uint8x4:
+            return {GL_UNSIGNED_BYTE, 4, CallType::Int};
+        case VertexElementFormat::sint8x4:
+            return {GL_BYTE, 4, CallType::Int};
+        case VertexElementFormat::unorm8x4:
+            return {GL_UNSIGNED_BYTE, 4, CallType::NormalizedFloat};
+        case VertexElementFormat::snorm8x4:
+            return {GL_BYTE, 4, CallType::NormalizedFloat};
+        case VertexElementFormat::uint16x2:
+            return {GL_UNSIGNED_SHORT, 2, CallType::Int};
+        case VertexElementFormat::sint16x2:
+            return {GL_SHORT, 2, CallType::Int};
+        case VertexElementFormat::unorm16x2:
+            return {GL_UNSIGNED_SHORT, 2, CallType::NormalizedFloat};
+        case VertexElementFormat::snorm16x2:
+            return {GL_SHORT, 2, CallType::NormalizedFloat};
+        case VertexElementFormat::uint16x4:
+            return {GL_UNSIGNED_SHORT, 4, CallType::Int};
+        case VertexElementFormat::sint16x4:
+            return {GL_SHORT, 4, CallType::Int};
+        case VertexElementFormat::float16x2:
+            return {GL_HALF_FLOAT, 2, CallType::UnnormalizedFloat};
+        case VertexElementFormat::float16x4:
+            return {GL_HALF_FLOAT, 4, CallType::UnnormalizedFloat};
+        case VertexElementFormat::uint32:
+            return {GL_UNSIGNED_INT, 1, CallType::Int};
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+template <typename ImageDrawInstance>
+inline void setInstanceAttribs(size_t baseByteOffset)
+{
+    for (const auto& attr : ImageDrawInstance::getAttributes())
+    {
+        auto fmt = getGLVertexElementFormat(attr.format);
+        if (fmt.callType == CallType::Int)
+        {
+            glVertexAttribIPointer(attr.attributeIndex,
+                                   fmt.componentCount,
+                                   fmt.componentType,
+                                   sizeof(ImageDrawInstance),
+                                   reinterpret_cast<const void*>(
+                                       baseByteOffset + attr.byteOffset));
+        }
+        else
+        {
+            bool isNormalized = (fmt.callType == CallType::NormalizedFloat);
+            glVertexAttribPointer(attr.attributeIndex,
+                                  fmt.componentCount,
+                                  fmt.componentType,
+                                  isNormalized,
+                                  sizeof(ImageDrawInstance),
+                                  reinterpret_cast<const void*>(
+                                      baseByteOffset + attr.byteOffset));
+        }
+    }
 }
 
 static void bind_storage_buffer(const GLCapabilities& capabilities,
@@ -3071,9 +3122,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_state->bindVAO(m_imageRectVAO);
                 m_state->bindBuffer(
                     GL_ARRAY_BUFFER,
-                    gl_buffer_id(imageDrawInstanceBufferRing()));
-                setImageDrawInstanceAttribs(batch.baseElement *
-                                            sizeof(gpu::ImageDrawInstance));
+                    gl_buffer_id(imageRectInstanceBufferRing()));
+                setInstanceAttribs<ImageRectInstance>(
+                    batch.baseElement * sizeof(gpu::ImageRectInstance));
                 glDrawElementsInstanced(GL_TRIANGLES,
                                         batch.indexCountPerInstance,
                                         GL_UNSIGNED_SHORT,
@@ -3101,9 +3152,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(
                     GL_ARRAY_BUFFER,
-                    gl_buffer_id(imageDrawInstanceBufferRing()));
-                setImageDrawInstanceAttribs(batch.baseElement *
-                                            sizeof(gpu::ImageDrawInstance));
+                    gl_buffer_id(imageMeshInstanceBufferRing()));
+                setInstanceAttribs<ImageMeshInstance>(
+                    batch.baseElement * sizeof(gpu::ImageMeshInstance));
                 m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER,
                                     indexBuffer->bufferID());
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)

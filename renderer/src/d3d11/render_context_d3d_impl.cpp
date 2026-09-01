@@ -247,10 +247,70 @@ bool D3D11PipelineManager::setPipelineState(
     return true;
 }
 
+inline DXGI_FORMAT getDXGIFormat(VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return DXGI_FORMAT_R32_FLOAT;
+        case VertexElementFormat::float2:
+            return DXGI_FORMAT_R32G32_FLOAT;
+        case VertexElementFormat::float3:
+            return DXGI_FORMAT_R32G32B32_FLOAT;
+        case VertexElementFormat::float4:
+            return DXGI_FORMAT_R32G32B32A32_FLOAT;
+        case VertexElementFormat::uint8x4:
+            return DXGI_FORMAT_R8G8B8A8_UINT;
+        case VertexElementFormat::sint8x4:
+            return DXGI_FORMAT_R8G8B8A8_SINT;
+        case VertexElementFormat::unorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case VertexElementFormat::snorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_SNORM;
+        case VertexElementFormat::uint16x2:
+            return DXGI_FORMAT_R16G16_UINT;
+        case VertexElementFormat::sint16x2:
+            return DXGI_FORMAT_R16G16_SINT;
+        case VertexElementFormat::unorm16x2:
+            return DXGI_FORMAT_R16G16_UNORM;
+        case VertexElementFormat::snorm16x2:
+            return DXGI_FORMAT_R16G16_SNORM;
+        case VertexElementFormat::uint16x4:
+            return DXGI_FORMAT_R16G16B16A16_UINT;
+        case VertexElementFormat::sint16x4:
+            return DXGI_FORMAT_R16G16B16A16_SINT;
+        case VertexElementFormat::float16x2:
+            return DXGI_FORMAT_R16G16_FLOAT;
+        case VertexElementFormat::float16x4:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        case VertexElementFormat::uint32:
+            return DXGI_FORMAT_R32_UINT;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+template <typename ImageDrawInstance, uint32_t N>
+void addInstanceElements(StackVector<D3D11_INPUT_ELEMENT_DESC, N>& layoutDesc)
+{
+    for (auto& attribute : ImageDrawInstance::getAttributes())
+    {
+        layoutDesc.push_back({
+            .SemanticName = attribute.semanticName,
+            .SemanticIndex = 0,
+            .Format = getDXGIFormat(attribute.format),
+            .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
+            .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
+            .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
+            .InstanceDataStepRate = 1,
+        });
+    }
+}
 std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
-    StackVector<D3D11_INPUT_ELEMENT_DESC, IMAGE_LAST_ATTRIB_IDX + 1> layoutDesc;
+    StackVector<D3D11_INPUT_ELEMENT_DESC, MaxVertexAttributeCount + 1>
+        layoutDesc;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
@@ -289,6 +349,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
                                   0,
                                   D3D11_INPUT_PER_VERTEX_DATA,
                                   0});
+            addInstanceElements<ImageRectInstance>(layoutDesc);
             break;
         case DrawType::imageMesh:
             layoutDesc.push_back({GLSL_a_position,
@@ -305,6 +366,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
                                   D3D11_APPEND_ALIGNED_ELEMENT,
                                   D3D11_INPUT_PER_VERTEX_DATA,
                                   0});
+            addInstanceElements<ImageMeshInstance>(layoutDesc);
             break;
         case DrawType::renderPassResolve:
             break;
@@ -324,40 +386,6 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
-    }
-
-    // Image draws receive their data as instanced vertex attributes, all from
-    // IMAGE_DRAW_INSTANCE_DATA_SLOT. See gpu::ImageDrawInstance.
-    if (gpu::DrawTypeIsImageDraw(drawType))
-    {
-        layoutDesc.push_back({GLSL_a_imageDrawViewMatrix,
-                              0,
-                              DXGI_FORMAT_R32G32B32A32_FLOAT,
-                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                              D3D11_APPEND_ALIGNED_ELEMENT,
-                              D3D11_INPUT_PER_INSTANCE_DATA,
-                              1});
-        layoutDesc.push_back({GLSL_a_imageDrawClipRectInverseMatrix,
-                              0,
-                              DXGI_FORMAT_R32G32B32A32_FLOAT,
-                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                              D3D11_APPEND_ALIGNED_ELEMENT,
-                              D3D11_INPUT_PER_INSTANCE_DATA,
-                              1});
-        layoutDesc.push_back({GLSL_a_imageDrawTranslates,
-                              0,
-                              DXGI_FORMAT_R32G32B32A32_FLOAT,
-                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                              D3D11_APPEND_ALIGNED_ELEMENT,
-                              D3D11_INPUT_PER_INSTANCE_DATA,
-                              1});
-        layoutDesc.push_back({GLSL_a_imageDrawPacked,
-                              0,
-                              DXGI_FORMAT_R32G32B32A32_UINT,
-                              IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                              D3D11_APPEND_ALIGNED_ELEMENT,
-                              D3D11_INPUT_PER_INSTANCE_DATA,
-                              1});
     }
 
     auto result = std::make_unique<D3D11DrawVertexShader>();
@@ -2059,22 +2087,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                        1,
                                        m_featherAtlasTextureSRV.GetAddressOf());
 
-    if (imageDrawInstanceBufferRing() != nullptr)
-    {
-        // Bind the image-draw-attribute records as a per-instance vertex buffer
-        // once; each image draw selects its record via the draw call's base
-        // instance (batch.baseElement).
-        ID3D11Buffer* imageDrawInstanceBuffer =
-            flush_buffer(m_gpuContext.Get(), imageDrawInstanceBufferRing());
-        UINT instanceStride = sizeof(gpu::ImageDrawInstance);
-        UINT instanceOffset = 0;
-        m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                                         1,
-                                         &imageDrawInstanceBuffer,
-                                         &instanceStride,
-                                         &instanceOffset);
-    }
-
     bool renderPassHasCoalescedResolveAndTransfer =
         desc.interlockMode == gpu::InterlockMode::atomics &&
         !desc.fixedFunctionColorOutput &&
@@ -2087,9 +2099,50 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     //  rectangle we get doesn't match it.
     auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
 
+    auto boundVertexInstanceType = BoundVertexInstanceType::none;
+
     for (const DrawBatch& batch : *desc.drawList)
     {
         DrawType drawType = batch.drawType;
+
+        if (drawType == DrawType::imageRect &&
+            boundVertexInstanceType != BoundVertexInstanceType::imageRect)
+        {
+            assert(imageRectInstanceBufferRing() != nullptr);
+
+            // Bind the image-rect-attribute records as a per-instance vertex
+            // buffer once; each image rect selects its record via the draw
+            // call's base instance (batch.baseElement).
+            ID3D11Buffer* imageRectInstanceBuffer =
+                flush_buffer(m_gpuContext.Get(), imageRectInstanceBufferRing());
+            UINT instanceStride = sizeof(gpu::ImageRectInstance);
+            UINT instanceOffset = 0;
+            m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                             1,
+                                             &imageRectInstanceBuffer,
+                                             &instanceStride,
+                                             &instanceOffset);
+            boundVertexInstanceType = BoundVertexInstanceType::imageRect;
+        }
+        else if (drawType == DrawType::imageMesh &&
+                 boundVertexInstanceType != BoundVertexInstanceType::imageMesh)
+        {
+            assert(imageMeshInstanceBufferRing() != nullptr);
+
+            // Bind the image-mesh-attribute records as a per-instance vertex
+            // buffer once; each image mesh selects its record via the draw
+            // call's base instance (batch.baseElement).
+            ID3D11Buffer* imageMeshInstanceBuffer =
+                flush_buffer(m_gpuContext.Get(), imageMeshInstanceBufferRing());
+            UINT instanceStride = sizeof(gpu::ImageMeshInstance);
+            UINT instanceOffset = 0;
+            m_gpuContext->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                             1,
+                                             &imageMeshInstanceBuffer,
+                                             &instanceStride,
+                                             &instanceOffset);
+            boundVertexInstanceType = BoundVertexInstanceType::imageMesh;
+        }
 
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures

@@ -166,7 +166,7 @@ public:
             return;
         }
 
-        VertexAttribute attrs[] = {
+        ore::VertexAttribute attrs[] = {
             {offsetof(MsaaVertex, x), 0, VertexFormat::float2},
             {offsetof(MsaaVertex, r), 1, VertexFormat::float4},
         };

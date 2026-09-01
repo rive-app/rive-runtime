@@ -117,7 +117,8 @@ public:
     virtual void resizeGradSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
-    virtual void resizeImageDrawInstanceBuffer(size_t sizeInBytes) = 0;
+    virtual void resizeImageRectInstanceBuffer(size_t sizeInBytes) = 0;
+    virtual void resizeImageMeshInstanceBuffer(size_t sizeInBytes) = 0;
 
     virtual void preBeginFrame(RenderContext*) {}
 
@@ -160,7 +161,8 @@ public:
     virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
-    virtual void* mapImageDrawInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapImageRectInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapImageMeshInstanceBuffer(size_t mapSizeInBytes) = 0;
 
     // Unmap GPU buffers. All buffers will be unmapped before flush().
     virtual void unmapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
@@ -171,7 +173,8 @@ public:
     virtual void unmapGradSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
-    virtual void unmapImageDrawInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapImageRectInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapImageMeshInstanceBuffer(size_t mapSizeInBytes) = 0;
 
     // Allocate resources that are updated and used during flush().
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;

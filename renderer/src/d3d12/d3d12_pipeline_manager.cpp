@@ -60,6 +60,65 @@ D3D12PipelineManager::D3D12PipelineManager(
                                             IID_PPV_ARGS(&m_rootSignature)));
 }
 
+inline DXGI_FORMAT getDXGIFormat(VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return DXGI_FORMAT_R32_FLOAT;
+        case VertexElementFormat::float2:
+            return DXGI_FORMAT_R32G32_FLOAT;
+        case VertexElementFormat::float3:
+            return DXGI_FORMAT_R32G32B32_FLOAT;
+        case VertexElementFormat::float4:
+            return DXGI_FORMAT_R32G32B32A32_FLOAT;
+        case VertexElementFormat::uint8x4:
+            return DXGI_FORMAT_R8G8B8A8_UINT;
+        case VertexElementFormat::sint8x4:
+            return DXGI_FORMAT_R8G8B8A8_SINT;
+        case VertexElementFormat::unorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case VertexElementFormat::snorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_SNORM;
+        case VertexElementFormat::uint16x2:
+            return DXGI_FORMAT_R16G16_UINT;
+        case VertexElementFormat::sint16x2:
+            return DXGI_FORMAT_R16G16_SINT;
+        case VertexElementFormat::unorm16x2:
+            return DXGI_FORMAT_R16G16_UNORM;
+        case VertexElementFormat::snorm16x2:
+            return DXGI_FORMAT_R16G16_SNORM;
+        case VertexElementFormat::uint16x4:
+            return DXGI_FORMAT_R16G16B16A16_UINT;
+        case VertexElementFormat::sint16x4:
+            return DXGI_FORMAT_R16G16B16A16_SINT;
+        case VertexElementFormat::float16x2:
+            return DXGI_FORMAT_R16G16_FLOAT;
+        case VertexElementFormat::float16x4:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        case VertexElementFormat::uint32:
+            return DXGI_FORMAT_R32_UINT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+template <typename ImageDrawInstance, uint32_t N>
+void addInstanceElements(StackVector<D3D12_INPUT_ELEMENT_DESC, N>& layoutDesc)
+{
+    for (auto& attribute : ImageDrawInstance::getAttributes())
+    {
+        layoutDesc.push_back({
+            .SemanticName = attribute.semanticName,
+            .SemanticIndex = 0,
+            .Format = getDXGIFormat(attribute.format),
+            .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
+            .AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
+            .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+            .InstanceDataStepRate = 1,
+        });
+    }
+}
+
 std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
@@ -110,6 +169,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 0,
             });
+            addInstanceElements<ImageRectInstance>(result->m_layoutDesc);
             break;
         case DrawType::imageMesh:
             result->m_layoutDesc.push_back({
@@ -130,6 +190,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 0,
             });
+            addInstanceElements<ImageMeshInstance>(result->m_layoutDesc);
             break;
         case DrawType::renderPassResolve:
             break;
@@ -149,44 +210,6 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
-    }
-
-    // Image draws receive their data as instanced vertex attributes, all from
-    // IMAGE_DRAW_INSTANCE_DATA_SLOT. See gpu::ImageDrawInstance.
-    if (gpu::DrawTypeIsImageDraw(drawType))
-    {
-        result->m_layoutDesc.push_back(
-            {GLSL_a_imageDrawViewMatrix,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             IMAGE_DRAW_INSTANCE_DATA_SLOT,
-             D3D12_APPEND_ALIGNED_ELEMENT,
-             D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-             1});
-        result->m_layoutDesc.push_back(
-            {GLSL_a_imageDrawClipRectInverseMatrix,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             IMAGE_DRAW_INSTANCE_DATA_SLOT,
-             D3D12_APPEND_ALIGNED_ELEMENT,
-             D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-             1});
-        result->m_layoutDesc.push_back(
-            {GLSL_a_imageDrawTranslates,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             IMAGE_DRAW_INSTANCE_DATA_SLOT,
-             D3D12_APPEND_ALIGNED_ELEMENT,
-             D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-             1});
-        result->m_layoutDesc.push_back(
-            {GLSL_a_imageDrawPacked,
-             0,
-             DXGI_FORMAT_R32G32B32A32_UINT,
-             IMAGE_DRAW_INSTANCE_DATA_SLOT,
-             D3D12_APPEND_ALIGNED_ELEMENT,
-             D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-             1});
     }
 
     result->m_shader = blob;
@@ -307,7 +330,6 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
 
 void D3D12PipelineManager::compileTesselationPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc[] = {
         {GLSL_a_p0p1_,
          0,
@@ -384,7 +406,6 @@ void D3D12PipelineManager::compileTesselationPipeline()
 
 void D3D12PipelineManager::compileGradientPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc = {
         GLSL_a_span,
         0,
@@ -440,7 +461,6 @@ void D3D12PipelineManager::compileGradientPipeline()
 
 void D3D12PipelineManager::compileFeatherAtlasPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc[2];
     layoutDesc[0] = {GLSL_a_patchVertexData,
                      0,

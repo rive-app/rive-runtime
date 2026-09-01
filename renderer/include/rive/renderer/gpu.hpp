@@ -15,6 +15,7 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 
@@ -1743,23 +1744,94 @@ private:
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
+enum class BoundVertexInstanceType
+{
+    none,
+    imageRect,
+    imageMesh,
+};
+
+// TODO: This was intentionally made identical to the VertexFormat enum in Ore,
+// and they could/should be merged.
+enum class VertexElementFormat : uint8_t
+{
+    float1,
+    float2,
+    float3,
+    float4,
+    uint8x4,
+    sint8x4,
+    unorm8x4,
+    snorm8x4,
+    uint16x2,
+    sint16x2,
+    unorm16x2,
+    snorm16x2,
+    uint16x4,
+    sint16x4,
+    float16x2,
+    float16x4,
+    uint32,
+};
+
+// NOTE: This would ideally contain the semantic names that D3D wants as well
+// (like "GLSL_a_imageDrawViewMatrix"), but we don't want to include that
+// generated header here, and having the attributes be constexpr is really
+// convenient (and is taken advantage of in the Vulkan renderer), so for now,
+// the D3Ds have to handle the semantic themselves.
+struct VertexAttribute
+{
+    VertexElementFormat format;
+    uint32_t attributeIndex;
+    uint32_t byteOffset;
+    const char* semanticName;
+};
+
 // Per-draw instanced attributes used by imageMeshes and imageRects.
-struct ImageDrawInstance
+class ImageDrawInstanceBase
 {
 public:
-    // This data is bound to image shaders as 4 tightly-packed instanced
-    // attributes. The vertex shader unpacks them.
-    //   attr 2 (float4): viewMatrix (2x2)
-    //   attr 3 (float4): clipRectInverseMatrix (2x2)
-    //   attr 4 (float4): translates for view & clipRectInverseMatrix
-    //   attr 5 (uint4) : opacity (uintBitsToFloat), clipID, blendMode, zIndex
-    constexpr static size_t FirstAttribIdx = 2;
-    constexpr static size_t LastAttribIdx = 5;
-    constexpr static size_t AttribCount = LastAttribIdx + 1 - FirstAttribIdx;
+    static constexpr size_t FirstAttribIdx = 2;
+    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
-    ImageDrawInstance() = default;
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
 
-    ImageDrawInstance(const Mat2D&,
+    ImageDrawInstanceBase() = default;
+
+    ImageDrawInstanceBase(const Mat2D&,
+                          float opacity,
+                          const ClipRectInverseMatrix*,
+                          uint32_t clipID,
+                          BlendMode,
+                          uint32_t zIndex);
+
+private:
+    WRITEONLY float m_viewMatrix[4];
+    WRITEONLY float m_clipRectInverseMatrix[4];
+
+    WRITEONLY float m_translate[2];
+    WRITEONLY float m_clipRectInverseTranslate[2];
+
+    WRITEONLY float m_opacity;
+    WRITEONLY uint32_t m_clipID;
+    WRITEONLY uint32_t m_blendMode;
+    WRITEONLY uint32_t m_zIndex;
+};
+
+class ImageRectInstance
+{
+public:
+    constexpr static size_t FirstAttribIdx =
+        ImageDrawInstanceBase::FirstAttribIdx;
+    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+
+    ImageRectInstance() = default;
+
+    ImageRectInstance(const Mat2D&,
                       float opacity,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
@@ -1767,17 +1839,44 @@ public:
                       uint32_t zIndex);
 
 private:
-    WRITEONLY float m_viewMatrix[4];
-    WRITEONLY float m_clipRectInverseMatrix[4];
-    WRITEONLY float m_translate[2];
-    WRITEONLY float m_clipRectInverseTranslate[2];
-    WRITEONLY float m_opacity;
-    WRITEONLY uint32_t m_clipID;
-    WRITEONLY uint32_t m_blendMode;
-    WRITEONLY uint32_t m_zIndex;
+    ImageDrawInstanceBase m_commons;
+
+    // Nothing additional yet
+};
+
+class ImageMeshInstance
+{
+public:
+    constexpr static size_t FirstAttribIdx =
+        ImageDrawInstanceBase::FirstAttribIdx;
+    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+
+    ImageMeshInstance() = default;
+
+    ImageMeshInstance(const Mat2D&,
+                      float opacity,
+                      const ClipRectInverseMatrix*,
+                      uint32_t clipID,
+                      BlendMode,
+                      uint32_t zIndex);
+
+private:
+    ImageDrawInstanceBase m_commons;
+
+    // Nothing additional yet
 };
 
 #undef WRITEONLY
+
+constexpr size_t MaxVertexAttributeCount =
+    std::max(ImageMeshInstance::LastAttribIdx,
+             ImageRectInstance::LastAttribIdx) +
+    1;
+constexpr size_t MaxImageDrawInstanceAttributeCount =
+    MaxVertexAttributeCount - ImageDrawInstanceBase::FirstAttribIdx;
 
 // The maximum number of storage buffers we will ever use in a vertex or
 // fragment shader.

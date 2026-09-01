@@ -1115,7 +1115,8 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_gradSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_tessSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_triangleBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-    m_imageDrawInstanceBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
+    m_imageRectInstanceBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
+    m_imageMeshInstanceBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
     const auto& physicalDeviceProps = m_vk->physicalDeviceProperties;
@@ -1450,7 +1451,8 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
     assert(m_gradSpanBuffer == nullptr);
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
-    assert(m_imageDrawInstanceBuffer == nullptr);
+    assert(m_imageRectInstanceBuffer == nullptr);
+    assert(m_imageMeshInstanceBuffer == nullptr);
 
     if (m_canvasCommandPool != VK_NULL_HANDLE)
     {
@@ -1971,7 +1973,8 @@ void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
     assert(m_gradSpanBuffer == nullptr);
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
-    assert(m_imageDrawInstanceBuffer == nullptr);
+    assert(m_imageRectInstanceBuffer == nullptr);
+    assert(m_imageMeshInstanceBuffer == nullptr);
 
     // Advance the context frame and delete resources that are no longer
     // referenced by in-flight command buffers.
@@ -1993,7 +1996,8 @@ void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
     m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
     m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
     m_triangleBuffer = m_triangleBufferPool.acquire();
-    m_imageDrawInstanceBuffer = m_imageDrawInstanceBufferPool.acquire();
+    m_imageRectInstanceBuffer = m_imageRectInstanceBufferPool.acquire();
+    m_imageMeshInstanceBuffer = m_imageMeshInstanceBufferPool.acquire();
 }
 
 namespace descriptor_pool_limits
@@ -4095,7 +4099,7 @@ void RenderContextVulkanImpl::submitDrawList(
                     commandBuffer,
                     layout::ImageRectImageAttribBufferBinding,
                     1,
-                    m_imageDrawInstanceBuffer->vkBufferAddressOf(),
+                    m_imageRectInstanceBuffer->vkBufferAddressOf(),
                     ZERO_OFFSET);
                 m_vk->CmdBindIndexBuffer(commandBuffer,
                                          *m_imageRectIndexBuffer,
@@ -4140,7 +4144,7 @@ void RenderContextVulkanImpl::submitDrawList(
                     commandBuffer,
                     layout::ImageMeshImageAttribBufferBinding,
                     1,
-                    m_imageDrawInstanceBuffer->vkBufferAddressOf(),
+                    m_imageMeshInstanceBuffer->vkBufferAddressOf(),
                     ZERO_OFFSET);
                 m_vk->CmdBindIndexBuffer(commandBuffer,
                                          *indexBuffer->currentBuffer(),
@@ -4193,7 +4197,8 @@ void RenderContextVulkanImpl::postFlush(const RenderContext::FlushResources&)
     m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
     m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
     m_triangleBufferPool.recycle(std::move(m_triangleBuffer));
-    m_imageDrawInstanceBufferPool.recycle(std::move(m_imageDrawInstanceBuffer));
+    m_imageRectInstanceBufferPool.recycle(std::move(m_imageRectInstanceBuffer));
+    m_imageMeshInstanceBufferPool.recycle(std::move(m_imageMeshInstanceBuffer));
 }
 
 void RenderContextVulkanImpl::hotloadShaders(

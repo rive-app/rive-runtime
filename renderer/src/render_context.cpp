@@ -809,7 +809,8 @@ void RenderContext::flush(const FlushResources& flushResources)
             totalFrameResourceCounts.maxTessellatedSegmentCount,
         .triangleVertexBufferCount =
             totalFrameResourceCounts.maxTriangleVertexCount,
-        .imageDrawInstanceBufferCount = totalFrameResourceCounts.imageDrawCount,
+        .imageRectInstanceBufferCount = totalFrameResourceCounts.imageRectCount,
+        .imageMeshInstanceBufferCount = totalFrameResourceCounts.imageMeshCount,
         .gradTextureHeight = layoutCounts.maxGradTextureHeight,
         .tessTextureHeight = layoutCounts.maxTessTextureHeight,
         .featherAtlasTextureWidth = layoutCounts.maxFeatherAtlasWidth,
@@ -875,7 +876,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         .gradSpanBufferCount = 5,            // 125%
         .tessSpanBufferCount = 5,            // 125%
         .triangleVertexBufferCount = 5,      // 125%
-        .imageDrawInstanceBufferCount = 5,   // 125%
+        .imageRectInstanceBufferCount = 5,   // 125%
+        .imageMeshInstanceBufferCount = 5,   // 125%
         .gradTextureHeight = 5,              // 125%
         .tessTextureHeight = 5,              // 125%
         .featherAtlasTextureWidth = 5,       // 125%
@@ -927,7 +929,8 @@ void RenderContext::flush(const FlushResources& flushResources)
             .gradSpanBufferCount = 2,            // 66.7%
             .tessSpanBufferCount = 2,            // 66.7%
             .triangleVertexBufferCount = 2,      // 66.7%
-            .imageDrawInstanceBufferCount = 2,   // 66.7%
+            .imageRectInstanceBufferCount = 2,   // 66.7%
+            .imageMeshInstanceBufferCount = 2,   // 66.7%
             .gradTextureHeight = 2,              // 66.7%
             .tessTextureHeight = 2,              // 66.7%
             .featherAtlasTextureWidth = 2,       // 66.7%
@@ -980,8 +983,10 @@ void RenderContext::flush(const FlushResources& flushResources)
         }
 
         assert(m_flushUniformData.elementsWritten() == m_logicalFlushes.size());
-        assert(m_imageDrawInstanceData.elementsWritten() ==
-               totalFrameResourceCounts.imageDrawCount);
+        assert(m_imageRectInstanceData.elementsWritten() ==
+               totalFrameResourceCounts.imageRectCount);
+        assert(m_imageMeshInstanceData.elementsWritten() ==
+               totalFrameResourceCounts.imageMeshCount);
         assert(m_pathData.elementsWritten() ==
                totalFrameResourceCounts.pathCount +
                    layoutCounts.pathPaddingCount);
@@ -2716,15 +2721,26 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                                            sizeof(gpu::TriangleVertex));
     }
 
-    LOG_BUFFER_RING_SIZE(imageDrawInstanceBufferCount,
-                         sizeof(gpu::ImageDrawInstance));
-    if (allocs.imageDrawInstanceBufferCount !=
-            m_currentResourceAllocations.imageDrawInstanceBufferCount ||
+    LOG_BUFFER_RING_SIZE(imageRectInstanceBufferCount,
+                         sizeof(gpu::ImageRectInstance));
+    if (allocs.imageRectInstanceBufferCount !=
+            m_currentResourceAllocations.imageRectInstanceBufferCount ||
         forceRealloc)
     {
-        m_impl->resizeImageDrawInstanceBuffer(
-            allocs.imageDrawInstanceBufferCount *
-            sizeof(gpu::ImageDrawInstance));
+        m_impl->resizeImageRectInstanceBuffer(
+            allocs.imageRectInstanceBufferCount *
+            sizeof(gpu::ImageRectInstance));
+    }
+
+    LOG_BUFFER_RING_SIZE(imageMeshInstanceBufferCount,
+                         sizeof(gpu::ImageMeshInstance));
+    if (allocs.imageMeshInstanceBufferCount !=
+            m_currentResourceAllocations.imageMeshInstanceBufferCount ||
+        forceRealloc)
+    {
+        m_impl->resizeImageMeshInstanceBuffer(
+            allocs.imageMeshInstanceBufferCount *
+            sizeof(gpu::ImageMeshInstance));
     }
 
     assert(allocs.gradTextureHeight <= kMaxTextureHeight);
@@ -2922,15 +2938,25 @@ bool RenderContext::mapResourceBuffers(
     assert(
         m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
 
-    if (mapCounts.imageDrawInstanceBufferCount > 0)
+    if (mapCounts.imageRectInstanceBufferCount > 0)
     {
-        HANDLE_MAP_FAILURE(m_imageDrawInstanceData.mapElements(
+        HANDLE_MAP_FAILURE(m_imageRectInstanceData.mapElements(
             m_impl.get(),
-            &RenderContextImpl::mapImageDrawInstanceBuffer,
-            mapCounts.imageDrawInstanceBufferCount));
+            &RenderContextImpl::mapImageRectInstanceBuffer,
+            mapCounts.imageRectInstanceBufferCount));
     }
-    assert(m_imageDrawInstanceData.hasRoomFor(
-        mapCounts.imageDrawInstanceBufferCount > 0));
+    assert(m_imageRectInstanceData.hasRoomFor(
+        mapCounts.imageRectInstanceBufferCount));
+
+    if (mapCounts.imageMeshInstanceBufferCount > 0)
+    {
+        HANDLE_MAP_FAILURE(m_imageMeshInstanceData.mapElements(
+            m_impl.get(),
+            &RenderContextImpl::mapImageMeshInstanceBuffer,
+            mapCounts.imageMeshInstanceBufferCount));
+    }
+    assert(m_imageMeshInstanceData.hasRoomFor(
+        mapCounts.imageMeshInstanceBufferCount));
 
 #undef HANDLE_MAP_FAILURE
     return true;
@@ -2991,12 +3017,19 @@ void RenderContext::unmapResourceBuffers(
             &RenderContextImpl::unmapTriangleVertexBuffer,
             mapCounts.triangleVertexBufferCount);
     }
-    if (m_imageDrawInstanceData)
+    if (m_imageRectInstanceData)
     {
-        m_imageDrawInstanceData.unmapElements(
+        m_imageRectInstanceData.unmapElements(
             m_impl.get(),
-            &RenderContextImpl::unmapImageDrawInstanceBuffer,
-            mapCounts.imageDrawInstanceBufferCount);
+            &RenderContextImpl::unmapImageRectInstanceBuffer,
+            mapCounts.imageRectInstanceBufferCount);
+    }
+    if (m_imageMeshInstanceData)
+    {
+        m_imageMeshInstanceData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapImageMeshInstanceBuffer,
+            mapCounts.imageMeshInstanceBufferCount);
     }
 }
 
@@ -3548,10 +3581,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     // with an image paint instead of calling this method.
     assert(!m_ctx->frameSupportsImagePaintForPaths());
 
-    const uint32_t imageDrawBaseInstance =
+    const uint32_t imageRectBaseInstance =
         math::lossless_numeric_cast<uint32_t>(
-            m_ctx->m_imageDrawInstanceData.elementsWritten());
-    m_ctx->m_imageDrawInstanceData.emplace_back(draw->imageMatrix(),
+            m_ctx->m_imageRectInstanceData.elementsWritten());
+    m_ctx->m_imageRectInstanceData.emplace_back(draw->imageMatrix(),
                                                 draw->opacity(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
@@ -3563,7 +3596,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
                                 m_baselineShaderMiscFlags,
                                 PaintType::solidColor,
                                 1,
-                                imageDrawBaseInstance);
+                                imageRectBaseInstance);
     return batch;
 }
 
@@ -3573,10 +3606,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
 
-    const uint32_t imageDrawBaseInstance =
+    const uint32_t imageMeshBaseInstance =
         math::lossless_numeric_cast<uint32_t>(
-            m_ctx->m_imageDrawInstanceData.elementsWritten());
-    m_ctx->m_imageDrawInstanceData.emplace_back(draw->imageMatrix(),
+            m_ctx->m_imageMeshInstanceData.elementsWritten());
+    m_ctx->m_imageMeshInstanceData.emplace_back(draw->imageMatrix(),
                                                 draw->opacity(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
@@ -3588,7 +3621,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
                                 m_baselineShaderMiscFlags,
                                 PaintType::solidColor,
                                 1, // one instance (the mesh)
-                                imageDrawBaseInstance);
+                                imageMeshBaseInstance);
     batch.indexCountPerInstance = draw->indexCount();
     batch.vertexBuffer = draw->vertexBuffer();
     batch.uvBuffer = draw->uvBuffer();
@@ -4031,13 +4064,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         shaderFeatures |= ShaderFeatures::ENABLE_DITHER;
     }
 
-    if (draw->imageTexture() != nullptr &&
-        m_ctx->frameInterlockMode() != gpu::InterlockMode::atomics &&
-        drawType != DrawType::imageRect && drawType != DrawType::imageMesh)
-    {
-        shaderFeatures |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
-    }
-
     if (paintType != PaintType::clipUpdate &&
         !enums::is_flag_set(shaderMiscFlags,
                             gpu::ShaderMiscFlags::borrowedCoveragePass))
@@ -4069,14 +4095,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                 break;
         }
     }
-    batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-    assert(
-        (batch->shaderFeatures &
-         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
-        batch->shaderFeatures);
-
     if (draw->imageTexture() != nullptr)
     {
+        if (m_ctx->frameInterlockMode() != gpu::InterlockMode::atomics &&
+            drawType != DrawType::imageRect && drawType != DrawType::imageMesh)
+        {
+            shaderFeatures |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
+        }
+
         if (batch->imageTexture == nullptr)
         {
             // We merged in with a batch that did not already have an image so
@@ -4090,6 +4116,12 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         }
         assert(batch->imageTexture == draw->imageTexture());
     }
+
+    batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
+    assert(
+        (batch->shaderFeatures &
+         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
+        batch->shaderFeatures);
 
     assert(draw->imageTexture() == nullptr ||
            batch->imageSampler == draw->imageSampler());

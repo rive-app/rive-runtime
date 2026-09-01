@@ -141,7 +141,7 @@ public:
             return;
 
         // Vertex layout: float3 position + float4 color, interleaved.
-        VertexAttribute attrs[] = {
+        ore::VertexAttribute attrs[] = {
             {offsetof(DepthVertex, x), 0, VertexFormat::float3},
             {offsetof(DepthVertex, r), 1, VertexFormat::float4},
         };

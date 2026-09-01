@@ -22,7 +22,7 @@ class RenderContextNULLTestImplForMapFail : public RenderContextNULL
     using Super = RenderContextNULL;
 
 public:
-    static constexpr auto MAP_COUNT = 9u;
+    static constexpr auto MAP_COUNT = 10u;
 
     RenderContextNULLTestImplForMapFail(uint32_t failingMapIndex) :
         Super(), m_failingMapIndex(failingMapIndex)
@@ -31,6 +31,7 @@ public:
     size_t totalMapCount() const { return m_totalMapCount; }
 
 #define MAKE_MAP_UNMAP(index, Name)                                            \
+    static_assert(index < MAP_COUNT);                                          \
     void* map##Name(size_t mapSizeInBytes) override                            \
     {                                                                          \
         static_assert(index < MAP_COUNT);                                      \
@@ -64,7 +65,8 @@ public:
     MAKE_MAP_UNMAP(5, GradSpanBuffer)
     MAKE_MAP_UNMAP(6, TessVertexSpanBuffer)
     MAKE_MAP_UNMAP(7, TriangleVertexBuffer)
-    MAKE_MAP_UNMAP(8, ImageDrawInstanceBuffer)
+    MAKE_MAP_UNMAP(8, ImageRectInstanceBuffer)
+    MAKE_MAP_UNMAP(9, ImageMeshInstanceBuffer)
 
 #undef MAKE_MAP_UNMAP
 
@@ -121,9 +123,10 @@ TEST_CASE("ResourceAllocationCounts", "[RenderContext]")
     allocs.gradSpanBufferCount = 4;
     allocs.tessSpanBufferCount = 5;
     allocs.triangleVertexBufferCount = 6;
-    allocs.imageDrawInstanceBufferCount = 7;
-    allocs.gradTextureHeight = 8;
-    allocs.tessTextureHeight = 9;
+    allocs.imageRectInstanceBufferCount = 7;
+    allocs.imageMeshInstanceBufferCount = 8;
+    allocs.gradTextureHeight = 9;
+    allocs.tessTextureHeight = 10;
 
     allocs = ResourceAllocationCounts::FromVec(allocs.toVec() * 2);
     CHECK(allocs.pathBufferCount == 2);
@@ -131,17 +134,19 @@ TEST_CASE("ResourceAllocationCounts", "[RenderContext]")
     CHECK(allocs.gradSpanBufferCount == 8);
     CHECK(allocs.tessSpanBufferCount == 10);
     CHECK(allocs.triangleVertexBufferCount == 12);
-    CHECK(allocs.imageDrawInstanceBufferCount == 14);
-    CHECK(allocs.gradTextureHeight == 16);
-    CHECK(allocs.tessTextureHeight == 18);
+    CHECK(allocs.imageRectInstanceBufferCount == 14);
+    CHECK(allocs.imageMeshInstanceBufferCount == 16);
+    CHECK(allocs.gradTextureHeight == 18);
+    CHECK(allocs.tessTextureHeight == 20);
 
     RenderContextTest::ResourceAllocationCounts testAllocs;
     testAllocs.pathBufferCount = 18;
     testAllocs.contourBufferCount = 16;
-    testAllocs.gradSpanBufferCount = 12;
-    testAllocs.tessSpanBufferCount = 10;
-    testAllocs.triangleVertexBufferCount = 8;
-    testAllocs.imageDrawInstanceBufferCount = 6;
+    testAllocs.gradSpanBufferCount = 14;
+    testAllocs.tessSpanBufferCount = 12;
+    testAllocs.triangleVertexBufferCount = 10;
+    testAllocs.imageRectInstanceBufferCount = 8;
+    testAllocs.imageMeshInstanceBufferCount = 6;
     testAllocs.gradTextureHeight = 4;
     testAllocs.tessTextureHeight = 2;
 
@@ -151,12 +156,13 @@ TEST_CASE("ResourceAllocationCounts", "[RenderContext]")
                            allocs.toVec() * size_t(5)));
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
-    CHECK(allocs.gradSpanBufferCount == 12);
-    CHECK(allocs.tessSpanBufferCount == 10);
+    CHECK(allocs.gradSpanBufferCount == 14);
+    CHECK(allocs.tessSpanBufferCount == 12);
     CHECK(allocs.triangleVertexBufferCount == 12 * 5);
-    CHECK(allocs.imageDrawInstanceBufferCount == 14 * 5);
-    CHECK(allocs.gradTextureHeight == 16 * 5);
-    CHECK(allocs.tessTextureHeight == 18 * 5);
+    CHECK(allocs.imageRectInstanceBufferCount == 14 * 5);
+    CHECK(allocs.imageMeshInstanceBufferCount == 16 * 5);
+    CHECK(allocs.gradTextureHeight == 18 * 5);
+    CHECK(allocs.tessTextureHeight == 20 * 5);
 
     allocs = ResourceAllocationCounts::FromVec(
         simd::if_then_else(testAllocs.toVec() * size_t(2) <= allocs.toVec(),
@@ -164,12 +170,13 @@ TEST_CASE("ResourceAllocationCounts", "[RenderContext]")
                            allocs.toVec()));
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
-    CHECK(allocs.gradSpanBufferCount == 12);
-    CHECK(allocs.tessSpanBufferCount == 10);
+    CHECK(allocs.gradSpanBufferCount == 14);
+    CHECK(allocs.tessSpanBufferCount == 12);
     CHECK(allocs.triangleVertexBufferCount == 6 * 5);
-    CHECK(allocs.imageDrawInstanceBufferCount == 7 * 5);
-    CHECK(allocs.gradTextureHeight == 8 * 5);
-    CHECK(allocs.tessTextureHeight == 9 * 5);
+    CHECK(allocs.imageRectInstanceBufferCount == 7 * 5);
+    CHECK(allocs.imageMeshInstanceBufferCount == 8 * 5);
+    CHECK(allocs.gradTextureHeight == 9 * 5);
+    CHECK(allocs.tessTextureHeight == 10 * 5);
 }
 
 constexpr static double RESOURCE_EXPIRATION_TIME = 5.0001;

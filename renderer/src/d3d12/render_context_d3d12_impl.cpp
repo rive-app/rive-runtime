@@ -639,7 +639,8 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_gradSpanBufferPool(m_resourceManager),
     m_tessSpanBufferPool(m_resourceManager),
     m_triangleBufferPool(m_resourceManager),
-    m_imageDrawInstanceBufferPool(m_resourceManager, sizeof(ImageDrawInstance)),
+    m_imageRectInstanceBufferPool(m_resourceManager, sizeof(ImageRectInstance)),
+    m_imageMeshInstanceBufferPool(m_resourceManager, sizeof(ImageMeshInstance)),
     // this is 64kb which is the smallest heap that can be sent to gpu
     m_srvUavCbvHeapPool(m_resourceManager,
                         MAX_DESCRIPTOR_HEAPS_PER_FLUSH,
@@ -1014,7 +1015,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     assert(m_gradSpanBuffer == nullptr);
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
-    assert(m_imageDrawInstanceBuffer == nullptr);
+    assert(m_imageRectInstanceBuffer == nullptr);
+    assert(m_imageMeshInstanceBuffer == nullptr);
 
     assert(m_srvUavCbvHeap == nullptr);
     assert(m_cpuSrvUavCbvHeap == nullptr);
@@ -1040,7 +1042,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
     m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
     m_triangleBuffer = m_triangleBufferPool.acquire();
-    m_imageDrawInstanceBuffer = m_imageDrawInstanceBufferPool.acquire();
+    m_imageRectInstanceBuffer = m_imageRectInstanceBufferPool.acquire();
+    m_imageMeshInstanceBuffer = m_imageMeshInstanceBufferPool.acquire();
 
     m_srvUavCbvHeap = m_srvUavCbvHeapPool.acquire();
     m_cpuSrvUavCbvHeap = m_cpuSrvUavCbvHeapPool.acquire();
@@ -1054,7 +1057,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     VNAME_D3D12_OBJECT(m_gradSpanBuffer);
     VNAME_D3D12_OBJECT(m_tessSpanBuffer);
     VNAME_D3D12_OBJECT(m_triangleBuffer);
-    VNAME_D3D12_OBJECT(m_imageDrawInstanceBuffer);
+    VNAME_D3D12_OBJECT(m_imageRectInstanceBuffer);
+    VNAME_D3D12_OBJECT(m_imageMeshInstanceBuffer);
 
     m_isFirstFlushOfFrame = true;
 
@@ -1150,7 +1154,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             m_triangleBuffer->sync(copyCmdList, 0);
         }
 
-        m_imageDrawInstanceBuffer->sync(copyCmdList, 0);
+        m_imageRectInstanceBuffer->sync(copyCmdList, 0);
+        m_imageMeshInstanceBuffer->sync(copyCmdList, 0);
 
         // mark all UAVS, thse only need to happen the fist time since they
         // won't change per logical flush
@@ -1279,18 +1284,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         FLUSH_UNIFORM_BUFFFER_SIG_INDEX,
         m_flushUniformBuffer->resource()->getGPUVirtualAddress() +
             desc.flushUniformDataOffsetInBytes);
-
-    // Bind the image-draw-attribute records as a per-instance vertex buffer
-    // once; each image draw selects its record via the draw call's base
-    // instance (batch.baseElement).
-    // NOTE: Even if there are no image draws, we have still allocated a
-    // single-element instance buffer.
-    D3D12_VERTEX_BUFFER_VIEW imageDrawInstanceVBV =
-        m_imageDrawInstanceBuffer->resource()->vertexBufferView(
-            sizeof(gpu::ImageDrawInstance));
-    cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
-                                1,
-                                &imageDrawInstanceVBV);
 
     if (desc.pathCount > 0)
     {
@@ -1747,6 +1740,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
 
     RIVE_PROF_GPUNAME_L(1, "DrawList");
+
+    auto boundVertexInstanceType = BoundVertexInstanceType::none;
     for (const DrawBatch& batch : *desc.drawList)
     {
         assert(batch.elementCount != 0);
@@ -1762,6 +1757,35 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
+        }
+
+        if (drawType == gpu::DrawType::imageRect &&
+            boundVertexInstanceType != BoundVertexInstanceType::imageRect)
+        {
+            // Bind the image-draw-attribute records as a per-instance vertex
+            // buffer once; each image draw selects its record via the draw
+            // call's base instance (batch.baseElement).
+            D3D12_VERTEX_BUFFER_VIEW imageRectInstanceVBV =
+                m_imageRectInstanceBuffer->resource()->vertexBufferView(
+                    sizeof(gpu::ImageRectInstance));
+            cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                        1,
+                                        &imageRectInstanceVBV);
+            boundVertexInstanceType = BoundVertexInstanceType::imageRect;
+        }
+        else if (drawType == gpu::DrawType::imageMesh &&
+                 boundVertexInstanceType != BoundVertexInstanceType::imageMesh)
+        {
+            // Bind the image-draw-attribute records as a per-instance vertex
+            // buffer once; each image draw selects its record via the draw
+            // call's base instance (batch.baseElement).
+            D3D12_VERTEX_BUFFER_VIEW imageMeshInstanceVBV =
+                m_imageMeshInstanceBuffer->resource()->vertexBufferView(
+                    sizeof(gpu::ImageMeshInstance));
+            cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                        1,
+                                        &imageMeshInstanceVBV);
+            boundVertexInstanceType = BoundVertexInstanceType::imageMesh;
         }
 
         auto* pipeline = m_pipelineManager.tryGetPipeline(
@@ -2100,7 +2124,8 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
     m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
     m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
     m_triangleBufferPool.recycle(std::move(m_triangleBuffer));
-    m_imageDrawInstanceBufferPool.recycle(std::move(m_imageDrawInstanceBuffer));
+    m_imageRectInstanceBufferPool.recycle(std::move(m_imageRectInstanceBuffer));
+    m_imageMeshInstanceBufferPool.recycle(std::move(m_imageMeshInstanceBuffer));
 
     m_srvUavCbvHeapPool.recycle(std::move(m_srvUavCbvHeap));
     m_cpuSrvUavCbvHeapPool.recycle(std::move(m_cpuSrvUavCbvHeap));
