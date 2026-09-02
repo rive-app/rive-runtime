@@ -10,7 +10,7 @@
 
 #include "goldens_shared.hpp"
 
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
 
 #include <algorithm>
 #include <chrono>
@@ -724,6 +724,6 @@ void run_benchmark(const std::vector<uint8_t>& bytes,
     printf("=======================================================\n\n");
 }
 
-#endif // WITH_RIVE_SCRIPTING && RIVE_CANVAS
+#endif // RIVE_CANVAS
 
 #endif // TESTING

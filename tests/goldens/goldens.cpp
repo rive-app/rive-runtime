@@ -93,7 +93,7 @@ static bool render_and_dump_png(
         const double frameDuration = duration / frames;
         const rive::AABB cellBounds = rive::AABB(0, 0, cellSize, cellSize);
 
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
         // Deferred mode records the screen and Ore through the session, then
         // replays synchronously per grid cell. The cadence mirrors the
         // immediate path below so the output must be byte identical.
@@ -252,7 +252,7 @@ static bool process_single_golden_file(const std::string file, int cellSize)
     }
 
     std::vector<uint8_t> bytes(std::istreambuf_iterator<char>(stream), {});
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
     if (const char* n = goldens_getenv("RIVE_GOLDENS_BENCH"))
     {
         int iters = atoi(n);
@@ -355,6 +355,25 @@ void GoldensRunner::init()
     m_cellSize = kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
     TestingWindow::Get()->resize(m_cellSize * s_args.cols(),
                                  m_cellSize * s_args.rows());
+
+    // A build or backend that can't record silently draws immediate, which
+    // reports a pass for a mode that never ran. Say so, like the player does.
+    if (s_args.deferred())
+    {
+#ifdef RIVE_CANVAS
+        auto* rc = TestingWindow::Get()->renderContext();
+        if (rc == nullptr || rc->getOreContext() == nullptr)
+        {
+            fprintf(stderr,
+                    "goldens: --deferred unavailable on this backend, "
+                    "drawing immediate\n");
+        }
+#else
+        fprintf(stderr,
+                "goldens: --deferred requires a RIVE_CANVAS build "
+                "(--with_rive_canvas), drawing immediate\n");
+#endif
+    }
 
     // The .rivs either stream in from the harness, or we walk them off disk.
     m_fromTestHarness = TestHarness::Instance().hasTCPConnection();

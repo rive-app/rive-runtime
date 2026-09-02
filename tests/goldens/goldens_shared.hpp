@@ -23,7 +23,7 @@
 #include "rive/lua/scripting_vm.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
 // RIVE_GOLDENS_DEFER_ORE records through a DeferredOreContext and replays on
 // the real context in the same frame, single threaded.
 #include "common/testing_window_sink.hpp"
@@ -58,7 +58,7 @@ void dumpPixelsAsPng(const char* rivName,
                      int windowHeight,
                      std::vector<uint8_t> pixels);
 
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
 // Goldens frames present on a white background.
 inline TestingWindowFrameSink goldensFrameSink(bool doClear = true)
 {
@@ -95,7 +95,7 @@ public:
               DeferMode mode = DeferMode::Auto)
     {
         rive::Factory* importFactory = TestingWindow::Get()->factory();
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
         // Importing through the DeferredSession makes the artboard's own 2D
         // resources deferred objects with ids so drawInternal can record.
         bool wantDeferred =
@@ -168,7 +168,7 @@ public:
     // Null when deferred mode is off.
     rive::cmd::DeferredSession* deferredSession() const
     {
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
         return m_session.get();
 #else
         return nullptr;
@@ -178,7 +178,7 @@ public:
 private:
     // Destroyed last since deferred resources held by the file record their
     // destruction into the session, so it must outlive them.
-#if defined(WITH_RIVE_SCRIPTING) && defined(RIVE_CANVAS)
+#ifdef RIVE_CANVAS
     std::unique_ptr<rive::cmd::DeferredSession> m_session;
 #endif
     rive::rcp<rive::File> m_file;

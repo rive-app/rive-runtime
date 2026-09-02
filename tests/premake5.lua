@@ -113,6 +113,17 @@ do
     do
         files({ 'goldens/goldens.html' })
     end
+    -- prospero turns RuntimeTypeInfo on whenever exceptions are enabled, and it
+    -- overrides an explicit rtti('Off'). That leaves goldens the only -frtti
+    -- target in an otherwise -fno-rtti build, so the deferred render types emit
+    -- typeinfo referencing bases that librive.a never defines. AdditionalOptions
+    -- land after the toolset flag, so this wins. Every other target, host
+    -- included, already builds goldens -fno-rtti.
+    filter('system:prospero')
+    do
+        buildoptions({ '-fno-rtti' })
+    end
+    filter({})
 end
 
 -- Headless collector validation on device targets; a plain executable so it

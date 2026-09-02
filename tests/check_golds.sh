@@ -30,6 +30,12 @@ while :; do
             TESTS="gms"
             shift
         ;;
+        --deferred)
+            # Goldens only; gms has no deferred mode. Output must match the
+            # same baseline, so no separate gold dir.
+            ARGS="$ARGS --deferred"
+            shift
+        ;;
         -u)
             TARGET="unreal"
             if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -69,7 +75,7 @@ while :; do
             DEFAULT_BACKEND=gl
             SERIAL="$(adb get-serialno | sed 's/[:.]/_/g')"
             if [[ "$1" == "-a32" ]]; then
-                ARGS="--android-arch arm"
+                ARGS="$ARGS --android-arch arm"
             fi
             shift
         ;;

@@ -99,6 +99,11 @@ parser.add_argument("--cols",
                     type=int,
                     default=1,
                     help="number of columns in the goldens grid")
+parser.add_argument("--deferred",
+                    action='store_true',
+                    help="record goldens through a deferred session and replay "\
+                         "synchronously; output must match immediate mode "\
+                         "(needs a --with_rive_canvas build)")
 parser.add_argument("-m", "--match",
                     type=str,
                     default=None,
@@ -662,6 +667,8 @@ def launch_goldens(test_harness_server):
                      "-p%i" % args.png_threads]
     if args.verbose:
         cmd = cmd + ["--verbose"]
+    if args.deferred:
+        cmd = cmd + ["--deferred"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
