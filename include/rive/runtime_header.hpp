@@ -18,7 +18,7 @@ class RuntimeHeader
 private:
     int m_MajorVersion;
     int m_MinorVersion;
-    int m_FileId;
+    uint64_t m_FileId;
     std::unordered_map<int, int> m_PropertyToFieldIndex;
 
 public:
@@ -27,7 +27,7 @@ public:
     /// @returns the file's minor version
     int minorVersion() const { return m_MinorVersion; }
     /// @returns the file's id; may be zero
-    int fileId() const { return m_FileId; }
+    uint64_t fileId() const { return m_FileId; }
 
     int propertyFieldId(int propertyKey) const
     {
@@ -66,7 +66,7 @@ public:
             return false;
         }
 
-        header.m_FileId = reader.readVarUintAs<int>();
+        header.m_FileId = reader.readVarUint64();
 
         if (reader.didOverflow())
         {
