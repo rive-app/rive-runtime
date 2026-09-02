@@ -476,6 +476,11 @@ private:
     rcp<DescriptorSetPoolPool> m_descriptorSetPoolPool;
 
     std::unique_ptr<PipelineManagerVulkan> m_pipelineManager;
+
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode) override;
+#endif
 };
 } // namespace rive::gpu
 

@@ -76,6 +76,17 @@ public:
         assert(!m_jobThread.joinable());
     }
 
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode shaderCompilationMode() const { return m_mode; }
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode new_mode)
+    {
+        ShaderCompilationMode oldMode = m_mode;
+        m_mode = new_mode;
+        return oldMode;
+    }
+#endif
+
     const PipelineType* tryGetPipeline(const PipelineProps& propsIn,
                                        const PlatformFeatures& platformFeatures)
     {
@@ -104,8 +115,7 @@ public:
 
             case ShaderCompilationMode::onlyUbershaders:
                 // For ubershader-only loading, we'll always use the full
-                // ubershader
-                //  feature flags and always load synchronously.
+                // ubershader feature flags and always load synchronously.
                 props.shaderFeatures = ubershaderFeatures;
                 [[fallthrough]];
 
@@ -674,7 +684,11 @@ private:
 
     bool m_isDone = false;
     uint32_t m_activePipelineCreationCount = 0;
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode m_mode = ShaderCompilationMode::standard;
+#else
     const ShaderCompilationMode m_mode = ShaderCompilationMode::standard;
+#endif
     std::thread m_jobThread;
     std::optional<PipelineKey> m_currentThreadPipelineKey;
     std::mutex m_mutex;

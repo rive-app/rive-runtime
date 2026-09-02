@@ -250,6 +250,14 @@ private:
 
     D3D11PipelineManager m_pipelineManager;
 
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode) override
+    {
+        return m_pipelineManager.testingOnly_setShaderCompilationMode(mode);
+    }
+#endif
+
     const D3DCapabilities m_d3dCapabilities;
 
     ComPtr<ID3D11Device> m_gpu;

@@ -4346,4 +4346,13 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
 
     return std::make_unique<RenderContext>(std::move(impl));
 }
+
+#ifdef WITH_RIVE_TOOLS
+ShaderCompilationMode RenderContextVulkanImpl::
+    testingOnly_setShaderCompilationMode(ShaderCompilationMode mode)
+{
+    return m_pipelineManager->testingOnly_setShaderCompilationMode(mode);
+}
+#endif
+
 } // namespace rive::gpu

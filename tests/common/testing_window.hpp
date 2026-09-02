@@ -237,6 +237,8 @@ public:
 #ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =
             rive::gpu::SynthesizedFailureType::none;
+        rive::gpu::ShaderCompilationMode shaderCompilationMode =
+            rive::gpu::ShaderCompilationMode::standard;
 #endif
     };
     virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;

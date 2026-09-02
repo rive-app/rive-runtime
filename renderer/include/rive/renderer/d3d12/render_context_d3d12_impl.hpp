@@ -237,6 +237,14 @@ private:
     D3D12PipelineManager m_pipelineManager;
     rcp<D3D12ResourceManager> m_resourceManager;
 
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode) override
+    {
+        return m_pipelineManager.testingOnly_setShaderCompilationMode(mode);
+    }
+#endif
+
     // Rive buffer pools. These don't need to be rcp<> because the destructor of
     // RenderContextVulkanImpl is already synchronized.
     D3D12VolatileBufferPool m_flushUniformBufferPool;

@@ -37,6 +37,19 @@ public:
                                                RenderBufferFlags,
                                                size_t) = 0;
 
+#ifdef WITH_RIVE_TOOLS
+    // Changes how pipelines are selected and compiled for subsequent flushes,
+    // returning the previous mode. Backends that don't support runtime
+    // changes ignore the request (and echo the requested mode back). Testing
+    // only: lets the golden tests render individual frames through
+    // ubershaders.
+    virtual ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode)
+    {
+        return mode;
+    }
+#endif
+
     // Use platform apis to decode the image bytes and creates a texture if
     // available. If not available leaving its default implementation will cause
     // rive decoders to be used instead

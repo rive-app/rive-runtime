@@ -522,6 +522,14 @@ private:
 
     GLPipelineManager m_pipelineManager;
 
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode) override
+    {
+        return m_pipelineManager.testingOnly_setShaderCompilationMode(mode);
+    }
+#endif
+
     // Vertex/index buffers for drawing paths.
     glutils::VAO m_drawVAO;
     glutils::Buffer m_patchVerticesBuffer;
