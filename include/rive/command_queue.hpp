@@ -475,18 +475,93 @@ public:
 
     void deleteFile(FileHandle, uint64_t requestId = 0);
 
+    /**
+     * Registers a global image asset that provides the contents for any file's
+     * out-of-band image asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded image resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalImageAsset(std::string name,
-                             RenderImageHandle,
+                             RenderImageHandle handle,
                              uint64_t requestId = 0);
+    /**
+     * Registers a global font asset that provides the contents for any file's
+     * out-of-band font asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded font resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalFontAsset(std::string name,
-                            FontHandle,
+                            FontHandle handle,
                             uint64_t requestId = 0);
+    /**
+     * Registers a global audio asset that provides the contents for any file's
+     * out-of-band audio asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded audio resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalAudioAsset(std::string name,
-                             AudioSourceHandle,
+                             AudioSourceHandle handle,
                              uint64_t requestId = 0);
 
+    /**
+     * Unregisters the global image asset with the given unique name, clearing
+     * it from every open file it was applied to. Deleting the backing image
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalImageAsset(std::string name, uint64_t requestId = 0);
+    /**
+     * Unregisters the global font asset with the given unique name, clearing it
+     * from every open file it was applied to. Deleting the backing font
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalFontAsset(std::string name, uint64_t requestId = 0);
+    /**
+     * Unregisters the global audio asset with the given unique name, clearing
+     * it from every open file it was applied to. Deleting the backing audio
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalAudioAsset(std::string name, uint64_t requestId = 0);
 
     ArtboardHandle instantiateArtboardNamed(

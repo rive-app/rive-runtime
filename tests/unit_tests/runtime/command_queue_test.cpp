@@ -518,7 +518,7 @@ public:
 };
 
 static void server_thread_file_loader(rcp<CommandQueue> commandQueue,
-                                      rcp<TestAssetsFileLoader> loader)
+                                      rcp<rive::FileAssetLoader> loader)
 {
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
@@ -7646,4 +7646,1063 @@ TEST_CASE("Get View Model Instances Report Invalid State Machine",
 
     commandQueue->setGlobalStateMachineListener(nullptr);
     commandQueue->disconnect();
+}
+
+TEST_CASE("registered global image asset applies to files loaded afterward",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    FileAssetsListenerCallback listener;
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() ==
+              server->getImage(imageHandle));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalImageAsset resolves across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, imageHandle](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalImageAsset replaces across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream imageStream1("assets/batdude.png", std::ios::binary);
+    auto imageHandle1 = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream1), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle1);
+
+    std::ifstream imageStream2("assets/batdude.png", std::ios::binary);
+    auto imageHandle2 = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream2), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle2);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, imageHandle2](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle2));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle2));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("removeGlobalImageAsset clears across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+    commandQueue->removeGlobalImageAsset("one-45008");
+
+    commandQueue->runOnce([fileHandle1, fileHandle2](CommandServer* server) {
+        auto file1 = server->getFile(fileHandle1);
+        REQUIRE(file1 != nullptr);
+        CHECK(file1->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+
+        auto file2 = server->getFile(fileHandle2);
+        REQUIRE(file2 != nullptr);
+        CHECK(file2->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE(
+    "addGlobalImageAsset with non-matching name does not resolve on files",
+    "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("wrong-name", imageHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalImageAsset with invalid handle reports error",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestRenderImageErrorListener errorListener;
+    errorListener.m_handle = RIVE_NULL_HANDLE;
+    commandQueue->setGlobalRenderImageListener(&errorListener);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    commandQueue->addGlobalImageAsset("one-45008", RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+    CHECK(errorListener.m_hasCallback);
+
+    commandQueue->setGlobalRenderImageListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+#ifdef WITH_RIVE_TEXT
+TEST_CASE("addGlobalFontAsset resolves across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    auto fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    commandQueue->addGlobalFontAsset("Inter-43276", fontHandle);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, fontHandle](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<FontAsset>()->font().get() ==
+                  server->getFont(fontHandle));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<FontAsset>()->font().get() ==
+                  server->getFont(fontHandle));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalFontAsset replaces across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream fontStream1("assets/fonts/OpenSans-Italic.ttf",
+                              std::ios::binary);
+    auto fontHandle1 = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream1), {}));
+
+    commandQueue->addGlobalFontAsset("Inter-43276", fontHandle1);
+
+    std::ifstream fontStream2("assets/fonts/OpenSans-Italic.ttf",
+                              std::ios::binary);
+    auto fontHandle2 = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream2), {}));
+
+    commandQueue->addGlobalFontAsset("Inter-43276", fontHandle2);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, fontHandle2](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<FontAsset>()->font().get() ==
+                  server->getFont(fontHandle2));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<FontAsset>()->font().get() ==
+                  server->getFont(fontHandle2));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("removeGlobalFontAsset clears across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    auto fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    commandQueue->addGlobalFontAsset("Inter-43276", fontHandle);
+    commandQueue->removeGlobalFontAsset("Inter-43276");
+
+    commandQueue->runOnce([fileHandle1, fileHandle2](CommandServer* server) {
+        auto file1 = server->getFile(fileHandle1);
+        REQUIRE(file1 != nullptr);
+        CHECK(file1->assets()[0]->as<FontAsset>()->font() == nullptr);
+
+        auto file2 = server->getFile(fileHandle2);
+        REQUIRE(file2 != nullptr);
+        CHECK(file2->assets()[0]->as<FontAsset>()->font() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalFontAsset with non-matching name does not resolve on files",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    auto fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    commandQueue->addGlobalFontAsset("wrong-name", fontHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<FontAsset>()->font() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalFontAsset with invalid handle reports error",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestFontErrorListener errorListener;
+    errorListener.m_handle = RIVE_NULL_HANDLE;
+    commandQueue->setGlobalFontListener(&errorListener);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    commandQueue->addGlobalFontAsset("Inter-43276", RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<FontAsset>()->font() == nullptr);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+    CHECK(errorListener.m_hasCallback);
+
+    commandQueue->setGlobalFontListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
+
+#ifdef WITH_RIVE_AUDIO
+TEST_CASE("addGlobalAudioAsset resolves across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    commandQueue->addGlobalAudioAsset("sound-55368", audioHandle);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, audioHandle](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<AudioAsset>()->audioSource().get() ==
+                  server->getAudioSource(audioHandle));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<AudioAsset>()->audioSource().get() ==
+                  server->getAudioSource(audioHandle));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalAudioAsset replaces across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream audioStream1("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle1 = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream1), {}));
+
+    commandQueue->addGlobalAudioAsset("sound-55368", audioHandle1);
+
+    std::ifstream audioStream2("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle2 = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream2), {}));
+
+    commandQueue->addGlobalAudioAsset("sound-55368", audioHandle2);
+
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, audioHandle2](CommandServer* server) {
+            auto file1 = server->getFile(fileHandle1);
+            REQUIRE(file1 != nullptr);
+            CHECK(file1->assets()[0]->as<AudioAsset>()->audioSource().get() ==
+                  server->getAudioSource(audioHandle2));
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<AudioAsset>()->audioSource().get() ==
+                  server->getAudioSource(audioHandle2));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("removeGlobalAudioAsset clears across all files", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    commandQueue->addGlobalAudioAsset("sound-55368", audioHandle);
+    commandQueue->removeGlobalAudioAsset("sound-55368");
+
+    commandQueue->runOnce([fileHandle1, fileHandle2](CommandServer* server) {
+        auto file1 = server->getFile(fileHandle1);
+        REQUIRE(file1 != nullptr);
+        CHECK(file1->assets()[0]->as<AudioAsset>()->audioSource() == nullptr);
+
+        auto file2 = server->getFile(fileHandle2);
+        REQUIRE(file2 != nullptr);
+        CHECK(file2->assets()[0]->as<AudioAsset>()->audioSource() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE(
+    "addGlobalAudioAsset with non-matching name does not resolve on files",
+    "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    commandQueue->addGlobalAudioAsset("wrong-name", audioHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<AudioAsset>()->audioSource() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("addGlobalAudioAsset with invalid handle reports error",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestAudioSourceErrorListener errorListener;
+    errorListener.m_handle = RIVE_NULL_HANDLE;
+    commandQueue->setGlobalAudioSourceListener(&errorListener);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    commandQueue->addGlobalAudioAsset("sound-55368", RIVE_NULL_HANDLE);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<AudioAsset>()->audioSource() == nullptr);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+    CHECK(errorListener.m_hasCallback);
+
+    commandQueue->setGlobalAudioSourceListener(nullptr);
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
+
+TEST_CASE("deleting a file does not disturb another file's global asset",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener1;
+    FileAssetsListenerCallback listener2;
+
+    std::ifstream stream1("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle1 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream1), {}),
+        &listener1);
+
+    std::ifstream stream2("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle2 = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream2), {}),
+        &listener2);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+    commandQueue->deleteFile(fileHandle1);
+
+    // The surviving file keeps its resolved asset, and the deleted file is
+    // gone.
+    commandQueue->runOnce(
+        [fileHandle1, fileHandle2, imageHandle](CommandServer* server) {
+            CHECK(server->getFile(fileHandle1) == nullptr);
+
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle));
+        });
+
+    // A subsequent global change for the same name must reach the surviving
+    // file and must not touch the deleted file's assets.
+    std::ifstream replacementStream("assets/batdude.png", std::ios::binary);
+    auto replacementHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(replacementStream),
+                             {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", replacementHandle);
+
+    commandQueue->runOnce(
+        [fileHandle2, replacementHandle](CommandServer* server) {
+            auto file2 = server->getFile(fileHandle2);
+            REQUIRE(file2 != nullptr);
+            CHECK(file2->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(replacementHandle));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("global asset changes after deleting its only file are a safe no-op",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+    commandQueue->deleteFile(fileHandle);
+
+    // With no file referencing the name, applying and clearing it must not
+    // dereference the deleted file's assets.
+    commandQueue->removeGlobalImageAsset("one-45008");
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) == nullptr);
+        CHECK(server->getImage(imageHandle) != nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("failed load does not contaminate a later file's global assets",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    // A file that fails to import must not leave its assets tracked.
+    FileHandle badFile =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    commandQueue->runOnce(
+        [badFile, goodFile, imageHandle](CommandServer* server) {
+            CHECK(server->getFile(badFile) == nullptr);
+
+            auto file = server->getFile(goodFile);
+            REQUIRE(file != nullptr);
+            CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() ==
+                  server->getImage(imageHandle));
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("global image asset does not override embedded asset",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    // Registered before the file loads: the embedded contents must still win.
+    commandQueue->addGlobalImageAsset("1x1-45022", imageHandle);
+
+    std::ifstream stream("assets/in_band_asset.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        auto image = file->assets()[0]->as<ImageAsset>()->renderImage();
+        CHECK(image != nullptr);
+        CHECK(image != server->getImage(imageHandle));
+    });
+
+    // Removing and re-adding the global after load must not clear or replace
+    // the embedded contents either.
+    commandQueue->removeGlobalImageAsset("1x1-45022");
+    commandQueue->addGlobalImageAsset("1x1-45022", imageHandle);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        auto image = file->assets()[0]->as<ImageAsset>()->renderImage();
+        CHECK(image != nullptr);
+        CHECK(image != server->getImage(imageHandle));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("deleting an image clears the applied global asset on loaded files",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() ==
+              server->getImage(imageHandle));
+    });
+
+    // Deleting the image deletes the global asset backed by it, so the
+    // change is applied to loaded files just like a removal.
+    commandQueue->deleteImage(imageHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("deleting an image registered under multiple names clears all",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    // The same image backs two global asset names.
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+    commandQueue->addGlobalImageAsset("two-45009", imageHandle);
+
+    commandQueue->runOnce([fileHandle, imageHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() ==
+              server->getImage(imageHandle));
+    });
+
+    // Deleting the image deletes every global asset it backed, applying the
+    // removal to loaded files and leaving no stale registry entries.
+    commandQueue->deleteImage(imageHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+        CHECK(!server->testing_globalImageContains("one-45008"));
+        CHECK(!server->testing_globalImageContains("two-45009"));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+#ifdef WITH_RIVE_TEXT
+TEST_CASE("deleting a font clears the applied global asset on loaded files",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_font_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    auto fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    commandQueue->addGlobalFontAsset("Inter-43276", fontHandle);
+
+    commandQueue->runOnce([fileHandle, fontHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<FontAsset>()->font().get() ==
+              server->getFont(fontHandle));
+    });
+
+    // Deleting the font deletes the global asset backed by it, so the
+    // change is applied to loaded files just like a removal.
+    commandQueue->deleteFont(fontHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<FontAsset>()->font() == nullptr);
+        CHECK(!server->testing_globalFontContains("Inter-43276"));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
+
+#ifdef WITH_RIVE_AUDIO
+TEST_CASE(
+    "deleting an audio source clears the applied global asset on loaded files",
+    "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_audio_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    auto audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    commandQueue->addGlobalAudioAsset("sound-55368", audioHandle);
+
+    commandQueue->runOnce([fileHandle, audioHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<AudioAsset>()->audioSource().get() ==
+              server->getAudioSource(audioHandle));
+    });
+
+    // Deleting the audio source deletes the global asset backed by it, so
+    // the change is applied to loaded files just like a removal.
+    commandQueue->deleteAudio(audioHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<AudioAsset>()->audioSource() == nullptr);
+        CHECK(!server->testing_globalAudioContains("sound-55368"));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
+
+TEST_CASE("deleting a replaced image does not clear its former name",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    std::ifstream imageStream1("assets/batdude.png", std::ios::binary);
+    auto firstHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream1), {}));
+
+    std::ifstream imageStream2("assets/batdude.png", std::ios::binary);
+    auto secondHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream2), {}));
+
+    // The name is re-registered from the first image to the second.
+    commandQueue->addGlobalImageAsset("one-45008", firstHandle);
+    commandQueue->addGlobalImageAsset("one-45008", secondHandle);
+
+    // Deleting the first image must not clear the name, which now belongs
+    // to the second image.
+    commandQueue->deleteImage(firstHandle);
+
+    commandQueue->runOnce([fileHandle, secondHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() ==
+              server->getImage(secondHandle));
+        CHECK(server->testing_globalImageContains("one-45008"));
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+namespace
+{
+// Claims image assets without providing contents, standing in for a custom
+// loader that owns asset resolution.
+class ClaimingImageAssetLoader : public rive::FileAssetLoader
+{
+public:
+    bool loadContents(FileAsset& asset,
+                      Span<const uint8_t> inBandBytes,
+                      Factory* factory) override
+    {
+        return asset.is<ImageAsset>();
+    }
+};
+} // namespace
+
+TEST_CASE("internal loader claimed asset is not overridden by global asset",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    auto loader = make_rcp<ClaimingImageAssetLoader>();
+    std::thread serverThread(server_thread_file_loader, commandQueue, loader);
+
+    FileAssetsListenerCallback listener;
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    // Registered before the file loads: the claiming loader still wins.
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    std::ifstream stream("assets/hosted_image_file.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener);
+
+    // The claiming loader set no contents, and the global asset must not
+    // have been applied over its claim at load.
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    // Re-applying the global after load must not reach the claimed asset
+    // either.
+    commandQueue->addGlobalImageAsset("one-45008", imageHandle);
+
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
+        auto file = server->getFile(fileHandle);
+        REQUIRE(file != nullptr);
+        CHECK(file->assets()[0]->as<ImageAsset>()->renderImage() == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
 }

@@ -16,13 +16,28 @@
 namespace rive
 {
 class ScriptingContext;
+class GlobalAssetRegistry;
+
 // Server-side worker that executes commands from a CommandQueue.
 class CommandServer
 {
 public:
-    CommandServer(rcp<CommandQueue>,
-                  Factory*,
-                  rcp<rive::FileAssetLoader> = nullptr);
+    /**
+     * Creates the server that executes commands from commandQueue.
+     *
+     * @param commandQueue The queue from which commands are read.
+     * @param factory The factory used to create runtime resources.
+     * @param internalFileAssetLoader An optional FileAssetLoader for loading
+     * out-of-band asset contents without using command-queue global assets.
+     * Provide a loader that recognizes and loads the assets it owns, returning
+     * true from FileAssetLoader::loadContents for those assets. This is
+     * typically used by an embedder that already has its own asset-loading
+     * path. Leave it null when out-of-band images, audio, and fonts should be
+     * handled through the command queue.
+     */
+    CommandServer(rcp<CommandQueue> commandQueue,
+                  Factory* factory,
+                  rcp<rive::FileAssetLoader> internalFileAssetLoader = nullptr);
     virtual ~CommandServer();
 
     Factory* factory() const { return m_factory; }
@@ -249,6 +264,7 @@ private:
     std::unordered_map<DrawKey, CommandServerDrawCallback> m_uniqueDraws;
 
     class CommandFileAssetLoader;
-    rcp<CommandFileAssetLoader> m_fileAssetLoader;
+    rcp<GlobalAssetRegistry> m_globalAssetRegistry;
+    rcp<FileAssetLoader> m_internalFileAssetLoader;
 };
 }; // namespace rive
