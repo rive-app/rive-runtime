@@ -139,40 +139,36 @@ public:
         delete m_stateFrom;
     }
 
-    void init(StateMachineInstance* stateMachineInstance,
-              const StateMachineLayer* layer,
-              ArtboardInstance* instance)
+    /// The artboard every layer of this instance applies to. This is
+    /// identical for all layers of a given StateMachineInstance — as was the
+    /// owning instance pointer — so holding either per layer stored the same
+    /// value layerCount times over. Both are therefore derived from the `smi`
+    /// threaded through the methods below rather than stored per layer.
+    ///
+    /// The layer *definition* is deliberately NOT derived this way. It is
+    /// genuinely per-index data, and while `m_machine->layer(this - m_layers)`
+    /// would recover it, that lookup is only stable in runtime builds. Under
+    /// WITH_RIVE_EDITOR, StateMachine::layer() reads `m_editorLayers`, which
+    /// EditorFile::finalizeBatch clears and rebuilds from arena order after
+    /// every coop batch, while clearStalePlaybackScenes only rebuilds the
+    /// StateMachineInstance when the StateMachine *pointer* changes. So adding
+    /// or reparenting a layer can leave slot i resolving to a different
+    /// definition — or, if a layer was deleted, to nullptr — while m_layers[i]
+    /// still holds the old layer's runtime state. m_layer is captured once at
+    /// init and pinned for the instance's lifetime instead.
+    static ArtboardInstance* artboardOf(const StateMachineInstance* smi)
     {
-
-        if (File::deterministicMode)
-        {
-            srand((unsigned int)1);
-        }
-        else
-        {
-            auto now = std::chrono::high_resolution_clock::now();
-            auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                             now.time_since_epoch())
-                             .count();
-            srand((unsigned int)nanos);
-        }
-        m_stateMachineInstance = stateMachineInstance;
-        m_artboardInstance = instance;
-        assert(m_layer == nullptr);
-        // A layer without an any state is degenerate but not fatal: every
-        // other use of m_anyStateInstance is either a delete guard or a
-        // tryChangeState call, both of which handle null. Keeping this
-        // tolerant is what lets StateMachineLayer stop requiring the state
-        // to be present, so exports can eventually omit unused ones.
-        auto anyState = layer->anyState();
-        m_anyStateInstance = anyState == nullptr
-                                 ? nullptr
-                                 : anyState->makeInstance(instance).release();
-        m_layer = layer;
-        changeState(m_layer->entryState());
+        return smi->m_artboardInstance;
     }
 
-    void resetState()
+    void init(StateMachineInstance* smi, const StateMachineLayer* layer)
+    {
+        assert(m_layer == nullptr);
+        m_layer = layer;
+        changeState(smi, m_layer->entryState());
+    }
+
+    void resetState(StateMachineInstance* smi)
     {
         if (m_stateFrom != m_anyStateInstance && m_stateFrom != m_currentState)
         {
@@ -184,10 +180,10 @@ public:
             delete m_currentState;
         }
         m_currentState = nullptr;
-        changeState(m_layer->entryState());
+        changeState(smi, m_layer->entryState());
     }
 
-    void updateMix(float seconds)
+    void updateMix(StateMachineInstance* smi, float seconds)
     {
         if (m_transition != nullptr && m_stateFrom != nullptr &&
             resolvedDuration() != 0)
@@ -206,9 +202,11 @@ public:
             {
                 m_transitionCompleted = true;
                 clearAnimationReset();
-                fireEvents(StateMachineFireOccurance::atEnd,
+                fireEvents(smi,
+                           StateMachineFireOccurance::atEnd,
                            m_transition->events());
-                performListenerActions(StateMachineFireOccurance::atEnd,
+                performListenerActions(smi,
+                                       StateMachineFireOccurance::atEnd,
                                        m_transition->listenerActions());
             }
         }
@@ -218,45 +216,42 @@ public:
         }
     }
 
-    bool advance(float seconds, bool newFrame)
+    bool advance(StateMachineInstance* smi, float seconds, bool newFrame)
     {
         if (newFrame)
         {
             m_stateMachineChangedOnAdvance = false;
         }
-        m_currentState->advance(seconds, m_stateMachineInstance);
-        updateMix(seconds);
+        m_currentState->advance(seconds, smi);
+        updateMix(smi, seconds);
 
         if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
         {
             // This didn't advance during our updateState, but it should now
             // that we realize we need to mix it in.
-            m_stateFrom->advance(seconds, m_stateMachineInstance);
+            m_stateFrom->advance(seconds, smi);
         }
 
-        apply();
+        apply(smi);
 
         bool changedState = false;
 
-        for (int i = 0; updateState(); i++)
+        for (int i = 0; updateState(smi); i++)
         {
             changedState = true;
-            apply();
+            apply(smi);
 
             if (i == maxIterations)
             {
                 auto stateMachineName =
-                    m_stateMachineInstance->stateMachine() == nullptr
+                    smi->stateMachine() == nullptr
                         ? "[SM Not found]"
-                        : m_stateMachineInstance->stateMachine()
-                              ->name()
-                              .c_str();
+                        : smi->stateMachine()->name().c_str();
                 auto layerName = m_layer == nullptr ? "[LY Not found]"
                                                     : m_layer->name().c_str();
-                auto artboardName =
-                    m_stateMachineInstance->artboard() == nullptr
-                        ? "[AB Not found]"
-                        : m_stateMachineInstance->artboard()->name().c_str();
+                auto artboardName = smi->artboard() == nullptr
+                                        ? "[AB Not found]"
+                                        : smi->artboard()->name().c_str();
                 fprintf(stderr,
                         "%s StateMachine exceeded max iterations in layer %s "
                         "on artboard %s\n",
@@ -317,7 +312,32 @@ public:
                resolvedDuration() != 0 && m_mix < 1.0f;
     }
 
-    bool updateState()
+    /// The any state's instance is only ever fed to tryChangeState, so a layer
+    /// whose any state has no transitions never needs one. Most don't, so this
+    /// is built on demand instead of at init: it saves a heap allocation per
+    /// layer in the common case. Lazy rather than a one-shot check at init
+    /// because LayerState::transitionCount() also reports the editor's
+    /// live-edit list, which can grow after this instance was built.
+    void ensureAnyStateInstance(StateMachineInstance* smi)
+    {
+        if (m_anyStateInstance != nullptr)
+        {
+            return;
+        }
+        // A layer without an any state is degenerate but not fatal: every
+        // other use of m_anyStateInstance is either a delete guard or a
+        // tryChangeState call, both of which handle null. Keeping this
+        // tolerant is what lets StateMachineLayer stop requiring the state
+        // to be present, so exports can eventually omit unused ones.
+        auto anyState = m_layer == nullptr ? nullptr : m_layer->anyState();
+        if (anyState == nullptr || anyState->transitionCount() == 0)
+        {
+            return;
+        }
+        m_anyStateInstance = anyState->makeInstance(artboardOf(smi)).release();
+    }
+
+    bool updateState(StateMachineInstance* smi)
     {
         // Don't allow changing state while a transition is taking place
         // (we're mixing one state onto another) if enableEarlyExit is not true.
@@ -328,27 +348,30 @@ public:
 
         m_waitingForExit = false;
 
-        if (tryChangeState(m_anyStateInstance))
+        ensureAnyStateInstance(smi);
+        if (tryChangeState(smi, m_anyStateInstance))
         {
             return true;
         }
 
-        return tryChangeState(m_currentState);
+        return tryChangeState(smi, m_currentState);
     }
 
-    void fireEvents(StateMachineFireOccurance occurs,
+    void fireEvents(StateMachineInstance* smi,
+                    StateMachineFireOccurance occurs,
                     const std::vector<StateMachineFireAction*>& fireEvents)
     {
         for (auto event : fireEvents)
         {
             if (event->occurs() == occurs)
             {
-                event->perform(m_stateMachineInstance);
+                event->perform(smi);
             }
         }
     }
 
     void performListenerActions(
+        StateMachineInstance* smi,
         StateMachineFireOccurance occurs,
         const std::vector<std::unique_ptr<ListenerAction>>& listenerActions)
     {
@@ -356,8 +379,7 @@ public:
         {
             if (action->matchesScheduledOccurrence(occurs))
             {
-                action->perform(m_stateMachineInstance,
-                                ListenerInvocation::none());
+                action->perform(smi, ListenerInvocation::none());
             }
         }
     }
@@ -371,7 +393,7 @@ public:
 
     double randomValue() { return RandomProvider::generateRandomFloat(); }
 
-    void changeState(const LayerState* stateTo)
+    void changeState(StateMachineInstance* smi, const LayerState* stateTo)
     {
         if ((m_currentState == nullptr ? nullptr : m_currentState->state()) ==
             stateTo)
@@ -382,29 +404,33 @@ public:
         // Fire end events for the state we're changing from.
         if (m_currentState != nullptr)
         {
-            fireEvents(StateMachineFireOccurance::atEnd,
+            fireEvents(smi,
+                       StateMachineFireOccurance::atEnd,
                        m_currentState->state()->events());
-            performListenerActions(StateMachineFireOccurance::atEnd,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atEnd,
                                    m_currentState->state()->listenerActions());
         }
 
-        m_currentState =
-            stateTo == nullptr
-                ? nullptr
-                : stateTo->makeInstance(m_artboardInstance).release();
+        m_currentState = stateTo == nullptr
+                             ? nullptr
+                             : stateTo->makeInstance(artboardOf(smi)).release();
 
         // Fire start events for the state we're changing to.
         if (m_currentState != nullptr)
         {
-            fireEvents(StateMachineFireOccurance::atStart,
+            fireEvents(smi,
+                       StateMachineFireOccurance::atStart,
                        m_currentState->state()->events());
-            performListenerActions(StateMachineFireOccurance::atStart,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atStart,
                                    m_currentState->state()->listenerActions());
         }
         return;
     }
 
-    StateTransition* findRandomTransition(StateInstance* stateFromInstance)
+    StateTransition* findRandomTransition(StateMachineInstance* smi,
+                                          StateInstance* stateFromInstance)
     {
         uint32_t totalWeight = 0;
         auto stateFrom = stateFromInstance->state();
@@ -415,9 +441,8 @@ public:
             if (canChangeState(transition->stateTo()))
             {
 
-                auto allowed = transition->allowed(stateFromInstance,
-                                                   m_stateMachineInstance,
-                                                   this);
+                auto allowed =
+                    transition->allowed(stateFromInstance, smi, this);
                 if (allowed == AllowTransition::yes)
                 {
                     transition->evaluatedRandomWeight(
@@ -451,8 +476,7 @@ public:
                     (double)transition->evaluatedRandomWeight();
                 if (currentWeight + transitionWeight > randomWeight)
                 {
-                    transition->useLayerInConditions(m_stateMachineInstance,
-                                                     this);
+                    transition->useLayerInConditions(smi, this);
                     return transition;
                 }
                 currentWeight += transitionWeight;
@@ -462,14 +486,15 @@ public:
         return nullptr;
     }
 
-    StateTransition* findAllowedTransition(StateInstance* stateFromInstance)
+    StateTransition* findAllowedTransition(StateMachineInstance* smi,
+                                           StateInstance* stateFromInstance)
     {
         auto stateFrom = stateFromInstance->state();
         // If it should randomize
         if ((static_cast<LayerStateFlags>(stateFrom->flags()) &
              LayerStateFlags::Random) == LayerStateFlags::Random)
         {
-            return findRandomTransition(stateFromInstance);
+            return findRandomTransition(smi, stateFromInstance);
         }
         // Else search the first valid transition
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length;
@@ -479,15 +504,13 @@ public:
             if (canChangeState(transition->stateTo()))
             {
 
-                auto allowed = transition->allowed(stateFromInstance,
-                                                   m_stateMachineInstance,
-                                                   this);
+                auto allowed =
+                    transition->allowed(stateFromInstance, smi, this);
                 if (allowed == AllowTransition::yes)
                 {
                     transition->evaluatedRandomWeight(
                         transition->randomWeight());
-                    transition->useLayerInConditions(m_stateMachineInstance,
-                                                     this);
+                    transition->useLayerInConditions(smi, this);
                     return transition;
                 }
                 else
@@ -503,12 +526,11 @@ public:
         return nullptr;
     }
 
-    void buildAnimationResetForTransition()
+    void buildAnimationResetForTransition(StateMachineInstance* smi)
     {
-        m_animationReset =
-            AnimationResetFactory::fromStates(m_stateFrom,
-                                              m_currentState,
-                                              m_artboardInstance);
+        m_animationReset = AnimationResetFactory::fromStates(m_stateFrom,
+                                                             m_currentState,
+                                                             artboardOf(smi));
     }
 
     void clearAnimationReset()
@@ -520,44 +542,48 @@ public:
         }
     }
 
-    bool tryChangeState(StateInstance* stateFromInstance)
+    bool tryChangeState(StateMachineInstance* smi,
+                        StateInstance* stateFromInstance)
     {
         if (stateFromInstance == nullptr)
         {
             return false;
         }
         auto outState = m_currentState;
-        auto transition = findAllowedTransition(stateFromInstance);
+        auto transition = findAllowedTransition(smi, stateFromInstance);
         if (transition != nullptr)
         {
             clearAnimationReset();
-            changeState(transition->stateTo());
+            changeState(smi, transition->stateTo());
             m_stateMachineChangedOnAdvance = true;
 #ifdef RIVE_MICROPROFILE
             RiveProfile::instance().recordTransition(
-                m_stateMachineInstance->artboard()->name(),
-                m_stateMachineInstance->name(),
+                smi->artboard()->name(),
+                smi->name(),
                 m_layer->name(),
                 getStateName(outState),
                 getStateName(m_currentState),
-                m_stateMachineInstance->artboard());
+                smi->artboard());
 #endif
             // state actually has changed
             m_transition = transition;
-            m_transitionDurationProperty =
-                m_stateMachineInstance->findTransitionPropertyInstance(
-                    transition,
-                    StateTransitionBase::durationPropertyKey);
-            fireEvents(StateMachineFireOccurance::atStart,
+            m_transitionDurationProperty = smi->findTransitionPropertyInstance(
+                transition,
+                StateTransitionBase::durationPropertyKey);
+            fireEvents(smi,
+                       StateMachineFireOccurance::atStart,
                        transition->events());
-            performListenerActions(StateMachineFireOccurance::atStart,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atStart,
                                    transition->listenerActions());
             if (resolvedDuration() == 0)
             {
                 m_transitionCompleted = true;
-                fireEvents(StateMachineFireOccurance::atEnd,
+                fireEvents(smi,
+                           StateMachineFireOccurance::atEnd,
                            transition->events());
-                performListenerActions(StateMachineFireOccurance::atEnd,
+                performListenerActions(smi,
+                                       StateMachineFireOccurance::atEnd,
                                        transition->listenerActions());
             }
             else
@@ -574,7 +600,7 @@ public:
 
             if (!m_transitionCompleted)
             {
-                buildAnimationResetForTransition();
+                buildAnimationResetForTransition(smi);
             }
 
             // If we had an exit time and wanted to pause on exit, make
@@ -613,25 +639,26 @@ public:
                         advanceTime = instance->spilledTime();
                     }
                 }
-                m_currentState->advance(advanceTime, m_stateMachineInstance);
+                m_currentState->advance(advanceTime, smi);
             }
             m_mix = 0.0f;
-            updateMix(0.0f);
+            updateMix(smi, 0.0f);
             m_waitingForExit = false;
             return true;
         }
         return false;
     }
 
-    void apply(/*Artboard* artboard*/)
+    void apply(StateMachineInstance* smi)
     {
+        auto artboardInstance = artboardOf(smi);
         if (m_animationReset != nullptr)
         {
-            m_animationReset->apply(m_artboardInstance);
+            m_animationReset->apply(artboardInstance);
         }
         if (m_holdAnimation != nullptr)
         {
-            m_holdAnimation->apply(m_artboardInstance, m_holdTime, m_mixFrom);
+            m_holdAnimation->apply(artboardInstance, m_holdTime, m_mixFrom);
             m_holdAnimation = nullptr;
         }
 
@@ -646,13 +673,13 @@ public:
             auto fromMix = interpolator != nullptr
                                ? interpolator->transform(m_mixFrom)
                                : m_mixFrom;
-            m_stateFrom->apply(m_artboardInstance, fromMix);
+            m_stateFrom->apply(artboardInstance, fromMix);
         }
         if (m_currentState != nullptr)
         {
             auto mix = interpolator != nullptr ? interpolator->transform(m_mix)
                                                : m_mix;
-            m_currentState->apply(m_artboardInstance, mix);
+            m_currentState->apply(artboardInstance, mix);
         }
     }
 
@@ -679,10 +706,16 @@ public:
 
 private:
     static const int maxIterations = 100;
-    StateMachineInstance* m_stateMachineInstance = nullptr;
-    const StateMachineLayer* m_layer = nullptr;
-    ArtboardInstance* m_artboardInstance = nullptr;
 
+    // One of these exists per layer of every StateMachineInstance, which in an
+    // ArtboardComponentList means per layer per row. Keep the pointers, then
+    // the floats, then the bools: interleaving them costs 8 B of padding for
+    // nothing. The owning instance and its artboard used to be stored here
+    // too; both are the same for every layer of an instance, so they are now
+    // derived from the `smi` argument threaded through the methods above. The
+    // layer definition stays stored — see artboardOf() for why deriving it
+    // from the array index is not safe in editor builds.
+    const StateMachineLayer* m_layer = nullptr;
     StateInstance* m_anyStateInstance = nullptr;
     StateInstance* m_currentState = nullptr;
     StateInstance* m_stateFrom = nullptr;
@@ -690,18 +723,17 @@ private:
     const StateTransition* m_transition = nullptr;
     BindablePropertyNumber* m_transitionDurationProperty = nullptr;
     std::unique_ptr<AnimationReset> m_animationReset = nullptr;
-    bool m_transitionCompleted = false;
-
-    bool m_holdAnimationFrom = false;
+    /// Used to ensure a specific animation is applied on the next apply.
+    const LinearAnimation* m_holdAnimation = nullptr;
 
     float m_mix = 1.0f;
     float m_mixFrom = 1.0f;
-    bool m_stateMachineChangedOnAdvance = false;
-
-    bool m_waitingForExit = false;
-    /// Used to ensure a specific animation is applied on the next apply.
-    const LinearAnimation* m_holdAnimation = nullptr;
     float m_holdTime = 0.0f;
+
+    bool m_transitionCompleted = false;
+    bool m_holdAnimationFrom = false;
+    bool m_stateMachineChangedOnAdvance = false;
+    bool m_waitingForExit = false;
 };
 
 /// Representation of a Component from the Artboard Instance and all the
@@ -1772,11 +1804,27 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 #endif
     }
 
+    // Seeded once per state machine instance. This used to run inside the
+    // per-layer init(), reseeding the global RNG (and, outside deterministic
+    // mode, reading the clock) once for every layer of every instance.
+    if (File::deterministicMode)
+    {
+        srand((unsigned int)1);
+    }
+    else
+    {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         now.time_since_epoch())
+                         .count();
+        srand((unsigned int)nanos);
+    }
+
     m_layerCount = static_cast<uint32_t>(machine->layerCount());
     m_layers = new StateMachineLayerInstance[m_layerCount];
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        m_layers[i].init(this, machine->layer(i), m_artboardInstance);
+        m_layers[i].init(this, machine->layer(i));
     }
 
     // Initialize dataBinds. All databinds are cloned for the state machine
@@ -2391,7 +2439,7 @@ bool StateMachineInstance::tryChangeState()
     bool hasChangedState = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].updateState())
+        if (m_layers[i].updateState(this))
         {
             hasChangedState = true;
         }
@@ -2710,7 +2758,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     updateDataBinds(false);
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].advance(seconds, newFrame))
+        if (m_layers[i].advance(this, seconds, newFrame))
         {
             m_needsAdvance = true;
         }
@@ -2840,7 +2888,7 @@ void StateMachineInstance::resetState()
 {
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        m_layers[i].resetState();
+        m_layers[i].resetState(this);
     }
 }
 

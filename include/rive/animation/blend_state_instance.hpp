@@ -59,15 +59,6 @@ public:
                 BlendStateAnimationInstance<T>(static_cast<T*>(blendAnimation),
                                                instance));
         }
-        if ((static_cast<LayerStateFlags>(blendState->flags()) &
-             LayerStateFlags::Reset) == LayerStateFlags::Reset)
-        {
-            auto animations = std::vector<const LinearAnimation*>();
-            for (auto blendAnimation : blendState->animations())
-            {
-                animations.push_back(blendAnimation->animation());
-            }
-        }
     }
 
     bool keepGoing() const override { return m_KeepGoing; }
