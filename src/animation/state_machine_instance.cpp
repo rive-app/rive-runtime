@@ -2795,6 +2795,15 @@ void StateMachineInstance::reset()
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
+    if (m_artboardInstance->advanceWatermark(seconds))
+    {
+        // The file's watermark is playing: settle the artboard at time zero so
+        // its first frame is ready the instant the watermark ends, but don't
+        // let it animate forward. Reporting "keep going" matters here, a false
+        // would read as settled and stop the host's ticker mid pre-roll.
+        advanceAndApply(0.0f, true);
+        return true;
+    }
     return advanceAndApply(seconds, true);
 }
 

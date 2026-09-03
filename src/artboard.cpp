@@ -29,6 +29,7 @@
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/watermark.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/layout_component.hpp"
@@ -1731,9 +1732,38 @@ bool Artboard::hitTestPoint(const Vec2D& position,
                                          isPrimaryHit);
 }
 
+void Artboard::watermark(std::unique_ptr<Watermark> watermark)
+{
+    m_watermark = std::move(watermark);
+}
+
+bool Artboard::advanceWatermark(float elapsedSeconds)
+{
+    if (m_watermark == nullptr)
+    {
+        return false;
+    }
+    if (!m_watermark->advance(elapsedSeconds))
+    {
+        m_watermark = nullptr;
+        return false;
+    }
+    return true;
+}
+
 void Artboard::draw(Renderer* renderer)
 {
     sm_frameId++;
+    // Nested artboards and component lists draw through drawInternal, so only a
+    // top level draw can be diverted to the watermark. isPlaying() keeps an
+    // artboard that is never advanced through a state machine (and so never
+    // starts its watermark) drawing itself rather than freezing on a pre-roll
+    // that would never end.
+    if (m_watermark != nullptr && m_watermark->isPlaying())
+    {
+        m_watermark->draw(renderer, bounds());
+        return;
+    }
     drawInternal(renderer);
 }
 

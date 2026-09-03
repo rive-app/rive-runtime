@@ -12,10 +12,13 @@ class ManifestAsset : public ManifestAssetBase, public DataResolver
 private:
     std::unordered_map<int, std::string> m_names;
     std::unordered_map<int, std::vector<uint32_t>> m_paths;
+    bool m_hasWatermark = false;
+    uint32_t m_watermarkArtboardIndex = 0;
     static const std::string empty;
     static const std::vector<uint32_t> emptyIntVector;
     bool decodeNames(BinaryReader& reader);
     bool decodePaths(BinaryReader& reader);
+    bool decodeWatermark(BinaryReader& reader, uint64_t sectionSize);
 
 protected:
     bool addsToBackboard() override { return false; }
@@ -25,6 +28,13 @@ public:
     std::string fileExtension() const override;
     const std::string& resolveName(int id) override;
     const std::vector<uint32_t>& resolvePath(int id) override;
+
+    /// Whether the file this manifest belongs to carries a watermark.
+    bool hasWatermark() const { return m_hasWatermark; }
+
+    /// The index, in the file's artboard list, of the artboard to draw as the
+    /// watermark. Only meaningful when hasWatermark() is true.
+    uint32_t watermarkArtboardIndex() const { return m_watermarkArtboardIndex; }
 };
 } // namespace rive
 

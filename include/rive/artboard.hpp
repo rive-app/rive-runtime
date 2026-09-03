@@ -20,6 +20,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/typed_children.hpp"
 #include "rive/virtualizing_component.hpp"
+#include "rive/watermark.hpp"
 #include "rive/input/focus_node.hpp"
 #include "rive/input/focus_manager.hpp"
 #include "rive/semantic/semantic_node.hpp"
@@ -137,6 +138,9 @@ private:
     rcp<FocusNode> m_externalParentFocusNode;
 #endif
     static uint64_t sm_frameId;
+    // Non-null only on top level instances vended by File for a file whose
+    // manifest carries a watermark. Released as soon as the watermark finishes.
+    std::unique_ptr<Watermark> m_watermark;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
@@ -467,6 +471,17 @@ public:
 
     void drawInternal(Renderer* renderer);
     void draw(Renderer* renderer) override;
+
+    /// Attach a watermark pre-roll. While it plays this artboard neither
+    /// animates nor draws. Set by File on the instances it vends when the
+    /// file's manifest carries a watermark.
+    void watermark(std::unique_ptr<Watermark> watermark);
+    Watermark* watermark() const { return m_watermark.get(); }
+    /// Advances the attached watermark, if any. Returns true while the frame
+    /// belongs to the watermark, meaning the caller must keep this artboard
+    /// frozen. Releases the watermark on the handover frame, so every frame
+    /// after that is a null check and the pre-roll never plays twice.
+    bool advanceWatermark(float elapsedSeconds);
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);
 

@@ -250,6 +250,13 @@ public:
         return nullptr;
     }
 
+    /// @returns the file's manifest, or nullptr if it has none. Carries the
+    /// string/path tables and the watermark record.
+    ManifestAsset* manifest() const
+    {
+        return m_manifest ? m_manifest.get()->as<ManifestAsset>() : nullptr;
+    }
+
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
     /// @param data the raw data of the file.
@@ -279,6 +286,11 @@ public:
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
     std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
+    /// Gives instance a watermark pre-roll when this file's manifest carries
+    /// one and instance isn't itself the watermark. Only applied to the top
+    /// level instances vended by artboardDefault/artboardAt/artboardNamed.
+    void attachWatermark(ArtboardInstance* instance,
+                         const Artboard* source) const;
 
     /// The file's backboard. All Rive files have a single backboard
     /// where the artboards live. Initialized to null so that a File which

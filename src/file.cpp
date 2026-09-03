@@ -1,6 +1,8 @@
 #include "rive/file.hpp"
 #include "rive/bindable_artboard.hpp"
 #include "rive/runtime_header.hpp"
+#include "rive/watermark.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
@@ -1080,34 +1082,91 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
     return nullptr;
 }
 
+void File::attachWatermark(ArtboardInstance* instance,
+                           const Artboard* source) const
+{
+    auto manifestAsset = manifest();
+    // Index 0 is a legal watermark index, so the enabled flag is the only
+    // thing that says whether this file has one.
+    if (manifestAsset == nullptr || !manifestAsset->hasWatermark())
+    {
+        return;
+    }
+    Artboard* watermarkArtboard =
+        this->artboard(manifestAsset->watermarkArtboardIndex());
+    // Never watermark the watermark: artboardAt(watermarkArtboardIndex()) still
+    // hands back a plain instance so tools can inspect it.
+    if (watermarkArtboard == nullptr || watermarkArtboard == source)
+    {
+        return;
+    }
+    auto watermarkInstance = instanceArtboard(watermarkArtboard);
+    if (watermarkInstance == nullptr)
+    {
+        return;
+    }
+    // A settled state machine is how the pre-roll reports it's done, so an
+    // artboard without one can't drive a watermark.
+    auto stateMachine = watermarkInstance->defaultStateMachine();
+    if (stateMachine == nullptr)
+    {
+        stateMachine = watermarkInstance->stateMachineAt(0);
+    }
+    if (stateMachine == nullptr)
+    {
+        return;
+    }
+    instance->watermark(
+        std::make_unique<Watermark>(std::move(watermarkInstance),
+                                    std::move(stateMachine)));
+}
+
 std::unique_ptr<ArtboardInstance> File::artboardDefault() const
 {
     auto ab = this->artboard();
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
 {
     auto ab = this->artboard(index);
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
     auto ab = this->artboard(name);
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const
 {
-    auto ab = this->artboardNamed(name);
+    // instanceArtboard, not artboardNamed: a bindable artboard is drawn nested
+    // inside a host that already carries the watermark, it must not get its
+    // own.
+    auto ab = instanceArtboard(this->artboard(name));
     return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
               : nullptr;
 }
 
 rcp<BindableArtboard> File::bindableArtboardDefault() const
 {
-    auto ab = this->artboardDefault();
+    auto ab = instanceArtboard(this->artboard());
     return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
               : nullptr;
 }
