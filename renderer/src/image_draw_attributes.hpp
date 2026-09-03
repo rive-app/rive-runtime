@@ -29,10 +29,10 @@ static constexpr auto ImageDrawInstanceBaseAttributes = std::array{
     },
     VertexAttribute{
         // m_opacity/m_modulatedColor
-        VertexElementFormat::float1,
+        VertexElementFormat::uint32,
         ImageDrawInstanceBase::FirstAttribIdx + 3,
         12 * sizeof(float),
-        GLSL_a_imageDrawOpacity,
+        GLSL_a_imageDrawModulatedColor,
     },
     VertexAttribute{
         // m_clipID
@@ -62,9 +62,41 @@ static_assert(std::size(ImageDrawInstanceBaseAttributes) ==
 static_assert(std::size(ImageDrawInstanceBaseAttributes) ==
               IMAGE_COMMON_ATTRIB_COUNT);
 
-// No additional attributes yet.
-static constexpr auto ImageRectInstanceAttributes =
-    ImageDrawInstanceBaseAttributes;
+static constexpr auto ImageRectInstanceAttributes = std::apply(
+    [](auto... baseAttribs) {
+        constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
+        return std::array{
+            baseAttribs..., // ImageDrawInstanceBase attributes come first
+            VertexAttribute{
+                // m_imageMatrix
+                VertexElementFormat::float4,
+                BaseIndex + 0,
+                16 * sizeof(float),
+                GLSL_a_imageRectImageMatrix,
+            },
+            VertexAttribute{
+                // m_gradientMatrix
+                VertexElementFormat::float4,
+                BaseIndex + 1,
+                20 * sizeof(float),
+                GLSL_a_imageRectGradientMatrix,
+            },
+            VertexAttribute{
+                // packed: m_imageTranslate and m_gradientTranslate
+                VertexElementFormat::float4,
+                BaseIndex + 2,
+                24 * sizeof(float),
+                GLSL_a_imageRectImageAndGradientTranslates,
+            },
+            VertexAttribute{// packed: m_gradTextureHorizontalSpan,
+                            // m_gradTextureY, m_gradientType
+                            VertexElementFormat::float4,
+                            BaseIndex + 3,
+                            28 * sizeof(float),
+                            GLSL_a_imageRectPackedGradientData},
+        };
+    },
+    ImageDrawInstanceBaseAttributes);
 
 static_assert(std::size(ImageRectInstanceAttributes) ==
               IMAGE_RECT_ATTRIB_COUNT);

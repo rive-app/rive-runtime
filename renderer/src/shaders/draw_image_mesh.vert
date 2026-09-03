@@ -17,7 +17,7 @@ ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
      float4,
      @a_imageDrawClipRectInverseMatrix);
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
-ATTR(IMAGE_OPACITY_ATTRIB_IDX, float, @a_imageDrawOpacity);
+ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
 ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
 ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
@@ -32,7 +32,7 @@ NO_PERSPECTIVE VARYING(0, float2, v_imageTexCoord);
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
 NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 #endif
-@OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
+@OPTIONALLY_FLAT VARYING(3, half4, v_imageModulatedColor);
 #ifdef @ENABLE_ADVANCED_BLEND
 FLAT VARYING(4, ushort, v_imageBlendMode);
 #endif
@@ -59,7 +59,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                 @a_imageDrawClipRectInverseMatrix,
                 float4);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, float);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawModulatedColor, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
@@ -71,7 +71,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
     VARYING_INIT(v_clipRect, float4);
 #endif
-    VARYING_INIT(v_imageOpacity, half);
+    VARYING_INIT(v_imageModulatedColor, half4);
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_INIT(v_imageBlendMode, ushort);
 #endif
@@ -111,7 +111,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     pos.z = normalize_z_index(@a_imageDrawZIndex);
 #endif
 
-    v_imageOpacity = @a_imageDrawOpacity;
+    v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);
 #ifdef @ENABLE_ADVANCED_BLEND
     v_imageBlendMode = cast_uint_to_ushort(@a_imageDrawBlendMode);
 #endif
@@ -123,7 +123,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_DEPTH_STENCIL)
     VARYING_PACK(v_clipRect);
 #endif
-    VARYING_PACK(v_imageOpacity);
+    VARYING_PACK(v_imageModulatedColor);
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_PACK(v_imageBlendMode);
 #endif

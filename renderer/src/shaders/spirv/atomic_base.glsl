@@ -16,4 +16,5 @@
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
 #include "draw_path_common.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "atomic_draw.minified.glsl"

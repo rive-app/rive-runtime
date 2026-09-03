@@ -135,25 +135,33 @@ ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
      float4,
      @a_imageDrawClipRectInverseMatrix);
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
-ATTR(IMAGE_OPACITY_ATTRIB_IDX, float, @a_imageDrawOpacity);
+ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
 ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
 ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
+ATTR(IMAGE_RECT_IMAGE_MATRIX_ATTRIB_IDX, float4, @a_imageRectImageMatrix);
+ATTR(IMAGE_RECT_GRADIENT_MATRIX_ATTRIB_IDX, float4, @a_imageRectGradientMatrix);
+ATTR(IMAGE_RECT_IMAGE_AND_GRADIENT_TRANSLATES_ATTRIB_IDX,
+     float4,
+     @a_imageRectImageAndGradientTranslates);
+ATTR(IMAGE_RECT_PACKED_GRADIENT_DATA, float4, @a_imageRectPackedGradientData);
+
 ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 NO_PERSPECTIVE VARYING(1, half, v_edgeCoverage);
+NO_PERSPECTIVE VARYING(2, float4, v_gradient);
 #ifdef @ENABLE_CLIP_RECT
-NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
+NO_PERSPECTIVE VARYING(3, float4, v_clipRect);
 #endif
-@OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
+@OPTIONALLY_FLAT VARYING(4, half4, v_imageModulatedColor);
 #ifdef @ENABLE_CLIPPING
-FLAT VARYING(4, ushort, v_imageClipID);
+FLAT VARYING(5, ushort, v_imageClipID);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-FLAT VARYING(5, ushort, v_imageBlendMode);
+FLAT VARYING(6, ushort, v_imageBlendMode);
 #endif
 VARYING_BLOCK_END
 
@@ -173,17 +181,31 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
                 @a_imageDrawClipRectInverseMatrix,
                 float4);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, float);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawModulatedColor, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageRectImageMatrix, float4);
+    ATTR_UNPACK(_instanceID,
+                imageDrawAttrs,
+                @a_imageRectGradientMatrix,
+                float4);
+    ATTR_UNPACK(_instanceID,
+                imageDrawAttrs,
+                @a_imageRectImageAndGradientTranslates,
+                float4);
+    ATTR_UNPACK(_instanceID,
+                imageDrawAttrs,
+                @a_imageRectPackedGradientData,
+                float4);
 
     VARYING_INIT(v_texCoord, float2);
     VARYING_INIT(v_edgeCoverage, half);
+    VARYING_INIT(v_gradient, float4);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
 #endif
-    VARYING_INIT(v_imageOpacity, half);
+    VARYING_INIT(v_imageModulatedColor, half4);
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_imageClipID, ushort);
 #endif
@@ -227,7 +249,10 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
         }
     }
 
-    v_texCoord = vertexPosition;
+    float2x2 texMatrix = make_float2x2(@a_imageRectImageMatrix);
+    v_texCoord = MUL(texMatrix, vertexPosition) +
+                 @a_imageRectImageAndGradientTranslates.xy;
+
     vertexPosition = MUL(M, vertexPosition) + @a_imageDrawTranslates.xy;
 
     if (isOuterVertex)
@@ -248,7 +273,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
     }
 #endif
 
-    v_imageOpacity = @a_imageDrawOpacity;
+    v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);
 #ifdef @ENABLE_CLIPPING
     v_imageClipID = cast_uint_to_ushort(@a_imageDrawClipID);
 #endif
@@ -258,12 +283,34 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
+    // Paint matrices operate on the fragment shader's "_fragCoord", which is
+    // bottom-up in GL.
+    float2 fragCoord = vertexPosition;
+#ifdef @FRAMEBUFFER_BOTTOM_UP
+    fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
+#endif
+
+    // @a_imageRectPackedGradientData contains:
+    //  xy = horizontal span, z = y, w = type
+    if (@a_imageRectPackedGradientData.w != 0.0)
+    {
+        float2x2 gradientMatrix = make_float2x2(@a_imageRectGradientMatrix);
+        float2 gradientTranslate = @a_imageRectImageAndGradientTranslates.zw;
+
+        v_gradient = packGradientData(fragCoord,
+                                      gradientMatrix,
+                                      gradientTranslate,
+                                      @a_imageRectPackedGradientData.w,
+                                      @a_imageRectPackedGradientData.xy,
+                                      @a_imageRectPackedGradientData.z);
+    }
     VARYING_PACK(v_texCoord);
     VARYING_PACK(v_edgeCoverage);
+    VARYING_PACK(v_gradient);
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
 #endif
-    VARYING_PACK(v_imageOpacity);
+    VARYING_PACK(v_imageModulatedColor);
 #ifdef @ENABLE_CLIPPING
     VARYING_PACK(v_imageClipID);
 #endif
@@ -290,7 +337,7 @@ ATTR(IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX,
      float4,
      @a_imageDrawClipRectInverseMatrix);
 ATTR(IMAGE_TRANSLATES_ATTRIB_IDX, float4, @a_imageDrawTranslates);
-ATTR(IMAGE_OPACITY_ATTRIB_IDX, float, @a_imageDrawOpacity);
+ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
 ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
 ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
@@ -302,7 +349,7 @@ NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(1, float4, v_clipRect);
 #endif
-@OPTIONALLY_FLAT VARYING(3, half, v_imageOpacity);
+@OPTIONALLY_FLAT VARYING(3, half4, v_imageModulatedColor);
 #ifdef @ENABLE_CLIPPING
 FLAT VARYING(4, ushort, v_imageClipID);
 #endif
@@ -329,7 +376,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
                 @a_imageDrawClipRectInverseMatrix,
                 float4);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawTranslates, float4);
-    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawOpacity, float);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawModulatedColor, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
@@ -338,7 +385,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
 #endif
-    VARYING_INIT(v_imageOpacity, half);
+    VARYING_INIT(v_imageModulatedColor, half4);
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_imageClipID, ushort);
 #endif
@@ -360,7 +407,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     }
 #endif
 
-    v_imageOpacity = @a_imageDrawOpacity;
+    v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);
 #ifdef @ENABLE_CLIPPING
     v_imageClipID = cast_uint_to_ushort(@a_imageDrawClipID);
 #endif
@@ -374,7 +421,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
 #endif
-    VARYING_PACK(v_imageOpacity);
+    VARYING_PACK(v_imageModulatedColor);
 #ifdef @ENABLE_CLIPPING
     VARYING_PACK(v_imageClipID);
 #endif
@@ -888,11 +935,12 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_texCoord, float2);
 #ifdef @DRAW_IMAGE_RECT
     VARYING_UNPACK(v_edgeCoverage, half);
+    VARYING_UNPACK(v_gradient, float4);
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
 #endif
-    VARYING_UNPACK(v_imageOpacity, half);
+    VARYING_UNPACK(v_imageModulatedColor, half4);
 #ifdef @ENABLE_CLIPPING
     VARYING_UNPACK(v_imageClipID, ushort);
 #endif
@@ -956,7 +1004,31 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 #endif // ENABLE_CLIPPING
 
-// Prepare imageColor for premultiplied src-over blending.
+#ifdef @DRAW_IMAGE_RECT
+    if (v_gradient.w != 0.0)
+    {
+        float2 gradientTexCoord = getGradientCoord(v_gradient);
+
+        // Our gradient texture is not mipmapped. Issue a texture sample that
+        // explicitly does not find derivatives for LOD computation.
+        half4 gradColor = TEXTURE_SAMPLE_LOD(@gradTexture,
+                                             gradSampler,
+                                             gradientTexCoord,
+                                             0.0);
+        // Gradients are always unmultiplied so we don't lose color data while
+        // doing the hardware filter, so premultiply that and then modulate it
+        // with the (already premultiplied) image.
+        // (If there is advanced blend, this will be re-unmultiplied in the
+        // resulting modulated color. But the image color is premultiplied
+        // anyway, so we would've had to do an unmultiply no matter what.)
+        gradColor.rgb *= gradColor.a;
+        imageColor *= gradColor;
+    }
+#endif // DRAW_IMAGE_RECT
+
+    imageColor *= v_imageModulatedColor;
+
+    // Prepare imageColor for premultiplied src-over blending.
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@ENABLE_ADVANCED_BLEND)
     if (@ENABLE_ADVANCED_BLEND && v_imageBlendMode != BLEND_SRC_OVER)
     {
@@ -971,7 +1043,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                          imageColor.a;
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
-    imageColor *= imageCoverage * v_imageOpacity;
+    imageColor *= imageCoverage;
 
 #if defined(@NEEDS_GAMMA_CORRECTION)
     imageColor = gamma_to_linear(imageColor);

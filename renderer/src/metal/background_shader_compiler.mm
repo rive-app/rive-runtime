@@ -4,16 +4,17 @@
 
 #include "background_shader_compiler.h"
 
-#include "generated/shaders/metal.glsl.hpp"
-#include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/flush_uniforms.glsl.hpp"
-#include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
+#include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/draw_image_mesh.vert.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
-#include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_mesh.frag.hpp"
+#include "generated/shaders/flush_uniforms.glsl.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
+#include "generated/shaders/metal.glsl.hpp"
 
 #ifndef RIVE_IOS
 // iOS doesn't need the atomic shaders; every non-simulated iOS device supports
@@ -235,6 +236,7 @@ void BackgroundShaderCompiler::threadMain()
         if (interlockMode == gpu::InterlockMode::atomics)
         {
             [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+            [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
             [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
         }
         else
@@ -248,6 +250,8 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::outerCurvePatches:
                 case DrawType::interiorTriangulation:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+                    [source appendFormat:@"%s\n",
+                                         gpu::glsl::gradient_packing_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
                     [source
                         appendFormat:@"%s\n",
@@ -255,6 +259,8 @@ void BackgroundShaderCompiler::threadMain()
                     break;
                 case DrawType::featherAtlasBlit:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+                    [source appendFormat:@"%s\n",
+                                         gpu::glsl::gradient_packing_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;

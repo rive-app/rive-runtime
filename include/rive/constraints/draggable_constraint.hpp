@@ -97,10 +97,15 @@ public:
         float timeStamp,
         StateMachineInstance* stateMachineInstance) override;
 
+    bool cancelPointer(int pointerId, Vec2D position, float timeStamp) override;
+
 private:
     DraggableConstraint* m_constraint;
     DraggableProxy* m_draggable;
-    bool m_hasScrolled = false;
+    // The pointer whose drag has actually scrolled, or -1. Held by id rather
+    // than as a bool: cancellation walks every tracked pointer, and the dragEnd
+    // belongs to the pointer that scrolled, not to whichever is visited first.
+    int m_scrollingPointerId = -1;
 };
 } // namespace rive
 

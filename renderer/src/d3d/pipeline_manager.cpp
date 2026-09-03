@@ -18,6 +18,7 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
 #include "generated/shaders/hlsl.glsl.hpp"
 
 namespace rive::gpu::d3d_utils
@@ -136,11 +137,13 @@ static std::string build_shader(DrawType drawType,
             case DrawType::outerCurvePatches:
             case DrawType::interiorTriangulation:
                 s << glsl::draw_path_common << '\n';
+                s << glsl::gradient_packing_common << '\n';
                 s << glsl::draw_path_vert << '\n';
                 s << glsl::draw_raster_order_path_frag << '\n';
                 break;
             case DrawType::featherAtlasBlit:
                 s << glsl::draw_path_common << '\n';
+                s << glsl::gradient_packing_common << '\n';
                 s << glsl::draw_path_vert << '\n';
                 s << glsl::draw_mesh_frag << '\n';
                 break;
@@ -172,6 +175,7 @@ static std::string build_shader(DrawType drawType,
     {
         assert(interlockMode == InterlockMode::atomics);
         s << glsl::draw_path_common << '\n';
+        s << glsl::gradient_packing_common << '\n';
         s << glsl::atomic_draw << '\n';
     }
 

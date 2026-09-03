@@ -262,6 +262,7 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
 
 // When compiling "glslRaw" shaders, the WebGPU driver will automatically search
 // for a uniform with this name and update its value when draw commands have a
@@ -1406,6 +1407,7 @@ public:
                     case DrawType::outerCurvePatches:
                     case DrawType::interiorTriangulation:
                         glsl << gpu::glsl::draw_path_common << '\n';
+                        glsl << gpu::glsl::gradient_packing_common << '\n';
                         glsl << gpu::glsl::draw_path_vert << '\n';
                         if (interlockMode == gpu::InterlockMode::rasterOrdering)
                         {
@@ -1426,6 +1428,7 @@ public:
                         break;
                     case DrawType::featherAtlasBlit:
                         glsl << gpu::glsl::draw_path_common << '\n';
+                        glsl << gpu::glsl::gradient_packing_common << '\n';
                         glsl << gpu::glsl::draw_path_vert << '\n';
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;

@@ -15,4 +15,5 @@
 #include "Generated/common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
 #include "Generated/draw_path_common.minified.ush"
+#include "Generated/gradient_packing_common.minified.ush"
 #include "Generated/atomic_draw.minified.ush"

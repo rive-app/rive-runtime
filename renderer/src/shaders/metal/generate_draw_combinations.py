@@ -93,6 +93,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
                   ('c' if fill_type == FillType.CLOCKWISE else 'p',
                    ''.join(namespace_id)))
         out.write('{\n')
+        out.write('#include "gradient_packing_common.minified.glsl"\n')
         out.write('#include "draw_path.minified.vert"\n')
         if FEATHER_ATLAS_BLIT in feature_set:
             out.write('#include "draw_mesh.minified.frag"\n')

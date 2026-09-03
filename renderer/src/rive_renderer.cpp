@@ -4,6 +4,7 @@
 
 #include "rive/renderer/rive_renderer.hpp"
 
+#include "gradient.hpp"
 #include "rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "rive/math/math_types.hpp"
@@ -157,6 +158,72 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     Mat2D* imageMatrixPtr = nullptr;
     if (paint->getImageTexture() != nullptr)
     {
+        if (!m_context->frameSupportsImagePaintForPaths())
+        {
+            // If we don't have image paint support we need to do this using
+            // ImageRect (which can do all of the drawing of image +
+            // color/gradient), clipped to the current path.
+            save();
+
+            AABB bounds;
+            bool isAABB = IsAABB(path->getRawPath(), &bounds);
+            if (!isAABB)
+            {
+                // If this is not an AABB directly we need to get the actual
+                // bounds and then clip against the path.
+                // TODO: stroked/feathered paths
+                bounds = path->getBounds();
+                clipPath(renderPath);
+            }
+
+            // TODO: Multiply the paint's gradient matrix with this once it
+            // exists
+            const auto gradientMatrix = m_renderStateStack.back().matrix;
+
+            // ImageRectDraw draws as a unit square with upper-left corner of 0,
+            // 0 so we need to adjust our transform to set that up.
+            Mat2D adjust = Mat2D::fromScaleAndTranslation(bounds.width(),
+                                                          bounds.height(),
+                                                          bounds.left(),
+                                                          bounds.top());
+            transform(adjust);
+
+            const auto& m = m_renderStateStack.back().matrix;
+
+            // The image matrix needs to map from the desired image space to the
+            // "box space" (where the upper-left and lower-right coordinates are
+            // (0, 0) and (1, 1) respectively). This is effectively the inverse
+            // of undoing the adjust matrix then applying the paint's
+            // imageMatrix, which becomes the following:
+            const auto imageMatrix =
+                paint->getImageTransform().invertOrIdentity() * adjust;
+
+            ColorInt paintColor = paint->getColor();
+            if (paint->getGradient() != nullptr)
+            {
+                // Paints with gradients have no color data so use solid white.
+                paintColor = 0xFFFFFFFF;
+            }
+
+            clipAndPushDraw(
+                gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
+                    m_context,
+                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+                    m,
+                    paint->getBlendMode(),
+                    ref_rcp(paint->getImageTexture()),
+                    ref_rcp(paint->getGradient()),
+                    paint->getImageSampler(),
+                    colorModulateOpacity(
+                        paintColor,
+                        m_renderStateStack.back().modulatedOpacity),
+                    imageMatrix,
+                    gradientMatrix)));
+
+            restore();
+            return;
+        }
+
         imageMatrix =
             m_renderStateStack.back().matrix * paint->getImageTransform();
         imageMatrixPtr = &imageMatrix;
@@ -419,8 +486,11 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     m,
                     blendMode,
                     std::move(imageTexture),
+                    nullptr, // gradient
                     imageSampler,
-                    finalOpacity)));
+                    colorModulateOpacity(0xFFFFFFFF, finalOpacity),
+                    Mat2D{},    // imageMatrix
+                    Mat2D{}))); // gradientMatrix
         }
     }
     else

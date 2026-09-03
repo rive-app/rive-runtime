@@ -1800,7 +1800,7 @@ public:
     ImageDrawInstanceBase() = default;
 
     ImageDrawInstanceBase(const Mat2D&,
-                          float opacity,
+                          ColorInt color,
                           const ClipRectInverseMatrix*,
                           uint32_t clipID,
                           BlendMode,
@@ -1813,7 +1813,7 @@ private:
     WRITEONLY float m_translate[2];
     WRITEONLY float m_clipRectInverseTranslate[2];
 
-    WRITEONLY float m_opacity;
+    WRITEONLY uint32_t m_modulatedColor;
     WRITEONLY uint32_t m_clipID;
     WRITEONLY uint32_t m_blendMode;
     WRITEONLY uint32_t m_zIndex;
@@ -1824,7 +1824,7 @@ class ImageRectInstance
 public:
     constexpr static size_t FirstAttribIdx =
         ImageDrawInstanceBase::FirstAttribIdx;
-    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t AttributeCount = 11;
     static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
     static const std::array<VertexAttribute, AttributeCount>& getAttributes();
@@ -1832,16 +1832,26 @@ public:
     ImageRectInstance() = default;
 
     ImageRectInstance(const Mat2D&,
-                      float opacity,
+                      ColorInt color,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
                       BlendMode,
-                      uint32_t zIndex);
+                      uint32_t zIndex,
+                      const Mat2D& imageMatrix,
+                      const Mat2D& gradientMatrix,
+                      uint32_t gradientType,
+                      const float (&gradTextureHorizontalSpan)[2],
+                      float gradTextureY);
 
 private:
     ImageDrawInstanceBase m_commons;
-
-    // Nothing additional yet
+    WRITEONLY float m_imageMatrix[4];
+    WRITEONLY float m_gradientMatrix[4];
+    WRITEONLY float m_imageTranslate[2];
+    WRITEONLY float m_gradientTranslate[2];
+    WRITEONLY float m_gradTextureHorizontalSpan[2];
+    WRITEONLY float m_gradTextureY;
+    WRITEONLY float m_gradientType;
 };
 
 class ImageMeshInstance
@@ -2199,4 +2209,17 @@ extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
+
+// Get the Y coordinate in the gradient texture.
+float getGradientY(ColorRampLocation, GradTextureLayout);
+
+// Get the paint matrix and gradient texture horizontal span for a given
+// gradient.
+void getGradientMatrixAndSpan(const Gradient*,
+                              ColorRampLocation,
+                              const Mat2D& inverseViewMatrix,
+                              const PlatformFeatures&,
+                              uint32_t renderTargetHeight,
+                              Mat2D& paintMatrixOut,
+                              float (&gradTextureHorizontalSpanOut)[2]);
 } // namespace rive::gpu

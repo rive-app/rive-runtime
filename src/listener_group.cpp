@@ -59,6 +59,69 @@ void ListenerGroup::reset(int pointerId)
     }
 }
 
+_PointerData* ListenerGroup::findPointerData(int id)
+{
+    auto itr = m_pointers.find(id);
+    return itr == m_pointers.end() ? nullptr : itr->second;
+}
+
+// Ends any gesture this pointer has in flight, for when the contents the group
+// lives in stop existing mid-gesture (an artboard collapsed to a 0 scale).
+// Being occluded doesn't do this -- a drag has to survive the pointer passing
+// over other targets -- but content that isn't there can't hold a press.
+//
+// The dragEnd is reported rather than dispatched: StateMachineInstance::dragEnd
+// re-enters updateListeners, which resets every group's phase, so dispatching
+// from here would make the groups cancelled after this one look like they had
+// nothing in flight and strand their state.
+bool ListenerGroup::cancelPointer(int pointerId,
+                                  Vec2D position,
+                                  float timeStamp)
+{
+    auto pointer = findPointerData(pointerId);
+    if (pointer == nullptr)
+    {
+        return false;
+    }
+    // disabled is disablePointerEvents' sticky state; it clears on enable().
+    if (pointer->phase == GestureClickPhase::disabled ||
+        pointer->phase == GestureClickPhase::out)
+    {
+        return false;
+    }
+    bool wasDragging =
+        pointer->hasDragged && pointer->phase == GestureClickPhase::down;
+    pointer->phase = GestureClickPhase::out;
+    pointer->hasDragged = false;
+    return wasDragging;
+}
+
+void ListenerGroup::cancelPointers(Vec2D position,
+                                   float timeStamp,
+                                   std::vector<int>& dragEnded)
+{
+    for (auto& entry : m_pointers)
+    {
+        if (!cancelPointer(entry.first, position, timeStamp))
+        {
+            continue;
+        }
+        bool alreadyEnded = false;
+        for (auto id : dragEnded)
+        {
+            if (id == entry.first)
+            {
+                alreadyEnded = true;
+                break;
+            }
+        }
+        if (!alreadyEnded)
+        {
+            dragEnded.push_back(entry.first);
+        }
+    }
+}
+
 void ListenerGroup::releaseEvent(int pointerId)
 {
     if (m_pointers.find(pointerId) != m_pointers.end())
@@ -67,6 +130,7 @@ void ListenerGroup::releaseEvent(int pointerId)
         auto pointerData = m_pointers[pointerId];
         pointerData->isHovered = false;
         pointerData->isPrevHovered = false;
+        pointerData->hasDragged = false;
         pointerData->phase = GestureClickPhase::out;
         auto previousPosition = pointerData->previousPosition();
         previousPosition->x = 0;
@@ -172,10 +236,10 @@ ProcessEventResult ListenerGroup::processEvent(
     if (prevPhase == GestureClickPhase::down &&
         (pointer->phase == GestureClickPhase::clicked ||
          pointer->phase == GestureClickPhase::out) &&
-        m_hasDragged)
+        pointer->hasDragged)
     {
         stateMachineInstance->dragEnd(position, timeStamp, pointerId);
-        m_hasDragged = false;
+        pointer->hasDragged = false;
     }
     auto _listener = listener();
     bool shouldPerformChanges = false;
@@ -223,13 +287,13 @@ ProcessEventResult ListenerGroup::processEvent(
     {
         shouldPerformChanges = true;
         listenerTypeMatched = ListenerType::drag;
-        if (!m_hasDragged)
+        if (!pointer->hasDragged)
         {
             stateMachineInstance->dragStart(position,
                                             timeStamp,
                                             false,
                                             pointerId);
-            m_hasDragged = true;
+            pointer->hasDragged = true;
         }
     }
     if (shouldPerformChanges)

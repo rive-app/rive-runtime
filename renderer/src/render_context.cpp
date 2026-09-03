@@ -3584,12 +3584,39 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     const uint32_t imageRectBaseInstance =
         math::lossless_numeric_cast<uint32_t>(
             m_ctx->m_imageRectInstanceData.elementsWritten());
-    m_ctx->m_imageRectInstanceData.emplace_back(draw->imageMatrix(),
-                                                draw->opacity(),
+
+    uint32_t gradientType = 0;
+    Mat2D gradientMatrix;
+    float gradientHorizontalSpan[2]{};
+    float gradientY = 0;
+    if (draw->gradient() != nullptr)
+    {
+        // a gradientType of 0 is used to signify "no gradient" so these had
+        // better not be 0
+        static_assert(int(PaintType::linearGradient) != 0);
+        static_assert(int(PaintType::radialGradient) != 0);
+        gradientType = uint32_t(draw->gradient()->paintType());
+        getGradientMatrixAndSpan(draw->gradient(),
+                                 draw->rampLocation(),
+                                 draw->gradientMatrix(),
+                                 m_ctx->platformFeatures(),
+                                 m_ctx->frameDescriptor().renderTargetHeight,
+                                 gradientMatrix,
+                                 gradientHorizontalSpan);
+        gradientY = getGradientY(draw->rampLocation(), m_gradTextureLayout);
+    }
+
+    m_ctx->m_imageRectInstanceData.emplace_back(draw->paintMatrix(),
+                                                draw->modulatedColor(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
                                                 draw->blendMode(),
-                                                m_currentZIndex);
+                                                m_currentZIndex,
+                                                draw->imageMatrix(),
+                                                gradientMatrix,
+                                                gradientType,
+                                                gradientHorizontalSpan,
+                                                gradientY);
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,

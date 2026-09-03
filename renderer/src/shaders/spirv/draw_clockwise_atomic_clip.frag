@@ -13,5 +13,6 @@
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "draw_path.minified.vert"
 #include "draw_clockwise_atomic_clip.minified.frag"

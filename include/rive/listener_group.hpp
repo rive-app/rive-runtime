@@ -21,6 +21,10 @@ class _PointerData
 public:
     bool isHovered = false;
     bool isPrevHovered = false;
+    // Whether this pointer has actually dragged since it went down. Per pointer
+    // rather than per group: the phase it is tested against is per pointer too,
+    // so a group-wide flag lets one pointer end another's drag.
+    bool hasDragged = false;
     GestureClickPhase phase = GestureClickPhase::out;
     Vec2D* previousPosition() { return &m_previousPosition; }
 
@@ -40,6 +44,15 @@ public:
     void hover(int id);
     void reset(int pointerId);
     void releaseEvent(int pointerId);
+    /// Ends whatever gesture pointerId has in flight. Returns true when a drag
+    /// was live for it, leaving the caller to dispatch the matching dragEnd
+    /// once every group has been cancelled.
+    virtual bool cancelPointer(int pointerId, Vec2D position, float timeStamp);
+    /// Cancels every pointer this group is tracking, appending to dragEnded the
+    /// ids that still owe a dragEnd.
+    void cancelPointers(Vec2D position,
+                        float timeStamp,
+                        std::vector<int>& dragEnded);
     virtual void enable(int pointerId = 0);
     virtual void disable(int pointerId = 0);
     bool isConsumed() { return m_isConsumed; }
@@ -57,10 +70,14 @@ public:
         StateMachineInstance* stateMachineInstance);
     const StateMachineListener* listener() const { return m_listener; };
 
+protected:
+    /// The data for an already-tracked pointer, or nullptr. Unlike
+    /// pointerData() this never starts tracking one.
+    _PointerData* findPointerData(int id);
+
 private:
     // Consumed listeners aren't processed again in the current frame
     bool m_isConsumed = false;
-    bool m_hasDragged = false;
     const StateMachineListener* m_listener;
     std::unordered_map<int, _PointerData*> m_pointers;
     std::vector<_PointerData*> m_pointersPool;

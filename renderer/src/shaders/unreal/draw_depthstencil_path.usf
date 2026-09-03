@@ -20,5 +20,6 @@
 #include "Generated/common.minified.ush"
 #include "Generated/draw_path_common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
+#include "Generated/gradient_packing_common.minified.ush"
 #include "Generated/draw_path.minified.vert.ush"
 #include "Generated/draw_depthstencil_object.minified.frag.ush"

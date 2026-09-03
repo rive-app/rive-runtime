@@ -23,7 +23,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
 #ifdef @DRAW_IMAGE_MESH
     VARYING_UNPACK(v_imageTexCoord, float2);
-    VARYING_UNPACK(v_imageOpacity, half);
+    VARYING_UNPACK(v_imageModulatedColor, half4);
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(v_imageBlendMode, ushort);
 #endif
@@ -45,7 +45,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                                                  imageSampler,
                                                  v_imageTexCoord,
                                                  uniforms.mipMapLODBias) *
-                  v_imageOpacity;
+                  v_imageModulatedColor;
 #else
     half coverage =
 #ifdef @FEATHER_ATLAS_BLIT

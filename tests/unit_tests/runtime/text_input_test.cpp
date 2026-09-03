@@ -379,6 +379,35 @@ TEST_CASE("text input selectWord and selectLine wrappers", "[text_input]")
     CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 11);
 }
 
+// A text input drag is torn down when TextInputListenerGroup::processEvent sees
+// the click phase go from down to out. Collapsing the artboard cancels the
+// phase before processEvent runs, so the group has to end the drag as part of
+// cancelling -- otherwise the input stays in its dragging state for good.
+TEST_CASE("collapsing an artboard ends a text input drag", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    stateMachine->advanceAndApply(0.0f);
+
+    stateMachine->pointerDown(Vec2D(8.0f, 8.0f));
+    REQUIRE(textInput->isDragging() == true);
+
+    artboard->scaleX(0.0f);
+    artboard->scaleY(0.0f);
+    artboard->advance(0.0f);
+    stateMachine->pointerMove(Vec2D(20.0f, 8.0f));
+    REQUIRE(textInput->isDragging() == false);
+}
+
 TEST_CASE("text input double and triple click select word and line",
           "[text_input]")
 {

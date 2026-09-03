@@ -20,24 +20,25 @@
 #include "instance_chunker.hpp"
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
+#include "generated/shaders/bezier_utils.glsl.hpp"
+#include "generated/shaders/blit_texture_as_draw.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
-#include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
-#include "generated/shaders/draw_path_common.glsl.hpp"
-#include "generated/shaders/draw_path.vert.hpp"
-#include "generated/shaders/draw_raster_order_path.frag.hpp"
-#include "generated/shaders/draw_clockwise_path.frag.hpp"
+#include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
+#include "generated/shaders/draw_clockwise_path.frag.hpp"
+#include "generated/shaders/draw_depthstencil_object.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
-#include "generated/shaders/draw_depthstencil_object.frag.hpp"
-#include "generated/shaders/bezier_utils.glsl.hpp"
-#include "generated/shaders/tessellate.glsl.hpp"
+#include "generated/shaders/draw_path.vert.hpp"
+#include "generated/shaders/draw_path_common.glsl.hpp"
+#include "generated/shaders/draw_raster_order_path.frag.hpp"
+#include "generated/shaders/flush_uniforms.glsl.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/resolve_atlas.glsl.hpp"
-#include "generated/shaders/blit_texture_as_draw.glsl.hpp"
 #include "generated/shaders/stencil_draw.glsl.hpp"
+#include "generated/shaders/tessellate.glsl.hpp"
 
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
@@ -1786,6 +1787,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::outerCurvePatches:
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(
                         (interlockMode == gpu::InterlockMode::clockwise)
@@ -1798,6 +1800,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     break;
                 case gpu::DrawType::featherAtlasBlit:
                     sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
@@ -1828,6 +1831,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
 
         case gpu::InterlockMode::atomics:
             sources.push_back(gpu::glsl::draw_path_common);
+            sources.push_back(gpu::glsl::gradient_packing_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
 
@@ -1849,6 +1853,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::stencilOuterCubics:
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
                     break;
@@ -1857,6 +1862,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     break;
                 case gpu::DrawType::featherAtlasBlit:
                     sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
                     sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
                     break;

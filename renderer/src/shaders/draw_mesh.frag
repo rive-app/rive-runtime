@@ -79,7 +79,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #ifdef @DRAW_IMAGE_MESH
     VARYING_UNPACK(v_imageTexCoord, float2);
-    VARYING_UNPACK(v_imageOpacity, half);
+    VARYING_UNPACK(v_imageModulatedColor, half4);
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(v_imageBlendMode, ushort);
 #endif
@@ -141,8 +141,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
 #ifdef @DRAW_IMAGE_MESH
-    // Apply opacity after clipping.
-    coverage *= v_imageOpacity;
+    color *= v_imageModulatedColor;
 #endif
 
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)

@@ -2667,21 +2667,50 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
                              const Mat2D& matrix,
                              BlendMode blendMode,
                              rcp<Texture> imageTexture,
+                             rcp<const Gradient> gradient,
                              const ImageSampler imageSampler,
-                             float opacity) :
+                             ColorInt modulatedColor,
+                             const Mat2D& imageMatrix,
+                             const Mat2D& gradientMatrix) :
     Draw(pixelBounds,
          matrix,
-         nullptr,
+         &imageMatrix,
          blendMode,
          std::move(imageTexture),
          imageSampler,
          Type::imageRect),
-    m_opacity(opacity)
+    m_modulatedColor(modulatedColor),
+    m_gradientMatrix(gradientMatrix),
+    m_gradientRef(gradient.release())
 {
     // If we support image paints for paths, the client should draw a
     // rectangular path with an image paint instead of using this draw.
     assert(!context->frameSupportsImagePaintForPaths());
     m_resourceCounts.imageRectCount = 1;
+}
+
+bool ImageRectDraw::allocateResources(RenderContext::LogicalFlush* flush)
+{
+    if (!Draw::allocateResources(flush))
+    {
+        return false;
+    }
+
+    if (m_gradientRef != nullptr)
+    {
+        if (!flush->allocateGradient(m_gradientRef, &m_rampLocation))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void ImageRectDraw::releaseRefs()
+{
+    Draw::releaseRefs();
+    safe_unref(m_gradientRef);
 }
 
 gpu::DrawBatch* ImageRectDraw::pushToRenderContext(

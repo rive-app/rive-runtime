@@ -505,19 +505,33 @@ class ImageRectDraw : public Draw
 public:
     ImageRectDraw(RenderContext*,
                   IAABB pixelBounds,
-                  const Mat2D&,
+                  const Mat2D& renderMatrix,
                   BlendMode,
                   rcp<Texture>,
+                  rcp<const Gradient>,
                   const ImageSampler imageSampler,
-                  float opacity);
+                  ColorInt modulatedColor,
+                  const Mat2D& imageMatrix,
+                  const Mat2D& gradientMatrix);
 
-    float opacity() const { return m_opacity; }
+    ColorInt modulatedColor() const { return m_modulatedColor; }
+    const Mat2D& gradientMatrix() const { return m_gradientMatrix; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
                                         int subpassIndex) override;
 
+    bool allocateResources(RenderContext::LogicalFlush*) override;
+    void releaseRefs() override;
+
+    const Gradient* gradient() const { return m_gradientRef; }
+    const ColorRampLocation& rampLocation() const { return m_rampLocation; }
+
 protected:
-    const float m_opacity;
+    const ColorInt m_modulatedColor;
+    const Mat2D m_imageMatrix;
+    const Mat2D m_gradientMatrix;
+    const Gradient* m_gradientRef;
+    ColorRampLocation m_rampLocation;
 };
 
 // Pushes an imageMesh to the render context.

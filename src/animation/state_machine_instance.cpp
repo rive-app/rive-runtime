@@ -1543,6 +1543,13 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     // Invert the artboard's own rotation/scale (applied in drawInternal after
     // the frame-origin translation) so listener hit-testing maps into content
     // space. Mirrors the adjustment in hitTest(Vec2D).
+    //
+    // A degenerate (0 scale) self transform has no inverse: the contents
+    // collapse to nothing, so nothing in them can be hit. We still run the pass
+    // with every group forced to miss rather than returning early, so hover
+    // unwinds and pending exits fire, and we cancel any gesture in flight so a
+    // press held across the collapse can't resume when the scale comes back.
+    bool contentsCollapsed = false;
     if (m_artboardInstance->hasSelfTransform())
     {
         Mat2D inverse;
@@ -1550,27 +1557,59 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
         {
             position = inverse * position;
         }
+        else
+        {
+            contentsCollapsed = true;
+        }
     }
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
     {
         listenerGroup.get()->reset(pointerId);
     }
-    // Next prepare the event to set the common hover status for each group
-    for (const auto& hitShape : m_hitComponents)
+    // Drag ends owed by cancellation, dispatched once the pass below has had a
+    // chance to emit its hover exits.
+    std::vector<int> dragEnded;
+    if (contentsCollapsed)
     {
-        hitShape->prepareEvent(position, hitType, pointerId);
+        // canHit alone won't do this: it marks a target as occluded, and an
+        // occluded target deliberately keeps its press so a drag survives the
+        // pointer moving over other things (see ListenerGroup::processEvent,
+        // where the phase only resets on down/up and the drag branch ignores
+        // canHit). Collapsed content isn't occluded, it's gone.
+        //
+        // Every tracked pointer is cancelled, not just the one that delivered
+        // this event: the contents are gone for all of them. The drag ends are
+        // only collected here -- dispatching one re-enters updateListeners,
+        // whose reset() overwrites isPrevHovered with the isHovered this pass
+        // already cleared, so any exit still pending would be swallowed, and
+        // whose enablePointerEvents() resets every group's phase, so groups not
+        // yet cancelled would look like they had nothing in flight.
+        for (const auto& listenerGroup : m_listenerGroups)
+        {
+            listenerGroup.get()->cancelPointers(position, timeStamp, dragEnded);
+        }
+    }
+    else
+    {
+        // Next prepare the event to set the common hover status for each group.
+        // Skipped when collapsed so every group stays unhovered.
+        for (const auto& hitShape : m_hitComponents)
+        {
+            hitShape->prepareEvent(position, hitType, pointerId);
+        }
     }
     bool hitSomething = false;
     bool hitOpaque = false;
     // Process the events
     for (const auto& hitShape : m_hitComponents)
     {
-        HitResult hitResult = hitShape->processEvent(position,
-                                                     hitType,
-                                                     !hitOpaque,
-                                                     timeStamp,
-                                                     pointerId);
+        HitResult hitResult =
+            hitShape->processEvent(position,
+                                   hitType,
+                                   !hitOpaque && !contentsCollapsed,
+                                   timeStamp,
+                                   pointerId);
         if (hitResult != HitResult::none)
         {
             hitSomething = true;
@@ -1579,6 +1618,11 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
                 hitOpaque = true;
             }
         }
+    }
+    // Hover exits have been emitted, so it's safe to let dragEnd re-enter now.
+    for (auto endedPointerId : dragEnded)
+    {
+        dragEnd(position, timeStamp, endedPointerId);
     }
     // Finally release events that are complete
     if (hitType == ListenerType::exit)
@@ -1607,10 +1651,13 @@ bool StateMachineInstance::hitTest(Vec2D position) const
     if (m_artboardInstance->hasSelfTransform())
     {
         Mat2D inverse;
-        if (m_artboardInstance->selfTransform().invert(&inverse))
+        if (!m_artboardInstance->selfTransform().invert(&inverse))
         {
-            position = inverse * position;
+            // A degenerate (0 scale) self transform collapses the contents to
+            // nothing, so there's nothing to hit.
+            return false;
         }
+        position = inverse * position;
     }
 
     for (const auto& hitShape : m_hitComponents)
