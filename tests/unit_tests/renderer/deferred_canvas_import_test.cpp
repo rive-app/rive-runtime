@@ -111,10 +111,21 @@ public:
 class ImportOrderSink : public deferred_test::TestSink
 {
 public:
+    explicit ImportOrderSink(bool openScreen = true) : m_openScreen(openScreen)
+    {}
+
     RecordingOreContext ore;
     std::vector<std::string> steps;
+    uint32_t oreFrameEnds = 0;
+    uint32_t oreFrameAfters = 0;
 
     rive::ore::Context* oreContext() override { return &ore; }
+
+    Renderer* beginScreenFrame(uint64_t target) override
+    {
+        return m_openScreen ? deferred_test::TestSink::beginScreenFrame(target)
+                            : nullptr;
+    }
 
     Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t) override
     {
@@ -130,6 +141,8 @@ public:
         m_canvasRenderer.reset();
     }
     void beginOreFrame() override { steps.push_back("ore"); }
+    void endOreFrame() override { ++oreFrameEnds; }
+    void afterOreFrame() override { ++oreFrameAfters; }
 
     const std::vector<gpu::RenderCanvas*>& contentFlushed() const
     {
@@ -137,6 +150,7 @@ public:
     }
 
 private:
+    bool m_openScreen;
     gpu::RenderCanvas* m_openCanvas = nullptr;
     std::unique_ptr<Renderer> m_canvasRenderer;
     std::vector<gpu::RenderCanvas*> m_contentFlushed;
@@ -200,4 +214,33 @@ TEST_CASE("each recorded canvas view resolves to its own canvas",
     REQUIRE(sink.ore.sampleWraps.size() == 2);
     CHECK(sink.ore.sampleWraps[0] == canvasA.get());
     CHECK(sink.ore.sampleWraps[1] == canvasB.get());
+}
+
+TEST_CASE("ore replay waits for a successfully opened screen frame",
+          "[deferred][canvas-import]")
+{
+    DeferredSession session(rive::ore::ReplayCaps{});
+    auto canvas = fakeCanvas();
+
+    Renderer* content = session.beginCanvasContent(canvas.get(), 0);
+    auto paint = session.makeRenderPaint();
+    auto path = session.makeEmptyRenderPath();
+    content->drawPath(path.get(), paint.get());
+    session.endCanvasContent(canvas.get());
+    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas->renderImage(),
+                                                       8,
+                                                       8) != nullptr);
+    session.closeOpenRange();
+
+    auto frame = snapshotFrame(session);
+    ImportOrderSink sink(/*openScreen=*/false);
+    DeferredReplayer replayer;
+    replayer.replayFrame(frame, sink);
+
+    // Canvas content is scheduled before the screen opens, but ORE must not
+    // consume its one-shot import unless the host admitted a screen frame.
+    REQUIRE(sink.steps == std::vector<std::string>{"content"});
+    CHECK(sink.ore.sampleWraps.empty());
+    CHECK(sink.oreFrameEnds == 0);
+    CHECK(sink.oreFrameAfters == 0);
 }

@@ -348,7 +348,9 @@ private:
             {
                 entry.first->second = sink.beginScreenFrame(target);
             }
-            if (!oreReplayed)
+            // Ore commands may depend on this frame's screen command buffer.
+            // Never consume them when the host failed to open that screen.
+            if (entry.first->second != nullptr && !oreReplayed)
             {
                 replayOre();
                 oreReplayed = true;

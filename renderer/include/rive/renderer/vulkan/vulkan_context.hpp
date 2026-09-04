@@ -59,7 +59,8 @@ public:
                                    VkPhysicalDevice,
                                    VkDevice,
                                    const VulkanFeatures&,
-                                   PFN_vkGetInstanceProcAddr);
+                                   PFN_vkGetInstanceProcAddr,
+                                   bool enableDebugNames = true);
 
     // Takes ownership of 'vmaAllocator'. A null one means "make me one", which
     // aborts if the driver can't, having nowhere to report it.
@@ -68,7 +69,8 @@ public:
                   VkDevice,
                   const VulkanFeatures&,
                   PFN_vkGetInstanceProcAddr,
-                  VmaAllocator vmaAllocator = VK_NULL_HANDLE);
+                  VmaAllocator vmaAllocator = VK_NULL_HANDLE,
+                  bool enableDebugNames = true);
 
     ~VulkanContext();
 
@@ -80,8 +82,7 @@ public:
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
     F(GetPhysicalDeviceProperties)                                             \
-    F(GetPhysicalDeviceFeatures)                                               \
-    F(SetDebugUtilsObjectNameEXT)
+    F(GetPhysicalDeviceFeatures)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateCommandBuffers)                                                  \
@@ -147,6 +148,7 @@ public:
 
 #define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
     RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
+    const PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 

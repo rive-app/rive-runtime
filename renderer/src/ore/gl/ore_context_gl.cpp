@@ -257,6 +257,28 @@ GLuint ContextGL::acquireScratchFBO()
     return m_scratchFBO;
 }
 
+void ContextGL::invalidateScratchFramebuffers()
+{
+    // A borrower owns the attachments and expects finish() to restore its
+    // previous FBO. Deleting either scratch FBO while a pass is live would
+    // violate both assumptions.
+    assert(!m_scratchFBOLent);
+    assert(activeRenderPass() == nullptr || activeRenderPass()->isFinished());
+
+    if (m_scratchFBO != 0)
+    {
+        glDeleteFramebuffers(1, &m_scratchFBO);
+        m_scratchFBO = 0;
+    }
+    if (m_scratchResolveFBO != 0)
+    {
+        glDeleteFramebuffers(1, &m_scratchResolveFBO);
+        m_scratchResolveFBO = 0;
+    }
+    m_scratchFBOColorCount = 0;
+    m_scratchFBODepthAttachment = 0;
+}
+
 void ContextGL::releaseScratchFBO(uint32_t colorCount, GLuint depthAttachment)
 {
     m_scratchFBOColorCount = colorCount;
@@ -1173,10 +1195,12 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     }
     else
     {
-        // Draw buffers are FBO state, so a borrowed FBO still names the last
-        // pass's. Restore what a freshly minted one would have.
-        GLenum defaultDrawBuffer = GL_COLOR_ATTACHMENT0;
-        glDrawBuffers(1, &defaultDrawBuffer);
+        // A depth-only framebuffer has no color attachment to draw into.
+        // Draw and read buffers are FBO state and default to color attachment
+        // zero, so explicitly disable both for a depth-only pass.
+        GLenum noDrawBuffer = GL_NONE;
+        glDrawBuffers(1, &noDrawBuffer);
+        glReadBuffer(GL_NONE);
     }
 
     // Attach depth/stencil.

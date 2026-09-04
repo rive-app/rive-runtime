@@ -4292,11 +4292,13 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
         return nullptr;
     }
 #endif
-    rcp<VulkanContext> vk = VulkanContext::make(instance,
-                                                physicalDevice,
-                                                device,
-                                                features,
-                                                pfnvkGetInstanceProcAddr);
+    rcp<VulkanContext> vk =
+        VulkanContext::make(instance,
+                            physicalDevice,
+                            device,
+                            features,
+                            pfnvkGetInstanceProcAddr,
+                            contextOptions.enableDebugNames);
     if (vk == nullptr)
     {
         // make() already printed which piece of it failed.

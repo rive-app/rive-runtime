@@ -52,7 +52,8 @@ rcp<VulkanContext> VulkanContext::make(
     VkPhysicalDevice physicalDevice,
     VkDevice device,
     const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
+    bool enableDebugNames)
 {
     // Building the allocator first means a failure never constructs a context
     // at all.
@@ -70,7 +71,8 @@ rcp<VulkanContext> VulkanContext::make(
                                                 device,
                                                 features,
                                                 pfnvkGetInstanceProcAddr,
-                                                vmaAllocator));
+                                                vmaAllocator,
+                                                enableDebugNames));
 }
 
 VulkanContext::VulkanContext(VkInstance instance,
@@ -78,7 +80,8 @@ VulkanContext::VulkanContext(VkInstance instance,
                              VkDevice device_,
                              const VulkanFeatures& features_,
                              PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
-                             VmaAllocator vmaAllocator) :
+                             VmaAllocator vmaAllocator,
+                             bool enableDebugNames) :
     instance(instance),
     physicalDevice(physicalDevice_),
     device(device_),
@@ -87,15 +90,21 @@ VulkanContext::VulkanContext(VkInstance instance,
         pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
     RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
 #undef LOAD_VULKAN_INSTANCE_COMMAND
+        SetDebugUtilsObjectNameEXT(
+            enableDebugNames
+                ? reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+                      pfnvkGetInstanceProcAddr(instance,
+                                               "vkSetDebugUtilsObjectNameEXT"))
+                : nullptr),
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                        \
     CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
-        RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
+    RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
-            physicalDeviceProperties([this]() {
-                VkPhysicalDeviceProperties props;
-                GetPhysicalDeviceProperties(physicalDevice, &props);
-                return props;
-            }()),
+        physicalDeviceProperties([this]() {
+            VkPhysicalDeviceProperties props;
+            GetPhysicalDeviceProperties(physicalDevice, &props);
+            return props;
+        }()),
     features([this, mutableFeatures = features_]() mutable {
         if (physicalDeviceProperties.vendorID == vkutil::vendors::Qualcomm ||
             physicalDeviceProperties.vendorID == vkutil::vendors::Imagination)

@@ -28,6 +28,15 @@ public:
 
     ~ContextGL() override;
 
+    /**
+     * Discards framebuffer objects cached by completed Ore render passes.
+     *
+     * This must be called with the owning GL context current and with no Ore
+     * render pass active. Cached VAOs are unaffected because they do not
+     * reference framebuffer or drawable state.
+     */
+    void invalidateScratchFramebuffers();
+
     rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
     rcp<Texture> makeTexture(const TextureDesc& desc) override;
     rcp<TextureView> makeTextureView(const TextureViewDesc& desc) override;
