@@ -1247,6 +1247,7 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
         const auto& ca = desc.colorAttachments[i];
         if (ca.loadOp == LoadOp::clear)
         {
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
             GLfloat clearColor[4] = {ca.clearColor.r,
                                      ca.clearColor.g,
                                      ca.clearColor.b,
