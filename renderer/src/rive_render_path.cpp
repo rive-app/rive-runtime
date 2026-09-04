@@ -8,6 +8,7 @@
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/rive_renderer.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
 
@@ -447,4 +448,59 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     }
     return make_rcp<RiveRenderPath>(m_fillRule, featheredPath);
 }
+
+float RiveRenderPath::calculateBoundsOutset(
+    const std::optional<StrokeParams>& stroke,
+    float feather)
+{
+    float outset = 0.0f;
+    if (stroke.has_value())
+    {
+        outset = stroke->thickness * .5f;
+        if (stroke->join == StrokeJoin::miter)
+        {
+            // Miter joins may be longer than the stroke radius.
+            outset *= RIVE_MITER_LIMIT;
+        }
+        else if (stroke->cap == StrokeCap::square)
+        {
+            // The diagonal of a square cap is longer than the stroke
+            // radius.
+            outset *= math::SQRT2;
+        }
+    }
+    if (feather != 0.0f)
+    {
+        outset += gpu::featherRadiusFromFeather(feather);
+    }
+    return outset;
+}
+
+IAABB RiveRenderPath::calculatePixelBounds(
+    const Mat2D& matrix,
+    const std::optional<StrokeParams>& stroke,
+    float feather) const
+{
+    AABB mappedBounds = matrix.mapBoundingBox(getRawPath().points());
+
+    assert(mappedBounds.width() >= 0);
+    assert(mappedBounds.height() >= 0);
+    if (stroke.has_value() || feather != 0.0f)
+    {
+        // Outset the path's bounding box to account for stroking &
+        // feathering.
+        float outset = calculateBoundsOutset(stroke, feather);
+        AABB strokePixelOutset = matrix.mapBoundingBox({0, 0, outset, outset});
+        // Add an extra pixel to the stroke outset radius to account for:
+        //   * Butt caps and bevel joins bleed out 1/2 AA width.
+        //   * With Manhattan sytle AA, an AA width can be as large as
+        //   sqrt(2).
+        //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
+        mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
+                                           strokePixelOutset.height() + 1);
+    }
+
+    return mappedBounds.roundOut();
+}
+
 } // namespace rive

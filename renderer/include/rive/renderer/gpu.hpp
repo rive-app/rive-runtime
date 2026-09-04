@@ -2222,4 +2222,7 @@ void getGradientMatrixAndSpan(const Gradient*,
                               uint32_t renderTargetHeight,
                               Mat2D& paintMatrixOut,
                               float (&gradTextureHorizontalSpanOut)[2]);
+
+float featherRadiusFromFeather(float feather);
+
 } // namespace rive::gpu

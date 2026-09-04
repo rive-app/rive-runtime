@@ -2101,6 +2101,13 @@ uint16x4 cast_f32_to_f16(float4 x)
         simd::cast<uint32_t>((e > 143u) & 1) * 0x7FFFu);
 }
 
+float featherRadiusFromFeather(float feather)
+{
+    // Blur magnitudes in design tools are customarily the width of two standard
+    // deviations, or, the length of the range -1stddev .. +1stddev.
+    return feather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2);
+}
+
 // Code to generate g_gaussianIntegralTableF16.
 #ifdef RIVE_GENERATE_FEATHER_LUT
 static float eval_normal_distribution(float x, float mu, float inverseSigma)
@@ -2379,4 +2386,5 @@ const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = {
     0x3a77, 0x3a80, 0x3a8a, 0x3a95, 0x3aa0, 0x3aac, 0x3ab9, 0x3ac7, 0x3ad6,
     0x3ae7, 0x3afa, 0x3b10, 0x3b29, 0x3b48, 0x3b70, 0x3baa, 0x3c00,
 };
+
 } // namespace rive::gpu

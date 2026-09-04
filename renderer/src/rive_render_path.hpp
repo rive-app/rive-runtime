@@ -9,10 +9,12 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 
 #include <memory>
+#include <optional>
 
 namespace rive
 {
 class GrInnerFanTriangulator;
+struct StrokeParams;
 
 // RenderPath implementation for Rive's pixel local storage renderer.
 class RiveRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, RiveRenderPath)
@@ -88,6 +90,13 @@ public:
         --m_rawPathMutationLockCount;
     }
 #endif
+
+    static float calculateBoundsOutset(const std::optional<StrokeParams>&,
+                                       float feather);
+
+    IAABB calculatePixelBounds(const Mat2D& matrix,
+                               const std::optional<StrokeParams>& strokeParams,
+                               float feather) const;
 
 private:
     FillRule m_fillRule = FillRule::nonZero;

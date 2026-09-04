@@ -22,6 +22,15 @@ class GrInnerFanTriangulator;
 class RiveRenderPath;
 class RiveRenderPaint;
 
+// Common parameters to describe a path's stroke (used internally across the
+// RiveRenderer's classes)
+struct StrokeParams
+{
+    float thickness;
+    StrokeJoin join;
+    StrokeCap cap;
+};
+
 // Renderer implementation for Rive's pixel local storage renderer.
 class RiveRenderer : public Renderer
 {
@@ -74,7 +83,9 @@ public:
 
 private:
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
-    void clipPathImpl(const RiveRenderPath*);
+    void clipPathImpl(const RiveRenderPath*,
+                      std::optional<StrokeParams> = {},
+                      float feather = 0.0f);
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too
     // complex to be supported by the GPU buffers, even after a logical flush,
@@ -115,13 +126,17 @@ private:
         ClipElement(const Mat2D&,
                     const RiveRenderPath*,
                     FillRule,
-                    IAABB pixelBounds);
+                    IAABB pixelBounds,
+                    std::optional<StrokeParams>,
+                    float feather);
         ~ClipElement();
 
         void reset(const Mat2D&,
                    const RiveRenderPath*,
                    FillRule,
-                   IAABB pixelBounds);
+                   IAABB pixelBounds,
+                   std::optional<StrokeParams>,
+                   float feather);
         bool isEquivalent(const Mat2D&, const RiveRenderPath*) const;
 
         Mat2D matrix;
@@ -132,6 +147,9 @@ private:
         FillRule fillRule; // Bc RiveRenderPath fillRule can mutate during the
                            // artboard draw process.
         uint32_t clipID;
+
+        std::optional<StrokeParams> stroke;
+        float feather;
     };
     std::vector<ClipElement> m_clipStack;
 

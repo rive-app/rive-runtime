@@ -10,6 +10,7 @@
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/renderer/render_context_impl.hpp"
+#include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
@@ -310,13 +311,6 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
     RIVE_UNREACHABLE();
 }
 
-inline float find_feather_radius(float paintFeather)
-{
-    // Blur magnitudes in design tools are customarily the width of two standard
-    // deviations, or, the length of the range -1stddev .. +1stddev.
-    return paintFeather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2);
-}
-
 inline float find_atlas_feather_scale_factor(float featherRadius,
                                              float matrixMaxScale)
 {
@@ -396,7 +390,7 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
             interlockMode == gpu::InterlockMode::depthStencil ||
             // Always switch to the atlas once we can render quarter-resultion.
             find_atlas_feather_scale_factor(
-                find_feather_radius(paint->getFeather()),
+                featherRadiusFromFeather(paint->getFeather()),
                 matrixMaxScale) <= .5f)
         {
             return CoverageType::featherAtlas;
@@ -450,47 +444,18 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 #endif
     {
         // We weren't given pre-computed bounds, so calculate them.
-        AABB mappedBounds =
-            paintMatrix.mapBoundingBox(path->getRawPath().points());
-
-        assert(mappedBounds.width() >= 0);
-        assert(mappedBounds.height() >= 0);
-        if (paint->getIsStroked() || paint->getFeather() != 0)
+        std::optional<StrokeParams> stroke;
+        if (paint->getIsStroked())
         {
-            // Outset the path's bounding box to account for stroking &
-            // feathering.
-            float outset = 0;
-            if (paint->getIsStroked())
-            {
-                outset = paint->getThickness() * .5f;
-                if (paint->getJoin() == StrokeJoin::miter)
-                {
-                    // Miter joins may be longer than the stroke radius.
-                    outset *= RIVE_MITER_LIMIT;
-                }
-                else if (paint->getCap() == StrokeCap::square)
-                {
-                    // The diagonal of a square cap is longer than the stroke
-                    // radius.
-                    outset *= math::SQRT2;
-                }
-            }
-            if (paint->getFeather() != 0)
-            {
-                outset += find_feather_radius(paint->getFeather());
-            }
-            AABB strokePixelOutset =
-                paintMatrix.mapBoundingBox({0, 0, outset, outset});
-            // Add an extra pixel to the stroke outset radius to account for:
-            //   * Butt caps and bevel joins bleed out 1/2 AA width.
-            //   * With Manhattan sytle AA, an AA width can be as large as
-            //   sqrt(2).
-            //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
-            mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
-                                               strokePixelOutset.height() + 1);
+            stroke = {
+                .thickness = paint->getThickness(),
+                .join = paint->getJoin(),
+                .cap = paint->getCap(),
+            };
         }
-
-        pixelBounds = mappedBounds.roundOut();
+        pixelBounds = path->calculatePixelBounds(paintMatrix,
+                                                 stroke,
+                                                 paint->getFeather());
     }
 
     // In debug mode, we always compute the pixel bounds, so validate that the
@@ -592,7 +557,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
     if (paint->getFeather() != 0)
     {
-        m_featherRadius = find_feather_radius(paint->getFeather());
+        m_featherRadius = featherRadiusFromFeather(paint->getFeather());
         assert(!std::isnan(m_featherRadius)); // These should get culled in
                                               // RiveRenderer::drawPath().
         assert(m_featherRadius > 0);
