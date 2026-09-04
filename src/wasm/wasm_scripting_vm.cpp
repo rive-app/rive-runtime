@@ -126,7 +126,12 @@ static void pregrowAotMemory(wasm_module_inst_t instance);
 
 struct SharedWasmModule
 {
+    // The buffer WAMR loads from and references for the module's lifetime;
+    // the loader null-terminates import/export names in place, so these
+    // bytes are unfit to recompile.
     std::vector<uint8_t> bytes;
+    // Pristine pre-load copy handed to wamrc for the AOT lane.
+    std::vector<uint8_t> pristineBytes;
     wasm_module_t module = nullptr;
     // Artifact-backed entries hand every later VM their real tier; without
     // this a cache hit reports interp while running compiled code.
@@ -447,8 +452,91 @@ uint32_t fdWrite(wasm_exec_env_t env,
     return 0;
 }
 
+// vm_host externalizes a handful of rive C++ methods as env imports that
+// the runtime path never reaches (the live GPU path goes through the
+// rive_gpu_v1 natives, not these direct calls). The fast interpreter
+// tolerates an unresolved import, trapping only on an actual call, but
+// wamrc bakes a null call target into the AOT that faults the moment a
+// static initializer takes its address. Registering inert stubs gives the
+// AOT valid pointers. Signatures mirror vm_host's import types.
+uint32_t deadEnvImport_i_i(wasm_exec_env_t, uint32_t) { return 0; }
+void deadCoreBytesDeserialize(wasm_exec_env_t, uint32_t, uint32_t) {}
+void deadCoreStringDeserialize(wasm_exec_env_t, uint32_t, uint32_t) {}
+void deadBeginFrame(wasm_exec_env_t, uint32_t, uint32_t) {}
+void deadFlush(wasm_exec_env_t, uint32_t, uint32_t) {}
+void deadAddFileAsset(wasm_exec_env_t, uint32_t, uint32_t) {}
+uint32_t deadEnvImport_ii_i(wasm_exec_env_t, uint32_t, uint32_t) { return 0; }
+void deadEnvImport_iiii(wasm_exec_env_t, uint32_t, uint32_t, uint32_t, uint32_t)
+{}
+
+// __cxa_throw never returns; a no-op stub falls through to the module's
+// `unreachable` and corrupts the shadow stack under AOT. Trap instead so
+// the call unwinds like the interpreter's unlinked-import path, and name
+// the thrown type from its Itanium type_info (wasm32: __type_name at +4).
+// Registered with libc-builtin's "(**i)": wamrc knows that table and
+// inlines the pointer conversion, so an int-only registration would
+// receive native pointers under AOT.
+void cxaThrowNative(wasm_exec_env_t env,
+                    void* thrown,
+                    void* tinfo,
+                    uint32_t dest)
+{
+    (void)thrown;
+    (void)dest;
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    const char* typeName = "?";
+    if (tinfo != nullptr && wasm_runtime_validate_native_addr(inst, tinfo, 8))
+    {
+        uint32_t nameApp = ((uint32_t*)tinfo)[1];
+        if (wasm_runtime_validate_app_str_addr(inst, nameApp))
+        {
+            typeName =
+                (const char*)wasm_runtime_addr_app_to_native(inst, nameApp);
+        }
+    }
+    fprintf(stderr, "[wasm] C++ exception thrown: %s\n", typeName);
+    wasm_runtime_set_exception(inst, "c++ exception");
+}
+
 NativeSymbol kEnvNatives[] = {
     {"invoke_vii", (void*)invokeViiNative, "(iii)", nullptr},
+    {"_ZN4rive12CoreUintType11deserializeERNS_12BinaryReaderE",
+     (void*)deadEnvImport_i_i,
+     "(i)i",
+     nullptr},
+    {"_ZN4rive13CoreBytesType11deserializeERNS_12BinaryReaderE",
+     (void*)deadCoreBytesDeserialize,
+     "(ii)",
+     nullptr},
+    {"_ZN4rive14CoreStringType11deserializeERNS_12BinaryReaderE",
+     (void*)deadCoreStringDeserialize,
+     "(ii)",
+     nullptr},
+    {"_ZN4rive3gpu13RenderContext24makeDeferredRenderCanvasEjj",
+     (void*)deadEnvImport_iiii,
+     "(iiii)",
+     nullptr},
+    {"_ZN4rive3gpu13RenderContext16makeRenderCanvasEjj",
+     (void*)deadEnvImport_iiii,
+     "(iiii)",
+     nullptr},
+    {"_ZN4rive3gpu13RenderContext10beginFrameERKNS1_15FrameDescriptorE",
+     (void*)deadBeginFrame,
+     "(ii)",
+     nullptr},
+    {"_ZN4rive12RiveRendererC1EPNS_3gpu13RenderContextE",
+     (void*)deadEnvImport_ii_i,
+     "(ii)i",
+     nullptr},
+    {"_ZN4rive3gpu13RenderContext5flushERKNS1_14FlushResourcesE",
+     (void*)deadFlush,
+     "(ii)",
+     nullptr},
+    {"_ZN4rive17BackboardImporter12addFileAssetENS_3rcpINS_9FileAssetEEE",
+     (void*)deadAddFileAsset,
+     "(ii)",
+     nullptr},
+    {"__cxa_throw", (void*)cxaThrowNative, "(**i)", nullptr},
     {"_emscripten_throw_longjmp", (void*)throwLongjmpNative, "()", nullptr},
     {"_abort_js", (void*)abortJs, "()", nullptr},
     {"_emscripten_memcpy_js", (void*)memcpyJs, "(iii)", nullptr},
@@ -4889,6 +4977,10 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
 
     // wasm_runtime_load keeps referencing the buffer, so hold a copy.
     m_moduleBytes.assign(module.begin(), module.end());
+    // Snapshot before load: the loader mutates m_moduleBytes in place
+    // (null-terminating names), which corrupts it for wamrc. The AOT lane
+    // compiles from this pristine copy instead.
+    std::vector<uint8_t> pristineBytes(module.begin(), module.end());
     // One content hash serves the dev AOT artifact lookup and the shared
     // module cache key; the key folds in which artifact actually loads so
     // interp and AOT lanes never share an entry.
@@ -4999,9 +5091,11 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_state->ownsModule = false;
         m_tier = cached->second.tier;
         // The VM's own copy is redundant against the cache entry, but the
-        // tier ladder still needs the bytes; entries live for the process.
-        m_scheduleBytes = Span<const uint8_t>(cached->second.bytes.data(),
-                                              cached->second.bytes.size());
+        // tier ladder still needs the pristine bytes; entries live for the
+        // process.
+        m_scheduleBytes =
+            Span<const uint8_t>(cached->second.pristineBytes.data(),
+                                cached->second.pristineBytes.size());
         m_moduleBytes.clear();
     }
     else
@@ -5044,13 +5138,14 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             }
             SharedWasmModule entry;
             entry.bytes = std::move(m_moduleBytes);
+            entry.pristineBytes = std::move(pristineBytes);
             entry.module = m_state->module;
             entry.tier = m_tier;
             auto inserted = cache.emplace(moduleKey, std::move(entry));
             m_state->ownsModule = false;
-            m_scheduleBytes =
-                Span<const uint8_t>(inserted.first->second.bytes.data(),
-                                    inserted.first->second.bytes.size());
+            m_scheduleBytes = Span<const uint8_t>(
+                inserted.first->second.pristineBytes.data(),
+                inserted.first->second.pristineBytes.size());
         }
     }
     if (m_state->module == nullptr)
@@ -5071,7 +5166,6 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                                           "." + import.name);
         }
     }
-
     s_bootPrint = &m_print;
     m_state->instance = wasm_runtime_instantiate(m_state->module,
                                                  512 * 1024,
