@@ -1,0 +1,90 @@
+From: rive
+Subject: [PATCH 0016] reserve x18 for aarch64 artifacts on Apple and Windows hosts
+
+wamrc only forms ELF style triples, so LLVM treated x18 as a free register
+in every artifact built on a Mac. macOS clobbers x18 on interrupts (about
+every millisecond), which corrupted live values in AOT code at random:
+out of bounds traps, undefined element, segfaults, never under a debugger.
+Append +reserve-x18 to the cpu features whenever the artifact is for an
+Apple or Windows aarch64 host: an explicit user triple decides, otherwise
+the host wamrc runs on.
+
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -2639,6 +2639,31 @@
+     LLVMShutdown();
+ }
+ 
++/* x18 is the platform register on Apple systems, clobbered by the kernel
++   on interrupts, and the TEB pointer on Windows; code that runs on those
++   hosts must never allocate it. An explicit user triple decides; without
++   one, wamrc's own ELF style triple only tells us about Windows, and an
++   Apple or Windows host is taken to target itself. */
++static bool
++aot_target_reserves_x18(const char *triple_norm, const char *user_triple,
++                        const char *built_triple)
++{
++    if (!triple_norm
++        || (!strstr(triple_norm, "aarch64") && !strstr(triple_norm, "arm64")))
++        return false;
++    if (user_triple)
++        return strstr(user_triple, "apple") || strstr(user_triple, "darwin")
++               || strstr(user_triple, "macos") || strstr(user_triple, "ios")
++               || strstr(user_triple, "windows") || strstr(user_triple, "msvc");
++    if (built_triple && strstr(built_triple, "windows"))
++        return true;
++#if defined(__APPLE__) || defined(__MACH__) || defined(_WIN32)
++    return true;
++#else
++    return false;
++#endif
++}
++
+ AOTCompContext *
+ aot_create_comp_context(const AOTCompData *comp_data, aot_comp_option_t option)
+ {
+@@ -2646,7 +2671,7 @@
+     LLVMTargetRef target;
+     char *triple = NULL, *triple_norm, *arch, *abi;
+     char *cpu = NULL, *features, buf[128];
+-    char *triple_norm_new = NULL, *cpu_new = NULL;
++    char *triple_norm_new = NULL, *cpu_new = NULL, *features_new = NULL;
+     char *err = NULL, *fp_round = "round.tonearest",
+          *fp_exce = "fpexcept.strict";
+     char triple_buf[128] = { 0 }, features_buf[128] = { 0 };
+@@ -3252,6 +3277,26 @@
+             code_model = LLVMCodeModelKernel;
+         else
+             code_model = LLVMCodeModelSmall;
++
++        if (aot_target_reserves_x18(
++                triple_norm,
++                option->target_arch && strstr(option->target_arch, "-")
++                    ? option->target_arch
++                    : NULL,
++                triple)) {
++            const char *reserve = "+reserve-x18";
++            size_t len =
++                (features ? strlen(features) : 0) + strlen(reserve) + 2;
++            if (!(features_new = wasm_runtime_malloc((uint32)len))) {
++                aot_set_last_error("allocate cpu features failed.");
++                goto fail;
++            }
++            if (features && features[0])
++                snprintf(features_new, len, "%s,%s", features, reserve);
++            else
++                snprintf(features_new, len, "%s", reserve);
++            features = features_new;
++        }
+ 
+         /* Create the target machine. The backend level may be pinned below
+            the IR level: LLVM's optimizing AArch64 codegen miscompiles the
+@@ -3455,6 +3500,8 @@
+ 
+     if (cpu_new)
+         LLVMDisposeMessage(cpu_new);
++    if (features_new)
++        wasm_runtime_free(features_new);
+ 
+     if (!ret)
+         aot_destroy_comp_context(comp_ctx);
