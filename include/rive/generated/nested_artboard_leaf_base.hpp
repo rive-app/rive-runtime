@@ -1,5 +1,6 @@
 #ifndef _RIVE_NESTED_ARTBOARD_LEAF_BASE_HPP_
 #define _RIVE_NESTED_ARTBOARD_LEAF_BASE_HPP_
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/nested_artboard.hpp"
@@ -36,17 +37,19 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t fitPropertyKey = 538;
+    static const uint16_t fitToLayoutParentPropertyKey = 1098;
     static const uint16_t alignmentXPropertyKey = 644;
     static const uint16_t alignmentYPropertyKey = 645;
 
 protected:
-    uint32_t m_Fit = 0;
+    uint8_t m_Fit = 0;
+    bool m_FitToLayoutParent = false;
     float m_AlignmentX = 0.0f;
     float m_AlignmentY = 0.0f;
 
 public:
-    inline uint32_t fit() const { return m_Fit; }
-    void fit(uint32_t value)
+    inline uint8_t fit() const { return m_Fit; }
+    void fit(uint8_t value)
     {
         if (m_Fit == value)
         {
@@ -56,6 +59,21 @@ public:
         m_Fit = value;
         RIVE_EDITOR_CHANGED(fitChanged());
         notifyPropertyChanged(fitPropertyKey);
+    }
+
+    inline bool fitToLayoutParent() const { return m_FitToLayoutParent; }
+    void fitToLayoutParent(bool value)
+    {
+        if (m_FitToLayoutParent == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(fitToLayoutParentPropertyKey,
+                             &m_FitToLayoutParent,
+                             &value);
+        m_FitToLayoutParent = value;
+        RIVE_EDITOR_CHANGED(fitToLayoutParentChanged());
+        notifyPropertyChanged(fitToLayoutParentPropertyKey);
     }
 
     inline float alignmentX() const { return m_AlignmentX; }
@@ -88,6 +106,7 @@ public:
     void copy(const NestedArtboardLeafBase& object)
     {
         m_Fit = object.m_Fit;
+        m_FitToLayoutParent = object.m_FitToLayoutParent;
         m_AlignmentX = object.m_AlignmentX;
         m_AlignmentY = object.m_AlignmentY;
         NestedArtboard::copy(object);
@@ -99,6 +118,9 @@ public:
         {
             case fitPropertyKey:
                 m_Fit = CoreUintType::deserialize(reader);
+                return true;
+            case fitToLayoutParentPropertyKey:
+                m_FitToLayoutParent = CoreBoolType::deserialize(reader);
                 return true;
             case alignmentXPropertyKey:
                 m_AlignmentX = CoreDoubleType::deserialize(reader);
@@ -112,6 +134,7 @@ public:
 
 protected:
     virtual void fitChanged() {}
+    virtual void fitToLayoutParentChanged() {}
     virtual void alignmentXChanged() {}
     virtual void alignmentYChanged() {}
 #ifdef WITH_RIVE_EDITOR

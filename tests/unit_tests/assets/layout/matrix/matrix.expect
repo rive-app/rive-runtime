@@ -266,10 +266,10 @@ C Container computedRoot 0.0000 0.0000
 C Container computedLocal 0.0000 0.0000
 C Container computedSize 200.0000 120.0000
 C Subject collected 0.0000
-C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
-C Subject computedWorld 50.0000 90.0000
-C Subject computedRoot 50.0000 90.0000
-C Subject computedLocal 50.0000 90.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
 C Subject computedSize 0.0000 0.0000
 # s1__flex-row__solo-inactive__layout-component
 F s1__flex-row__solo-inactive__layout-component
@@ -720,10 +720,10 @@ C Container computedRoot 0.0000 0.0000
 C Container computedLocal 0.0000 0.0000
 C Container computedSize 200.0000 120.0000
 C Subject collected 0.0000
-C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
-C Subject computedWorld 50.0000 90.0000
-C Subject computedRoot 50.0000 90.0000
-C Subject computedLocal 50.0000 90.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
 C Subject computedSize 0.0000 0.0000
 # s1__flex-column__solo-inactive__layout-component
 F s1__flex-column__solo-inactive__layout-component
@@ -4963,10 +4963,10 @@ C Container computedRoot 0.0000 0.0000
 C Container computedLocal 0.0000 0.0000
 C Container computedSize 200.0000 120.0000
 C Subject collected 0.0000
-C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
-C Subject computedWorld 50.0000 90.0000
-C Subject computedRoot 50.0000 90.0000
-C Subject computedLocal 50.0000 90.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
 C Subject computedSize 0.0000 0.0000
 # s13__grid__none__layout-component__auto
 F s13__grid__none__layout-component__auto
@@ -5874,3 +5874,131 @@ C Subject computedWorld 0.0000 40.0000
 C Subject computedRoot 0.0000 40.0000
 C Subject computedLocal 0.0000 40.0000
 C Subject computedSize 160.0000 40.0000
+# s17__flex-row__none__nested-artboard-leaf
+F s17__flex-row__none__nested-artboard-leaf
+A s17__flex-row__none__nested-artboard-leaf
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
+C Subject computedWorld 50.0000 90.0000
+C Subject computedRoot 50.0000 90.0000
+C Subject computedLocal 50.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__none__nested-artboard-leaf__fits-layout-parent
+F s17__flex-row__none__nested-artboard-leaf__fits-layout-parent
+A s17__flex-row__none__nested-artboard-leaf__fits-layout-parent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
+C Subject computedWorld 50.0000 90.0000
+C Subject computedRoot 50.0000 90.0000
+C Subject computedLocal 50.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__group__nested-artboard-leaf
+F s17__flex-row__group__nested-artboard-leaf
+A s17__flex-row__group__nested-artboard-leaf
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__group__nested-artboard-leaf__fits-layout-parent
+F s17__flex-row__group__nested-artboard-leaf__fits-layout-parent
+A s17__flex-row__group__nested-artboard-leaf__fits-layout-parent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__solo-active__nested-artboard-leaf
+F s17__flex-row__solo-active__nested-artboard-leaf
+A s17__flex-row__solo-active__nested-artboard-leaf
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__solo-active__nested-artboard-leaf__fits-layout-parent
+F s17__flex-row__solo-active__nested-artboard-leaf__fits-layout-parent
+A s17__flex-row__solo-active__nested-artboard-leaf__fits-layout-parent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 3.3333 0.0000 0.0000 3.0000 50.0000 90.0000
+C Subject computedWorld 50.0000 90.0000
+C Subject computedRoot 50.0000 90.0000
+C Subject computedLocal 50.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__group-in-solo__nested-artboard-leaf
+F s17__flex-row__group-in-solo__nested-artboard-leaf
+A s17__flex-row__group-in-solo__nested-artboard-leaf
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 0.0000 0.0000
+# s17__flex-row__group-in-solo__nested-artboard-leaf__fits-layout-parent
+F s17__flex-row__group-in-solo__nested-artboard-leaf__fits-layout-parent
+A s17__flex-row__group-in-solo__nested-artboard-leaf__fits-layout-parent
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 0.0000 0.0000

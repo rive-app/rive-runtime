@@ -10,6 +10,7 @@ public:
     Core* clone() const override;
     void update(ComponentDirt value) override;
     void fitChanged() override { markWorldTransformDirty(); }
+    void fitToLayoutParentChanged() override { markWorldTransformDirty(); }
 };
 } // namespace rive
 

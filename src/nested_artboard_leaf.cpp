@@ -25,9 +25,18 @@ void NestedArtboardLeaf::update(ComponentDirt value)
     auto artboard = artboardInstance();
     if (hasDirt(value, ComponentDirt::WorldTransform) && artboard != nullptr)
     {
-        // The layout that sizes us, which may sit above a Solo. A leaf owns no
-        // layout node, so it uses the content-sizing reach.
-        auto* sizingLayout = contentSizingLayout(parent());
+        // The layout we size against. fitToLayoutParent is absent from every
+        // file written before it existed, so legacy files default to false and
+        // take the direct-parent reach they were authored against: a Solo or
+        // Bone between us and a layout stops the sizing, and we frame
+        // ourselves. Opted in, sizing reaches through those transparent
+        // containers to the layout that actually owns the space.
+        auto* p = parent();
+        auto* sizingLayout = fitToLayoutParent()
+                                 ? contentSizingLayout(p)
+                                 : (p != nullptr && p->is<LayoutComponent>()
+                                        ? p->as<LayoutComponent>()
+                                        : nullptr);
 
         AABB bounds = sizingLayout != nullptr ? sizingLayout->localBounds()
                                               : artboard->bounds();

@@ -1,6 +1,6 @@
 # Layout matrix corpus
 
-Generated. 448 fixtures.
+Generated. 456 fixtures.
 
 | Fixture | Slice | Container | Wrapper | Subject | Sizing | Origin | Constraint | Collected | Known defect |
 |---|---|---|---|---|---|---|---|---|---|
@@ -452,6 +452,14 @@ Generated. 448 fixtures.
 | `s16__flex-row__none__layout-component__fixed__rtl` | s16 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
 | `s16__flex-column__none__layout-component__fixed__rtl` | s16 | flexColumn | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
 | `s16__flex-row__none__layout-component__fixed__wrapped` | s16 | flexRow | none | layoutComponent | fixed | sourceArtboard | none | yes |  |
+| `s17__flex-row__none__nested-artboard-leaf` | s17 | flexRow | none | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__none__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | none | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__group__nested-artboard-leaf` | s17 | flexRow | group | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__group__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | group | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__solo-active__nested-artboard-leaf` | s17 | flexRow | soloActive | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__solo-active__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | soloActive | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__group-in-solo__nested-artboard-leaf` | s17 | flexRow | groupInSolo | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s17__flex-row__group-in-solo__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | groupInSolo | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
 
 ## Skipped as illegal
 

@@ -2409,6 +2409,9 @@ public:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 object->as<BindablePropertyBooleanBase>()->propertyValue(value);
                 break;
+            case NestedArtboardLeafBase::fitToLayoutParentPropertyKey:
+                object->as<NestedArtboardLeafBase>()->fitToLayoutParent(value);
+                break;
             case TextModifierRangeBase::clampPropertyKey:
                 object->as<TextModifierRangeBase>()->clamp(value);
                 break;
@@ -4225,6 +4228,9 @@ public:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyBooleanBase>()
                     ->propertyValue();
+            case NestedArtboardLeafBase::fitToLayoutParentPropertyKey:
+                return object->as<NestedArtboardLeafBase>()
+                    ->fitToLayoutParent();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->as<TextModifierRangeBase>()->clamp();
             case TextFollowPathModifierBase::radialPropertyKey:
@@ -5120,6 +5126,7 @@ public:
             case SemanticDataBase::isMultilinePropertyKey:
             case DataBindPathBase::isRelativePropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
+            case NestedArtboardLeafBase::fitToLayoutParentPropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
             case TextFollowPathModifierBase::radialPropertyKey:
             case TextFollowPathModifierBase::orientPropertyKey:
@@ -6157,6 +6164,8 @@ public:
                 return object->is<DataBindPathBase>();
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyBooleanBase>();
+            case NestedArtboardLeafBase::fitToLayoutParentPropertyKey:
+                return object->is<NestedArtboardLeafBase>();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
             case TextFollowPathModifierBase::radialPropertyKey:

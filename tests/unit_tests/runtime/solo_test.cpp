@@ -8,6 +8,7 @@
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/nested_artboard.hpp>
+#include <rive/nested_artboard_leaf.hpp>
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
@@ -592,4 +593,144 @@ TEST_CASE("solo children of a layout render for every state", "[silver]")
     }
 
     CHECK(silver.matches("layout_solos"));
+}
+
+// The same scene as above with every leaf opted in to fitToLayoutParent. The
+// asset was authored before the flag existed so its flag is false, which is
+// what the sibling silver records; flipping it here is the only difference
+// between the two, so the pair is the render-level statement of what the flag
+// does. A leaf whose Solo has no layout above it is unaffected either way.
+TEST_CASE("solo children of a layout render fitted to the layout parent",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_solos.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto leaves = artboard->find<rive::NestedArtboardLeaf>();
+    REQUIRE(!leaves.empty());
+    for (auto* leaf : leaves)
+    {
+        REQUIRE(leaf->fitToLayoutParent() == false);
+        leaf->fitToLayoutParent(true);
+    }
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+
+    auto statesValue = vmi->propertyValue("states");
+    REQUIRE(statesValue != nullptr);
+    auto states = statesValue->as<rive::ViewModelInstanceEnum>();
+
+    auto enumProperty =
+        states->viewModelProperty()->as<rive::ViewModelPropertyEnum>();
+    auto dataEnum = enumProperty->dataEnum();
+    REQUIRE(dataEnum != nullptr);
+    REQUIRE(!dataEnum->values().empty());
+
+    auto renderer = silver.makeRenderer();
+    for (uint32_t i = 0; i < (uint32_t)dataEnum->values().size(); i++)
+    {
+        REQUIRE(states->value(i));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    CHECK(silver.matches("layout_solos_fit_to_layout_parent"));
+}
+
+// solo_nested_artboard_leaf.riv holds the same 500x250 scene three ways, each
+// nesting the "Item" artboard through a contain-fit NestedArtboardLeaf:
+//
+//   NoSolo                        leaf parented straight to the artboard
+//   SoloWithLeafFitsToParentLayout  leaf under a Solo, fitToLayoutParent set
+//   SoloWithLeaf                  leaf under a Solo, flag clear (legacy)
+//
+// The first two must render the same -- the flag is what lets sizing reach
+// through the Solo to the artboard, so opting in restores what a direct child
+// gets. The third must differ: with the flag clear the Solo stops the sizing
+// and the leaf frames its own bounds, which is how every file written before
+// the flag existed behaves.
+// expectSolo/expectFitToLayoutParent assert what the asset was authored to
+// hold, so a re-export that loses the flag fails here rather than quietly
+// re-recording a silver that no longer tests anything.
+static void renderSoloLeafArtboard(const char* artboardName,
+                                   const char* silverName,
+                                   bool expectSolo,
+                                   bool expectFitToLayoutParent)
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/solo_nested_artboard_leaf.riv", &silver);
+
+    auto artboard = file->artboardNamed(artboardName);
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto leaves = artboard->find<rive::NestedArtboardLeaf>();
+    REQUIRE(leaves.size() == 1);
+    auto* leaf = leaves[0];
+    REQUIRE(leaf->parent() != nullptr);
+    REQUIRE(leaf->parent()->is<rive::Solo>() == expectSolo);
+    if (expectSolo)
+    {
+        // Only asserted under a Solo, which is the only place the flag decides
+        // anything. Parented straight to the artboard both reaches find it, so
+        // whatever the editor defaulted the flag to there is incidental.
+        REQUIRE(leaf->fitToLayoutParent() == expectFitToLayoutParent);
+    }
+    REQUIRE(leaf->fit() == (uint8_t)rive::Fit::contain);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    if (vmi != nullptr)
+    {
+        stateMachine->bindViewModelInstance(vmi);
+    }
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    CHECK(silver.matches(silverName));
+}
+
+TEST_CASE("a leaf parented by the artboard fits it", "[silver]")
+{
+    renderSoloLeafArtboard("NoSolo",
+                           "solo_nested_artboard_leaf_no_solo",
+                           /*expectSolo=*/false,
+                           /*expectFitToLayoutParent=*/false); // unchecked
+}
+
+TEST_CASE("an opted-in leaf under a Solo fits the layout above it", "[silver]")
+{
+    renderSoloLeafArtboard("SoloWithLeafFitsToParentLayout",
+                           "solo_nested_artboard_leaf_fits_parent_layout",
+                           /*expectSolo=*/true,
+                           /*expectFitToLayoutParent=*/true);
+}
+
+TEST_CASE("a legacy leaf under a Solo frames its own bounds", "[silver]")
+{
+    renderSoloLeafArtboard("SoloWithLeaf",
+                           "solo_nested_artboard_leaf_solo",
+                           /*expectSolo=*/true,
+                           /*expectFitToLayoutParent=*/false);
 }
