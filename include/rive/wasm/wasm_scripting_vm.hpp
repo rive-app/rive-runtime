@@ -362,6 +362,19 @@ private:
     bool init(Span<const uint8_t> module);
     uint32_t guestString(const char* text);
     void guestFree(uint32_t ptr);
+    // The module's slot for an input name, resolved once per instance; -1
+    // when the instance declares no such input.
+    int32_t inputSlot(int selfRef, const char* name);
+    // The input argument of a set or trigger call: the slot, or the name
+    // itself for modules baked before the slot ABI, which owned then holds
+    // for the caller to free. False when the instance lacks the input.
+    bool inputArg(int selfRef,
+                  const char* name,
+                  uint32_t& arg,
+                  uint32_t& owned);
+    bool legacyInputs() const;
+    std::unordered_map<int, std::unordered_map<std::string, int32_t>>
+        m_inputSlots;
 
     struct WamrState;
     std::unique_ptr<WamrState> m_state;
@@ -370,6 +383,10 @@ private:
     Span<const uint8_t> m_scheduleBytes;
     uint64_t m_moduleKey = 0;
     ExecutionTier m_tier = ExecutionTier::interp;
+    // A debug boot (RIVE_WASM_AOT_SYNC=o0) pins the tier: no background
+    // compile is scheduled and no upgrade runs, so the module keeps
+    // running the -O0 code a debugger and stable codegen want.
+    bool m_tierPinned = false;
     std::function<void(const char*, size_t)> m_print;
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;

@@ -5048,6 +5048,15 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     // Ladder cache: content already compiled in a prior session or by a
     // background schedule boots straight onto the artifact - the
     // undo/reopen-instant and permanently-hot-vm_host path.
+    // Only the documented values opt into sync boot; any other string (a
+    // typo, an empty value) leaves the module on the async ladder rather
+    // than silently blocking the load for seconds.
+    const char* syncEnv = getenv("RIVE_WASM_AOT_SYNC");
+    bool syncO0 = syncEnv != nullptr && strcmp(syncEnv, "o0") == 0;
+    bool syncO3 = syncEnv != nullptr && strcmp(syncEnv, "o3") == 0;
+    // Debug boot ignores any faster artifact a prior run left in a shared
+    // cache; the point is to run -O0, so only the sync-o0 path below acts.
+    bool debugBoot = syncO0;
     if (!haveAot && !haveHwAot)
     {
         auto& ladder = ModuleTierLadder::instance();
@@ -5055,14 +5064,15 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         {
 #ifdef RIVE_WASM_HW_BOUNDS
             std::string hwPath =
-                ladder.artifactPath(moduleKey, TierSpecies::hw);
+                debugBoot ? std::string()
+                          : ladder.artifactPath(moduleKey, TierSpecies::hw);
             if (!hwPath.empty() && hwPath.size() < sizeof(aotPath))
             {
                 memcpy(aotPath, hwPath.c_str(), hwPath.size() + 1);
                 haveHwAot = true;
             }
 #endif
-            if (!haveHwAot)
+            if (!haveHwAot && !debugBoot)
             {
                 std::string path =
                     ladder.artifactPath(moduleKey, TierSpecies::o3);
@@ -5078,12 +5088,6 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             // seconds and the interpreter is never representative of real
             // performance; hosts with large modules stay on the async
             // ladder by not setting this.
-            const char* syncEnv = getenv("RIVE_WASM_AOT_SYNC");
-            bool syncO0 = syncEnv != nullptr && strcmp(syncEnv, "o0") == 0;
-            bool syncO3 = syncEnv != nullptr && strcmp(syncEnv, "o3") == 0;
-            // Only the documented values opt in; any other string (a typo,
-            // an empty value) leaves the module on the async ladder rather
-            // than silently blocking the load for seconds.
             if (!haveAot && !haveHwAot && (syncO0 || syncO3))
             {
 #ifdef RIVE_WASM_HW_BOUNDS
@@ -5104,6 +5108,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                     haveHwAot = species == TierSpecies::hw;
                     haveO0Aot = species == TierSpecies::o0;
                     haveAot = !haveHwAot && !haveO0Aot;
+                    m_tierPinned = syncO0;
                     auto syncMs =
                         std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - syncStart)
@@ -5296,7 +5301,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
 void WasmScriptingVM::scheduleTierCompiles(const std::string& laneId)
 {
     auto& ladder = ModuleTierLadder::instance();
-    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3)
+    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3 || m_tierPinned)
     {
         return;
     }
@@ -5315,7 +5320,7 @@ void WasmScriptingVM::scheduleTierCompiles(const std::string& laneId)
 bool WasmScriptingVM::maybeUpgradeTier()
 {
     auto& ladder = ModuleTierLadder::instance();
-    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3)
+    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3 || m_tierPinned)
     {
         return false;
     }
@@ -5844,6 +5849,7 @@ void WasmScriptingVM::releaseRef(int ref)
         m_handles.release(it->second, HandleTable::Tag::object);
         m_contextObjects.erase(it);
     }
+    m_inputSlots.erase(ref);
     uint32_t args[2] = {m_L, (uint32_t)ref};
     // Listeners owned by this script instance stop immediately, mirroring the
     // Luau backend's tracked property dispose.
@@ -5963,14 +5969,15 @@ void WasmScriptingVM::callTrigger(ScriptedObject* object,
                                   int selfRef,
                                   const char* name)
 {
-    uint32_t namePtr = guestString(name);
-    if (namePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
         return;
     }
-    uint32_t args[3] = {m_L, (uint32_t)selfRef, namePtr};
+    uint32_t args[3] = {m_L, (uint32_t)selfRef, arg};
     callModule("host_obj_trigger", 3, args);
-    guestFree(namePtr);
+    guestFree(owned);
 }
 
 bool WasmScriptingVM::callNumberMethod(ScriptedObject* object,
@@ -6522,70 +6529,126 @@ bool WasmScriptingVM::callLayoutMeasure(ScriptedObject* object,
     return measured != 0;
 }
 
+int32_t WasmScriptingVM::inputSlot(int selfRef, const char* name)
+{
+    auto& slots = m_inputSlots[selfRef];
+    auto it = slots.find(name);
+    if (it != slots.end())
+    {
+        return it->second;
+    }
+    int32_t slot = -1;
+    uint32_t namePtr = guestString(name);
+    if (namePtr != 0)
+    {
+        uint32_t args[3] = {m_L, (uint32_t)selfRef, namePtr};
+        slot = (int32_t)callModule("host_obj_input_slot", 3, args);
+        guestFree(namePtr);
+    }
+    slots.emplace(name, slot);
+    return slot;
+}
+
+bool WasmScriptingVM::legacyInputs() const
+{
+    return wasm_runtime_lookup_function(m_state->instance,
+                                        "host_obj_input_slot") == nullptr;
+}
+
+bool WasmScriptingVM::inputArg(int selfRef,
+                               const char* name,
+                               uint32_t& arg,
+                               uint32_t& owned)
+{
+    owned = 0;
+    if (legacyInputs())
+    {
+        owned = arg = guestString(name);
+        return arg != 0;
+    }
+    int32_t slot = inputSlot(selfRef, name);
+    if (slot < 0)
+    {
+        return false;
+    }
+    arg = (uint32_t)slot;
+    return true;
+}
+
 void WasmScriptingVM::setInputBoolean(int selfRef, const char* name, bool value)
 {
-    uint32_t namePtr = guestString(name);
-    if (namePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
         return;
     }
-    uint32_t args[4] = {m_L, (uint32_t)selfRef, namePtr, value ? 1u : 0u};
+    uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, value ? 1u : 0u};
     callModule("host_obj_set_boolean", 4, args);
-    guestFree(namePtr);
+    guestFree(owned);
 }
 
 void WasmScriptingVM::setInputNumber(int selfRef, const char* name, float value)
 {
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance, "host_obj_set_number");
-    uint32_t namePtr = guestString(name);
-    if (f == nullptr || namePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
         return;
     }
-    wasm_val_t args[4];
-    args[0].kind = WASM_I32;
-    args[0].of.i32 = (int32_t)m_L;
-    args[1].kind = WASM_I32;
-    args[1].of.i32 = selfRef;
-    args[2].kind = WASM_I32;
-    args[2].of.i32 = (int32_t)namePtr;
-    args[3].kind = WASM_F64;
-    args[3].of.f64 = value;
-    wasm_runtime_call_wasm_a(m_state->execEnv, f, 0, nullptr, 4, args);
-    guestFree(namePtr);
+    wasm_function_inst_t f =
+        wasm_runtime_lookup_function(m_state->instance, "host_obj_set_number");
+    if (f != nullptr)
+    {
+        wasm_val_t args[4];
+        args[0].kind = WASM_I32;
+        args[0].of.i32 = (int32_t)m_L;
+        args[1].kind = WASM_I32;
+        args[1].of.i32 = selfRef;
+        args[2].kind = WASM_I32;
+        args[2].of.i32 = (int32_t)arg;
+        args[3].kind = WASM_F64;
+        args[3].of.f64 = value;
+        wasm_runtime_call_wasm_a(m_state->execEnv, f, 0, nullptr, 4, args);
+    }
+    guestFree(owned);
 }
 
 void WasmScriptingVM::setInputUnsigned(int selfRef,
                                        const char* name,
                                        uint32_t value)
 {
-    uint32_t namePtr = guestString(name);
-    if (namePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
         return;
     }
-    uint32_t args[4] = {m_L, (uint32_t)selfRef, namePtr, value};
-    callModule("host_obj_set_unsigned", 4, args);
-    guestFree(namePtr);
+    uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, value};
+    callModule(owned != 0 ? "host_obj_set_unsigned" : "host_obj_set_color",
+               4,
+               args);
+    guestFree(owned);
 }
 
 void WasmScriptingVM::setInputString(int selfRef,
                                      const char* name,
                                      const char* value)
 {
-    uint32_t namePtr = guestString(name);
-    uint32_t valuePtr = guestString(value);
-    if (namePtr == 0 || valuePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
-        guestFree(namePtr);
-        guestFree(valuePtr);
         return;
     }
-    uint32_t args[4] = {m_L, (uint32_t)selfRef, namePtr, valuePtr};
-    callModule("host_obj_set_string", 4, args);
-    guestFree(valuePtr);
-    guestFree(namePtr);
+    uint32_t valuePtr = guestString(value);
+    if (valuePtr != 0)
+    {
+        uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, valuePtr};
+        callModule("host_obj_set_string", 4, args);
+        guestFree(valuePtr);
+    }
+    guestFree(owned);
 }
 
 void WasmScriptingVM::setInputViewModel(int selfRef,
