@@ -1148,6 +1148,11 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         m_platformFeatures.supportsClockwiseMode &&
         !contextOptions.disableClockwiseFixedFunctionMode;
 #endif
+#ifndef WITH_VULKAN_ATOMICS
+    // The atomic and clockwiseAtomic SPIR-V isn't compiled in, so we can't
+    // advertise either mode no matter what the device supports.
+    m_platformFeatures.supportsAtomicMode = false;
+#endif
     m_platformFeatures.supportsClockwiseAtomicMode =
         m_platformFeatures.supportsAtomicMode;
     m_platformFeatures.supportsClipPlanes =
@@ -2576,6 +2581,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
         m_coverageBuffer != nullptr)
     {
+#ifdef WITH_VULKAN_ATOMICS
         m_vk->updateBufferDescriptorSets(
             descriptorSetAllocator.perFlushDescriptorSet(),
             {
@@ -2587,6 +2593,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .offset = 0,
                 .range = VK_WHOLE_SIZE,
             }});
+#else
+        RIVE_UNREACHABLE();
+#endif
     }
 
     m_vk->updateImageDescriptorSets(
@@ -3236,6 +3245,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // definitely be faster due to hardware optimizations.
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
+#ifdef WITH_VULKAN_ATOMICS
             const VkClearColorValue coverageClearValue =
                 vkutil::color_clear_r32ui(desc.coverageClearValue);
 
@@ -3251,6 +3261,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                      &coverageClearValue,
                                      1,
                                      &clearRange);
+#else
+            RIVE_UNREACHABLE();
+#endif
         }
         else
         {
@@ -3325,6 +3338,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
+#ifdef WITH_VULKAN_ATOMICS
         VkPipelineStageFlags lastCoverageBufferStage =
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         VkAccessFlags lastCoverageBufferAccess = VK_ACCESS_SHADER_WRITE_BIT;
@@ -3371,6 +3385,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .buffer = *m_coverageBuffer,
                 });
         }
+#else
+        RIVE_UNREACHABLE();
+#endif
     }
 
     // If requested, split the frame up into virtual tiles. As of now, each tile

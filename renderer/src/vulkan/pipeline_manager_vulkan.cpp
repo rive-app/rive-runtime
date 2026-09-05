@@ -526,6 +526,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                     // no additional options
                     break;
                 case InterlockMode::clockwiseAtomic:
+#ifdef WITH_VULKAN_ATOMICS
                     // Clockwise atomic render passes are allowed to (not) have
                     // this flag even if the shader has it specified (a shader
                     // is allowed to say "I don't read from the framebuffer"
@@ -538,6 +539,9 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                             RenderPassOptionsVulkan::fixedFunctionColorOutput;
                     }
                     break;
+#else
+                    RIVE_UNREACHABLE();
+#endif
 
                 case InterlockMode::depthStencil:
                     validPassOptions |=

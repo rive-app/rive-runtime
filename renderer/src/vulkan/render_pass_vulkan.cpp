@@ -396,6 +396,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     }
     else if (interlockMode == gpu::InterlockMode::atomics)
     {
+#ifdef WITH_VULKAN_ATOMICS
         if (enums::is_flag_set(
                 renderPassOptions,
                 RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer))
@@ -436,6 +437,9 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             assert(!resolveAttachmentRef.has_value());
             resolveAttachmentRef = colorAttachmentRefs[0];
         }
+#else
+        RIVE_UNREACHABLE();
+#endif
     }
     else if (interlockMode == gpu::InterlockMode::depthStencil)
     {
@@ -700,6 +704,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
 
     if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
+#ifdef WITH_VULKAN_ATOMICS
         // Borrowed coverage subpass. (This only writes to the coverage buffer,
         // not color attachments.)
         subpassDescs.push_back({
@@ -722,6 +727,9 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         // catastrophic effects on performance for tilers since they cause a
         // flush.
         addStandardColorDependencyToNextSubpass(subpassDescs.size());
+#else
+        RIVE_UNREACHABLE();
+#endif
     }
 
     // Main subpass.
@@ -803,6 +811,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     // PLS-resolve subpass (atomic mode only).
     if (interlockMode == gpu::InterlockMode::atomics)
     {
+#ifdef WITH_VULKAN_ATOMICS
         // Add the dependency from main subpass to the resolve subpass.
         addStandardColorDependencyToNextSubpass(subpassDescs.size());
 
@@ -819,6 +828,9 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .colorAttachmentCount = 1,
             .pColorAttachments = &resolveAttachmentRef.value(),
         });
+#else
+        RIVE_UNREACHABLE();
+#endif
     }
     else if (enums::is_flag_set(renderPassOptions,
                                 RenderPassOptionsVulkan::manuallyResolved))

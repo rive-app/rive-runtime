@@ -29,6 +29,7 @@ namespace embedded
 #include "generated/shaders/spirv/draw_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_image_mesh.frag.h"
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::atomics shaders.
 #include "generated/shaders/spirv/atomic_draw_path.vert.h"
 #include "generated/shaders/spirv/atomic_draw_path.frag.h"
@@ -50,6 +51,7 @@ namespace embedded
 #include "generated/shaders/spirv/atomic_resolve.fixedcolor_frag.h"
 #include "generated/shaders/spirv/atomic_resolve_coalesced.vert.h"
 #include "generated/shaders/spirv/atomic_resolve_coalesced.frag.h"
+#endif
 
 // InterlockMode::clockwise shaders.
 #ifndef RIVE_ANDROID
@@ -71,6 +73,7 @@ namespace embedded
 #include "generated/shaders/spirv/draw_clockwise_image_mesh.fixedcolor_frag.h"
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::clockwiseAtomic shaders.
 #include "generated/shaders/spirv/draw_clockwise_atomic_path.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_atomic_path.frag.h"
@@ -95,6 +98,7 @@ namespace embedded
 #include "generated/shaders/spirv/draw_clockwise_atomic_image_mesh.fixedcolor_frag.h"
 #include "generated/shaders/spirv/init_clockwise_atomic_workaround.frag.h"
 #include "generated/shaders/spirv/init_clockwise_atomic_workaround.fixedcolor_frag.h"
+#endif
 
 // InterlockMode::depthStencil shaders.
 #include "generated/shaders/spirv/draw_depthstencil_path.vert.h"
@@ -152,6 +156,7 @@ rive::Span<const uint32_t> draw_image_mesh_vert =
 rive::Span<const uint32_t> draw_image_mesh_frag =
     rive::make_span(embedded::draw_image_mesh_frag);
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::atomics shaders.
 rive::Span<const uint32_t> atomic_draw_path_vert =
     rive::make_span(embedded::atomic_draw_path_vert);
@@ -193,6 +198,7 @@ rive::Span<const uint32_t> atomic_resolve_coalesced_vert =
     rive::make_span(embedded::atomic_resolve_coalesced_vert);
 rive::Span<const uint32_t> atomic_resolve_coalesced_frag =
     rive::make_span(embedded::atomic_resolve_coalesced_frag);
+#endif
 
 #ifndef RIVE_ANDROID
 // InterlockMode::clockwise shaders.
@@ -232,6 +238,7 @@ rive::Span<const uint32_t> draw_clockwise_image_mesh_fixedcolor_frag =
     rive::make_span(embedded::draw_clockwise_image_mesh_fixedcolor_frag);
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::clockwiseAtomic shaders.
 rive::Span<const uint32_t> draw_clockwise_atomic_path_vert =
     rive::make_span(embedded::draw_clockwise_atomic_path_vert);
@@ -287,6 +294,7 @@ rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag =
     rive::make_span(embedded::init_clockwise_atomic_workaround_frag);
 rive::Span<const uint32_t> init_clockwise_atomic_workaround_fixedcolor_frag =
     rive::make_span(embedded::init_clockwise_atomic_workaround_fixedcolor_frag);
+#endif
 
 // InterlockMode::depthStencil shaders.
 rive::Span<const uint32_t> draw_depthstencil_path_vert =
@@ -356,6 +364,7 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_image_mesh_vert = readNextBytecodeSpan();
     spirv::draw_image_mesh_frag = readNextBytecodeSpan();
 
+#ifdef WITH_VULKAN_ATOMICS
     spirv::atomic_draw_path_vert = readNextBytecodeSpan();
     spirv::atomic_draw_path_frag = readNextBytecodeSpan();
     spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
@@ -377,6 +386,7 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::atomic_resolve_fixedcolor_frag = readNextBytecodeSpan();
     spirv::atomic_resolve_coalesced_vert = readNextBytecodeSpan();
     spirv::atomic_resolve_coalesced_frag = readNextBytecodeSpan();
+#endif
 
 #ifndef RIVE_ANDROID
     spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
@@ -399,6 +409,7 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_clockwise_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
     spirv::draw_clockwise_atomic_path_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_path_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_path_fixedcolor_frag = readNextBytecodeSpan();
@@ -418,7 +429,6 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
         readNextBytecodeSpan();
     spirv::draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
         readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
     spirv::clear_clockwise_atomic_clip_vert = readNextBytecodeSpan();
     spirv::clear_clockwise_atomic_clip_frag = readNextBytecodeSpan();
     spirv::clear_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
@@ -433,6 +443,7 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::init_clockwise_atomic_workaround_frag = readNextBytecodeSpan();
     spirv::init_clockwise_atomic_workaround_fixedcolor_frag =
         readNextBytecodeSpan();
+#endif
 
     spirv::draw_depthstencil_path_vert = readNextBytecodeSpan();
     spirv::draw_depthstencil_path_noclipdistance_vert = readNextBytecodeSpan();

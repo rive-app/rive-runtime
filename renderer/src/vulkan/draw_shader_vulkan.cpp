@@ -93,6 +93,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
         case gpu::InterlockMode::atomics:
         {
+#ifdef WITH_VULKAN_ATOMICS
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
@@ -172,6 +173,9 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     RIVE_UNREACHABLE();
             }
             break;
+#else
+            RIVE_UNREACHABLE();
+#endif
         }
 
         case gpu::InterlockMode::clockwise:
@@ -254,6 +258,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
         case gpu::InterlockMode::clockwiseAtomic:
         {
+#ifdef WITH_VULKAN_ATOMICS
             // Since advanced blend is done via input attachments in
             // clockwiseAtomic mode, we can swap out the "_fixedcolor" shader
             // variants on a per-draw basis instead of per render pass.
@@ -394,6 +399,9 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     RIVE_UNREACHABLE();
             }
             break;
+#else
+            RIVE_UNREACHABLE();
+#endif
         }
 
         case gpu::InterlockMode::depthStencil:

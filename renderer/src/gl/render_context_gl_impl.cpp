@@ -43,13 +43,11 @@
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
+#endif
 
-// In an effort to save space on web, and since web doesn't have ES 3.1 level
-// support, don't include the atomic sources.
-namespace rive::gpu::glsl
-{
-const char atomic_draw[] = "";
-}
+#if defined(RIVE_WEBGL) || defined(RIVE_ANDROID)
+// Web doesn't support shader images at all, and they're slow on Android ES 3.1.
+// Don't include the atomic sources on either.
 #define DISABLE_PLS_ATOMICS
 #else
 #include "generated/shaders/atomic_draw.glsl.hpp"
@@ -1830,10 +1828,14 @@ RenderContextGLImpl::DrawShader::DrawShader(
             break;
 
         case gpu::InterlockMode::atomics:
+#ifndef DISABLE_PLS_ATOMICS
             sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::gradient_packing_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
+#else
+            RIVE_UNREACHABLE();
+#endif
 
         case gpu::InterlockMode::depthStencil:
             switch (drawType)

@@ -8,6 +8,11 @@ newoption({
     description = 'compile with support for vulkan',
 })
 
+newoption({
+    trigger = 'with_android_vulkan_atomics',
+    description = 'compile in support and embed SPIR-V for atomic and clockwiseAtomic shaders on android',
+})
+
 -- Internal capability flag opted into by platform packages.
 newoption({
     trigger = '_console_only_ore_vk',
@@ -26,6 +31,11 @@ if _OPTIONS['with_vulkan'] then
         'VMA_STATIC_VULKAN_FUNCTIONS=0',
         'VMA_DYNAMIC_VULKAN_FUNCTIONS=1',
     })
+    -- The atomic and clockwiseAtomic SPIR-V is large, and android doesn't use
+    -- those modes by default. Make them opt-in only.
+    if rive_target_os ~= 'android' or _OPTIONS['with_android_vulkan_atomics'] then
+        defines({ 'WITH_VULKAN_ATOMICS' })
+    end
 end
 
 if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then

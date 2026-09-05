@@ -79,6 +79,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_image_mesh.vert.spv",
         riveSpirvPath / "draw_image_mesh.frag.spv",
 
+#ifdef WITH_VULKAN_ATOMICS
         riveSpirvPath / "atomic_draw_path.vert.spv",
         riveSpirvPath / "atomic_draw_path.frag.spv",
         riveSpirvPath / "atomic_draw_path.fixedcolor_frag.spv",
@@ -99,6 +100,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "atomic_resolve.fixedcolor_frag.spv",
         riveSpirvPath / "atomic_resolve_coalesced.vert.spv",
         riveSpirvPath / "atomic_resolve_coalesced.frag.spv",
+#endif
 
 #ifndef RIVE_ANDROID
         riveSpirvPath / "draw_clockwise_path.vert.spv",
@@ -120,6 +122,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_image_mesh.fixedcolor_frag.spv",
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
         riveSpirvPath / "draw_clockwise_atomic_path.vert.spv",
         riveSpirvPath / "draw_clockwise_atomic_path.frag.spv",
         riveSpirvPath / "draw_clockwise_atomic_path.fixedcolor_frag.spv",
@@ -147,6 +150,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_atomic_image_mesh.fixedcolor_frag.spv",
         riveSpirvPath / "init_clockwise_atomic_workaround.frag.spv",
         riveSpirvPath / "init_clockwise_atomic_workaround.fixedcolor_frag.spv",
+#endif
 
         riveSpirvPath / "draw_depthstencil_path.vert.spv",
         riveSpirvPath / "draw_depthstencil_path.noclipdistance_vert.spv",

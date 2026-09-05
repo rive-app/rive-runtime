@@ -28,6 +28,7 @@ extern rive::Span<const uint32_t> draw_atlas_blit_frag;
 extern rive::Span<const uint32_t> draw_image_mesh_vert;
 extern rive::Span<const uint32_t> draw_image_mesh_frag;
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::atomics shaders.
 extern rive::Span<const uint32_t> atomic_draw_path_vert;
 extern rive::Span<const uint32_t> atomic_draw_path_frag;
@@ -50,6 +51,7 @@ extern rive::Span<const uint32_t> atomic_resolve_frag;
 extern rive::Span<const uint32_t> atomic_resolve_fixedcolor_frag;
 extern rive::Span<const uint32_t> atomic_resolve_coalesced_vert;
 extern rive::Span<const uint32_t> atomic_resolve_coalesced_frag;
+#endif
 
 #ifndef RIVE_ANDROID
 // InterlockMode::clockwise shaders.
@@ -73,6 +75,7 @@ extern rive::Span<const uint32_t> draw_clockwise_image_mesh_frag;
 extern rive::Span<const uint32_t> draw_clockwise_image_mesh_fixedcolor_frag;
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::clockwiseAtomic shaders.
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_vert;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_frag;
@@ -105,6 +108,7 @@ extern rive::Span<const uint32_t> init_clockwise_atomic_workaround_vert;
 extern rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag;
 extern rive::Span<const uint32_t>
     init_clockwise_atomic_workaround_fixedcolor_frag;
+#endif
 
 // InterlockMode::depthStencil shaders.
 extern rive::Span<const uint32_t> draw_depthstencil_path_vert;
