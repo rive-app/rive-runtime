@@ -140,6 +140,39 @@ struct LayoutAnimationData
     void copy(const LayoutAnimationData& from);
 };
 
+// The state a LayoutComponent needs once it tweens or inherits a non-default
+// animation style: two LayoutAnimationData (the second is the smoothing
+// buffer, used when a new target arrives mid-flight) plus whatever the parent
+// cascaded down. That's ~85 bytes, and a layout that never does either needs
+// none of it -- its `from`/`to` are always just `m_layout`, so the accessors
+// derive the whole block from m_layout while this is null. The lazy
+// allocation mirrors ParticipantAnimation in layout_participant.cpp (itself
+// modelled on this class, which predates the pattern); the lifetime below
+// does not -- ParticipantAnimation frees its block, this one doesn't.
+//
+// Lifetime -- allocated by ensureAnimation() from two places:
+//   * updateLayoutBounds(), when the layout is about to actually tween;
+//   * setInheritedInterpolation(), for any cascade that isn't the all-default
+//     (hold / null interpolator / 0s) one an unallocated layout already
+//     reports. This path is duration-independent: a zero-duration cascade,
+//     or one carrying only an interpolator, still allocates.
+// Nothing ever releases it -- there is no reset path, so the block outlives
+// the tween that prompted it and lives until the component is destroyed.
+//
+// So `m_animation != nullptr` means "has tweened or inherited a style at some
+// point", NOT "is animating now" and NOT "animates()". Don't add code that
+// reads the pointer as either; test the animation state (or animates()) for
+// that, and treat a non-null block holding default cascade values as normal.
+struct LayoutAnimation
+{
+    LayoutAnimationData a;
+    LayoutAnimationData b;
+    KeyFrameInterpolator* inheritedInterpolator = nullptr;
+    LayoutStyleInterpolation inheritedInterpolation =
+        LayoutStyleInterpolation::hold;
+    float inheritedInterpolationTime = 0.0f;
+};
+
 // The render-path buffers a LayoutComponent needs only when it actually paints,
 // clips, has a foreground drawable, or is an Artboard. These are ~240 bytes
 // together; heap-allocating them on first use keeps a plain container layout
@@ -168,20 +201,17 @@ protected:
     Layout m_layout;
     LayoutPadding m_layoutPadding;
 
-    LayoutAnimationData m_animationDataA;
-    LayoutAnimationData m_animationDataB;
-    KeyFrameInterpolator* m_inheritedInterpolator;
-    // The two 1-byte enums and the 2-byte flags word are kept adjacent so they
+    // Null until this layout first tweens or inherits a non-default animation
+    // style; never released once allocated. See LayoutAnimation.
+    std::unique_ptr<LayoutAnimation> m_animation;
+    // The 1-byte enum and the 2-byte flags word are kept adjacent so they
     // pack into a single 4-byte slot with no padding.
-    LayoutStyleInterpolation m_inheritedInterpolation =
-        LayoutStyleInterpolation::hold;
     LayoutDirection m_inheritedDirection = LayoutDirection::inherit;
     LayoutComponentFlags m_layoutFlags =
         LayoutComponentFlags::ParentIsRow |
         LayoutComponentFlags::PositionLeftChanged |
         LayoutComponentFlags::PositionTopChanged |
         LayoutComponentFlags::ComposeTransform;
-    float m_inheritedInterpolationTime = 0;
     // Null until this layout first paints/clips/has a foreground drawable, or
     // (for Artboard) builds its background/clip path. See LayoutRenderPaths.
     std::unique_ptr<LayoutRenderPaths> m_renderPaths;
@@ -222,7 +252,12 @@ protected:
     }
 
     Artboard* getArtboard() override { return artboard(); }
+    // Null only while m_animation is unallocated -- callers either bail or
+    // fall back on m_layout. Non-null does not imply a tween is in flight.
+    // See LayoutAnimation.
     LayoutAnimationData* currentAnimationData();
+    // Realizes m_animation, seeded so that doing so is never observable.
+    LayoutAnimation& ensureAnimation();
 
     LayoutComponent* layoutParent()
     {

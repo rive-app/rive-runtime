@@ -1351,10 +1351,14 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         // this may be useful in adding support for animate in/out of
         // items in an ArtboardHost.
         m_layout = newLayout;
-        auto animationData = currentAnimationData();
-        animationData->from = newLayout;
-        animationData->to = newLayout;
-        animationData->elapsedSeconds = 0.0f;
+        // Unallocated, from/to already read as m_layout, which we just set --
+        // there is nothing to snap.
+        if (auto* animationData = currentAnimationData())
+        {
+            animationData->from = newLayout;
+            animationData->to = newLayout;
+            animationData->elapsedSeconds = 0.0f;
+        }
         propagateSize();
         markWorldTransformDirty();
         setLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds, false);
@@ -1363,16 +1367,24 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
     if (animate && animates())
     {
+        // Test the target before allocating: with no state the target reads
+        // as m_layout, so a layout that solves to the bounds it already has
+        // never pays for the block just because its style can animate.
         auto animationData = currentAnimationData();
-        if (newLayout != animationData->to ||
+        const Layout& target =
+            animationData != nullptr ? animationData->to : m_layout;
+        if (newLayout != target ||
             hasLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds))
         {
+            // Committed to retargeting now, so realize the state.
+            ensureAnimation();
+            animationData = currentAnimationData();
             if (animationData->elapsedSeconds != 0.0f)
             {
                 if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
                 {
                     // we were already smoothening.
-                    m_animationDataA.copy(m_animationDataB);
+                    m_animation->a.copy(m_animation->b);
                 }
                 setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, true);
             }
@@ -1398,7 +1410,14 @@ void LayoutComponent::updateLayoutBounds(bool animate)
             // Width changed, we need to rebuild the path.
             addDirt(ComponentDirt::Path);
         }
-        m_animationDataA.to = m_layout = newLayout;
+        m_layout = newLayout;
+        if (m_animation != nullptr)
+        {
+            // Keep the animate path's retarget check honest: while we are not
+            // animating, `to` tracks m_layout (which is what the unallocated
+            // case reports anyway).
+            m_animation->a.to = newLayout;
+        }
 
         propagateSize();
         markWorldTransformDirty();
@@ -1450,8 +1469,12 @@ KeyFrameInterpolator* LayoutComponent::interpolator()
     switch (m_style->animationStyle())
     {
         case LayoutAnimationStyle::inherit:
-            return m_inheritedInterpolator != nullptr ? m_inheritedInterpolator
-                                                      : m_style->interpolator();
+        {
+            auto* inherited = m_animation != nullptr
+                                  ? m_animation->inheritedInterpolator
+                                  : nullptr;
+            return inherited != nullptr ? inherited : m_style->interpolator();
+        }
         case LayoutAnimationStyle::custom:
             return m_style->interpolator();
         default:
@@ -1469,7 +1492,8 @@ LayoutStyleInterpolation LayoutComponent::interpolation()
     switch (m_style->animationStyle())
     {
         case LayoutAnimationStyle::inherit:
-            return m_inheritedInterpolation;
+            return m_animation != nullptr ? m_animation->inheritedInterpolation
+                                          : defaultInterpolation;
         case LayoutAnimationStyle::custom:
             return m_style->interpolation();
         default:
@@ -1486,7 +1510,9 @@ float LayoutComponent::interpolationTime()
     switch (m_style->animationStyle())
     {
         case LayoutAnimationStyle::inherit:
-            return m_inheritedInterpolationTime;
+            return m_animation != nullptr
+                       ? m_animation->inheritedInterpolationTime
+                       : 0;
         case LayoutAnimationStyle::custom:
             return m_style->interpolationTime();
         default:
@@ -1543,13 +1569,25 @@ bool LayoutComponent::setInheritedInterpolation(
     KeyFrameInterpolator* inheritedInterpolator,
     float inheritedInterpolationTime)
 {
-    if (inheritedInterpolation != m_inheritedInterpolation ||
-        inheritedInterpolator != m_inheritedInterpolator ||
-        inheritedInterpolationTime != m_inheritedInterpolationTime)
+    if (m_animation == nullptr)
     {
-        m_inheritedInterpolation = inheritedInterpolation;
-        m_inheritedInterpolator = inheritedInterpolator;
-        m_inheritedInterpolationTime = inheritedInterpolationTime;
+        // An all-default cascade is what an unallocated layout already
+        // reports, so storing it would change nothing but the footprint.
+        if (inheritedInterpolation == LayoutStyleInterpolation::hold &&
+            inheritedInterpolator == nullptr &&
+            inheritedInterpolationTime == 0.0f)
+        {
+            return false;
+        }
+        ensureAnimation();
+    }
+    if (inheritedInterpolation != m_animation->inheritedInterpolation ||
+        inheritedInterpolator != m_animation->inheritedInterpolator ||
+        inheritedInterpolationTime != m_animation->inheritedInterpolationTime)
+    {
+        m_animation->inheritedInterpolation = inheritedInterpolation;
+        m_animation->inheritedInterpolator = inheritedInterpolator;
+        m_animation->inheritedInterpolationTime = inheritedInterpolationTime;
         return true;
     }
     return false;
@@ -1557,16 +1595,40 @@ bool LayoutComponent::setInheritedInterpolation(
 
 void LayoutComponent::clearInheritedInterpolation()
 {
-    m_inheritedInterpolation = LayoutStyleInterpolation::hold;
-    m_inheritedInterpolator = nullptr;
-    m_inheritedInterpolationTime = 0;
+    if (m_animation == nullptr)
+    {
+        // Already reporting the cleared values.
+        return;
+    }
+    m_animation->inheritedInterpolation = LayoutStyleInterpolation::hold;
+    m_animation->inheritedInterpolator = nullptr;
+    m_animation->inheritedInterpolationTime = 0;
 }
 
 LayoutAnimationData* LayoutComponent::currentAnimationData()
 {
+    if (m_animation == nullptr)
+    {
+        return nullptr;
+    }
     return hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation)
-               ? &m_animationDataB
-               : &m_animationDataA;
+               ? &m_animation->b
+               : &m_animation->a;
+}
+
+LayoutAnimation& LayoutComponent::ensureAnimation()
+{
+    if (m_animation == nullptr)
+    {
+        m_animation = std::make_unique<LayoutAnimation>();
+        // While unallocated the accessors report from/to as m_layout. Seed the
+        // real state identically so realizing it is never observable -- in
+        // particular the animate path's `newLayout != to` retarget check must
+        // not fire just because we allocated.
+        m_animation->a.from = m_animation->a.to = m_layout;
+        m_animation->b.from = m_animation->b.to = m_layout;
+    }
+    return *m_animation;
 }
 
 void LayoutAnimationData::copy(const LayoutAnimationData& source)
@@ -1579,33 +1641,35 @@ void LayoutAnimationData::copy(const LayoutAnimationData& source)
 bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
 {
     auto animationData = currentAnimationData();
-    if (!animate || !animates() || m_style == nullptr ||
-        animationData->to == m_layout)
+    // No state means nothing was ever retargeted: `to` reads as m_layout, so
+    // the original `to == m_layout` bail-out holds by construction.
+    if (animationData == nullptr || !animate || !animates() ||
+        m_style == nullptr || animationData->to == m_layout)
     {
         return false;
     }
     if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
     {
-        float f = std::fmin(1.0f,
-                            interpolationTime() > 0.0f
-                                ? m_animationDataA.elapsedSeconds /
-                                      interpolationTime()
-                                : 1.0f);
+        float f =
+            std::fmin(1.0f,
+                      interpolationTime() > 0.0f
+                          ? m_animation->a.elapsedSeconds / interpolationTime()
+                          : 1.0f);
 
         if (interpolation() != LayoutStyleInterpolation::linear &&
             interpolator() != nullptr)
         {
             f = interpolator()->transform(f);
         }
-        m_animationDataB.from = m_animationDataA.interpolate(f);
+        m_animation->b.from = m_animation->a.interpolate(f);
         if (f == 1.0f)
         {
-            m_animationDataA.copy(m_animationDataB);
+            m_animation->a.copy(m_animation->b);
             setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, false);
         }
         else
         {
-            m_animationDataA.elapsedSeconds += elapsedSeconds;
+            m_animation->a.elapsedSeconds += elapsedSeconds;
         }
     }
 
@@ -1623,13 +1687,13 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
         if (hasLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation))
         {
             setLayoutFlag(LayoutComponentFlags::IsSmoothingAnimation, false);
-            m_animationDataA.copy(m_animationDataB);
-            m_animationDataA.elapsedSeconds = m_animationDataB.elapsedSeconds =
+            m_animation->a.copy(m_animation->b);
+            m_animation->a.elapsedSeconds = m_animation->b.elapsedSeconds =
                 0.0f;
         }
         else
         {
-            m_animationDataA.elapsedSeconds = 0.0f;
+            m_animation->a.elapsedSeconds = 0.0f;
         }
         propagateSize();
         markWorldTransformDirty();
@@ -1674,7 +1738,10 @@ void LayoutComponent::interruptAnimation()
 {
     if (animates())
     {
-        m_layout = currentAnimationData()->to;
+        if (auto* animationData = currentAnimationData())
+        {
+            m_layout = animationData->to;
+        }
         propagateSize();
     }
 }

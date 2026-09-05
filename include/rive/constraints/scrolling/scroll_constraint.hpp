@@ -33,7 +33,7 @@ private:
         float value = 0;
     };
 
-    ScrollPhysics* m_physics;
+    ScrollPhysics* m_physics = nullptr;
     ScrollVirtualizer* m_virtualizer = nullptr;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
 

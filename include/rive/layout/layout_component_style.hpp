@@ -18,7 +18,7 @@ class LayoutComponentStyle : public LayoutComponentStyleBase
 {
 private:
 #ifdef WITH_RIVE_LAYOUT
-    KeyFrameInterpolator* m_interpolator;
+    KeyFrameInterpolator* m_interpolator = nullptr;
 #endif
 
 public:
