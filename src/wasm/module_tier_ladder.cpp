@@ -5,6 +5,7 @@
 #ifdef RIVE_WASM_TIER_LADDER
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <filesystem>
@@ -220,6 +221,40 @@ void ModuleTierLadder::stagePristine(uint64_t moduleKey,
     writeFileAtomic(wasmPath, moduleBytes);
 }
 
+std::string ModuleTierLadder::compileSync(uint64_t moduleKey,
+                                          Span<const uint8_t> moduleBytes,
+                                          TierSpecies species)
+{
+    if (!enabled())
+    {
+        return std::string();
+    }
+    std::string existing = artifactPath(moduleKey, species);
+    if (!existing.empty())
+    {
+        return existing;
+    }
+    stagePristine(moduleKey, moduleBytes);
+    std::string wasmPath;
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        char wasmName[64];
+        snprintf(wasmName,
+                 sizeof(wasmName),
+                 "%016llx.wasm",
+                 (unsigned long long)moduleKey);
+        wasmPath = keyedCacheDir() + "/" + wasmName;
+    }
+    // Runs on the caller's thread and never joins m_running, so lane
+    // supersession cannot kill it out from under the boot.
+    Job job{std::string(), moduleKey, species, wasmPath, 0};
+    if (!runWamrc(job))
+    {
+        return std::string();
+    }
+    return artifactPath(moduleKey, species);
+}
+
 void ModuleTierLadder::schedule(const std::string& laneId,
                                 uint64_t moduleKey,
                                 Span<const uint8_t> moduleBytes)
@@ -233,13 +268,37 @@ void ModuleTierLadder::schedule(const std::string& laneId,
     m_laneGeneration[laneId] = generation;
     // Supersede the lane: queued stale jobs get skipped by the generation
     // check; running ones die now so the pool frees up for the new hash.
+    // Same-hash jobs are not stale — a rebuild of identical bytes must not
+    // kill its own compile — so they ride forward on the new generation
+    // and their species skip re-queueing below.
+    std::vector<TierSpecies> inFlight;
     for (Job* job : m_running)
     {
-        if (job->laneId == laneId && job->generation < generation &&
-            job->pid > 0)
+        if (job->laneId != laneId || job->generation >= generation)
+        {
+            continue;
+        }
+        // A job already cancelled by an earlier supersede will not produce
+        // an artifact, so it cannot stand in for this request even when the
+        // bytes match: let its species re-queue below.
+        if (job->moduleKey == moduleKey && !job->cancelled)
+        {
+            job->generation = generation;
+            inFlight.push_back(job->species);
+        }
+        else if (job->moduleKey != moduleKey && job->pid > 0 && !job->cancelled)
         {
             job->cancelled = true;
             kill(job->pid, SIGKILL);
+        }
+    }
+    for (Job& job : m_queue)
+    {
+        if (job.laneId == laneId && job.moduleKey == moduleKey &&
+            !job.cancelled)
+        {
+            job.generation = generation;
+            inFlight.push_back(job.species);
         }
     }
 
@@ -271,6 +330,11 @@ void ModuleTierLadder::schedule(const std::string& laneId,
     bool queued = false;
     for (TierSpecies species : wanted)
     {
+        if (std::find(inFlight.begin(), inFlight.end(), species) !=
+            inFlight.end())
+        {
+            continue;
+        }
         std::string artifact = dir + "/" + artifactName(moduleKey, species);
         struct stat st;
         if (stat(artifact.c_str(), &st) == 0)
@@ -372,7 +436,11 @@ bool ModuleTierLadder::runWamrc(Job& job)
             keyedCacheDir() + "/" + artifactName(job.moduleKey, job.species);
         wamrc = m_wamrcPath;
     }
-    std::string tmpPath = finalPath + ".tmp";
+    // Unique temp per compile: the same artifact can be raced by a worker
+    // and a sync boot, or by two processes sharing the cache.
+    static std::atomic<uint64_t> tmpSerial{0};
+    std::string tmpPath = finalPath + "." + std::to_string(getpid()) + "-" +
+                          std::to_string(++tmpSerial) + ".tmp";
 
     std::vector<std::string> args = {wamrc};
     if (job.species == TierSpecies::hw)
@@ -456,6 +524,15 @@ bool ModuleTierLadder::runWamrc(Job& job)
     }
     if (job.cancelled || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
     {
+        if (!job.cancelled)
+        {
+            // wamrc prints usage errors to stdout, which is discarded; an
+            // unlogged exit here is otherwise a silently dead lane.
+            fprintf(stderr,
+                    "[wasm] wamrc failed (exit %d) on %s\n",
+                    WIFEXITED(status) ? WEXITSTATUS(status) : -1,
+                    job.wasmPath.c_str());
+        }
         unlink(tmpPath.c_str());
         return false;
     }

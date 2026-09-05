@@ -85,6 +85,15 @@ public:
     // Ready artifact path for a module at the given species, empty if none.
     std::string artifactPath(uint64_t moduleKey, TierSpecies species);
 
+    // Compile one species on the calling thread, bypassing the worker pool
+    // and lane supersession, and return the artifact path (or an existing
+    // artifact's path immediately). Empty on failure. This is the sync-boot
+    // path: a host that would rather block for seconds than run a module on
+    // the interpreter at all.
+    std::string compileSync(uint64_t moduleKey,
+                            Span<const uint8_t> moduleBytes,
+                            TierSpecies species);
+
     // Test hooks: block until the lane has no queued or running compiles.
     void drain();
 
@@ -163,6 +172,10 @@ public:
     void schedule(const std::string&, uint64_t, Span<const uint8_t>) {}
     void stagePristine(uint64_t, Span<const uint8_t>) {}
     std::string artifactPath(uint64_t, TierSpecies) { return std::string(); }
+    std::string compileSync(uint64_t, Span<const uint8_t>, TierSpecies)
+    {
+        return std::string();
+    }
     void drain() {}
 
     static constexpr size_t kStraightToO3Bytes = 50 * 1024;

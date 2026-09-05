@@ -4998,6 +4998,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     char aotPath[1024] = {0};
     bool haveAot = false;
     bool haveHwAot = false;
+    bool haveO0Aot = false;
     if (const char* cacheDir = getenv("RIVE_WASM_AOT_CACHE"))
     {
 #ifdef RIVE_WASM_HW_BOUNDS
@@ -5071,9 +5072,56 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                     haveAot = true;
                 }
             }
+            // Sync AOT boot, opted in by RIVE_WASM_AOT_SYNC=o3|o0: on a
+            // cache miss, compile on this thread and boot the artifact
+            // instead of the interpreter. Project-sized modules compile in
+            // seconds and the interpreter is never representative of real
+            // performance; hosts with large modules stay on the async
+            // ladder by not setting this.
+            const char* syncEnv = getenv("RIVE_WASM_AOT_SYNC");
+            bool syncO0 = syncEnv != nullptr && strcmp(syncEnv, "o0") == 0;
+            bool syncO3 = syncEnv != nullptr && strcmp(syncEnv, "o3") == 0;
+            // Only the documented values opt in; any other string (a typo,
+            // an empty value) leaves the module on the async ladder rather
+            // than silently blocking the load for seconds.
+            if (!haveAot && !haveHwAot && (syncO0 || syncO3))
+            {
+#ifdef RIVE_WASM_HW_BOUNDS
+                TierSpecies top = TierSpecies::hw;
+#else
+                TierSpecies top = TierSpecies::o3;
+#endif
+                TierSpecies species = syncO0 ? TierSpecies::o0 : top;
+                auto syncStart = std::chrono::steady_clock::now();
+                std::string path = ladder.compileSync(
+                    moduleKey,
+                    Span<const uint8_t>(pristineBytes.data(),
+                                        pristineBytes.size()),
+                    species);
+                if (!path.empty() && path.size() < sizeof(aotPath))
+                {
+                    memcpy(aotPath, path.c_str(), path.size() + 1);
+                    haveHwAot = species == TierSpecies::hw;
+                    haveO0Aot = species == TierSpecies::o0;
+                    haveAot = !haveHwAot && !haveO0Aot;
+                    auto syncMs =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - syncStart)
+                            .count();
+                    fprintf(stderr,
+                            "wasm aot: sync compiled %s in %lld ms\n",
+                            path.c_str(),
+                            (long long)syncMs);
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "wasm aot: sync compile failed, booting interp\n");
+                }
+            }
         }
     }
-    if (haveAot || haveHwAot)
+    if (haveAot || haveHwAot || haveO0Aot)
     {
         moduleKey ^= 0x9e3779b97f4a7c15ull;
     }
@@ -5082,6 +5130,12 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         // Distinct key: hw and sw artifacts of the same bytes must never
         // share a cached module, the flag below lives on the module.
         moduleKey ^= 0xc2b2ae3d27d4eb4full;
+    }
+    if (haveO0Aot)
+    {
+        // Same rule for the -O0 species: its cached module reports aotO0
+        // so later VMs still schedule the -O3 upgrade.
+        moduleKey ^= 0x27d4eb2f165667c5ull;
     }
     auto& cache = sharedModuleCache();
     auto cached = cache.find(moduleKey);
@@ -5100,7 +5154,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     }
     else
     {
-        if (haveAot || haveHwAot)
+        if (haveAot || haveHwAot || haveO0Aot)
         {
             if (FILE* aot = fopen(aotPath, "rb"))
             {
@@ -5114,10 +5168,11 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                         "wasm aot: loaded %s (%zu bytes)\n",
                         aotPath,
                         read);
-                m_tier = ExecutionTier::aotO3;
+                m_tier =
+                    haveO0Aot ? ExecutionTier::aotO0 : ExecutionTier::aotO3;
             }
         }
-        if (!haveAot && !haveHwAot)
+        if (!haveAot && !haveHwAot && !haveO0Aot)
         {
             // The load below rewrites the buffer in place; wamrc needs the
             // module as it is now.
