@@ -599,15 +599,38 @@ void FocusManager::eraseRoot(const rcp<FocusNode>& node)
     }
 }
 
+namespace
+{
+// Raises the manager's traversing flag for the focus changes made inside one
+// traversal call. Restores the previous value so a traversal started from a
+// focus callback leaves the outer one flagged.
+class TraversalScope
+{
+public:
+    TraversalScope(bool& traversing) :
+        m_traversing(traversing), m_previous(traversing)
+    {
+        m_traversing = true;
+    }
+    ~TraversalScope() { m_traversing = m_previous; }
+
+private:
+    bool& m_traversing;
+    bool m_previous;
+};
+} // namespace
+
 bool FocusManager::focusNext()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     return findNextFocusable(m_primaryFocus.get(), true) != nullptr;
 }
 
 bool FocusManager::focusPrevious()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     return findNextFocusable(m_primaryFocus.get(), false) != nullptr;
 }
 
@@ -979,6 +1002,7 @@ FocusNode* FocusManager::findNodeInDirection(FocusNode* current,
 bool FocusManager::focusLeft()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::left);
     if (next)
@@ -992,6 +1016,7 @@ bool FocusManager::focusLeft()
 bool FocusManager::focusRight()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::right);
     if (next)
@@ -1005,6 +1030,7 @@ bool FocusManager::focusRight()
 bool FocusManager::focusUp()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     FocusNode* next = findNodeInDirection(m_primaryFocus.get(), Direction::up);
     if (next)
     {
@@ -1017,6 +1043,7 @@ bool FocusManager::focusUp()
 bool FocusManager::focusDown()
 {
     dropFocusIfFocusTargetHidden();
+    TraversalScope traversal(m_traversing);
     FocusNode* next =
         findNodeInDirection(m_primaryFocus.get(), Direction::down);
     if (next)

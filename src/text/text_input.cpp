@@ -5,6 +5,8 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/layout_component.hpp"
 #include <algorithm>
 
@@ -637,7 +639,26 @@ bool TextInput::gamepadDispatch(const ListenerInvocation&, ScriptedDrawable**)
 void TextInput::focused()
 {
     m_focused = true;
+#ifdef WITH_RIVE_TEXT
+    // Keyboard focus selects the text browser style, pointer focus keeps the
+    // caret the press placed.
+    if (selectAllOnFocus() || focusedByTraversal())
+    {
+        m_rawTextInput.selectAll();
+    }
+#endif
     markPaintDirty();
+}
+
+bool TextInput::focusedByTraversal()
+{
+    FocusData* focusData = firstChild<FocusData>();
+    if (focusData == nullptr)
+    {
+        return false;
+    }
+    FocusManager* manager = focusData->focusNode()->manager();
+    return manager != nullptr && manager->isTraversing();
 }
 
 void TextInput::blurred()

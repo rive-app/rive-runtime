@@ -945,4 +945,98 @@ TEST_CASE("obscured text input stops selection lookup at itself",
 
     manager.setFocus(nullptr);
 }
+TEST_CASE("tab traversal into a text input selects all", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    // Target focus keeps the caret where it was.
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+
+    stateMachine->clearFocus();
+    REQUIRE(stateMachine->focusNext());
+    CHECK(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+}
+
+TEST_CASE("selectAllOnFocus selects on target focus too", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    textInput->selectAllOnFocus(true);
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+
+    // Losing focus drops the selection, so the next focus selects again.
+    stateMachine->clearFocus();
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+}
+
+TEST_CASE("selectAllOnFocus press selects all, later press places the caret",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    textInput->selectAllOnFocus(true);
+    stateMachine->advanceAndApply(0.0f);
+
+    // Press inside the input wherever the asset lays it out.
+    AABB bounds;
+    REQUIRE(textInput->worldBounds(bounds));
+    Vec2D pressPosition(bounds.left() + 8.0f, bounds.top() + 8.0f);
+    stateMachine->pointerDown(pressPosition);
+    stateMachine->pointerUp(pressPosition);
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+
+    // Already focused, a press places the caret and a drag extends from it.
+    // Far enough from the first press not to count as a double click.
+    Vec2D secondPress(bounds.left() + 40.0f, bounds.top() + 8.0f);
+    stateMachine->pointerDown(secondPress);
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    stateMachine->pointerMove(pressPosition);
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->selectedText() != "hello world");
+    stateMachine->pointerUp(pressPosition);
+}
 #endif

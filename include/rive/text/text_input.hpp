@@ -124,6 +124,9 @@ private:
     /// focused so frames keep coming and the caret keeps blinking.
     bool advanceCursorBlink(float elapsedSeconds);
 
+    /// Whether the focus being granted came from Tab or directional traversal.
+    bool focusedByTraversal();
+
     void updateMultiline(bool syncDisplayedText = false);
     static std::string strippedLineBreaks(const std::string& text);
     std::string displayedText() const;

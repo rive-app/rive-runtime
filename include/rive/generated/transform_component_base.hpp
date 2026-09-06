@@ -2,6 +2,9 @@
 #define _RIVE_TRANSFORM_COMPONENT_BASE_HPP_
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/world_transform_component.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class TransformComponentBase : public WorldTransformComponent
@@ -84,6 +87,7 @@ public:
         m_Rotation = object.m_Rotation;
         m_ScaleX = object.m_ScaleX;
         m_ScaleY = object.m_ScaleY;
+        RIVE_EDITOR_COPY(object);
         WorldTransformComponent::copy(object);
     }
 
@@ -101,6 +105,7 @@ public:
                 m_ScaleY = CoreDoubleType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return WorldTransformComponent::deserialize(propertyKey, reader);
     }
 

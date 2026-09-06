@@ -232,6 +232,10 @@ public:
     bool focusUp();
     bool focusDown();
 
+    /// True while a traversal above is moving focus, so a target can tell
+    /// keyboard focus from a pointer or scripted one.
+    bool isTraversing() const { return m_traversing; }
+
     // Get traversable children of a scope (or root nodes if scope is null)
     // Sorted by tabIndex, filtered by canFocus && canTraverse
     std::vector<FocusNode*> getTraversableNodes(FocusNode* scope) const;
@@ -314,6 +318,7 @@ private:
     // recompute lazily. Starts dirty so the first call computes.
     mutable bool m_hasFocusableContent = false;
     mutable bool m_focusableContentDirty = true;
+    bool m_traversing = false;
     void removeManager(rcp<FocusNode>);
     /// Point `node` and every descendant at this manager. Counterpart to
     /// removeManager; a subtree joining the manager has to be claimed whole,

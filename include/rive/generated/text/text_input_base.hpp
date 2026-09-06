@@ -46,6 +46,7 @@ public:
     static const uint16_t alignValuePropertyKey = 222;
     static const uint16_t verticalAlignValuePropertyKey = 1094;
     static const uint16_t obscuredPropertyKey = 1095;
+    static const uint16_t selectAllOnFocusPropertyKey = 1099;
 
 protected:
     std::string m_Text = "";
@@ -54,6 +55,7 @@ protected:
     uint32_t m_AlignValue = 0;
     uint32_t m_VerticalAlignValue = 0;
     bool m_Obscured = false;
+    bool m_SelectAllOnFocus = false;
 
 public:
     inline const std::string& text() const { return m_Text; }
@@ -138,6 +140,21 @@ public:
         notifyPropertyChanged(obscuredPropertyKey);
     }
 
+    inline bool selectAllOnFocus() const { return m_SelectAllOnFocus; }
+    void selectAllOnFocus(bool value)
+    {
+        if (m_SelectAllOnFocus == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(selectAllOnFocusPropertyKey,
+                             &m_SelectAllOnFocus,
+                             &value);
+        m_SelectAllOnFocus = value;
+        RIVE_EDITOR_CHANGED(selectAllOnFocusChanged());
+        notifyPropertyChanged(selectAllOnFocusPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const TextInputBase& object)
     {
@@ -147,6 +164,7 @@ public:
         m_AlignValue = object.m_AlignValue;
         m_VerticalAlignValue = object.m_VerticalAlignValue;
         m_Obscured = object.m_Obscured;
+        m_SelectAllOnFocus = object.m_SelectAllOnFocus;
         RIVE_EDITOR_COPY(object);
         Drawable::copy(object);
     }
@@ -173,6 +191,9 @@ public:
             case obscuredPropertyKey:
                 m_Obscured = CoreBoolType::deserialize(reader);
                 return true;
+            case selectAllOnFocusPropertyKey:
+                m_SelectAllOnFocus = CoreBoolType::deserialize(reader);
+                return true;
         }
         RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Drawable::deserialize(propertyKey, reader);
@@ -185,6 +206,7 @@ protected:
     virtual void alignValueChanged() {}
     virtual void verticalAlignValueChanged() {}
     virtual void obscuredChanged() {}
+    virtual void selectAllOnFocusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_input_ext.inl"
 #endif
