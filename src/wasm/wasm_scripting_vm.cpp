@@ -6900,8 +6900,9 @@ void WasmScriptingVM::setInputViewModel(int selfRef,
                         "ViewModelInstance.\n");
                 return;
             }
-            uint32_t namePtr = guestString(name);
-            if (namePtr == 0)
+            uint32_t arg = 0;
+            uint32_t owned = 0;
+            if (!inputArg(selfRef, name, arg, owned))
             {
                 return;
             }
@@ -6910,9 +6911,9 @@ void WasmScriptingVM::setInputViewModel(int selfRef,
             uint32_t handle =
                 m_handles.mint(HandleTable::Tag::viewModelInstance,
                                new HostViewModelInstance{std::move(vmi)});
-            uint32_t args[4] = {m_L, (uint32_t)selfRef, namePtr, handle};
+            uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, handle};
             callModule("host_obj_set_view_model", 4, args);
-            guestFree(namePtr);
+            guestFree(owned);
             break;
         }
         default:
@@ -6931,8 +6932,9 @@ void WasmScriptingVM::setInputArtboard(int selfRef,
     {
         return;
     }
-    uint32_t namePtr = guestString(name);
-    if (namePtr == 0)
+    uint32_t arg = 0;
+    uint32_t owned = 0;
+    if (!inputArg(selfRef, name, arg, owned))
     {
         return;
     }
@@ -6946,9 +6948,9 @@ void WasmScriptingVM::setInputArtboard(int selfRef,
                                         std::move(artboardInstance),
                                         nullptr,
                                         object->dataContext()));
-    uint32_t args[4] = {m_L, (uint32_t)selfRef, namePtr, handle};
+    uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, handle};
     callModule("host_obj_set_artboard", 4, args);
-    guestFree(namePtr);
+    guestFree(owned);
 }
 
 uint32_t WasmScriptingVM::guestString(const char* text)
