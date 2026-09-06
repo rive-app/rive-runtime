@@ -452,6 +452,39 @@ NAMESPACES = [
             buf('float', 'points', 'floatCount'),
         ]),
     ]),
+    # Path measurement over module geometry: a whole path measure or a
+    # contour iterator, both copying the geometry so the module's path can
+    # change underneath. Contour handles come from contour_next and answer
+    # the same ops as a path measure.
+    ns('rive_measure_v1', 'measure', [
+        op('path_new', [
+            buf('uint8_t', 'verbs', 'verbCount'),
+            buf('float', 'points', 'floatCount'),
+        ], ret='u32'),
+        op('contours_new', [
+            buf('uint8_t', 'verbs', 'verbCount'),
+            buf('float', 'points', 'floatCount'),
+        ], ret='u32'),
+        # The next contour of an iterator handle, 0 past the last.
+        op('contour_next', [handle('measure')], ret='u32'),
+        op('length', [handle('measure')], ret='f32'),
+        op('is_closed', [handle('measure')], ret='u32'),
+        # pos.x, pos.y, tan.x, tan.y
+        op('pos_tan', [handle('measure'), f32('distance'),
+                       mutbuf('float', 'out', 'outCount')]),
+        op('warp', [handle('measure'), f32('x'), f32('y'),
+                    mutbuf('float', 'out', 'outCount')]),
+        # Computes the segment host side and returns its verb count;
+        # extract_read copies it out (at most three points per verb).
+        op('extract', [handle('measure'), f32('startDistance'),
+                       f32('endDistance'), u32('startWithMove')], ret='u32'),
+        op('extract_read', [
+            handle('measure'),
+            mutbuf('uint8_t', 'verbs', 'verbCount'),
+            mutbuf('float', 'points', 'floatCount'),
+        ], ret='u32'),
+        op('release', [handle('measure')]),
+    ]),
     ns('rive_paint_v1', 'paint', [
         op('new', ret='u32'),
         op('release', [handle('paint')]),

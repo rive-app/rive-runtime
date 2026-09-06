@@ -288,6 +288,16 @@ uint32_t pathNewImpl(WasmScriptingVM* vm);
 void pathUpdateImpl(WasmScriptingVM* vm, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule);
 void pathReleaseImpl(WasmScriptingVM* vm, uint32_t path);
 void pathEffectResultImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
+uint32_t measurePathNewImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
+uint32_t measureContoursNewImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
+uint32_t measureContourNextImpl(WasmScriptingVM* vm, uint32_t measure);
+float measureLengthImpl(WasmScriptingVM* vm, uint32_t measure);
+uint32_t measureIsClosedImpl(WasmScriptingVM* vm, uint32_t measure);
+void measurePosTanImpl(WasmScriptingVM* vm, uint32_t measure, float distance, float* out, uint32_t outCount);
+void measureWarpImpl(WasmScriptingVM* vm, uint32_t measure, float x, float y, float* out, uint32_t outCount);
+uint32_t measureExtractImpl(WasmScriptingVM* vm, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove);
+uint32_t measureExtractReadImpl(WasmScriptingVM* vm, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount);
+void measureReleaseImpl(WasmScriptingVM* vm, uint32_t measure);
 uint32_t paintNewImpl(WasmScriptingVM* vm);
 void paintReleaseImpl(WasmScriptingVM* vm, uint32_t paint);
 void paintStyleImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
@@ -761,6 +771,46 @@ void pathEffectResult(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCo
 {
     pathEffectResultImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
 }
+uint32_t measurePathNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
+{
+    return measurePathNewImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
+}
+uint32_t measureContoursNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
+{
+    return measureContoursNewImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
+}
+uint32_t measureContourNext(wasm_exec_env_t env, uint32_t measure)
+{
+    return measureContourNextImpl(vmFromEnv(env), measure);
+}
+float measureLength(wasm_exec_env_t env, uint32_t measure)
+{
+    return measureLengthImpl(vmFromEnv(env), measure);
+}
+uint32_t measureIsClosed(wasm_exec_env_t env, uint32_t measure)
+{
+    return measureIsClosedImpl(vmFromEnv(env), measure);
+}
+void measurePosTan(wasm_exec_env_t env, uint32_t measure, float distance, float* out, uint32_t outCount)
+{
+    measurePosTanImpl(vmFromEnv(env), measure, distance, out, outCount);
+}
+void measureWarp(wasm_exec_env_t env, uint32_t measure, float x, float y, float* out, uint32_t outCount)
+{
+    measureWarpImpl(vmFromEnv(env), measure, x, y, out, outCount);
+}
+uint32_t measureExtract(wasm_exec_env_t env, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove)
+{
+    return measureExtractImpl(vmFromEnv(env), measure, startDistance, endDistance, startWithMove);
+}
+uint32_t measureExtractRead(wasm_exec_env_t env, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount)
+{
+    return measureExtractReadImpl(vmFromEnv(env), measure, verbs, verbCount, points, floatCount);
+}
+void measureRelease(wasm_exec_env_t env, uint32_t measure)
+{
+    measureReleaseImpl(vmFromEnv(env), measure);
+}
 uint32_t paintNew(wasm_exec_env_t env)
 {
     return paintNewImpl(vmFromEnv(env));
@@ -1162,6 +1212,19 @@ NativeSymbol kPathNatives[] = {
     {"effect_result", (void*)pathEffectResult, "(*~*~)", nullptr},
 };
 
+NativeSymbol kMeasureNatives[] = {
+    {"path_new", (void*)measurePathNew, "(*~*~)i", nullptr},
+    {"contours_new", (void*)measureContoursNew, "(*~*~)i", nullptr},
+    {"contour_next", (void*)measureContourNext, "(i)i", nullptr},
+    {"length", (void*)measureLength, "(i)f", nullptr},
+    {"is_closed", (void*)measureIsClosed, "(i)i", nullptr},
+    {"pos_tan", (void*)measurePosTan, "(if*~)", nullptr},
+    {"warp", (void*)measureWarp, "(iff*~)", nullptr},
+    {"extract", (void*)measureExtract, "(iffi)i", nullptr},
+    {"extract_read", (void*)measureExtractRead, "(i*~*~)i", nullptr},
+    {"release", (void*)measureRelease, "(i)", nullptr},
+};
+
 NativeSymbol kPaintNatives[] = {
     {"new", (void*)paintNew, "()i", nullptr},
     {"release", (void*)paintRelease, "(i)", nullptr},
@@ -1273,6 +1336,10 @@ inline bool registerRiveBindingNatives()
                "rive_path_v1",
                kPathNatives,
                sizeof(kPathNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_measure_v1",
+               kMeasureNatives,
+               sizeof(kMeasureNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_paint_v1",
                kPaintNatives,

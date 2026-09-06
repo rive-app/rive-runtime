@@ -115,9 +115,9 @@ export function createRiveModuleImports(host, moduleMemory) {
             vmi_property: (vmi, name, length, kindOut, kindCount) => {
                 stackReset();
                 const name_p = stageIn(name, length);
-                const kindOut_p = stageIn(kindOut, kindCount);
+                const kindOut_p = stageIn(kindOut, kindCount * 4);
                 const ret = calls.rive_data_vmi_property(vmi, name_p, length, kindOut_p, kindCount);
-                copyOut(kindOut_p, kindOut, kindCount);
+                copyOut(kindOut_p, kindOut, kindCount * 4);
                 return ret;
             },
             vmi_instance: (vmi, name, nameLength) => {
@@ -258,9 +258,9 @@ export function createRiveModuleImports(host, moduleMemory) {
             set_frame_origin: calls.rive_artboard_set_frame_origin,
             bounds: (artboard, out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 calls.rive_artboard_bounds(artboard, out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
             },
             pointer_event: calls.rive_artboard_pointer_event,
             animation: (artboard, name, length) => {
@@ -282,25 +282,25 @@ export function createRiveModuleImports(host, moduleMemory) {
             node_release: calls.rive_artboard_node_release,
             node_transform: (node, out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 calls.rive_artboard_node_transform(node, out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
             },
             node_set: calls.rive_artboard_node_set,
             node_world_transform: (node, out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 calls.rive_artboard_node_world_transform(node, out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
             },
             node_set_world_transform: (node, values, floatCount) => {
                 stackReset();
-                const values_p = stageIn(values, floatCount);
+                const values_p = stageIn(values, floatCount * 4);
                 calls.rive_artboard_node_set_world_transform(node, values_p, floatCount);
             },
             node_decompose: (node, values, floatCount) => {
                 stackReset();
-                const values_p = stageIn(values, floatCount);
+                const values_p = stageIn(values, floatCount * 4);
                 calls.rive_artboard_node_decompose(node, values_p, floatCount);
             },
             node_path_verbs: (node, out, outCount) => {
@@ -312,16 +312,16 @@ export function createRiveModuleImports(host, moduleMemory) {
             },
             node_path_points: (node, out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 const ret = calls.rive_artboard_node_path_points(node, out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
                 return ret;
             },
             node_paint: (node, out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 const ret = calls.rive_artboard_node_paint(node, out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
                 return ret;
             },
         },
@@ -330,16 +330,58 @@ export function createRiveModuleImports(host, moduleMemory) {
             update: (path, verbs, verbCount, points, floatCount, fillRule) => {
                 stackReset();
                 const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount);
+                const points_p = stageIn(points, floatCount * 4);
                 calls.rive_path_update(path, verbs_p, verbCount, points_p, floatCount, fillRule);
             },
             release: calls.rive_path_release,
             effect_result: (verbs, verbCount, points, floatCount) => {
                 stackReset();
                 const verbs_p = stageIn(verbs, verbCount);
-                const points_p = stageIn(points, floatCount);
+                const points_p = stageIn(points, floatCount * 4);
                 calls.rive_path_effect_result(verbs_p, verbCount, points_p, floatCount);
             },
+        },
+        rive_measure_v1: {
+            path_new: (verbs, verbCount, points, floatCount) => {
+                stackReset();
+                const verbs_p = stageIn(verbs, verbCount);
+                const points_p = stageIn(points, floatCount * 4);
+                const ret = calls.rive_measure_path_new(verbs_p, verbCount, points_p, floatCount);
+                return ret;
+            },
+            contours_new: (verbs, verbCount, points, floatCount) => {
+                stackReset();
+                const verbs_p = stageIn(verbs, verbCount);
+                const points_p = stageIn(points, floatCount * 4);
+                const ret = calls.rive_measure_contours_new(verbs_p, verbCount, points_p, floatCount);
+                return ret;
+            },
+            contour_next: calls.rive_measure_contour_next,
+            length: calls.rive_measure_length,
+            is_closed: calls.rive_measure_is_closed,
+            pos_tan: (measure, distance, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                calls.rive_measure_pos_tan(measure, distance, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+            },
+            warp: (measure, x, y, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                calls.rive_measure_warp(measure, x, y, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+            },
+            extract: calls.rive_measure_extract,
+            extract_read: (measure, verbs, verbCount, points, floatCount) => {
+                stackReset();
+                const verbs_p = stageIn(verbs, verbCount);
+                const points_p = stageIn(points, floatCount * 4);
+                const ret = calls.rive_measure_extract_read(measure, verbs_p, verbCount, points_p, floatCount);
+                copyOut(verbs_p, verbs, verbCount);
+                copyOut(points_p, points, floatCount * 4);
+                return ret;
+            },
+            release: calls.rive_measure_release,
         },
         rive_paint_v1: {
             new: calls.rive_paint_new,
@@ -356,32 +398,32 @@ export function createRiveModuleImports(host, moduleMemory) {
         rive_gpu_v1: {
             features: (out, outCount) => {
                 stackReset();
-                const out_p = stageIn(out, outCount);
+                const out_p = stageIn(out, outCount * 4);
                 const ret = calls.rive_gpu_features(out_p, outCount);
-                copyOut(out_p, out, outCount);
+                copyOut(out_p, out, outCount * 4);
                 return ret;
             },
             canvas_new: calls.rive_gpu_canvas_new,
             canvas_release: calls.rive_gpu_canvas_release,
             canvas_color_view: (canvas, props, propCount) => {
                 stackReset();
-                const props_p = stageIn(props, propCount);
+                const props_p = stageIn(props, propCount * 4);
                 const ret = calls.rive_gpu_canvas_color_view(canvas, props_p, propCount);
-                copyOut(props_p, props, propCount);
+                copyOut(props_p, props, propCount * 4);
                 return ret;
             },
             canvas_image: calls.rive_gpu_canvas_image,
             canvas_resize: (canvas, width, height, props, propCount) => {
                 stackReset();
-                const props_p = stageIn(props, propCount);
+                const props_p = stageIn(props, propCount * 4);
                 const ret = calls.rive_gpu_canvas_resize(canvas, width, height, props_p, propCount);
-                copyOut(props_p, props, propCount);
+                copyOut(props_p, props, propCount * 4);
                 return ret;
             },
             pass_begin: (desc, descByteCount, colors, colorByteCount) => {
                 stackReset();
                 const desc_p = stageIn(desc, descByteCount);
-                const colors_p = stageIn(colors, colorByteCount);
+                const colors_p = stageIn(colors, colorByteCount * 32);
                 const ret = calls.rive_gpu_pass_begin(desc_p, descByteCount, colors_p, colorByteCount);
                 return ret;
             },
@@ -390,7 +432,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             pass_set_index_buffer: calls.rive_gpu_pass_set_index_buffer,
             pass_set_bind_group: (pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount) => {
                 stackReset();
-                const dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount);
+                const dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount * 4);
                 calls.rive_gpu_pass_set_bind_group(pass, groupIndex, bindGroup, dynamicOffsets_p, dynamicOffsetByteCount);
             },
             pass_set_viewport: calls.rive_gpu_pass_set_viewport,
@@ -466,22 +508,22 @@ export function createRiveModuleImports(host, moduleMemory) {
             shader_module_release: calls.rive_gpu_shader_module_release,
             bind_group_layout_new: (groupIndex, entries, entryByteCount) => {
                 stackReset();
-                const entries_p = stageIn(entries, entryByteCount);
+                const entries_p = stageIn(entries, entryByteCount * 44);
                 const ret = calls.rive_gpu_bind_group_layout_new(groupIndex, entries_p, entryByteCount);
                 return ret;
             },
             bind_group_layout_release: calls.rive_gpu_bind_group_layout_release,
             bind_group_layout_from_shader: (shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount) => {
                 stackReset();
-                const dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount);
+                const dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount * 4);
                 const ret = calls.rive_gpu_bind_group_layout_from_shader(shaderModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
                 return ret;
             },
             bind_group_new: (layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount) => {
                 stackReset();
-                const ubos_p = stageIn(ubos, uboByteCount);
-                const textures_p = stageIn(textures, textureByteCount);
-                const samplers_p = stageIn(samplers, samplerByteCount);
+                const ubos_p = stageIn(ubos, uboByteCount * 16);
+                const textures_p = stageIn(textures, textureByteCount * 8);
+                const samplers_p = stageIn(samplers, samplerByteCount * 8);
                 const ret = calls.rive_gpu_bind_group_new(layout, ubos_p, uboByteCount, textures_p, textureByteCount, samplers_p, samplerByteCount);
                 return ret;
             },

@@ -408,6 +408,28 @@ void rive_path_release(uint32_t path);
 RIVE_BINDING_IMPORT("rive_path_v1", "effect_result")
 void rive_path_effect_result(const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
 
+// rive_measure_v1
+RIVE_BINDING_IMPORT("rive_measure_v1", "path_new")
+uint32_t rive_measure_path_new(const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
+RIVE_BINDING_IMPORT("rive_measure_v1", "contours_new")
+uint32_t rive_measure_contours_new(const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
+RIVE_BINDING_IMPORT("rive_measure_v1", "contour_next")
+uint32_t rive_measure_contour_next(uint32_t measure);
+RIVE_BINDING_IMPORT("rive_measure_v1", "length")
+float rive_measure_length(uint32_t measure);
+RIVE_BINDING_IMPORT("rive_measure_v1", "is_closed")
+uint32_t rive_measure_is_closed(uint32_t measure);
+RIVE_BINDING_IMPORT("rive_measure_v1", "pos_tan")
+void rive_measure_pos_tan(uint32_t measure, float distance, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_measure_v1", "warp")
+void rive_measure_warp(uint32_t measure, float x, float y, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_measure_v1", "extract")
+uint32_t rive_measure_extract(uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove);
+RIVE_BINDING_IMPORT("rive_measure_v1", "extract_read")
+uint32_t rive_measure_extract_read(uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount);
+RIVE_BINDING_IMPORT("rive_measure_v1", "release")
+void rive_measure_release(uint32_t measure);
+
 // rive_paint_v1
 RIVE_BINDING_IMPORT("rive_paint_v1", "new")
 uint32_t rive_paint_new(void);

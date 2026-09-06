@@ -51,6 +51,7 @@ public:
         {
             empty,
             path,
+            measure,
             paint,
             renderer,
             shader,

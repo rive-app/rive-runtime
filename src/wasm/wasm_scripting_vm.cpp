@@ -37,6 +37,8 @@
 #include "rive/shapes/paint/solid_color.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/math/contour_measure.hpp"
+#include "rive/math/path_measure.hpp"
 #include "rive/renderer.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -627,6 +629,226 @@ void pathEffectResultImpl(WasmScriptingVM* vm,
     RawPath rawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
                     Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
     vm->pathEffectOut()->addPath(rawPath);
+}
+
+// One handle kind for the three measure shapes: a whole path measure, a
+// contour iterator (measures nothing itself) and a contour it produced.
+// The geometry is copied so the module's path can change underneath.
+struct HostMeasure
+{
+    std::unique_ptr<RawPath> source;
+    std::unique_ptr<PathMeasure> path;
+    std::unique_ptr<ContourMeasureIter> iter;
+    rcp<ContourMeasure> contour;
+    RawPath segment;
+
+    float length() const
+    {
+        return path ? path->length() : contour ? contour->length() : 0.0f;
+    }
+
+    bool isClosed() const
+    {
+        return path ? path->isClosed() : contour ? contour->isClosed() : false;
+    }
+
+    ContourMeasure::PosTan posTan(float distance) const
+    {
+        if (path)
+        {
+            auto at = path->atDistance(distance);
+            return {at.pos, at.tan};
+        }
+        if (contour)
+        {
+            return contour->getPosTan(distance);
+        }
+        return {};
+    }
+
+    void getSegment(float start, float end, RawPath* dst, bool startWithMove)
+    {
+        if (path)
+        {
+            path->getSegment(start, end, dst, startWithMove);
+        }
+        else if (contour)
+        {
+            contour->getSegment(start, end, dst, startWithMove);
+        }
+    }
+};
+
+HostMeasure* resolveMeasure(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostMeasure*>(
+        vm->handles().resolve(handle,
+                              WasmScriptingVM::HandleTable::Tag::measure));
+}
+
+std::unique_ptr<RawPath> copyGeometry(const uint8_t* verbs,
+                                      uint32_t verbCount,
+                                      const float* points,
+                                      uint32_t floatCount)
+{
+    return std::make_unique<RawPath>(
+        Span<const PathVerb>((const PathVerb*)verbs, verbCount),
+        Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
+}
+
+uint32_t measurePathNewImpl(WasmScriptingVM* vm,
+                            const uint8_t* verbs,
+                            uint32_t verbCount,
+                            const float* points,
+                            uint32_t floatCount)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    auto measure = new HostMeasure();
+    measure->source = copyGeometry(verbs, verbCount, points, floatCount);
+    measure->path = std::make_unique<PathMeasure>(measure->source.get());
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::measure,
+                              measure);
+}
+
+uint32_t measureContoursNewImpl(WasmScriptingVM* vm,
+                                const uint8_t* verbs,
+                                uint32_t verbCount,
+                                const float* points,
+                                uint32_t floatCount)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    auto measure = new HostMeasure();
+    measure->source = copyGeometry(verbs, verbCount, points, floatCount);
+    measure->iter = std::make_unique<ContourMeasureIter>(measure->source.get());
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::measure,
+                              measure);
+}
+
+uint32_t measureContourNextImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    HostMeasure* iter = resolveMeasure(vm, handle);
+    if (iter == nullptr || !iter->iter)
+    {
+        return 0;
+    }
+    rcp<ContourMeasure> next = iter->iter->next();
+    if (next == nullptr)
+    {
+        return 0;
+    }
+    auto measure = new HostMeasure();
+    measure->contour = std::move(next);
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::measure,
+                              measure);
+}
+
+float measureLengthImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    return measure != nullptr ? measure->length() : 0.0f;
+}
+
+uint32_t measureIsClosedImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    return measure != nullptr && measure->isClosed() ? 1 : 0;
+}
+
+void measurePosTanImpl(WasmScriptingVM* vm,
+                       uint32_t handle,
+                       float distance,
+                       float* out,
+                       uint32_t outCount)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    if (measure == nullptr || out == nullptr || outCount < 4)
+    {
+        return;
+    }
+    auto posTan = measure->posTan(distance);
+    out[0] = posTan.pos.x;
+    out[1] = posTan.pos.y;
+    out[2] = posTan.tan.x;
+    out[3] = posTan.tan.y;
+}
+
+void measureWarpImpl(WasmScriptingVM* vm,
+                     uint32_t handle,
+                     float x,
+                     float y,
+                     float* out,
+                     uint32_t outCount)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    if (measure == nullptr || out == nullptr || outCount < 2)
+    {
+        return;
+    }
+    auto posTan = measure->posTan(x);
+    out[0] = posTan.pos.x - posTan.tan.y * y;
+    out[1] = posTan.pos.y + posTan.tan.x * y;
+}
+
+uint32_t measureExtractImpl(WasmScriptingVM* vm,
+                            uint32_t handle,
+                            float startDistance,
+                            float endDistance,
+                            uint32_t startWithMove)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    if (measure == nullptr)
+    {
+        return 0;
+    }
+    measure->segment.rewind();
+    measure->getSegment(startDistance,
+                        endDistance,
+                        &measure->segment,
+                        startWithMove != 0);
+    return (uint32_t)measure->segment.verbs().size();
+}
+
+uint32_t measureExtractReadImpl(WasmScriptingVM* vm,
+                                uint32_t handle,
+                                uint8_t* verbs,
+                                uint32_t verbCount,
+                                float* points,
+                                uint32_t floatCount)
+{
+    HostMeasure* measure = resolveMeasure(vm, handle);
+    if (measure == nullptr)
+    {
+        return 0;
+    }
+    const RawPath& segment = measure->segment;
+    uint32_t floats = (uint32_t)segment.points().size() * 2;
+    if (verbCount < segment.verbs().size() || floatCount < floats)
+    {
+        return 0;
+    }
+    memcpy(verbs, segment.verbs().data(), segment.verbs().size());
+    memcpy(points, segment.points().data(), floats * sizeof(float));
+    return floats;
+}
+
+void measureReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return;
+    }
+    delete resolveMeasure(vm, handle);
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::measure);
 }
 
 void pathReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -4687,6 +4909,9 @@ WasmScriptingVM::~WasmScriptingVM()
             case HandleTable::Tag::path:
                 delete static_cast<HostPath*>(slot.object);
                 break;
+            case HandleTable::Tag::measure:
+                delete static_cast<HostMeasure*>(slot.object);
+                break;
             case HandleTable::Tag::paint:
                 delete static_cast<HostPaint*>(slot.object);
                 break;
@@ -5508,6 +5733,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
     {
         case Tag::path:
             return "path";
+        case Tag::measure:
+            return "measure";
         case Tag::paint:
             return "paint";
         case Tag::renderer:

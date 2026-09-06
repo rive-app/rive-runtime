@@ -515,6 +515,56 @@ void rive_web_path_effect_result(uint32_t vmHandle, const uint8_t* verbs, uint32
     pathEffectResultImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_path_new(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
+{
+    return measurePathNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_contours_new(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
+{
+    return measureContoursNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_contour_next(uint32_t vmHandle, uint32_t measure)
+{
+    return measureContourNextImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_measure_length(uint32_t vmHandle, uint32_t measure)
+{
+    return measureLengthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_is_closed(uint32_t vmHandle, uint32_t measure)
+{
+    return measureIsClosedImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_measure_pos_tan(uint32_t vmHandle, uint32_t measure, float distance, float* out, uint32_t outCount)
+{
+    measurePosTanImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, distance, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_measure_warp(uint32_t vmHandle, uint32_t measure, float x, float y, float* out, uint32_t outCount)
+{
+    measureWarpImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, x, y, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_extract(uint32_t vmHandle, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove)
+{
+    return measureExtractImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, startDistance, endDistance, startWithMove);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_measure_extract_read(uint32_t vmHandle, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount)
+{
+    return measureExtractReadImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, verbs, verbCount, points, floatCount);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_measure_release(uint32_t vmHandle, uint32_t measure)
+{
+    measureReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_paint_new(uint32_t vmHandle)
 {
     return paintNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
