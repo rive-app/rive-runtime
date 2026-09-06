@@ -742,6 +742,32 @@ TEST_CASE("losing focus clears the text input selection", "[text_input]")
     CHECK(cursor->localClockwisePath() == nullptr);
 }
 
+TEST_CASE("a focused text input reports that it accepts text", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+    CHECK(focusManager->primaryFocusAcceptsText() == false);
+
+    // The focus target for a text input is its FocusData child; the query
+    // sees through to the TextInput parent.
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    stateMachine->setFocus(focusData);
+    CHECK(artboard->objects<TextInput>().first()->isFocused() == true);
+    CHECK(focusManager->primaryFocusAcceptsText() == true);
+
+    stateMachine->clearFocus();
+    CHECK(focusManager->primaryFocusAcceptsText() == false);
+}
+
 TEST_CASE("the text input cursor blinks while focused", "[text_input]")
 {
     auto file = ReadRiveFile("assets/text_input.riv");

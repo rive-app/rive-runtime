@@ -1107,6 +1107,21 @@ std::string FocusManager::selectedText() const
     return std::string();
 }
 
+bool FocusManager::primaryFocusAcceptsText() const
+{
+    FocusNode* node = m_primaryFocus.get();
+    while (node != nullptr)
+    {
+        Focusable* focusable = node->focusable();
+        if (focusable != nullptr && focusable->acceptsTextInput())
+        {
+            return true;
+        }
+        node = node->parent();
+    }
+    return false;
+}
+
 bool FocusManager::gamepadDispatch(
     const ListenerInvocation& invocation,
     ScriptedDrawable** outDispatchedScriptedDrawable)

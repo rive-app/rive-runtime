@@ -184,6 +184,11 @@ public:
     /// clipboard access).
     virtual bool selectedText(std::string& outText) const { return false; }
 
+    /// Whether this focusable consumes typed text (a text input). Lets hosts
+    /// decide to start routing the keyboard to the runtime when one takes
+    /// focus. Default: no.
+    virtual bool acceptsTextInput() const { return false; }
+
     /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
     /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
     /// `ScriptedDrawable` that ended up receiving the event so callers can

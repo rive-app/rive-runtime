@@ -253,6 +253,10 @@ public:
     /// with a selection is focused. Lets hosts implement clipboard copy/cut.
     std::string selectedText() const;
 
+    /// Whether the primary focus (or an ancestor it bubbles to) is a text
+    /// input, i.e. something that consumes typed text.
+    bool primaryFocusAcceptsText() const;
+
     /// Bubble gamepad invocations from primary focus up through ancestors.
     /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
     /// `ScriptedDrawable` that the focus tree forwarded the event to so

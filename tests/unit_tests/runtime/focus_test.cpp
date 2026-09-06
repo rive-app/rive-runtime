@@ -144,9 +144,52 @@ public:
     Artboard* focusableArtboard() const override { return artboard; }
 };
 
+// A focusable that consumes typed text, the way TextInput (and a FocusData
+// whose parent is one) does.
+class MockTextFocusable : public MockFocusable
+{
+public:
+    bool acceptsTextInput() const override { return true; }
+};
+
 // =============================================================================
 // FocusNode Tests
 // =============================================================================
+
+TEST_CASE("primaryFocusAcceptsText reports text-consuming focus",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable plain;
+    MockTextFocusable text;
+
+    auto plainNode = make_rcp<FocusNode>(&plain);
+    auto textNode = make_rcp<FocusNode>(&text);
+    // A non-text child under a text-accepting parent: the answer bubbles up
+    // through ancestors, like text input routing does.
+    auto childOfText = make_rcp<FocusNode>(&plain);
+    manager.addChild(nullptr, plainNode);
+    manager.addChild(nullptr, textNode);
+    manager.addChild(textNode, childOfText);
+
+    // Nothing focused.
+    CHECK(manager.primaryFocusAcceptsText() == false);
+
+    // A focusable that doesn't take text.
+    manager.setFocus(plainNode);
+    CHECK(manager.primaryFocusAcceptsText() == false);
+
+    // One that does.
+    manager.setFocus(textNode);
+    CHECK(manager.primaryFocusAcceptsText() == true);
+
+    // A descendant of one that does.
+    manager.setFocus(childOfText);
+    CHECK(manager.primaryFocusAcceptsText() == true);
+
+    manager.clearFocus();
+    CHECK(manager.primaryFocusAcceptsText() == false);
+}
 
 TEST_CASE("FocusNode default properties", "[FocusNode]")
 {

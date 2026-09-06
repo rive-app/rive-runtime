@@ -208,6 +208,12 @@ bool FocusData::selectedText(std::string& outText) const
     return false;
 }
 
+bool FocusData::acceptsTextInput() const
+{
+    Component* target = parent();
+    return target != nullptr && target->is<TextInput>();
+}
+
 bool FocusData::gamepadDispatch(
     const ListenerInvocation& invocation,
     ScriptedDrawable** outDispatchedScriptedDrawable)
