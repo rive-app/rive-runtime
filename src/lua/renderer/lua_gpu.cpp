@@ -3824,7 +3824,23 @@ int riveImageViewImpl(lua_State* L)
 
 namespace rive
 {
-void rive_lua_closeOrphanRenderPass(lua_State* L)
+ScriptCallGpuScope rive_lua_enterScriptCallGpuScope(lua_State* L)
+{
+    ScriptCallGpuScope scope;
+    auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context == nullptr)
+    {
+        return scope;
+    }
+    scope.openCanvasFrameToken = context->nextOpenCanvasFrameToken();
+    if (auto* oreCtx = static_cast<ore::Context*>(context->oreContext()))
+    {
+        scope.inheritedRenderPass = oreCtx->activeRenderPass();
+    }
+    return scope;
+}
+
+static void closeOrphanRenderPass(lua_State* L, void* inheritedRenderPass)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
     if (context == nullptr)
@@ -3835,6 +3851,15 @@ void rive_lua_closeOrphanRenderPass(lua_State* L)
     auto* pass = oreCtx->activeRenderPass();
     if (pass == nullptr || pass->isFinished())
         return;
+    if (static_cast<void*>(pass) == inheritedRenderPass)
+    {
+        // The enclosing call opened it and is still drawing into it. Pointer
+        // identity is enough here, unlike the canvas frames above: the pass
+        // object is owned by the ScriptedGPURenderPass the enclosing script
+        // still holds, so it cannot be freed and its address reused while
+        // that call is suspended.
+        return;
+    }
     pass->finish();
     oreCtx->setActiveRenderPass(nullptr);
     lua_pushstring(L,
@@ -3844,14 +3869,14 @@ void rive_lua_closeOrphanRenderPass(lua_State* L)
     lua_pop(L, 1);
 }
 
-void rive_lua_closeOrphanCanvasFrames(lua_State* L)
+static void closeOrphanCanvasFrames(lua_State* L, uint64_t token)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
     if (context == nullptr)
     {
         return;
     }
-    auto refs = context->takeOpenCanvasFrames();
+    auto refs = context->takeOpenCanvasFramesFrom(token);
     if (refs.empty())
     {
         return;
@@ -3875,6 +3900,13 @@ void rive_lua_closeOrphanCanvasFrames(lua_State* L)
                    "Call canvas:endFrame() before returning.");
     context->printError(L);
     lua_pop(L, 1);
+}
+
+void rive_lua_exitScriptCallGpuScope(lua_State* L,
+                                     const ScriptCallGpuScope& scope)
+{
+    closeOrphanRenderPass(L, scope.inheritedRenderPass);
+    closeOrphanCanvasFrames(L, scope.openCanvasFrameToken);
 }
 } // namespace rive
 

@@ -1544,12 +1544,24 @@ void rive_lua_pop(lua_State* state, int count);
 int16_t rive_lua_findAtom(const char* chars, size_t length);
 
 #ifdef RIVE_ORE
-// Finishes any ORE render pass left open at script return and reports it
-// as a Lua error. Defined in src/lua/renderer/lua_gpu.cpp.
-void rive_lua_closeOrphanRenderPass(lua_State* state);
-// Ends any Canvas frame an errored script left open, which would otherwise
-// corrupt the deferred stream. Defined in src/lua/renderer/lua_gpu.cpp.
-void rive_lua_closeOrphanCanvasFrames(lua_State* state);
+// The GPU work already in flight when a script call begins. Script calls
+// nest -- an artboard drawn into a scripted canvas can hold scripted
+// drawables of its own, whose draw runs inside the outer call's open canvas
+// frame -- so the post-call cleanup has to reclaim what this call left open
+// and nothing else. Closing everything would end the outer call's frame and
+// finish its render pass while it is still drawing.
+struct ScriptCallGpuScope
+{
+    uint64_t openCanvasFrameToken = 0;
+    void* inheritedRenderPass = nullptr;
+};
+// Snapshots what the call inherits. Defined in src/lua/renderer/lua_gpu.cpp.
+ScriptCallGpuScope rive_lua_enterScriptCallGpuScope(lua_State* state);
+// Finishes an ORE render pass this call opened and left open, and ends the
+// Canvas frames it registered, reporting each as a Lua error. Both would
+// otherwise corrupt the deferred stream. Defined in the same file.
+void rive_lua_exitScriptCallGpuScope(lua_State* state,
+                                     const ScriptCallGpuScope& scope);
 #endif
 
 class ScriptingContext
@@ -1690,22 +1702,59 @@ public:
     bool oreFrameOpen() const { return m_oreFrameOpen; }
 
     // Open canvas frames as registry refs so the post-pcall cleanup can
-    // close frames an errored script abandoned.
-    void registerOpenCanvasFrame(int ref) { m_openCanvasFrames.push_back(ref); }
+    // close frames an errored script abandoned. Each registration takes a
+    // monotonic token rather than resting on its position: a nested call is
+    // free to end a frame it inherited and open one of its own, which leaves
+    // the list exactly as long as it found it, and a positional mark cannot
+    // tell those two frames apart -- it would credit the nested call's frame
+    // to the enclosing one and leak it with the deferred stream still open.
+    struct OpenCanvasFrame
+    {
+        uint64_t token;
+        int ref;
+    };
+    void registerOpenCanvasFrame(int ref)
+    {
+        m_openCanvasFrames.push_back({m_nextOpenCanvasFrameToken++, ref});
+    }
     void unregisterOpenCanvasFrame(int ref)
     {
         for (size_t i = 0; i < m_openCanvasFrames.size(); i++)
         {
-            if (m_openCanvasFrames[i] == ref)
+            if (m_openCanvasFrames[i].ref == ref)
             {
                 m_openCanvasFrames.erase(m_openCanvasFrames.begin() + i);
                 return;
             }
         }
     }
-    std::vector<int> takeOpenCanvasFrames()
+    size_t openCanvasFrameCount() const { return m_openCanvasFrames.size(); }
+    // The token the next registration will take. A script call keeps it to
+    // reclaim exactly the frames opened after it began; tokens start at 1, so
+    // 0 means "everything still open".
+    uint64_t nextOpenCanvasFrameToken() const
     {
-        return std::move(m_openCanvasFrames);
+        return m_nextOpenCanvasFrameToken;
+    }
+    // Removes and returns the frames registered at or after `token`, leaving
+    // the ones an enclosing script call opened where they are.
+    std::vector<int> takeOpenCanvasFramesFrom(uint64_t token)
+    {
+        std::vector<int> taken;
+        size_t keep = 0;
+        for (size_t i = 0; i < m_openCanvasFrames.size(); i++)
+        {
+            if (m_openCanvasFrames[i].token >= token)
+            {
+                taken.push_back(m_openCanvasFrames[i].ref);
+            }
+            else
+            {
+                m_openCanvasFrames[keep++] = m_openCanvasFrames[i];
+            }
+        }
+        m_openCanvasFrames.resize(keep);
+        return taken;
     }
 
     // When set, context:gpuCanvas() always returns a deferred (texture-less)
@@ -1739,7 +1788,8 @@ private:
     uint64_t m_ownerId = 0;
     bool m_oreFrameOpen = false;
     bool m_gpuCanvasDeferOnly = false;
-    std::vector<int> m_openCanvasFrames;
+    std::vector<OpenCanvasFrame> m_openCanvasFrames;
+    uint64_t m_nextOpenCanvasFrameToken = 1;
     intptr_t m_prevGLContext = 0;
 #ifdef __EMSCRIPTEN__
     int m_glHandle = 0;

@@ -9,6 +9,11 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive_file_reader.hpp"
+#include "utils/no_op_factory.hpp"
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+#include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_render_pass.hpp"
+#endif
 #include <string>
 
 using namespace rive;
@@ -1353,3 +1358,388 @@ TEST_CASE("ScriptingContext ore/render context default to null", "[scripting]")
     CHECK(ctx->oreContext() == nullptr);
     CHECK(ctx->renderContext() == nullptr);
 }
+
+// Script calls nest: a ScriptedDrawable that draws an artboard into its canvas
+// runs that artboard's own scripted drawables inside its open canvas frame. The
+// post-call cleanup used to take the whole open-frame list, so the inner call's
+// return closed the frame the outer call was still drawing into -- the outer
+// renderer went invalid mid-draw and its canvas composited nothing.
+TEST_CASE("open canvas frames are reclaimed per call, not wholesale",
+          "[scripting]")
+{
+    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+
+    // The frame an enclosing draw opened, and the token a nested call takes.
+    context.registerOpenCanvasFrame(11);
+    uint64_t token = context.nextOpenCanvasFrameToken();
+
+    // The nested call opens one of its own and returns without ending it.
+    context.registerOpenCanvasFrame(22);
+    auto leaked = context.takeOpenCanvasFramesFrom(token);
+    REQUIRE(leaked.size() == 1);
+    CHECK(leaked[0] == 22);
+    CHECK(context.openCanvasFrameCount() == 1);
+
+    // The enclosing frame is still open, and is reclaimed by its own call.
+    auto outer = context.takeOpenCanvasFramesFrom(0);
+    REQUIRE(outer.size() == 1);
+    CHECK(outer[0] == 11);
+}
+
+// A nested call may end a frame it inherited and open one of its own, leaving
+// the list exactly as long as it found it. A positional mark reads that as
+// "nothing past the end" and hands the nested call's frame back to the
+// enclosing one, which then never closes it.
+TEST_CASE(
+    "a nested call that swaps out an inherited frame still reclaims its own",
+    "[scripting]")
+{
+    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+    context.registerOpenCanvasFrame(11);
+    uint64_t token = context.nextOpenCanvasFrameToken();
+
+    context.unregisterOpenCanvasFrame(11); // the nested call ends it
+    context.registerOpenCanvasFrame(22);   // ...and opens its own
+    REQUIRE(context.openCanvasFrameCount() == 1);
+
+    auto leaked = context.takeOpenCanvasFramesFrom(token);
+    REQUIRE(leaked.size() == 1);
+    CHECK(leaked[0] == 22);
+    CHECK(context.openCanvasFrameCount() == 0);
+}
+
+// The same shape one level deeper: frames the enclosing call opened both before
+// and after an inherited one was ended stay put, and only the nested call's do
+// not.
+TEST_CASE("reclaiming a nested call's frames leaves interleaved outer ones",
+          "[scripting]")
+{
+    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+    context.registerOpenCanvasFrame(11);
+    context.registerOpenCanvasFrame(12);
+    uint64_t token = context.nextOpenCanvasFrameToken();
+
+    context.unregisterOpenCanvasFrame(11);
+    context.registerOpenCanvasFrame(22);
+    context.registerOpenCanvasFrame(23);
+
+    auto leaked = context.takeOpenCanvasFramesFrom(token);
+    REQUIRE(leaked.size() == 2);
+    CHECK(leaked[0] == 22);
+    CHECK(leaked[1] == 23);
+    REQUIRE(context.openCanvasFrameCount() == 1);
+    auto outer = context.takeOpenCanvasFramesFrom(0);
+    REQUIRE(outer.size() == 1);
+    CHECK(outer[0] == 12);
+}
+
+// Nothing open, and a token from before anything was ever registered, both
+// reclaim nothing rather than walking the list.
+TEST_CASE("reclaiming from an empty open frame list is a no-op", "[scripting]")
+{
+    rive::CPPRuntimeScriptingContext context(&gNoOpFactory);
+    uint64_t token = context.nextOpenCanvasFrameToken();
+    CHECK(context.takeOpenCanvasFramesFrom(token).empty());
+    CHECK(context.takeOpenCanvasFramesFrom(0).empty());
+    CHECK(context.openCanvasFrameCount() == 0);
+}
+
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+namespace
+{
+// A pass that records nothing but tracks whether it was finished, which is the
+// only thing the post-call cleanup does to one.
+class StubRenderPass : public rive::ore::RenderPass
+{
+public:
+    void setPipeline(rive::ore::Pipeline*) override {}
+    void setVertexBuffer(uint32_t, rive::ore::Buffer*, uint32_t) override {}
+    void setIndexBuffer(rive::ore::Buffer*,
+                        rive::ore::IndexFormat,
+                        uint32_t) override
+    {}
+    void setBindGroup(uint32_t,
+                      rive::ore::BindGroup*,
+                      const uint32_t*,
+                      uint32_t) override
+    {}
+    void setViewport(float, float, float, float, float, float) override {}
+    void setScissorRect(uint32_t, uint32_t, uint32_t, uint32_t) override {}
+    void setStencilReference(uint32_t) override {}
+    void setBlendColor(float, float, float, float) override {}
+    void draw(uint32_t, uint32_t, uint32_t, uint32_t) override {}
+    void drawIndexed(uint32_t, uint32_t, uint32_t, int32_t, uint32_t) override
+    {}
+    void finish() override { m_finished = true; }
+};
+
+// Enough of an ore::Context to carry the active-pass slot the scope reads.
+class StubOreContext : public rive::ore::Context
+{
+public:
+    StubOreContext() : rive::ore::Context(nullptr) {}
+
+    rive::rcp<rive::ore::Buffer> makeBuffer(
+        const rive::ore::BufferDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::Texture> makeTexture(
+        const rive::ore::TextureDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::TextureView> makeTextureView(
+        const rive::ore::TextureViewDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::Sampler> makeSampler(
+        const rive::ore::SamplerDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::ShaderModule> makeShaderModule(
+        const rive::ore::ShaderModuleDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::BindGroupLayout> makeBindGroupLayout(
+        const rive::ore::BindGroupLayoutDesc&) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::Pipeline> makePipeline(const rive::ore::PipelineDesc&,
+                                                std::string*) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::BindGroup> makeBindGroup(
+        const rive::ore::BindGroupDesc&) override
+    {
+        return nullptr;
+    }
+    std::unique_ptr<rive::ore::RenderPass> beginRenderPass(
+        const rive::ore::RenderPassDesc&,
+        std::string*) override
+    {
+        return nullptr;
+    }
+    void beginFrame(const FrameDescriptor&) override {}
+    void endFrame() override {}
+    void waitForGPU() override {}
+    rive::rcp<rive::ore::TextureView> wrapCanvasTexture(
+        rive::gpu::RenderCanvas*) override
+    {
+        return nullptr;
+    }
+    rive::rcp<rive::ore::TextureView> wrapRiveTexture(rive::gpu::Texture*,
+                                                      uint32_t,
+                                                      uint32_t) override
+    {
+        return nullptr;
+    }
+    rive::ore::ShaderTarget shaderTarget() const override
+    {
+        return rive::ore::ShaderTarget::wgsl;
+    }
+};
+
+// Routes the VM's oreContext() to the stub, the way a recording session's
+// factory routes it to the context it records for.
+class StubOreFactory : public rive::NoOpFactory
+{
+public:
+    StubOreContext oreContext;
+    rive::ore::Context* ore() override { return &oreContext; }
+};
+
+// What the C function below claims when rive_lua_pcall runs it. Standing in
+// for the inner script call, it is the only party that may leave GPU work
+// open once it returns. Single threaded, one test at a time.
+rive::ScriptingContext* gNestedContext = nullptr;
+StubOreContext* gNestedOre = nullptr;
+StubRenderPass* gNestedPass = nullptr;
+bool gNestedOpensCanvasFrame = false;
+
+// Stands in for the inner ScriptedDrawable's callback: rive_lua_pcall wraps
+// it exactly as it wraps a script's draw, so calling it drives the real
+// enter/exit wiring rather than the scope helpers in isolation.
+int nestedScriptCall(lua_State* L)
+{
+    if (gNestedPass != nullptr)
+    {
+        gNestedOre->setActiveRenderPass(gNestedPass);
+    }
+    if (gNestedOpensCanvasFrame)
+    {
+        // Idle, so the cleanup releases the ref without ending a frame.
+        rive::lua_newrive<rive::ScriptedCanvas>(L);
+        int ref = lua_ref(L, -1);
+        lua_pop(L, 1);
+        gNestedContext->registerOpenCanvasFrame(ref);
+    }
+    return 0;
+}
+} // namespace
+
+// The pass half of the same nesting problem: an inner script call returning
+// must not finish the render pass the enclosing call is still recording into.
+// Finishing it here is what left the outer draw issuing against a dead
+// encoder.
+TEST_CASE("a nested call leaves the render pass it inherited open",
+          "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+    REQUIRE(vm.vm()->context()->oreContext() ==
+            static_cast<void*>(&factory.oreContext));
+
+    StubRenderPass outerPass;
+    factory.oreContext.setActiveRenderPass(&outerPass);
+
+    // A nested script call begins and returns without touching the pass.
+    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+    rive_lua_exitScriptCallGpuScope(L, scope);
+
+    CHECK_FALSE(outerPass.isFinished());
+    CHECK(factory.oreContext.activeRenderPass() == &outerPass);
+    CHECK(vm.errors.empty());
+}
+
+// The leak the cleanup is there for is still caught: a pass the call itself
+// opened and forgot is finished, cleared, and reported.
+TEST_CASE("a call's own abandoned render pass is finished and cleared",
+          "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+
+    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+    StubRenderPass ownPass;
+    factory.oreContext.setActiveRenderPass(&ownPass);
+    rive_lua_exitScriptCallGpuScope(L, scope);
+
+    CHECK(ownPass.isFinished());
+    CHECK(factory.oreContext.activeRenderPass() == nullptr);
+    REQUIRE(vm.errors.size() == 1);
+    CHECK(vm.errors[0] ==
+          std::string("GPU render pass left open at script return. "
+                      "Call :finish() on render passes before returning."));
+}
+
+// Both at once, which is the shape the repro file hits: the nested call opens
+// its own pass over the enclosing one. Its pass is reclaimed; the enclosing
+// call's pass object is left for that call to finish itself.
+TEST_CASE("a nested call's pass is reclaimed without finishing the outer one",
+          "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+
+    StubRenderPass outerPass;
+    factory.oreContext.setActiveRenderPass(&outerPass);
+
+    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+    StubRenderPass innerPass;
+    factory.oreContext.setActiveRenderPass(&innerPass);
+    rive_lua_exitScriptCallGpuScope(L, scope);
+
+    CHECK(innerPass.isFinished());
+    CHECK_FALSE(outerPass.isFinished());
+    CHECK(factory.oreContext.activeRenderPass() == nullptr);
+}
+
+// An already finished pass is nobody's leak, so the cleanup reports nothing
+// and leaves the slot for whoever owns it.
+TEST_CASE("a finished render pass is not reported as left open", "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+
+    ScriptCallGpuScope scope = rive_lua_enterScriptCallGpuScope(L);
+    StubRenderPass ownPass;
+    factory.oreContext.setActiveRenderPass(&ownPass);
+    ownPass.finish();
+    rive_lua_exitScriptCallGpuScope(L, scope);
+
+    CHECK(factory.oreContext.activeRenderPass() == &ownPass);
+    CHECK(vm.errors.empty());
+}
+
+// The scope helpers above are only correct if rive_lua_pcall actually brackets
+// the call with them. These drive the wiring itself: nestedScriptCall goes
+// through rive_lua_pcall the same way a ScriptedDrawable's draw does.
+TEST_CASE("rive_lua_pcall leaves the caller's GPU work alone", "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+    ScriptingContext* context = vm.vm()->context();
+
+    // The enclosing draw's pass and canvas frame.
+    StubRenderPass outerPass;
+    factory.oreContext.setActiveRenderPass(&outerPass);
+    lua_newrive<ScriptedCanvas>(L);
+    int outerFrame = lua_ref(L, -1);
+    lua_pop(L, 1);
+    context->registerOpenCanvasFrame(outerFrame);
+
+    // A nested call that opens nothing of its own.
+    gNestedContext = context;
+    gNestedOre = &factory.oreContext;
+    gNestedPass = nullptr;
+    gNestedOpensCanvasFrame = false;
+    lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
+    CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
+    gNestedContext = nullptr;
+    gNestedOre = nullptr;
+
+    CHECK_FALSE(outerPass.isFinished());
+    CHECK(factory.oreContext.activeRenderPass() == &outerPass);
+    CHECK(context->openCanvasFrameCount() == 1);
+    CHECK(vm.errors.empty());
+}
+
+TEST_CASE("rive_lua_pcall reclaims only what the nested call opened",
+          "[scripting]")
+{
+    StubOreFactory factory;
+    ScriptingTest vm("-- empty", 1, false, {}, true, &factory);
+    lua_State* L = vm.state();
+    ScriptingContext* context = vm.vm()->context();
+
+    StubRenderPass outerPass;
+    factory.oreContext.setActiveRenderPass(&outerPass);
+    lua_newrive<ScriptedCanvas>(L);
+    int outerFrame = lua_ref(L, -1);
+    lua_pop(L, 1);
+    context->registerOpenCanvasFrame(outerFrame);
+
+    // The nested call opens its own pass and canvas frame and forgets both.
+    StubRenderPass innerPass;
+    gNestedContext = context;
+    gNestedOre = &factory.oreContext;
+    gNestedPass = &innerPass;
+    gNestedOpensCanvasFrame = true;
+    lua_pushcfunction(L, nestedScriptCall, "nestedScriptCall");
+    CHECK(rive_lua_pcall(L, 0, 0) == LUA_OK);
+    gNestedContext = nullptr;
+    gNestedOre = nullptr;
+    gNestedPass = nullptr;
+    gNestedOpensCanvasFrame = false;
+
+    // Reclaimed: the nested call's own work, reported as left open.
+    CHECK(innerPass.isFinished());
+    CHECK(factory.oreContext.activeRenderPass() == nullptr);
+    CHECK(vm.errors.size() == 2);
+
+    // Untouched: the enclosing draw's, which it is still using.
+    CHECK_FALSE(outerPass.isFinished());
+    CHECK(context->openCanvasFrameCount() == 1);
+}
+#endif // RIVE_CANVAS && RIVE_ORE

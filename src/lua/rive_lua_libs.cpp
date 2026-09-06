@@ -98,10 +98,12 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
 
+#ifdef RIVE_ORE
+    ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
+#endif
     int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
-    rive_lua_closeOrphanRenderPass(state);
-    rive_lua_closeOrphanCanvasFrames(state);
+    rive_lua_exitScriptCallGpuScope(state, gpuScope);
 #endif
     return ret;
 }
@@ -114,10 +116,12 @@ int rive_lua_pcall_with_context(lua_State* state,
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
     ScopedScriptedObjectContext scope(context, scriptedObject);
+#ifdef RIVE_ORE
+    ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
+#endif
     int ret = context->pCall(state, nargs, nresults);
 #ifdef RIVE_ORE
-    rive_lua_closeOrphanRenderPass(state);
-    rive_lua_closeOrphanCanvasFrames(state);
+    rive_lua_exitScriptCallGpuScope(state, gpuScope);
 #endif
     return ret;
 }
