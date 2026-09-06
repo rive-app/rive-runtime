@@ -2773,21 +2773,23 @@ void Artboard::buildDataContext(rcp<DataContext> value) {}
 
 void Artboard::internalDataContext(rcp<DataContext> value)
 {
-    m_DataContext = value;
+    // Set the context before recursing into the artboard hosts; they read it
+    // back off this artboard while they bind. The binds are walked after.
+    dataBindContext(value);
     for (auto artboardHost : m_ArtboardHosts)
     {
-        auto value =
-            m_DataContext->getViewModelInstance(artboardHost->dataBindPath());
-        if (value != nullptr && value->is<ViewModelInstance>())
+        auto hostValue =
+            value->getViewModelInstance(artboardHost->dataBindPath());
+        if (hostValue != nullptr && hostValue->is<ViewModelInstance>())
         {
-            artboardHost->bindViewModelInstance(value, m_DataContext);
+            artboardHost->bindViewModelInstance(hostValue, value);
         }
         else
         {
-            artboardHost->internalDataContext(m_DataContext);
+            artboardHost->internalDataContext(value);
         }
     }
-    bindDataBindsFromContext(m_DataContext.get());
+    bindDataBindsFromContext();
     sortDataBinds();
     for (auto* scriptedObject : m_ScriptedObjects)
     {
@@ -2796,21 +2798,21 @@ void Artboard::internalDataContext(rcp<DataContext> value)
     initScriptedObjects();
 }
 
-void Artboard::rebind() { internalDataContext(m_DataContext); }
+void Artboard::rebind() { internalDataContext(dataBindContext()); }
 
 void Artboard::relinkDataContext()
 {
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         return;
     }
     for (auto artboardHost : m_ArtboardHosts)
     {
-        rcp<ViewModelInstance> value =
-            m_DataContext->getViewModelInstance(artboardHost->dataBindPath());
+        rcp<ViewModelInstance> value = dataBindContext()->getViewModelInstance(
+            artboardHost->dataBindPath());
         if (value == nullptr)
         {
-            value = m_DataContext->mainViewModelInstance();
+            value = dataBindContext()->mainViewModelInstance();
         }
         artboardHost->relinkDataContext(value);
     }
@@ -2820,7 +2822,8 @@ void Artboard::rebuildDataBind(DataBind* dataBind)
 {
     if (dataBind->is<DataBindContext>())
     {
-        dataBind->as<DataBindContext>()->bindFromContext(m_DataContext.get());
+        dataBind->as<DataBindContext>()->bindFromContext(
+            dataBindContext().get());
     }
 };
 
@@ -2836,10 +2839,10 @@ void Artboard::unbind()
 
 void Artboard::clearDataContext()
 {
-    if (m_DataContext)
+    if (dataBindContext() != nullptr)
     {
-        m_DataContext->removeDependentContainer(this);
-        m_DataContext = nullptr;
+        dataBindContext()->removeDependentContainer(this);
+        dataBindContext(nullptr);
     }
     for (auto artboardHost : m_ArtboardHosts)
     {
@@ -2901,9 +2904,9 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
         return;
     }
     setViewModelInstance(std::move(viewModelInstance));
-    if (parent != nullptr && m_DataContext != nullptr)
+    if (parent != nullptr && dataBindContext() != nullptr)
     {
-        m_DataContext->parent(parent);
+        dataBindContext()->parent(parent);
     }
     bind();
 }
@@ -2914,16 +2917,16 @@ void Artboard::setViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
     {
         return;
     }
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
-        m_DataContext = make_rcp<DataContext>(viewModelInstance);
-        m_DataContext->addDependentContainer(this);
+        dataBindContext(make_rcp<DataContext>(viewModelInstance));
+        dataBindContext()->addDependentContainer(this);
         return;
     }
     // The data context re-points every attached container (this artboard and
     // any state machines sharing the context) off the old main and onto the new
     // one.
-    m_DataContext->setMainViewModelInstance(viewModelInstance);
+    dataBindContext()->setMainViewModelInstance(viewModelInstance);
 }
 
 void Artboard::bindViewModelInstances(
@@ -2944,9 +2947,9 @@ void Artboard::bindViewModelInstances(
 
 void Artboard::bind()
 {
-    if (m_DataContext != nullptr)
+    if (dataBindContext() != nullptr)
     {
-        internalDataContext(m_DataContext);
+        internalDataContext(dataBindContext());
     }
 }
 
@@ -2955,7 +2958,7 @@ rcp<ViewModelInstance> Artboard::globalViewModelInstance(
 {
     // Pure read: returns the instance in the named slot only if one has been
     // set/bound; never creates.
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         return nullptr;
     }
@@ -2964,7 +2967,7 @@ rcp<ViewModelInstance> Artboard::globalViewModelInstance(
     {
         return nullptr;
     }
-    return m_DataContext->instanceForSlot(f->viewModelId(name));
+    return dataBindContext()->instanceForSlot(f->viewModelId(name));
 }
 
 bool Artboard::setGlobalViewModelInstance(
@@ -2994,7 +2997,7 @@ bool Artboard::setGlobalViewModelInstance(
     {
         return false;
     }
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         // Nothing to clear when there is no context yet; only create one when
         // actually placing an instance.
@@ -3002,13 +3005,13 @@ bool Artboard::setGlobalViewModelInstance(
         {
             return true;
         }
-        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
-        m_DataContext->addDependentContainer(this);
+        dataBindContext(make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr)));
+        dataBindContext()->addDependentContainer(this);
     }
     // The data context re-points every attached container off any previous
     // instance occupying this slot and onto the new one (or empties the slot
     // when the instance is null).
-    m_DataContext->setViewModelInstanceForSlot(slotKey, viewModelInstance);
+    dataBindContext()->setViewModelInstanceForSlot(slotKey, viewModelInstance);
     return true;
 }
 

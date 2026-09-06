@@ -15,7 +15,6 @@ class ScriptedDataConverter : public ScriptedDataConverterBase,
                               public AdvancingComponent
 {
 private:
-    rcp<DataContext> m_dataContext = nullptr;
     DataValue* m_dataValue = nullptr;
     template <typename T, typename V> void storeData(V value)
     {
@@ -43,7 +42,7 @@ public:
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 #endif
     void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
-    rcp<DataContext> dataContext() override { return m_dataContext; }
+    rcp<DataContext> dataContext() override { return dataBindContext(); }
     DataType outputType() override { return DataType::any; }
     uint32_t assetId() override { return scriptAssetId(); }
     bool advanceComponent(float elapsedSeconds,

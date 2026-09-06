@@ -26,7 +26,7 @@ void DataConverter::bindFromContext(DataContext* dataContext,
                                     DataBind* dataBind)
 {
     m_parentDataBind = dataBind;
-    bindDataBindsFromContext(dataContext);
+    bindDataBindsFromContext(rcp<DataContext>(safe_ref(dataContext)));
 }
 
 void DataConverter::unbind() { unbindDataBinds(); }

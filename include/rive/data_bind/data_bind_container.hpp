@@ -2,6 +2,7 @@
 #define _RIVE_DATA_BIND_CONTAINER_HPP_
 #include <cstddef>
 #include <vector>
+#include "rive/refcnt.hpp"
 #include "rive/sidecar.hpp"
 
 namespace rive
@@ -31,6 +32,20 @@ struct DataBindQueues
 class DataBindContainer
 {
 public:
+    // Declared here and defined in the .cpp so that rcp<DataContext>'s
+    // ref/unref are only instantiated where DataContext is complete.
+    // data_context.hpp reaches back into this header through
+    // viewmodel_instance.hpp, so it cannot be included here, which leaves
+    // DataContext forward-declared for every TU that sees this class. Any
+    // special member left implicit — or a default member initializer on
+    // m_dataContext — would odr-use ~rcp right here and fail to compile in
+    // the TUs that never pull data_context.hpp in themselves.
+    DataBindContainer();
+    ~DataBindContainer();
+    // Copying would alias the raw DataBind* lists and leave every bind's
+    // container() back-pointer aimed at the original.
+    DataBindContainer(const DataBindContainer&) = delete;
+    DataBindContainer& operator=(const DataBindContainer&) = delete;
     virtual void updateDataBinds(bool applyTargetToSource = true);
     void addDataBind(DataBind* dataBind);
 #ifdef WITH_RIVE_EDITOR
@@ -63,9 +78,22 @@ public:
     virtual void rebuildDataBind(DataBind*) {};
 
 protected:
+    // The one data context this container is bound to. Owning: Artboard and
+    // StateMachineInstance create the context with make_rcp and hand it here,
+    // and nothing else keeps it alive. Held by the base rather than by each
+    // container so the pointer addDataBind() reads can never drift out of sync
+    // with the one the container thinks it is bound to.
+    const rcp<DataContext>& dataBindContext() const { return m_dataContext; }
+    // Sets the context WITHOUT re-pointing the existing binds. Artboard needs
+    // the member visible while it recurses into its artboard hosts, before the
+    // binds are walked; it follows this with bindDataBindsFromContext().
+    void dataBindContext(rcp<DataContext> dataContext);
     void deleteDataBinds();
     bool advanceDataBinds(float);
-    void bindDataBindsFromContext(DataContext*);
+    // Sets the context and re-points every DataBindContext at it.
+    void bindDataBindsFromContext(rcp<DataContext> dataContext);
+    // Re-points every DataBindContext at the already-set context.
+    void bindDataBindsFromContext();
     void unbindDataBinds();
     void sortDataBinds();
 
@@ -76,7 +104,8 @@ private:
     // the other six are not.
     std::vector<DataBind*> m_dirtyDataBinds;
     Sidecar<DataBindQueues> m_queues;
-    DataContext* m_dataContext = nullptr;
+    // No default member initializer here on purpose; see the note above.
+    rcp<DataContext> m_dataContext;
     bool m_isProcessing = false;
 };
 } // namespace rive

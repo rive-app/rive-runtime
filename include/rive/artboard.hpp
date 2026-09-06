@@ -105,7 +105,6 @@ private:
     std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
     std::vector<AdvancingComponent*> m_advancingComponents;
-    rcp<DataContext> m_DataContext = nullptr;
 #ifdef WITH_RIVE_SCRIPTING
     [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
@@ -509,7 +508,7 @@ public:
     {
         return m_ComponentLists;
     }
-    rcp<DataContext> dataContext() { return m_DataContext; }
+    rcp<DataContext> dataContext() { return dataBindContext(); }
 #ifdef WITH_RIVE_SCRIPTING_LUAU
     void scriptingVM(rcp<ScriptingVM> value)
     {
@@ -689,7 +688,6 @@ public:
 
         artboardClone->m_Factory = factory != nullptr ? factory : m_Factory;
         artboardClone->m_FrameOrigin = m_FrameOrigin;
-        artboardClone->m_DataContext = m_DataContext;
         artboardClone->m_IsInstance = true;
         artboardClone->m_originalWidth = m_originalWidth;
         artboardClone->m_originalHeight = m_originalHeight;
@@ -719,6 +717,11 @@ public:
                                      artboardClone.get());
             }
         }
+        // Only now that the clone's binds are all in place: setting the
+        // context first would make addDataBind() eagerly bind and apply each
+        // clone as it arrives, mid-construction. The clone still binds for
+        // real later, through bind()/internalDataContext().
+        artboardClone->dataBindContext(dataBindContext());
 
         for (auto animation : m_Animations)
         {

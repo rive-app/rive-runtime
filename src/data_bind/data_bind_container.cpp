@@ -12,6 +12,10 @@ using namespace rive;
 // StateMachineInstance and ArtboardInstance into the next allocator size class:
 // 368 -> 416 (384 -> 448 allocated) and 1264 -> 1312 (1280 -> 1536).
 
+DataBindContainer::DataBindContainer() = default;
+
+DataBindContainer::~DataBindContainer() = default;
+
 void DataBindContainer::deleteDataBinds()
 {
     for (auto& dataBind : m_dataBinds)
@@ -38,16 +42,27 @@ void DataBindContainer::unbindDataBinds()
     m_dataContext = nullptr;
 }
 
-void DataBindContainer::bindDataBindsFromContext(DataContext* dataContext)
+void DataBindContainer::dataBindContext(rcp<DataContext> dataContext)
+{
+    m_dataContext = std::move(dataContext);
+}
+
+void DataBindContainer::bindDataBindsFromContext(rcp<DataContext> dataContext)
+{
+    m_dataContext = std::move(dataContext);
+    bindDataBindsFromContext();
+}
+
+void DataBindContainer::bindDataBindsFromContext()
 {
     for (auto& dataBind : m_dataBinds)
     {
         if (dataBind->is<DataBindContext>())
         {
-            dataBind->as<DataBindContext>()->bindFromContext(dataContext);
+            dataBind->as<DataBindContext>()->bindFromContext(
+                m_dataContext.get());
         }
     }
-    m_dataContext = dataContext;
 }
 
 bool DataBindContainer::advanceDataBinds(float elapsedSeconds)
@@ -130,9 +145,9 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
         dataBind->inPersistingList(true);
     }
     dataBind->container(this);
-    if (m_dataContext && dataBind->is<DataBindContext>())
+    if (m_dataContext != nullptr && dataBind->is<DataBindContext>())
     {
-        dataBind->as<DataBindContext>()->bindFromContext(m_dataContext);
+        dataBind->as<DataBindContext>()->bindFromContext(m_dataContext.get());
         updateDataBind(dataBind, true);
     }
 }

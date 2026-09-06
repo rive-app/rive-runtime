@@ -84,6 +84,10 @@ void DataConverterGroup::unbind()
             converter->unbind();
         }
     }
+    // Mirrors bindFromContext, which binds through the base: the base holds
+    // the owning DataContext reference, so skipping it here would keep the
+    // context and its view-model graph alive until this converter dies.
+    DataConverter::unbind();
 }
 
 void DataConverterGroup::update()

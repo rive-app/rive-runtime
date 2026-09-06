@@ -98,7 +98,6 @@ private:
         StateInstance* stateFromInstance,
         StateMachineLayerInstance* layerInstance);
 
-    rcp<DataContext> m_DataContext = nullptr;
     // Ensures the current data context holds an instance for the artboard's
     // main view model and for every global view model in the file, creating
     // (completing) any that are missing before the context is applied.
@@ -156,7 +155,7 @@ public:
     void bindDataContext(rcp<DataContext> dataContext);
     void inheritDataContext(rcp<DataContext> dataContext);
     void dataContext(rcp<DataContext> dataContext);
-    rcp<DataContext> dataContext() const { return m_DataContext; }
+    rcp<DataContext> dataContext() const { return dataBindContext(); }
     void rebind() override;
 
     size_t currentAnimationCount() const;

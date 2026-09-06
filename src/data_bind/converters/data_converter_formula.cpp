@@ -549,4 +549,8 @@ void DataConverterFormula::unbind()
         m_source->removeDependent(this);
         m_source = nullptr;
     }
+    // Mirrors bindFromContext, which binds through the base: the base holds
+    // the owning DataContext reference, so skipping it here would keep the
+    // context and its view-model graph alive until this converter dies.
+    DataConverter::unbind();
 }

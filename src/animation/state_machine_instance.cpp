@@ -2828,9 +2828,9 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
 
 void StateMachineInstance::advancedDataContext()
 {
-    if (m_DataContext != nullptr)
+    if (dataBindContext() != nullptr)
     {
-        m_DataContext->advanced();
+        dataBindContext()->advanced();
     }
 }
 
@@ -2993,16 +2993,16 @@ void StateMachineInstance::setViewModelInstance(
     {
         return;
     }
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
-        m_DataContext = make_rcp<DataContext>(viewModelInstance);
-        m_DataContext->addDependentContainer(this);
+        dataBindContext(make_rcp<DataContext>(viewModelInstance));
+        dataBindContext()->addDependentContainer(this);
         return;
     }
     // The data context re-points every attached container (this state machine,
     // the artboard, and any sibling state machines sharing the context) off the
     // old main and onto the new one.
-    m_DataContext->setMainViewModelInstance(viewModelInstance);
+    dataBindContext()->setMainViewModelInstance(viewModelInstance);
 }
 
 bool StateMachineInstance::setGlobalViewModelInstance(
@@ -3032,7 +3032,7 @@ bool StateMachineInstance::setGlobalViewModelInstance(
     {
         return false;
     }
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         // Nothing to clear when there is no context yet; only create one when
         // actually placing an instance.
@@ -3040,24 +3040,24 @@ bool StateMachineInstance::setGlobalViewModelInstance(
         {
             return true;
         }
-        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
-        m_DataContext->addDependentContainer(this);
+        dataBindContext(make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr)));
+        dataBindContext()->addDependentContainer(this);
     }
     // The data context re-points every attached container off any previous
     // instance occupying this slot and onto the new one (or empties the slot
     // when the instance is null).
-    m_DataContext->setViewModelInstanceForSlot(slotKey, viewModelInstance);
+    dataBindContext()->setViewModelInstanceForSlot(slotKey, viewModelInstance);
     return true;
 }
 
 void StateMachineInstance::bind()
 {
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         // No data context yet: create an empty one so the view model
         // instances it needs can be completed on the fly below.
-        m_DataContext = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
-        m_DataContext->addDependentContainer(this);
+        dataBindContext(make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr)));
+        dataBindContext()->addDependentContainer(this);
     }
     // Make sure every view model instance the data context needs exists before
     // it is applied: the main instance plus one for each global view model.
@@ -3065,8 +3065,8 @@ void StateMachineInstance::bind()
     completeViewModelInstances();
     // Apply the current data context: rebind the artboard and state machine
     // data binds in a single pass.
-    m_artboardInstance->internalDataContext(m_DataContext);
-    internalDataContext(m_DataContext);
+    m_artboardInstance->internalDataContext(dataBindContext());
+    internalDataContext(dataBindContext());
 }
 
 void StateMachineInstance::completeViewModelInstances()
@@ -3078,14 +3078,14 @@ void StateMachineInstance::completeViewModelInstances()
     }
     // Ensure a main instance is present. The main is the entry not on the slot
     // keys; if there is none, create the artboard's default and place it first.
-    if (m_DataContext->mainViewModelInstance() == nullptr)
+    if (dataBindContext()->mainViewModelInstance() == nullptr)
     {
         auto main = file->createDefaultViewModelInstance(m_artboardInstance);
         if (main != nullptr)
         {
             // setMainViewModelInstance re-points every attached container onto
             // the new instance.
-            m_DataContext->setMainViewModelInstance(main);
+            dataBindContext()->setMainViewModelInstance(main);
         }
     }
     // Ensure an instance exists for each global view model slot, creating any
@@ -3094,7 +3094,7 @@ void StateMachineInstance::completeViewModelInstances()
     for (auto* viewModel : file->globalViewModels())
     {
         uint32_t slotKey = file->viewModelId(viewModel->name());
-        if (m_DataContext->instanceForSlot(slotKey) != nullptr)
+        if (dataBindContext()->instanceForSlot(slotKey) != nullptr)
         {
             continue;
         }
@@ -3103,7 +3103,7 @@ void StateMachineInstance::completeViewModelInstances()
         {
             // setViewModelInstanceForSlot re-points every attached container
             // onto the new instance.
-            m_DataContext->setViewModelInstanceForSlot(slotKey, instance);
+            dataBindContext()->setViewModelInstanceForSlot(slotKey, instance);
         }
     }
 }
@@ -3126,7 +3126,7 @@ rcp<ViewModelInstance> StateMachineInstance::globalViewModelInstance(
 {
     // Pure read: returns the instance in the named slot only if one has been
     // set/bound; never creates.
-    if (m_DataContext == nullptr)
+    if (dataBindContext() == nullptr)
     {
         return nullptr;
     }
@@ -3135,7 +3135,7 @@ rcp<ViewModelInstance> StateMachineInstance::globalViewModelInstance(
     {
         return nullptr;
     }
-    return m_DataContext->instanceForSlot(file->viewModelId(name));
+    return dataBindContext()->instanceForSlot(file->viewModelId(name));
 }
 
 void StateMachineInstance::bindDataContext(rcp<DataContext> dataContext)
@@ -3185,8 +3185,7 @@ void StateMachineInstance::initScriptedObjects()
 
 void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
-    m_DataContext = dataContext;
-    bindDataBindsFromContext(dataContext.get());
+    bindDataBindsFromContext(dataContext);
     if (auto* reporting = this->reporting())
     {
         for (auto listenerViewModel : reporting->listenerViewModels)
@@ -3207,16 +3206,16 @@ void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 void StateMachineInstance::rebind()
 {
     m_artboardInstance->clearDataContext();
-    m_artboardInstance->internalDataContext(m_DataContext);
-    internalDataContext(m_DataContext);
+    m_artboardInstance->internalDataContext(dataBindContext());
+    internalDataContext(dataBindContext());
 };
 
 void StateMachineInstance::clearDataContext()
 {
-    if (m_DataContext)
+    if (dataBindContext() != nullptr)
     {
-        m_DataContext->removeDependentContainer(this);
-        m_DataContext = nullptr;
+        dataBindContext()->removeDependentContainer(this);
+        dataBindContext(nullptr);
     }
     if (auto* reporting = this->reporting())
     {
@@ -3236,7 +3235,8 @@ void StateMachineInstance::rebuildDataBind(DataBind* dataBind)
 {
     if (dataBind->is<DataBindContext>())
     {
-        dataBind->as<DataBindContext>()->bindFromContext(m_DataContext.get());
+        dataBind->as<DataBindContext>()->bindFromContext(
+            dataBindContext().get());
     }
 };
 
