@@ -589,13 +589,7 @@ public:
         auto oreContext = renderContext()->getOreContext();
         if (oreContext == nullptr)
             return;
-        if (auto* pass = oreContext->activeRenderPass())
-        {
-            if (!pass->isFinished())
-                pass->finish();
-            oreContext->setActiveRenderPass(nullptr);
-        }
-
+        oreContext->finishOpenRenderPassesFrom(0);
         m_fiddleContext->endOreFrame(oreContext);
     }
 #endif

@@ -18,8 +18,7 @@
  *   2. A pass that opens while the pair is already lent must mint and own its
  *      own — the pre-change behavior — rather than alias one FBO across two
  *      live passes. `Context::beginRenderPass` does not force the previous pass
- *      closed (`m_activeRenderPass` is never set, so `finishActiveRenderPass()`
- *      is inert), so nesting is reachable and both passes must land their own
+ *      closed, so nesting is reachable and both passes must land their own
  *      pixels.
  *
  * GL only: the scratch objects are GL names and no other backend has them. GL

@@ -113,15 +113,12 @@ public:
         else if (m_mode == ReplayMode::kInlineDeferred)
         {
             // finish records and then inline replays.
-            ctx.setDeferredRecording(true);
-            auto pass =
-                ore::cmd::beginRenderPassRecordingOrImmediate(ctx, rpDesc);
-            pass->setPipeline(pipeline.get());
-            pass->setVertexBuffer(0, vb.get());
-            pass->setViewport(0, 0, 256, 256);
-            pass->draw(3);
-            pass->finish();
-            ctx.setDeferredRecording(false);
+            ore::cmd::InlineDeferredRenderPass pass(&ctx, rpDesc);
+            pass.setPipeline(pipeline.get());
+            pass.setVertexBuffer(0, vb.get());
+            pass.setViewport(0, 0, 256, 256);
+            pass.draw(3);
+            pass.finish();
         }
         else
         {

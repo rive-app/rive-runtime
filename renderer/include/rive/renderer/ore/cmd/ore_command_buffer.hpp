@@ -169,6 +169,48 @@ public:
         }
     }
 
+    // A pass that finished inside another moves ahead of it, lifecycle
+    // commands between their begins stay put. Returns the enclosing begin.
+    size_t hoistNestedRenderPass(size_t outerBegin, size_t innerBegin)
+    {
+        m_recordingThread.check();
+        assert(outerBegin < innerBegin && innerBegin <= m_commands.size());
+        std::vector<uint8_t> kept, outer;
+        // The enclosing begin sits first. Pass commands after it are its own
+        // unless inside a nested pass that already settled here.
+        int depth = -1;
+        size_t pos = outerBegin;
+        while (pos < innerBegin)
+        {
+            CommandType type;
+            memcpy(&type, m_commands.data() + pos, sizeof(type));
+            size_t size = sizeof(type) + orePayloadSizeOf(type);
+            bool own = false;
+            if (isRenderPassCommand(type))
+            {
+                if (type == CommandType::beginRenderPass)
+                {
+                    depth++;
+                }
+                own = depth == 0;
+                if (type == CommandType::finish)
+                {
+                    depth--;
+                }
+            }
+            appendBytes(own ? outer : kept, m_commands.data() + pos, size);
+            pos += size;
+        }
+        assert(pos == innerBegin);
+        std::vector<uint8_t> nested(m_commands.begin() + innerBegin,
+                                    m_commands.end());
+        m_commands.resize(outerBegin);
+        appendBytes(m_commands, kept.data(), kept.size());
+        appendBytes(m_commands, nested.data(), nested.size());
+        appendBytes(m_commands, outer.data(), outer.size());
+        return outerBegin + kept.size() + nested.size();
+    }
+
     // Keeps capacity for reuse across frames.
     void reset()
     {

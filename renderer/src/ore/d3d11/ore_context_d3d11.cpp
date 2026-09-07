@@ -1593,7 +1593,6 @@ std::unique_ptr<RenderPass> ContextD3D11::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
     return d3d11BeginRenderPass(desc, outError);
 }
 

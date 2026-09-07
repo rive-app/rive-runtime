@@ -445,6 +445,8 @@ public:
     // each frame, keeping the retained set bounded by what one frame binds.
     void resetFrame()
     {
+        // A pass still open would append its finish into the next frame.
+        finishOpenRenderPassesFrom(0);
         m_render.reset();
         // Cross thread destroys drain on the recording thread, landing at the
         // new frame's stream head.

@@ -2241,15 +2241,11 @@ static int gpupipeline_namecall(lua_State* L)
 
 static void validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
 {
-    // pass->isFinished() catches the case where a *previous*
-    // beginRenderPass auto-finished this pass (because the script forgot
-    // to :finish() before opening the next one). The wrapper's own
-    // m_finished is still false there.
+    // The pass finishes without the wrapper when the pass it was begun
+    // inside finishes first, or when the script call that began it returns.
     if (self->m_finished || !self->pass || self->pass->isFinished())
     {
-        luaL_error(L,
-                   "render pass expired — already finished, or auto-"
-                   "finished by a subsequent beginRenderPass");
+        luaL_error(L, "render pass expired: it was already finished");
     }
 }
 
@@ -2519,11 +2515,6 @@ static int gpurenderpass_finish(lua_State* L)
     validate_render_pass(L, self);
     self->pass->finish();
     self->m_finished = true;
-    // Clear the context's active pass pointer so the next beginRenderPass
-    // doesn't see a stale (already-finished) pass.
-    Context* oreCtx = getOreContext(L);
-    if (oreCtx && oreCtx->activeRenderPass() == self->pass.get())
-        oreCtx->setActiveRenderPass(nullptr);
     return 0;
 }
 
@@ -2578,17 +2569,7 @@ ScriptedGPUCanvas::~ScriptedGPUCanvas()
     }
 }
 
-ScriptedGPURenderPass::~ScriptedGPURenderPass()
-{
-    // If the script GC'd the wrapper without :finish(), drop the active-
-    // pass slot before unique_ptr destroys the backend RenderPass — else
-    // ore::Context::activeRenderPass() would dangle into the next
-    // beginRenderPass.
-    if (m_context && pass && m_context->activeRenderPass() == pass.get())
-    {
-        m_context->setActiveRenderPass(nullptr);
-    }
-}
+ScriptedGPURenderPass::~ScriptedGPURenderPass() = default;
 
 ScriptedCanvas::~ScriptedCanvas()
 {
@@ -2898,25 +2879,13 @@ int gpucanvas_beginrenderpass(lua_State* L)
                    "color attachment or a depthStencil attachment");
     }
 
-    // Metal (and other backends) only allow one active encoder per command
-    // buffer. If a previous pass was left open, finish it before opening
-    // a new encoder.
-    if (oreCtx->activeRenderPass() && !oreCtx->activeRenderPass()->isFinished())
-    {
-        oreCtx->activeRenderPass()->finish();
-        oreCtx->setActiveRenderPass(nullptr);
-    }
-
     auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    // Records in deferred mode, returns the live backend pass in immediate.
-    rp->pass = ore::cmd::beginRenderPassRecordingOrImmediate(*oreCtx, passDesc);
-    rp->m_context = oreCtx;
+    rp->pass = ore::cmd::beginRecordedRenderPass(*oreCtx, passDesc);
     rp->m_finished = false;
     rp->sampleCount =
         passSampleCount < 1 ? 1u : static_cast<uint32_t>(passSampleCount);
     rp->label = passDesc.label ? passDesc.label : "";
     rp->drawCallCount = 0;
-    oreCtx->setActiveRenderPass(rp->pass.get());
     return 1;
 }
 
@@ -3835,33 +3804,19 @@ ScriptCallGpuScope rive_lua_enterScriptCallGpuScope(lua_State* L)
     scope.openCanvasFrameToken = context->nextOpenCanvasFrameToken();
     if (auto* oreCtx = static_cast<ore::Context*>(context->oreContext()))
     {
-        scope.inheritedRenderPass = oreCtx->activeRenderPass();
+        scope.openRenderPassToken = oreCtx->nextRenderPassToken();
     }
     return scope;
 }
 
-static void closeOrphanRenderPass(lua_State* L, void* inheritedRenderPass)
+static void closeOrphanRenderPasses(lua_State* L, uint64_t token)
 {
     auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
     if (context == nullptr)
         return;
     auto* oreCtx = static_cast<ore::Context*>(context->oreContext());
-    if (oreCtx == nullptr)
+    if (oreCtx == nullptr || oreCtx->finishOpenRenderPassesFrom(token) == 0)
         return;
-    auto* pass = oreCtx->activeRenderPass();
-    if (pass == nullptr || pass->isFinished())
-        return;
-    if (static_cast<void*>(pass) == inheritedRenderPass)
-    {
-        // The enclosing call opened it and is still drawing into it. Pointer
-        // identity is enough here, unlike the canvas frames above: the pass
-        // object is owned by the ScriptedGPURenderPass the enclosing script
-        // still holds, so it cannot be freed and its address reused while
-        // that call is suspended.
-        return;
-    }
-    pass->finish();
-    oreCtx->setActiveRenderPass(nullptr);
     lua_pushstring(L,
                    "GPU render pass left open at script return. "
                    "Call :finish() on render passes before returning.");
@@ -3905,7 +3860,7 @@ static void closeOrphanCanvasFrames(lua_State* L, uint64_t token)
 void rive_lua_exitScriptCallGpuScope(lua_State* L,
                                      const ScriptCallGpuScope& scope)
 {
-    closeOrphanRenderPass(L, scope.inheritedRenderPass);
+    closeOrphanRenderPasses(L, scope.openRenderPassToken);
     closeOrphanCanvasFrames(L, scope.openCanvasFrameToken);
 }
 } // namespace rive

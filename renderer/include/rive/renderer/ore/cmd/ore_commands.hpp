@@ -285,4 +285,27 @@ constexpr size_t orePayloadSizeOf(CommandType c)
     return 0;
 }
 
+// Pass level, as opposed to the resource lifecycle interleaved with them.
+constexpr bool isRenderPassCommand(CommandType c)
+{
+    switch (c)
+    {
+        case CommandType::beginRenderPass:
+        case CommandType::setPipeline:
+        case CommandType::setVertexBuffer:
+        case CommandType::setIndexBuffer:
+        case CommandType::setBindGroup:
+        case CommandType::setViewport:
+        case CommandType::setScissorRect:
+        case CommandType::setStencilReference:
+        case CommandType::setBlendColor:
+        case CommandType::draw:
+        case CommandType::drawIndexed:
+        case CommandType::finish:
+            return true;
+        default:
+            return false;
+    }
+}
+
 } // namespace rive::ore::cmd

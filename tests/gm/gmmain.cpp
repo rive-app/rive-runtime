@@ -250,6 +250,10 @@ extern "C" void gms_build_registry()
     MAKE_PARITY_GM2(ore_deferred_multipass,
                     ore_deferred_multipass_immediate,
                     ore_deferred_multipass)
+    MAKE_PARITY_GM3(ore_nested_pass,
+                    ore_nested_pass_immediate,
+                    ore_nested_pass,
+                    ore_nested_pass_recorded)
     MAKE_PARITY_GM3(ore_deferred_resource,
                     ore_deferred_resource_immediate,
                     ore_deferred_resource,

@@ -78,7 +78,16 @@ enum class ShaderTarget : uint8_t
 class Context
 {
 public:
-    virtual ~Context() = default;
+    // A pass still open has nothing left to record into, so it reads as
+    // finished and its finish and destructor stay quiet.
+    virtual ~Context()
+    {
+        for (const OpenRenderPass& open : m_openRenderPasses)
+        {
+            open.pass->m_finished = true;
+            open.pass->m_context = nullptr;
+        }
+    }
 
     // Resource factories.
     virtual rcp<Buffer> makeBuffer(const BufferDesc& desc) = 0;
@@ -186,11 +195,6 @@ public:
     // Only meaningful when featuresKnown().
     const Features& features() const { return m_features; }
 
-    // Active render pass tracking — used by Lua bindings to auto-finish
-    // stale passes and by backends that enforce one-encoder-at-a-time.
-    RenderPass* activeRenderPass() const { return m_activeRenderPass; }
-    void setActiveRenderPass(RenderPass* pass) { m_activeRenderPass = pass; }
-
     // When on, the render pass entry point records and replays instead of
     // issuing immediately. Seeded from the RIVE_ORE_DEFER env var.
     bool deferredRecording() const { return m_deferredRecording; }
@@ -204,18 +208,71 @@ public:
     // endFrame.
     cmd::OreCommandBuffer& pendingFrame() { return m_pendingFrame; }
 
-    // Called at the top of every backend's beginRenderPass(). If a prior pass
-    // is still open, finish it — matches the Lua binding's auto-finish
-    // contract and means backends that enforce one-encoder-at-a-time (Metal,
-    // D3D12) won't assert when a second beginRenderPass happens within the
-    // same command buffer. Does not clear m_activeRenderPass, because the
-    // pointer identity is owned by the Lua wrapper that called setActive…().
-    inline void finishActiveRenderPass()
+    // Recorded passes begun and not finished, outermost first. A nested pass
+    // finishes on its own and moves ahead of the pass it was begun inside.
+    struct OpenRenderPass
     {
-        if (m_activeRenderPass && !m_activeRenderPass->isFinished())
+        uint64_t token; // lets a script call reclaim only what it began
+        RenderPass* pass;
+        cmd::OreCommandBuffer* stream;
+        size_t beginOffset;
+    };
+    // Tokens start at 1, so 0 reclaims every pass.
+    uint64_t nextRenderPassToken() const { return m_nextRenderPassToken; }
+    bool hasOpenRenderPasses() const { return !m_openRenderPasses.empty(); }
+
+    // Call before the pass appends its begin.
+    void beginOpenRenderPass(RenderPass* pass, cmd::OreCommandBuffer& stream)
+    {
+        m_openRenderPasses.push_back({m_nextRenderPassToken++,
+                                      pass,
+                                      &stream,
+                                      stream.commandBytes().size()});
+    }
+
+    // Innermost first, before the caller records its own finish.
+    void finishNestedRenderPasses(RenderPass* pass)
+    {
+        while (!m_openRenderPasses.empty() &&
+               m_openRenderPasses.back().pass != pass)
         {
-            m_activeRenderPass->finish();
+            finishInnermostRenderPass();
         }
+    }
+
+    // Call after the pass appended its finish.
+    void finishOpenRenderPass(RenderPass* pass)
+    {
+        for (size_t i = m_openRenderPasses.size(); i-- > 0;)
+        {
+            if (m_openRenderPasses[i].pass != pass)
+            {
+                continue;
+            }
+            OpenRenderPass entry = m_openRenderPasses[i];
+            m_openRenderPasses.erase(m_openRenderPasses.begin() + i);
+            if (i > 0 && m_openRenderPasses[i - 1].stream == entry.stream)
+            {
+                OpenRenderPass& outer = m_openRenderPasses[i - 1];
+                outer.beginOffset =
+                    entry.stream->hoistNestedRenderPass(outer.beginOffset,
+                                                        entry.beginOffset);
+            }
+            return;
+        }
+    }
+
+    // Innermost first. Returns how many were finished.
+    size_t finishOpenRenderPassesFrom(uint64_t token)
+    {
+        size_t count = 0;
+        while (!m_openRenderPasses.empty() &&
+               m_openRenderPasses.back().token >= token)
+        {
+            finishInnermostRenderPass();
+            count++;
+        }
+        return count;
     }
 
     // Last validation error — set by setPipeline() / setBindGroup() when
@@ -270,10 +327,20 @@ protected:
 
     Features m_features;
 
-    // Non-null while a RenderPass created by this context is still open.
-    // beginRenderPass() auto-finishes any previous open pass so backends
-    // that enforce one-encoder-at-a-time (Metal, D3D12) don't assert.
-    RenderPass* m_activeRenderPass = nullptr;
+    // A finish that fails to unregister would loop forever, so pop it.
+    void finishInnermostRenderPass()
+    {
+        RenderPass* pass = m_openRenderPasses.back().pass;
+        pass->finish();
+        if (!m_openRenderPasses.empty() &&
+            m_openRenderPasses.back().pass == pass)
+        {
+            m_openRenderPasses.pop_back();
+        }
+    }
+
+    std::vector<OpenRenderPass> m_openRenderPasses;
+    uint64_t m_nextRenderPassToken = 1;
 
     // Last validation error from setPipeline() / setBindGroup().
     std::string m_lastError;

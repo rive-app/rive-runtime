@@ -1060,8 +1060,6 @@ std::unique_ptr<RenderPass> ContextWGPU::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
-
     assert(m_wgpuCommandEncoder != nullptr &&
            "beginFrame must be called before beginRenderPass");
 

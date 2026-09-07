@@ -263,7 +263,6 @@ void ContextGL::invalidateScratchFramebuffers()
     // previous FBO. Deleting either scratch FBO while a pass is live would
     // violate both assumptions.
     assert(!m_scratchFBOLent);
-    assert(activeRenderPass() == nullptr || activeRenderPass()->isFinished());
 
     if (m_scratchFBO != 0)
     {
@@ -435,16 +434,11 @@ void ContextGL::endFrame()
     // Every pass hands its lend back in finish(), so with no pass open both
     // flags are clear here. Clear them anyway: a lend stranded by some future
     // early return between acquire and release would otherwise disable the
-    // scratch objects for the life of the context. Skipped while a pass is
-    // still open — that lend is genuinely out, and clearing it would alias
-    // one FBO across two live passes.
-    if (activeRenderPass() == nullptr || activeRenderPass()->isFinished())
-    {
-        assert(!m_scratchFBOLent);
-        assert(!m_scratchVAOLent);
-        m_scratchFBOLent = false;
-        m_scratchVAOLent = false;
-    }
+    // scratch objects for the life of the context.
+    assert(!m_scratchFBOLent);
+    assert(!m_scratchVAOLent);
+    m_scratchFBOLent = false;
+    m_scratchVAOLent = false;
 
     // Restore saved state. Each `RenderPass::finish()` already restores
     // its own captured VAO in-place, so by the time we get here only the
@@ -1104,8 +1098,6 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
-
     auto pass = std::make_unique<RenderPassGL>(this);
     pass->populateAttachmentMetadata(desc);
 

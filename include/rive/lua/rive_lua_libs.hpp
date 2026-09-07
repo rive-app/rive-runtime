@@ -774,15 +774,9 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 46;
     static constexpr const char* luaName = "GPURenderPass";
     static constexpr bool hasMetatable = true;
-    // Out-of-line: unique_ptr<ore::RenderPass> needs the complete type at
-    // destructor instantiation, and we clear the context's active-pass
-    // slot if the wrapper is GC'd without :finish() so a stale pointer
-    // doesn't survive into the next beginRenderPass.
+    // Out of line, unique_ptr<ore::RenderPass> needs the complete type.
     ~ScriptedGPURenderPass();
     std::unique_ptr<ore::RenderPass> pass;
-    // Borrowed; Context outlives every wrapper. Used by ~dtor to clear
-    // the active-pass slot if it still points at our pass.
-    ore::Context* m_context = nullptr;
     bool m_finished = false;
     bool m_pipelineSet = false;
     uint32_t sampleCount = 1; // for pipeline sampleCount validation
@@ -1544,22 +1538,16 @@ void rive_lua_pop(lua_State* state, int count);
 int16_t rive_lua_findAtom(const char* chars, size_t length);
 
 #ifdef RIVE_ORE
-// The GPU work already in flight when a script call begins. Script calls
-// nest -- an artboard drawn into a scripted canvas can hold scripted
-// drawables of its own, whose draw runs inside the outer call's open canvas
-// frame -- so the post-call cleanup has to reclaim what this call left open
-// and nothing else. Closing everything would end the outer call's frame and
-// finish its render pass while it is still drawing.
+// Script calls nest, so the post-call cleanup reclaims only the canvas frames
+// and render passes begun past these tokens, never an enclosing call's.
 struct ScriptCallGpuScope
 {
     uint64_t openCanvasFrameToken = 0;
-    void* inheritedRenderPass = nullptr;
+    uint64_t openRenderPassToken = 0;
 };
-// Snapshots what the call inherits. Defined in src/lua/renderer/lua_gpu.cpp.
+// Both defined in src/lua/renderer/lua_gpu.cpp.
 ScriptCallGpuScope rive_lua_enterScriptCallGpuScope(lua_State* state);
-// Finishes an ORE render pass this call opened and left open, and ends the
-// Canvas frames it registered, reporting each as a Lua error. Both would
-// otherwise corrupt the deferred stream. Defined in the same file.
+// Reports each leaked frame or pass as a Lua error.
 void rive_lua_exitScriptCallGpuScope(lua_State* state,
                                      const ScriptCallGpuScope& scope);
 #endif

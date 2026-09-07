@@ -1297,7 +1297,6 @@ rcp<BindGroupLayout> ContextMetal::makeBindGroupLayout(
 std::unique_ptr<RenderPass> ContextMetal::beginRenderPass(
     const RenderPassDesc& desc, std::string* outError)
 {
-    finishActiveRenderPass();
     return mtlBeginRenderPass(desc, outError);
 }
 

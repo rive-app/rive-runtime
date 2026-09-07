@@ -1375,8 +1375,6 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
-
     std::unique_ptr<RenderPassVulkan> pass =
         std::make_unique<RenderPassVulkan>();
     pass->m_context = this;

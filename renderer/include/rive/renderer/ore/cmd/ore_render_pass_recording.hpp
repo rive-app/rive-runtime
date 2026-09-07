@@ -51,7 +51,20 @@ public:
         begin.depthStencil.stencilLoadOp = ds.stencilLoadOp;
         begin.depthStencil.stencilStoreOp = ds.stencilStoreOp;
         begin.depthStencil.stencilClearValue = ds.stencilClearValue;
+        if (m_context != nullptr)
+        {
+            m_context->beginOpenRenderPass(this, *m_cmd);
+        }
         m_cmd->append(CommandType::beginRenderPass, begin);
+    }
+
+    // A begin with no finish would corrupt the stream at replay.
+    ~RenderPassRecording() override
+    {
+        if (!m_finished)
+        {
+            finish();
+        }
     }
 
     void setPipeline(Pipeline* pipeline) override
@@ -166,11 +179,19 @@ public:
         {
             return;
         }
+        if (m_context != nullptr)
+        {
+            m_context->finishNestedRenderPasses(this);
+        }
         m_cmd->appendOpcode(CommandType::finish);
         m_finished = true;
         for (uint32_t i = 0; i < kMaxBindGroups; ++i)
         {
             m_boundGroups[i] = nullptr;
+        }
+        if (m_context != nullptr)
+        {
+            m_context->finishOpenRenderPass(this);
         }
     }
 

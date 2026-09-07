@@ -69,6 +69,10 @@ protected:
                             const void* data,
                             size_t size)
     {
+        if (size == 0)
+        {
+            return;
+        }
         size_t end = dst.size();
         dst.resize(end + size);
         memcpy(dst.data() + end, data, size);

@@ -174,6 +174,13 @@ struct WasmScriptingVM::WamrState
     }
 };
 
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+namespace
+{
+ore::Context* gpuOreContext(WasmScriptingVM* vm);
+}
+#endif
+
 uint32_t WasmScriptingVM::callModule(const char* name,
                                      uint32_t argc,
                                      uint32_t* argv)
@@ -202,7 +209,23 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     {
         buf[i] = argv[i];
     }
-    if (!wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf))
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+    // Calls nest, so the exit reclaims only the passes this call began.
+    ore::Context* oreContext = gpuOreContext(this);
+    uint64_t passToken =
+        oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
+#endif
+    bool ok = wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+    if (oreContext != nullptr &&
+        oreContext->finishOpenRenderPassesFrom(passToken) != 0)
+    {
+        fprintf(stderr,
+                "GPU render pass left open at script return. Call finish() "
+                "on render passes before returning.\n");
+    }
+#endif
+    if (!ok)
     {
         // A silent fold hides real traps; name them so a script that dies
         // mid-call is diagnosable instead of a mystery no-op.
@@ -1132,17 +1155,6 @@ struct HostGpuCanvas
 struct HostGpuPass
 {
     std::unique_ptr<ore::RenderPass> pass;
-    ore::Context* context;
-
-    ~HostGpuPass()
-    {
-        // Mirror the Luau wrapper: never leave the active-pass slot dangling.
-        if (context != nullptr && pass != nullptr &&
-            context->activeRenderPass() == pass.get())
-        {
-            context->setActiveRenderPass(nullptr);
-        }
-    }
 };
 
 struct HostGpuBuffer
@@ -1424,23 +1436,13 @@ uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
     desc.depthStencil.stencilLoadOp = (ore::LoadOp)podDesc->stencilLoadOp;
     desc.depthStencil.stencilStoreOp = (ore::StoreOp)podDesc->stencilStoreOp;
     desc.depthStencil.stencilClearValue = podDesc->stencilClearValue;
-    // One active encoder per command buffer; finish a stale pass first,
-    // matching the Luau binding.
-    if (oreContext->activeRenderPass() != nullptr &&
-        !oreContext->activeRenderPass()->isFinished())
-    {
-        oreContext->activeRenderPass()->finish();
-        oreContext->setActiveRenderPass(nullptr);
-    }
-    auto pass =
-        ore::cmd::beginRenderPassRecordingOrImmediate(*oreContext, desc);
+    auto pass = ore::cmd::beginRecordedRenderPass(*oreContext, desc);
     if (pass == nullptr)
     {
         return 0;
     }
-    oreContext->setActiveRenderPass(pass.get());
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuPass,
-                              new HostGpuPass{std::move(pass), oreContext});
+                              new HostGpuPass{std::move(pass)});
 }
 
 uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
@@ -1668,10 +1670,6 @@ void gpuPassFinishImpl(WasmScriptingVM* vm, uint32_t handle)
     if (!host->pass->isFinished())
     {
         host->pass->finish();
-    }
-    if (host->context->activeRenderPass() == host->pass.get())
-    {
-        host->context->setActiveRenderPass(nullptr);
     }
 }
 
