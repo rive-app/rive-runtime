@@ -8,6 +8,7 @@
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/generated/animation/listener_types/listener_input_type_semantic_base.hpp"
 #include "rive/generated/core_registry.hpp"
@@ -170,8 +171,13 @@ bool File::applyWasmRegistration(const std::string& moduleName, int ref)
 }
 #endif
 
+// Reads one object. A property key that neither the runtime nor the file's
+// ToC can type leaves the stream unreadable: nothing after it parses as
+// intended, so `malformed` is set and the caller fails the import instead of
+// treating the rest of the file as a run of unknown objects.
 static Core* readRuntimeObject(BinaryReader& reader,
-                               const RuntimeHeader& header)
+                               const RuntimeHeader& header,
+                               bool& malformed)
 {
     auto coreObjectKey = reader.readVarUintAs<int>();
     auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
@@ -207,6 +213,7 @@ static Core* readRuntimeObject(BinaryReader& reader,
                         "Unknown property key %d, missing from property ToC.\n",
                         propertyKey);
                 delete object;
+                malformed = true;
                 return nullptr;
             }
 
@@ -216,6 +223,13 @@ static Core* readRuntimeObject(BinaryReader& reader,
                     // Uint64 shares the uint type id; skip the full range so
                     // an unknown 64 bit value never aborts the read.
                     reader.readVarUint64();
+                    break;
+                case CoreBoolType::id:
+                    // A bool the registry types but the object does not
+                    // store (a bit of a packed mask, written standalone).
+                    // Skipping nothing here read the value byte as the next
+                    // key and desynchronized everything after it.
+                    CoreBoolType::deserialize(reader);
                     break;
                 case CoreStringType::id:
                     CoreStringType::deserialize(reader);
@@ -364,7 +378,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
     Core* lastBindableObject = nullptr;
     while (!reader.reachedEnd())
     {
-        auto object = readRuntimeObject(reader, header);
+        bool malformed = false;
+        auto object = readRuntimeObject(reader, header, malformed);
+        if (malformed)
+        {
+            return ImportResult::malformed;
+        }
         if (object == nullptr)
         {
             importStack.readNullObject();
@@ -1742,7 +1761,16 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
         uint16_t lastAssetType = 0;
         while (!reader.reachedEnd())
         {
-            auto object = readRuntimeObject(reader, header);
+            bool malformed = false;
+            auto object = readRuntimeObject(reader, header, malformed);
+            if (malformed)
+            {
+                if (result)
+                {
+                    *result = ImportResult::malformed;
+                }
+                return std::vector<uint8_t>();
+            }
             if (object == nullptr)
             {
                 continue;
