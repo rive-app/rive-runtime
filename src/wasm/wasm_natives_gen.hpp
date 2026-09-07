@@ -308,6 +308,14 @@ void paintCapImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintBlendModeImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintFeatherImpl(WasmScriptingVM* vm, uint32_t paint, float value);
 void paintShaderImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t shader);
+uint32_t canvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height);
+void canvasReleaseImpl(WasmScriptingVM* vm, uint32_t canvas);
+uint32_t canvasWidthImpl(WasmScriptingVM* vm, uint32_t canvas);
+uint32_t canvasHeightImpl(WasmScriptingVM* vm, uint32_t canvas);
+uint32_t canvasResizeImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t width, uint32_t height);
+uint32_t canvasImageImpl(WasmScriptingVM* vm, uint32_t canvas);
+uint32_t canvasBeginFrameImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t clearColor);
+void canvasEndFrameImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount);
 uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height);
 void gpuCanvasReleaseImpl(WasmScriptingVM* vm, uint32_t canvas);
@@ -851,6 +859,38 @@ void paintShader(wasm_exec_env_t env, uint32_t paint, uint32_t shader)
 {
     paintShaderImpl(vmFromEnv(env), paint, shader);
 }
+uint32_t canvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
+{
+    return canvasNewImpl(vmFromEnv(env), width, height);
+}
+void canvasRelease(wasm_exec_env_t env, uint32_t canvas)
+{
+    canvasReleaseImpl(vmFromEnv(env), canvas);
+}
+uint32_t canvasWidth(wasm_exec_env_t env, uint32_t canvas)
+{
+    return canvasWidthImpl(vmFromEnv(env), canvas);
+}
+uint32_t canvasHeight(wasm_exec_env_t env, uint32_t canvas)
+{
+    return canvasHeightImpl(vmFromEnv(env), canvas);
+}
+uint32_t canvasResize(wasm_exec_env_t env, uint32_t canvas, uint32_t width, uint32_t height)
+{
+    return canvasResizeImpl(vmFromEnv(env), canvas, width, height);
+}
+uint32_t canvasImage(wasm_exec_env_t env, uint32_t canvas)
+{
+    return canvasImageImpl(vmFromEnv(env), canvas);
+}
+uint32_t canvasBeginFrame(wasm_exec_env_t env, uint32_t canvas, uint32_t clearColor)
+{
+    return canvasBeginFrameImpl(vmFromEnv(env), canvas, clearColor);
+}
+void canvasEndFrame(wasm_exec_env_t env, uint32_t canvas)
+{
+    canvasEndFrameImpl(vmFromEnv(env), canvas);
+}
 uint32_t gpuFeatures(wasm_exec_env_t env, uint32_t* out, uint32_t outCount)
 {
     return gpuFeaturesImpl(vmFromEnv(env), out, outCount);
@@ -1238,6 +1278,17 @@ NativeSymbol kPaintNatives[] = {
     {"shader", (void*)paintShader, "(ii)", nullptr},
 };
 
+NativeSymbol kCanvasNatives[] = {
+    {"new", (void*)canvasNew, "(ii)i", nullptr},
+    {"release", (void*)canvasRelease, "(i)", nullptr},
+    {"width", (void*)canvasWidth, "(i)i", nullptr},
+    {"height", (void*)canvasHeight, "(i)i", nullptr},
+    {"resize", (void*)canvasResize, "(iii)i", nullptr},
+    {"image", (void*)canvasImage, "(i)i", nullptr},
+    {"begin_frame", (void*)canvasBeginFrame, "(ii)i", nullptr},
+    {"end_frame", (void*)canvasEndFrame, "(i)", nullptr},
+};
+
 NativeSymbol kGpuNatives[] = {
     {"features", (void*)gpuFeatures, "(*~)i", nullptr},
     {"canvas_new", (void*)gpuCanvasNew, "(ii)i", nullptr},
@@ -1344,6 +1395,10 @@ inline bool registerRiveBindingNatives()
                "rive_paint_v1",
                kPaintNatives,
                sizeof(kPaintNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_canvas_v1",
+               kCanvasNatives,
+               sizeof(kCanvasNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_gpu_v1",
                kGpuNatives,

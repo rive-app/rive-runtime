@@ -615,6 +615,46 @@ void rive_web_paint_shader(uint32_t vmHandle, uint32_t paint, uint32_t shader)
     paintShaderImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, shader);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_new(uint32_t vmHandle, uint32_t width, uint32_t height)
+{
+    return canvasNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, width, height);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_canvas_release(uint32_t vmHandle, uint32_t canvas)
+{
+    canvasReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_width(uint32_t vmHandle, uint32_t canvas)
+{
+    return canvasWidthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_height(uint32_t vmHandle, uint32_t canvas)
+{
+    return canvasHeightImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_resize(uint32_t vmHandle, uint32_t canvas, uint32_t width, uint32_t height)
+{
+    return canvasResizeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, width, height);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_image(uint32_t vmHandle, uint32_t canvas)
+{
+    return canvasImageImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_canvas_begin_frame(uint32_t vmHandle, uint32_t canvas, uint32_t clearColor)
+{
+    return canvasBeginFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, clearColor);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_canvas_end_frame(uint32_t vmHandle, uint32_t canvas)
+{
+    canvasEndFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_features(uint32_t vmHandle, uint32_t* out, uint32_t outCount)
 {
     return gpuFeaturesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, out, outCount);

@@ -497,6 +497,26 @@ NAMESPACES = [
         op('feather', [handle('paint'), f32('value')]),
         op('shader', [handle('paint'), handle('shader')]),
     ]),
+    # 2D canvas: an offscreen Rive render target the script draws into with
+    # a frame's Renderer and composites with the image it mints. A zero size
+    # allocates nothing until resize, and a size requested before the device
+    # binds waits for it. Frames record through the deferred canvas host, so
+    # begin_frame answers 0 without one.
+    ns('rive_canvas_v1', 'canvas', [
+        op('new', [u32('width'), u32('height')], ret='u32'),
+        op('release', [handle('canvas')]),
+        op('width', [handle('canvas')], ret='u32'),
+        op('height', [handle('canvas')], ret='u32'),
+        # 1 on success; a zero dimension drops the backing.
+        op('resize', [handle('canvas'), u32('width'), u32('height')],
+           ret='u32'),
+        # Mints an image handle over the canvas's presentable RenderImage.
+        op('image', [handle('canvas')], ret='u32'),
+        # Mints the frame's renderer handle; clearColor is ARGB. end_frame
+        # releases it, so a stashed wrapper goes stale.
+        op('begin_frame', [handle('canvas'), u32('clearColor')], ret='u32'),
+        op('end_frame', [handle('canvas')]),
+    ]),
     # GPU tracer subset: one canvas, one clear pass. The full surface lands
     # with descriptor PODs from ore_resource_commands.hpp.
     ns('rive_gpu_v1', 'gpu', [

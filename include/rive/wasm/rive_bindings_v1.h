@@ -452,6 +452,24 @@ void rive_paint_feather(uint32_t paint, float value);
 RIVE_BINDING_IMPORT("rive_paint_v1", "shader")
 void rive_paint_shader(uint32_t paint, uint32_t shader);
 
+// rive_canvas_v1
+RIVE_BINDING_IMPORT("rive_canvas_v1", "new")
+uint32_t rive_canvas_new(uint32_t width, uint32_t height);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "release")
+void rive_canvas_release(uint32_t canvas);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "width")
+uint32_t rive_canvas_width(uint32_t canvas);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "height")
+uint32_t rive_canvas_height(uint32_t canvas);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "resize")
+uint32_t rive_canvas_resize(uint32_t canvas, uint32_t width, uint32_t height);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "image")
+uint32_t rive_canvas_image(uint32_t canvas);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "begin_frame")
+uint32_t rive_canvas_begin_frame(uint32_t canvas, uint32_t clearColor);
+RIVE_BINDING_IMPORT("rive_canvas_v1", "end_frame")
+void rive_canvas_end_frame(uint32_t canvas);
+
 // rive_gpu_v1
 RIVE_BINDING_IMPORT("rive_gpu_v1", "features")
 uint32_t rive_gpu_features(uint32_t* out, uint32_t outCount);

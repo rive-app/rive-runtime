@@ -70,9 +70,12 @@
 #include <sys/stat.h>
 #endif
 
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+#ifdef RIVE_CANVAS
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/cmd/deferred_canvas_host.hpp"
+#endif
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
@@ -180,6 +183,12 @@ namespace
 ore::Context* gpuOreContext(WasmScriptingVM* vm);
 }
 #endif
+#ifdef RIVE_CANVAS
+namespace
+{
+void canvasEndFrameImpl(WasmScriptingVM* vm, uint32_t canvas);
+}
+#endif
 
 uint32_t WasmScriptingVM::callModule(const char* name,
                                      uint32_t argc,
@@ -188,6 +197,46 @@ uint32_t WasmScriptingVM::callModule(const char* name,
     uint32_t result = 0;
     callModuleChecked(name, argc, argv, &result);
     return result;
+}
+
+WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm) :
+    m_vm(vm)
+{
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+    ore::Context* oreContext = gpuOreContext(vm);
+    m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
+#endif
+#ifdef RIVE_CANVAS
+    m_frameToken = vm->m_nextCanvasFrameToken;
+#endif
+}
+
+WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
+{
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+    ore::Context* oreContext = gpuOreContext(m_vm);
+    if (oreContext != nullptr &&
+        oreContext->finishOpenRenderPassesFrom(m_passToken) != 0)
+    {
+        fprintf(stderr,
+                "GPU render pass left open at script return. Call finish() "
+                "on render passes before returning.\n");
+    }
+#endif
+#ifdef RIVE_CANVAS
+    std::vector<uint32_t> openFrames =
+        m_vm->takeOpenCanvasFramesFrom(m_frameToken);
+    for (uint32_t canvas : openFrames)
+    {
+        canvasEndFrameImpl(m_vm, canvas);
+    }
+    if (!openFrames.empty())
+    {
+        fprintf(stderr,
+                "Canvas frame left open at script return. Call endFrame() "
+                "before returning.\n");
+    }
+#endif
 }
 
 WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
@@ -209,22 +258,11 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     {
         buf[i] = argv[i];
     }
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
-    // Calls nest, so the exit reclaims only the passes this call began.
-    ore::Context* oreContext = gpuOreContext(this);
-    uint64_t passToken =
-        oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
-#endif
-    bool ok = wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
-    if (oreContext != nullptr &&
-        oreContext->finishOpenRenderPassesFrom(passToken) != 0)
+    bool ok;
     {
-        fprintf(stderr,
-                "GPU render pass left open at script return. Call finish() "
-                "on render passes before returning.\n");
+        ScriptCallScope callScope(this);
+        ok = wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
     }
-#endif
     if (!ok)
     {
         // A silent fold hides real traps; name them so a script that dies
@@ -251,6 +289,37 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     }
     *result = buf[0];
     return CallOutcome::ok;
+}
+
+void WasmScriptingVM::unregisterOpenCanvasFrame(uint32_t canvas)
+{
+    for (size_t i = 0; i < m_openCanvasFrames.size(); i++)
+    {
+        if (m_openCanvasFrames[i].canvas == canvas)
+        {
+            m_openCanvasFrames.erase(m_openCanvasFrames.begin() + i);
+            return;
+        }
+    }
+}
+
+std::vector<uint32_t> WasmScriptingVM::takeOpenCanvasFramesFrom(uint64_t token)
+{
+    std::vector<uint32_t> taken;
+    size_t keep = 0;
+    for (size_t i = 0; i < m_openCanvasFrames.size(); i++)
+    {
+        if (m_openCanvasFrames[i].token >= token)
+        {
+            taken.push_back(m_openCanvasFrames[i].canvas);
+        }
+        else
+        {
+            m_openCanvasFrames[keep++] = m_openCanvasFrames[i];
+        }
+    }
+    m_openCanvasFrames.resize(keep);
+    return taken;
 }
 
 void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
@@ -1054,6 +1123,10 @@ void paintShaderImpl(WasmScriptingVM* vm,
 struct HostImage
 {
     rcp<RenderImage> image;
+#ifdef RIVE_CANVAS
+    // A canvas image outlives its canvas only through this.
+    rcp<gpu::RenderCanvas> sourceCanvas;
+#endif
 };
 
 HostImage* resolveImage(WasmScriptingVM* vm, uint32_t handle)
@@ -2666,6 +2739,226 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM*,
     return 0;
 }
 void gpuPipelineReleaseImpl(WasmScriptingVM*, uint32_t) {}
+#endif
+
+#ifdef RIVE_CANVAS
+// Frames go through the deferred canvas host, the only path that can open
+// inside the screen frame already open around the draw.
+struct HostCanvas
+{
+    rcp<gpu::RenderCanvas> canvas;
+    // A size requested before the device bound, allocated on first use.
+    uint32_t pendingWidth = 0;
+    uint32_t pendingHeight = 0;
+    cmd::DeferredCanvasHost* frameHost = nullptr;
+    uint32_t rendererHandle = 0;
+};
+
+HostCanvas* resolveCanvas(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostCanvas*>(
+        vm->handles().resolve(handle,
+                              WasmScriptingVM::HandleTable::Tag::canvas));
+}
+
+// Allocates a pending size once a device is there to allocate against.
+// False only when a device is present and refuses.
+bool canvasSatisfyPending(WasmScriptingVM* vm, HostCanvas* host)
+{
+    if (host->pendingWidth == 0 || host->pendingHeight == 0)
+    {
+        return true;
+    }
+    auto* renderContext =
+        static_cast<gpu::RenderContext*>(vm->factory()->renderContext());
+    if (renderContext == nullptr)
+    {
+        return true;
+    }
+    // A refused size leaves the previous backing in place.
+    rcp<gpu::RenderCanvas> canvas =
+        vm->factory()->deferredCanvasHost() != nullptr
+            ? renderContext->makeDeferredRenderCanvas(host->pendingWidth,
+                                                      host->pendingHeight)
+            : renderContext->makeRenderCanvas(host->pendingWidth,
+                                              host->pendingHeight);
+    host->pendingWidth = 0;
+    host->pendingHeight = 0;
+    if (canvas == nullptr)
+    {
+        return false;
+    }
+    host->canvas = std::move(canvas);
+    return true;
+}
+
+uint32_t canvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
+{
+    if (vm == nullptr || vm->factory() == nullptr)
+    {
+        return 0;
+    }
+    auto* host = new HostCanvas();
+    if (width != 0 && height != 0)
+    {
+        host->pendingWidth = width;
+        host->pendingHeight = height;
+        // A size only waits when a recording host will bind a device later.
+        if (!canvasSatisfyPending(vm, host) ||
+            (host->canvas == nullptr &&
+             vm->factory()->deferredCanvasHost() == nullptr))
+        {
+            delete host;
+            return 0;
+        }
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::canvas, host);
+}
+
+void canvasReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr)
+    {
+        return;
+    }
+    canvasEndFrameImpl(vm, handle);
+    delete host;
+    vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::canvas);
+}
+
+uint32_t canvasWidthImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    canvasSatisfyPending(vm, host);
+    return host->canvas != nullptr ? host->canvas->width() : host->pendingWidth;
+}
+
+uint32_t canvasHeightImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    canvasSatisfyPending(vm, host);
+    return host->canvas != nullptr ? host->canvas->height()
+                                   : host->pendingHeight;
+}
+
+uint32_t canvasResizeImpl(WasmScriptingVM* vm,
+                          uint32_t handle,
+                          uint32_t width,
+                          uint32_t height)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr || host->frameHost != nullptr)
+    {
+        return 0;
+    }
+    if (width == 0 || height == 0)
+    {
+        host->canvas = nullptr;
+        host->pendingWidth = 0;
+        host->pendingHeight = 0;
+        return 1;
+    }
+    // An unchanged size would churn a new texture per frame.
+    if (host->canvas != nullptr && host->canvas->width() == width &&
+        host->canvas->height() == height)
+    {
+        return 1;
+    }
+    host->pendingWidth = width;
+    host->pendingHeight = height;
+    return canvasSatisfyPending(vm, host) ? 1 : 0;
+}
+
+uint32_t canvasImageImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    canvasSatisfyPending(vm, host);
+    if (host->canvas == nullptr || host->canvas->renderImage() == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::image,
+                              new HostImage{ref_rcp(static_cast<RenderImage*>(
+                                                host->canvas->renderImage())),
+                                            host->canvas});
+}
+
+uint32_t canvasBeginFrameImpl(WasmScriptingVM* vm,
+                              uint32_t handle,
+                              uint32_t clearColor)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr || host->frameHost != nullptr)
+    {
+        return 0;
+    }
+    canvasSatisfyPending(vm, host);
+    cmd::DeferredCanvasHost* frameHost = vm->factory()->deferredCanvasHost();
+    if (host->canvas == nullptr || frameHost == nullptr)
+    {
+        return 0;
+    }
+    Renderer* renderer =
+        frameHost->beginCanvasContent(host->canvas.get(), clearColor);
+    if (renderer == nullptr)
+    {
+        return 0;
+    }
+    host->frameHost = frameHost;
+    host->rendererHandle =
+        vm->handles().mint(WasmScriptingVM::HandleTable::Tag::renderer,
+                           renderer);
+    vm->registerOpenCanvasFrame(handle);
+    return host->rendererHandle;
+}
+
+void canvasEndFrameImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto* host = resolveCanvas(vm, handle);
+    if (host == nullptr || host->frameHost == nullptr)
+    {
+        return;
+    }
+    vm->unregisterOpenCanvasFrame(handle);
+    // Releasing bumps the generation so a stashed renderer goes stale.
+    vm->handles().release(host->rendererHandle,
+                          WasmScriptingVM::HandleTable::Tag::renderer);
+    host->rendererHandle = 0;
+    host->frameHost->endCanvasContent(host->canvas.get());
+    host->frameHost = nullptr;
+}
+#else
+uint32_t canvasNewImpl(WasmScriptingVM*, uint32_t, uint32_t) { return 0; }
+void canvasReleaseImpl(WasmScriptingVM*, uint32_t) {}
+uint32_t canvasWidthImpl(WasmScriptingVM*, uint32_t) { return 0; }
+uint32_t canvasHeightImpl(WasmScriptingVM*, uint32_t) { return 0; }
+uint32_t canvasResizeImpl(WasmScriptingVM*, uint32_t, uint32_t, uint32_t)
+{
+    return 0;
+}
+uint32_t canvasImageImpl(WasmScriptingVM*, uint32_t) { return 0; }
+uint32_t canvasBeginFrameImpl(WasmScriptingVM*, uint32_t, uint32_t)
+{
+    return 0;
+}
+void canvasEndFrameImpl(WasmScriptingVM*, uint32_t) {}
 #endif
 
 struct HostBuffer
@@ -4938,6 +5231,11 @@ WasmScriptingVM::~WasmScriptingVM()
             case HandleTable::Tag::node:
                 delete static_cast<HostNode*>(slot.object);
                 break;
+#ifdef RIVE_CANVAS
+            case HandleTable::Tag::canvas:
+                delete static_cast<HostCanvas*>(slot.object);
+                break;
+#endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
             case HandleTable::Tag::gpuPass:
                 delete static_cast<HostGpuPass*>(slot.object);
@@ -5751,6 +6049,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "font";
         case Tag::buffer:
             return "buffer";
+        case Tag::canvas:
+            return "canvas";
         case Tag::gpuCanvas:
             return "gpuCanvas";
         case Tag::gpuPass:
@@ -6125,6 +6425,7 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
     }
     uint32_t buf[3] = {m_L, (uint32_t)selfRef, (uint32_t)contextRef};
     uint32_t status = 2;
+    ScriptCallScope callScope(this);
     if (!wasm_runtime_call_wasm(m_state->execEnv, f, 3, buf))
     {
         const char* exception = wasm_runtime_get_exception(m_state->instance);
@@ -6170,6 +6471,7 @@ bool WasmScriptingVM::callAdvance(ScriptedObject* object,
     args[2].of.f64 = elapsedSeconds;
     wasm_val_t results[1];
     results[0].kind = WASM_I32;
+    ScriptCallScope callScope(this);
     if (!wasm_runtime_call_wasm_a(m_state->execEnv, f, 1, results, 3, args))
     {
         return false;
@@ -6433,6 +6735,7 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
     args[5].of.f64 = localPosition.y;
     wasm_val_t results[1];
     results[0].kind = WASM_I32;
+    ScriptCallScope callScope(this);
     bool ok =
         wasm_runtime_call_wasm_a(m_state->execEnv, f, 1, results, 6, args);
     guestFree(methodPtr);
@@ -6715,6 +7018,7 @@ void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
     args[3].of.f64 = size.y;
     args[4].kind = WASM_F64;
     args[4].of.f64 = displayScale();
+    ScriptCallScope callScope(this);
     wasm_runtime_call_wasm_a(m_state->execEnv,
                              f,
                              0,
@@ -6834,6 +7138,7 @@ void WasmScriptingVM::setInputNumber(int selfRef, const char* name, float value)
         args[2].of.i32 = (int32_t)arg;
         args[3].kind = WASM_F64;
         args[3].of.f64 = value;
+        ScriptCallScope callScope(this);
         wasm_runtime_call_wasm_a(m_state->execEnv, f, 0, nullptr, 4, args);
     }
     guestFree(owned);

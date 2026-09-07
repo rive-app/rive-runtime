@@ -61,6 +61,7 @@ public:
             image,
             font,
             buffer,
+            canvas,
             gpuCanvas,
             gpuPass,
             gpuBuffer,
@@ -92,6 +93,30 @@ public:
     };
     HandleTable& handles() { return m_handles; }
     Factory* factory() const { return m_factory; }
+
+    /// Brackets one call into the module. Calls nest, so the exit reclaims
+    /// only the render passes and canvas frames this call left open.
+    class ScriptCallScope
+    {
+    public:
+        explicit ScriptCallScope(WasmScriptingVM* vm);
+        ~ScriptCallScope();
+
+    private:
+        WasmScriptingVM* m_vm;
+        uint64_t m_passToken = 0;
+        uint64_t m_frameToken = 0;
+    };
+
+    /// Tokens start at 1, so 0 takes every open frame.
+    uint64_t nextCanvasFrameToken() const { return m_nextCanvasFrameToken; }
+    void registerOpenCanvasFrame(uint32_t canvas)
+    {
+        m_openCanvasFrames.push_back({m_nextCanvasFrameToken++, canvas});
+    }
+    void unregisterOpenCanvasFrame(uint32_t canvas);
+    /// Removes and returns the frames begun at or after `token`.
+    std::vector<uint32_t> takeOpenCanvasFramesFrom(uint64_t token);
 
     /// The file's view models, backing the module's Data constructors; the
     /// file outlives the VM.
@@ -393,6 +418,15 @@ private:
     static int sm_defaultTimeoutMs;
     int m_timeoutMs = sm_defaultTimeoutMs;
     HandleTable m_handles;
+    /// Canvas frames begun and not ended, as handles with a monotonic token
+    /// so a script call's exit reclaims only the frames it began.
+    struct OpenCanvasFrame
+    {
+        uint64_t token;
+        uint32_t canvas;
+    };
+    std::vector<OpenCanvasFrame> m_openCanvasFrames;
+    uint64_t m_nextCanvasFrameToken = 1;
     /// Object handles minted for the init scoped context, released once init
     /// completes or the context ref is released.
     std::unordered_map<int, uint32_t> m_contextObjects;

@@ -395,6 +395,16 @@ export function createRiveModuleImports(host, moduleMemory) {
             feather: calls.rive_paint_feather,
             shader: calls.rive_paint_shader,
         },
+        rive_canvas_v1: {
+            new: calls.rive_canvas_new,
+            release: calls.rive_canvas_release,
+            width: calls.rive_canvas_width,
+            height: calls.rive_canvas_height,
+            resize: calls.rive_canvas_resize,
+            image: calls.rive_canvas_image,
+            begin_frame: calls.rive_canvas_begin_frame,
+            end_frame: calls.rive_canvas_end_frame,
+        },
         rive_gpu_v1: {
             features: (out, outCount) => {
                 stackReset();
