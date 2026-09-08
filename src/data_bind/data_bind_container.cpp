@@ -2,6 +2,7 @@
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include <algorithm>
 
 using namespace rive;
 
@@ -279,6 +280,45 @@ void DataBindContainer::updateDataBinds(bool applyTargetToSource)
             {
                 removeDataBind(dataBind);
             }
+        }
+        if (!queues->pendingDeletes.empty())
+        {
+            std::vector<DataBind*> deletes;
+            deletes.swap(queues->pendingDeletes);
+            for (auto* dataBind : deletes)
+            {
+                delete dataBind;
+            }
+        }
+    }
+    dataBindsProcessed();
+}
+
+void DataBindContainer::removeAndDeleteDataBind(DataBind* dataBind)
+{
+    removeDataBind(dataBind);
+    if (m_isProcessing)
+    {
+        auto& deletes = m_queues.ensureAllocated()->pendingDeletes;
+        if (std::find(deletes.begin(), deletes.end(), dataBind) ==
+            deletes.end())
+        {
+            deletes.push_back(dataBind);
+        }
+        return;
+    }
+    delete dataBind;
+}
+
+void DataBindContainer::dropInstanceValueBindsTargeting(Core* target)
+{
+    // Snapshot: removing mutates the list we are walking.
+    auto binds = m_dataBinds;
+    for (auto* dataBind : binds)
+    {
+        if (dataBind->isInstanceValueBind() && dataBind->target() == target)
+        {
+            removeAndDeleteDataBind(dataBind);
         }
     }
 }

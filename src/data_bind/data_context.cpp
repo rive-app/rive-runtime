@@ -162,6 +162,17 @@ void DataContext::viewModelInstance(rcp<ViewModelInstance> value)
         m_ViewModelInstances[0] = std::move(value);
         attachContainers(m_ViewModelInstances[0].get());
     }
+    notifyMainViewModelInstanceChanged();
+}
+
+void DataContext::notifyMainViewModelInstanceChanged()
+{
+    // Snapshot: a container may re-register while it resyncs.
+    auto containers = m_dependentContainers;
+    for (auto* container : containers)
+    {
+        container->mainViewModelInstanceChanged();
+    }
 }
 
 void DataContext::setViewModelInstanceForSlot(uint32_t slotKey,
@@ -230,6 +241,12 @@ rcp<ViewModelInstance> DataContext::instanceForSlot(uint32_t slotKey) const
 
 void DataContext::removeMainViewModelInstance()
 {
+    removeMainViewModelInstanceSilently();
+    notifyMainViewModelInstanceChanged();
+}
+
+void DataContext::removeMainViewModelInstanceSilently()
+{
     for (size_t i = 0; i < m_ViewModelInstances.size();)
     {
         if (slotKeyAt(i) == kNoSlot)
@@ -246,13 +263,15 @@ void DataContext::removeMainViewModelInstance()
 void DataContext::setMainViewModelInstance(rcp<ViewModelInstance> value)
 {
     // Drop any existing main (unslotted) entries, then place the new main at
-    // the front so resolution order is [main, globals...].
-    removeMainViewModelInstance();
+    // the front so resolution order is [main, globals...]. One notification
+    // for the whole swap.
+    removeMainViewModelInstanceSilently();
     if (value != nullptr)
     {
         // Main is not on the slot keys.
         insertInstanceAt(0, std::move(value), kNoSlot);
     }
+    notifyMainViewModelInstanceChanged();
 }
 
 rcp<ViewModelInstance> DataContext::mainViewModelInstance() const

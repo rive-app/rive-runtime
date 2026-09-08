@@ -16,11 +16,17 @@
 #include "rive/core_context.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/artboard.hpp"
+#include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind_flags.hpp"
 
 using namespace rive;
 
 ViewModelInstance::~ViewModelInstance()
 {
+    for (auto dataBind : m_valueDataBinds)
+    {
+        delete dataBind;
+    }
     for (auto& value : m_PropertyValues)
     {
         if (value->is<ViewModelInstanceViewModel>())
@@ -73,6 +79,20 @@ bool ViewModelInstance::removeValue(uint32_t propertyId)
         if (value->viewModelPropertyId() != propertyId)
         {
             continue;
+        }
+        // Binds aimed at this value, ours and the clones containers hold,
+        // would dangle once it is freed.
+        for (auto dataBind : LazyVector<DataBind*>(m_valueDataBinds))
+        {
+            if (dataBind->target() == value.get())
+            {
+                m_valueDataBinds.eraseAll(dataBind);
+                delete dataBind;
+            }
+        }
+        for (auto* dependent : std::vector<DataBindContainer*>(m_dependents))
+        {
+            dependent->dropInstanceValueBindsTargeting(value.get());
         }
         // Mirror the destructor cleanup for nested view model references.
         if (value->is<ViewModelInstanceViewModel>())
@@ -274,9 +294,33 @@ Core* ViewModelInstance::clone() const
                 propertyValue->clone()->as<ViewModelInstanceValue>();
             cloned->addValue(clonedValue);
         }
+        for (auto dataBind : m_valueDataBinds)
+        {
+            for (size_t i = 0; i < m_PropertyValues.size(); i++)
+            {
+                if (m_PropertyValues[i].get() == dataBind->target())
+                {
+                    cloned->addValueDataBind(dataBind->cloneWithTarget(
+                        cloned->m_PropertyValues[i].get()));
+                    break;
+                }
+            }
+        }
     }
     cloned->viewModel(viewModel());
     return cloned;
+}
+
+void ViewModelInstance::addValueDataBind(DataBind* dataBind)
+{
+    // The authored value is only a default, so the source wins the reconcile.
+    if (dataBind->toSource() && dataBind->toTarget())
+    {
+        dataBind->flags(
+            dataBind->flags() |
+            static_cast<uint32_t>(DataBindFlags::SourceToTargetRunsFirst));
+    }
+    m_valueDataBinds.push_back(dataBind);
 }
 
 StatusCode ViewModelInstance::import(ImportStack& importStack)

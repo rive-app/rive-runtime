@@ -270,6 +270,10 @@ public:
     void clearDataContext();
     void relinkDataContext() override;
     void rebuildDataBind(DataBind*) override;
+    // The artboard bound through this machine is not a dependent of the
+    // context itself, so context hooks reach it from here.
+    void mainViewModelInstanceChanged() override;
+    void dropInstanceValueBindsTargeting(Core* target) override;
     void internalDataContext(rcp<DataContext> dataContext);
     ScriptedObject* scriptedObject(const ScriptedObject*) const;
 

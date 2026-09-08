@@ -5,6 +5,7 @@
 #include "rive/viewmodel/symbol_type.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
 #include "rive/component.hpp"
+#include "rive/lazy_vector.hpp"
 #include "rive/refcnt.hpp"
 #include <cstdint>
 #include <stdio.h>
@@ -12,6 +13,7 @@
 #include <vector>
 namespace rive
 {
+class DataBind;
 class ViewModel;
 class ViewModelInstanceViewModel;
 class ViewModelInstance : public ViewModelInstanceBase,
@@ -19,6 +21,7 @@ class ViewModelInstance : public ViewModelInstanceBase,
 {
 private:
     std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
+    LazyVector<DataBind*> m_valueDataBinds;
     std::vector<ViewModelInstance*> m_parents;
     std::vector<DataBindContainer*> m_dependents;
     std::unordered_map<SymbolType, ViewModelInstanceValue*> m_propertySymbols;
@@ -68,6 +71,13 @@ public:
     bool hasParents() const { return !m_parents.empty(); }
     void addDependent(DataBindContainer*);
     void removeDependent(DataBindContainer*);
+    // Binds targeting this instance's own values. Owned here and cloned with
+    // the instance; the container binding the instance clones them again.
+    void addValueDataBind(DataBind* dataBind);
+    const LazyVector<DataBind*>& valueDataBinds() const
+    {
+        return m_valueDataBinds;
+    }
 #ifdef TESTING
     std::vector<DataBindContainer*> dependents() { return m_dependents; }
     std::vector<ViewModelInstance*> parents() { return m_parents; }

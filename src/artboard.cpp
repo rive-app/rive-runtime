@@ -1113,17 +1113,57 @@ void Artboard::cloneObjectDataBinds(const Core* object,
     {
         if (dataBind->target() == object)
         {
-            auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
-            dataBindClone->target(clone);
-            dataBindClone->file(dataBind->file());
-            dataBindClone->initialize();
-            if (dataBind->converter() != nullptr)
-            {
-                dataBindClone->converter(
-                    dataBind->converter()->clone()->as<DataConverter>());
-            }
-            artboard->addDataBind(dataBindClone);
+            artboard->addDataBind(dataBind->cloneWithTarget(clone));
         }
+    }
+}
+
+void Artboard::syncInstanceValueBinds()
+{
+    // Mid update the removes and adds would only queue, and a second change
+    // in the same pass could not see them; coalesce until the pass drains.
+    if (isProcessingDataBinds())
+    {
+        m_instanceValueBindsPending = true;
+        return;
+    }
+    auto instance = dataBindContext() != nullptr
+                        ? dataBindContext()->mainViewModelInstance()
+                        : nullptr;
+    if (instance == m_instanceValueBindsSource)
+    {
+        return;
+    }
+    // Snapshot: removing mutates the list we are walking.
+    auto previous = dataBinds();
+    for (auto dataBind : previous)
+    {
+        if (dataBind->isInstanceValueBind())
+        {
+            removeAndDeleteDataBind(dataBind);
+        }
+    }
+    m_instanceValueBindsSource = instance;
+    if (instance == nullptr)
+    {
+        return;
+    }
+    for (auto dataBind : instance->valueDataBinds())
+    {
+        auto dataBindClone = dataBind->cloneWithTarget(dataBind->target());
+        dataBindClone->markInstanceValueBind();
+        addDataBind(dataBindClone);
+    }
+}
+
+void Artboard::mainViewModelInstanceChanged() { syncInstanceValueBinds(); }
+
+void Artboard::dataBindsProcessed()
+{
+    if (m_instanceValueBindsPending)
+    {
+        m_instanceValueBindsPending = false;
+        syncInstanceValueBinds();
     }
 }
 
@@ -2776,6 +2816,7 @@ void Artboard::internalDataContext(rcp<DataContext> value)
     // Set the context before recursing into the artboard hosts; they read it
     // back off this artboard while they bind. The binds are walked after.
     dataBindContext(value);
+    syncInstanceValueBinds();
     for (auto artboardHost : m_ArtboardHosts)
     {
         auto hostValue =
@@ -2843,6 +2884,7 @@ void Artboard::clearDataContext()
     {
         dataBindContext()->removeDependentContainer(this);
         dataBindContext(nullptr);
+        syncInstanceValueBinds();
     }
     for (auto artboardHost : m_ArtboardHosts)
     {

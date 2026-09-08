@@ -34,6 +34,8 @@ private:
     // Add/remove every attached container as a dependent of one instance.
     void attachContainers(ViewModelInstance* instance);
     void detachContainers(ViewModelInstance* instance);
+    void notifyMainViewModelInstanceChanged();
+    void removeMainViewModelInstanceSilently();
 
     // Slot bookkeeping for contexts that carry global view model instances.
     // A "slot key" is the declared view model id a slot represents; it lets us

@@ -81,6 +81,8 @@ public:
     DataBindContainer* m_container = nullptr;
     void collapse(bool collapsed);
     void initialize();
+    // A copy pointed at `target`, with its own converter clone.
+    DataBind* cloneWithTarget(Core* target) const;
     void relinkDataBind() override;
     bool inDirtyList() const { return hasFlag(Flag::InDirtyList); }
     void inDirtyList(bool value) { setFlag(Flag::InDirtyList, value); }
@@ -96,6 +98,13 @@ public:
     // and can't carry the origin across frames). Defaults to source (false),
     // matching the historical hardcoded markConverterDirty behavior.
     bool targetOrigin() const { return hasFlag(Flag::TargetOrigin); }
+    // Cloned off a view model instance's value binds by the container that
+    // bound the instance, so it is purged when that instance changes.
+    bool isInstanceValueBind() const
+    {
+        return hasFlag(Flag::InstanceValueBind);
+    }
+    void markInstanceValueBind() { setFlag(Flag::InstanceValueBind, true); }
 
     // Intrusive observer-list linkage. Used by Core to chain DataBinds that
     // have subscribed to push notifications for a given (target, propertyKey).
@@ -144,6 +153,7 @@ private:
         // (source→target). Persists across frames so interpolators re-assert
         // it.
         TargetOrigin = 1 << 5,
+        InstanceValueBind = 1 << 6,
     };
     uint8_t m_flags = 0;
     bool hasFlag(Flag f) const

@@ -41,6 +41,8 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/importers/viewmodel_instance_importer.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/component.hpp"
 
 using namespace rive;
@@ -154,6 +156,20 @@ StatusCode DataBind::import(ImportStack& importStack)
                     {
                         artboardImporter->addDataBind(this);
                         return Super::import(importStack);
+                    }
+                    // A file level instance value owns its binds; they clone
+                    // with the instance and bind wherever it is bound.
+                    if (target()->is<ViewModelInstanceValue>())
+                    {
+                        auto instanceImporter =
+                            importStack.latest<ViewModelInstanceImporter>(
+                                ViewModelInstance::typeKey);
+                        if (instanceImporter != nullptr)
+                        {
+                            instanceImporter->viewModelInstance()
+                                ->addValueDataBind(this);
+                            return Super::import(importStack);
+                        }
                     }
                     break;
                 }
@@ -633,6 +649,19 @@ void DataBind::collapse(bool isCollapsed)
     {
         m_container->addDirtyDataBind(this);
     }
+}
+
+DataBind* DataBind::cloneWithTarget(Core* newTarget) const
+{
+    auto dataBindClone = static_cast<DataBind*>(clone());
+    dataBindClone->target(newTarget);
+    dataBindClone->file(m_file);
+    dataBindClone->initialize();
+    if (m_dataConverter != nullptr)
+    {
+        dataBindClone->converter(m_dataConverter->clone()->as<DataConverter>());
+    }
+    return dataBindClone;
 }
 
 void DataBind::initialize()

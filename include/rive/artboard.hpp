@@ -105,6 +105,17 @@ private:
     std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
     std::vector<AdvancingComponent*> m_advancingComponents;
+    // Whose value binds are currently cloned into this container.
+    rcp<ViewModelInstance> m_instanceValueBindsSource = nullptr;
+    // A resync asked for mid update waits for the pass to drain.
+    bool m_instanceValueBindsPending = false;
+    void syncInstanceValueBinds();
+
+public:
+    void mainViewModelInstanceChanged() override;
+    void dataBindsProcessed() override;
+
+private:
 #ifdef WITH_RIVE_SCRIPTING
     [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif

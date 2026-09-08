@@ -3226,6 +3226,23 @@ void StateMachineInstance::clearDataContext()
     }
 }
 
+void StateMachineInstance::mainViewModelInstanceChanged()
+{
+    if (m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->mainViewModelInstanceChanged();
+    }
+}
+
+void StateMachineInstance::dropInstanceValueBindsTargeting(Core* target)
+{
+    DataBindContainer::dropInstanceValueBindsTargeting(target);
+    if (m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->dropInstanceValueBindsTargeting(target);
+    }
+}
+
 void StateMachineInstance::relinkDataContext()
 {
     m_artboardInstance->relinkDataContext();

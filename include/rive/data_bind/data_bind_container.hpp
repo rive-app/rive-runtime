@@ -9,6 +9,7 @@ namespace rive
 {
 class DataContext;
 class DataBind;
+class Core;
 
 // The data-bind work queues that most containers never touch, hoisted behind a
 // Sidecar so DataBindContainer (a base of Artboard, StateMachineInstance, AND
@@ -27,6 +28,8 @@ struct DataBindQueues
     std::vector<DataBind*> pendingDirty;
     std::vector<DataBind*> pendingAdditions;
     std::vector<DataBind*> pendingRemovals;
+    // Removed binds the container also owns; freed once the removal drains.
+    std::vector<DataBind*> pendingDeletes;
 };
 
 class DataBindContainer
@@ -66,6 +69,11 @@ public:
     void clearEditorDataBinds();
 #endif
     void removeDataBind(DataBind* dataBind);
+    // For binds this container owns: removal now, or deferred with the
+    // removal when mid update so the pointer stays valid until then.
+    void removeAndDeleteDataBind(DataBind* dataBind);
+    // Drops the instance value bind clones aimed at a value about to go away.
+    virtual void dropInstanceValueBindsTargeting(Core* target);
     // Applies a single (source→target) data bind immediately if it is dirty.
     // Used to refresh per-instance keyframe value holders at read time so their
     // value is current regardless of where the batched updateDataBinds() falls
@@ -75,6 +83,10 @@ public:
     virtual void addDirtyDataBind(DataBind* dataBind);
     virtual void rebind() {};
     virtual void relinkDataContext() {};
+    // The bound context swapped its main instance without a rebind.
+    virtual void mainViewModelInstanceChanged() {};
+    // Runs once an update pass has drained its deferred adds and removes.
+    virtual void dataBindsProcessed() {};
     virtual void rebuildDataBind(DataBind*) {};
 
 protected:
@@ -90,6 +102,7 @@ protected:
     void dataBindContext(rcp<DataContext> dataContext);
     void deleteDataBinds();
     bool advanceDataBinds(float);
+    bool isProcessingDataBinds() const { return m_isProcessing; }
     // Sets the context and re-points every DataBindContext at it.
     void bindDataBindsFromContext(rcp<DataContext> dataContext);
     // Re-points every DataBindContext at the already-set context.
