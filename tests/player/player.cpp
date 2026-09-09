@@ -234,6 +234,14 @@ bool Player::parseArgs(int argc,
         {
             m_useDeferred = true;
         }
+        else if (strcmp(argv[i], "--dump") == 0 && i + 1 < argc)
+        {
+            m_dumpPath = argv[++i];
+        }
+        else if (strcmp(argv[i], "--dump-frame") == 0 && i + 1 < argc)
+        {
+            m_dumpFrame = atoi(argv[++i]);
+        }
         else if (argv[i][0] == '-' &&
                  argv[i][1] == 'k') // "-k1234asdf" without a space.
         {
@@ -382,6 +390,10 @@ bool Player::doFrame()
         advanceDeltaTime = 1.0f / 120;
     }
 
+    // advanceAndApply drives the artboard through advanceInternal, which
+    // skips the async-work pump in Artboard::advance; pump it here so scripted
+    // image decodes resolve (without threads they only run when polled).
+    m_artboard->pollAsyncWork();
     m_scene->advanceAndApply(m_paused ? 0 : advanceDeltaTime);
 
     m_copiesLeft = std::max(m_copiesLeft, 0);
@@ -497,6 +509,33 @@ bool Player::doFrame()
         m_lastDroppedDraws = dropped;
     }
 #endif
+    if (!m_dumpPath.empty() && ++m_frameCounter >= m_dumpFrame)
+    {
+        std::vector<uint8_t> pixels;
+        TestingWindow::Get()->endFrame(&pixels);
+        uint32_t w = TestingWindow::Get()->width();
+        uint32_t h = TestingWindow::Get()->height();
+        if (FILE* f = fopen(m_dumpPath.c_str(), "wb"))
+        {
+            fwrite(&w, sizeof(w), 1, f);
+            fwrite(&h, sizeof(h), 1, f);
+            fwrite(pixels.data(), 1, pixels.size(), f);
+            fclose(f);
+            printf("dumped %ux%u frame (%zu bytes) to %s\n",
+                   w,
+                   h,
+                   pixels.size(),
+                   m_dumpPath.c_str());
+        }
+        else
+        {
+            fprintf(stderr,
+                    "could not open dump path %s\n",
+                    m_dumpPath.c_str());
+        }
+        m_quit = true;
+        return false;
+    }
     TestingWindow::Get()->endFrame();
 
     // Count FPS.

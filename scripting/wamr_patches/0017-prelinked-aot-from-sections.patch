@@ -1,0 +1,40 @@
+diff --git a/core/iwasm/aot/aot_loader.c b/core/iwasm/aot/aot_loader.c
+index 5979df1..78dde4a 100644
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -592,6 +592,15 @@ load_target_info_section(const uint8 *buf, const uint8 *buf_end,
+         return false;
+     }
+ 
++#if WASM_ENABLE_PRELINKED_AOT != 0
++    /* Only the file-buffer path resolves execute mode before the section
++     * loop; loading from sections must learn it here or the text loader
++     * would patch a PLT into code it does not own. */
++    if (target_info.e_type == E_TYPE_XIP) {
++        module->is_indirect_mode = true;
++    }
++#endif
++
+     /* for backwards compatibility with previous wamrc aot files */
+     if (!strcmp(target_info.arch, "arm64")
+         || !strcmp(target_info.arch, "aarch64"))
+@@ -4023,6 +4032,19 @@ load_from_sections(AOTModule *module, AOTSection *sections,
+                                                  error_buf, error_buf_size))
+                         LOG_WARNING("merge .data and .text sections failed");
+ #endif /* ! defined(BH_PLATFORM_NUTTX) && !defined(BH_PLATFORM_ESP_IDF) */
++#if WASM_ENABLE_PRELINKED_AOT != 0
++                /* Pre-linked text: an XIP module loaded from sections
++                 * carries bare code resident in the host image, already
++                 * relocated by the native linker - no literal header,
++                 * nothing to map, protect, or patch. */
++                if (!is_load_from_file_buf && module->is_indirect_mode) {
++                    module->literal_size = 0;
++                    module->literal = (uint8 *)buf;
++                    module->code = (void *)buf;
++                    module->code_size = (uint32)(buf_end - buf);
++                    break;
++                }
++#endif
+                 if (!load_text_section(buf, buf_end, module, error_buf,
+                                        error_buf_size))
+                     return false;

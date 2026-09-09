@@ -42,7 +42,23 @@ local wamrConfigDefines = {
 if not _OPTIONS['wasm_hw_bounds'] then
     table.insert(wamrConfigDefines, 'WASM_DISABLE_HW_BOUND_CHECK=1')
 end
-if os.target() == 'windows' then
+-- Nintendo cross builds set this from packages/runtime_switch and run on a
+-- Windows host, so every os.target() gate below must yield to it. nnSdk
+-- ships no mmap family and no signal API, so the platform layer is ours.
+local isNx = _OPTIONS['_nx_platform'] ~= nil
+if isNx then
+    -- Console trap forensics: no debugger reaches the dev kit, so name the
+    -- wasm frames when a call dies. Config defines so every TU agrees on
+    -- layouts.
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_DUMP_CALL_STACK=1')
+    -- The dump's AOT side compiles against frame bookkeeping gated on this.
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_AOT_STACK_FRAME=1')
+    -- Patch 0017: XIP modules loaded from sections execute text linked into
+    -- the host image, the only AOT shape possible without runtime
+    -- executable memory.
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_PRELINKED_AOT=1')
+end
+if os.target() == 'windows' and not isNx then
     -- We link wamr statically; under clang's msvc mode wasm_export.h and
     -- wasm_c_api.h otherwise declare every API dllimport.
     table.insert(wamrConfigDefines, 'WASM_RUNTIME_API_EXTERN=')
@@ -56,6 +72,10 @@ local platformDir = forAndroid and 'android'
     or os.target() == 'linux' and 'linux'
     or os.target() == 'windows' and 'windows'
     or 'darwin'
+-- Where platform_internal.h and the os_* implementations come from.
+local platformPath = isNx
+        and path.join(path.getdirectory(_SCRIPT), 'wamr_nx')
+    or (wamr .. '/core/shared/platform/' .. platformDir)
 
 project('wamr')
 do
@@ -84,7 +104,7 @@ do
             ' -mllvm -tail-dup-pred-size=5000' ..
             ' -mllvm -tail-dup-succ-size=5000 2>&1'
     )
-    if tailDupProbe == 0 and _OPTIONS['for_android'] == nil then
+    if tailDupProbe == 0 and _OPTIONS['for_android'] == nil and not isNx then
         buildoptions({
             '-mllvm -tail-dup-pred-size=5000',
             '-mllvm -tail-dup-succ-size=5000',
@@ -110,7 +130,11 @@ do
     local machine = os.outputof('uname -m')
     local isArm64
     -- 'host' is the option's default, not an explicit lane.
-    if archOption ~= nil and archOption ~= '' and archOption ~= 'host' then
+    if isNx then
+        -- Windows hosted cross build, so neither the host arch nor --arch
+        -- describes the target.
+        isArm64 = true
+    elseif archOption ~= nil and archOption ~= '' and archOption ~= 'host' then
         isArm64 = archOption == 'arm64' or archOption == 'aarch64'
     else
         isArm64 = machine == 'arm64' or machine == 'aarch64'
@@ -158,7 +182,7 @@ do
         wamr .. '/core/shared/include',
         wamr .. '/core/shared/platform/include',
         -- platform_internal.h comes from the per-platform dir.
-        wamr .. '/core/shared/platform/' .. platformDir,
+        platformPath,
         wamr .. '/core/shared/platform/common/libc-util',
         wamr .. '/core/shared/mem-alloc',
         -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
@@ -179,9 +203,9 @@ do
         wamr .. '/core/iwasm/aot/arch/' .. aotReloc,
         wamr .. '/core/iwasm/libraries/libc-builtin/*.c',
         wamr .. '/core/iwasm/libraries/libc-wasi/**.c',
-        wamr .. '/core/shared/platform/' .. platformDir .. '/*.c',
+        platformPath .. '/*.c',
         -- Windows replaces the posix layer wholesale; win_atomic is C++.
-        os.target() == 'windows'
+        (os.target() == 'windows' and not isNx)
                 and (wamr .. '/core/shared/platform/windows/*.cpp')
             or (wamr .. '/core/shared/platform/common/posix/*.c'),
         wamr .. '/core/shared/platform/common/memory/*.c',
@@ -191,9 +215,15 @@ do
         wamr .. '/core/shared/utils/*.c',
         wamr .. '/core/shared/utils/uncommon/*.c',
     })
-    if os.target() == 'windows' then
+    if os.target() == 'windows' and not isNx then
         -- Linux perf-map support; leans on pid_t/getpid.
         removefiles({ wamr .. '/core/iwasm/aot/aot_perf_map.c' })
+    end
+    if isNx then
+        files({ platformPath .. '/*.cpp' })
+        -- The posix mapping calls resolve against symbols nnSdk never
+        -- exports, so nx_platform.cpp replaces the whole file.
+        removefiles({ wamr .. '/core/shared/platform/common/posix/posix_memmap.c' })
     end
 end
 
@@ -207,7 +237,7 @@ return {
         wamr .. '/core/shared/include',
         wamr .. '/core/shared/platform/include',
         -- platform_internal.h comes from the per-platform dir.
-        wamr .. '/core/shared/platform/' .. platformDir,
+        platformPath,
         wamr .. '/core/shared/mem-alloc',
         -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
         -- on, which our config always is.

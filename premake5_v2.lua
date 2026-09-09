@@ -355,6 +355,12 @@ newoption({
     description = 'Enables scripting for the runtime.',
 })
 
+-- Internal capability flag opted into by platform packages.
+newoption({
+    trigger = '_nx_platform',
+    description = 'internal: Nintendo build (set by platform packages)',
+})
+
 newoption({
     trigger = 'scripting_vm',
     value = 'VM',

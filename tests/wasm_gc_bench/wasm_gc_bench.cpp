@@ -17,10 +17,14 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cerrno>
+#include <climits>
+#include <cstring>
 #include <fstream>
 #include <vector>
 
-#ifndef _WIN32
+// nnSdk exports no signal API at all, so consoles get the no-op handler.
+#if !defined(_WIN32) && !defined(RIVE_NX)
 #include <csignal>
 
 // SIGILL diagnostics for the device AOT lane: adb shell has no tombstone
@@ -54,6 +58,11 @@ static double msSince(Clock::time_point start)
         .count();
 }
 
+#ifdef EXTERN_TOOLS
+// libnnSdk owns main on the consoles; nx_main_wasm_gc_bench.cpp bridges in.
+#define main rive_main
+#endif
+
 int main(int argc, char** argv)
 {
     installFaultHandler();
@@ -62,11 +71,74 @@ int main(int argc, char** argv)
         fprintf(stderr, "usage: wasm_gc_bench <file.riv> [frames]\n");
         return 1;
     }
-    int frames = argc > 2 ? atoi(argv[2]) : 600;
-    if (frames <= 0)
+    // atoi folds malformed input to 0, which is a meaningful collector
+    // setting; a validation lane must reject what it cannot parse.
+    auto parseInt = [](const char* text, int* out) {
+        char* end = nullptr;
+        errno = 0;
+        long value = strtol(text, &end, 10);
+        if (errno != 0 || end == text || *end != '\0' || value < INT_MIN ||
+            value > INT_MAX)
+        {
+            return false;
+        }
+        *out = (int)value;
+        return true;
+    };
+    // The frame count is optional, so flags may start at argv[2].
+    int frames = 600;
+    int flagStart = 2;
+    if (argc > 2 && argv[2][0] != '-')
     {
-        fprintf(stderr, "frame count must be positive\n");
-        return 1;
+        flagStart = 3;
+        if (!parseInt(argv[2], &frames) || frames <= 0)
+        {
+            fprintf(stderr, "frame count must be a positive integer\n");
+            return 1;
+        }
+    }
+    // Consoles have no environment, so the debug knobs ride the command
+    // line: --verify runs the heap verifier after every boundary,
+    // --major-budget / --collect-mode feed the collector's tuning exports.
+    bool verify = false;
+    int majorBudget = -1;
+    int collectMode = -1;
+    for (int i = flagStart; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--verify") == 0)
+        {
+            verify = true;
+        }
+        else if (strncmp(argv[i], "--major-budget=", 15) == 0)
+        {
+            if (!parseInt(argv[i] + 15, &majorBudget) || majorBudget < 0)
+            {
+                fprintf(stderr,
+                        "invalid --major-budget value '%s'\n",
+                        argv[i] + 15);
+                return 1;
+            }
+        }
+        else if (strncmp(argv[i], "--collect-mode=", 15) == 0)
+        {
+            // Modes: 0 automatic, 1 copying, 2 sliced; anything else would
+            // silently run automatic.
+            if (!parseInt(argv[i] + 15, &collectMode) || collectMode < 0 ||
+                collectMode > 2)
+            {
+                fprintf(stderr,
+                        "invalid --collect-mode value '%s'\n",
+                        argv[i] + 15);
+                return 1;
+            }
+        }
+        else
+        {
+            // A typoed flag silently skipping verification would defeat
+            // the lane's purpose.
+            fprintf(stderr, "unknown argument '%s'\n", argv[i]);
+            return 1;
+        }
     }
 
     std::ifstream in(argv[1], std::ios::binary);
@@ -129,6 +201,74 @@ int main(int argc, char** argv)
     printf("gcbench driving: %s\n",
            machine != nullptr ? "state machine" : "artboard");
 
+    using CallOutcome = rive::WasmScriptingVM::CallOutcome;
+    // Knobs and the verifier apply to every module vm in the file.
+    auto applyKnob = [&](const char* name, int value) {
+        uint32_t args[1] = {(uint32_t)value};
+        // Individual modules may omit the export (a stub-runtime module
+        // beside a frame one), but a flag nothing accepted would report a
+        // configuration that never applied.
+        int applied = 0;
+        for (auto& moduleVm : file->wasmVMs())
+        {
+            uint32_t ignored = 0;
+            switch (moduleVm->callModuleChecked(name, 1, args, &ignored))
+            {
+                case CallOutcome::ok:
+                    printf("gcbench %s: %d\n", name, value);
+                    applied++;
+                    break;
+                case CallOutcome::missing:
+                    printf("gcbench %s: export missing in one module\n", name);
+                    break;
+                case CallOutcome::trapped:
+                    fprintf(stderr, "gcbench %s trapped\n", name);
+                    return false;
+            }
+        }
+        if (applied == 0)
+        {
+            fprintf(stderr,
+                    "gcbench %s: no module exports it; flag not applied\n",
+                    name);
+            return false;
+        }
+        return true;
+    };
+    if (majorBudget >= 0 && !applyKnob("__riveSetMajorBudget", majorBudget))
+    {
+        return 1;
+    }
+    if (collectMode >= 0 && !applyKnob("__riveSetCollectMode", collectMode))
+    {
+        return 1;
+    }
+    // A verify run that cannot verify must fail, not report success.
+    auto runVerifier = [&]() {
+        for (auto& moduleVm : file->wasmVMs())
+        {
+            uint32_t ignored = 0;
+            switch (moduleVm->callModuleChecked("__riveFrameVerify",
+                                                0,
+                                                nullptr,
+                                                &ignored))
+            {
+                case CallOutcome::ok:
+                    break;
+                case CallOutcome::missing:
+                    fprintf(stderr,
+                            "gcbench verify FAILED: __riveFrameVerify export "
+                            "missing\n");
+                    return false;
+                case CallOutcome::trapped:
+                    fprintf(stderr,
+                            "gcbench verify FAILED: heap verifier trapped\n");
+                    return false;
+            }
+        }
+        return true;
+    };
+
     // Load-time boundary: init's survivors promote here, during load, so
     // the first presented frame never pays for them.
     auto loadCollect = Clock::now();
@@ -137,9 +277,15 @@ int main(int argc, char** argv)
         printf("gcbench notice: %s\n", notice);
     }
     printf("gcbench post-init collect: %.1fms\n", msSince(loadCollect));
+    if (verify && !runVerifier())
+    {
+        return 1;
+    }
 
     std::vector<double> frameMs;
     frameMs.reserve(frames);
+    std::vector<double> boundaryMs;
+    boundaryMs.reserve(frames);
     uint32_t pagesBefore = pages();
     uint32_t livePeak = 0;
     for (int i = 0; i < frames; i++)
@@ -157,9 +303,15 @@ int main(int argc, char** argv)
         // nowhere but the script-side work is real.
         rive::NoOpRenderer renderer;
         instance->draw(&renderer);
+        auto boundaryStart = Clock::now();
         if (const char* notice = file->frameBoundary())
         {
             printf("gcbench notice: %s\n", notice);
+        }
+        boundaryMs.push_back(msSince(boundaryStart));
+        if (verify && !runVerifier())
+        {
+            return 1;
         }
         frameMs.push_back(msSince(start));
         livePeak = std::max(livePeak, live());
@@ -177,6 +329,15 @@ int main(int argc, char** argv)
            frameMs[frames / 2],
            frameMs[(size_t)(frames * 0.95)],
            frameMs.back());
+    std::sort(boundaryMs.begin(), boundaryMs.end());
+    printf("gcbench boundary: p50 %.1fus p95 %.1fus max %.1fus\n",
+           boundaryMs[frames / 2] * 1000.0,
+           boundaryMs[(size_t)(frames * 0.95)] * 1000.0,
+           boundaryMs.back() * 1000.0);
+    if (verify)
+    {
+        printf("gcbench verify: ran after every boundary\n");
+    }
     printf("gcbench memory: %u -> %u wasm pages\n", pagesBefore, pages());
     printf("gcbench handles: %u live, %u peak\n", live(), livePeak);
     return 0;

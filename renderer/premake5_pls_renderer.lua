@@ -139,6 +139,12 @@ do
     defines({ 'ORE_BACKEND_VK', 'RIVE_ORE' })
 end
 
+-- Consoles: vulkan-only ORE backend, same shape as the desktop Vulkan lane.
+filter({ 'system:nx64 or ounce64', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_VK', 'RIVE_ORE' })
+end
+
 
 newoption({
     trigger = 'with_objc_exceptions',
@@ -540,6 +546,12 @@ do
     -- renderer. The vulkan/VMA include dirs are already added project-wide in
     -- the `if _OPTIONS['with_vulkan']` block above.
     filter({ 'system:macosx or windows', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/vulkan/*.cpp' })
+    end
+
+    -- Consoles: vulkan-only ORE, same backend files as the desktop lane.
+    filter({ 'system:nx64 or ounce64', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
     do
         files({ 'src/ore/vulkan/*.cpp' })
     end

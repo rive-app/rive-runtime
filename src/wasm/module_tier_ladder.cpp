@@ -38,10 +38,12 @@ ModuleTierLadder::~ModuleTierLadder()
         for (Job* job : m_running)
         {
             job->cancelled = true;
+#ifndef RIVE_NX
             if (job->pid > 0)
             {
                 kill(job->pid, SIGKILL);
             }
+#endif
         }
     }
     m_workAvailable.notify_all();
@@ -78,11 +80,18 @@ bool ModuleTierLadder::enabled()
     if (m_cacheDir.empty() && !m_wamrcPath.empty())
     {
         const char* dirEnv = getenv("RIVE_AOT_CACHE_DIR");
+#ifdef RIVE_NX
+        // No temp_directory_path in this libc++, and the platform cannot map
+        // executable pages anyway, so the ladder only runs when pointed at a
+        // directory explicitly.
+        m_cacheDir = dirEnv != nullptr ? dirEnv : "";
+#else
         m_cacheDir =
             dirEnv != nullptr
                 ? dirEnv
                 : (std::filesystem::temp_directory_path() / "rive_aot_cache")
                       .string();
+#endif
     }
     return !m_wamrcPath.empty() && !m_cacheDir.empty();
 }
@@ -101,6 +110,7 @@ const std::string& ModuleTierLadder::wamrcVersion()
     {
         m_versionProbed = true;
         m_wamrcVersion = "unknown";
+#ifndef RIVE_NX
         std::string cmd = m_wamrcPath + " --version 2>/dev/null";
         if (FILE* pipe = popen(cmd.c_str(), "r"))
         {
@@ -126,6 +136,7 @@ const std::string& ModuleTierLadder::wamrcVersion()
             }
             pclose(pipe);
         }
+#endif
     }
     return m_wamrcVersion;
 }
@@ -289,7 +300,9 @@ void ModuleTierLadder::schedule(const std::string& laneId,
         else if (job->moduleKey != moduleKey && job->pid > 0 && !job->cancelled)
         {
             job->cancelled = true;
+#ifndef RIVE_NX
             kill(job->pid, SIGKILL);
+#endif
         }
     }
     for (Job& job : m_queue)
@@ -480,9 +493,9 @@ bool ModuleTierLadder::runWamrc(Job& job)
     }
     argv.push_back(nullptr);
 
-#ifdef RIVE_ANDROID
-    // No wamrc on device, and posix_spawn needs API 28; the ladder never
-    // schedules compiles here.
+#if defined(RIVE_ANDROID) || defined(RIVE_NX)
+    // No wamrc on device, and neither platform has posix_spawn; the ladder
+    // never schedules compiles here.
     return false;
 #else
     pid_t pid = -1;

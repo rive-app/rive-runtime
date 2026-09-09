@@ -79,6 +79,14 @@ private:
 
     std::vector<uint8_t> m_pendingRivBytes;
 
+    // --dump writes one frame's pixels to a raw RGBA file (u32 width, u32
+    // height, then tightly packed RGBA) and quits, for platforms without a
+    // golden harness. --dump-frame chooses which frame (default 30, giving
+    // scripted content time to load).
+    std::string m_dumpPath;
+    int m_dumpFrame = 30;
+    int m_frameCounter = 0;
+
     bool m_useDeferred = false;
     // The import factory: the session when deferred, the window's otherwise.
     rive::Factory* m_factory = nullptr;

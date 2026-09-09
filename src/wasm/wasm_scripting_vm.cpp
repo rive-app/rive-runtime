@@ -3,6 +3,12 @@
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/wamr_state_transplant.hpp"
 #include "rive/wasm/wasm_scripting_vm.hpp"
+#include "rive/wasm/prelinked_aot.hpp"
+#if WASM_ENABLE_PRELINKED_AOT != 0
+// AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation; same
+// internal-header precedent as wamr_state_transplant.cpp.
+#include "aot_runtime.h"
+#endif
 
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
@@ -271,6 +277,9 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
         if (exception != nullptr)
         {
             fprintf(stderr, "wasm call trapped in %s: %s\n", name, exception);
+#if WASM_ENABLE_DUMP_CALL_STACK != 0
+            wasm_runtime_dump_call_stack(m_state->execEnv);
+#endif
             if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted)
             {
                 // A bare trap after leak warnings is almost always the
@@ -5520,6 +5529,100 @@ void WasmScriptingVM::advanceDetachedViewModels()
     }
 }
 
+#if WASM_ENABLE_PRELINKED_AOT != 0
+// Builds the section list for a module whose AOT text is linked into this
+// binary and loads it. The relocation section is dropped: the native linker
+// already applied every fixup, which is what makes the text usable without
+// runtime executable memory.
+static wasm_module_t loadPrelinkedModule(const PrelinkedAotModule& prelinked,
+                                         char* error,
+                                         uint32_t errorSize)
+{
+    constexpr uint32_t kSectionText = 2;
+    constexpr uint32_t kSectionRelocation = 5;
+    // .aot container: 8 byte magic+version header, then type/size framed
+    // sections. The from-sections loader never sees the header, so an
+    // artifact from an incompatible wamrc must be rejected here.
+    if (prelinked.aotSize < 8)
+    {
+        snprintf(error, errorSize, "prelinked aot container too small");
+        return nullptr;
+    }
+    uint32_t magic;
+    uint32_t version;
+    memcpy(&magic, prelinked.aot, 4);
+    memcpy(&version, prelinked.aot + 4, 4);
+    if (magic != AOT_MAGIC_NUMBER || version != AOT_CURRENT_VERSION)
+    {
+        snprintf(error,
+                 errorSize,
+                 "prelinked aot container magic/version mismatch "
+                 "(%08x v%u, runtime expects v%u)",
+                 magic,
+                 version,
+                 (uint32_t)AOT_CURRENT_VERSION);
+        return nullptr;
+    }
+    const uint8_t* p = prelinked.aot + 8;
+    const uint8_t* end = prelinked.aot + prelinked.aotSize;
+    std::vector<wasm_section_t> sections;
+    while (true)
+    {
+        // The container aligns every u32 read; section headers land on
+        // 4 byte boundaries relative to the (aligned) container base.
+        // Compare as integers first: the aligned address may lie past end,
+        // where pointer arithmetic is undefined.
+        uintptr_t aligned = ((uintptr_t)p + 3) & ~(uintptr_t)3;
+        if (aligned > (uintptr_t)end || (uintptr_t)end - aligned < 8)
+        {
+            break;
+        }
+        p = (const uint8_t*)aligned;
+        uint32_t type;
+        uint32_t size;
+        memcpy(&type, p, 4);
+        memcpy(&size, p + 4, 4);
+        p += 8;
+        if (size > (size_t)(end - p))
+        {
+            snprintf(error, errorSize, "prelinked aot container truncated");
+            return nullptr;
+        }
+        if (type != kSectionRelocation)
+        {
+            wasm_section_t section = {};
+            section.section_type = (int)type;
+            if (type == kSectionText)
+            {
+                section.section_body = const_cast<uint8_t*>(prelinked.text);
+                section.section_body_size = (uint32_t)prelinked.textSize;
+            }
+            else
+            {
+                section.section_body = const_cast<uint8_t*>(p);
+                section.section_body_size = size;
+            }
+            sections.push_back(section);
+        }
+        p += size;
+    }
+    if (sections.empty())
+    {
+        snprintf(error, errorSize, "prelinked aot container empty");
+        return nullptr;
+    }
+    for (size_t i = 0; i + 1 < sections.size(); i++)
+    {
+        sections[i].next = &sections[i + 1];
+    }
+    sections.back().next = nullptr;
+    return wasm_runtime_load_from_sections(sections.data(),
+                                           true,
+                                           error,
+                                           errorSize);
+}
+#endif
+
 bool WasmScriptingVM::init(Span<const uint8_t> module)
 {
     if (!ensureRuntime())
@@ -5679,6 +5782,19 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             }
         }
     }
+#if WASM_ENABLE_PRELINKED_AOT != 0
+    // Offline-compiled code linked into this binary; the only AOT shape on
+    // platforms without runtime executable memory. The file lanes above never
+    // fire there, but an explicit artifact still wins if one appears.
+    const PrelinkedAotModule* prelinked =
+        haveAot || haveHwAot || haveO0Aot
+            ? nullptr
+            : findPrelinkedAotModule(moduleKey, m_moduleBytes.size());
+    if (prelinked != nullptr)
+    {
+        moduleKey ^= 0x94d049bb133111ebull;
+    }
+#endif
     if (haveAot || haveHwAot || haveO0Aot)
     {
         moduleKey ^= 0x9e3779b97f4a7c15ull;
@@ -5696,19 +5812,23 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         moduleKey ^= 0x27d4eb2f165667c5ull;
     }
     auto& cache = sharedModuleCache();
-    auto cached = cache.find(moduleKey);
-    if (cached != cache.end())
-    {
-        m_state->module = cached->second.module;
+    auto adoptCached = [&](SharedWasmModule& entry) {
+        m_state->module = entry.module;
         m_state->ownsModule = false;
-        m_tier = cached->second.tier;
+        m_tier = entry.tier;
         // The VM's own copy is redundant against the cache entry, but the
         // tier ladder still needs the pristine bytes; entries live for the
         // process.
-        m_scheduleBytes =
-            Span<const uint8_t>(cached->second.pristineBytes.data(),
-                                cached->second.pristineBytes.size());
+        m_scheduleBytes = Span<const uint8_t>(entry.pristineBytes.data(),
+                                              entry.pristineBytes.size());
         m_moduleBytes.clear();
+    };
+    bool adoptedFromCache = false;
+    auto cached = cache.find(moduleKey);
+    if (cached != cache.end())
+    {
+        adoptCached(cached->second);
+        adoptedFromCache = true;
     }
     else
     {
@@ -5730,20 +5850,55 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                     haveO0Aot ? ExecutionTier::aotO0 : ExecutionTier::aotO3;
             }
         }
-        if (!haveAot && !haveHwAot && !haveO0Aot)
+#if WASM_ENABLE_PRELINKED_AOT != 0
+        if (prelinked != nullptr)
         {
-            // The load below rewrites the buffer in place; wamrc needs the
-            // module as it is now.
-            ModuleTierLadder::instance().stagePristine(
-                m_moduleKey,
-                Span<const uint8_t>(m_moduleBytes.data(),
-                                    m_moduleBytes.size()));
+            m_state->module =
+                loadPrelinkedModule(*prelinked, error, sizeof(error));
+            if (m_state->module != nullptr)
+            {
+                m_tier = ExecutionTier::aotO3;
+                fprintf(stderr,
+                        "wasm aot: prelinked module %016llx (%zu byte text)\n",
+                        (unsigned long long)m_moduleKey,
+                        prelinked->textSize);
+            }
+            else
+            {
+                // A stale or incompatible bake must not fail the file; drop
+                // to the wasm bytes under the plain key.
+                fprintf(stderr,
+                        "wasm aot: prelinked module rejected (%s); "
+                        "falling back\n",
+                        error);
+                prelinked = nullptr;
+                moduleKey ^= 0x94d049bb133111ebull;
+                auto fallback = cache.find(moduleKey);
+                if (fallback != cache.end())
+                {
+                    adoptCached(fallback->second);
+                    adoptedFromCache = true;
+                }
+            }
         }
-        m_state->module = wasm_runtime_load(m_moduleBytes.data(),
-                                            (uint32_t)m_moduleBytes.size(),
-                                            error,
-                                            sizeof(error));
-        if (m_state->module != nullptr)
+        if (m_state->module == nullptr)
+#endif
+        {
+            if (!haveAot && !haveHwAot && !haveO0Aot)
+            {
+                // The load below rewrites the buffer in place; wamrc needs
+                // the module as it is now.
+                ModuleTierLadder::instance().stagePristine(
+                    m_moduleKey,
+                    Span<const uint8_t>(m_moduleBytes.data(),
+                                        m_moduleBytes.size()));
+            }
+            m_state->module = wasm_runtime_load(m_moduleBytes.data(),
+                                                (uint32_t)m_moduleBytes.size(),
+                                                error,
+                                                sizeof(error));
+        }
+        if (m_state->module != nullptr && !adoptedFromCache)
         {
             if (haveHwAot)
             {
