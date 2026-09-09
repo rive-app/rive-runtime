@@ -193,24 +193,31 @@ public:
         return !(width() > 0 && height() > 0);
     }
 
-    AABB pad(float amount) const { return outset(amount, amount); }
+    [[nodiscard]] AABB pad(float amount) const
+    {
+        return outset(amount, amount);
+    }
 
-    AABB inset(float dx, float dy) const
+    [[nodiscard]] AABB inset(float dx, float dy) const
     {
         AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};
         assert(r.width() >= 0);
         assert(r.height() >= 0);
         return r;
     }
-    AABB outset(float dx, float dy) const { return inset(-dx, -dy); }
-    AABB offset(float dx, float dy) const
+    [[nodiscard]] AABB outset(float dx, float dy) const
+    {
+        return inset(-dx, -dy);
+    }
+    [[nodiscard]] AABB offset(float dx, float dy) const
     {
         return {minX + dx, minY + dy, maxX + dx, maxY + dy};
     }
 
-    IAABB round() const;
-    IAABB roundOut()
-        const; // Rounds out to integer bounds that fully contain the rectangle.
+    [[nodiscard]] IAABB round() const;
+
+    // Rounds out to integer bounds that fully contain the rectangle.
+    [[nodiscard]] IAABB roundOut() const;
 
     ///
     /// Initialize an AABB to values that represent an invalid/collapsed
