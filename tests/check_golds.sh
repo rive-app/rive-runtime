@@ -6,7 +6,10 @@ GOLD="${RIVE_GOLD_DIR:-.gold}"
 
 TESTS="gms goldens"
 
-TARGET="host"
+# Which deployer runs. Packages that wrap this script override it.
+DEPLOY_TESTS="${RIVE_DEPLOY_TESTS:-deploy_tests.py}"
+
+TARGET="${RIVE_TARGET:-host}"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     DEFAULT_BACKEND=metal
 elif [[ "$OSTYPE" == "msys" ]]; then
@@ -178,13 +181,13 @@ do
         echo
         echo "Rebaselining $ID..."
         rm -fr $GOLD/$ID
-        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=$GOLD/$ID --backend=$BACKEND $NO_REBUILD \
+        python3 $DEPLOY_TESTS $TESTS $ARGS --target=$TARGET --outdir=$GOLD/$ID --backend=$BACKEND $NO_REBUILD \
             || DEPLOYED=false
     else
         echo
         echo "Deploying $ID..."
         rm -fr $GOLD/candidates/$ID
-        python3 deploy_tests.py $TESTS $ARGS --target=$TARGET --outdir=$GOLD/candidates/$ID --backend=$BACKEND $NO_REBUILD \
+        python3 $DEPLOY_TESTS $TESTS $ARGS --target=$TARGET --outdir=$GOLD/candidates/$ID --backend=$BACKEND $NO_REBUILD \
             || DEPLOYED=false
 
         if [ "$DEPLOYED" == true ]; then

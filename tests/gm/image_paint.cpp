@@ -4,6 +4,7 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
+#include "rive/math/math_types.hpp"
 
 #include "assets/batdude.png.hpp"
 #include "assets/nomoon.png.hpp"
@@ -67,7 +68,7 @@ public:
                 },
                 rive::Mat2D::fromScale(128.0f, 128.0f) *
                     rive::Mat2D::fromTranslate(0.5f, 0.5f) *
-                    rive::Mat2D::fromRotation(45.0f * float(M_PI) / 180.0f));
+                    rive::Mat2D::fromRotation(45.0f * rive::math::PI / 180.0f));
 
             p->shader(factory->makeLinearGradient(0.0f,
                                                   -100.0f,

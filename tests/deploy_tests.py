@@ -807,23 +807,60 @@ def unreal_android_installer(stage_dir):
         (name, stage_dir, config,
          ", ".join(os.path.basename(s) for s in staged) or "nothing"))
 
+# The host platform whose build-rive.py target produces the plugin's headers.
+UNREAL_HOST_PLATFORMS = {"Windows": "Windows", "Darwin": "Mac", "Linux": "Linux"}
+
+def unreal_script(*parts):
+    rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(rive_tools_dir, "..", "..", "runtime_unreal", *parts)
+
+def build_rive_host():
+    """Build the host rive libraries and stage the headers and generated shaders.
+
+    Cooking for any target builds the editor, which links these, and only a
+    host build produces the headers every platform then compiles against.
+    """
+    subprocess.check_call([sys.executable,
+                           unreal_script("Plugins", "Rive", "Scripts",
+                                         "build-rive", "build-rive.py"),
+                           "-r", "-t",
+                           UNREAL_HOST_PLATFORMS[platform.system()]])
+
+def build_rive_unreal():
+    """Build the rive libraries the plugin links, and stage what it compiles against.
+
+    A console overrides this: its libraries come from a premake root of its
+    own, and it needs build_rive_host() as well.
+    """
+    subprocess.check_call([sys.executable,
+                           unreal_script("Plugins", "Rive", "Scripts",
+                                         "build-rive", "build-rive.py"),
+                           "-r", "-t", UNREAL_TARGET_PLATFORMS[args.target]])
+
+def unreal_package_platform_args():
+    """How packaging names this target. A console overrides it: the platform
+    table package_project.py keeps is public and has no entry for one."""
+    return ["--platform", UNREAL_TARGET_PLATFORMS[args.target]]
+
+def install_unreal_package():
+    """Put the packaged build on the device. Nothing to do where the launch
+    command reaches it from the host."""
+    pass
+
 def package_unreal_project():
     # No engine path -> assume the project is already packaged (legacy behavior).
     if not args.unreal_engine:
         return
-    rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
-    package_script = os.path.join(rive_tools_dir, "..", "..", "runtime_unreal",
-                                  "Scripts", "package_project.py")
-    cmd = [sys.executable, package_script,
-           "--engine", args.unreal_engine,
-           "--output", os.path.abspath(args.builddir),
-           "--platform", UNREAL_TARGET_PLATFORMS[args.target],
-           "--config", unreal_client_config()]
-    if args.no_rebuild:
-        # Cook & stage the project, but reuse the native libs already staged in
-        # the plugin's ThirdParty dirs.
-        cmd.append("--no-rive-build")
-    subprocess.check_call(cmd)
+    if not args.no_rebuild:
+        build_rive_unreal()
+    # The native build is ours either way, so packaging never repeats it.
+    subprocess.check_call([sys.executable,
+                           unreal_script("Scripts", "package_project.py"),
+                           "--engine", args.unreal_engine,
+                           "--output", os.path.abspath(args.builddir),
+                           "--config", unreal_client_config(),
+                           "--no-rive-build"] + unreal_package_platform_args())
+    install_unreal_package()
 
 def main():
     # Parse skipped tests. These only apply to a whole-corpus sweep: gms or
@@ -923,7 +960,7 @@ def main():
         build_targets = args.tools
 
     # Build the native code. "--no-rebuild" owns every native build: this one,
-    # and build-rive.py inside package_unreal_project().
+    # and build_rive_unreal() inside package_unreal_project().
     #
     # Unreal never runs these host tools -- only their names survive into the
     # launch command -- so it skips them and builds the rive libraries its

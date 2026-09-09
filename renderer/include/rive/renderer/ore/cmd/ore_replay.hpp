@@ -28,7 +28,8 @@ using ResourceRemap =
 using HandleResolver = std::function<rive::gpu::GPUResource*(ResourceHandle)>;
 
 // Returns false for a lifecycle opcode. dropDraws poisons the open pass when
-// a handle fails to resolve so its draws drop instead of using garbage.
+// a handle fails to resolve: its pipeline never bound, so the state that
+// would reference it is skipped along with the draws.
 inline bool replayPassCommand(Context& ctx,
                               std::unique_ptr<RenderPass>& pass,
                               bool& dropDraws,
@@ -100,7 +101,7 @@ inline bool replayPassCommand(Context& ctx,
             {
                 churned("pipeline", c.pipeline);
             }
-            else if (pass)
+            else if (pass && !dropDraws)
             {
                 pass->setPipeline(pipeline);
             }
@@ -115,7 +116,7 @@ inline bool replayPassCommand(Context& ctx,
             {
                 churned("vertex buffer", c.buffer);
             }
-            else if (pass)
+            else if (pass && !dropDraws)
             {
                 pass->setVertexBuffer(c.slot, buffer, c.offset);
             }
@@ -130,7 +131,7 @@ inline bool replayPassCommand(Context& ctx,
             {
                 churned("index buffer", c.buffer);
             }
-            else if (pass)
+            else if (pass && !dropDraws)
             {
                 pass->setIndexBuffer(buffer, c.format, c.offset);
             }
@@ -153,7 +154,7 @@ inline bool replayPassCommand(Context& ctx,
             {
                 churned("bind group", c.bindGroup);
             }
-            else if (pass)
+            else if (pass && !dropDraws)
             {
                 pass->setBindGroup(c.groupIndex,
                                    bindGroup,
@@ -165,7 +166,7 @@ inline bool replayPassCommand(Context& ctx,
         case CommandType::setViewport:
         {
             auto c = reader.read<SetViewportCmd>();
-            if (pass)
+            if (pass && !dropDraws)
             {
                 pass->setViewport(c.x,
                                   c.y,
@@ -179,7 +180,7 @@ inline bool replayPassCommand(Context& ctx,
         case CommandType::setScissorRect:
         {
             auto c = reader.read<SetScissorRectCmd>();
-            if (pass)
+            if (pass && !dropDraws)
             {
                 pass->setScissorRect(c.x, c.y, c.width, c.height);
             }
@@ -188,7 +189,7 @@ inline bool replayPassCommand(Context& ctx,
         case CommandType::setStencilReference:
         {
             auto c = reader.read<SetStencilReferenceCmd>();
-            if (pass)
+            if (pass && !dropDraws)
             {
                 pass->setStencilReference(c.ref);
             }
@@ -197,7 +198,7 @@ inline bool replayPassCommand(Context& ctx,
         case CommandType::setBlendColor:
         {
             auto c = reader.read<SetBlendColorCmd>();
-            if (pass)
+            if (pass && !dropDraws)
             {
                 pass->setBlendColor(c.r, c.g, c.b, c.a);
             }

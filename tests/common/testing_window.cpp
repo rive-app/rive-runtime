@@ -290,8 +290,19 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     {
         return Backend::skia;
     }
-    if (nameStr == "external")
+    if (nameStr == "external" || nameStr == "ext" || nameStr == "x")
     {
+        return Backend::external;
+    }
+    if (nameStr == "externalatomic" || nameStr == "extatomic" ||
+        nameStr == "xatomic")
+    {
+        params->atomic = true;
+        return Backend::external;
+    }
+    if (nameStr == "externalmsaa" || nameStr == "extmsaa" || nameStr == "xmsaa")
+    {
+        params->msaa = true;
         return Backend::external;
     }
     if (nameStr == "canvas2d" || nameStr == "c2d")
