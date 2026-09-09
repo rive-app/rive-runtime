@@ -340,6 +340,8 @@ bool ScriptingVM::loadModule(lua_State* L,
         return false;
     }
 
+    static_cast<ScriptingContext*>(lua_getthreaddata(L))
+        ->onModuleLoaded(ML, name);
     // Thread with loaded closure is on top of L's stack.
     return true;
 }
@@ -385,6 +387,11 @@ bool ScriptingVM::executeModule(lua_State* L,
         lua_pushfstring(ML,
                         "%s:1: unknown error while running module",
                         display);
+    }
+    // A yield is an error for a module too, and its frames are still there.
+    if (status != 0)
+    {
+        static_cast<ScriptingContext*>(lua_getthreaddata(L))->onModuleError(ML);
     }
 
     // add ML result to L stack

@@ -1580,6 +1580,14 @@ public:
     // editor builds it in Dart), so File should not call initializeLuaData.
     virtual bool initializesDataGlobalExternally() const { return false; }
 
+    // A chunk's closure sits on top of moduleThread's stack, not yet run; a
+    // debugger takes its reference and plants breakpoints here.
+    virtual void onModuleLoaded(lua_State* moduleThread, const char* chunkname)
+    {}
+    // A chunk's top level failed; its frames are still on moduleThread with
+    // the error on top.
+    virtual void onModuleError(lua_State* moduleThread) {}
+
     // Add a module to be registered later via performRegistration()
     void addModule(ModuleDetails* moduleDetails);
     // Perform registration of all added modules, handling dependencies and
