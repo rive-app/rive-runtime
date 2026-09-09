@@ -199,6 +199,11 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
             break;
     }
 
+    if (drawTypeHasPipelineDynamicState(drawType))
+    {
+        outFlags |= ShaderMiscFlags::emulateDynamicColorWriteDisable;
+    }
+
     return outFlags;
 }
 
