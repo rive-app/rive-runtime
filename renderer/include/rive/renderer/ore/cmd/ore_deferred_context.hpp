@@ -166,6 +166,12 @@ public:
 
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override
     {
+        // Replay cannot reach the script, so the range check runs here.
+        if (std::string err; !validateBindGroupDesc(desc, &err))
+        {
+            setLastError("makeBindGroup: %s", err.c_str());
+            return nullptr;
+        }
         std::vector<ResourceHandle> ubos(desc.uboCount),
             texs(desc.textureCount), samps(desc.samplerCount);
         for (uint32_t i = 0; i < desc.uboCount; ++i)

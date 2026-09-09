@@ -949,6 +949,11 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     auto layout = lite_rtti_cast<BindGroupLayoutWGPU*>(desc.layout);
     assert(layout != nullptr);
     if (layout->groupIndex() >= kMaxBindGroups)
@@ -1019,7 +1024,7 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
             {buffer,
              ubo.slot,
              ubo.offset,
-             (ubo.size > 0) ? ubo.size : buffer->size()});
+             (ubo.size > 0) ? ubo.size : buffer->size() - ubo.offset});
         bg->m_retainedBuffers.push_back(ref_rcp(buffer));
     }
 

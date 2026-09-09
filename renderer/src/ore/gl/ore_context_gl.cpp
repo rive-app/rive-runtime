@@ -939,6 +939,11 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     BindGroupLayout* layout = desc.layout;
     const uint32_t groupIndex = layout->groupIndex();
     if (groupIndex >= kMaxBindGroups)
@@ -1008,9 +1013,10 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         assert(buf);
         binding.buffer = buf->m_glBuffer;
         binding.offset = entry.offset;
-        binding.size = entry.size != 0
-                           ? entry.size
-                           : static_cast<uint32_t>(entry.buffer->size());
+        binding.size =
+            entry.size != 0
+                ? entry.size
+                : static_cast<uint32_t>(entry.buffer->size() - entry.offset);
         binding.binding = entry.slot;
         if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &binding.slot))
             continue;

@@ -4,7 +4,9 @@
 
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
+#include "rive/renderer/ore/ore_buffer.hpp"
 #include <catch.hpp>
+#include <cstring>
 
 namespace rive::ore
 {
@@ -223,7 +225,10 @@ TEST_CASE("BindingMap per-stage slots can disagree", "[ore_binding_map]")
 TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
 {
     BindingMap original;
-    original.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+    BindingMap::Entry sized =
+        makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
+    sized.minBindingSize = 192;
+    original.push(sized);
     original.push(makeEntry(0,
                             7,
                             ResourceKind::UniformBuffer,
@@ -244,13 +249,13 @@ TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
     original.finalize();
 
     std::vector<uint8_t> blob = original.toBlob();
-    // Header: 12 bytes. Each entry: 14 bytes. No layout ids computed here,
-    // so no group rows. Total: 12 + 3*14 = 54.
-    REQUIRE(blob.size() == 54);
+    // Header: 12 bytes. Each entry: 18 bytes. No layout ids computed here,
+    // so no group rows. Total: 12 + 3*18 = 66.
+    REQUIRE(blob.size() == 66);
     CHECK(blob[0] == BindingMap::kBlobVersion);
     CHECK(blob[1] == BindingMap::kAllocatorVersion);
-    // entry_size = 14 (little-endian).
-    CHECK(blob[2] == 14);
+    // entry_size = 18 (little-endian).
+    CHECK(blob[2] == 18);
     CHECK(blob[3] == 0);
     // entry_count = 3.
     CHECK(blob[4] == 3);
@@ -280,6 +285,7 @@ TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
         CHECK(a.backendSlot[0] == b.backendSlot[0]);
         CHECK(a.backendSlot[1] == b.backendSlot[1]);
         CHECK(a.backendSlot[2] == b.backendSlot[2]);
+        CHECK(a.minBindingSize == b.minBindingSize);
     }
 }
 
@@ -373,7 +379,7 @@ TEST_CASE("BindingMap forward-compat: smaller entry_size rejected",
     std::vector<uint8_t> blob(12);
     blob[0] = BindingMap::kBlobVersion;
     blob[1] = BindingMap::kAllocatorVersion;
-    blob[2] = 10; // entry_size = 10, below kEntryWireSize (14)
+    blob[2] = 10; // entry_size = 10, below the oldest accepted layout (14)
     blob[3] = 0;
     blob[4] = 0; // entry_count = 0 (so no actual payload needed)
     blob[5] = 0;
@@ -425,6 +431,193 @@ TEST_CASE("BindingMap layout ids round-trip and are structural",
     REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
     CHECK(restored.layoutIdForGroup(0) == a.layoutIdForGroup(0));
     CHECK(restored.layoutIdForGroup(1) == a.layoutIdForGroup(1));
+}
+
+TEST_CASE("BindingMap legacy 14 byte entries parse with no minimum",
+          "[ore_binding_map]")
+{
+    BindingMap::Entry sized =
+        makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1);
+    sized.minBindingSize = 208;
+    BindingMap source;
+    source.push(sized);
+    source.finalize();
+    std::vector<uint8_t> blob = source.toBlob();
+
+    // Rewrite the blob the way a pre-minBindingSize baker laid it out.
+    constexpr size_t kHeader = 12;
+    constexpr uint16_t kLegacyEntrySize = 14;
+    std::vector<uint8_t> legacy(kHeader + kLegacyEntrySize);
+    std::memcpy(legacy.data(), blob.data(), kHeader + kLegacyEntrySize);
+    legacy[2] = kLegacyEntrySize;
+    legacy[3] = 0;
+
+    BindingMap out;
+    REQUIRE(BindingMap::fromBlob(legacy.data(), legacy.size(), &out));
+    REQUIRE(out.size() == 1);
+    CHECK(out.at(0).binding == 1);
+    CHECK(out.at(0).minBindingSize == 0);
+}
+
+TEST_CASE("BindingMap layout ids cover the uniform block size",
+          "[ore_binding_map]")
+{
+    auto build = [](uint32_t minBindingSize) {
+        BindingMap m;
+        BindingMap::Entry e =
+            makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
+        e.minBindingSize = minBindingSize;
+        m.push(e);
+        m.finalize();
+        m.computeLayoutIds();
+        return m;
+    };
+    CHECK(build(160).layoutIdForGroup(0) == build(160).layoutIdForGroup(0));
+    CHECK(build(160).layoutIdForGroup(0) != build(192).layoutIdForGroup(0));
+}
+
+TEST_CASE("replaceStage keeps the larger uniform block size",
+          "[ore_binding_map]")
+{
+    BindingMap::Entry vs = makeEntry(0,
+                                     0,
+                                     ResourceKind::UniformBuffer,
+                                     0,
+                                     BindingMap::kAbsent,
+                                     BindingMap::kAbsent,
+                                     BindingMap::kStageVertex);
+    vs.minBindingSize = 160;
+    BindingMap vertex;
+    vertex.push(vs);
+    vertex.finalize();
+
+    BindingMap::Entry fs = makeEntry(0,
+                                     0,
+                                     ResourceKind::UniformBuffer,
+                                     BindingMap::kAbsent,
+                                     0,
+                                     BindingMap::kAbsent,
+                                     BindingMap::kStageFragment);
+    fs.minBindingSize = 192;
+    BindingMap fragment;
+    fragment.push(fs);
+    fragment.finalize();
+
+    vertex.replaceStage(fragment, BindingMap::Stage::FS);
+    REQUIRE(vertex.size() == 1);
+    CHECK(vertex.at(0).minBindingSize == 192);
+}
+
+TEST_CASE("validateStagesAgree rejects differing uniform block sizes",
+          "[ore_binding_map]")
+{
+    auto build = [](uint32_t minBindingSize, uint8_t stage) {
+        BindingMap m;
+        BindingMap::Entry e = makeEntry(0,
+                                        0,
+                                        ResourceKind::UniformBuffer,
+                                        0,
+                                        0,
+                                        BindingMap::kAbsent,
+                                        stage);
+        e.minBindingSize = minBindingSize;
+        m.push(e);
+        m.finalize();
+        return m;
+    };
+    std::string err;
+    CHECK(validateStagesAgree(build(192, BindingMap::kStageVertex),
+                              build(192, BindingMap::kStageFragment),
+                              &err));
+    // A stage that never reflected a size does not disagree.
+    CHECK(validateStagesAgree(build(0, BindingMap::kStageVertex),
+                              build(192, BindingMap::kStageFragment),
+                              &err));
+    CHECK_FALSE(validateStagesAgree(build(160, BindingMap::kStageVertex),
+                                    build(192, BindingMap::kStageFragment),
+                                    &err));
+    CHECK(err.find("uniform block size") != std::string::npos);
+}
+
+namespace
+{
+struct TestLayout : public BindGroupLayout
+{
+    TestLayout(uint32_t group, std::vector<BindGroupLayoutEntry> entries)
+    {
+        m_groupIndex = group;
+        m_entries = std::move(entries);
+    }
+};
+
+struct TestBuffer : public Buffer
+{
+    explicit TestBuffer(uint32_t size) : Buffer(size, BufferUsage::uniform) {}
+    void update(const void*, uint32_t, uint32_t) override {}
+};
+
+BindGroupLayoutEntry uboEntry(uint32_t binding, uint32_t minBindingSize)
+{
+    BindGroupLayoutEntry e;
+    e.binding = binding;
+    e.kind = BindingKind::uniformBuffer;
+    e.minBindingSize = minBindingSize;
+    return e;
+}
+} // namespace
+
+TEST_CASE("validateBindGroupDesc rejects a UBO shorter than the block",
+          "[ore_binding_map]")
+{
+    TestLayout layout(0, {uboEntry(0, 208), uboEntry(1, 192)});
+    TestBuffer camera(208);
+    TestBuffer model(160);
+    TestBuffer models(1024);
+
+    BindGroupDesc::UBOEntry ubos[2] = {};
+    ubos[0].slot = 0;
+    ubos[0].buffer = &camera;
+    ubos[1].slot = 1;
+    ubos[1].buffer = &model;
+    BindGroupDesc desc;
+    desc.layout = &layout;
+    desc.ubos = ubos;
+    desc.uboCount = 2;
+
+    std::string err;
+    // The whole 160 byte buffer is bound against a 192 byte block.
+    CHECK_FALSE(validateBindGroupDesc(desc, &err));
+    CHECK(err.find("@binding(1)") != std::string::npos);
+    CHECK(err.find("160") != std::string::npos);
+    CHECK(err.find("192") != std::string::npos);
+
+    // A big enough buffer passes, whole or as an explicit range.
+    ubos[1].buffer = &models;
+    CHECK(validateBindGroupDesc(desc, &err));
+    ubos[1].offset = 256;
+    ubos[1].size = 192;
+    CHECK(validateBindGroupDesc(desc, &err));
+
+    // An explicit range shorter than the block fails even in a big buffer.
+    ubos[1].size = 160;
+    CHECK_FALSE(validateBindGroupDesc(desc, &err));
+    CHECK(err.find("160") != std::string::npos);
+
+    // A range past the end of the buffer fails before the size check.
+    ubos[1].offset = 1000;
+    ubos[1].size = 192;
+    CHECK_FALSE(validateBindGroupDesc(desc, &err));
+    CHECK(err.find("exceeds") != std::string::npos);
+
+    // No reflected minimum means no check, so old bakes keep working.
+    TestLayout unsized(0, {uboEntry(1, 0)});
+    desc.layout = &unsized;
+    ubos[1].offset = 0;
+    ubos[1].size = 0;
+    ubos[1].buffer = &model;
+    desc.ubos = &ubos[1];
+    desc.uboCount = 1;
+    CHECK(validateBindGroupDesc(desc, &err));
 }
 
 TEST_CASE("ResourceKind numeric values are frozen", "[ore_binding_map]")

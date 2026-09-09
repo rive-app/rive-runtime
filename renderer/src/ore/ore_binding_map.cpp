@@ -36,7 +36,7 @@ namespace
 // The group table makes layout identity a build-time fact, not a runtime
 // hash. Ids are backend scoped, since they cover native slots.
 //
-// Each entry (entry_size = 14 bytes, no trailing alignment):
+// Each entry (entry_size = 18 bytes, no trailing alignment):
 //
 //          0  [u8]  group
 //          1  [u8]  binding
@@ -49,17 +49,22 @@ namespace
 //         11  [u8]  textureViewDim (TextureViewDim)
 //         12  [u8]  textureSampleType (TextureSampleType)
 //         13  [u8]  textureMultisampled (0 or 1)
+//         14  [u32] minBindingSize (LE, UBO only, 0 = no minimum)
 //
 // Forward compat: a newer writer may emit entries larger than the current
 // reader knows about by bumping entry_size. The reader skips the trailing
 // unknown bytes per entry. New fields are always *appended* at the tail.
+// Backward compat: a blob baked before minBindingSize (entry_size = 14)
+// still parses, with no minimum on its UBOs.
 // No reserved-for-future slots inside the known prefix, since entry_size
 // already gives us self-describing append-only growth. Any mismatch that
 // matters semantically (blob_version or allocator_version) is a loud
 // error.
 
 constexpr size_t kBlobHeaderSize = 12;
-constexpr uint16_t kEntryWireSize = 14;
+constexpr uint16_t kEntryWireSize = 18;
+// Oldest entry layout the reader still accepts.
+constexpr uint16_t kLegacyEntryWireSize = 14;
 constexpr uint16_t kGroupWireSize = 9;
 
 inline uint16_t readU16LE(const uint8_t* p)
@@ -135,7 +140,7 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
 
     // Reject writers that emit fewer fields than the reader needs.
     // Larger entry_size is fine — trailing unknown bytes are skipped.
-    if (entrySize < kEntryWireSize)
+    if (entrySize < kLegacyEntryWireSize)
         return false;
     if (groupCount != 0 && groupSize < kGroupWireSize)
         return false;
@@ -162,6 +167,8 @@ bool BindingMap::fromBlob(const uint8_t* data, size_t size, BindingMap* out)
         e.textureViewDim = static_cast<TextureViewDim>(p[11]);
         e.textureSampleType = static_cast<TextureSampleType>(p[12]);
         e.textureMultisampled = (p[13] != 0);
+        if (entrySize >= kEntryWireSize)
+            e.minBindingSize = readU32LE(&p[14]);
         // bytes [kEntryWireSize..entrySize] are future-version fields — skip.
         out->m_entries.push_back(e);
         p += entrySize;
@@ -226,6 +233,9 @@ void BindingMap::replaceStage(const BindingMap& other, Stage stage)
             if (it->textureSampleType == TextureSampleType::Undefined)
                 it->textureSampleType = src.textureSampleType;
             it->textureMultisampled |= src.textureMultisampled;
+            // Both stages name one block, so the larger claim wins.
+            it->minBindingSize =
+                std::max(it->minBindingSize, src.minBindingSize);
             continue;
         }
         Entry e = src;
@@ -273,6 +283,7 @@ std::vector<uint8_t> BindingMap::toBlob() const
         p[11] = static_cast<uint8_t>(e.textureViewDim);
         p[12] = static_cast<uint8_t>(e.textureSampleType);
         p[13] = e.textureMultisampled ? 1u : 0u;
+        writeU32LE(&p[14], e.minBindingSize);
         p += kEntryWireSize;
     }
 
@@ -289,7 +300,7 @@ void BindingMap::computeLayoutIds()
 {
     // A serialized field left out of the hash makes two different layouts
     // collide on one id, and misbind at draw time.
-    static_assert(kEntryWireSize == 14,
+    static_assert(kEntryWireSize == 18,
                   "Entry grew, hash the new field below before bumping");
 
     assert(m_finalized && "BindingMap::computeLayoutIds before finalize");
@@ -302,6 +313,10 @@ void BindingMap::computeLayoutIds()
     auto mix16 = [&mix](uint64_t h, uint16_t v) {
         h = mix(h, static_cast<uint8_t>(v & 0xFF));
         return mix(h, static_cast<uint8_t>((v >> 8) & 0xFF));
+    };
+    auto mix32 = [&mix16](uint64_t h, uint32_t v) {
+        h = mix16(h, static_cast<uint16_t>(v & 0xFFFF));
+        return mix16(h, static_cast<uint16_t>((v >> 16) & 0xFFFF));
     };
 
     for (size_t i = 0; i < m_entries.size();)
@@ -321,6 +336,7 @@ void BindingMap::computeLayoutIds()
             h = mix(h, static_cast<uint8_t>(e.textureViewDim));
             h = mix(h, static_cast<uint8_t>(e.textureSampleType));
             h = mix(h, e.textureMultisampled ? 1u : 0u);
+            h = mix32(h, e.minBindingSize);
         }
         // 0 is the "no baked id" sentinel, so never hand it out.
         m_groupLayouts.push_back({group, h == kNoLayoutId ? 1ull : h});

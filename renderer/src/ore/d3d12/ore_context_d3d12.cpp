@@ -1453,6 +1453,11 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     BindGroupLayout* layout = desc.layout;
     const uint32_t groupIndex = layout->groupIndex();
     if (groupIndex >= kMaxBindGroups)
@@ -1534,7 +1539,9 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
         bg->m_d3dUBOBuffers[slot] = buffer;
         bg->m_d3dUBOOffsets[slot] = entry.offset;
         bg->m_d3dUBOSizes[slot] =
-            entry.size > 0 ? entry.size : static_cast<uint32_t>(buffer->size());
+            entry.size > 0
+                ? entry.size
+                : static_cast<uint32_t>(buffer->size() - entry.offset);
         bg->m_d3dUBOSlotMask |= static_cast<uint8_t>(1u << slot);
         if (layout->hasDynamicOffset(entry.slot))
             bg->m_d3dUBODynamicOffsetMask |= static_cast<uint8_t>(1u << slot);

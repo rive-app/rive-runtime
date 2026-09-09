@@ -633,6 +633,11 @@ public:
             setLastError("bind group requires a layout");
             return nullptr;
         }
+        if (std::string err; !ore::validateBindGroupDesc(desc, &err))
+        {
+            setLastError("makeBindGroup: %s", err.c_str());
+            return nullptr;
+        }
         std::vector<rive_gpu_bind_group_ubo_v1> ubos(desc.uboCount);
         for (uint32_t i = 0; i < desc.uboCount; i++)
         {

@@ -175,6 +175,9 @@ public:
         TextureViewDim textureViewDim = TextureViewDim::Undefined;
         TextureSampleType textureSampleType = TextureSampleType::Undefined;
         bool textureMultisampled = false;
+        // UBO only: WGSL size of the block, the smallest range a bind
+        // group may bind here. 0 = no minimum.
+        uint32_t minBindingSize = 0;
     };
 
     // Equal ids share one `BindGroupLayout`. Backend scoped, since the id

@@ -94,3 +94,43 @@ TEST_CASE("an empty deferred layout keeps no entries", "[ore][cmd]")
     REQUIRE(group != nullptr);
     CHECK(group->dynamicOffsetCount() == 0u);
 }
+
+TEST_CASE("a deferred bind group rejects a UBO shorter than its block",
+          "[ore][cmd]")
+{
+    DeferredOreContext ctx(nullptr);
+
+    BindGroupLayoutEntry entry{};
+    entry.binding = 1;
+    entry.kind = BindingKind::uniformBuffer;
+    entry.minBindingSize = 192;
+    BindGroupLayoutDesc ld{};
+    ld.entries = &entry;
+    ld.entryCount = 1;
+    auto layout = ctx.makeBindGroupLayout(ld);
+    REQUIRE(layout != nullptr);
+
+    BufferDesc bufferDesc{};
+    bufferDesc.usage = BufferUsage::uniform;
+    bufferDesc.size = 160;
+    auto model = ctx.makeBuffer(bufferDesc);
+    REQUIRE(model != nullptr);
+
+    BindGroupDesc::UBOEntry ubo{};
+    ubo.slot = 1;
+    ubo.buffer = model.get();
+    BindGroupDesc bd{};
+    bd.layout = layout.get();
+    bd.ubos = &ubo;
+    bd.uboCount = 1;
+
+    // Replay never talks to the script, so the refusal happens on record.
+    ctx.clearLastError();
+    CHECK(ctx.makeBindGroup(bd) == nullptr);
+    CHECK(ctx.lastError().find("needs 192") != std::string::npos);
+
+    bufferDesc.size = 192;
+    auto sized = ctx.makeBuffer(bufferDesc);
+    ubo.buffer = sized.get();
+    CHECK(ctx.makeBindGroup(bd) != nullptr);
+}

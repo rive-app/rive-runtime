@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 
+#include <cstdio>
 #include <sstream>
 #include <vector>
 
@@ -178,6 +179,7 @@ uint32_t populateBindGroupLayoutEntries(BindGroupLayoutEntry* entries,
         out.textureViewDim = viewDimFromBindingMap(e.textureViewDim);
         out.textureSampleType = sampleTypeFromBindingMap(e.textureSampleType);
         out.textureMultisampled = e.textureMultisampled;
+        out.minBindingSize = e.minBindingSize;
         // Pre-resolve native slots from the shader's binding map.
         const uint16_t vs =
             e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
@@ -636,6 +638,11 @@ bool validateStagesAgree(const BindingMap& vertexMap,
             {
                 return fail(fs, "texture sample type");
             }
+            if (vs.minBindingSize != 0 && fs.minBindingSize != 0 &&
+                vs.minBindingSize != fs.minBindingSize)
+            {
+                return fail(fs, "uniform block size");
+            }
             break;
         }
     }
@@ -671,6 +678,65 @@ bool validatePipelineDesc(const PipelineDesc& desc,
                                    mergedMap,
                                    scope,
                                    outError);
+}
+
+} // namespace rive::ore
+
+namespace rive::ore
+{
+
+// snprintf, not a stream: the wasm module lane links this too, and libc++
+// stream formatting drags locale imports the host does not provide.
+bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
+{
+    // A null layout is the backend's own error to name.
+    if (desc.layout == nullptr)
+        return true;
+    for (uint32_t i = 0; i < desc.uboCount; ++i)
+    {
+        const BindGroupDesc::UBOEntry& ubo = desc.ubos[i];
+        const BindGroupLayoutEntry* entry = desc.layout->findEntry(ubo.slot);
+        if (entry == nullptr || entry->kind != BindingKind::uniformBuffer ||
+            ubo.buffer == nullptr)
+        {
+            continue;
+        }
+        const uint64_t bufferSize = ubo.buffer->size();
+        char message[192];
+        if (ubo.offset > bufferSize ||
+            uint64_t(ubo.offset) + ubo.size > bufferSize)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): offset %u + size %u exceeds "
+                     "the %llu byte buffer",
+                     desc.layout->groupIndex(),
+                     ubo.slot,
+                     ubo.offset,
+                     ubo.size,
+                     static_cast<unsigned long long>(bufferSize));
+            if (outError != nullptr)
+                *outError = message;
+            return false;
+        }
+        const uint64_t bound =
+            ubo.size != 0 ? ubo.size : bufferSize - ubo.offset;
+        if (bound < entry->minBindingSize)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): binds %llu bytes but the "
+                     "shader's uniform block needs %u",
+                     desc.layout->groupIndex(),
+                     ubo.slot,
+                     static_cast<unsigned long long>(bound),
+                     entry->minBindingSize);
+            if (outError != nullptr)
+                *outError = message;
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace rive::ore

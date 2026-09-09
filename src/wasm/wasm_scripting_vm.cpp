@@ -469,6 +469,16 @@ uint32_t strftimeNative(wasm_exec_env_t env,
 {
     return 0;
 }
+// Older libc++ routes stream formatting through the locale variant.
+uint32_t strftimeLNative(wasm_exec_env_t env,
+                         uint32_t a,
+                         uint32_t b,
+                         uint32_t c,
+                         uint32_t d,
+                         uint32_t e)
+{
+    return 0;
+}
 void tzsetJs(wasm_exec_env_t env,
              uint32_t a,
              uint32_t b,
@@ -638,6 +648,7 @@ NativeSymbol kEnvNatives[] = {
     {"emscripten_date_now", (void*)dateNow, "()F", nullptr},
     {"emscripten_resize_heap", (void*)resizeHeap, "(i)i", nullptr},
     {"strftime", (void*)strftimeNative, "(iiii)i", nullptr},
+    {"strftime_l", (void*)strftimeLNative, "(iiiii)i", nullptr},
     {"_tzset_js", (void*)tzsetJs, "(iiii)", nullptr},
     {"_localtime_js", (void*)localtimeJs, "(iii)", nullptr},
     {"_gmtime_js", (void*)gmtimeJs, "(iii)", nullptr},
@@ -1284,6 +1295,19 @@ ore::Context* gpuOreContext(WasmScriptingVM* vm)
     return renderContext != nullptr ? renderContext->ore() : nullptr;
 }
 
+// The Lua bindings raise lastError as a script error; the module lane traps
+// with the same text so the author reads the cause instead of a 0 handle.
+uint32_t gpuRejected(WasmScriptingVM* vm,
+                     ore::Context* context,
+                     const char* what)
+{
+    std::string message = std::string(what) + ": " +
+                          (context->lastError().empty() ? "creation failed"
+                                                        : context->lastError());
+    vm->raiseModuleError(message.c_str());
+    return 0;
+}
+
 uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
 {
     if (vm == nullptr || vm->factory() == nullptr || width == 0 || height == 0)
@@ -1776,10 +1800,11 @@ uint32_t gpuBufferNewImpl(WasmScriptingVM* vm,
     desc.size = sizeInBytes;
     desc.immutable = immutable != 0;
     desc.data = dataCount != 0 ? data : nullptr;
+    oreContext->clearLastError();
     auto buffer = oreContext->makeBuffer(desc);
     if (buffer == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUBuffer");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuBuffer,
                               new HostGpuBuffer{std::move(buffer)});
@@ -1836,10 +1861,11 @@ uint32_t gpuTextureNewImpl(WasmScriptingVM* vm,
     desc.renderTarget = podDesc->renderTarget != 0;
     desc.numMipmaps = podDesc->numMipmaps;
     desc.sampleCount = podDesc->sampleCount;
+    oreContext->clearLastError();
     auto texture = oreContext->makeTexture(desc);
     if (texture == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUTexture");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuTexture,
                               new HostGpuTexture{std::move(texture)});
@@ -1922,10 +1948,11 @@ uint32_t gpuSamplerNewImpl(WasmScriptingVM* vm,
     desc.minLod = podDesc->minLod;
     desc.maxLod = podDesc->maxLod;
     desc.maxAnisotropy = podDesc->maxAnisotropy;
+    oreContext->clearLastError();
     auto sampler = oreContext->makeSampler(desc);
     if (sampler == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUSampler");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuSampler,
                               new HostGpuSampler{std::move(sampler)});
@@ -1969,10 +1996,11 @@ uint32_t gpuTextureViewNewImpl(WasmScriptingVM* vm,
     desc.mipCount = podDesc->mipCount;
     desc.baseLayer = podDesc->baseLayer;
     desc.layerCount = podDesc->layerCount;
+    oreContext->clearLastError();
     auto view = oreContext->makeTextureView(desc);
     if (view == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUTextureView");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuTextureView,
                               new HostGpuTextureView{std::move(view)});
@@ -2151,10 +2179,11 @@ uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm,
     }
     desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
     desc.texSamplerPairSize = (uint32_t)pairBytes.size();
+    oreContext->clearLastError();
     auto shaderModule = oreContext->makeShaderModule(desc);
     if (shaderModule == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "Shader");
     }
     return vm->handles().mint(
         WasmScriptingVM::HandleTable::Tag::gpuShaderModule,
@@ -2208,10 +2237,11 @@ uint32_t gpuBindGroupLayoutNewImpl(
     desc.groupIndex = groupIndex;
     desc.entries = resolved.data();
     desc.entryCount = count;
+    oreContext->clearLastError();
     auto layout = oreContext->makeBindGroupLayout(desc);
     if (layout == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUBindGroupLayout");
     }
     return vm->handles().mint(
         WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
@@ -2343,10 +2373,11 @@ uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm,
     desc.samplers = sampEntries.data();
     desc.samplerCount = sampCount;
 
+    oreContext->clearLastError();
     auto bindGroup = oreContext->makeBindGroup(desc);
     if (bindGroup == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUBindGroup");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuBindGroup,
                               new HostGpuBindGroup{std::move(bindGroup)});
@@ -2520,10 +2551,11 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
     desc.stencilWriteMask = (uint8_t)podDesc->stencilWriteMask;
     desc.sampleCount = podDesc->sampleCount;
 
+    oreContext->clearLastError();
     auto pipeline = oreContext->makePipeline(desc);
     if (pipeline == nullptr)
     {
-        return 0;
+        return gpuRejected(vm, oreContext, "GPUPipeline");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuPipeline,
                               new HostGpuPipeline{std::move(pipeline)});

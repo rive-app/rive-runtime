@@ -170,4 +170,9 @@ bool validatePipelineDesc(const PipelineDesc& desc,
                           NativeSlotScope scope,
                           std::string* outError);
 
+// Every backend's `makeBindGroup` runs this before touching native
+// objects. A UBO whose bound range is shorter than the shader's block is
+// undefined on every API and only WebGL says so, at draw time.
+bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError);
+
 } // namespace rive::ore

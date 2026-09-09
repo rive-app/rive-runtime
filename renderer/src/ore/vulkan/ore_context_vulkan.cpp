@@ -1209,6 +1209,11 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     BindGroupLayoutVulkan* layout =
         lite_rtti_cast<BindGroupLayoutVulkan*>(desc.layout);
     assert(layout != nullptr);
@@ -1294,7 +1299,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         w.buffer = buffer;
         w.dstBinding = dstBinding;
         w.offset = ubo.offset;
-        w.range = (ubo.size > 0) ? ubo.size : buffer->size();
+        w.range = (ubo.size > 0) ? ubo.size : buffer->size() - ubo.offset;
         w.type = layout->hasDynamicOffset(ubo.slot)
                      ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
                      : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
