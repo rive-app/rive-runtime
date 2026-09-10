@@ -66,7 +66,9 @@ void HostFrameSink::beginOreFrame()
 {
     if (auto* ore = oreContext())
     {
-        ore->beginFrame({});
+        rive::ore::Context::FrameDescriptor desc{};
+        desc.externalCommandBuffer = oreCommandBuffer();
+        ore->beginFrame(desc);
     }
 }
 

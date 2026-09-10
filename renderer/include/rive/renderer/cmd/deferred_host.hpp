@@ -50,6 +50,12 @@ public:
     uint64_t defaultScreenTarget() override { return m_target; }
     void beginOreFrame() override;
     void endOreFrame() override;
+    // The command buffer Ore records this frame's commands into. Ore is
+    // immediate mode, so it needs this at begin rather than end, and backends
+    // that record into one cannot open a frame without it: D3D12 dereferences
+    // it for SetDescriptorHeaps, Vulkan and WGPU assert on it. Null suits the
+    // backends that do not (D3D11, GL), which is why it is the default.
+    virtual void* oreCommandBuffer() { return nullptr; }
     void afterOreFrame() override;
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override;
