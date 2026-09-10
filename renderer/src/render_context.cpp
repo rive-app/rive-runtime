@@ -3607,8 +3607,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
         getGradientMatrixAndSpan(draw->gradient(),
                                  draw->rampLocation(),
                                  draw->gradientMatrix(),
+                                 m_flushDesc.renderTarget,
                                  m_ctx->platformFeatures(),
-                                 m_ctx->frameDescriptor().renderTargetHeight,
                                  gradientMatrix,
                                  gradientHorizontalSpan);
         gradientY = getGradientY(draw->rampLocation(), m_gradTextureLayout);

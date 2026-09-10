@@ -24,6 +24,10 @@ public:
     // that targets the texture.
     virtual void bindDestinationFramebuffer(GLenum target) = 0;
 
+    // GL decides per target, so the framebuffer default never applies.
+    virtual bool bottomUp() const = 0;
+    bool bottomUp(const PlatformFeatures&) const final { return bottomUp(); }
+
     // Returns a texture handle that can be rendered to (e.g., for rendering via
     // shader images, ANGLE_shader_pixel_local_storage, or
     // EXT_multisampled_render_to_texture). When rendering to an external
@@ -114,6 +118,11 @@ public:
 
     GLuint externalTextureID() const { return m_externalTextureID; }
 
+    // External textures keep GL's bottom up rows for whoever consumes them.
+    // Canvases opt out so their rows match every other backend.
+    void setBottomUp(bool bottomUp) { m_bottomUp = bottomUp; }
+    bool bottomUp() const override { return m_bottomUp; }
+
     // Set the texture being rendered to. Ownership of this object is not
     // assumed; the caller must delete it when done.
     void setTargetTexture(GLuint externalTextureID)
@@ -144,6 +153,7 @@ public:
 private:
     // Not owned or deleted by us.
     GLuint m_externalTextureID = 0;
+    bool m_bottomUp = true;
 
     glutils::Framebuffer m_framebufferID = glutils::Framebuffer::Zero();
     glutils::Framebuffer m_headlessFramebuffer = glutils::Framebuffer::Zero();
@@ -193,6 +203,8 @@ public:
     ~FramebufferRenderTargetGL();
 
     uint32_t sampleCount() const { return m_sampleCount; }
+
+    bool bottomUp() const override { return true; }
 
     // Ensures a texture is allocated that mirrors our external FBO. (We can't
     // modify the external FBO and usually can't read it either, so we often

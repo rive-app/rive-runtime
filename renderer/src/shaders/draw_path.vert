@@ -225,11 +225,15 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 #endif
 
-    // Paint matrices operate on the fragment shader's "_fragCoord", which is
-    // bottom-up in GL.
+    // Paint matrices operate on the fragment shader's "_fragCoord", which
+    // counts from memory row 0. A bottom up target needs it flipped into Rive
+    // pixel space.
     float2 fragCoord = vertexPosition;
-#ifdef @FRAMEBUFFER_BOTTOM_UP
-    fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
+#ifdef @ENABLE_RENDER_TARGET_BOTTOM_UP
+    if (uniforms.renderTargetBottomUp != 0u)
+    {
+        fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
+    }
 #endif
 
 #ifdef @ENABLE_CLIP_RECT

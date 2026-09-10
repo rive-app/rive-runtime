@@ -81,24 +81,28 @@ void GLState::invalidate()
 #endif
 }
 
-void GLState::setScissor(IAABB scissor, uint32_t renderTargetHeight)
+void GLState::setScissor(IAABB scissor,
+                         uint32_t renderTargetHeight,
+                         bool bottomUp)
 {
     assert(scissor.left >= 0);
     assert(scissor.right >= scissor.left);
     assert(scissor.top >= 0);
     assert(scissor.bottom >= scissor.top);
     setScissorRaw(scissor.left,
-                  renderTargetHeight - scissor.bottom,
+                  bottomUp ? renderTargetHeight - scissor.bottom : scissor.top,
                   scissor.width(),
                   scissor.height());
 }
 
-void GLState::setScissor(AABBu16 scissor, uint32_t renderTargetHeight)
+void GLState::setScissor(AABBu16 scissor,
+                         uint32_t renderTargetHeight,
+                         bool bottomUp)
 {
     assert(scissor.right >= scissor.left);
     assert(scissor.bottom >= scissor.top);
     setScissorRaw(scissor.left,
-                  renderTargetHeight - scissor.bottom,
+                  bottomUp ? renderTargetHeight - scissor.bottom : scissor.top,
                   scissor.width(),
                   scissor.height());
 }

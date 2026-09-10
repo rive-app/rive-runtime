@@ -162,8 +162,7 @@ public:
         return nullptr;
     }
 
-    // Sampling wrap of a 2D canvas for Image:view. GL overrides to insert its
-    // Y flip mirror.
+    // Sampling wrap of a 2D canvas for Image:view.
     virtual rcp<TextureView> wrapCanvasSampleView(gpu::RenderCanvas* canvas)
     {
         auto* image = canvas->renderImage();

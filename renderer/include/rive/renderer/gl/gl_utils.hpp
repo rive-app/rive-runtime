@@ -283,6 +283,7 @@ void SetTexture2DSamplingParams(rive::ImageSampler);
 
 void BlitFramebuffer(rive::IAABB bounds,
                      uint32_t renderTargetHeight,
+                     bool bottomUp,
                      GLbitfield mask = GL_COLOR_BUFFER_BIT);
 
 void Uniform1iByName(GLuint programID, const char* name, GLint value);

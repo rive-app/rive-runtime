@@ -262,7 +262,8 @@ class RenderContextGLImpl::PLSImplWebGL
                 renderContextImpl->state()->setPipelineState(
                     gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                         renderTarget->height());
+                                         renderTarget->height(),
+                                         renderTarget->bottomUp());
             }
         }
 
@@ -318,7 +319,8 @@ class RenderContextGLImpl::PLSImplWebGL
             renderContextImpl->state()->setPipelineState(
                 gpu::COLOR_ONLY_PIPELINE_STATE);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                     framebufferRenderTarget->height());
+                                     framebufferRenderTarget->height(),
+                                     framebufferRenderTarget->bottomUp());
         }
     }
 

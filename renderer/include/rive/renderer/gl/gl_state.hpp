@@ -32,11 +32,10 @@ public:
 
     void invalidate();
 
-    // Set the scissor with a top-down oriented box. (GLState will Y-flip the
-    // box before passing it to GL, which is why this function needs
-    // renderTargetHeight.)
-    void setScissor(IAABB, uint32_t renderTargetHeight);
-    void setScissor(AABBu16, uint32_t renderTargetHeight);
+    // Set the scissor with a box in Rive pixel space. A bottom up target
+    // needs it Y-flipped, which is why this function needs renderTargetHeight.
+    void setScissor(IAABB, uint32_t renderTargetHeight, bool bottomUp);
+    void setScissor(AABBu16, uint32_t renderTargetHeight, bool bottomUp);
     // Set the scissor with the raw values that will be passed to glScissor().
     void setScissorRaw(uint32_t left,
                        uint32_t top,

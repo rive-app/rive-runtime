@@ -147,7 +147,8 @@ class RenderContextGLImpl::PLSImplRWTexture
             gpu::COLOR_ONLY_PIPELINE_STATE,
             ScissorAction::ignore);
         renderContextImpl->state()->setScissor(desc.renderTargetUpdateBounds,
-                                               renderTarget->height());
+                                               renderTarget->height(),
+                                               renderTarget->bottomUp());
 
         if (!desc.fixedFunctionColorOutput)
         {
@@ -165,7 +166,8 @@ class RenderContextGLImpl::PLSImplRWTexture
                     framebufferRenderTarget->bindTextureFramebuffer(
                         GL_DRAW_FRAMEBUFFER);
                     glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                             renderTarget->height());
+                                             renderTarget->height(),
+                                             renderTarget->bottomUp());
                 }
             }
             // If the color buffer is *not* a storage texture, we will clear it
@@ -301,7 +303,8 @@ class RenderContextGLImpl::PLSImplRWTexture
                 renderContextImpl->state()->setPipelineState(
                     gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                         framebufferRenderTarget->height());
+                                         framebufferRenderTarget->height(),
+                                         framebufferRenderTarget->bottomUp());
             }
         }
     }

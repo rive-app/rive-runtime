@@ -112,19 +112,10 @@ rcp<RenderPaint> solidPaint(rive::cmd::DeferredSession& session, ColorInt color)
     return paint;
 }
 
-void drawCanvasImage(Renderer* r,
-                     RenderCanvas* canvas,
-                     float x,
-                     float y,
-                     bool flip)
+void drawCanvasImage(Renderer* r, RenderCanvas* canvas, float x, float y)
 {
     r->save();
     r->translate(x, y);
-    if (flip)
-    {
-        r->translate(0, static_cast<float>(canvas->height()));
-        r->scale(1, -1);
-    }
     r->drawImage(canvas->renderImage(),
                  {.filter = ImageFilter::nearest},
                  BlendMode::srcOver,
@@ -167,7 +158,6 @@ public:
             return;
         }
         auto mainDesc = rc->frameDescriptor();
-        bool flip = rc->platformFeatures().framebufferBottomUp;
 
         rive::cmd::DeferredSession session(rive::ore::ReplayCaps{});
         rive::cmd::DeferredReplayer replayer;
@@ -184,7 +174,7 @@ public:
         auto recordB = [&]() {
             // B composites A, then draws its own dot on top.
             Renderer* b = session.beginCanvasContent(canvasB.get(), 0xff501030);
-            drawCanvasImage(b, canvasA.get(), 0, 0, flip);
+            drawCanvasImage(b, canvasA.get(), 0, 0);
             b->drawPath(dot.get(), orange.get());
             session.endCanvasContent(canvasB.get());
         };
@@ -199,8 +189,8 @@ public:
             recordB();
         }
         auto screen = session.makeScreenRenderer();
-        drawCanvasImage(screen.get(), canvasA.get(), 0, 64, flip);
-        drawCanvasImage(screen.get(), canvasB.get(), 128, 64, flip);
+        drawCanvasImage(screen.get(), canvasA.get(), 0, 64);
+        drawCanvasImage(screen.get(), canvasB.get(), 128, 64);
 
         replayFrameThroughGM(session, replayer, rc, mainDesc);
     }
@@ -236,7 +226,6 @@ public:
             return;
         }
         auto mainDesc = rc->frameDescriptor();
-        bool flip = rc->platformFeatures().framebufferBottomUp;
 
         rive::cmd::DeferredSession session(rive::ore::ReplayCaps{});
         rive::cmd::DeferredReplayer replayer;
@@ -263,7 +252,7 @@ public:
             Renderer* a = session.beginCanvasContent(canvasA.get(), 0xff103050);
             a->save();
             a->scale(0.5f, 0.5f);
-            drawCanvasImage(a, canvasB.get(), 0, 0, flip);
+            drawCanvasImage(a, canvasB.get(), 0, 0);
             a->restore();
             a->drawPath(dot.get(), white.get());
             session.endCanvasContent(canvasA.get());
@@ -271,14 +260,14 @@ public:
             Renderer* b = session.beginCanvasContent(canvasB.get(), 0xff501030);
             b->save();
             b->scale(0.5f, 0.5f);
-            drawCanvasImage(b, canvasA.get(), 0, 0, flip);
+            drawCanvasImage(b, canvasA.get(), 0, 0);
             b->restore();
             b->drawPath(dot.get(), white.get());
             session.endCanvasContent(canvasB.get());
 
             auto screen = session.makeScreenRenderer();
-            drawCanvasImage(screen.get(), canvasA.get(), 0, 64, flip);
-            drawCanvasImage(screen.get(), canvasB.get(), 128, 64, flip);
+            drawCanvasImage(screen.get(), canvasA.get(), 0, 64);
+            drawCanvasImage(screen.get(), canvasB.get(), 128, 64);
             replayFrameThroughGM(session, replayer, rc, mainDesc);
         }
     }

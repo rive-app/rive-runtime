@@ -90,17 +90,10 @@ public:
 
         // Composite the canvas into the main framebuffer.
         RiveRenderer mainRenderer(renderContext);
-        mainRenderer.save();
-        if (renderContext->platformFeatures().framebufferBottomUp)
-        {
-            mainRenderer.translate(0, 256);
-            mainRenderer.scale(1, -1);
-        }
         mainRenderer.drawImage(canvas->renderImage(),
                                {.filter = ImageFilter::nearest},
                                BlendMode::srcOver,
                                1);
-        mainRenderer.restore();
     }
 };
 GMREGISTER(render_canvas_prepass, return new RenderCanvasPrepass())
@@ -177,37 +170,19 @@ public:
         renderContext->beginFrame(std::move(mainFD));
 
         RiveRenderer mainRenderer(renderContext);
-        mainRenderer.save();
-        bool bottomUp = renderContext->platformFeatures().framebufferBottomUp;
-
-        // Canvas A in top-left quadrant. Bottom-up flip pivots around the
-        // canvas height, not the framebuffer height.
-        mainRenderer.save();
-        if (bottomUp)
-        {
-            mainRenderer.translate(0, 128);
-            mainRenderer.scale(1, -1);
-        }
+        // Canvas A in top-left quadrant.
         mainRenderer.drawImage(canvasA->renderImage(),
                                {.filter = ImageFilter::nearest},
                                BlendMode::srcOver,
                                1);
-        mainRenderer.restore();
 
         // Canvas B in bottom-right quadrant.
         mainRenderer.save();
         mainRenderer.translate(128, 128);
-        if (bottomUp)
-        {
-            mainRenderer.translate(0, 128);
-            mainRenderer.scale(1, -1);
-        }
         mainRenderer.drawImage(canvasB->renderImage(),
                                {.filter = ImageFilter::nearest},
                                BlendMode::srcOver,
                                1);
-        mainRenderer.restore();
-
         mainRenderer.restore();
     }
 };

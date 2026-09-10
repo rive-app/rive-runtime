@@ -1,8 +1,7 @@
 /*
  * Copyright 2026 Rive
  *
- * GM test for the Rive 2D RenderCanvas → Ore "imported canvas mirror"
- * boundary.
+ * GM test for the Rive 2D RenderCanvas → Ore import boundary.
  *
  * What this verifies:
  *   1. We render an asymmetric pattern into a Rive 2D RenderCanvas via PLS:
@@ -12,15 +11,10 @@
  *      The asymmetry is the whole point — if the Y axis is wrong anywhere
  *      in the chain, green and red swap.
  *
- *   2. We import the source canvas's GPU texture into Ore via
- *      RenderContextGLImpl::getCanvasImportMirror() (GL/WebGL only):
- *        - On Metal/D3D/Vulkan/WebGPU the code is compiled out and we
- *          sample the source texture directly.
- *        - On GL/WebGL the GL impl returns a Y-flipped companion texture.
- *          A subsequent flush() of the source RenderCanvas will hardware
- *          blit the source into the companion with Y reversed.
+ *   2. We import the source canvas's GPU texture into Ore directly. Every
+ *      backend, GL included, keeps a canvas with row 0 at the visual top.
  *
- *   3. We bind the chosen texture (mirror or source) into an Ore pipeline
+ *   3. We bind the source texture into an Ore pipeline
  *      using the same image_view WGSL shader the ore_image_view GM uses
  *      (id = ore_gm::kImageView). The WGSL is authored with V=0 = visual
  *      top of the texture — i.e. the WGSL author's natural convention.
@@ -31,9 +25,9 @@
  *
  * On a correctly working backend, the destination should show:
  *        green at the top, dark grey in the middle, red at the bottom.
- * If the import-mirror is broken on GL the colors invert: red on top,
- * green at the bottom. If the WGSL UV convention is misinterpreted in
- * the shader the same inversion happens.
+ * If GL renders the canvas bottom up the colors invert: red on top, green
+ * at the bottom. If the WGSL UV convention is misinterpreted in the shader
+ * the same inversion happens.
  *
  * The GM intentionally uses NO `1.0 - in.uv.y` workarounds in WGSL — the
  * whole point is to verify that the cross-backend invariant
@@ -53,9 +47,6 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/rive_render_image.hpp"
-#if defined(ORE_BACKEND_GL)
-#include "rive/renderer/gl/render_context_gl_impl.hpp"
-#endif
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -109,28 +100,6 @@ public:
         if (!sourceCanvas)
             return;
 
-        // Allocate the GL canvas-import mirror up front, *before* the
-        // source canvas is flushed. The blit from source → mirror fires
-        // from RenderContextGLImpl::flush() only when hasMirror == true,
-        // so the mirror must exist at flush time. Lua gets this ordering
-        // for free because :view() is called during bind-group setup
-        // before canvas:endFrame(); the C++ GM has to do it explicitly.
-        rcp<RiveRenderImage> mirrorImage;
-#if defined(ORE_BACKEND_GL)
-        if (renderContext->platformFeatures().framebufferBottomUp)
-        {
-            gpu::Texture* sourceTexEarly =
-                sourceCanvas->renderImage()->getTexture();
-            if (sourceTexEarly != nullptr)
-            {
-                auto* glImpl =
-                    renderContext->static_impl_cast<gpu::RenderContextGLImpl>();
-                mirrorImage =
-                    glImpl->getCanvasImportMirror(sourceTexEarly, kSize, kSize);
-            }
-        }
-#endif // ORE_BACKEND_GL
-
         auto originalFrameDescriptor = renderContext->frameDescriptor();
         TestingWindow::Get()->flushPLSContext();
 
@@ -181,25 +150,9 @@ public:
         }
 
         // ── 2. Import the source canvas as an Ore-sampleable texture. ──
-        //
-        // On GL, the mirror was allocated up front (see top of this
-        // method) and the blit from source → mirror fired during the
-        // flushPLSContext(sourceCanvas) call above. The mirror is now
-        // in sync with the source and ready to sample.
-        gpu::Texture* sourceTex = sourceCanvas->renderImage()->getTexture();
-        if (sourceTex == nullptr)
+        gpu::Texture* texToWrap = sourceCanvas->renderImage()->getTexture();
+        if (texToWrap == nullptr)
             return;
-
-        gpu::Texture* texToWrap = sourceTex;
-        if (mirrorImage != nullptr)
-        {
-            auto* mirrorRive =
-                lite_rtti_cast<RiveRenderImage*>(mirrorImage.get());
-            if (mirrorRive != nullptr && mirrorRive->getTexture() != nullptr)
-            {
-                texToWrap = mirrorRive->getTexture();
-            }
-        }
 
         // ── 3. Open the Ore frame. On Vulkan this connects Ore to the
         //       host's current command buffer so the texture we wrap below

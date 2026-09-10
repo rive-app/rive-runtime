@@ -256,7 +256,8 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::
             renderContextImpl->blitTextureToFramebufferAsDraw(
                 m_externalTextureID,
                 *preserveBounds,
-                height());
+                height(),
+                bottomUp());
         }
 
         return MSAAResolveAction::framebufferBlit; // Caller must resolve this
@@ -441,7 +442,9 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
             renderContextImpl->state()->setPipelineState(
                 gpu::COLOR_ONLY_PIPELINE_STATE);
-            glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
+            glutils::BlitFramebuffer(*preserveBounds,
+                                     height(),
+                                     bottomUp()); // Step 1.
             // Step 2 will happen when we bind.
         }
         else if (renderContextImpl->capabilities()

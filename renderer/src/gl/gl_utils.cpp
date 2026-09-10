@@ -478,13 +478,14 @@ void SetTexture2DSamplingParams(rive::ImageSampler samplingParams)
 
 void BlitFramebuffer(rive::IAABB bounds,
                      uint32_t renderTargetHeight,
+                     bool bottomUp,
                      GLbitfield mask)
 {
-    // glBlitFramebuffer is oriented bottom-up.
+    // glBlitFramebuffer addresses rows from memory row 0.
     uint32_t l = bounds.left;
-    uint32_t b = renderTargetHeight - bounds.bottom;
+    uint32_t b = bottomUp ? renderTargetHeight - bounds.bottom : bounds.top;
     uint32_t r = bounds.right;
-    uint32_t t = renderTargetHeight - bounds.top;
+    uint32_t t = bottomUp ? renderTargetHeight - bounds.top : bounds.bottom;
     glBlitFramebuffer(l, b, r, t, l, b, r, t, mask, GL_NEAREST);
 }
 

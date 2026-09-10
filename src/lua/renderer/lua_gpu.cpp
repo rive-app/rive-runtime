@@ -3747,8 +3747,7 @@ int riveImageViewImpl(lua_State* L)
     }
     else if (!self->cachedOreView)
     {
-        // A canvas imports through the backend's own sampling wrap, which is
-        // where GL inserts the Y flip its bottom-up canvases need.
+        // A canvas imports through the backend's own sampling wrap.
         if (self->sourceCanvas != nullptr)
         {
             self->cachedOreView =

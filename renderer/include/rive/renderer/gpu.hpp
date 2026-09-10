@@ -208,6 +208,9 @@ struct PlatformFeatures
     //  |                                |                   |
     //  v height                         v +1                v height
     //
+    // A target can keep its rows the other way round from the framebuffer
+    // through RenderTarget::bottomUp(). GL canvases do, so their textures
+    // match every other backend.
     bool clipSpaceBottomUp = false;
     bool framebufferBottomUp = false;
     // Backend cannot initialize PLS with typical clear/load APIs in atomic
@@ -1563,8 +1566,10 @@ private:
     // RGB10 (as opposed to writing it out to the framebuffer).
     WRITEONLY float m_ditherConversionToRGB10;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
+    // Whether _fragCoord.y counts from the visual bottom of the target.
+    WRITEONLY uint32_t m_renderTargetBottomUp;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 104];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 108];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -2255,8 +2260,8 @@ float getGradientY(ColorRampLocation, GradTextureLayout);
 void getGradientMatrixAndSpan(const Gradient*,
                               ColorRampLocation,
                               const Mat2D& inverseViewMatrix,
+                              const RenderTarget*,
                               const PlatformFeatures&,
-                              uint32_t renderTargetHeight,
                               Mat2D& paintMatrixOut,
                               float (&gradTextureHorizontalSpanOut)[2]);
 

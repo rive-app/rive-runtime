@@ -22,9 +22,7 @@ class TextureGL;
 class ContextGL : public Context
 {
 public:
-    // renderContextImpl is the RenderContextGLImpl that owns this context's
-    // canvases, needed for the Y flip import mirror. Null on standalone GMs.
-    static std::unique_ptr<ContextGL> Make(void* renderContextImpl = nullptr);
+    static std::unique_ptr<ContextGL> Make();
 
     ~ContextGL() override;
 
@@ -62,7 +60,6 @@ public:
     bool usesDeferredFrameReplay() const override { return false; }
 
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
-    rcp<TextureView> wrapCanvasSampleView(gpu::RenderCanvas* canvas) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;
@@ -77,12 +74,7 @@ private:
     friend class BindGroupGL;
     friend class TextureGL;
 
-    explicit ContextGL(void* renderContextImpl) :
-        Context(nullptr), m_renderContextImpl(renderContextImpl)
-    {}
-
-    // Borrowed RenderContextGLImpl, void* to avoid the header dependency.
-    void* m_renderContextImpl = nullptr;
+    ContextGL() : Context(nullptr) {}
 
     // ── Scratch pass objects ───────────────────────────────────────────
     //

@@ -212,6 +212,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(trickycubicstrokes_feather)
 #ifdef RIVE_CANVAS
     MAKE_GM(render_canvas_basic)
+    MAKE_GM(render_canvas_mesh)
+    MAKE_GM(render_canvas_winding)
     MAKE_GM(render_canvas_persistence)
     MAKE_GM(render_canvas_prepass)
     MAKE_GM(render_canvas_prepass_multi)

@@ -886,10 +886,12 @@ FlushUniforms::InverseViewports::InverseViewports(
         numerators.xy = -numerators.xy;
     }
     // When drawing to a render target, ensure that Y=0 (in Rive pixel space)
-    // gets drawn to the top of thew viewport.
-    // This requires a Y inversion if Rive pixel space and clip space have
-    // opposing senses of which way is up.
-    if (platformFeatures.clipSpaceBottomUp)
+    // lands on the row the target keeps its visual top in. Clip space and the
+    // framebuffer each contribute a possible inversion, and so does a target
+    // that stores its bottom in row 0.
+    if ((platformFeatures.clipSpaceBottomUp !=
+         platformFeatures.framebufferBottomUp) !=
+        flushDesc.renderTarget->bottomUp(platformFeatures))
     {
         numerators.w = -numerators.w;
     }
@@ -934,7 +936,8 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_ditherConversionToRGB10((flushDesc.ditherMode == DitherMode::none)
                                   ? 0.0f
                                   : (-1.0f / 1024.0f) / m_ditherScale),
-    m_wireframeEnabled(flushDesc.wireframe)
+    m_wireframeEnabled(flushDesc.wireframe),
+    m_renderTargetBottomUp(flushDesc.renderTarget->bottomUp(platformFeatures))
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
@@ -1056,8 +1059,8 @@ void PaintData::set(DrawContents singleDrawContents,
 void getGradientMatrixAndSpan(const Gradient* gradient,
                               ColorRampLocation rampLocation,
                               const Mat2D& viewMatrix,
+                              const RenderTarget* renderTarget,
                               const PlatformFeatures& platformFeatures,
-                              uint32_t renderTargetHeight,
                               Mat2D& paintMatrixOut,
                               float (&gradTextureHorizontalSpanOut)[2])
 {
@@ -1071,10 +1074,10 @@ void getGradientMatrixAndSpan(const Gradient* gradient,
     // failed.
     paintMatrixOut = viewMatrix.invertOrIdentity();
 
-    if (platformFeatures.framebufferBottomUp)
+    if (renderTarget->bottomUp(platformFeatures))
     {
         // Flip _fragCoord.y.
-        paintMatrixOut *= Mat2D(1, 0, 0, -1, 0, renderTargetHeight);
+        paintMatrixOut *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
     }
 
     if (gradient->paintType() == PaintType::linearGradient)
@@ -1136,8 +1139,8 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
             getGradientMatrixAndSpan(gradient,
                                      simplePaintValue.colorRampLocation,
                                      viewMatrix,
+                                     renderTarget,
                                      platformFeatures,
-                                     renderTarget->height(),
                                      paintMatrix,
                                      gradTextureHorizontalSpan);
             m_gradTextureHorizontalSpan[0] = gradTextureHorizontalSpan[0];
@@ -1153,7 +1156,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
             {
                 Mat2D matrix;
                 imageMatrix.invert(&matrix);
-                if (platformFeatures.framebufferBottomUp)
+                if (renderTarget->bottomUp(platformFeatures))
                 {
                     // Flip _fragCoord.y.
                     matrix *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
@@ -1188,7 +1191,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     if (clipRectInverseMatrix != nullptr)
     {
         Mat2D m = clipRectInverseMatrix->inverseMatrix();
-        if (platformFeatures.framebufferBottomUp)
+        if (renderTarget->bottomUp(platformFeatures))
         {
             // Flip _fragCoord.y.
             m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());

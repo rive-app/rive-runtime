@@ -3,9 +3,9 @@
  */
 
 // Image:view() on a canvas records a sample view and the consumer performs the
-// real wrap at replay. The wrap is where GL inserts its Y flip companion, so it
-// has to land after the canvas content that wrote the source, even when a
-// script writes and samples one canvas in the same frame.
+// real wrap at replay, so it has to land after the canvas content that wrote
+// the source, even when a script writes and samples one canvas in the same
+// frame.
 
 #include "deferred_test_sink.hpp"
 #include "rive/renderer/cmd/deferred_replayer.hpp"

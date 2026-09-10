@@ -13,7 +13,6 @@
 #include "ore_shader_module_gl.hpp"
 #include "ore_texture_gl.hpp"
 #include "rive/renderer/render_canvas.hpp"
-#include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/rive_types.hpp"
 
 #include <algorithm>
@@ -315,9 +314,9 @@ GLuint ContextGL::scratchResolveFBO()
     return m_scratchResolveFBO;
 }
 
-std::unique_ptr<ContextGL> ContextGL::Make(void* renderContextImpl)
+std::unique_ptr<ContextGL> ContextGL::Make()
 {
-    auto ctx = std::unique_ptr<ContextGL>(new ContextGL(renderContextImpl));
+    auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
 
     Features& f = ctx->m_features;
 
@@ -1395,43 +1394,6 @@ rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
     viewDesc.layerCount = 1;
 
     return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
-}
-
-// GL renders the canvas bottom up while WGSL samples top down, so import
-// through a Y flip mirror the view retains to keep the borrowed id valid.
-rcp<TextureView> ContextGL::wrapCanvasSampleView(gpu::RenderCanvas* canvas)
-{
-    assert(canvas != nullptr);
-
-    auto* image = canvas->renderImage();
-    gpu::Texture* sourceTex = image->getTexture();
-
-    gpu::Texture* texToWrap = sourceTex;
-    rcp<RenderImage> mirror;
-    if (m_renderContextImpl != nullptr)
-    {
-        auto* glImpl =
-            static_cast<gpu::RenderContextGLImpl*>(m_renderContextImpl);
-        mirror = glImpl->getCanvasImportMirror(sourceTex,
-                                               canvas->width(),
-                                               canvas->height());
-        if (mirror != nullptr)
-        {
-            auto* mirrorRive = lite_rtti_cast<RiveRenderImage*>(mirror.get());
-            if (mirrorRive != nullptr && mirrorRive->getTexture() != nullptr)
-            {
-                texToWrap = mirrorRive->getTexture();
-            }
-        }
-    }
-
-    auto view = wrapRiveTexture(texToWrap, canvas->width(), canvas->height());
-    if (mirror != nullptr && view != nullptr)
-    {
-        static_cast<TextureViewGL*>(view.get())
-            ->retainCanvasMirror(std::move(mirror));
-    }
-    return view;
 }
 
 } // namespace rive::ore

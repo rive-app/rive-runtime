@@ -1161,7 +1161,10 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.supportsRasterOrderingMode =
         !contextOptions.forceAtomicMode &&
         m_vk->features.rasterizationOrderColorAttachmentAccess;
-#ifdef RIVE_ANDROID
+#if !defined(WITH_VULKAN_ATOMICS)
+    // The atomic and clockwiseAtomic SPIR-V isn't compiled in.
+    m_platformFeatures.supportsAtomicMode = false;
+#elif defined(RIVE_ANDROID)
     m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics &&
         // For now, disable gpu::InterlockMode::atomics on Android unless
@@ -1171,6 +1174,8 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 #else
     m_platformFeatures.supportsAtomicMode =
         m_vk->features.fragmentStoresAndAtomics;
+#endif
+#ifndef RIVE_ANDROID
     m_platformFeatures.supportsClockwiseMode =
         m_vk->features.fragmentShaderPixelInterlock &&
         !contextOptions.forceAtomicMode &&
@@ -1184,11 +1189,6 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.supportsClockwiseFixedFunctionMode =
         m_platformFeatures.supportsClockwiseMode &&
         !contextOptions.disableClockwiseFixedFunctionMode;
-#endif
-#ifndef WITH_VULKAN_ATOMICS
-    // The atomic and clockwiseAtomic SPIR-V isn't compiled in, so we can't
-    // advertise either mode no matter what the device supports.
-    m_platformFeatures.supportsAtomicMode = false;
 #endif
     m_platformFeatures.supportsClockwiseAtomicMode =
         m_platformFeatures.supportsAtomicMode;
@@ -4461,8 +4461,13 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     if (contextOptions.forceAtomicMode &&
         !impl->platformFeatures().supportsAtomicMode)
     {
+#ifdef WITH_VULKAN_ATOMICS
         PRINT_ERROR_LINE(
             "ERROR: Requested \"atomic\" mode but Vulkan does not support fragmentStoresAndAtomics on this platform.");
+#else
+        PRINT_ERROR_LINE(
+            "ERROR: Requested \"atomic\" mode but Rive was not compiled with atomic support (--with_android_vulkan_atomics).");
+#endif
         return nullptr;
     }
 

@@ -29,16 +29,8 @@ public:
     {}
     ~TextureViewGL() override;
 
-    // The canvas import mirror owns the GL texture this view borrows, so the
-    // view must keep it alive. Null for ordinary views.
-    void retainCanvasMirror(rcp<RenderImage> mirror)
-    {
-        m_retainedCanvasMirror = std::move(mirror);
-    }
-
 private:
     friend class ContextGL;
     unsigned int m_glTextureView = 0; // GLenum; 0 means use base texture
-    rcp<RenderImage> m_retainedCanvasMirror;
 };
 } // namespace rive::ore
