@@ -50,14 +50,14 @@ void TextureRenderTargetGL::bindTextureFramebuffer(GLenum target)
     }
     glBindFramebuffer(target, m_framebufferID);
 
-    if (m_framebufferTargetAttachmentDirty)
+    if (m_externalTextureAttachmentDirty)
     {
         glFramebufferTexture2D(target,
                                GL_COLOR_ATTACHMENT0 + COLOR_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_externalTextureID,
                                0);
-        m_framebufferTargetAttachmentDirty = false;
+        m_externalTextureAttachmentDirty = false;
     }
 }
 
@@ -127,16 +127,16 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(
 #endif
 }
 
-RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
-    RenderContextGLImpl* renderContextImpl,
-    int sampleCount,
-    const IAABB* preserveBounds,
-    bool* isFBO0)
+RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::
+    bindFramebufferForDepthStencilMode(RenderContextGLImpl* renderContextImpl,
+                                       int sampleCount,
+                                       const IAABB* preserveBounds,
+                                       bool* isFBO0)
 {
     assert(sampleCount > 0);
-    if (m_msaaFramebuffer == 0)
+    if (m_dsFBO == 0)
     {
-        m_msaaFramebuffer = glutils::Framebuffer();
+        m_dsFBO = glutils::Framebuffer();
     }
 
     if (isFBO0 != nullptr)
@@ -145,24 +145,30 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
     }
 
     sampleCount = std::max(sampleCount, 1);
-    if (m_msaaFramebufferSampleCount != sampleCount)
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_dsFBO);
+
+    // Update the m_externalTextureID attachment. (Only relevant if we aren't
+    // rendering offscreen.)
+    if (m_dsFBOExternalTextureAttachmentDirty ||
+        m_dsFBOSampleCount != sampleCount)
     {
-        m_msaaDepthStencilBuffer = glutils::Renderbuffer();
-        glBindRenderbuffer(GL_RENDERBUFFER, m_msaaDepthStencilBuffer);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
-#ifndef RIVE_WEBGL
-        if (renderContextImpl->capabilities()
-                .EXT_multisampled_render_to_texture)
+        if (sampleCount == 1)
         {
-            glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER,
-                                                sampleCount,
-                                                GL_DEPTH24_STENCIL8,
-                                                width(),
-                                                height());
-
+            // When sampleCount == 1 we can render directly to the target
+            // texture.
+            glFramebufferTexture2D(GL_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D,
+                                   m_externalTextureID,
+                                   0);
+        }
+#ifndef RIVE_WEBGL
+        else if (renderContextImpl->capabilities()
+                     .EXT_multisampled_render_to_texture)
+        {
             // With EXT_multisampled_render_to_texture we can render directly to
-            // the target texture.
+            // the target texture regardless of sampleCount.
             glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER,
                                                  GL_COLOR_ATTACHMENT0,
                                                  GL_TEXTURE_2D,
@@ -170,8 +176,40 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
                                                  0,
                                                  sampleCount);
         }
-        else
 #endif
+        // else we are rendering offscreen, and the caller is responsible to
+        // blit our MSAA result into their target texture on their own.
+
+        m_dsFBOExternalTextureAttachmentDirty = false;
+    }
+
+    // Update the depthStencil attachment, (and msaa color if we're rendering
+    // offscreen).
+    if (m_dsFBOSampleCount != sampleCount)
+    {
+        m_dsFBOColorBuffer = glutils::Renderbuffer::Zero();
+        m_dsFBODepthStencilBuffer = glutils::Renderbuffer();
+
+        glBindRenderbuffer(GL_RENDERBUFFER, m_dsFBODepthStencilBuffer);
+        if (sampleCount == 1)
+        {
+            glRenderbufferStorage(GL_RENDERBUFFER,
+                                  GL_DEPTH24_STENCIL8,
+                                  width(),
+                                  height());
+        }
+#ifndef RIVE_WEBGL
+        else if (renderContextImpl->capabilities()
+                     .EXT_multisampled_render_to_texture)
+        {
+            glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER,
+                                                sampleCount,
+                                                GL_DEPTH24_STENCIL8,
+                                                width(),
+                                                height());
+        }
+#endif
+        else
         {
             glRenderbufferStorageMultisample(GL_RENDERBUFFER,
                                              sampleCount,
@@ -181,8 +219,8 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
 
             // Render to an offscreen renderbuffer that gets resolved into the
             // target texture.
-            m_msaaColorBuffer = glutils::Renderbuffer();
-            glBindRenderbuffer(GL_RENDERBUFFER, m_msaaColorBuffer);
+            m_dsFBOColorBuffer = glutils::Renderbuffer();
+            glBindRenderbuffer(GL_RENDERBUFFER, m_dsFBOColorBuffer);
             glRenderbufferStorageMultisample(GL_RENDERBUFFER,
                                              sampleCount,
                                              GL_RGBA8,
@@ -191,22 +229,22 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
             glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                       GL_COLOR_ATTACHMENT0,
                                       GL_RENDERBUFFER,
-                                      m_msaaColorBuffer);
+                                      m_dsFBOColorBuffer);
         }
         glFramebufferRenderbuffer(GL_FRAMEBUFFER,
                                   GL_DEPTH_STENCIL_ATTACHMENT,
                                   GL_RENDERBUFFER,
-                                  m_msaaDepthStencilBuffer);
+                                  m_dsFBODepthStencilBuffer);
 
-        m_msaaFramebufferSampleCount = sampleCount;
+        m_dsFBOSampleCount = sampleCount;
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
-
-    if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
+    if (sampleCount == 1 ||
+        renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
     {
-        return MSAAResolveAction::automatic; // MSAA render-to-texture resolves
-                                             // automatically.
+        // The caller will draw directly into the destination framebuffer
+        // itself.
+        return MSAAResolveAction::none;
     }
     else
     {
@@ -304,23 +342,86 @@ void FramebufferRenderTargetGL::bindHeadlessFramebuffer(
     m_textureRenderTarget.bindHeadlessFramebuffer(capabilities);
 }
 
-RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
-    bindMSAAFramebuffer(RenderContextGLImpl* renderContextImpl,
-                        int sampleCount,
-                        const IAABB* preserveBounds,
-                        bool* isFBO0)
+// Returns the bit size of the given framebuffer attachment, or 0 if there isn't
+// one.
+static GLint attachmentBitSize(GLenum attachment, GLenum sizeParam)
 {
-    assert(sampleCount > 0);
-    if (m_sampleCount > 1)
+    GLint objectType = GL_NONE;
+    glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER,
+                                          attachment,
+                                          GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE,
+                                          &objectType);
+    GLint size = 0;
+    if (objectType != GL_NONE)
     {
-        // Just bind the destination framebuffer it's already msaa, even if its
-        // sampleCount doesn't match the desired count.
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER,
+                                              attachment,
+                                              sizeParam,
+                                              &size);
+    }
+    return size;
+}
+
+void FramebufferRenderTargetGL::validateDepthStencilPrecisionOnce()
+{
+    if (m_didValidateDepthStencilPrecision)
+    {
+        return;
+    }
+    m_didValidateDepthStencilPrecision = true;
+
+    // FBO0 names these GL_DEPTH and GL_STENCIL, whereas a user framebuffer
+    // object names them GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT.
+    const bool isFBO0 = m_externalFramebufferID == 0;
+    const GLint depthSize =
+        attachmentBitSize(isFBO0 ? GL_DEPTH : GL_DEPTH_ATTACHMENT,
+                          GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE);
+    const GLint stencilSize =
+        attachmentBitSize(isFBO0 ? GL_STENCIL : GL_STENCIL_ATTACHMENT,
+                          GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE);
+
+    if (depthSize < 24)
+    {
+        fprintf(stderr,
+                "RIVE WARNING: Rive requires at least 24 bits of depth "
+                "precision (%d provided).\n",
+                depthSize);
+        fflush(stderr);
+    }
+
+    if (stencilSize < 8)
+    {
+        fprintf(stderr,
+                "RIVE WARNING: Rive requires at least 8 bits of stencil "
+                "precision (%d provided).\n",
+                stencilSize);
+        fflush(stderr);
+    }
+}
+
+RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
+    bindFramebufferForDepthStencilMode(RenderContextGLImpl* renderContextImpl,
+                                       int desiredSampleCount,
+                                       const IAABB* preserveBounds,
+                                       bool* isFBO0)
+{
+    assert(desiredSampleCount > 0);
+    if (desiredSampleCount == 1 || // Non-MSAA always renders directly to the
+                                   // destination framebuffer (even if the
+                                   // framebuffer is MSAA).
+        m_sampleCount > 1) // Always render to the destination framebuffer if
+                           // it's already MSAA (even if its sampleCount doesn't
+                           // match the desired count).
+    {
         bindDestinationFramebuffer(GL_FRAMEBUFFER);
+        // The renderTarget's depth/stencil belong to the client -- warn if they
+        // don't have enough bits.
+        validateDepthStencilPrecisionOnce();
         if (isFBO0 != nullptr)
         {
             *isFBO0 = m_externalFramebufferID == 0;
         }
-        return MSAAResolveAction::automatic;
+        return MSAAResolveAction::none;
     }
     else
     {
@@ -340,10 +441,8 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
             renderContextImpl->state()->setPipelineState(
                 gpu::COLOR_ONLY_PIPELINE_STATE);
-            glutils::BlitFramebuffer(
-                *preserveBounds,
-                height()); // Step 1.
-                           // Step 2 will happen when we bind.
+            glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
+            // Step 2 will happen when we bind.
         }
         else if (renderContextImpl->capabilities()
                      .EXT_multisampled_render_to_texture)
@@ -352,10 +451,11 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
             // buffer" is just the target texture.
             allocateOffscreenTargetTexture();
         }
-        m_textureRenderTarget.bindMSAAFramebuffer(renderContextImpl,
-                                                  sampleCount,
-                                                  preserveBounds,
-                                                  isFBO0);
+        m_textureRenderTarget.bindFramebufferForDepthStencilMode(
+            renderContextImpl,
+            desiredSampleCount,
+            preserveBounds,
+            isFBO0);
         // Since we're rendering to an offscreen framebuffer, the client has to
         // resolve this buffer even if we have
         // EXT_multisampled_render_to_texture.

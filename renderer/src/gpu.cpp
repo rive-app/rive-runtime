@@ -187,15 +187,30 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
 
     switch (mode)
     {
-        case InterlockMode::atomics:
-        case InterlockMode::clockwise:
-        case InterlockMode::clockwiseAtomic:
-        case InterlockMode::depthStencil:
+        case InterlockMode::rasterOrdering:
+            outFlags |= ShaderMiscFlags::clockwiseFill;
+            // FIXME(https://github.com/rive-app/rive/issues/14021): Some
+            // backends generate fixedFunctionColorOutput for rasterOrdering
+            // mode. Remove once this is resolved.
             outFlags |= ShaderMiscFlags::fixedFunctionColorOutput;
             break;
 
-        case InterlockMode::rasterOrdering:
-            outFlags |= ShaderMiscFlags::clockwiseFill;
+        case InterlockMode::atomics:
+        case InterlockMode::clockwise:
+        case InterlockMode::clockwiseAtomic:
+            outFlags |= ShaderMiscFlags::fixedFunctionColorOutput;
+            break;
+
+        case InterlockMode::depthStencil:
+            outFlags |= ShaderMiscFlags::fixedFunctionColorOutput;
+            if (drawType != DrawType::renderPassInitialize)
+            {
+                outFlags |= ShaderMiscFlags::msaaDstRead;
+            }
+            if (drawTypeHasPipelineDynamicState(drawType))
+            {
+                outFlags |= ShaderMiscFlags::emulateDynamicColorWriteDisable;
+            }
             break;
     }
 
@@ -206,6 +221,63 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
 
     return outFlags;
 }
+
+// Returns the mask of ShaderMiscFlags that are valid for the given
+// InterlockMode.
+// This allows us to pack the ShaderMiscFlags into shader keys more densely, by
+// only including the relevant bits (since InterlockMode is part of the shader
+// key anyway).
+constexpr static ShaderMiscFlags shaderMiscFlagKeyMask(InterlockMode mode)
+{
+    switch (mode)
+    {
+        case InterlockMode::rasterOrdering:
+            // FIXME(https://github.com/rive-app/rive/issues/14021): Some
+            // backends generate fixedFunctionColorOutput for rasterOrdering
+            // mode. Remove once this is resolved.
+            return ShaderMiscFlags::clockwiseFill |
+                   ShaderMiscFlags::fixedFunctionColorOutput;
+
+        case InterlockMode::atomics:
+            return ShaderMiscFlags::fixedFunctionColorOutput |
+                   ShaderMiscFlags::storeColorClear |
+                   ShaderMiscFlags::loadColorFromDstTexture |
+                   ShaderMiscFlags::swizzleColorBGRAToRGBA |
+                   ShaderMiscFlags::coalescedResolveAndTransfer;
+
+        case InterlockMode::clockwise:
+            return ShaderMiscFlags::fixedFunctionColorOutput |
+                   ShaderMiscFlags::clipUpdateOnly |
+                   ShaderMiscFlags::borrowedCoveragePass;
+
+        case InterlockMode::clockwiseAtomic:
+            return ShaderMiscFlags::fixedFunctionColorOutput |
+                   ShaderMiscFlags::clipUpdateOnly |
+                   ShaderMiscFlags::nestedClipUpdateOnly |
+                   ShaderMiscFlags::borrowedCoveragePass;
+
+        case InterlockMode::depthStencil:
+            return ShaderMiscFlags::fixedFunctionColorOutput |
+                   ShaderMiscFlags::emulateDynamicColorWriteDisable |
+                   ShaderMiscFlags::msaaDstRead;
+    }
+    RIVE_UNREACHABLE();
+}
+
+constexpr static uint32_t maxShaderMiscFlagKeyMaskBitCount()
+{
+    uint32_t maxBitCount = 0;
+    for (size_t i = 0; i < INTERLOCK_MODE_COUNT; ++i)
+    {
+        const uint32_t bitCount = math::count_set_bits(
+            static_cast<uint32_t>(shaderMiscFlagKeyMask(InterlockMode(i))));
+        maxBitCount = std::max(maxBitCount, bitCount);
+    }
+    return maxBitCount;
+}
+
+// ShaderMiscFlagKeyBitCount must be exactly enough for the widest key mask.
+static_assert(maxShaderMiscFlagKeyMaskBitCount() == ShaderMiscFlagKeyBitCount);
 
 void ForEachUbershaderPermutation(
     InterlockMode interlockMode,
@@ -287,9 +359,19 @@ void ForEachUbershaderPermutation(
                     }
                     break;
 
+                case InterlockMode::depthStencil:
+                    // fixedFunctionColorOutput does no dstRead, by definition.
+                    if (enums::all_flags_set(
+                            curMiscFlags,
+                            ShaderMiscFlags::msaaDstRead |
+                                ShaderMiscFlags::fixedFunctionColorOutput))
+                    {
+                        continue;
+                    }
+                    break;
+
                 case InterlockMode::rasterOrdering:
                 case InterlockMode::clockwise:
-                case InterlockMode::depthStencil:
                     break;
             }
 
@@ -332,27 +414,11 @@ void ForEachUbershaderPermutation(
     }
 }
 
-uint32_t ShaderUniqueKey(DrawType drawType,
-                         ShaderFeatures shaderFeatures,
-                         InterlockMode interlockMode,
-                         ShaderMiscFlags miscFlags)
+// Collapses drawType down to DrawTypeKeyBitCount bits. Many drawTypes share
+// a value because they use the same shader. (They only differ in the input
+// triangle patch.)
+static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
 {
-    if (enums::is_flag_set(miscFlags,
-                           ShaderMiscFlags::coalescedResolveAndTransfer))
-    {
-        assert(drawType == DrawType::renderPassResolve);
-        assert(enums::is_flag_set(shaderFeatures,
-                                  ShaderFeatures::ENABLE_ADVANCED_BLEND));
-        assert(interlockMode == InterlockMode::atomics);
-    }
-    if (enums::any_flag_set(miscFlags,
-                            ShaderMiscFlags::storeColorClear |
-                                ShaderMiscFlags::swizzleColorBGRAToRGBA))
-    {
-        assert(drawType == DrawType::renderPassInitialize);
-        assert(interlockMode == InterlockMode::atomics);
-    }
-    uint32_t drawTypeKey;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
@@ -371,48 +437,84 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
-            drawTypeKey = 0;
-            break;
+            return 0;
         case DrawType::interiorTriangulation:
-            drawTypeKey = 1;
-            break;
+            return 1;
         case DrawType::featherAtlasBlit:
-            drawTypeKey = 2;
-            break;
+            return 2;
         case DrawType::imageRect:
-            drawTypeKey = 3;
-            break;
+            return 3;
         case DrawType::imageMesh:
-            drawTypeKey = 4;
-            break;
+            return 4;
         case DrawType::clipReset:
             assert(interlockMode == InterlockMode::clockwiseAtomic ||
                    interlockMode == InterlockMode::depthStencil);
-            drawTypeKey = 7;
-            break;
+            return 7;
         case DrawType::renderPassInitialize:
             assert(interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil ||
                    interlockMode == InterlockMode::clockwiseAtomic);
-            drawTypeKey = 5;
-            break;
+            return 5;
         case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::rasterOrdering ||
                    interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil);
-            drawTypeKey = 6;
-            break;
+            return 6;
     }
-    uint32_t key = static_cast<uint32_t>(miscFlags);
-    assert(static_cast<uint32_t>(interlockMode) <
-           1 << INTERLOCK_MODE_BIT_COUNT);
-    key = (key << INTERLOCK_MODE_BIT_COUNT) |
-          static_cast<uint32_t>(interlockMode);
-    key = (key << kShaderFeatureCount) |
+    RIVE_UNREACHABLE();
+}
+
+// Collapses shaderMiscFlags down to ShaderMiscFlagKeyBitCount bits. Since
+// shader keys also pack the interlockMode and drawType, they don't have to pack
+// the entire ShaderMiscFlags mask -- only the relevant bits from
+// shaderMiscFlagKeyMask().
+static uint32_t shaderMiscFlagKey(ShaderMiscFlags shaderMiscFlags,
+                                  DrawType drawType,
+                                  InterlockMode interlockMode)
+{
+    const ShaderMiscFlags keyMask = shaderMiscFlagKeyMask(interlockMode);
+#ifndef NDEBUG
+    // Every valid flag for the drawType must be in keyMask.
+    const ShaderMiscFlags validFlagsForDrawType =
+        get_valid_shader_misc_flags(drawType, interlockMode);
+    assert(enums::no_flags_set(validFlagsForDrawType, ~keyMask));
+    // And every flag we were given must be valid for this specific drawType
+    // (which also validates they're valid for the interlockMode).
+    assert(enums::no_flags_set(shaderMiscFlags, ~validFlagsForDrawType));
+    assert(math::count_set_bits(uint32_t(keyMask)) <=
+           ShaderMiscFlagKeyBitCount);
+#endif
+    return math::compact_bitmask_value(uint32_t(shaderMiscFlags),
+                                       uint32_t(keyMask));
+}
+
+uint32_t ShaderUniqueKey(DrawType drawType,
+                         ShaderFeatures shaderFeatures,
+                         InterlockMode interlockMode,
+                         ShaderMiscFlags shaderMiscFlags)
+{
+    if (enums::is_flag_set(shaderMiscFlags,
+                           ShaderMiscFlags::coalescedResolveAndTransfer))
+    {
+        assert(drawType == DrawType::renderPassResolve);
+        assert(enums::is_flag_set(shaderFeatures,
+                                  ShaderFeatures::ENABLE_ADVANCED_BLEND));
+        assert(interlockMode == InterlockMode::atomics);
+    }
+    if (enums::any_flag_set(shaderMiscFlags,
+                            ShaderMiscFlags::storeColorClear |
+                                ShaderMiscFlags::swizzleColorBGRAToRGBA))
+    {
+        assert(drawType == DrawType::renderPassInitialize);
+        assert(interlockMode == InterlockMode::atomics);
+    }
+    uint32_t key = shaderMiscFlagKey(shaderMiscFlags, drawType, interlockMode);
+    assert(static_cast<uint32_t>(interlockMode) < 1 << InterlockModeBitCount);
+    key = (key << InterlockModeBitCount) | static_cast<uint32_t>(interlockMode);
+    key = (key << ShaderFeatureCount) |
           uint32_t(shaderFeatures &
                    ShaderFeaturesMaskFor(drawType, interlockMode));
-    assert(drawTypeKey < 1 << 3);
-    key = (key << 3) | drawTypeKey;
+    key = (key << DrawTypeKeyBitCount) | drawTypeKey(drawType, interlockMode);
     return key;
 }
 
@@ -1885,14 +1987,14 @@ bool get_color_write_enable(DrawType drawType,
     RIVE_UNREACHABLE();
 }
 
-uint64_t pipeline_unique_key(DrawType drawType,
-                             ShaderFeatures shaderFeatures,
-                             InterlockMode interlockMode,
-                             ShaderMiscFlags shaderMiscFlags,
-                             DrawContents drawContents,
-                             bool fixedFunctionColorOutput,
-                             rive::BlendMode blendMode,
-                             const PlatformFeatures& platformFeatures)
+uint64_t getPipelineUniqueKey(DrawType drawType,
+                              ShaderFeatures shaderFeatures,
+                              InterlockMode interlockMode,
+                              ShaderMiscFlags shaderMiscFlags,
+                              DrawContents drawContents,
+                              bool fixedFunctionColorOutput,
+                              rive::BlendMode blendMode,
+                              const PlatformFeatures& platformFeatures)
 {
     uint64_t key = gpu::ShaderUniqueKey(drawType,
                                         shaderFeatures,
@@ -1943,7 +2045,7 @@ uint64_t pipeline_unique_key(DrawType drawType,
 
     key = math::add_bits_to_key(key,
                                 uint32_t(stencilInfo.stencilType),
-                                STENCIL_TYPE_BIT_COUNT);
+                                StencilTypeBitCount);
 
     const bool colorWriteEnabled =
         get_color_write_enable(drawType,
@@ -1958,7 +2060,7 @@ uint64_t pipeline_unique_key(DrawType drawType,
     key = math::add_bits_to_key(key, uint32_t(depthState.depthWriteEnabled), 1);
     key = math::add_bits_to_key(key,
                                 uint32_t(get_cull_face(drawType)),
-                                CULL_FACE_BIT_COUNT);
+                                CullFaceBitCount);
     return key;
 }
 

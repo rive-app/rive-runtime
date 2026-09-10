@@ -81,7 +81,17 @@ constexpr static VkBlendFactor vk_dst_blend_factor(gpu::BlendEquation equation)
 uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     const PlatformFeatures& platformFeatures) const
 {
-    uint64_t key = gpu::pipeline_unique_key(
+    // (Not our final line of defense, but still a helpful safeguard. Even
+    // without this static_assert, math::add_bits_to_key() would still assert at
+    // runtime.)
+    static_assert(gpu::PipelineUniqueKeyBitCount +
+                          RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT +
+                          DrawPipelineVulkan::OPTION_COUNT +
+                          1 /*hasPipelineDynamicState*/
+                      <= 64,
+                  "Vulkan pipeline key exceeds 64 bits");
+
+    uint64_t key = gpu::getPipelineUniqueKey(
         drawType,
         shaderFeatures,
         interlockMode,
@@ -104,7 +114,7 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     key =
         math::add_bits_to_key(key, uint64_t(drawPipelineOptions), OPTION_COUNT);
 
-    // pipeline_unique_key() keys on baked depth/stencil/cull/color state, so a
+    // getPipelineUniqueKey() keys on baked depth/stencil/cull/color state, so a
     // dynamic-state pipeline collides with the static pipelines that share its
     // state (e.g. stencilDynamicMidpointFans vs. stencilMidpointFans). They
     // need distinct pipelines -- one uses the dynamic-state layout, the
@@ -120,7 +130,8 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
 uint32_t subpass_index(gpu::DrawType drawType,
                        gpu::LoadAction colorLoadAction,
                        gpu::InterlockMode interlockMode,
-                       gpu::ShaderMiscFlags shaderMiscFlags)
+                       gpu::ShaderMiscFlags shaderMiscFlags,
+                       RenderPassOptionsVulkan renderPassOptions)
 {
     if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -132,8 +143,10 @@ uint32_t subpass_index(gpu::DrawType drawType,
                    : 1;
     }
 
+    // Preserving the render target costs msaa an extra subpass upfront, to seed
+    // the transient MSAA color attachment.
     const uint32_t mainSubpassIdx =
-        (interlockMode == gpu::InterlockMode::depthStencil &&
+        (enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa) &&
          colorLoadAction == gpu::LoadAction::preserveRenderTarget)
             ? 1
             : 0;
@@ -209,7 +222,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     uint32_t subpassIndex = subpass_index(props.drawType,
                                           props.colorLoadAction,
                                           interlockMode,
-                                          props.shaderMiscFlags);
+                                          props.shaderMiscFlags,
+                                          pipelineLayout.renderPassOptions());
 
     auto& vertShader =
         pipelineManager->getVertexShaderSynchronous(props.drawType,
@@ -478,7 +492,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineMultisampleStateCreateInfo msaaState = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .rasterizationSamples =
-            (interlockMode == gpu::InterlockMode::depthStencil &&
+            (enums::is_flag_set(pipelineLayout.renderPassOptions(),
+                                RenderPassOptionsVulkan::msaa) &&
              props.drawType != gpu::DrawType::renderPassResolve)
                 ? VK_SAMPLE_COUNT_4_BIT
                 : VK_SAMPLE_COUNT_1_BIT,

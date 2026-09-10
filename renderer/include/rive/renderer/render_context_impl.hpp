@@ -146,7 +146,8 @@ public:
         const IAABB& renderTargetUpdateBounds,
         uint32_t virtualTileWidth,
         uint32_t virtualTileHeight,
-        gpu::DrawContents combinedDrawContents) const
+        gpu::DrawContents combinedDrawContents,
+        uint32_t msaaSampleCount) const
     {
         return false;
     }

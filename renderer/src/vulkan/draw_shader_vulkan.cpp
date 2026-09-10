@@ -22,6 +22,10 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
     const bool fixedFunctionColorOutput =
         enums::is_flag_set(shaderMiscFlags,
                            gpu::ShaderMiscFlags::fixedFunctionColorOutput);
+    const bool msaaDstRead =
+        enums::is_flag_set(shaderMiscFlags, gpu::ShaderMiscFlags::msaaDstRead);
+    // fixedFunctionColorOutput does no dstRead, by definition.
+    assert(!msaaDstRead || !fixedFunctionColorOutput);
 
     if (type == Type::fragment &&
         interlockMode == InterlockMode::depthStencil &&
@@ -431,10 +435,19 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                                            ShaderFeatures::ENABLE_CLIP_RECT)
                             ? spirv::draw_depthstencil_path_vert
                             : spirv::draw_depthstencil_path_noclipdistance_vert;
-                    fragCode =
-                        fixedFunctionColorOutput
-                            ? spirv::draw_depthstencil_path_fixedcolor_frag
-                            : spirv::draw_depthstencil_path_frag;
+                    if (fixedFunctionColorOutput)
+                    {
+                        fragCode =
+                            spirv::draw_depthstencil_path_fixedcolor_frag;
+                    }
+                    else if (msaaDstRead)
+                    {
+                        fragCode = spirv::draw_depthstencil_path_msaa_frag;
+                    }
+                    else
+                    {
+                        fragCode = spirv::draw_depthstencil_path_frag;
+                    }
                     break;
 
                 case DrawType::clipReset:
@@ -460,6 +473,8 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                         fixedFunctionColorOutput
                             ? spirv::
                                   draw_depthstencil_atlas_blit_fixedcolor_frag
+                        : msaaDstRead
+                            ? spirv::draw_depthstencil_atlas_blit_msaa_frag
                             : spirv::draw_depthstencil_atlas_blit_frag;
                     break;
 
@@ -474,6 +489,8 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                         fixedFunctionColorOutput
                             ? spirv::
                                   draw_depthstencil_image_mesh_fixedcolor_frag
+                        : msaaDstRead
+                            ? spirv::draw_depthstencil_image_mesh_msaa_frag
                             : spirv::draw_depthstencil_image_mesh_frag;
                     break;
 
@@ -487,7 +504,14 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
 
                 case DrawType::renderPassResolve:
                     vertCode = spirv::draw_fullscreen_quad_vert;
-                    fragCode = spirv::draw_msaa_resolve_frag;
+                    // A manual resolve reads the framebuffer, so it never gets
+                    // fixedFunctionColorOutput, and msaaDstRead alone
+                    // says which kind of pass this is.
+                    assert(!fixedFunctionColorOutput);
+                    // A single-sampled resolve just has to transfer from the
+                    // transient color buffer into the render target.
+                    fragCode = msaaDstRead ? spirv::draw_msaa_resolve_frag
+                                           : spirv::draw_input_attachment_frag;
                     break;
 
                 case DrawType::imageRect:

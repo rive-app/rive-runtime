@@ -130,7 +130,8 @@ private:
         wgpu::ShaderModule fragmentShaderModule,
         const wgsl::Shader* vertexShader,
         const wgsl::Shader* fragmentShader,
-        const gpu::PipelineState&);
+        const gpu::PipelineState&,
+        bool msaa);
 
     // Specifies how to store MSAA color/depth/stencil attachments when ending
     // an MSAA render pass.
@@ -284,7 +285,7 @@ protected:
     wgpu::TextureView clipTextureView();
     wgpu::TextureView scratchColorTextureView();
     wgpu::TextureView msaaColorTextureView();
-    wgpu::TextureView msaaDepthStencilTextureView();
+    wgpu::TextureView depthStencilTextureView(bool msaa);
     wgpu::Texture dstColorTexture();
     wgpu::TextureView dstColorTextureView();
 
@@ -300,13 +301,14 @@ private:
     const wgpu::TextureFormat m_framebufferFormat;
     wgpu::TextureUsage m_transientPLSUsage;
     wgpu::TextureUsage m_transientMSAAColorUsage;
-    wgpu::TextureUsage m_transientMSAADepthStencilUsage;
+    wgpu::TextureUsage m_transientDepthStencilUsage;
 
     wgpu::Texture m_targetTexture;
     wgpu::Texture m_coverageTexture;
     wgpu::Texture m_clipTexture;
     wgpu::Texture m_scratchColorTexture;
     wgpu::Texture m_msaaColorTexture;
+    wgpu::Texture m_depthStencilTexture;
     wgpu::Texture m_msaaDepthStencilTexture;
     wgpu::Texture m_dstColorTexture;
 
@@ -315,6 +317,7 @@ private:
     wgpu::TextureView m_clipTextureView;
     wgpu::TextureView m_scratchColorTextureView;
     wgpu::TextureView m_msaaColorTextureView;
+    wgpu::TextureView m_depthStencilTextureView;
     wgpu::TextureView m_msaaDepthStencilTextureView;
     wgpu::TextureView m_dstColorTextureView;
 };

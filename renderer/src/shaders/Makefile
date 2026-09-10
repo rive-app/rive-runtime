@@ -203,6 +203,15 @@ SPIRV_DRAW_MSAA_INPUTS := \
     spirv/draw_depthstencil_path.main \
     spirv/draw_depthstencil_triangles_nocolor.main \
 
+# MSAA advanced blend reads the color attachment via 'subpassInputMS', which is
+# an entirely different type than 'subpassInput' and requires its own build.
+# NOTE: At the time these were added, they cost us 66KB, or +16% the embedded
+# .spv size on android (which excludes atomic modes).
+SPIRV_DRAW_MSAA_DST_READ_INPUTS := \
+    spirv/draw_depthstencil_atlas_blit.main \
+    spirv/draw_depthstencil_image_mesh.main \
+    spirv/draw_depthstencil_path.main \
+
 # WebGPU (compatibility mode) doesn't always support storage buffers in the
 # vertex shader. These files specifically need WebGPU "nossbo" build variants
 # that polyfill the buffers via textures.
@@ -377,6 +386,10 @@ $(eval $(call make_spirv_rules, \
     $(SPIRV_DRAW_MSAA_INPUTS), \
     fixedcolor_frag, \
     -DFIXED_FUNCTION_COLOR_OUTPUT))
+$(eval $(call make_spirv_rules, \
+    $(SPIRV_DRAW_MSAA_DST_READ_INPUTS), \
+    msaa_frag, \
+    -DMSAA_DST_COLOR))
 $(eval $(call make_spirv_rules, \
     $(SPIRV_WEBGPU_INPUTS) \
     $(SPIRV_DRAW_ATOMIC_INPUTS) \

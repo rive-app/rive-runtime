@@ -260,7 +260,7 @@ public:
                               ? gpu::LoadAction::clear
                               : gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = m_backendParams.msaa ? 4u : 0u,
+            .msaaSampleCount = m_backendParams.msaaSampleCount,
             .disableRasterOrdering = options.disableRasterOrdering,
             .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,

@@ -175,6 +175,7 @@ struct GLCapabilities
     bool isAdreno : 1;
     bool isMali : 1;
     bool isPowerVR : 1;
+    bool isIntel : 1;
 
     // GL version.
     uint32_t contextVersionMajor;

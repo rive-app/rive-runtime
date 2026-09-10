@@ -129,13 +129,13 @@ private:
     // another backend rather than abort the process.
     bool initGPUObjects(ShaderCompilationMode);
 
-    bool wantsManualRenderPassResolve(
-        gpu::InterlockMode,
-        const RenderTarget*,
-        const IAABB& renderTargetUpdateBounds,
-        uint32_t virtualTileWidth,
-        uint32_t virtualTileHeight,
-        gpu::DrawContents combinedDrawContents) const override;
+    bool wantsManualRenderPassResolve(gpu::InterlockMode,
+                                      const RenderTarget*,
+                                      const IAABB& renderTargetUpdateBounds,
+                                      uint32_t virtualTileWidth,
+                                      uint32_t virtualTileHeight,
+                                      gpu::DrawContents combinedDrawContents,
+                                      uint32_t msaaSampleCount) const override;
 
     void prepareToFlush(uint64_t nextFrameNumber,
                         uint64_t safeFrameNumber) override;
@@ -300,7 +300,10 @@ private:
                        const IAABB& drawBounds,
                        VkImageView colorImageView,
                        VkImageView msaaColorSeedImageView,
-                       VkImageView msaaResolveImageView,
+                       // MSAA resolve, or copy target when rendering
+                       // single-sampled offscreen for a render target that
+                       // doesn't support input attachments.
+                       VkImageView depthStencilFinalColorImageView,
                        RenderPassOptionsVulkan,
                        const IAABB& scissor);
 
@@ -341,7 +344,9 @@ private:
         const IAABB m_drawBounds;
         const VkImageView m_colorImageView;
         const VkImageView m_msaaColorSeedImageView;
-        const VkImageView m_msaaResolveImageView;
+        // MSAA resolve, or copy target when rendering single-sampled offscreen
+        // for a render target that doesn't support input attachments.
+        const VkImageView m_depthStencilFinalColorImageView;
         const DrawPipelineLayoutVulkan& m_pipelineLayout;
 
         // Initialized by beginDrawRenderPass().
@@ -393,6 +398,13 @@ private:
         // resolve attachments. For now we just always manually resolve these
         // render passes that use advanced blend on Qualcomm.
         bool needsManualMSAAResolveAfterDstRead = true;
+        // Adreno returns garbage when reading the renderTarget itself as an
+        // input attachment (and only if there aren't other MRT color
+        // attachments ¯\_(ツ)_/¯).
+        // ((And yes, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT is set!))
+        // NOTE: This isn't about the swapchain. A plain offscreen texture also
+        // fails in the same way when it's the renderTarget.
+        bool avoidDstReadFromNonMRTRenderTarget = false;
     };
 
     const DriverWorkarounds m_workarounds;

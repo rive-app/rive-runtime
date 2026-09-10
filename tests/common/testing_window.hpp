@@ -115,12 +115,16 @@ public:
     {
         bool atomic = false;
         bool core = false;
-        bool msaa = false;
         bool srgb = false;
         bool clockwise = false;
         bool disableValidationLayers = false;
         bool disableDebugCallbacks = false;
         bool wantVulkanSynchronizationValidation = false;
+
+        //  0 => non-depthStencil mode (if supported; else 4x MSAA)
+        //  1 => depthStencil w/o MSAA
+        // >1 => depthStencil with MSAA
+        uint32_t msaaSampleCount = 0;
 
         rive::gpu::ShaderCompilationMode shaderCompilationMode =
             rive::gpu::ShaderCompilationMode::standard;

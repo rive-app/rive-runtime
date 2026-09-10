@@ -731,7 +731,7 @@ int main(int argc, const char** argv)
             glfwWindowHint(GLFW_SAMPLES, msaa);
         }
         glfwWindowHint(GLFW_STENCIL_BITS, 8);
-        glfwWindowHint(GLFW_DEPTH_BITS, 16);
+        glfwWindowHint(GLFW_DEPTH_BITS, 24);
     }
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
     switch (api)

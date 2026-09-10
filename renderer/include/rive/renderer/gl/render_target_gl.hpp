@@ -49,21 +49,30 @@ public:
     // will also be bound to their corresponding pixel local storage planes.
     virtual void bindHeadlessFramebuffer(const GLCapabilities&) = 0;
 
+    // Returns any explicit manual MSAA resolve that the caller is responsible
+    // for after bindFramebufferForDepthStencilMode().
     enum class MSAAResolveAction
     {
-        automatic,       // The MSAA framebuffer will be resolved automatically.
+        none,            // No explicit resolve step is needed.
         framebufferBlit, // Caller must call glBlitFramebuffer() to resolve the
                          // MSAA framebuffer.
     };
 
-    // Bind the renderTarget as a multisampled framebuffer.
+    // Binds a framebuffer for rendering with InterlockMode::depthStencil.
     //
-    // If the msaa framebuffer is offscreen, returns
-    // MSAAResolveAction::framebufferBlit, indicating that the caller must
-    // resolve it when done.
-    virtual MSAAResolveAction bindMSAAFramebuffer(
+    // If ANY of the following conditions are met, the destination framebuffer
+    // is bound for the caller to render to it directly:
+    //
+    //   * desiredSampleCount == 1
+    //   * The destination framebuffer is already multisampled (regardless of
+    //     desiredSampleCount)
+    //   * EXT_multisampled_render_to_texture is supported on the destination
+    //
+    // Otherwise, an offscreen texture is bound for rendering and we return
+    // MSAAResolveAction::framebufferBlit.
+    virtual MSAAResolveAction bindFramebufferForDepthStencilMode(
         RenderContextGLImpl*,
-        int sampleCount,
+        int desiredSampleCount,
         const IAABB* preserveBounds = nullptr,
         bool* isFBO0 = nullptr) = 0;
 
@@ -110,7 +119,8 @@ public:
     void setTargetTexture(GLuint externalTextureID)
     {
         m_externalTextureID = externalTextureID;
-        m_framebufferTargetAttachmentDirty = true;
+        m_externalTextureAttachmentDirty = true;
+        m_dsFBOExternalTextureAttachmentDirty = true;
         m_webglPLSBindingsDirty = true;
     }
 
@@ -121,10 +131,11 @@ public:
     GLuint renderTexture() final { return externalTextureID(); }
     void bindTextureFramebuffer(GLenum target) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
-    MSAAResolveAction bindMSAAFramebuffer(RenderContextGLImpl*,
-                                          int sampleCount,
-                                          const IAABB* preserveBounds,
-                                          bool* isFBO0) final;
+    MSAAResolveAction bindFramebufferForDepthStencilMode(
+        RenderContextGLImpl*,
+        int desiredSampleCount,
+        const IAABB* preserveBounds,
+        bool* isFBO0) final;
 
 #ifdef GL_ANGLE_shader_pixel_local_storage
     void allocateWebGLPLSBacking(const GLCapabilities&) final;
@@ -137,8 +148,9 @@ private:
     glutils::Framebuffer m_framebufferID = glutils::Framebuffer::Zero();
     glutils::Framebuffer m_headlessFramebuffer = glutils::Framebuffer::Zero();
 
-    // For framebuffer color attachments.
-    bool m_framebufferTargetAttachmentDirty = false;
+    // Has m_externalTextureID been invalidated since the last time we used
+    // m_framebufferID?
+    bool m_externalTextureAttachmentDirty = false;
 
     // For ANGLE_shader_pixel_local_storage attachments.
     glutils::Texture m_webglPLSBackingR32UI = glutils::Texture::Zero();
@@ -148,11 +160,17 @@ private:
     glutils::Texture m_webglPLSBackingRGBA8 = glutils::Texture::Zero();
     bool m_webglPLSBindingsDirty = false;
 
-    glutils::Framebuffer m_msaaFramebuffer = glutils::Framebuffer::Zero();
-    glutils::Renderbuffer m_msaaColorBuffer = glutils::Renderbuffer::Zero();
-    glutils::Renderbuffer m_msaaDepthStencilBuffer =
+    // For InterlockMode::depthStencil: Separate FBO which is equipped with
+    // a depth/stencil buffer and optional MSAA.
+    glutils::Framebuffer m_dsFBO = glutils::Framebuffer::Zero();
+    glutils::Renderbuffer m_dsFBOColorBuffer = glutils::Renderbuffer::Zero();
+    glutils::Renderbuffer m_dsFBODepthStencilBuffer =
         glutils::Renderbuffer::Zero();
-    int m_msaaFramebufferSampleCount = 0;
+    int m_dsFBOSampleCount = 0;
+
+    // Has m_externalTextureID been invalidated since the last time we used
+    // m_dsFBO?
+    bool m_dsFBOExternalTextureAttachmentDirty = false;
 };
 
 // GL render target that draws to an external, immutable FBO provided by the
@@ -185,20 +203,25 @@ public:
     GLuint renderTexture() final;
     void bindTextureFramebuffer(GLenum target) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
-    MSAAResolveAction bindMSAAFramebuffer(RenderContextGLImpl*,
-                                          int sampleCount,
-                                          const IAABB* preserveBounds,
-                                          bool* isFBO0) final;
+    MSAAResolveAction bindFramebufferForDepthStencilMode(
+        RenderContextGLImpl*,
+        int desiredSampleCount,
+        const IAABB* preserveBounds,
+        bool* isFBO0) final;
 
 #ifdef GL_ANGLE_shader_pixel_local_storage
     void allocateWebGLPLSBacking(const GLCapabilities&) final;
 #endif
 
 private:
+    // Warns if the client's framebuffer has inadequate depth/stencil precision.
+    void validateDepthStencilPrecisionOnce();
+
     // Ownership of this object is not assumed; the client must delete it when
     // done.
     const GLuint m_externalFramebufferID;
     const uint32_t m_sampleCount;
+    bool m_didValidateDepthStencilPrecision = false;
 
     // Holds the PLS textures we might need.
     TextureRenderTargetGL m_textureRenderTarget;

@@ -191,9 +191,9 @@ public:
         // These must stay in sync with generate_draw_combinations.py.
         char namespaceID[] = "00000000000";
         static_assert(sizeof(namespaceID) ==
-                      gpu::kShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
+                      gpu::ShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
                           1 /*FEATHER_ATLAS_BLIT*/ + 1 /*null terminator*/);
-        for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
+        for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
         {
             const auto feature = ShaderFeatures(1 << i);
             if (enums::is_flag_set(shaderFeatures, feature))
@@ -215,12 +215,12 @@ public:
         }
         if (drawType == DrawType::interiorTriangulation)
         {
-            namespaceID[gpu::kShaderFeatureCount] = '1';
+            namespaceID[gpu::ShaderFeatureCount] = '1';
         }
         else if (drawType == DrawType::featherAtlasBlit)
         {
-            namespaceID[gpu::kShaderFeatureCount] = '1';
-            namespaceID[gpu::kShaderFeatureCount + 1] = '1';
+            namespaceID[gpu::ShaderFeatureCount] = '1';
+            namespaceID[gpu::ShaderFeatureCount + 1] = '1';
         }
 
         char namespacePrefix;

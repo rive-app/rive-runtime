@@ -110,7 +110,7 @@ static WGPUOptionalBool wgpu_bool(bool value)
 
 constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 
-constexpr static uint32_t MSAA_SAMPLE_COUNT = 4u;
+constexpr static uint32_t MSAASampleCount = 4u;
 
 constexpr static WGPUStencilFaceState STENCIL_FACE_STATE_DISABLED = {
     .compare = WGPUCompareFunction_Always,
@@ -1248,6 +1248,7 @@ public:
                  gpu::InterlockMode interlockMode,
                  gpu::ShaderMiscFlags shaderMiscFlags,
                  const gpu::PipelineState& pipelineState,
+                 bool msaa,
                  bool targetIsGLFBO0)
     {
         const bool fixedFunctionColorOutput =
@@ -1362,7 +1363,7 @@ public:
                         RIVE_UNREACHABLE();
                         break;
                 }
-                for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
+                for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
                 {
                     const auto feature = ShaderFeatures(1 << i);
                     if (enums::is_flag_set(shaderFeatures, feature))
@@ -1751,7 +1752,8 @@ public:
                                           fragmentModule,
                                           vertexShader,
                                           fragmentShader,
-                                          pipelineState);
+                                          pipelineState,
+                                          msaa);
         }
     }
 
@@ -2141,7 +2143,7 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     m_framebufferFormat(framebufferFormat),
     m_transientPLSUsage(wgpu::TextureUsage::RenderAttachment),
     m_transientMSAAColorUsage(wgpu::TextureUsage::RenderAttachment),
-    m_transientMSAADepthStencilUsage(wgpu::TextureUsage::RenderAttachment),
+    m_transientDepthStencilUsage(wgpu::TextureUsage::RenderAttachment),
     m_targetTextureView{} // Will be configured later by setTargetTexture().
 {
 #ifdef RIVE_WAGYU
@@ -2168,7 +2170,7 @@ RenderTargetWebGPU::RenderTargetWebGPU(
             // situation. (MRT is forbidden by
             // EXT_multisampled_render_to_texture.)
             WGPUTextureUsage_WagyuMSAAResolveSource);
-        m_transientMSAADepthStencilUsage |= static_cast<wgpu::TextureUsage>(
+        m_transientDepthStencilUsage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuTransientAttachment);
     }
 #endif
@@ -2238,7 +2240,7 @@ wgpu::TextureView RenderTargetWebGPU::msaaColorTextureView()
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = m_framebufferFormat,
-            .sampleCount = MSAA_SAMPLE_COUNT,
+            .sampleCount = MSAASampleCount,
         };
         m_msaaColorTexture = m_device.CreateTexture(&desc);
         m_msaaColorTextureView = m_msaaColorTexture.CreateView();
@@ -2246,21 +2248,26 @@ wgpu::TextureView RenderTargetWebGPU::msaaColorTextureView()
     return m_msaaColorTextureView;
 }
 
-wgpu::TextureView RenderTargetWebGPU::msaaDepthStencilTextureView()
+wgpu::TextureView RenderTargetWebGPU::depthStencilTextureView(bool msaa)
 {
-    if (m_msaaDepthStencilTexture == nullptr)
+    wgpu::TextureView& textureView =
+        msaa ? m_msaaDepthStencilTextureView : m_depthStencilTextureView;
+    if (textureView == nullptr)
     {
+        wgpu::Texture& texture =
+            msaa ? m_msaaDepthStencilTexture : m_depthStencilTexture;
+        assert(texture == nullptr);
         wgpu::TextureDescriptor desc = {
-            .usage = m_transientMSAADepthStencilUsage,
+            .usage = m_transientDepthStencilUsage,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = wgpu::TextureFormat::Depth24PlusStencil8,
-            .sampleCount = MSAA_SAMPLE_COUNT,
+            .sampleCount = msaa ? MSAASampleCount : 1u,
         };
-        m_msaaDepthStencilTexture = m_device.CreateTexture(&desc);
-        m_msaaDepthStencilTextureView = m_msaaDepthStencilTexture.CreateView();
+        texture = m_device.CreateTexture(&desc);
+        textureView = texture.CreateView();
     }
-    return m_msaaDepthStencilTextureView;
+    return textureView;
 }
 
 wgpu::Texture RenderTargetWebGPU::dstColorTexture()
@@ -3184,8 +3191,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     wgpu::ShaderModule fragmentShaderModule,
     const wgsl::Shader* vertexShader,
     const wgsl::Shader* fragmentShader,
-    const gpu::PipelineState& pipelineState)
+    const gpu::PipelineState& pipelineState,
+    bool msaa)
 {
+    // Only depthStencil is ever multisampled.
+    assert(!msaa || interlockMode == gpu::InterlockMode::depthStencil);
     // The most vertex buffers any draw type binds is the image mesh: position,
     // uv, and the per-instance attribute buffer.
     StackVector<WGPUVertexBufferLayout, 3> vertexBufferLayouts;
@@ -3561,9 +3571,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             },
         .multisample =
             {
-                .count = interlockMode == gpu::InterlockMode::depthStencil
-                             ? MSAA_SAMPLE_COUNT
-                             : 1u,
+                .count = msaa ? MSAASampleCount : 1u,
                 .mask = 0xffffffff,
             },
         .fragment = &fragmentState,
@@ -3610,6 +3618,8 @@ class RenderContextWebGPUImpl::DrawRenderPass
 public:
     virtual ~DrawRenderPass() { end(); }
 
+    bool msaa() const { return m_msaa; }
+
     // The live render pass encoder. Null before the pass has begun (the MSAA
     // pass defers its begin until the first barrier) and after end().
     const wgpu::RenderPassEncoder& encoder() const { return m_encoder; }
@@ -3633,6 +3643,7 @@ protected:
                    wgpu::CommandEncoder commandEncoder) :
         m_impl(impl),
         m_desc(desc),
+        m_msaa(desc.msaaSampleCount > 1),
         m_renderTarget(static_cast<RenderTargetWebGPU*>(desc.renderTarget)),
         m_commandEncoder(commandEncoder)
     {}
@@ -3667,6 +3678,7 @@ protected:
 
     RenderContextWebGPUImpl* const m_impl;
     const FlushDescriptor& m_desc;
+    const bool m_msaa;
     RenderTargetWebGPU* const m_renderTarget;
     const wgpu::CommandEncoder m_commandEncoder;
     wgpu::RenderPassEncoder m_encoder;
@@ -3977,10 +3989,13 @@ public:
                                const FlushDescriptor& desc,
                                wgpu::CommandEncoder commandEncoder) :
         DrawRenderPass(impl, desc, commandEncoder),
-        m_msaaColorTextureView(m_renderTarget->msaaColorTextureView()),
+        m_msaaColorTextureView(
+            msaa() ? m_renderTarget->msaaColorTextureView()
+                   // Single-sampled renders straight to the render target.
+                   : wgpu::TextureView{}),
         m_targetTextureView(m_renderTarget->targetTextureView()),
-        m_msaaDepthStencilTextureView(
-            m_renderTarget->msaaDepthStencilTextureView())
+        m_depthStencilTextureView(
+            m_renderTarget->depthStencilTextureView(msaa()))
     {
         // If we're preserving the render target with a draw, don't begin the
         // render pass yet. We will get a dstBlend barrier on the first draw
@@ -4060,38 +4075,61 @@ private:
 
     void begin(DepthStencilBeginType beginType, DepthStencilEndType endType)
     {
-        // Our MSAA buffers are treated as completely transient (i.e.,
-        // Clear/Discard) unless we have to do render pass breaks for dst
-        // copies. For LoadAction::preserveRenderTarget, we manually draw the
-        // old content into the transient MSAA buffer, so we still load with
-        // Clear.
+        // depthStencil and MSAA color (if needed) are treated as completely
+        // transient (i.e., Clear/Discard) unless we have to do render pass
+        // breaks for dst copies.
+        // For LoadAction::preserveRenderTarget on a transient MSAA color
+        // buffer, we manually draw the old content into the buffer, so we still
+        // load with Clear.
         // TODO: wgpu::LoadOp::ExpandResolveTexture for the color buffer when
         // supported.
-        const auto msaaLoadOp =
+        const auto transientLoadOp =
             beginType == DepthStencilBeginType::restartAfterDstCopy
                 ? wgpu::LoadOp::Load
                 : wgpu::LoadOp::Clear;
-        const auto msaaStoreOp =
+        const auto transientStoreOp =
             (endType == DepthStencilEndType::breakForDstCopy)
                 ? wgpu::StoreOp::Store
                 : wgpu::StoreOp::Discard;
 
-        wgpu::RenderPassColorAttachment msaaColorAttachment = {
-            .view = m_msaaColorTextureView,
-            .resolveTarget = m_targetTextureView.Get(),
-            .loadOp = msaaLoadOp,
-            .storeOp = msaaStoreOp,
-            .clearValue = wgpu_color_premul(m_desc.colorClearValue),
-        };
+        wgpu::RenderPassColorAttachment colorAttachment;
+        assert(m_desc.msaaSampleCount > 0);
+        if (m_desc.msaaSampleCount == 1)
+        {
+            // Non-MSAA -- draw directly to the renderTarget.
+            colorAttachment = {
+                .view = m_targetTextureView,
+                .loadOp =
+                    (beginType == DepthStencilBeginType::restartAfterDstCopy ||
+                     m_desc.colorLoadAction ==
+                         gpu::LoadAction::preserveRenderTarget)
+                        ? wgpu::LoadOp::Load
+                        : wgpu::LoadOp::Clear,
+                .storeOp = wgpu::StoreOp::Store,
+                .clearValue = wgpu_color_premul(m_desc.colorClearValue),
+            };
+        }
+        else
+        {
+            // MSAA -- draw to the offscreen MSAA color buffer and resolve to
+            // the renderTarget.
+            colorAttachment = {
+                .view = m_msaaColorTextureView,
+                .resolveTarget = m_targetTextureView.Get(),
+                .loadOp = transientLoadOp,
+                .storeOp = transientStoreOp,
+                .clearValue = wgpu_color_premul(m_desc.colorClearValue),
+            };
+        }
 
-        wgpu::RenderPassDepthStencilAttachment msaaDepthStencilAttachment = {
-            .view = m_msaaDepthStencilTextureView,
-            .depthLoadOp = msaaLoadOp,
-            .depthStoreOp = msaaStoreOp,
+        wgpu::RenderPassDepthStencilAttachment depthStencilAttachment = {
+            .view = m_depthStencilTextureView,
+            .depthLoadOp = transientLoadOp,
+            .depthStoreOp = transientStoreOp,
             .depthClearValue = m_desc.depthClearValue,
             .depthReadOnly = false,
-            .stencilLoadOp = msaaLoadOp,
-            .stencilStoreOp = msaaStoreOp,
+            .stencilLoadOp = transientLoadOp,
+            .stencilStoreOp = transientStoreOp,
             .stencilClearValue = m_desc.stencilClearValue,
             .stencilReadOnly = false,
         };
@@ -4099,8 +4137,8 @@ private:
         wgpu::RenderPassDescriptor renderPassDescriptor = {
             .label = "RIVE_DepthStencil_RenderPass",
             .colorAttachmentCount = 1,
-            .colorAttachments = &msaaColorAttachment,
-            .depthStencilAttachment = &msaaDepthStencilAttachment,
+            .colorAttachments = &colorAttachment,
+            .depthStencilAttachment = &depthStencilAttachment,
         };
 
         m_encoder = m_commandEncoder.BeginRenderPass(&renderPassDescriptor);
@@ -4109,7 +4147,7 @@ private:
 
     const wgpu::TextureView m_msaaColorTextureView;
     const wgpu::TextureView m_targetTextureView;
-    const wgpu::TextureView m_msaaDepthStencilTextureView;
+    const wgpu::TextureView m_depthStencilTextureView;
 };
 
 std::unique_ptr<RenderContextWebGPUImpl::DrawRenderPass>
@@ -4749,15 +4787,16 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 #endif
 
         uint64_t pipelineKey =
-            gpu::pipeline_unique_key(drawType,
-                                     shaderFeatures,
-                                     desc.interlockMode,
-                                     shaderMiscFlags,
-                                     batch.drawContents,
-                                     desc.fixedFunctionColorOutput,
-                                     batch.firstBlendMode,
-                                     platformFeatures());
+            gpu::getPipelineUniqueKey(drawType,
+                                      shaderFeatures,
+                                      desc.interlockMode,
+                                      shaderMiscFlags,
+                                      batch.drawContents,
+                                      desc.fixedFunctionColorOutput,
+                                      batch.firstBlendMode,
+                                      platformFeatures());
 
+        pipelineKey = math::add_bits_to_key(pipelineKey, renderPass->msaa(), 1);
         pipelineKey = math::add_bits_to_key(pipelineKey, targetIsGLFBO0, 1);
 
         const DrawPipeline& drawPipeline = m_drawPipelines
@@ -4768,6 +4807,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                                             desc.interlockMode,
                                                             shaderMiscFlags,
                                                             pipelineState,
+                                                            renderPass->msaa(),
                                                             targetIsGLFBO0)
                                                .first->second;
         drawEncoder.SetPipeline(

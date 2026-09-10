@@ -24,10 +24,6 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
         {
             m_contextOptions.shaderCompilationMode =
                 backendParams.shaderCompilationMode;
-            if (m_backendParams.msaa)
-            {
-                m_contextOptions.disablePixelLocalStorage = true;
-            }
             if (m_backendParams.atomic)
             {
                 m_contextOptions.disableFragmentShaderInterlock = true;
@@ -86,8 +82,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                                   ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = options.clearColor,
-                .msaaSampleCount =
-                    (m_backendParams.msaa || options.forceMSAA) ? 4u : 0u,
+                .msaaSampleCount = std::max(m_backendParams.msaaSampleCount,
+                                            options.forceMSAA ? 4u : 0u),
                 .disableRasterOrdering =
                     m_backendParams.atomic || options.disableRasterOrdering,
                 .triangulationThresholds = options.triangulationThresholds,

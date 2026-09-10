@@ -84,11 +84,15 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
     }
-    else if (interlockMode == gpu::InterlockMode::depthStencil)
+    else if (enums::is_flag_set(renderPassOptions,
+                                RenderPassOptionsVulkan::msaa))
     {
+        // Configure an input attachment to seed the transient MSAA color
+        // attachment.
         // TODO: pipeline layouts aren't currently keyed by loadAction, but if
         // they were, we could only include this binding with
         // preserveRenderTarget.
+        assert(interlockMode == gpu::InterlockMode::depthStencil);
         plsLayoutBindings.push_back({
             .binding = MSAA_COLOR_SEED_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,

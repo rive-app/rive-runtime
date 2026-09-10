@@ -40,14 +40,18 @@ enum class RenderPassOptionsVulkan
     // and render to it directly in the atomic resolve step.
     atomicCoalescedResolveAndTransfer = 1 << 4,
 
-    // MSAA only, while using LoadAction::preserveRenderTarget: We have to
-    // initialize the (transient) MSAA color attachment from an offscreen
-    // texture bound as an input attachment, because the final render target
-    // itself can't be bound as an input attachment.
-    msaaSeedFromOffscreenTexture = 1 << 5,
+    // depthStencil only: Build the renderPass in MSAA. Color goes to a
+    // transient MSAA attachment that resolves into the renderTarget at the end.
+    msaa = 1 << 5,
+
+    // MSAA only (depthStencil), while using LoadAction::preserveRenderTarget:
+    // We have to initialize the (transient) MSAA color attachment from an
+    // offscreen texture bound as an input attachment, because the final render
+    // target itself can't be bound as an input attachment.
+    msaaSeedFromOffscreenTexture = 1 << 6,
 };
 
-constexpr static int RENDER_PASS_OPTION_COUNT = 6;
+constexpr static int RENDER_PASS_OPTION_COUNT = 7;
 
 // This masks out RenderPassOptions that don't affect layout, allowing different
 // render passes to reference the same VkPipelineLayout where possible.
@@ -65,7 +69,7 @@ public:
     constexpr static uint64_t KEY_NO_INTERLOCK_MODE_BIT_COUNT =
         FORMAT_BIT_COUNT + RENDER_PASS_OPTION_COUNT + LOAD_OP_BIT_COUNT;
     constexpr static uint64_t KEY_BIT_COUNT =
-        KEY_NO_INTERLOCK_MODE_BIT_COUNT + gpu::INTERLOCK_MODE_BIT_COUNT;
+        KEY_NO_INTERLOCK_MODE_BIT_COUNT + gpu::InterlockModeBitCount;
     static_assert(KEY_BIT_COUNT <= 32);
 
     // Shader unique keys also include the interlock mode, so we don't always

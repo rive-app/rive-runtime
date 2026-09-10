@@ -16,19 +16,17 @@
 
 namespace rive::gpu
 {
-constexpr static VkAttachmentLoadOp vk_color_load_op(
-    gpu::LoadAction loadAction,
-    gpu::InterlockMode interlockMode)
+constexpr static VkAttachmentLoadOp vk_color_load_op(gpu::LoadAction loadAction,
+                                                     bool msaa)
 {
     switch (loadAction)
     {
         case gpu::LoadAction::preserveRenderTarget:
-            return (interlockMode == gpu::InterlockMode::depthStencil)
-                       // In MSAA we need to implement the loadOp with a manual
-                       // draw instead, since the MSAA attachment is transient
-                       // and its color is seeded from the actual render target.
-                       ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
-                       : VK_ATTACHMENT_LOAD_OP_LOAD;
+            // In MSAA we need to implement the loadOp with a manual draw
+            // instead, since the MSAA attachment is transient and its color is
+            // seeded from the actual render target.
+            return msaa ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                        : VK_ATTACHMENT_LOAD_OP_LOAD;
         case gpu::LoadAction::clear:
             return VK_ATTACHMENT_LOAD_OP_CLEAR;
         case gpu::LoadAction::dontCare:
@@ -194,12 +192,11 @@ uint32_t RenderPassVulkan::Key(gpu::InterlockMode interlockMode,
         KeyNoInterlockMode(renderPassOptions, renderTargetFormat, loadAction);
 
     // gpu::InterlockMode.
-    assert(key << gpu::INTERLOCK_MODE_BIT_COUNT >>
-               gpu::INTERLOCK_MODE_BIT_COUNT ==
+    assert(key << gpu::InterlockModeBitCount >> gpu::InterlockModeBitCount ==
            key);
     assert(static_cast<uint32_t>(interlockMode) <
-           1 << gpu::INTERLOCK_MODE_BIT_COUNT);
-    key = (key << gpu::INTERLOCK_MODE_BIT_COUNT) |
+           1 << gpu::InterlockModeBitCount);
+    key = (key << gpu::InterlockModeBitCount) |
           static_cast<uint32_t>(interlockMode);
 
     assert(key < 1 << KEY_BIT_COUNT);
@@ -223,15 +220,38 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                            RenderPassOptionsVulkan::fixedFunctionColorOutput)
             ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
             : VK_IMAGE_LAYOUT_GENERAL;
+    const bool msaa =
+        enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa);
+    // MSAA is only supported in InterlockMode::depthStencil.
+    assert(!msaa || interlockMode == gpu::InterlockMode::depthStencil);
     const VkSampleCountFlagBits msaaSampleCount =
-        (interlockMode == gpu::InterlockMode::depthStencil)
-            ? VK_SAMPLE_COUNT_4_BIT
-            : VK_SAMPLE_COUNT_1_BIT;
+        msaa ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT;
     StackVector<VkAttachmentDescription, layout::MAX_RENDER_PASS_ATTACHMENTS>
         attachments;
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachmentRefs;
     std::optional<VkAttachmentReference> depthStencilAttachmentRef;
     std::optional<VkAttachmentReference> resolveAttachmentRef;
+
+    // When rasterOrdering and single-sampled depthStencil have to render
+    // offscreen (because the renderTarget doesn't support input attachments),
+    // they manually "resolve" the render pass at the end
+    // (RenderPassOptionsVulkan::manuallyResolved) by drawing the offscreen
+    // attachment into the main renderTarget.
+    auto pushCopyResolveAttachment = [&](uint32_t attachmentIdx) {
+        assert(attachments.size() == attachmentIdx);
+        attachments.push_back({
+            .format = renderTargetFormat,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        });
+        resolveAttachmentRef = {
+            .attachment = attachmentIdx,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        };
+    };
     if (pipelineManager->plsBackingType(interlockMode) ==
             PipelineManagerVulkan::PLSBackingType::inputAttachment ||
         enums::is_flag_set(renderPassOptions,
@@ -242,13 +262,13 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         attachments.push_back({
             .format = renderTargetFormat,
             .samples = msaaSampleCount,
-            .loadOp = vk_color_load_op(loadAction, interlockMode),
+            .loadOp = vk_color_load_op(loadAction, msaa),
             .storeOp = (enums::any_flag_set(
                             renderPassOptions,
                             RenderPassOptionsVulkan::manuallyResolved |
                                 RenderPassOptionsVulkan::
                                     atomicCoalescedResolveAndTransfer) ||
-                        interlockMode == gpu::InterlockMode::depthStencil)
+                        msaa)
                            ? VK_ATTACHMENT_STORE_OP_DONT_CARE
                            : VK_ATTACHMENT_STORE_OP_STORE,
             // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
@@ -263,7 +283,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
                                      RenderPassOptionsVulkan::
                                          atomicCoalescedResolveAndTransfer) &&
                   loadAction != gpu::LoadAction::preserveRenderTarget) ||
-                 interlockMode == gpu::InterlockMode::depthStencil)
+                 msaa)
                     ? VK_IMAGE_LAYOUT_UNDEFINED
                     : colorAttachmentLayout,
             .finalLayout = colorAttachmentLayout,
@@ -375,23 +395,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         if (enums::is_flag_set(renderPassOptions,
                                RenderPassOptionsVulkan::manuallyResolved))
         {
-            // The renderTarget does not support
-            // VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT, so we will instead use an
-            // offscreen color texture for the main subpass, and then transfer
-            // it into the renderTarget at the end of the render pass.
-            assert(attachments.size() == PLS_PLANE_COUNT);
-            attachments.push_back({
-                .format = renderTargetFormat,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            });
-            resolveAttachmentRef = {
-                .attachment = PLS_PLANE_COUNT,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            };
+            pushCopyResolveAttachment(PLS_PLANE_COUNT);
         }
     }
     else if (interlockMode == gpu::InterlockMode::atomics)
@@ -444,7 +448,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
     else if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         // DEPTH attachment.
-        assert(attachments.size() == MSAA_DEPTH_STENCIL_IDX);
+        assert(attachments.size() == DEPTH_STENCIL_BUFFER_IDX);
         attachments.push_back({
             .format = vkutil::get_preferred_depth_stencil_format(
                 m_vk->supportsD24S8()),
@@ -457,67 +461,83 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         });
         depthStencilAttachmentRef = {
-            .attachment = MSAA_DEPTH_STENCIL_IDX,
+            .attachment = DEPTH_STENCIL_BUFFER_IDX,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         };
 
-        // MSAA_RESOLVE attachment.
-        const bool readsMSAAResolveAttachment =
-            loadAction == gpu::LoadAction::preserveRenderTarget &&
-            !enums::is_flag_set(
-                renderPassOptions,
-                RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture);
-        const VkImageLayout msaaResolveLayout =
-            readsMSAAResolveAttachment
-                ? VK_IMAGE_LAYOUT_GENERAL
-                : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        assert(attachments.size() == MSAA_RESOLVE_IDX);
-        attachments.push_back({
-            .format = renderTargetFormat,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = readsMSAAResolveAttachment
-                          ? VK_ATTACHMENT_LOAD_OP_LOAD
-                          : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout =
-                (readsMSAAResolveAttachment ||
-                 enums::is_flag_set(renderPassOptions,
-                                    RenderPassOptionsVulkan::manuallyResolved))
-                    ? msaaResolveLayout
-                    // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED because
-                    // Vulkan does not support partial resolves to MSAA resolve
-                    // attachments. So every MSAA render pass without
-                    // "manuallyResolved" covers the entire render area.
-                    : VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = msaaResolveLayout,
-        });
-        resolveAttachmentRef = {
-            .attachment = MSAA_RESOLVE_IDX,
-            .layout = msaaResolveLayout,
-        };
-        assert(colorAttachmentRefs.size() == 1);
-
-        if (enums::is_flag_set(
-                renderPassOptions,
-                RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture))
+        if (!msaa)
         {
-            // MSAA_SEED attachment.
-            assert(loadAction == gpu::LoadAction::preserveRenderTarget);
-            assert(attachments.size() == MSAA_COLOR_SEED_IDX);
+            assert(colorAttachmentRefs.size() == 1);
+            assert(!resolveAttachmentRef.has_value());
+            if (enums::is_flag_set(renderPassOptions,
+                                   RenderPassOptionsVulkan::manuallyResolved))
+            {
+                pushCopyResolveAttachment(DEPTH_STENCIL_FINAL_COLOR_IDX);
+            }
+            // Otherwise COLOR is the render target itself. Nothing to resolve.
+        }
+        else
+        {
+            // MSAA_RESOLVE attachment.
+            const bool readsMSAAResolveAttachment =
+                loadAction == gpu::LoadAction::preserveRenderTarget &&
+                !enums::is_flag_set(
+                    renderPassOptions,
+                    RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture);
+            const VkImageLayout msaaResolveLayout =
+                readsMSAAResolveAttachment
+                    ? VK_IMAGE_LAYOUT_GENERAL
+                    : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            assert(attachments.size() == DEPTH_STENCIL_FINAL_COLOR_IDX);
             attachments.push_back({
                 .format = renderTargetFormat,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .loadOp = readsMSAAResolveAttachment
+                              ? VK_ATTACHMENT_LOAD_OP_LOAD
+                              : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout =
+                    (readsMSAAResolveAttachment ||
+                     enums::is_flag_set(
+                         renderPassOptions,
+                         RenderPassOptionsVulkan::manuallyResolved))
+                        ? msaaResolveLayout
+                        // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED
+                        // because Vulkan does not support partial resolves to
+                        // MSAA resolve attachments. So every MSAA render pass
+                        // without "manuallyResolved" covers the entire render
+                        // area.
+                        : VK_IMAGE_LAYOUT_UNDEFINED,
+                .finalLayout = msaaResolveLayout,
             });
+            resolveAttachmentRef = {
+                .attachment = DEPTH_STENCIL_FINAL_COLOR_IDX,
+                .layout = msaaResolveLayout,
+            };
+            assert(colorAttachmentRefs.size() == 1);
+
+            if (enums::is_flag_set(
+                    renderPassOptions,
+                    RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture))
+            {
+                // MSAA_SEED attachment.
+                assert(loadAction == gpu::LoadAction::preserveRenderTarget);
+                assert(attachments.size() == MSAA_COLOR_SEED_IDX);
+                attachments.push_back({
+                    .format = renderTargetFormat,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                });
+            }
         }
     }
 
     // Input attachments.
     StackVector<VkAttachmentReference, PLS_PLANE_COUNT> inputAttachmentRefs;
-    StackVector<VkAttachmentReference, 1> msaaColorSeedInputAttachmentRef;
+    std::optional<VkAttachmentReference> msaaColorSeedInputAttachmentRef;
     inputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
                                     colorAttachmentRefs.data());
     if (enums::is_flag_set(renderPassOptions,
@@ -534,18 +554,18 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
             inputAttachmentRefs.clear();
         }
     }
-    if (interlockMode == gpu::InterlockMode::depthStencil &&
-        loadAction == gpu::LoadAction::preserveRenderTarget)
+    if (msaa && loadAction == gpu::LoadAction::preserveRenderTarget)
     {
-        msaaColorSeedInputAttachmentRef.push_back({
+        assert(interlockMode == gpu::InterlockMode::depthStencil);
+        msaaColorSeedInputAttachmentRef = {
             .attachment =
                 enums::is_flag_set(
                     renderPassOptions,
                     RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture)
                     ? MSAA_COLOR_SEED_IDX
-                    : MSAA_RESOLVE_IDX,
+                    : DEPTH_STENCIL_FINAL_COLOR_IDX,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
-        });
+        };
     }
 
     const bool rasterOrderedAttachmentAccess =
@@ -589,19 +609,19 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         };
 
     // MSAA color-load subpass.
-    if (interlockMode == gpu::InterlockMode::depthStencil &&
-        loadAction == gpu::LoadAction::preserveRenderTarget)
+    if (msaa && loadAction == gpu::LoadAction::preserveRenderTarget)
     {
-        assert(msaaColorSeedInputAttachmentRef.size() ==
-               colorAttachmentRefs.size());
+        assert(interlockMode == gpu::InterlockMode::depthStencil);
+        assert(msaaColorSeedInputAttachmentRef.has_value());
+        assert(colorAttachmentRefs.size() == 1);
         assert(subpassDescs.size() == 0);
 
         // The color-load subpass takes the seed texture (which may be the same
         // as the resolve texture) and writes it out.
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = msaaColorSeedInputAttachmentRef.size(),
-            .pInputAttachments = msaaColorSeedInputAttachmentRef.data(),
+            .inputAttachmentCount = 1,
+            .pInputAttachments = &msaaColorSeedInputAttachmentRef.value(),
             .colorAttachmentCount = colorAttachmentRefs.size(),
             .pColorAttachments = colorAttachmentRefs.data(),
         });
@@ -748,7 +768,7 @@ RenderPassVulkan::RenderPassVulkan(PipelineManagerVulkan* pipelineManager,
         .colorAttachmentCount = colorAttachmentRefs.size(),
         .pColorAttachments = colorAttachmentRefs.data(),
         .pResolveAttachments =
-            (interlockMode == gpu::InterlockMode::depthStencil &&
+            (msaa &&
              !enums::is_flag_set(renderPassOptions,
                                  RenderPassOptionsVulkan::manuallyResolved))
                 ? &resolveAttachmentRef.value()

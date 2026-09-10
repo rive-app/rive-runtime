@@ -1037,7 +1037,11 @@ def main():
                 return -1
 
             # Call gradlew to build the android_tests wrapper app.
-            subprocess.check_call(["./gradlew" if os.name != "nt" else "gradlew.bat",
+            # NOTE: this has to be an absolute path because Python 3.12 dropped
+            # the current directory from the executable search on Windows.
+            subprocess.check_call([os.path.join(os.getcwd(),
+                                                "gradlew" if os.name != "nt"
+                                                else "gradlew.bat"),
                                    ":app:assembleDebug"])
             os.chdir(cwd)
         elif args.target == "ios":

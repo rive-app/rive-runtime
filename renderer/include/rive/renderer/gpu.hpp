@@ -822,9 +822,9 @@ enum class InterlockMode
 };
 constexpr static size_t INTERLOCK_MODE_COUNT = 5;
 // # of bits required to contain an InterlockMode.
-constexpr static size_t INTERLOCK_MODE_BIT_COUNT = 3;
-static_assert(INTERLOCK_MODE_COUNT <= (1 << INTERLOCK_MODE_BIT_COUNT));
-static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
+constexpr static size_t InterlockModeBitCount = 3;
+static_assert(INTERLOCK_MODE_COUNT <= (1 << InterlockModeBitCount));
+static_assert(INTERLOCK_MODE_COUNT > (1 << (InterlockModeBitCount - 1)));
 
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
@@ -857,9 +857,9 @@ enum class ShaderFeatures
     ENABLE_MODULATED_IMAGE = 1 << 8,
 };
 
-constexpr static size_t kShaderFeatureCount = 9;
+constexpr static size_t ShaderFeatureCount = 9;
 constexpr static ShaderFeatures kAllShaderFeatures =
-    static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
+    static_cast<gpu::ShaderFeatures>((1 << ShaderFeatureCount) - 1);
 constexpr static ShaderFeatures kVertexShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
     ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER |
@@ -911,9 +911,11 @@ enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
 
-    // InterlockMode::atomics only (without advanced blend). Render color to a
-    // standard attachment instead of PLS. The backend implementation is
-    // responsible to turn on src-over blending.
+    // Render to a standard color attachment with pure hardware blending (no dst
+    // reads or in-shader blending). The draw pipeline sets the appropriate
+    // fixed-function hardware blend state.
+    // NOTE: This can be a whole-flush decision (atomics, clockwise), or
+    // decided per draw (clockwiseAtomic, depthStencil).
     fixedFunctionColorOutput = 1 << 0,
 
     // Override all paths' fill rules (winding or even/odd) with an experimental
@@ -945,30 +947,46 @@ enum class ShaderMiscFlags : uint32_t
     // this flag also forces blend on for opaque content.
     emulateDynamicColorWriteDisable = 1 << 5,
 
-    // DrawType::renderPassInitialize only. Also store the color clear value to
-    // PLS when drawing a clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 6,
+    // InterlockMode::depthStencil only. The shader determines dstColor for
+    // advanced blend by fetching every sample the fragment covers and
+    // averaging them.
+    msaaDstRead = 1 << 6,
 
-    // DrawType::renderPassInitialize only. Seed the color PLS plane by
-    // sampling the framebuffer contents (previously copied into a dst color
-    // texture bound at IMAGE_TEXTURE_IDX). Used for
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Also store
+    // the color clear value to PLS when drawing a clear, in addition to
+    // clearing the other PLS planes.
+    storeColorClear = 1 << 7,
+
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Seed the
+    // color PLS plane by sampling the framebuffer contents (previously copied
+    // into a dst color texture bound at IMAGE_TEXTURE_IDX). Used for
     // LoadAction::preserveRenderTarget on backends that can't directly copy
     // a texture into a storage buffer (e.g. WebGPU).
-    loadColorFromDstTexture = 1 << 7,
+    loadColorFromDstTexture = 1 << 8,
 
-    // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
-    // contents from BGRA to RGBA. (For when this data had to get copied from a
-    // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 8,
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Swizzle the
+    // existing framebuffer contents from BGRA to RGBA. (For when this data had
+    // to get copied from a BGRA target.)
+    swizzleColorBGRAToRGBA = 1 << 9,
 
-    // DrawType::renderPassResolve only. Optimization for when rendering to an
-    // offscreen texture.
+    // InterlockMode::atomics, DrawType::renderPassResolve only. Optimization
+    // for when rendering to an offscreen texture.
     //
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 9,
+    coalescedResolveAndTransfer = 1 << 10,
 };
+
+constexpr static size_t ShaderMiscFlagCount = 11;
+static_assert(
+    static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
+    1 << (ShaderMiscFlagCount - 1));
+
+// Since shader keys also pack the interlockMode and drawType, they don't have
+// to pack the entire ShaderMiscFlags mask -- only the bits that are relevant to
+// the interlockMode. This is a much smaller set than the entire enum.
+constexpr static size_t ShaderMiscFlagKeyBitCount = 5;
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     DrawType drawType,
@@ -1117,6 +1135,15 @@ uint32_t ShaderUniqueKey(DrawType,
                          InterlockMode,
                          ShaderMiscFlags);
 
+// ShaderUniqueKey() is currently 20 bits. Be careful when adding to it because
+// some backends pack their own private state into keys, and still need to fit
+// in 64 bits.
+constexpr static uint32_t DrawTypeKeyBitCount = 3;
+constexpr static uint32_t ShaderUniqueKeyBitCount =
+    ShaderMiscFlagKeyBitCount + InterlockModeBitCount + ShaderFeatureCount +
+    DrawTypeKeyBitCount;
+static_assert(ShaderUniqueKeyBitCount == 20);
+
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
 void ForEachUbershaderPermutation(
@@ -1169,7 +1196,7 @@ enum class StencilType
     clipReset,
 };
 
-constexpr uint32_t STENCIL_TYPE_BIT_COUNT = 4;
+constexpr uint32_t StencilTypeBitCount = 4;
 
 struct StencilInfo
 {
@@ -1327,7 +1354,7 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    int msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
+    uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -2069,7 +2096,7 @@ enum class CullFace : uint8_t
     counterclockwise,
 };
 
-constexpr uint32_t CULL_FACE_BIT_COUNT = 2;
+constexpr uint32_t CullFaceBitCount = 2;
 
 // Blend equation to select for the fixed-function GPU pipeline (not our own
 // in-shader blending). For now, the backend is free to decide whether it will
@@ -2143,14 +2170,24 @@ struct PipelineState
 };
 
 // Returns a unique value that can be used to key a whole pipeline.
-uint64_t pipeline_unique_key(DrawType,
-                             ShaderFeatures,
-                             InterlockMode,
-                             ShaderMiscFlags,
-                             DrawContents,
-                             bool fixedFunctionColorOutput,
-                             rive::BlendMode,
-                             const PlatformFeatures&);
+uint64_t getPipelineUniqueKey(DrawType,
+                              ShaderFeatures,
+                              InterlockMode,
+                              ShaderMiscFlags,
+                              DrawContents,
+                              bool fixedFunctionColorOutput,
+                              rive::BlendMode,
+                              const PlatformFeatures&);
+
+// getPipelineUniqueKey() is currently 39 bits. Be careful when adding to it
+// because some backends pack their own private state into keys, and still need
+// to fit in 64 bits.
+constexpr static uint32_t PipelineUniqueKeyBitCount =
+    ShaderUniqueKeyBitCount +
+    math::count_set_bits(uint32_t(DrawContentsForDepthStencilPipelineState)) +
+    BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
+    3 /*colorWrite, depthTest, depthWrite*/ + CullFaceBitCount;
+static_assert(PipelineUniqueKeyBitCount == 39);
 
 PipelineState get_pipeline_state(DrawType,
                                  InterlockMode,

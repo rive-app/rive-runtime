@@ -6,6 +6,7 @@
 #include "rive/renderer/gpu.hpp"
 #include "shaders/constants.glsl"
 #include <catch.hpp>
+#include <map>
 #include <set>
 
 namespace rive
@@ -200,6 +201,49 @@ TEST_CASE("ForEachUbershaderPermutation", "[gpu]")
     {
         CHECK(withDynamicState.count(drawType) == 1);
         CHECK(withoutDynamicState.count(drawType) == 1);
+    }
+}
+
+// ShaderUniqueKey() packs shaderMiscFlags densely, using only the bits that are
+// relevant to the interlockMode. Draw types that share a drawTypeKey therefore
+// have to agree on that layout -- otherwise the same packed value means
+// different flags for each, and two different shaders land on one key.
+TEST_CASE("shader_unique_keys_do_not_collide", "[gpu]")
+{
+    gpu::PlatformFeatures platformFeatures;
+    platformFeatures.supportsPipelineDynamicState = true;
+
+    for (auto interlockMode : {gpu::InterlockMode::rasterOrdering,
+                               gpu::InterlockMode::atomics,
+                               gpu::InterlockMode::clockwise,
+                               gpu::InterlockMode::clockwiseAtomic,
+                               gpu::InterlockMode::depthStencil})
+    {
+        // Two draws may share a key only if they compile to the same shader,
+        // which requires identical shaderMiscFlags.
+        std::map<uint32_t, gpu::ShaderMiscFlags> keyToMiscFlags;
+        gpu::ForEachUbershaderPermutation(
+            interlockMode,
+            platformFeatures,
+            [&](gpu::DrawType drawType,
+                gpu::ShaderFeatures shaderFeatures,
+                gpu::ShaderMiscFlags shaderMiscFlags) {
+                uint32_t key = gpu::ShaderUniqueKey(drawType,
+                                                    shaderFeatures,
+                                                    interlockMode,
+                                                    shaderMiscFlags);
+                auto [it, inserted] =
+                    keyToMiscFlags.insert({key, shaderMiscFlags});
+                if (!inserted)
+                {
+                    INFO("interlockMode "
+                         << static_cast<uint32_t>(interlockMode)
+                         << ", drawType " << static_cast<uint32_t>(drawType)
+                         << ", key " << key);
+                    CHECK(it->second == shaderMiscFlags);
+                }
+                return true; // Keep iterating.
+            });
     }
 }
 

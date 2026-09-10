@@ -100,7 +100,7 @@ void BackgroundShaderCompiler::threadMain()
         auto defines = [[NSMutableDictionary alloc] init];
         defines[@GLSL_VERTEX] = @"";
         defines[@GLSL_FRAGMENT] = @"";
-        for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
+        for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
         {
             const auto feature = ShaderFeatures(1 << i);
             if (enums::is_flag_set(shaderFeatures, feature))

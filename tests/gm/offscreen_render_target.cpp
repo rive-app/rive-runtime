@@ -231,10 +231,11 @@ public:
                     {
                         auto renderTextureTargetGL =
                             static_cast<RenderTargetGL*>(renderTarget);
-                        renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
-                                                                   sampleCount,
-                                                                   nullptr,
-                                                                   nullptr);
+                        renderTextureTargetGL
+                            ->bindFramebufferForDepthStencilMode(plsImplGL,
+                                                                 sampleCount,
+                                                                 nullptr,
+                                                                 nullptr);
                         glClearColor(1, 0, 0, 1);
                         glClear(GL_COLOR_BUFFER_BIT);
                     }
@@ -271,10 +272,11 @@ public:
                     {
                         auto renderTextureTargetGL =
                             static_cast<RenderTargetGL*>(renderTarget);
-                        renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
-                                                                   sampleCount,
-                                                                   nullptr,
-                                                                   nullptr);
+                        renderTextureTargetGL
+                            ->bindFramebufferForDepthStencilMode(plsImplGL,
+                                                                 sampleCount,
+                                                                 nullptr,
+                                                                 nullptr);
                         glClearColor(1, 0, 0, 1);
                         glClear(GL_COLOR_BUFFER_BIT);
                     }

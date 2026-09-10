@@ -105,8 +105,11 @@ public:
         uint32_t renderTargetHeight = 0;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
-        // If nonzero, the number of MSAA samples to use.
-        // Setting this to a nonzero value forces depthStencil mode.
+        // If nonzero, this forces depthStencil mode and specifies the number of
+        // samples to use:
+        //    0 => RenderContext chooses its preferred interlockMode
+        //    1 => depthStencil without MSAA
+        //   >1 => MSAA via depthStencil
         uint32_t msaaSampleCount = 0;
         // Use atomic mode (preferred) or depthStencil instead of
         // rasterOrdering.

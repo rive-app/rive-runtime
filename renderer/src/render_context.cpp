@@ -428,7 +428,8 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
         m_frameDescriptor.msaaSampleCount == 0)
     {
-        // Use 4x MSAA if msaaSampleCount wasn't already specified.
+        // msaaSampleCount is 0 but no other mode was supported; fall back to 4x
+        // MSAA.
         m_frameDescriptor.msaaSampleCount = 4;
     }
     m_frameShaderFeaturesMask =
@@ -1085,7 +1086,8 @@ static bool wants_fixed_function_color_output(
     const gpu::PlatformFeatures& platformFeatures,
     gpu::InterlockMode interlockMode,
     gpu::DrawContents combinedDrawContents,
-    bool manuallyResolved)
+    bool manuallyResolved,
+    uint32_t msaaSampleCount)
 {
     switch (interlockMode)
     {
@@ -1215,6 +1217,9 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
     m_flushDesc.msaaSampleCount = frameDescriptor.msaaSampleCount;
+    // A nonzero sample count is exactly what selects depthStencil.
+    assert((m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil) ==
+           (m_flushDesc.msaaSampleCount != 0));
 
     // In atomic mode, we may be able to skip the explicit clear of the color
     // buffer and fold it into the atomic "resolve" operation instead.
@@ -1307,13 +1312,15 @@ void RenderContext::LogicalFlush::layoutResources(
         m_flushDesc.renderTargetUpdateBounds,
         m_flushDesc.virtualTileWidth,
         m_flushDesc.virtualTileHeight,
-        m_combinedDrawContents);
+        m_combinedDrawContents,
+        m_flushDesc.msaaSampleCount);
 
     m_flushDesc.fixedFunctionColorOutput =
         wants_fixed_function_color_output(m_ctx->platformFeatures(),
                                           m_ctx->frameInterlockMode(),
                                           m_combinedDrawContents,
-                                          m_flushDesc.manuallyResolved);
+                                          m_flushDesc.manuallyResolved,
+                                          m_flushDesc.msaaSampleCount);
     if (m_flushDesc.fixedFunctionColorOutput)
     {
         m_baselineShaderMiscFlags |=
@@ -1926,7 +1933,8 @@ void RenderContext::LogicalFlush::writeResources()
                      gpu::InterlockMode::depthStencil &&
                  m_flushDesc.colorLoadAction ==
                      gpu::LoadAction::preserveRenderTarget &&
-                 platformFeatures.msaaColorPreserveNeedsDraw)
+                 platformFeatures.msaaColorPreserveNeedsDraw &&
+                 m_flushDesc.msaaSampleCount > 1)
         {
             // When implemented with a transient attachment, MSAA needs us to
             // draw the old renderTarget contents into the framebuffer at the

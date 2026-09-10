@@ -189,19 +189,21 @@ public:
     operator EGLSurface() const { return m_surface; }
     int width() const { return m_width; }
     int height() const { return m_height; }
-    bool isMSAA() const { return m_isMSAA; }
+    bool isDepthStencil() const { return m_isDepthStencil; }
 
-    virtual bool isOffscreen() const = 0;
+    virtual bool isPbuffer() const = 0;
 
     virtual bool resize(int width, int height) = 0;
 
 protected:
-    EGLWindow(EGLDisplay display, EGLConfig config, int samples) :
+    using BackendParams = TestingWindow::BackendParams;
+
+    EGLWindow(EGLDisplay display,
+              EGLConfig config,
+              const BackendParams& backendParams) :
         m_display(display),
         m_config(config),
-        // "samples == 1" means "msaa mode with 1 sample".
-        // "samples == 0" means "non-msaa mode".
-        m_isMSAA(samples > 0)
+        m_isDepthStencil(backendParams.msaaSampleCount > 0)
     {}
 
     void deleteSurface()
@@ -215,7 +217,7 @@ protected:
 
     const EGLDisplay m_display;
     const EGLConfig m_config;
-    const bool m_isMSAA;
+    const bool m_isDepthStencil;
     void* m_surface = nullptr;
     int m_width = 0;
     int m_height = 0;
@@ -224,13 +226,15 @@ protected:
 class PbufferWindow : public EGLWindow
 {
 public:
-    PbufferWindow(EGLDisplay display, EGLConfig config, int samples) :
-        EGLWindow(display, config, samples)
+    PbufferWindow(EGLDisplay display,
+                  EGLConfig config,
+                  const BackendParams& backendParams) :
+        EGLWindow(display, config, backendParams)
     {
         resize(1, 1);
     }
 
-    bool isOffscreen() const final { return true; }
+    bool isPbuffer() const final { return true; }
 
     bool resize(int width, int height) final
     {
@@ -258,9 +262,9 @@ class NativeWindow : public EGLWindow
 public:
     NativeWindow(EGLDisplay display,
                  EGLConfig config,
-                 int samples,
+                 const BackendParams& backendParams,
                  void* platformWindow) :
-        EGLWindow(display, config, samples)
+        EGLWindow(display, config, backendParams)
     {
         m_surface = eglCreateWindowSurface(
             m_display,
@@ -279,7 +283,7 @@ public:
         m_height = eglInt;
     }
 
-    bool isOffscreen() const final { return false; }
+    bool isPbuffer() const final { return false; }
 
     bool resize(int width, int height) final
     {
@@ -296,10 +300,6 @@ public:
         m_renderer(TestingGLRenderer::Make(backendParams))
     {
         init_egl();
-
-        // Use 1 sample and rely on EXT_multisampled_render_to_texture, which is
-        // how android currently works.
-        int samples = backendParams.msaa ? 1 : 0;
 
 #ifdef RIVE_DESKTOP_GL
         if (angleRenderer != EGL_NONE)
@@ -319,7 +319,6 @@ public:
                 fprintf(stderr, "eglGetPlatformDisplayEXT failed.\n");
                 abort();
             }
-            samples = 0; // Test our offscreen MSAA path on ANGLE.
         }
         else
 #endif
@@ -354,30 +353,40 @@ public:
             abort();
         }
 
+        // Android MSAA works by rendering offscreen (usually via
+        // EXT_multisampled_render_to_texture). We only need depth/stencil on
+        // the main framebuffer when using InterlockMode::depthStencil w/o MSAA.
+        const bool needsDepthStencil = backendParams.msaaSampleCount == 1;
+
         EGLint numConfigs;
-        const EGLint configAttribs[] = {EGL_SURFACE_TYPE,
-                                        EGL_PBUFFER_BIT,
-                                        EGL_RENDERABLE_TYPE,
-                                        EGL_OPENGL_ES3_BIT,
-                                        EGL_COLOR_BUFFER_TYPE,
-                                        EGL_RGB_BUFFER,
-                                        EGL_RED_SIZE,
-                                        8,
-                                        EGL_GREEN_SIZE,
-                                        8,
-                                        EGL_BLUE_SIZE,
-                                        8,
-                                        EGL_ALPHA_SIZE,
-                                        8,
-                                        EGL_DEPTH_SIZE,
-                                        samples == 0 ? 0 : 24,
-                                        EGL_STENCIL_SIZE,
-                                        samples == 0 ? 0 : 8,
-                                        EGL_SAMPLE_BUFFERS,
-                                        samples == 0 ? 0 : 1,
-                                        EGL_SAMPLES,
-                                        samples,
-                                        EGL_NONE};
+        const EGLint configAttribs[] = {
+            EGL_SURFACE_TYPE,
+            EGL_PBUFFER_BIT,
+            EGL_RENDERABLE_TYPE,
+            EGL_OPENGL_ES3_BIT,
+            EGL_COLOR_BUFFER_TYPE,
+            EGL_RGB_BUFFER,
+            EGL_RED_SIZE,
+            8,
+            EGL_GREEN_SIZE,
+            8,
+            EGL_BLUE_SIZE,
+            8,
+            EGL_ALPHA_SIZE,
+            8,
+            EGL_DEPTH_SIZE,
+            needsDepthStencil ? 24 : 0,
+            EGL_STENCIL_SIZE,
+            needsDepthStencil ? 8 : 0,
+            // Android MSAA works by rendering offscreen (usually via
+            // EXT_multisampled_render_to_texture). Never request MSAA on the
+            // main framebuffer.
+            EGL_SAMPLE_BUFFERS,
+            0,
+            EGL_SAMPLES,
+            0,
+            EGL_NONE,
+        };
 
         EGLConfig config;
         if (!eglChooseConfig(m_Display, configAttribs, &config, 1, &numConfigs))
@@ -404,13 +413,14 @@ public:
         {
             m_window = std::make_unique<NativeWindow>(m_Display,
                                                       config,
-                                                      samples,
+                                                      backendParams,
                                                       platformWindow);
         }
         else
         {
-            m_window =
-                std::make_unique<PbufferWindow>(m_Display, config, samples);
+            m_window = std::make_unique<PbufferWindow>(m_Display,
+                                                       config,
+                                                       backendParams);
         }
         m_width = m_window->width();
         m_height = m_window->height();
@@ -504,11 +514,11 @@ public:
 
         // EXT_shader_pixel_local_storage has issues rendering to an offscreen
         // Pbuffer.
-        bool needsOffscreenWorkaround = !m_window->isMSAA() &&
+        bool needsOffscreenWorkaround = !m_window->isDepthStencil() &&
                                         renderContextGLImpl()
                                             ->capabilities()
                                             .EXT_shader_pixel_local_storage &&
-                                        m_window->isOffscreen();
+                                        m_window->isPbuffer();
         if (needsOffscreenWorkaround || !m_window->resize(width, height))
         {
             // ARM Mali GPUs seem to hang while rendering goldens to a Pbuffer
@@ -546,7 +556,7 @@ public:
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
         m_renderer->flush();
-        if (m_headlessRenderTexture != 0 && !m_window->isOffscreen())
+        if (m_headlessRenderTexture != 0 && !m_window->isPbuffer())
         {
             // Copy the offscreen texture back to the main window for
             // visualization purposes.

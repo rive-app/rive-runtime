@@ -181,7 +181,7 @@ public:
         if (backend == Backend::angle)
         {
 #if !defined(__EMSCRIPTEN__)
-            switch (backendParams.angleRenderer)
+            switch (m_backendParams.angleRenderer)
             {
                 case ANGLERenderer::metal:
                     glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
@@ -218,25 +218,40 @@ public:
             glfwWindowHint(GLFW_SAMPLES, 0);
             glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
         }
-        else if (backend == Backend::angle)
-        {
-            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        }
         else
         {
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        }
-        if (backendParams.msaa)
-        {
-            m_msaaSampleCount = 4;
-            glfwWindowHint(GLFW_SAMPLES, m_msaaSampleCount);
-            glfwWindowHint(GLFW_STENCIL_BITS, 8);
-            glfwWindowHint(GLFW_DEPTH_BITS, 24);
+            if (backend == Backend::angle)
+            {
+                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            }
+            else
+            {
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+            }
+            if (m_backendParams.msaaSampleCount <= 1)
+            {
+                // A request of 1 sample is interpreted by the GL driver as a
+                // request for MSAA, and can be non-intuitively rounded up to 2
+                // or 4. In our case, a sample count of 1 means non-MSAA (duh),
+                // so request GLFW_SAMPLES=0.
+                glfwWindowHint(GLFW_SAMPLES, 0);
+            }
+            else
+            {
+                glfwWindowHint(GLFW_SAMPLES, m_backendParams.msaaSampleCount);
+            }
+            if (m_backendParams.msaaSampleCount >= 1)
+            {
+                // msaaSampleCount >= 1 selects depthStencil, which renders
+                // directly to the screen.
+                glfwWindowHint(GLFW_STENCIL_BITS, 8);
+                glfwWindowHint(GLFW_DEPTH_BITS, 24);
+            }
         }
 
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -390,7 +405,7 @@ public:
         m_fiddleContext->onSizeChanged(m_glfwWindow,
                                        m_width,
                                        m_height,
-                                       m_msaaSampleCount);
+                                       m_backendParams.msaaSampleCount);
     }
 
     ~TestingWindowFiddleContext() override
@@ -416,7 +431,7 @@ public:
             m_fiddleContext->onSizeChanged(m_glfwWindow,
                                            width,
                                            height,
-                                           m_msaaSampleCount);
+                                           m_backendParams.msaaSampleCount);
             m_width = width;
             m_height = height;
         }
@@ -494,8 +509,8 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount =
-                std::max(m_msaaSampleCount, options.forceMSAA ? 4u : 0u),
+            .msaaSampleCount = std::max(m_backendParams.msaaSampleCount,
+                                        options.forceMSAA ? 4u : 0u),
             .disableRasterOrdering = options.disableRasterOrdering,
             .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
@@ -595,9 +610,8 @@ public:
 #endif
 
 private:
+    const BackendParams m_backendParams;
     GLFWwindow* m_glfwWindow = nullptr;
-    uint32_t m_msaaSampleCount = 0;
-    BackendParams m_backendParams;
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 

@@ -33,7 +33,7 @@ static std::string build_shader(DrawType drawType,
 
     std::ostringstream s;
     s << "#define " << shaderTypeDefine << '\n';
-    for (size_t i = 0; i < kShaderFeatureCount; ++i)
+    for (size_t i = 0; i < ShaderFeatureCount; ++i)
     {
         const auto feature = ShaderFeatures(1 << i);
         if (enums::is_flag_set(shaderFeatures, feature))

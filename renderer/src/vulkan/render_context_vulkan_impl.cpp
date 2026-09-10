@@ -47,6 +47,34 @@ constexpr uint32_t PLS_TRANSIENT_CLIP_IDX = 1u;
 
 constexpr VkDeviceSize ZERO_OFFSET[1] = {0};
 
+// Access for attaching the renderTarget (or the offscreen color texture) as a
+// color attachment to be written by the render pass.
+constexpr static vkutil::ImageAccess ColorAttachmentWriteAccess = {
+    .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+};
+
+// Does the render area cover every pixel of the renderTarget?
+static bool coversFullRenderTarget(const IAABB& renderArea,
+                                   const RenderTargetVulkan* renderTarget)
+{
+    return renderArea.contains(
+        IAABB::MakeWH(renderTarget->width(), renderTarget->height()));
+}
+
+// Only begin a renderPass by discarding the renderTarget's existing contents
+// when the pass is going to rewrite all of the pixels.
+static vkutil::ImageAccessAction renderTargetAccessActionFor(
+    gpu::LoadAction colorLoadAction,
+    bool renderAreaIsFullTarget)
+{
+    return renderAreaIsFullTarget &&
+                   colorLoadAction != gpu::LoadAction::preserveRenderTarget
+               ? vkutil::ImageAccessAction::invalidateContents
+               : vkutil::ImageAccessAction::preserveContents;
+}
+
 static VkBufferUsageFlagBits render_buffer_usage_flags(
     RenderBufferType renderBufferType)
 {
@@ -1106,6 +1134,15 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         .needsManualMSAAResolveAfterDstRead =
             m_vk->physicalDeviceProperties.vendorID ==
             vkutil::vendors::Qualcomm,
+        // Adreno returns garbage when reading the renderTarget itself as an
+        // input attachment (and only if there aren't other MRT color
+        // attachments ¯\_(ツ)_/¯).
+        // ((And yes, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT is set!))
+        // NOTE: This isn't about the swapchain. A plain offscreen texture also
+        // fails in the same way when it's the renderTarget.
+        .avoidDstReadFromNonMRTRenderTarget =
+            m_vk->physicalDeviceProperties.vendorID ==
+            vkutil::vendors::Qualcomm,
     }),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_pathBufferPool(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
@@ -1828,42 +1865,70 @@ bool RenderContextVulkanImpl::wantsManualRenderPassResolve(
     const IAABB& renderTargetUpdateBounds,
     uint32_t virtualTileWidth,
     uint32_t virtualTileHeight,
-    gpu::DrawContents combinedDrawContents) const
+    gpu::DrawContents combinedDrawContents,
+    uint32_t msaaSampleCount) const
 {
-    if (interlockMode == gpu::InterlockMode::rasterOrdering &&
-        virtualTileWidth == 0 && virtualTileHeight == 0 &&
-        !m_workarounds.needsInterruptibleRenderPasses())
+    if (interlockMode == gpu::InterlockMode::rasterOrdering)
     {
+        if (virtualTileWidth == 0 && virtualTileHeight == 0 &&
+            !m_workarounds.needsInterruptibleRenderPasses())
+        {
 #ifndef __APPLE__
-        // If the render target doesn't support input attachment usage, we will
-        // render to an offscreen texture that does. Add a resolve operation at
-        // the end of the render pass that transfers the offscreen data back to
-        // the main render target. On tilers, this saves the memory bandwidth of
-        // a fullscreen copy.
-        // NOTE: The manual resolve doesn't seem to work on MoltenVK, so don't
-        // do it on Apple.
-        auto renderTargetVulkan =
-            static_cast<const RenderTargetVulkan*>(renderTarget);
-        return !(renderTargetVulkan->targetUsageFlags() &
-                 VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+            // If the render target doesn't support input attachment usage, we
+            // will render to an offscreen texture that does. Add a resolve
+            // operation at the end of the render pass that transfers the
+            // offscreen data back to the main render target. On tilers, this
+            // saves the memory bandwidth of a fullscreen copy. NOTE: The manual
+            // resolve doesn't seem to work on MoltenVK, so don't do it on
+            // Apple.
+            auto renderTargetVulkan =
+                static_cast<const RenderTargetVulkan*>(renderTarget);
+            return !(renderTargetVulkan->targetUsageFlags() &
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
 #endif
-    }
-    if (interlockMode == gpu::InterlockMode::depthStencil &&
-        !m_workarounds.avoidManualMSAAResolves)
-    {
-        if (!renderTargetUpdateBounds.contains(renderTarget->bounds()))
-        {
-            // Do manual resolves after partial updates because automatic
-            // resolves only support fullscreen.
-            // TODO: Identify when and if this is actually better than just
-            // taking the hit of an automatic fullscreen resolve.
-            return true;
         }
-        if (m_workarounds.needsManualMSAAResolveAfterDstRead &&
-            enums::is_flag_set(combinedDrawContents,
-                               gpu::DrawContents::advancedBlend))
+        return false;
+    }
+    if (interlockMode == gpu::InterlockMode::depthStencil)
+    {
+        if (msaaSampleCount <= 1)
         {
-            return true;
+            // Single-sampled depthStencil normally renders straight to the
+            // render target. The only exception is advancedBlend on a
+            // renderTarget that doesn't support input attachments.
+            if (enums::is_flag_set(combinedDrawContents,
+                                   gpu::DrawContents::advancedBlend))
+            {
+                auto renderTargetVulkan =
+                    static_cast<const RenderTargetVulkan*>(renderTarget);
+                const bool readableRenderTarget =
+                    (renderTargetVulkan->targetUsageFlags() &
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) &&
+                    !m_workarounds.avoidDstReadFromNonMRTRenderTarget;
+                // NOTE: rasterOrdering skips in-render-pass resolves on Apple
+                // because they "don't seem to work on MoltenVK". If Apple
+                // misbehaves, this is probably why.
+                return !readableRenderTarget;
+            }
+            return false;
+        }
+        if (!m_workarounds.avoidManualMSAAResolves)
+        {
+            if (!renderTargetUpdateBounds.contains(renderTarget->bounds()))
+            {
+                // Do manual resolves after partial updates because automatic
+                // resolves only support fullscreen.
+                // TODO: Identify when and if this is actually better than just
+                // taking the hit of an automatic fullscreen resolve.
+                return true;
+            }
+            if (m_workarounds.needsManualMSAAResolveAfterDstRead &&
+                enums::is_flag_set(combinedDrawContents,
+                                   gpu::DrawContents::advancedBlend))
+            {
+                return true;
+            }
+            return false;
         }
     }
     return false;
@@ -2161,7 +2226,7 @@ RenderContextVulkanImpl::DrawRenderPass::DrawRenderPass(
     const IAABB& drawBounds,
     VkImageView colorImageView,
     VkImageView msaaColorSeedImageView,
-    VkImageView msaaResolveImageView,
+    VkImageView depthStencilFinalColorImageView,
     RenderPassOptionsVulkan renderPassOptions,
     const IAABB& scissor) :
     m_impl(impl),
@@ -2169,7 +2234,7 @@ RenderContextVulkanImpl::DrawRenderPass::DrawRenderPass(
     m_drawBounds(drawBounds),
     m_colorImageView(colorImageView),
     m_msaaColorSeedImageView(msaaColorSeedImageView),
-    m_msaaResolveImageView(msaaResolveImageView),
+    m_depthStencilFinalColorImageView(depthStencilFinalColorImageView),
     m_pipelineLayout(begin(overrideColorLoadAction, renderPassOptions, scissor))
 {}
 
@@ -2193,6 +2258,13 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
 
     const DrawPipelineLayoutVulkan& pipelineLayout =
         *renderPass.drawPipelineLayout();
+
+    const bool renderAreaIsFullTarget =
+        coversFullRenderTarget(m_drawBounds, renderTarget);
+
+    const vkutil::ImageAccessAction renderTargetAccessAction =
+        renderTargetAccessActionFor(overrideColorLoadAction,
+                                    renderAreaIsFullTarget);
 
     // Create the framebuffer.
     StackVector<VkImageView, layout::MAX_RENDER_PASS_ATTACHMENTS>
@@ -2233,13 +2305,8 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
                 assert(framebufferViews.size() == PLS_PLANE_COUNT);
                 framebufferViews.push_back(renderTarget->accessTargetImageView(
                     commandBuffer,
-                    {
-                        .pipelineStages =
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                    },
-                    vkutil::ImageAccessAction::invalidateContents));
+                    ColorAttachmentWriteAccess,
+                    renderTargetAccessAction));
                 clearValues.push_back({});
             }
             break;
@@ -2258,17 +2325,8 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
                 assert(framebufferViews.size() == COALESCED_ATOMIC_RESOLVE_IDX);
                 framebufferViews.push_back(renderTarget->accessTargetImageView(
                     commandBuffer,
-                    {
-                        .pipelineStages =
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                        .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                    },
-                    m_drawBounds.contains(
-                        IAABB{0,
-                              0,
-                              static_cast<int32_t>(renderTarget->width()),
-                              static_cast<int32_t>(renderTarget->height())})
+                    ColorAttachmentWriteAccess,
+                    renderAreaIsFullTarget
                         ? vkutil::ImageAccessAction::invalidateContents
                         : vkutil::ImageAccessAction::preserveContents));
                 clearValues.push_back({});
@@ -2287,29 +2345,52 @@ const DrawPipelineLayoutVulkan& RenderContextVulkanImpl::DrawRenderPass::begin(
             break;
 
         case gpu::InterlockMode::depthStencil:
-            assert(framebufferViews.size() == MSAA_DEPTH_STENCIL_IDX);
+        {
+            const bool msaa =
+                enums::is_flag_set(pipelineLayout.renderPassOptions(),
+                                   RenderPassOptionsVulkan::msaa);
+
+            assert(framebufferViews.size() == DEPTH_STENCIL_BUFFER_IDX);
             framebufferViews.push_back(
-                renderTarget->msaaDepthStencilTexture()->vkImageView());
+                renderTarget->depthStencilTexture(msaa)->vkImageView());
             clearValues.push_back({.depthStencil = {m_desc.depthClearValue,
                                                     m_desc.stencilClearValue}});
 
-            assert(framebufferViews.size() == MSAA_RESOLVE_IDX);
-            framebufferViews.push_back(m_msaaResolveImageView);
-            clearValues.push_back({});
+            if (msaa ||
+                enums::is_flag_set(pipelineLayout.renderPassOptions(),
+                                   RenderPassOptionsVulkan::manuallyResolved))
+            {
+                assert(framebufferViews.size() ==
+                       DEPTH_STENCIL_FINAL_COLOR_IDX);
+                framebufferViews.push_back(m_depthStencilFinalColorImageView);
+                clearValues.push_back({});
+            }
+            else
+            {
+                assert(m_depthStencilFinalColorImageView == VK_NULL_HANDLE);
+            }
 
             if (enums::is_flag_set(
                     pipelineLayout.renderPassOptions(),
                     RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture))
             {
+                assert(msaa);
                 assert(overrideColorLoadAction ==
                        gpu::LoadAction::preserveRenderTarget);
                 assert(m_msaaColorSeedImageView != VK_NULL_HANDLE);
-                assert(m_msaaColorSeedImageView != m_msaaResolveImageView);
+                assert(m_msaaColorSeedImageView !=
+                       m_depthStencilFinalColorImageView);
                 assert(framebufferViews.size() == MSAA_COLOR_SEED_IDX);
                 framebufferViews.push_back(m_msaaColorSeedImageView);
                 clearValues.push_back({});
             }
+            else
+            {
+                assert(m_msaaColorSeedImageView == VK_NULL_HANDLE);
+            }
+
             break;
+        }
     }
 
     rcp<vkutil::Framebuffer> framebuffer = vk->makeFramebuffer({
@@ -2429,6 +2510,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // buffer will never be bound as an input attachment.
         renderPassOptions |= RenderPassOptionsVulkan::fixedFunctionColorOutput;
     }
+    if (desc.msaaSampleCount > 1)
+    {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+        renderPassOptions |= RenderPassOptionsVulkan::msaa;
+    }
     if (desc.manuallyResolved)
     {
         // The drawList ends with a batch of type of type
@@ -2436,15 +2522,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // to handle manual resolving.
         renderPassOptions |= RenderPassOptionsVulkan::manuallyResolved;
     }
-    else if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    else if (enums::is_flag_set(renderPassOptions,
+                                RenderPassOptionsVulkan::msaa))
     {
         // Vulkan does not support partial MSAA resolves when using resolve
         // attachments.
         drawBounds = renderTarget->bounds();
     }
     // Vulkan builtin MSAA resolves don't support partial drawBounds.
-    assert(desc.interlockMode != gpu::InterlockMode::depthStencil ||
-           desc.manuallyResolved || drawBounds == renderTarget->bounds());
+    assert(
+        !enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa) ||
+        desc.manuallyResolved || drawBounds == renderTarget->bounds());
 
     const auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
@@ -2730,14 +2818,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // renderpass, and should be handled automatically, but on early PowerVR
         // devices (Reno 3 Plus, Vivo Y21) tesselation is still incorrect
         // without this explicit barrier. Figure out why.
-        m_tessTexture->barrier(
-            commandBuffer,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            },
-            vkutil::ImageAccessAction::invalidateContents);
+        m_tessTexture->barrier(commandBuffer,
+                               ColorAttachmentWriteAccess,
+                               vkutil::ImageAccessAction::invalidateContents);
 
         const VkRect2D tessellateArea = {
             .extent = {gpu::kTessTextureWidth, desc.tessDataHeight},
@@ -3009,17 +3092,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                       : VK_IMAGE_LAYOUT_GENERAL,
     };
 
-    const bool renderAreaIsFullTarget = drawBounds.contains(
-        IAABB{0,
-              0,
-              static_cast<int32_t>(renderTarget->width()),
-              static_cast<int32_t>(renderTarget->height())});
+    const bool renderAreaIsFullTarget =
+        coversFullRenderTarget(drawBounds, renderTarget);
 
-    const vkutil::ImageAccessAction targetAccessAction =
-        renderAreaIsFullTarget &&
-                desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget
-            ? vkutil::ImageAccessAction::invalidateContents
-            : vkutil::ImageAccessAction::preserveContents;
+    const vkutil::ImageAccessAction renderTargetAccessAction =
+        renderTargetAccessActionFor(desc.colorLoadAction,
+                                    renderAreaIsFullTarget);
 
     const PLSBackingType plsBackingType =
         m_pipelineManager->plsBackingType(desc.interlockMode);
@@ -3027,11 +3105,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkImageView colorImageView = VK_NULL_HANDLE;
     bool colorAttachmentIsOffscreen = false;
 
-    VkImageView msaaResolveImageView = VK_NULL_HANDLE;
+    VkImageView depthStencilFinalColorImageView = VK_NULL_HANDLE;
     VkImageView msaaColorSeedImageView = VK_NULL_HANDLE;
 
-    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    if (enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa))
     {
+        assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
         colorImageView = renderTarget->msaaColorTexture()->vkImageView();
 
 #if 0
@@ -3045,7 +3124,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
              VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
         {
             // We can seed from, and resolve to the the same texture.
-            msaaColorSeedImageView = msaaResolveImageView =
+            msaaColorSeedImageView = depthStencilFinalColorImageView =
                 renderTarget->accessTargetImageView(
                     commandBuffer,
                     {
@@ -3082,17 +3161,13 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 renderPassOptions |=
                     RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
             }
-            msaaResolveImageView = renderTarget->accessTargetImageView(
-                commandBuffer,
-                {
-                    .pipelineStages =
-                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                },
-                renderAreaIsFullTarget
-                    ? vkutil::ImageAccessAction::invalidateContents
-                    : vkutil::ImageAccessAction::preserveContents);
+            depthStencilFinalColorImageView =
+                renderTarget->accessTargetImageView(
+                    commandBuffer,
+                    ColorAttachmentWriteAccess,
+                    renderAreaIsFullTarget
+                        ? vkutil::ImageAccessAction::invalidateContents
+                        : vkutil::ImageAccessAction::preserveContents);
         }
     }
     else if (enums::is_flag_set(
@@ -3101,13 +3176,19 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
              ((desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
                desc.interlockMode == gpu::InterlockMode::atomics) &&
               (renderTarget->targetUsageFlags() &
-               VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)))
+               VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)) ||
+             (desc.interlockMode == gpu::InterlockMode::depthStencil &&
+              // With single-sampled depthStencil, "manuallyResolved" means we
+              // have to render to the offscreen color texture.
+              !desc.manuallyResolved))
     {
         // We can render directly to the render target.
+        assert(!enums::is_flag_set(renderPassOptions,
+                                   RenderPassOptionsVulkan::msaa));
         colorImageView =
             renderTarget->accessTargetImageView(commandBuffer,
                                                 colorLoadAccess,
-                                                targetAccessAction);
+                                                renderTargetAccessAction);
     }
     else if (plsBackingType == PLSBackingType::storageTexture)
     {
@@ -3135,7 +3216,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 colorImageView = renderTarget->accessTargetImageView(
                     commandBuffer,
                     PLS_STORAGE_TEXTURE_ACCESS,
-                    targetAccessAction);
+                    renderTargetAccessAction);
             }
         }
         else
@@ -3203,6 +3284,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 RenderPassOptionsVulkan::atomicCoalescedResolveAndTransfer;
         }
         colorAttachmentIsOffscreen = true;
+    }
+
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil &&
+        !enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa) &&
+        enums::is_flag_set(renderPassOptions,
+                           RenderPassOptionsVulkan::manuallyResolved))
+    {
+        // Advanced blend forced COLOR offscreen (the renderTarget didn't
+        // support input attachments). We'll attach the renderTarget at a
+        // different slot and copy the offscreen texture into it at the end.
+        assert(colorAttachmentIsOffscreen);
+        depthStencilFinalColorImageView =
+            renderTarget->accessTargetImageView(commandBuffer,
+                                                ColorAttachmentWriteAccess,
+                                                renderTargetAccessAction);
     }
 
     if (desc.interlockMode == gpu::InterlockMode::clockwise ||
@@ -3419,7 +3515,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                   drawBounds,
                                   colorImageView,
                                   msaaColorSeedImageView,
-                                  msaaResolveImageView,
+                                  depthStencilFinalColorImageView,
                                   renderPassOptions,
                                   renderPassScissorBox);
 
@@ -3620,7 +3716,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // offscreen.
         assert(desc.interlockMode != gpu::InterlockMode::atomics);
 
-        // MSAA never needs this copy. It handles resolves differently.
+        // depthStencil shouldn't reach here either; it always resolves inside
+        // the render pass.
+        // NOTE: rasterOrdering skips in-render-pass resolves on Apple because
+        // they "don't seem to work on MoltenVK". If Apple misbehaves, this is
+        // probably why.
         assert(desc.interlockMode != gpu::InterlockMode::depthStencil);
 
         constexpr static vkutil::ImageAccess ACCESS_COPY_FROM = {
@@ -3849,6 +3949,16 @@ void RenderContextVulkanImpl::submitDrawList(
         {
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable;
+        }
+        if (enums::is_flag_set(drawRenderPass->renderPassOptions(),
+                               RenderPassOptionsVulkan::msaa) &&
+            !enums::is_flag_set(
+                shaderMiscFlags,
+                gpu::ShaderMiscFlags::fixedFunctionColorOutput) &&
+            drawType != gpu::DrawType::renderPassInitialize)
+        {
+            assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+            shaderMiscFlags |= gpu::ShaderMiscFlags::msaaDstRead;
         }
         if (enums::is_flag_set(
                 drawRenderPass->renderPassOptions(),

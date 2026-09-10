@@ -1645,7 +1645,8 @@ RenderContextGLImpl::DrawShader::DrawShader(
 #endif
 
     std::vector<const char*> defines;
-    if (renderContextImpl->m_plsImpl != nullptr)
+    if (renderContextImpl->m_plsImpl != nullptr &&
+        interlockMode != gpu::InterlockMode::depthStencil)
     {
         renderContextImpl->m_plsImpl->pushShaderDefines(interlockMode,
                                                         &defines);
@@ -1670,7 +1671,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     {
         defines.push_back(GLSL_BORROWED_COVERAGE_PASS);
     }
-    for (size_t i = 0; i < kShaderFeatureCount; ++i)
+    for (size_t i = 0; i < ShaderFeatureCount; ++i)
     {
         const auto feature = ShaderFeatures(1 << i);
         if (enums::is_flag_set(shaderFeatures, feature))
@@ -2791,7 +2792,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
-    auto msaaResolveAction = RenderTargetGL::MSAAResolveAction::automatic;
+    auto msaaResolveAction = RenderTargetGL::MSAAResolveAction::none;
     std::array<GLenum, 3> msaaDepthStencilColor;
     if (desc.interlockMode != gpu::InterlockMode::depthStencil)
     {
@@ -2809,7 +2810,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         bool preserveRenderTarget =
             desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget;
         bool isFBO0;
-        msaaResolveAction = renderTarget->bindMSAAFramebuffer(
+        msaaResolveAction = renderTarget->bindFramebufferForDepthStencilMode(
             this,
             desc.msaaSampleCount,
             preserveRenderTarget ? &desc.renderTargetUpdateBounds : nullptr,
@@ -2985,7 +2986,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             renderTarget->height());
                     }
                 }
-                renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
+                renderTarget->bindFramebufferForDepthStencilMode(
+                    this,
+                    desc.msaaSampleCount);
             }
         }
 
@@ -3463,6 +3466,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     capabilities.isAdreno = strstr(rendererString, "Adreno");
     capabilities.isMali = strstr(rendererString, "Mali");
     capabilities.isPowerVR = strstr(rendererString, "PowerVR");
+    capabilities.isIntel = strstr(rendererString, "Intel");
 #ifdef RIVE_ANDROID
     capabilities.avoidPartialFramebufferBlits =
         capabilities.isANGLESystemDriver &&
@@ -3812,6 +3816,17 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 
     if (capabilities.ARB_shader_storage_buffer_object)
     {
+        const bool storageBuffersAreCore =
+            capabilities.isGLES ? capabilities.isContextVersionAtLeast(3, 1)
+                                : capabilities.isContextVersionAtLeast(4, 3);
+        if (capabilities.isIntel && !storageBuffersAreCore)
+        {
+            // Intel advertises GL_ARB_shader_storage_buffer_object, but its
+            // own GLSL compiler rejects
+            // "#extension GL_ARB_shader_storage_buffer_object".
+            capabilities.ARB_shader_storage_buffer_object = false;
+        }
+
         // We need four storage buffers in the vertex shader. Disable the
         // extension if this isn't supported.
         int maxVertexShaderStorageBlocks;

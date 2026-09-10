@@ -222,9 +222,10 @@
 #define IMAGE_MESH_ATTRIB_COUNT                                                \
     (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
-// MSAA attaches different resources to the framebuffer instead of PLS planes.
-#define MSAA_DEPTH_STENCIL_IDX 1u
-#define MSAA_RESOLVE_IDX 2u
+// depthStencil mode attaches different resources to the framebuffer than PLS
+// planes.
+#define DEPTH_STENCIL_BUFFER_IDX 1u
+#define DEPTH_STENCIL_FINAL_COLOR_IDX 2u
 #define MSAA_COLOR_SEED_IDX 3u
 
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.

@@ -45,6 +45,9 @@ TestingWindow::Target TestingWindow::s_Target =
     TestingWindow::Target::host;
 #endif
 
+// Use 4x MSAA when the user requests an "msaa" config.
+constexpr static uint32_t MSAASampleCount = 4;
+
 const char* TestingWindow::BackendName(Backend backend)
 {
     switch (backend)
@@ -121,7 +124,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     if (nameStartsWith("angle"))
     {
         if (nameStartsWith("anglemsaa"))
-            params->msaa = true;
+            params->msaaSampleCount = MSAASampleCount;
         if (nameEndsWith("_mtl") || nameEndsWith("_metal"))
             params->angleRenderer = ANGLERenderer::metal;
         else if (nameEndsWith("_d3d") || nameEndsWith("_d3d11"))
@@ -148,9 +151,15 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->clockwise = true;
         return Backend::gl;
     }
+    if (nameStr == "glcwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        return Backend::gl;
+    }
     if (nameStr == "glmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::gl;
     }
     if (nameStr == "d3d")
@@ -164,7 +173,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "d3dmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::d3d;
     }
     if (nameStr == "d3d12")
@@ -178,7 +187,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "d3d12msaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::d3d12;
     }
     if (nameStr == "metal")
@@ -197,7 +206,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "metalmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::metal;
     }
     if (nameStr == "vulkan" || nameStr == "vk")
@@ -211,7 +220,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "vulkanmsaa" || nameStr == "vkmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::vk;
     }
     if (nameStr == "vulkancore" || nameStr == "vkcore")
@@ -222,7 +231,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     if (nameStr == "vulkanmsaacore" || nameStr == "vkmsaacore")
     {
         params->core = true;
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::vk;
     }
     if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
@@ -241,6 +250,12 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->atomic = true;
         return Backend::vk;
     }
+    if (nameStr == "vkcwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        return Backend::vk;
+    }
     if (nameStr == "moltenvk" || nameStr == "mvk")
     {
         return Backend::moltenvk;
@@ -248,6 +263,12 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
     {
         params->core = true;
+        return Backend::moltenvk;
+    }
+    if (nameStr == "mvkcwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
         return Backend::moltenvk;
     }
     if (nameStr == "swiftshader" || nameStr == "sw")
@@ -265,7 +286,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "dawnmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
+        return Backend::dawn;
+    }
+    if (nameStr == "dawncwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
         return Backend::dawn;
     }
     if (nameStr == "wgpu")
@@ -279,7 +306,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "wgpumsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
+        return Backend::wgpu;
+    }
+    if (nameStr == "wgpucwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
         return Backend::wgpu;
     }
     if (nameStr == "coregraphics")
@@ -302,7 +335,7 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     }
     if (nameStr == "externalmsaa" || nameStr == "extmsaa" || nameStr == "xmsaa")
     {
-        params->msaa = true;
+        params->msaaSampleCount = MSAASampleCount;
         return Backend::external;
     }
     if (nameStr == "canvas2d" || nameStr == "c2d")

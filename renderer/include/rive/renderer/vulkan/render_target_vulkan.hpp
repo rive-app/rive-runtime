@@ -78,9 +78,10 @@ protected:
         const vkutil::ImageAccess& dstAccessAfterCopy,
         const IAABB& copyBounds);
 
-    // InterlockMode::depthStencil.
+    // Extra attachments for InterlockMode::depthStencil. Allocated lazily as
+    // needed.
+    vkutil::Texture2D* depthStencilTexture(bool msaa);
     vkutil::Texture2D* msaaColorTexture();
-    vkutil::Texture2D* msaaDepthStencilTexture();
 
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
@@ -91,8 +92,9 @@ protected:
     rcp<vkutil::Texture2D> m_offscreenColorTexture;
 
     // InterlockMode::depthStencil.
-    rcp<vkutil::Texture2D> m_msaaColorTexture;
+    rcp<vkutil::Texture2D> m_depthStencilTexture;
     rcp<vkutil::Texture2D> m_msaaDepthStencilTexture;
+    rcp<vkutil::Texture2D> m_msaaColorTexture;
 };
 
 class RenderTargetVulkanImpl : public RenderTargetVulkan

@@ -459,6 +459,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
     VkFormat renderTargetFormat,
     VkImageUsageFlags renderTargetUsage,
     LoadAction colorLoadAction,
+    DrawPipelineVulkan::Options drawPipelineOptions,
     const PlatformFeatures& platformFeatures,
     const std::function<bool(const PipelineProps&)>& func)
 {
@@ -473,7 +474,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 .shaderFeatures = shaderFeatures,
                 .interlockMode = interlockMode,
                 .shaderMiscFlags = shaderMiscFlags,
-                .drawPipelineOptions = DrawPipelineVulkan::Options::none,
+                .drawPipelineOptions = drawPipelineOptions,
                 .renderTargetFormat = renderTargetFormat,
                 .colorLoadAction = colorLoadAction,
             };
@@ -546,7 +547,8 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 case InterlockMode::depthStencil:
                     validPassOptions |=
                         RenderPassOptionsVulkan::manuallyResolved |
-                        RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
+                        RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture |
+                        RenderPassOptionsVulkan::msaa;
 
                     if (enums::is_flag_set(
                             shaderMiscFlags,
@@ -589,6 +591,22 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                         // manuallyResolved and these other flags are mutually
                         // exclusive
                         continue;
+                    }
+
+                    if (interlockMode == InterlockMode::depthStencil)
+                    {
+                        if (enums::is_flag_set(
+                                props.renderPassOptions,
+                                RenderPassOptionsVulkan::
+                                    msaaSeedFromOffscreenTexture) &&
+                            !enums::is_flag_set(props.renderPassOptions,
+                                                RenderPassOptionsVulkan::msaa))
+                        {
+                            // Single-sampled preserves via
+                            // VK_ATTACHMENT_LOAD_OP_LOAD, so
+                            // msaaSeedFromOffscreenTexture is invalid.
+                            continue;
+                        }
                     }
 
                     if (enums::is_flag_set(
@@ -656,6 +674,7 @@ bool PipelineManagerVulkan::isValidUbershaderPipelineProps(
             ? VkImageUsageFlagBits(0)
             : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         props.colorLoadAction,
+        props.drawPipelineOptions,
         platformFeatures,
         [&found, curKey, &platformFeatures](const PipelineProps& validProps) {
             auto testKey = validProps.createKey(platformFeatures);
@@ -683,6 +702,7 @@ void PipelineManagerVulkan::queueUbershaderPipelineCreation(
         renderTargetFormat,
         renderTargetUsage,
         colorLoadAction,
+        DrawPipelineVulkan::Options::none,
         platformFeatures,
         [this, &platformFeatures](const PipelineProps& props) {
             queuePipelineIfNotFound(props, platformFeatures);
