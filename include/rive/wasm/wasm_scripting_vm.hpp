@@ -28,6 +28,29 @@ class RenderPaint;
 class RenderPath;
 class ViewModel;
 class WorkTask;
+class WasmScriptingVM;
+
+/// A debugger's view of a module baked with rasc's line probes. Everything
+/// arrives on the module's thread: the probes from inside the module, the
+/// call brackets around each host call into it, and a stopped probe may
+/// block until the debugger resumes.
+class WasmDebugHooks
+{
+public:
+    virtual ~WasmDebugHooks() = default;
+    virtual void onEnter(WasmScriptingVM& vm,
+                         uint32_t function,
+                         uint32_t line) = 0;
+    /// True when execution stopped here, so the module re-arms its budget.
+    virtual bool onLine(WasmScriptingVM& vm, uint32_t line) = 0;
+    virtual void onLeave(WasmScriptingVM& vm) = 0;
+    virtual void onCallBegin(WasmScriptingVM& vm) = 0;
+    /// trap names the exception of a call that died, null for a normal
+    /// return; frames the probes left open are the debugger's to drop.
+    virtual void onCallEnd(WasmScriptingVM& vm, const char* trap) = 0;
+    /// The VM is going away.
+    virtual void onDetach(WasmScriptingVM& vm) = 0;
+};
 
 class WasmScriptingVM : public ScriptBackend
 {
@@ -375,6 +398,23 @@ public:
         m_print = std::move(handler);
     }
 
+    /// Keeps the module on the tier it booted with: no ladder compiles, no
+    /// upgrades, so a debugger sees one code shape.
+    void pinTier() { m_tierPinned = true; }
+
+    /// A debugger over this module's line probes, or null. The hooks must
+    /// outlive the VM or clear themselves first.
+    void setDebugHooks(WasmDebugHooks* hooks) { m_debugHooks = hooks; }
+    WasmDebugHooks* debugHooks() const { return m_debugHooks; }
+
+    /// Runs for every VM made on the calling thread, after its print sink
+    /// is set and before its module starts, with the module as baked: the
+    /// place to install debug hooks and a print sink that see module
+    /// start, where rasc runs every script's top level.
+    using BootHook =
+        std::function<void(WasmScriptingVM& vm, Span<const uint8_t> module)>;
+    static void setBootHook(BootHook hook);
+
 protected:
     // The browser backend subclasses over the seams and boots without the
     // WAMR init, so it shares construction, error, factory, and lua state.
@@ -414,6 +454,7 @@ private:
     // running the -O0 code a debugger and stable codegen want.
     bool m_tierPinned = false;
     std::function<void(const char*, size_t)> m_print;
+    WasmDebugHooks* m_debugHooks = nullptr;
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;
     int m_timeoutMs = sm_defaultTimeoutMs;

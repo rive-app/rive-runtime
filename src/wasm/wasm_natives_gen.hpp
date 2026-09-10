@@ -191,6 +191,9 @@ typedef struct rive_gpu_pipeline_desc_v1
 void rtLogImpl(WasmScriptingVM* vm, int32_t level, const char* message, uint32_t length);
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t object);
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
+void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
+uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
+void rtDebugLeaveImpl(WasmScriptingVM* vm);
 uint32_t dataViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataRootViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataGlobalViewModelImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
@@ -390,6 +393,18 @@ void rtMarkNeedsUpdate(wasm_exec_env_t env, uint32_t object)
 void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
 {
     rtBudgetExceededImpl(vmFromEnv(env), ms);
+}
+void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
+{
+    rtDebugEnterImpl(vmFromEnv(env), func, line);
+}
+uint32_t rtDebugLine(wasm_exec_env_t env, uint32_t line)
+{
+    return rtDebugLineImpl(vmFromEnv(env), line);
+}
+void rtDebugLeave(wasm_exec_env_t env)
+{
+    rtDebugLeaveImpl(vmFromEnv(env));
 }
 uint32_t dataViewModel(wasm_exec_env_t env, uint32_t object)
 {
@@ -1144,6 +1159,9 @@ NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
     {"mark_needs_update", (void*)rtMarkNeedsUpdate, "(i)", nullptr},
     {"budget_exceeded", (void*)rtBudgetExceeded, "(i)", nullptr},
+    {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
+    {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
+    {"debug_leave", (void*)rtDebugLeave, "()", nullptr},
 };
 
 NativeSymbol kDataNatives[] = {

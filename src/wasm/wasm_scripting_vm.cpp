@@ -120,6 +120,9 @@ WasmScriptingVM* vmFromEnv(wasm_exec_env_t env)
 // host still needs; the sink for that window is parked here.
 thread_local const std::function<void(const char*, size_t)>* s_bootPrint =
     nullptr;
+// The VM whose module is starting, for the debug probes its top level hits.
+thread_local WasmScriptingVM* s_booting = nullptr;
+thread_local WasmScriptingVM::BootHook s_bootHook;
 
 } // namespace
 
@@ -208,6 +211,10 @@ uint32_t WasmScriptingVM::callModule(const char* name,
 WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm) :
     m_vm(vm)
 {
+    if (vm->m_debugHooks != nullptr)
+    {
+        vm->m_debugHooks->onCallBegin(*vm);
+    }
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(vm);
     m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
@@ -243,6 +250,15 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
                 "before returning.\n");
     }
 #endif
+    if (m_vm->m_debugHooks != nullptr)
+    {
+        // Still set here when the call trapped; the caller clears it.
+        const char* trap =
+            m_vm->m_state != nullptr && m_vm->m_state->instance != nullptr
+                ? wasm_runtime_get_exception(m_vm->m_state->instance)
+                : nullptr;
+        m_vm->m_debugHooks->onCallEnd(*m_vm, trap);
+    }
 }
 
 WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
@@ -3216,6 +3232,39 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
     vm->raiseModuleError("execution exceeded timeout");
 }
 
+// Module start has no exec env to carry the vm; the probes its top level
+// hits belong to the VM being booted.
+static WasmDebugHooks* debugHooksFor(WasmScriptingVM*& vm)
+{
+    if (vm == nullptr)
+    {
+        vm = s_booting;
+    }
+    return vm != nullptr ? vm->debugHooks() : nullptr;
+}
+
+void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t function, uint32_t line)
+{
+    if (WasmDebugHooks* hooks = debugHooksFor(vm))
+    {
+        hooks->onEnter(*vm, function, line);
+    }
+}
+
+uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line)
+{
+    WasmDebugHooks* hooks = debugHooksFor(vm);
+    return hooks != nullptr && hooks->onLine(*vm, line) ? 1 : 0;
+}
+
+void rtDebugLeaveImpl(WasmScriptingVM* vm)
+{
+    if (WasmDebugHooks* hooks = debugHooksFor(vm))
+    {
+        hooks->onLeave(*vm);
+    }
+}
+
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t objectHandle)
 {
     if (vm == nullptr)
@@ -5175,6 +5224,10 @@ std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
     std::unique_ptr<WasmScriptingVM> vm(new WasmScriptingVM());
     vm->m_factory = factory;
     vm->m_print = std::move(print);
+    if (s_bootHook)
+    {
+        s_bootHook(*vm, module);
+    }
     if (!vm->init(module))
     {
         outError = vm->m_lastError;
@@ -5197,6 +5250,11 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
 
 WasmScriptingVM::~WasmScriptingVM()
 {
+    if (m_debugHooks != nullptr)
+    {
+        m_debugHooks->onDetach(*this);
+        m_debugHooks = nullptr;
+    }
     // Flag in-flight decodes cancelled before teardown so a later poll
     // cannot call back into this dead VM, mirroring the Luau backend's
     // shutdownAsyncForState.
@@ -5492,6 +5550,11 @@ void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
     deliverDecodeResult(result);
 }
 
+void WasmScriptingVM::setBootHook(BootHook hook)
+{
+    s_bootHook = std::move(hook);
+}
+
 void WasmScriptingVM::setTimeoutMs(int ms)
 {
     m_timeoutMs = ms;
@@ -5764,7 +5827,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                     haveHwAot = species == TierSpecies::hw;
                     haveO0Aot = species == TierSpecies::o0;
                     haveAot = !haveHwAot && !haveO0Aot;
-                    m_tierPinned = syncO0;
+                    m_tierPinned = m_tierPinned || syncO0;
                     auto syncMs =
                         std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - syncStart)
@@ -5935,11 +5998,25 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         }
     }
     s_bootPrint = &m_print;
+    s_booting = this;
+    // Module start is a call into the module like any other: the top
+    // level's probes need the bracket, and its trap is the instantiate
+    // error.
+    if (m_debugHooks != nullptr)
+    {
+        m_debugHooks->onCallBegin(*this);
+    }
     m_state->instance = wasm_runtime_instantiate(m_state->module,
                                                  512 * 1024,
                                                  0,
                                                  error,
                                                  sizeof(error));
+    if (m_debugHooks != nullptr)
+    {
+        m_debugHooks->onCallEnd(*this,
+                                m_state->instance == nullptr ? error : nullptr);
+    }
+    s_booting = nullptr;
     s_bootPrint = nullptr;
     if (m_state->instance == nullptr)
     {

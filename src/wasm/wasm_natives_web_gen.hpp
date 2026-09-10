@@ -30,6 +30,21 @@ void rive_web_rt_budget_exceeded(uint32_t vmHandle, uint32_t ms)
     rtBudgetExceededImpl((WasmScriptingVM*)(uintptr_t)vmHandle, ms);
 }
 EMSCRIPTEN_KEEPALIVE
+void rive_web_rt_debug_enter(uint32_t vmHandle, uint32_t func, uint32_t line)
+{
+    rtDebugEnterImpl((WasmScriptingVM*)(uintptr_t)vmHandle, func, line);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_rt_debug_line(uint32_t vmHandle, uint32_t line)
+{
+    return rtDebugLineImpl((WasmScriptingVM*)(uintptr_t)vmHandle, line);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_rt_debug_leave(uint32_t vmHandle)
+{
+    rtDebugLeaveImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_view_model(uint32_t vmHandle, uint32_t object)
 {
     return dataViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);

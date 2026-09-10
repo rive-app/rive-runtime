@@ -207,6 +207,12 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "mark_needs_update")
 void rive_rt_mark_needs_update(uint32_t object);
 RIVE_BINDING_IMPORT("rive_rt_v1", "budget_exceeded")
 void rive_rt_budget_exceeded(uint32_t ms);
+RIVE_BINDING_IMPORT("rive_rt_v1", "debug_enter")
+void rive_rt_debug_enter(uint32_t func, uint32_t line);
+RIVE_BINDING_IMPORT("rive_rt_v1", "debug_line")
+uint32_t rive_rt_debug_line(uint32_t line);
+RIVE_BINDING_IMPORT("rive_rt_v1", "debug_leave")
+void rive_rt_debug_leave(void);
 
 // rive_data_v1
 RIVE_BINDING_IMPORT("rive_data_v1", "view_model")

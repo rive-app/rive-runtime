@@ -233,6 +233,12 @@ NAMESPACES = [
         # Raised by the module's fuel checks when the execution budget
         # passes; the host prints the timeout and traps the op.
         op('budget_exceeded', [u32('ms')]),
+        # Line probes a debug bake plants: function entry and exit keep a
+        # shadow call stack, and each line asks whether to stop. line
+        # returns nonzero when it did, so the module re-arms its budget.
+        op('debug_enter', [u32('func'), u32('line')]),
+        op('debug_line', [u32('line')], ret='u32', stub='zero'),
+        op('debug_leave'),
     ]),
     # Data binding tracer: numbers only; more property types, listeners, and
     # the valueChanged callback channel land with the properties namespace.

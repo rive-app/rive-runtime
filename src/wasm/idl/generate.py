@@ -357,7 +357,7 @@ def emit_stubs():
         for op in namespace['ops']:
             if op['stub'] == 'hook':
                 value = 'hooks.%s ?? noop' % camel(op['name'])
-            elif op['ret'] == 'f32':
+            elif op['stub'] == 'zero' or op['ret'] == 'f32':
                 value = 'zero'
             elif op['ret'] is not None:
                 value = 'mint'
