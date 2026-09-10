@@ -5,7 +5,6 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_PATH
 #define RENDER_MODE_CLOCKWISE_ATOMIC
-#define NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"

@@ -18,7 +18,7 @@ FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32_ATOMIC(COVERAGE_BUFFER_IDX, CoverageBuffer, coverageBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
+INLINE half apply_stroke_coverage(float paintAlpha,
                                   half fragCoverage,
                                   uint coverageIndex,
                                   OUT(uint) preexistingCoverageValue,
@@ -32,7 +32,7 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
         // if another fragment from the path will get drawn on top. This is
         // because any fragment drawn on top will be the same color, and any
         // color blended onto a fully opaque version of itself is a no-op.
-        return;
+        return 1.;
     }
 #endif
 
@@ -79,10 +79,10 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
 #endif
     }
 
-    paintAlpha *= X;
+    return X;
 }
 
-INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
+INLINE half apply_fill_coverage(float paintAlpha,
                                 half fragCoverageRemaining,
                                 uint coverageIndex,
                                 OUT(uint) preexistingCoverageValue,
@@ -107,7 +107,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
         // top. This is because any fragment drawn on top will be the same
         // color, and any color blended onto a fully opaque version of itself is
         // a no-op.
-        return;
+        return 1.;
     }
 #endif
 
@@ -192,7 +192,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
              incremental_clockwise_coverage(c0, c1, paintAlpha);
     }
 
-    paintAlpha *= X;
+    return X;
 }
 
 CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
@@ -283,24 +283,25 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     fragCoverage = clamp(fragCoverage, .0, maxCoverage);
 
     uint preexistingCoverageValue;
+    half incrementalCoverage;
     float newCoverage;
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
-        apply_stroke_coverage(paintColor.a,
-                              fragCoverage,
-                              coverageIndex,
-                              preexistingCoverageValue,
-                              newCoverage);
+        incrementalCoverage = apply_stroke_coverage(paintColor.a,
+                                                    fragCoverage,
+                                                    coverageIndex,
+                                                    preexistingCoverageValue,
+                                                    newCoverage);
     }
     else // It's a fill.
 #endif   // !DRAW_INTERIOR_TRIANGLES
     {
-        apply_fill_coverage(paintColor.a,
-                            fragCoverage,
-                            coverageIndex,
-                            preexistingCoverageValue,
-                            newCoverage);
+        incrementalCoverage = apply_fill_coverage(paintColor.a,
+                                                  fragCoverage,
+                                                  coverageIndex,
+                                                  preexistingCoverageValue,
+                                                  newCoverage);
     }
 
 #ifdef @ENABLE_DITHER
@@ -313,7 +314,10 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 #endif
 
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+    paintColor *= incrementalCoverage;
+#else
+    paintColor.a *= incrementalCoverage;
     if (paintColor.a > .0)
     {
         bool wasBlendColorValid =
@@ -366,9 +370,8 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
             paintColor.rgb = PLS_LOAD4F_UAV(blendColorBuffer).rgb;
         }
     }
-#endif
-
     paintColor.rgb *= paintColor.a;
+#endif
 
 #ifdef @ENABLE_DITHER
     paintColor.rgb =

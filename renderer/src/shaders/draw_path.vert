@@ -6,11 +6,7 @@
 // included multiple times with different defines in the Metal library.
 #undef GENERATE_UNMULTIPLIED_PAINT_COLORS
 
-#ifdef @NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
-// The specific fragment shader we're being compiled for expects un-multiplied
-// paint colors all the time.
-#define GENERATE_UNMULTIPLIED_PAINT_COLORS true
-#elif defined(@ENABLE_ADVANCED_BLEND)
+#ifdef @ENABLE_ADVANCED_BLEND
 // If advanced blend is enabled, we generate unmultiplied paint colors in the
 // shader. Otherwise we would have to just turn around and unmultiply them in
 // order to run the blend equation.
