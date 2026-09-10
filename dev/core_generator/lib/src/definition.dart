@@ -146,8 +146,9 @@ class Definition {
       _rawExtensionOf = Definition.make(extendsFilename);
       // an editor-only class keeps its def parent; only runtime classes
       // skip past editor-only ancestors
-      _extensionOf =
-          _forRuntime ? getRuntimeExtensionOf(_rawExtensionOf) : _rawExtensionOf;
+      _extensionOf = _forRuntime
+          ? getRuntimeExtensionOf(_rawExtensionOf)
+          : _rawExtensionOf;
     }
     dynamic nameValue = data['name'];
     if (nameValue is String) {
@@ -286,9 +287,15 @@ class Definition {
         continue;
       }
       // Color masks are uint32 under the hood, so they are valid targets too.
-      if (target.type.name != 'uint' && target.type.name != 'Color') {
+      // Narrower storage is still a valid mask, it just has fewer bits to
+      // hand out; uint64 is excluded because the generated field masks are
+      // 32-bit constants.
+      const maskBits = {'uint': 32, 'uint16': 16, 'uint8': 8, 'Color': 32};
+      final targetBits = maskBits[target.type.name];
+      if (targetBits == null) {
         color(
-          '${p.name}: passthroughForBitmask target must be uint or Color.',
+          '${p.name}: passthroughForBitmask target must be uint, uint16, '
+          'uint8 or Color (${target.name} is ${target.type.name}).',
           front: Styles.RED,
         );
         continue;
@@ -302,10 +309,11 @@ class Definition {
       }
       final bit = p.passthroughBit!;
       final width = p.passthroughBitWidthOrDefault;
-      if (bit < 0 || width < 1 || bit + width > 32) {
+      if (bit < 0 || width < 1 || bit + width > targetBits) {
         color(
-          '${p.name}: passthroughBit/passthroughBitWidth must fit in 0..32 '
-          '(bit $bit, width $width).',
+          '${p.name}: passthroughBit/passthroughBitWidth must fit in '
+          '0..$targetBits, the width of ${target.name} '
+          '(${target.type.name}) (bit $bit, width $width).',
           front: Styles.RED,
         );
         continue;
@@ -344,6 +352,7 @@ class Definition {
       }
     });
   }
+
   String get localFilename => _filename.indexOf(defsPath) == 0
       ? _filename.substring(defsPath.length)
       : _filename;
@@ -513,7 +522,9 @@ class Definition {
       ext.writeln('protected:');
       ext.write(fields);
     }
-    if (accessors.isNotEmpty || copy.isNotEmpty || deserialize.isNotEmpty ||
+    if (accessors.isNotEmpty ||
+        copy.isNotEmpty ||
+        deserialize.isNotEmpty ||
         methods.isNotEmpty) {
       ext.writeln('public:');
     }
@@ -840,12 +851,10 @@ class Definition {
             // editor hook + registry dispatch stay uniform with bools.
             final offsetName = '${property.name}BitOffset';
             final maskName = '${property.name}FieldMask';
-            acc.writeln(
-                'inline ${property.type.cppGetterName} '
+            acc.writeln('inline ${property.type.cppGetterName} '
                 '${property.cppAccessor}() const { return '
                 '($targetField & $maskName) >> $offsetName; }');
-            acc.writeln(
-                'void ${property.cppAccessor}'
+            acc.writeln('void ${property.cppAccessor}'
                 '(${property.type.cppName} value) {');
             acc.writeln('const ${property.type.cppName} prev = '
                 '($targetField & $maskName) >> $offsetName;');
@@ -857,18 +866,15 @@ class Definition {
                 '((value << $offsetName) & $maskName);');
           } else {
             final maskName = '${property.name}Bitmask';
-            acc.writeln(
-                'inline bool ${property.cppAccessor}() const { return '
+            acc.writeln('inline bool ${property.cppAccessor}() const { return '
                 '($targetField & $maskName) != 0; }');
             acc.writeln('void ${property.cppAccessor}(bool value) {');
-            acc.writeln(
-                'const bool prev = ($targetField & $maskName) != 0;');
+            acc.writeln('const bool prev = ($targetField & $maskName) != 0;');
             acc.writeln('if (prev == value) { return; }');
             acc.writeln(
                 'RIVE_EDITOR_CHANGING(${property.name}PropertyKey, &prev, '
                 '&value);');
-            acc.writeln(
-                '$targetField = value ? ($targetField | $maskName) : '
+            acc.writeln('$targetField = value ? ($targetField | $maskName) : '
                 '($targetField & ~$maskName);');
           }
           acc.writeln('RIVE_EDITOR_CHANGED($changedFn());');
@@ -939,8 +945,7 @@ class Definition {
                 '${property.name}PropertyKey,'
                 'm_${property.capitalizedName},value);');
           } else if (property.type.name == 'FractionalIndex') {
-            acc.writeln(
-                'RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
+            acc.writeln('RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
                 '${property.name}PropertyKey,'
                 'm_${property.capitalizedName},value);');
           } else {
@@ -948,8 +953,7 @@ class Definition {
                 '&m_${property.capitalizedName},&value);');
           }
           acc.writeln('m_${property.capitalizedName} = value;');
-          acc.writeln(
-              'RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
+          acc.writeln('RIVE_EDITOR_CHANGED(${property.cppAccessor}Changed());');
           acc.writeln('notifyPropertyChanged(${property.name}PropertyKey);');
           acc.writeln('}');
           acc.writeln('#else');
@@ -1038,8 +1042,7 @@ class Definition {
                         ? 'override'
                         : '') +
                     '{');
-            acc.writeln(
-                'if(m_${property.capitalizedName} == value){return;}');
+            acc.writeln('if(m_${property.capitalizedName} == value){return;}');
             if (isStringField) {
               acc.writeln('RIVE_EDITOR_STRING_CHANGING('
                   '${property.name}PropertyKey,'
@@ -1049,8 +1052,7 @@ class Definition {
               // void-pointer hook can't safely carry both halves
               // across a single `void*`. The typed hook captures both
               // values by value at the call site.
-              acc.writeln(
-                  'RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
+              acc.writeln('RIVE_EDITOR_FRACTIONAL_INDEX_CHANGING('
                   '${property.name}PropertyKey,'
                   'm_${property.capitalizedName},value);');
             } else {
@@ -1075,8 +1077,7 @@ class Definition {
             // master's plain setter. Cheap no-observer null check; editor
             // arena Cores never subscribe (push stays disabled there), so
             // this only fires for pump-runtime instances.
-            acc.writeln(
-                'notifyPropertyChanged(${property.name}PropertyKey);');
+            acc.writeln('notifyPropertyChanged(${property.name}PropertyKey);');
             acc.writeln('}');
             // Standalone `xAnimate` / `xResetOverride` emission was
             // removed with the move to clone-only playback. The
@@ -1253,8 +1254,7 @@ class Definition {
         // any future Core-level keys have a dispatch target. Today the
         // virtual just returns false — every editor-only property is a
         // generated field on its owning *Base class.
-        editorBody.writeln(
-            'return Core::applyChange(propertyKey, reader); }');
+        editorBody.writeln('return Core::applyChange(propertyKey, reader); }');
       }
 
       // Editor-mode: captureStateForJournal() — emits an identity
@@ -1276,8 +1276,7 @@ class Definition {
       // pair — same dispatch as the generated setters.
       editorBody.writeln('void captureStateForJournal() override {');
       if (_extensionOf != null) {
-        editorBody.writeln(
-            '${_extensionOf!.name}::captureStateForJournal();');
+        editorBody.writeln('${_extensionOf!.name}::captureStateForJournal();');
       } else {
         // Top-level types still chain to `Core::captureStateForJournal`
         // so any future Core-level editor state has a dispatch target.
@@ -1300,21 +1299,20 @@ class Definition {
           if (converted != null) {
             final field = 'm_${property.capitalizedName}';
             final isString = property.type.name == 'String';
-            final isFractionalIndex =
-                property.type.name == 'FractionalIndex';
+            final isFractionalIndex = property.type.name == 'FractionalIndex';
             editorBody.writeln('if ($field != $converted) {');
             if (isString) {
-              editorBody.writeln(
-                  'onStringChanging(${property.name}PropertyKey, '
-                  '$field, $field);');
+              editorBody
+                  .writeln('onStringChanging(${property.name}PropertyKey, '
+                      '$field, $field);');
             } else if (isFractionalIndex) {
               editorBody.writeln(
                   'onFractionalIndexChanging(${property.name}PropertyKey, '
                   '$field, $field);');
             } else {
-              editorBody.writeln(
-                  'onPropertyChanging(${property.name}PropertyKey, '
-                  '&$field, &$field);');
+              editorBody
+                  .writeln('onPropertyChanging(${property.name}PropertyKey, '
+                      '&$field, &$field);');
             }
             editorBody.writeln('}');
           }

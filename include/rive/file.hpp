@@ -91,7 +91,12 @@ public:
     /// 7.3: layouts compose their own rotation/scale on top of the solved
     /// slot. Older files wrote those properties but never applied them, so
     /// they only carry intent at or above this version.
-    static const int minorVersion = 3;
+    /// 7.4: a fitFontSize text reports its *fitted* size to the layout, so a
+    /// hug slot tracks the text actually drawn instead of reserving room at
+    /// the authored font size. Older files were laid out against the
+    /// unshrunk box, so honoring Text::fitFontSizeResizesBox below this
+    /// version would reflow them. See Text::import.
+    static const int minorVersion = 4;
     /// deterministicMode sets a static seed for randomization and uses
     /// timestamps for scrolling.
     static bool deterministicMode;

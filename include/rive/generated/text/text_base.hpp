@@ -52,6 +52,7 @@ public:
     static const uint16_t wrapValuePropertyKey = 683;
     static const uint16_t verticalAlignValuePropertyKey = 685;
     static const uint16_t fitFromBaselinePropertyKey = 703;
+    static const uint16_t fitFontSizeResizesBoxPropertyKey = 315;
     static const uint16_t textRunListSourcePropertyKey = 932;
     static const uint16_t verticalTrimValuePropertyKey = 1026;
     static const uint16_t verticalTrimTopValuePropertyKey = 1027;
@@ -62,24 +63,25 @@ public:
     static const uint32_t verticalTrimBottomValueFieldMask = 65280u;
 
 protected:
-    uint32_t m_AlignValue = 0;
-    uint32_t m_SizingValue = 0;
-    uint32_t m_OverflowValue = 0;
+    uint8_t m_AlignValue = 0;
+    uint8_t m_SizingValue = 0;
+    uint8_t m_OverflowValue = 0;
     float m_Width = 0.0f;
     float m_Height = 0.0f;
     float m_OriginX = 0.0f;
     float m_OriginY = 0.0f;
     float m_ParagraphSpacing = 0.0f;
-    uint32_t m_OriginValue = 0;
-    uint32_t m_WrapValue = 0;
-    uint32_t m_VerticalAlignValue = 0;
+    uint8_t m_OriginValue = 0;
+    uint8_t m_WrapValue = 0;
+    uint8_t m_VerticalAlignValue = 0;
     bool m_FitFromBaseline = true;
+    bool m_FitFontSizeResizesBox = true;
     Id m_TextRunListSource = kEmptyId;
-    uint32_t m_VerticalTrimValue = 0;
+    uint16_t m_VerticalTrimValue = 0;
 
 public:
-    inline uint32_t alignValue() const { return m_AlignValue; }
-    void alignValue(uint32_t value)
+    inline uint8_t alignValue() const { return m_AlignValue; }
+    void alignValue(uint8_t value)
     {
         if (m_AlignValue == value)
         {
@@ -91,8 +93,8 @@ public:
         notifyPropertyChanged(alignValuePropertyKey);
     }
 
-    inline uint32_t sizingValue() const { return m_SizingValue; }
-    void sizingValue(uint32_t value)
+    inline uint8_t sizingValue() const { return m_SizingValue; }
+    void sizingValue(uint8_t value)
     {
         if (m_SizingValue == value)
         {
@@ -104,8 +106,8 @@ public:
         notifyPropertyChanged(sizingValuePropertyKey);
     }
 
-    inline uint32_t overflowValue() const { return m_OverflowValue; }
-    void overflowValue(uint32_t value)
+    inline uint8_t overflowValue() const { return m_OverflowValue; }
+    void overflowValue(uint8_t value)
     {
         if (m_OverflowValue == value)
         {
@@ -186,8 +188,8 @@ public:
         notifyPropertyChanged(paragraphSpacingPropertyKey);
     }
 
-    inline uint32_t originValue() const { return m_OriginValue; }
-    void originValue(uint32_t value)
+    inline uint8_t originValue() const { return m_OriginValue; }
+    void originValue(uint8_t value)
     {
         if (m_OriginValue == value)
         {
@@ -199,8 +201,8 @@ public:
         notifyPropertyChanged(originValuePropertyKey);
     }
 
-    inline uint32_t wrapValue() const { return m_WrapValue; }
-    void wrapValue(uint32_t value)
+    inline uint8_t wrapValue() const { return m_WrapValue; }
+    void wrapValue(uint8_t value)
     {
         if (m_WrapValue == value)
         {
@@ -212,8 +214,8 @@ public:
         notifyPropertyChanged(wrapValuePropertyKey);
     }
 
-    inline uint32_t verticalAlignValue() const { return m_VerticalAlignValue; }
-    void verticalAlignValue(uint32_t value)
+    inline uint8_t verticalAlignValue() const { return m_VerticalAlignValue; }
+    void verticalAlignValue(uint8_t value)
     {
         if (m_VerticalAlignValue == value)
         {
@@ -242,6 +244,24 @@ public:
         notifyPropertyChanged(fitFromBaselinePropertyKey);
     }
 
+    inline bool fitFontSizeResizesBox() const
+    {
+        return m_FitFontSizeResizesBox;
+    }
+    void fitFontSizeResizesBox(bool value)
+    {
+        if (m_FitFontSizeResizesBox == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(fitFontSizeResizesBoxPropertyKey,
+                             &m_FitFontSizeResizesBox,
+                             &value);
+        m_FitFontSizeResizesBox = value;
+        RIVE_EDITOR_CHANGED(fitFontSizeResizesBoxChanged());
+        notifyPropertyChanged(fitFontSizeResizesBoxPropertyKey);
+    }
+
     inline Id textRunListSource() const { return m_TextRunListSource; }
     void textRunListSource(Id value)
     {
@@ -257,8 +277,8 @@ public:
         notifyPropertyChanged(textRunListSourcePropertyKey);
     }
 
-    inline uint32_t verticalTrimValue() const { return m_VerticalTrimValue; }
-    void verticalTrimValue(uint32_t value)
+    inline uint16_t verticalTrimValue() const { return m_VerticalTrimValue; }
+    void verticalTrimValue(uint16_t value)
     {
         if (m_VerticalTrimValue == value)
         {
@@ -272,14 +292,14 @@ public:
         notifyPropertyChanged(verticalTrimValuePropertyKey);
     }
 
-    inline uint32_t verticalTrimTopValue() const
+    inline uint8_t verticalTrimTopValue() const
     {
         return (m_VerticalTrimValue & verticalTrimTopValueFieldMask) >>
                verticalTrimTopValueBitOffset;
     }
-    void verticalTrimTopValue(uint32_t value)
+    void verticalTrimTopValue(uint8_t value)
     {
-        const uint32_t prev =
+        const uint8_t prev =
             (m_VerticalTrimValue & verticalTrimTopValueFieldMask) >>
             verticalTrimTopValueBitOffset;
         if (prev == value)
@@ -294,14 +314,14 @@ public:
         RIVE_EDITOR_CHANGED(verticalTrimValueChanged());
         notifyPropertyChanged(verticalTrimValuePropertyKey);
     }
-    inline uint32_t verticalTrimBottomValue() const
+    inline uint8_t verticalTrimBottomValue() const
     {
         return (m_VerticalTrimValue & verticalTrimBottomValueFieldMask) >>
                verticalTrimBottomValueBitOffset;
     }
-    void verticalTrimBottomValue(uint32_t value)
+    void verticalTrimBottomValue(uint8_t value)
     {
-        const uint32_t prev =
+        const uint8_t prev =
             (m_VerticalTrimValue & verticalTrimBottomValueFieldMask) >>
             verticalTrimBottomValueBitOffset;
         if (prev == value)
@@ -331,6 +351,7 @@ public:
         m_WrapValue = object.m_WrapValue;
         m_VerticalAlignValue = object.m_VerticalAlignValue;
         m_FitFromBaseline = object.m_FitFromBaseline;
+        m_FitFontSizeResizesBox = object.m_FitFontSizeResizesBox;
         m_TextRunListSource = object.m_TextRunListSource;
         m_VerticalTrimValue = object.m_VerticalTrimValue;
         RIVE_EDITOR_COPY(object);
@@ -377,6 +398,9 @@ public:
             case fitFromBaselinePropertyKey:
                 m_FitFromBaseline = CoreBoolType::deserialize(reader);
                 return true;
+            case fitFontSizeResizesBoxPropertyKey:
+                m_FitFontSizeResizesBox = CoreBoolType::deserialize(reader);
+                return true;
             case textRunListSourcePropertyKey:
                 m_TextRunListSource = CoreIdType::runtimeDeserialize(reader);
                 return true;
@@ -401,6 +425,7 @@ protected:
     virtual void wrapValueChanged() {}
     virtual void verticalAlignValueChanged() {}
     virtual void fitFromBaselineChanged() {}
+    virtual void fitFontSizeResizesBoxChanged() {}
     virtual void textRunListSourceChanged() {}
     virtual void verticalTrimValueChanged() {}
 #ifdef WITH_RIVE_EDITOR

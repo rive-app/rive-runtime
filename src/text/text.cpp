@@ -187,13 +187,25 @@ TextSizing Text::effectiveSizing() const
     // combination to the closest box behavior. m_layoutWidth/Height already
     // hold the resolved slot sizes, so a hug axis reads as its content size
     // under `fixed`.
-    if (isParticipatingInLayout())
+    //
+    // Read the scale types off the PARTICIPANT rather than off the copy
+    // controlSize leaves behind. Only the resolved slot has to wait for the
+    // solve; the scale types are authored, and controlSize hands us the
+    // participant's own values verbatim. Taking the copy meant the first
+    // measure pass -- which runs during the solve, before controlSize -- saw
+    // them unset and fell back to sizing(), so a fitFontSize text was fitted
+    // to the width the layout was offering and only settled on the next
+    // advance.
+    if (auto* participant = layoutParticipant())
     {
-        bool wBox = m_layoutWidthScaleType == (uint8_t)LayoutScaleType::fixed ||
-                    m_layoutWidthScaleType == (uint8_t)LayoutScaleType::fill;
-        bool hBox =
-            m_layoutHeightScaleType == (uint8_t)LayoutScaleType::fixed ||
-            m_layoutHeightScaleType == (uint8_t)LayoutScaleType::fill;
+        const auto widthScaleType =
+            (LayoutScaleType)participant->layoutWidthScaleType();
+        const auto heightScaleType =
+            (LayoutScaleType)participant->layoutHeightScaleType();
+        bool wBox = widthScaleType == LayoutScaleType::fixed ||
+                    widthScaleType == LayoutScaleType::fill;
+        bool hBox = heightScaleType == LayoutScaleType::fixed ||
+                    heightScaleType == LayoutScaleType::fill;
         if (!wBox && !hBox)
         {
             return sizing();
@@ -401,6 +413,20 @@ TextBoundsInfo Text::computeBoundsInfo()
 
 float Text::fitFontScale()
 {
+    const TextSizing sizing = effectiveSizing();
+    // Without a fixed dimension to fit into there is nothing to search:
+    // autoWidth grows in both directions, so we keep the authored size.
+    if (sizing == TextSizing::autoWidth && !overflowAsFixed())
+    {
+        return 1.0f;
+    }
+    return fitFontScale(effectiveWidth(),
+                        overflowAsFixed() ? effectiveHeight()
+                                          : std::numeric_limits<float>::max());
+}
+
+float Text::fitFontScale(float boxWidth, float boxHeight)
+{
     // Largest authored font size across runs is our maximum; we search integer
     // sizes in [1, maxSize]. Scaling all runs by a single multiplier preserves
     // their relative proportions while stepping the largest run by integers.
@@ -415,17 +441,10 @@ float Text::fitFontScale()
         }
     }
 
-    const TextSizing sizing = effectiveSizing();
-    // Without a fixed dimension to fit into there is nothing to search:
-    // autoWidth grows in both directions, so we keep the authored size.
-    if (maxSize <= 1.0f ||
-        (sizing == TextSizing::autoWidth && !overflowAsFixed()))
+    if (maxSize <= 1.0f)
     {
         return 1.0f;
     }
-
-    const float boxWidth = effectiveWidth();
-    const float boxHeight = effectiveHeight();
 
     StyledText styledText;
 
@@ -465,7 +484,7 @@ float Text::fitFontScale()
         }
 
         bool widthFits = maxWidth <= boxWidth;
-        bool heightFits = !overflowAsFixed() || y <= boxHeight;
+        bool heightFits = y <= boxHeight;
         return widthFits && heightFits;
     };
 
@@ -1050,6 +1069,16 @@ void Text::alignValueChanged() { markShapeDirty(); }
 
 void Text::sizingValueChanged() { markShapeDirty(); }
 
+void Text::fitFontSizeResizesBoxChanged()
+{
+    // Only fitFontSize consults the flag, and only to decide what measure()
+    // reports, so nothing else needs re-shaping.
+    if (overflow() == TextOverflow::fitFontSize)
+    {
+        markShapeDirty();
+    }
+}
+
 void Text::overflowValueChanged()
 {
     if (effectiveSizing() != TextSizing::autoWidth || overflowAsFixed())
@@ -1343,30 +1372,53 @@ void Text::update(ComponentDirt value)
 
 Vec2D Text::measure(Vec2D maxSize)
 {
-    if (makeStyled(m_styledText))
+    auto measuringWidth = 0.0f;
+    switch (effectiveSizing())
     {
-        const float paragraphSpace = paragraphSpacing();
+        case TextSizing::autoHeight:
+        case TextSizing::fixed:
+            // The authored width only governs while the text owns its width
+            // axis. Under a layout that boxes it -- fill, or a fixed slot the
+            // layout resolves -- the authored value is stale and the real
+            // width is the one being offered in maxSize, so leave it
+            // unbounded and let the min() below take the offer. Reading
+            // m_layoutWidth instead would not work: controlSize writes it
+            // after the solve, so it is still NAN here.
+            measuringWidth =
+                layoutOwnsWidth() ? std::numeric_limits<float>::max() : width();
+            break;
+        default:
+            measuringWidth = std::numeric_limits<float>::max();
+            break;
+    }
+    // fitFontSize shrinks the font until the text fits its box, so the box we
+    // report back to the layout engine has to be measured at the *fitted*
+    // size. Measuring at the authored size hands the layout a slot taller
+    // than the text that will actually be drawn into it, which shows up as
+    // dead space under a hug-height text. The fit runs against the space the
+    // layout is offering here (maxSize/measuringWidth), not against
+    // m_layoutWidth/Height -- those still hold the previous pass's slot.
+    const float fitWidth = std::min(maxSize.x, measuringWidth);
+    float fontScale = 1.0f;
+    // Gate this the way fitFontScale() gates the update side -- overflow is
+    // inert below 7.3 (FileFeatures::layoutSizesBox) -- minus one clause.
+    if (overflow() == TextOverflow::fitFontSize &&
+        fitFontSizeResizesBoxActive() &&
+        hasFileFeature(FileFeatures::layoutSizesBox) &&
+        fitWidth != std::numeric_limits<float>::max())
+    {
+        fontScale = fitFontScale(fitWidth, maxSize.y);
+    }
+    if (makeStyled(m_styledText, true, fontScale))
+    {
+        const float paragraphSpace = paragraphSpacing() * fontScale;
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto measuringWidth = 0.0f;
-        switch (effectiveSizing())
-        {
-            case TextSizing::autoHeight:
-            case TextSizing::fixed:
-                measuringWidth = width();
-                break;
-            default:
-                measuringWidth = std::numeric_limits<float>::max();
-                break;
-        }
         auto measuringWrap = maxSize.x == std::numeric_limits<float>::max() &&
                                      effectiveSizing() != TextSizing::autoHeight
                                  ? TextWrap::noWrap
                                  : wrap();
-        auto lines = BreakLines(shape,
-                                std::min(maxSize.x, measuringWidth),
-                                align(),
-                                measuringWrap);
+        auto lines = BreakLines(shape, fitWidth, align(), measuringWrap);
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
@@ -1506,6 +1558,7 @@ void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
 void Text::sizingValueChanged() {}
 void Text::overflowValueChanged() {}
+void Text::fitFontSizeResizesBoxChanged() {}
 void Text::widthChanged() {}
 void Text::heightChanged() {}
 void Text::markPaintDirty() {}
@@ -1544,14 +1597,29 @@ StatusCode Text::import(ImportStack& importStack)
     // File::minorVersion.
     int major = importStack.majorVersion();
     int minor = importStack.minorVersion();
-    m_layoutSizesBox = major > 7 || (major == 7 && minor >= 3);
+    auto atLeast = [major, minor](int wantMinor) {
+        return major > 7 || (major == 7 && minor >= wantMinor);
+    };
+    m_fileFeatures = FileFeatures::none;
+    if (atLeast(3))
+    {
+        m_fileFeatures |= FileFeatures::layoutSizesBox;
+    }
+    // 7.4 measures a fitFontSize text at its fitted size. Older files laid
+    // their layouts out against the unshrunk box, so honoring the flag there
+    // would reflow them; fitFontSizeResizesBox defaults to true and those
+    // files never wrote it.
+    if (atLeast(4))
+    {
+        m_fileFeatures |= FileFeatures::fitFontSizeResizesBox;
+    }
     return Super::import(importStack);
 }
 
 Core* Text::clone() const
 {
     Text* twin = TextBase::clone()->as<Text>();
-    twin->m_layoutSizesBox = m_layoutSizesBox;
+    twin->m_fileFeatures = m_fileFeatures;
     return twin;
 }
 
@@ -1608,6 +1676,20 @@ LayoutParticipant* Text::layoutParticipant() const
 bool Text::isParticipatingInLayout() const
 {
     return layoutParticipant() != nullptr;
+}
+
+bool Text::layoutOwnsWidth() const
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (auto* participant = layoutParticipant())
+    {
+        const auto widthScaleType =
+            (LayoutScaleType)participant->layoutWidthScaleType();
+        return widthScaleType == LayoutScaleType::fixed ||
+               widthScaleType == LayoutScaleType::fill;
+    }
+#endif
+    return false;
 }
 
 TextAlign Text::align() const

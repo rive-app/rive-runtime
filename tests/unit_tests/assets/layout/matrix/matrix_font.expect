@@ -837,3 +837,227 @@ C Subject computedWorld 0.0000 0.0000
 C Subject computedRoot 0.0000 0.0000
 C Subject computedLocal 0.0000 0.0000
 C Subject computedSize 200.0000 120.0000
+# s18__flex-row__none__text__participant__tf-resizes-box
+F s18__flex-row__none__text__participant__tf-resizes-box
+A s18__flex-row__none__text__participant__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 95.0000 90.0000
+C Subject computedWorld 95.0000 90.0000
+C Subject computedRoot 95.0000 90.0000
+C Subject computedLocal 95.0000 90.0000
+C Subject computedSize 140.0000 120.0000
+# s18__flex-row__none__text__participant__fixed__tf-resizes-box
+F s18__flex-row__none__text__participant__fixed__tf-resizes-box
+A s18__flex-row__none__text__participant__fixed__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 75.0000 30.0000
+C Subject computedWorld 75.0000 30.0000
+C Subject computedRoot 75.0000 30.0000
+C Subject computedLocal 75.0000 30.0000
+C Subject computedSize 60.0000 40.0000
+# s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+F s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+A s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 105.0000 112.5000
+C Subject computedWorld 105.0000 112.5000
+C Subject computedRoot 105.0000 112.5000
+C Subject computedLocal 105.0000 112.5000
+C Subject computedSize 180.0000 150.0000
+# s18__flex-column__none__text__participant__tf-resizes-box
+F s18__flex-column__none__text__participant__tf-resizes-box
+A s18__flex-column__none__text__participant__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 50.0000 100.0000
+C Subject computedWorld 50.0000 100.0000
+C Subject computedRoot 50.0000 100.0000
+C Subject computedLocal 50.0000 100.0000
+C Subject computedSize 200.0000 80.0000
+# s18__flex-column__none__text__participant__fixed__tf-resizes-box
+F s18__flex-column__none__text__participant__fixed__tf-resizes-box
+A s18__flex-column__none__text__participant__fixed__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 15.0000 70.0000
+C Subject computedWorld 15.0000 70.0000
+C Subject computedRoot 15.0000 70.0000
+C Subject computedLocal 15.0000 70.0000
+C Subject computedSize 60.0000 40.0000
+# s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+F s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+A s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 50.0000 152.5000
+C Subject computedWorld 50.0000 152.5000
+C Subject computedRoot 50.0000 152.5000
+C Subject computedLocal 50.0000 152.5000
+C Subject computedSize 200.0000 150.0000
+# s18__flex-row__none__text__non-participant__tf-resizes-box__pk-max-under-fill
+F s18__flex-row__none__text__non-participant__tf-resizes-box__pk-max-under-fill
+A s18__flex-row__none__text__non-participant__tf-resizes-box__pk-max-under-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 100.0000 80.0000
+C Container localBounds 0.0000 0.0000 100.0000 80.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 100.0000 80.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 100.0000 80.0000
+# s18__flex-row__none__text__participant__tf-keeps-box
+F s18__flex-row__none__text__participant__tf-keeps-box
+A s18__flex-row__none__text__participant__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 95.0000 90.0000
+C Subject computedWorld 95.0000 90.0000
+C Subject computedRoot 95.0000 90.0000
+C Subject computedLocal 95.0000 90.0000
+C Subject computedSize 140.0000 120.0000
+# s18__flex-row__none__text__participant__fixed__tf-keeps-box
+F s18__flex-row__none__text__participant__fixed__tf-keeps-box
+A s18__flex-row__none__text__participant__fixed__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 75.0000 30.0000
+C Subject computedWorld 75.0000 30.0000
+C Subject computedRoot 75.0000 30.0000
+C Subject computedLocal 75.0000 30.0000
+C Subject computedSize 60.0000 40.0000
+# s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+F s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+A s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 105.0000 112.5000
+C Subject computedWorld 105.0000 112.5000
+C Subject computedRoot 105.0000 112.5000
+C Subject computedLocal 105.0000 112.5000
+C Subject computedSize 180.0000 150.0000
+# s18__flex-column__none__text__participant__tf-keeps-box
+F s18__flex-column__none__text__participant__tf-keeps-box
+A s18__flex-column__none__text__participant__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 50.0000 100.0000
+C Subject computedWorld 50.0000 100.0000
+C Subject computedRoot 50.0000 100.0000
+C Subject computedLocal 50.0000 100.0000
+C Subject computedSize 200.0000 80.0000
+# s18__flex-column__none__text__participant__fixed__tf-keeps-box
+F s18__flex-column__none__text__participant__fixed__tf-keeps-box
+A s18__flex-column__none__text__participant__fixed__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 15.0000 70.0000
+C Subject computedWorld 15.0000 70.0000
+C Subject computedRoot 15.0000 70.0000
+C Subject computedLocal 15.0000 70.0000
+C Subject computedSize 60.0000 40.0000
+# s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+F s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+A s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 50.0000 152.5000
+C Subject computedWorld 50.0000 152.5000
+C Subject computedRoot 50.0000 152.5000
+C Subject computedLocal 50.0000 152.5000
+C Subject computedSize 200.0000 150.0000
+# s18__flex-row__none__text__non-participant__tf-keeps-box__pk-max-under-fill
+F s18__flex-row__none__text__non-participant__tf-keeps-box__pk-max-under-fill
+A s18__flex-row__none__text__non-participant__tf-keeps-box__pk-max-under-fill
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 100.0000 80.0000
+C Container localBounds 0.0000 0.0000 100.0000 80.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 100.0000 80.0000
+C Subject collected 0.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 100.0000 80.0000

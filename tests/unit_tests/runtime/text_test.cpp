@@ -981,7 +981,7 @@ static void checkTextLayoutSilver(const char* asset, const char* silverName)
 // version (see gen_layout_text_match.py), so any difference between the two
 // silvers is attributable to the Text::import gate and nothing else.
 //
-// Below 7.3, m_layoutSizesBox stays false: an auto-sized text keeps
+// Below 7.3, FileFeatures::layoutSizesBox stays off: an auto-sized text keeps
 // content-sized bounds and every overflow mode stays inert, so the six
 // overflow modes in each half of the matrix all render identically.
 TEST_CASE("Text box keeps its content size before 7.3", "[silver]")
@@ -1066,4 +1066,133 @@ TEST_CASE("Text with background color with active feather", "[text]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("text_background_feather_test"));
+}
+// A fitFontSize text used to leave dead space under itself: measure() sized
+// the box from the *authored* font, so a hug slot reserved room the shrunk
+// text never filled. `fit_font_size_hug_test.riv` is a 175pt no-wrap title in
+// a hug layout with a bar below it; the fit drops the font to 121pt (0.691x),
+// which used to leave ~131px of gap.
+//
+// The new measure is gated on the file version (7.4) *and* the authored
+// Text::fitFontSizeResizesBox flag, so all three combinations are walked off
+// one asset -- the 7.4 copy is the same bytes with the header's minor version
+// stamped up.
+static rive::rcp<rive::File> importTextWithMinorVersion(uint8_t minor)
+{
+    auto bytes = ReadFile("assets/fit_font_size_hug_test.riv");
+    // "RIVE", then varuint major, varuint minor. Both versions in play here
+    // are single-byte varuints, so the minor is just byte 5.
+    REQUIRE(bytes.size() > 5);
+    REQUIRE(bytes[4] == 7);
+    bytes[5] = minor;
+
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    return file;
+}
+
+// Advances the artboard and reports (hug slot height, y of the bar below it).
+static std::pair<float, float> solveTitleLayout(rive::File* file,
+                                                bool resizesBox)
+{
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto texts = artboard->find<rive::Text>();
+    rive::Text* title = nullptr;
+    for (auto text : texts)
+    {
+        if (!text->runs().empty() && !text->runs()[0]->text().empty())
+        {
+            title = text;
+            break;
+        }
+    }
+    REQUIRE(title != nullptr);
+    REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
+    title->fitFontSizeResizesBox(resizesBox);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    REQUIRE(title->parent()->is<rive::LayoutComponent>());
+    auto hug = title->parent()->as<rive::LayoutComponent>();
+    REQUIRE(hug->parent()->is<rive::LayoutComponent>());
+    auto container = hug->parent()->as<rive::LayoutComponent>();
+
+    rive::LayoutComponent* bar = nullptr;
+    for (auto child : container->children())
+    {
+        if (child != hug && child->is<rive::LayoutComponent>())
+        {
+            bar = child->as<rive::LayoutComponent>();
+            break;
+        }
+    }
+    REQUIRE(bar != nullptr);
+    return {hug->layoutHeight(), bar->layoutY()};
+}
+
+TEST_CASE("fitFontSize hug slot keeps the authored size before 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(3);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+    // Measured at 175pt even though the text draws at 121pt, so the bar sits
+    // ~131px lower than the text it follows. The flag is on here; the version
+    // gate is what holds the old behavior in place.
+    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+    CHECK(barY == Approx(439.49f).margin(0.5f));
+}
+
+TEST_CASE("fitFontSize hug slot tracks the fitted text at 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(4);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+    // 423.49 * (121/175) -- the slot now matches the text actually drawn, and
+    // the bar closes up against it (8px padding either side).
+    CHECK(hugHeight == Approx(292.81f).margin(0.5f));
+    CHECK(barY == Approx(308.81f).margin(0.5f));
+}
+
+TEST_CASE("fitFontSize hug slot honors fitFontSizeResizesBox at 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(4);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), false);
+    // Version is new enough, but the author turned the behavior off.
+    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+    CHECK(barY == Approx(439.49f).margin(0.5f));
+}
+
+TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/fit_font_size_hug_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("fit_font_size_hug_test"));
 }

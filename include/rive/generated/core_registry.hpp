@@ -2433,6 +2433,9 @@ public:
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
                 break;
+            case TextBase::fitFontSizeResizesBoxPropertyKey:
+                object->as<TextBase>()->fitFontSizeResizesBox(value);
+                break;
             case ScriptAssetBase::isModulePropertyKey:
                 object->as<ScriptAssetBase>()->isModule(value);
                 break;
@@ -4248,6 +4251,8 @@ public:
                 return object->as<TextInputBase>()->selectAllOnFocus();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
+            case TextBase::fitFontSizeResizesBoxPropertyKey:
+                return object->as<TextBase>()->fitFontSizeResizesBox();
             case ScriptAssetBase::isModulePropertyKey:
                 return object->as<ScriptAssetBase>()->isModule();
         }
@@ -5139,6 +5144,7 @@ public:
             case TextInputBase::obscuredPropertyKey:
             case TextInputBase::selectAllOnFocusPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
+            case TextBase::fitFontSizeResizesBoxPropertyKey:
             case ScriptAssetBase::isModulePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
@@ -6185,6 +6191,8 @@ public:
             case TextInputBase::selectAllOnFocusPropertyKey:
                 return object->is<TextInputBase>();
             case TextBase::fitFromBaselinePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::fitFontSizeResizesBoxPropertyKey:
                 return object->is<TextBase>();
             case ScriptAssetBase::isModulePropertyKey:
                 return object->is<ScriptAssetBase>();

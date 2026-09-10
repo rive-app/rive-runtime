@@ -1,6 +1,6 @@
 # Layout matrix corpus
 
-Generated. 456 fixtures.
+Generated. 470 fixtures.
 
 | Fixture | Slice | Container | Wrapper | Subject | Sizing | Origin | Constraint | Collected | Known defect |
 |---|---|---|---|---|---|---|---|---|---|
@@ -460,6 +460,20 @@ Generated. 456 fixtures.
 | `s17__flex-row__solo-active__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | soloActive | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
 | `s17__flex-row__group-in-solo__nested-artboard-leaf` | s17 | flexRow | groupInSolo | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
 | `s17__flex-row__group-in-solo__nested-artboard-leaf__fits-layout-parent` | s17 | flexRow | groupInSolo | nestedArtboardLeaf | fill | sourceArtboard | none | no |  |
+| `s18__flex-row__none__text__participant__tf-resizes-box` | s18 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__participant__fixed__tf-resizes-box` | s18 | flexRow | none | text | fixed | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box` | s18 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__tf-resizes-box` | s18 | flexColumn | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__fixed__tf-resizes-box` | s18 | flexColumn | none | text | fixed | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-resizes-box` | s18 | flexColumn | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__non-participant__tf-resizes-box__pk-max-under-fill` | s18 | flexRow | none | text | fill | sourceArtboard | none | no |  |
+| `s18__flex-row__none__text__participant__tf-keeps-box` | s18 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__participant__fixed__tf-keeps-box` | s18 | flexRow | none | text | fixed | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box` | s18 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__tf-keeps-box` | s18 | flexColumn | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__fixed__tf-keeps-box` | s18 | flexColumn | none | text | fixed | sourceArtboard | none | yes |  |
+| `s18__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__tf-keeps-box` | s18 | flexColumn | none | text | fill | sourceArtboard | none | yes |  |
+| `s18__flex-row__none__text__non-participant__tf-keeps-box__pk-max-under-fill` | s18 | flexRow | none | text | fill | sourceArtboard | none | no |  |
 
 ## Skipped as illegal
 
