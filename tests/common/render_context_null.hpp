@@ -23,6 +23,7 @@ public:
     {
         return nullptr;
     }
+
 #endif
 
     rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,

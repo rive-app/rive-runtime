@@ -10,6 +10,7 @@
 #include "utils/serialized_replay.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive_file_reader.hpp"
 
 #include <catch.hpp>
 #include <cstring>
@@ -55,12 +56,29 @@ TEST_CASE("serialized 2D commands replay byte-identically",
     auto paint2 = a.makeRenderPaint();
     paint2->shader(grad);
 
+    // Modulating image: non-default sampler on every axis and an asymmetric
+    // matrix, so a mis-ordered read/write of either shows up in the diff.
+    auto imageBytes = ReadFile("assets/open_source.jpg");
+    auto image = a.decodeImage(imageBytes);
+    REQUIRE(image != nullptr);
+    ImageSampler sampler;
+    sampler.filter = ImageFilter::nearest;
+    sampler.wrapX = ImageWrap::repeat;
+    sampler.wrapY = ImageWrap::mirror;
+    paint2->modulatedImage(image.get(), sampler, Mat2D(2, 3, 4, 5, 6, 7));
+
+    // ...and the clear (null image) path, which writes image id 0.
+    auto paint3 = a.makeRenderPaint();
+    paint3->modulatedImage(image.get(), sampler, Mat2D(1, 0, 0, 1, 0, 0));
+    paint3->modulatedImage(nullptr, ImageSampler::LinearClamp(), Mat2D());
+
     rendererA->save();
     rendererA->transform(Mat2D(1, 0, 0, 1, 5, 7));
     rendererA->clipPath(clip.get());
     rendererA->modulateOpacity(0.5f);
     rendererA->drawPath(path.get(), paint.get());
     rendererA->drawPath(path.get(), paint2.get());
+    rendererA->drawPath(path.get(), paint3.get());
     rendererA->restore();
 
     SerializingFactory b;

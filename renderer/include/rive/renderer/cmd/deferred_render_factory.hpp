@@ -108,7 +108,8 @@ public:
         return make_rcp<DeferredRenderPaint>(a.id,
                                              a.generation,
                                              &m_buffer,
-                                             &m_paintIds);
+                                             &m_paintIds,
+                                             m_canvasRegistry);
     }
 
     rcp<RenderShader> makeLinearGradient(float sx,
@@ -231,6 +232,14 @@ public:
                                              &m_buffer,
                                              &m_imageIds);
     }
+
+protected:
+    // Registry used to resolve foreign/canvas images (e.g. a Luau canvas
+    // snapshot) referenced by a paint's modulatedImage, mirroring how the
+    // renderer resolves them for drawImage. DeferredSession points this at its
+    // own registry; it stays null when a DeferredFactory is used without a
+    // session, in which case only decoded images are resolvable.
+    ForeignImageRegistry* m_canvasRegistry = nullptr;
 
 private:
     // colors[count] (ColorInt) and stops[count] (float), each its own blob.

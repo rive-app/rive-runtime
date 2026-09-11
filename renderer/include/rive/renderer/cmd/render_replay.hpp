@@ -206,6 +206,12 @@ struct PaintShadow
     float feather = 0;
     uint8_t blendMode = 3; // srcOver
     RenderHandle shader = kInvalidRenderHandle;
+    // Modulated image; kInvalidRenderHandle means none (a fresh paint has no
+    // image), so a version bump re-applies whatever was last set.
+    RenderHandle image = kInvalidRenderHandle;
+    uint8_t imageWrapX = 0, imageWrapY = 0, imageFilter = 0;
+    float imageXX = 1, imageXY = 0, imageYX = 0, imageYY = 1, imageTX = 0,
+          imageTY = 0;
 };
 struct BufferShadow
 {

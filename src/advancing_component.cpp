@@ -10,6 +10,7 @@
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/text/text_input.hpp"
 
@@ -41,6 +42,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return component->as<ScriptedLayout>();
+        case ScriptedTransition::typeKey:
+            return component->as<ScriptedTransition>();
         case ScriptedPathEffect::typeKey:
             return component->as<ScriptedPathEffect>();
     }

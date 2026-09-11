@@ -172,6 +172,34 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 paint->shader(shaders[shaderId]);
                 break;
             }
+            case SerializeOp::paintModulatedImage:
+            {
+                uint64_t id = reader.readVarUint64();
+                uint64_t rawImageId = reader.readVarUint64();
+                auto filter = static_cast<ImageFilter>(reader.readVarUint64());
+                auto wrapX = static_cast<ImageWrap>(reader.readVarUint64());
+                auto wrapY = static_cast<ImageWrap>(reader.readVarUint64());
+                float xx = reader.readFloat32();
+                float xy = reader.readFloat32();
+                float yx = reader.readFloat32();
+                float yy = reader.readFloat32();
+                float tx = reader.readFloat32();
+                float ty = reader.readFloat32();
+                RenderPaint* paint = find(paints, id);
+                if (paint == nullptr)
+                    return false;
+                // Image id is offset by one; 0 means no image.
+                RenderImage* image =
+                    rawImageId == 0 ? nullptr : images[rawImageId - 1].get();
+                ImageSampler sampler;
+                sampler.filter = filter;
+                sampler.wrapX = wrapX;
+                sampler.wrapY = wrapY;
+                paint->modulatedImage(image,
+                                      sampler,
+                                      Mat2D(xx, xy, yx, yy, tx, ty));
+                break;
+            }
             case SerializeOp::makeLinearGradient:
             case SerializeOp::makeRadialGradient:
             {

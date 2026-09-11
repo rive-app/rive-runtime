@@ -784,17 +784,7 @@ void ArtboardComponentList::updateList(
     uint32_t index = 0;
     for (auto& item : m_listItems)
     {
-        auto viewModelInstance = item->viewModelInstance();
-        if (viewModelInstance != nullptr)
-        {
-            auto symbol =
-                viewModelInstance->propertyValue(SymbolType::itemIndex);
-            if (symbol != nullptr)
-            {
-                symbol->as<ViewModelInstanceSymbolListIndex>()->propertyValue(
-                    index);
-            }
-        }
+        item->assignListIndex(index);
         auto artboard = findArtboard(item);
         if (artboard != nullptr)
         {

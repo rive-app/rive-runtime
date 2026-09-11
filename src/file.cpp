@@ -84,6 +84,7 @@
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
@@ -680,6 +681,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedDataConverter::typeKey:
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
+            case ScriptedTransition::typeKey:
             case ScriptedPathEffect::typeKey:
             case ScriptedListenerAction::typeKey:
             case ScriptedTransitionCondition::typeKey:
@@ -691,6 +693,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     stackObject = std::make_unique<ScriptedObjectImporter>(
                         scriptedObject);
                     stackType = ScriptedDrawable::typeKey;
+                }
+                // A ScriptedTransition additionally resolves list-source
+                // artboards from the file.
+                if (object->is<ScriptedTransition>())
+                {
+                    object->as<ScriptedTransition>()->file(this);
                 }
                 break;
             }

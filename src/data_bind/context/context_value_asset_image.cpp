@@ -2,6 +2,7 @@
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/file.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 
 using namespace rive;
 
@@ -44,6 +45,23 @@ void DataBindContextValueAssetImage::apply(Core* target,
         {
             auto source = dataBind->source();
             target->as<Image>()->setAsset(
+                source->as<ViewModelInstanceAssetImage>()->asset());
+        }
+    }
+    else if (target->is<PaintImage>())
+    {
+        // A fill/stroke painted with an image binds through its PaintImage
+        // child: same asset-referencer path as Image, so the bound image
+        // modulates the parent paint.
+        auto asset = fileAsset(dataBind);
+        if (asset != nullptr)
+        {
+            target->as<PaintImage>()->setAsset(asset);
+        }
+        else
+        {
+            auto source = dataBind->source();
+            target->as<PaintImage>()->setAsset(
                 source->as<ViewModelInstanceAssetImage>()->asset());
         }
     }

@@ -624,6 +624,131 @@ bool ScriptingVM::callTextEvent(ScriptedObject* object,
     return shouldStopPropagation;
 }
 
+bool ScriptingVM::transitionManagesTo(int selfRef)
+{
+    lua_State* L = m_state;
+    if (L == nullptr || selfRef == 0)
+    {
+        return true;
+    }
+    // Stack: []
+    rive_lua_pushRef(L, selfRef);
+    // Stack: [self]
+    lua_Type fieldType =
+        static_cast<lua_Type>(lua_getfield(L, -1, "managesTo"));
+    // Stack: [self, field]
+    // Opt out only on an explicit boolean false; absent/nil/any other value
+    // keeps the default (script composites both children).
+    bool managesTo = !(fieldType == LUA_TBOOLEAN && !lua_toboolean(L, -1));
+    rive_lua_pop(L, 2); // field + self
+    return managesTo;
+}
+
+// Pushes a TransitionChild userdata for `child`, or nil when it carries no
+// artboard. Returns the handle so the caller can invalidate it once the call
+// returns, keeping the wrapper from outliving the frame's transforms.
+static TransitionChild* pushTransitionChild(
+    lua_State* L,
+    const ScriptBackend::TransitionChildRef& child)
+{
+    if (child.artboard == nullptr)
+    {
+        lua_pushnil(L);
+        return nullptr;
+    }
+    return lua_newrive<TransitionChild>(L, child.artboard, child.transform);
+}
+
+void ScriptingVM::callTransitionChanged(ScriptedObject* object,
+                                        int selfRef,
+                                        const TransitionChildRef& from,
+                                        const TransitionChildRef& to,
+                                        int direction)
+{
+    lua_State* L = m_state;
+    // Stack: []
+    rive_lua_pushRef(L, selfRef);
+    // Stack: [self]
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "changed")) != LUA_TFUNCTION)
+    {
+        // changed is optional; nothing to notify.
+        rive_lua_pop(L, 2); // non-function field + self
+        return;
+    }
+    // Stack: [self, changed]
+    lua_pushvalue(L, -2); // self (arg 1)
+    // Stack: [self, changed, self]
+    TransitionChild* fromHandle = pushTransitionChild(L, from);
+    TransitionChild* toHandle = pushTransitionChild(L, to);
+    lua_pushnumber(L, direction);
+    // Stack: [self, changed, self, from, to, direction]
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 4, 0)) !=
+        LUA_OK)
+    {
+        // Stack: [self, status]
+        rive_lua_pop(L, 1);
+    }
+    if (fromHandle != nullptr)
+    {
+        fromHandle->invalidate();
+    }
+    if (toHandle != nullptr)
+    {
+        toHandle->invalidate();
+    }
+    // Stack: [self]
+    rive_lua_pop(L, 1);
+}
+
+void ScriptingVM::callTransitionDraw(ScriptedObject* object,
+                                     int selfRef,
+                                     Renderer* renderer,
+                                     const TransitionChildRef& from,
+                                     const TransitionChildRef& to)
+{
+    lua_State* L = m_state;
+    // Stack: []
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer);
+    // Stack: [scriptedRenderer]
+    TransitionChild* fromHandle = nullptr;
+    TransitionChild* toHandle = nullptr;
+    rive_lua_pushRef(L, selfRef);
+    // Stack: [scriptedRenderer, self]
+    if (static_cast<lua_Type>(lua_getfield(L, -1, "draw")) == LUA_TFUNCTION)
+    {
+        // Stack: [scriptedRenderer, self, "draw"]
+        lua_pushvalue(L, -2); // self (arg 1)
+        // Stack: [scriptedRenderer, self, "draw", self]
+        lua_pushvalue(L, -4); // scriptedRenderer (arg 2)
+        // Stack: [scriptedRenderer, self, "draw", self, scriptedRenderer]
+        fromHandle = pushTransitionChild(L, from);
+        toHandle = pushTransitionChild(L, to);
+        // Stack: [scriptedRenderer, self, "draw", self, sr, from, to]
+        if (static_cast<lua_Status>(
+                rive_lua_pcall_with_context(L, object, 4, 0)) != LUA_OK)
+        {
+            // Stack: [scriptedRenderer, self, status]
+            rive_lua_pop(L, 1);
+        }
+    }
+    else
+    {
+        // draw is assumed for the transition protocol but not implemented.
+        rive_lua_pop(L, 1); // non-function field
+    }
+    if (fromHandle != nullptr)
+    {
+        fromHandle->invalidate();
+    }
+    if (toHandle != nullptr)
+    {
+        toHandle->invalidate();
+    }
+    scriptedRenderer->end();
+    // Stack: [scriptedRenderer, self]
+    rive_lua_pop(L, 2);
+}
+
 void ScriptingVM::callLayoutResize(ScriptedObject* object,
                                    int selfRef,
                                    Vec2D size)

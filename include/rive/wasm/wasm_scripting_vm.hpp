@@ -255,6 +255,19 @@ public:
     bool callTextEvent(ScriptedObject* object,
                        int selfRef,
                        const std::string& text) override;
+    /// The transition protocol is not ported to the module lane yet; there is
+    /// no TransitionChild wire type, so these keep the host defaults.
+    bool transitionManagesTo(int selfRef) override;
+    void callTransitionChanged(ScriptedObject* object,
+                               int selfRef,
+                               const TransitionChildRef& from,
+                               const TransitionChildRef& to,
+                               int direction) override;
+    void callTransitionDraw(ScriptedObject* object,
+                            int selfRef,
+                            Renderer* renderer,
+                            const TransitionChildRef& from,
+                            const TransitionChildRef& to) override;
     void callLayoutResize(ScriptedObject* object,
                           int selfRef,
                           Vec2D size) override;

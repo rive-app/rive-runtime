@@ -1,5 +1,6 @@
 #include "rive/data_bind/context/context_value_number.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -34,6 +35,11 @@ void DataBindContextValueNumber::apply(Core* target,
                 CoreRegistry::setInt(target,
                                      propertyKey,
                                      (int32_t)std::round(value));
+            }
+            else if (target && target->is<ScriptedTransition>())
+            {
+                target->as<ScriptedTransition>()->updateByIndex(
+                    (size_t)std::round(value));
             }
             else
             {

@@ -8,6 +8,7 @@ int luaopen_rive_image(lua_State* L);
 int luaopen_rive_blob(lua_State* L);
 int luaopen_rive_paint(lua_State* L);
 int luaopen_rive_renderer(lua_State* L);
+int luaopen_rive_transition(lua_State* L);
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 int luaopen_rive_gpu(lua_State* L);
 #endif
@@ -20,6 +21,7 @@ static const lua_CFunction rendererTypes[] = {
     luaopen_rive_blob,
     luaopen_rive_paint,
     luaopen_rive_renderer,
+    luaopen_rive_transition,
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     luaopen_rive_gpu,
 #endif

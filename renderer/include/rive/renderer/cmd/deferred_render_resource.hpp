@@ -12,6 +12,7 @@
 #include "rive/renderer/cmd/render_command_buffer.hpp"
 #include "rive/renderer/cmd/render_commands.hpp"
 #include "rive/renderer/cmd/id_allocator.hpp"
+#include "rive/renderer/cmd/foreign_image_registry.hpp"
 #include "rive/renderer/cmd/live_recorder_registry.hpp"
 #include <cstdio>
 #include <memory>
@@ -137,12 +138,14 @@ public:
     DeferredRenderPaint(RenderHandle id,
                         uint32_t generation,
                         RenderCommandBuffer* buffer,
-                        IdAllocator<RenderHandle>* allocator) :
+                        IdAllocator<RenderHandle>* allocator,
+                        ForeignImageRegistry* canvases = nullptr) :
         VersionedDeferredResource(ResourceKind::paint,
                                   id,
                                   generation,
                                   buffer,
-                                  allocator)
+                                  allocator),
+        m_canvases(canvases)
     {}
 
     void style(RenderPaintStyle v) override
@@ -206,6 +209,10 @@ public:
     }
     void shader(
         rcp<RenderShader> s) override; // defined below (needs the helper)
+    void modulatedImage(const RenderImage*,
+                        ImageSampler,
+                        const Mat2D&) override; // defined below (needs the
+                                                // DeferredRenderImage type)
     void invalidateStroke() override
     {
         // Stroked shapes invalidate every frame their path moves, and the
@@ -269,6 +276,18 @@ private:
     rcp<RenderShader> m_shader;
     bool m_colorKnown = true;
     bool m_strokeInvalidated = false;
+
+    // Shadow of the last modulated image so an unchanged re-set every frame
+    // (the shape paint re-applies it each render) is absorbed rather than
+    // bumping a fresh version.
+    RenderHandle m_imageId = kInvalidRenderHandle;
+    bool m_imageKnown = false;
+    uint8_t m_imageWrapX = 0, m_imageWrapY = 0, m_imageFilter = 0;
+    Mat2D m_imageMatrix;
+
+    // Registry used to resolve a modulated image that isn't a decoded
+    // DeferredRenderImage (e.g. a Luau canvas snapshot), mirroring drawImage.
+    ForeignImageRegistry* m_canvases = nullptr;
 };
 
 class DeferredRenderPath
@@ -535,6 +554,58 @@ public:
         m_Height = height;
     }
 };
+
+inline void DeferredRenderPaint::modulatedImage(const RenderImage* image,
+                                                ImageSampler sampler,
+                                                const Mat2D& matrix)
+{
+    RenderHandle id = kInvalidRenderHandle; // null clears the image
+    bool foreign = false;
+    if (auto* d = lite_rtti_cast<DeferredRenderImage*>(
+            const_cast<RenderImage*>(image)))
+    {
+        id = d->id();
+    }
+    else if (image != nullptr && m_canvases != nullptr)
+    {
+        // Not a decoded image: a foreign RenderImage such as a Luau canvas
+        // snapshot. Resolve it to a flagged id through the per-frame registry,
+        // exactly as drawImage does, so the modulated image survives to replay.
+        id = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
+        foreign = true;
+    }
+    // Absorb an unchanged re-set: the shape paint re-applies the image every
+    // render, and only a real change should bump a version. Foreign images are
+    // never absorbed: the registry is cleared each frame, so their entry must
+    // be re-registered (via imageDrawId above) and re-recorded every frame.
+    if (!foreign && m_imageKnown && id == m_imageId &&
+        static_cast<uint8_t>(sampler.wrapX) == m_imageWrapX &&
+        static_cast<uint8_t>(sampler.wrapY) == m_imageWrapY &&
+        static_cast<uint8_t>(sampler.filter) == m_imageFilter &&
+        matrix == m_imageMatrix)
+    {
+        return;
+    }
+    m_imageKnown = true;
+    m_imageId = id;
+    m_imageWrapX = static_cast<uint8_t>(sampler.wrapX);
+    m_imageWrapY = static_cast<uint8_t>(sampler.wrapY);
+    m_imageFilter = static_cast<uint8_t>(sampler.filter);
+    m_imageMatrix = matrix;
+    bump();
+    m_buffer->append(t(RenderCmd::paintModulatedImage),
+                     PaintModulatedImagePOD{m_id,
+                                            id,
+                                            m_imageWrapX,
+                                            m_imageWrapY,
+                                            m_imageFilter,
+                                            matrix.xx(),
+                                            matrix.xy(),
+                                            matrix.yx(),
+                                            matrix.yy(),
+                                            matrix.tx(),
+                                            matrix.ty()});
+}
 
 // map() hands out a scratch buffer; unmap() records its bytes as a bufferData
 // command replayed on the render side.

@@ -347,6 +347,30 @@ void replayRenderCommands(Factory* factory,
                             {
                                 fresh->shader(shaders.shared(sh.shader));
                             }
+                            if (sh.image != kInvalidRenderHandle)
+                            {
+                                RenderImage* im =
+                                    (sh.image & kCanvasHandleFlag)
+                                        ? (hooks.canvasImage
+                                               ? hooks.canvasImage(
+                                                     sh.image &
+                                                     kCanvasHandleMask)
+                                               : nullptr)
+                                        : images.get(sh.image);
+                                fresh->modulatedImage(
+                                    im,
+                                    ImageSampler{
+                                        static_cast<ImageWrap>(sh.imageWrapX),
+                                        static_cast<ImageWrap>(sh.imageWrapY),
+                                        static_cast<ImageFilter>(
+                                            sh.imageFilter)},
+                                    Mat2D(sh.imageXX,
+                                          sh.imageXY,
+                                          sh.imageYX,
+                                          sh.imageYY,
+                                          sh.imageTX,
+                                          sh.imageTY));
+                            }
                         }
                         paints.newVersion(c.id, c.version, std::move(fresh));
                         break;
@@ -518,6 +542,37 @@ void replayRenderCommands(Factory* factory,
                 {
                     pt->shader(shaders.shared(c.shader));
                     table.paintShadows[c.paint].shader = c.shader;
+                }
+                break;
+            }
+            case RenderCmd::paintModulatedImage:
+            {
+                auto c = reader.read<PaintModulatedImagePOD>();
+                if (auto* pt = paint(c.paint))
+                {
+                    RenderImage* im =
+                        c.image == kInvalidRenderHandle ? nullptr
+                        : (c.image & kCanvasHandleFlag)
+                            ? (hooks.canvasImage
+                                   ? hooks.canvasImage(c.image &
+                                                       kCanvasHandleMask)
+                                   : nullptr)
+                            : image(c.image);
+                    pt->modulatedImage(
+                        im,
+                        sampler(c.wrapX, c.wrapY, c.filter),
+                        Mat2D(c.xx, c.xy, c.yx, c.yy, c.tx, c.ty));
+                    PaintShadow& sh = table.paintShadows[c.paint];
+                    sh.image = c.image;
+                    sh.imageWrapX = c.wrapX;
+                    sh.imageWrapY = c.wrapY;
+                    sh.imageFilter = c.filter;
+                    sh.imageXX = c.xx;
+                    sh.imageXY = c.xy;
+                    sh.imageYX = c.yx;
+                    sh.imageYY = c.yy;
+                    sh.imageTX = c.tx;
+                    sh.imageTY = c.ty;
                 }
                 break;
             }

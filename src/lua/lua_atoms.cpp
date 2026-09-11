@@ -110,6 +110,7 @@ constexpr LuaAtomName atoms[] = {
     {"shift", (int16_t)LuaAtoms::shift},
     {"clear", (int16_t)LuaAtoms::clear},
     {"draw", (int16_t)LuaAtoms::draw},
+    {"modulateOpacity", (int16_t)LuaAtoms::modulateOpacity},
     {"advance", (int16_t)LuaAtoms::advance},
     {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},
     {"data", (int16_t)LuaAtoms::data},

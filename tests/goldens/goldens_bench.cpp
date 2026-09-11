@@ -73,6 +73,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::paintShader:
                 paintSets[r.read<PaintShaderPOD>().paint]++;
                 break;
+            case RenderCmd::paintModulatedImage:
+                paintSets[r.read<PaintModulatedImagePOD>().paint]++;
+                break;
             case RenderCmd::paintInvalidateStroke:
                 r.read<ResIdPOD>();
                 break;
@@ -286,7 +289,11 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
                 r.read<BufferDataPOD>();
                 break;
             default:
-                break; // no payload
+                // Sizes come from RIVE_RENDER_CMD_TABLE, so a command this
+                // walk does not name explicitly still advances the reader
+                // past its payload instead of desyncing the stream.
+                r.skip(payloadSizeOf(static_cast<RenderCmd>(type)));
+                break;
         }
     }
     printf(

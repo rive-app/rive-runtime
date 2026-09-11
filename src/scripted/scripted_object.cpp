@@ -13,6 +13,7 @@
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/data_bind/data_bind.hpp"
@@ -29,6 +30,8 @@ ScriptedObject* ScriptedObject::from(Core* object)
             return object->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return object->as<ScriptedLayout>();
+        case ScriptedTransition::typeKey:
+            return object->as<ScriptedTransition>();
         case ScriptedPathEffect::typeKey:
             return object->as<ScriptedPathEffect>();
         case ScriptedListenerAction::typeKey:

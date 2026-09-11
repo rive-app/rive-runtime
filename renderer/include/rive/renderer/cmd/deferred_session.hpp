@@ -330,6 +330,9 @@ private:
         // Lets view() on a canvas backed image resolve its canvas id off the
         // registry.
         m_ore.canvasRegistry = &m_canvases;
+        // Lets a paint's modulatedImage resolve a foreign/canvas image off the
+        // same registry (mirrors how DeferredRenderer resolves drawImage).
+        m_canvasRegistry = &m_canvases;
     }
 
     uint32_t streamSize() const

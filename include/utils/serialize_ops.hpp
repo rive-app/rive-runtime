@@ -52,6 +52,7 @@ enum class SerializeOp : uint32_t
     frame = 28,
     frameSize = 29,
     modulateOpacity = 30,
+    paintModulatedImage = 31,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

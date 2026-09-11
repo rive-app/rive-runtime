@@ -1,6 +1,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/paint/feather.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/artboard.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/factory.hpp"
@@ -200,6 +201,14 @@ void ShapePaint::draw(Renderer* renderer,
             renderPath->fillRule((FillRule)as<Fill>()->fillRule());
         }
 
+        // Modulate this paint with the (optional) PaintImage child, fit to the
+        // shape's local bounds. Skipped when drawing with an external override
+        // paint. The child is discovered by type rather than cached.
+        if (overridePaint == nullptr)
+        {
+            applyModulatedImage(shapePaintPath->rawPath()->bounds());
+        }
+
         renderer->drawPath(renderPath,
                            overridePaint != nullptr ? overridePaint
                                                     : renderPaint());
@@ -208,6 +217,26 @@ void ShapePaint::draw(Renderer* renderer,
     if (saved && needsSaveOperation)
     {
         renderer->restore();
+    }
+}
+
+void ShapePaint::applyModulatedImage(const AABB& bounds)
+{
+    PaintImage* image = firstChild<PaintImage>();
+    if (image != nullptr && image->applyTo(renderPaint(), bounds))
+    {
+        m_hasModulatedImage = true;
+        return;
+    }
+    if (m_hasModulatedImage)
+    {
+        // No image to modulate with any more -- the child was removed, its
+        // asset cleared, or the replacement hasn't decoded yet. The RenderPaint
+        // persists across draws, so drop the stale texture explicitly.
+        renderPaint()->modulatedImage(nullptr,
+                                      ImageSampler::LinearClamp(),
+                                      Mat2D());
+        m_hasModulatedImage = false;
     }
 }
 

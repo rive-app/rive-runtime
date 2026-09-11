@@ -94,6 +94,8 @@ static const char* opToName(SerializeOp op)
             return "blendMode";
         case SerializeOp::shader:
             return "shader";
+        case SerializeOp::paintModulatedImage:
+            return "paintModulatedImage";
 
         case SerializeOp::frame:
             return "frame";
@@ -226,6 +228,27 @@ public:
             shader == nullptr
                 ? 0
                 : static_cast<SerializingRenderShader*>(shader.get())->id());
+    }
+    void modulatedImage(const RenderImage* image,
+                        ImageSampler sampler,
+                        const Mat2D& matrix) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::paintModulatedImage);
+        m_writer->writeVarUint(m_id);
+        // Image id is offset by one so 0 unambiguously means "no image".
+        m_writer->writeVarUint(
+            image == nullptr
+                ? 0
+                : static_cast<const SerializingRenderImage*>(image)->id() + 1);
+        m_writer->writeVarUint((uint32_t)sampler.filter);
+        m_writer->writeVarUint((uint32_t)sampler.wrapX);
+        m_writer->writeVarUint((uint32_t)sampler.wrapY);
+        m_writer->writeFloat(matrix.xx());
+        m_writer->writeFloat(matrix.xy());
+        m_writer->writeFloat(matrix.yx());
+        m_writer->writeFloat(matrix.yy());
+        m_writer->writeFloat(matrix.tx());
+        m_writer->writeFloat(matrix.ty());
     }
     void invalidateStroke() override {}
     void feather(float value) override
@@ -1272,6 +1295,55 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 if (!varUintMatches(opA, "setgradient_value", readerA, readerB))
                 {
                     return false;
+                }
+                break;
+            case SerializeOp::paintModulatedImage:
+                if (!varUintMatches(opA,
+                                    "modulatedimage_paint_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_image_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_filter",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_wrapx",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_wrapy",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                for (const char* field : {"modulatedimage_xx",
+                                          "modulatedimage_xy",
+                                          "modulatedimage_yx",
+                                          "modulatedimage_yy",
+                                          "modulatedimage_tx",
+                                          "modulatedimage_ty"})
+                {
+                    if (!floatMatches(opA, field, readerA, readerB))
+                    {
+                        return false;
+                    }
                 }
                 break;
 

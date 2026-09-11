@@ -5,6 +5,7 @@
 
 #include "rive/hit_result.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 
 #include <string>
@@ -175,6 +176,36 @@ public:
     virtual bool callTextEvent(ScriptedObject* object,
                                int selfRef,
                                const std::string& text) = 0;
+
+    /// Transition protocol: one composited child — the artboard whose content
+    /// the script draws, and the world transform that places it. A null
+    /// artboard reaches the script as nil.
+    struct TransitionChildRef
+    {
+        Artboard* artboard = nullptr;
+        Mat2D transform;
+    };
+    /// Transition protocol: self.managesTo, read as a field rather than
+    /// called. A script opts out of compositing the incoming child with an
+    /// explicit boolean false; absent/nil/anything else keeps the default.
+    virtual bool transitionManagesTo(int selfRef) = 0;
+    /// Transition protocol: self.changed(self, from, to, direction), where
+    /// direction is 1 when the incoming child sits at a higher combined index
+    /// than the outgoing one, -1 when lower, and 0 when unknown.
+    virtual void callTransitionChanged(ScriptedObject* object,
+                                       int selfRef,
+                                       const TransitionChildRef& from,
+                                       const TransitionChildRef& to,
+                                       int direction) = 0;
+    /// Transition protocol: self.draw(self, renderer(renderer), from, to).
+    /// The child wrappers are scoped to this call; the caller owns
+    /// save/restore. `to` carries a null artboard when the script opted out
+    /// of managing the incoming child, which draws through the normal loop.
+    virtual void callTransitionDraw(ScriptedObject* object,
+                                    int selfRef,
+                                    Renderer* renderer,
+                                    const TransitionChildRef& from,
+                                    const TransitionChildRef& to) = 0;
 
     /// Layout protocol: self.resize(self, size).
     virtual void callLayoutResize(ScriptedObject* object,

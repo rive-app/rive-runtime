@@ -249,6 +249,7 @@
 #include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
@@ -268,6 +269,7 @@
 #include "rive/shapes/paint/gradient_stop.hpp"
 #include "rive/shapes/paint/group_effect.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/shapes/paint/radial_gradient.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/solid_color.hpp"
@@ -490,6 +492,8 @@ public:
                 return new ScriptedDrawable();
             case ScriptedDataConverterBase::typeKey:
                 return new ScriptedDataConverter();
+            case ScriptedTransitionBase::typeKey:
+                return new ScriptedTransition();
             case ScriptedInterpolatorBase::typeKey:
                 return new ScriptedInterpolator();
             case ScriptedLayoutBase::typeKey:
@@ -698,6 +702,8 @@ public:
                 return new Stroke();
             case SolidColorBase::typeKey:
                 return new SolidColor();
+            case PaintImageBase::typeKey:
+                return new PaintImage();
             case GradientStopBase::typeKey:
                 return new GradientStop();
             case FeatherBase::typeKey:
@@ -1019,6 +1025,12 @@ public:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedDataConverterBase>()->scriptAssetId(value);
                 break;
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+                object->as<ScriptedTransitionBase>()->activeComponentId(value);
+                break;
+            case ScriptedTransitionBase::listSourcePropertyKey:
+                object->as<ScriptedTransitionBase>()->listSource(value);
+                break;
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedInterpolatorBase>()->scriptAssetId(value);
                 break;
@@ -1112,6 +1124,9 @@ public:
                 break;
             case TargetEffectBase::targetIdPropertyKey:
                 object->as<TargetEffectBase>()->targetId(value);
+                break;
+            case PaintImageBase::imageAssetIdPropertyKey:
+                object->as<PaintImageBase>()->imageAssetId(value);
                 break;
             case ListPathBase::listSourcePropertyKey:
                 object->as<ListPathBase>()->listSource(value);
@@ -1684,6 +1699,18 @@ public:
             case StrokeBase::joinPropertyKey:
                 object->as<StrokeBase>()->join(value);
                 break;
+            case PaintImageBase::imageSamplerFilterPropertyKey:
+                object->as<PaintImageBase>()->imageSamplerFilter(value);
+                break;
+            case PaintImageBase::imageSamplerWrapXPropertyKey:
+                object->as<PaintImageBase>()->imageSamplerWrapX(value);
+                break;
+            case PaintImageBase::imageSamplerWrapYPropertyKey:
+                object->as<PaintImageBase>()->imageSamplerWrapY(value);
+                break;
+            case PaintImageBase::imageSizeModePropertyKey:
+                object->as<PaintImageBase>()->imageSizeMode(value);
+                break;
             case FeatherBase::spaceValuePropertyKey:
                 object->as<FeatherBase>()->spaceValue(value);
                 break;
@@ -1991,6 +2018,12 @@ public:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedDataConverterBase>()->scriptAssetId(value);
                 break;
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+                object->as<ScriptedTransitionBase>()->activeComponentId(value);
+                break;
+            case ScriptedTransitionBase::listSourcePropertyKey:
+                object->as<ScriptedTransitionBase>()->listSource(value);
+                break;
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
                 object->as<ScriptedInterpolatorBase>()->scriptAssetId(value);
                 break;
@@ -2084,6 +2117,9 @@ public:
                 break;
             case TargetEffectBase::targetIdPropertyKey:
                 object->as<TargetEffectBase>()->targetId(value);
+                break;
+            case PaintImageBase::imageAssetIdPropertyKey:
+                object->as<PaintImageBase>()->imageAssetId(value);
                 break;
             case ListPathBase::listSourcePropertyKey:
                 object->as<ListPathBase>()->listSource(value);
@@ -2822,6 +2858,21 @@ public:
             case StrokeBase::thicknessPropertyKey:
                 object->as<StrokeBase>()->thickness(value);
                 break;
+            case PaintImageBase::imageScaleXPropertyKey:
+                object->as<PaintImageBase>()->imageScaleX(value);
+                break;
+            case PaintImageBase::imageScaleYPropertyKey:
+                object->as<PaintImageBase>()->imageScaleY(value);
+                break;
+            case PaintImageBase::imageOffsetXPropertyKey:
+                object->as<PaintImageBase>()->imageOffsetX(value);
+                break;
+            case PaintImageBase::imageOffsetYPropertyKey:
+                object->as<PaintImageBase>()->imageOffsetY(value);
+                break;
+            case PaintImageBase::imageRotationPropertyKey:
+                object->as<PaintImageBase>()->imageRotation(value);
+                break;
             case GradientStopBase::positionPropertyKey:
                 object->as<GradientStopBase>()->position(value);
                 break;
@@ -3241,6 +3292,11 @@ public:
                 return object->as<ScriptedDrawableBase>()->scriptAssetId();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedDataConverterBase>()->scriptAssetId();
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+                return object->as<ScriptedTransitionBase>()
+                    ->activeComponentId();
+            case ScriptedTransitionBase::listSourcePropertyKey:
+                return object->as<ScriptedTransitionBase>()->listSource();
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedInterpolatorBase>()->scriptAssetId();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
@@ -3307,6 +3363,8 @@ public:
                     ->exitBlendAnimationId();
             case TargetEffectBase::targetIdPropertyKey:
                 return object->as<TargetEffectBase>()->targetId();
+            case PaintImageBase::imageAssetIdPropertyKey:
+                return object->as<PaintImageBase>()->imageAssetId();
             case ListPathBase::listSourcePropertyKey:
                 return object->as<ListPathBase>()->listSource();
             case ClippingShapeBase::sourceIdPropertyKey:
@@ -3725,6 +3783,14 @@ public:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
                 return object->as<StrokeBase>()->join();
+            case PaintImageBase::imageSamplerFilterPropertyKey:
+                return object->as<PaintImageBase>()->imageSamplerFilter();
+            case PaintImageBase::imageSamplerWrapXPropertyKey:
+                return object->as<PaintImageBase>()->imageSamplerWrapX();
+            case PaintImageBase::imageSamplerWrapYPropertyKey:
+                return object->as<PaintImageBase>()->imageSamplerWrapY();
+            case PaintImageBase::imageSizeModePropertyKey:
+                return object->as<PaintImageBase>()->imageSizeMode();
             case FeatherBase::spaceValuePropertyKey:
                 return object->as<FeatherBase>()->spaceValue();
             case TrimPathBase::modeValuePropertyKey:
@@ -3938,6 +4004,11 @@ public:
                 return object->as<ScriptedDrawableBase>()->scriptAssetId();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedDataConverterBase>()->scriptAssetId();
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+                return object->as<ScriptedTransitionBase>()
+                    ->activeComponentId();
+            case ScriptedTransitionBase::listSourcePropertyKey:
+                return object->as<ScriptedTransitionBase>()->listSource();
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
                 return object->as<ScriptedInterpolatorBase>()->scriptAssetId();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
@@ -4004,6 +4075,8 @@ public:
                     ->exitBlendAnimationId();
             case TargetEffectBase::targetIdPropertyKey:
                 return object->as<TargetEffectBase>()->targetId();
+            case PaintImageBase::imageAssetIdPropertyKey:
+                return object->as<PaintImageBase>()->imageAssetId();
             case ListPathBase::listSourcePropertyKey:
                 return object->as<ListPathBase>()->listSource();
             case ClippingShapeBase::sourceIdPropertyKey:
@@ -4524,6 +4597,16 @@ public:
                 return object->as<DashBase>()->length();
             case StrokeBase::thicknessPropertyKey:
                 return object->as<StrokeBase>()->thickness();
+            case PaintImageBase::imageScaleXPropertyKey:
+                return object->as<PaintImageBase>()->imageScaleX();
+            case PaintImageBase::imageScaleYPropertyKey:
+                return object->as<PaintImageBase>()->imageScaleY();
+            case PaintImageBase::imageOffsetXPropertyKey:
+                return object->as<PaintImageBase>()->imageOffsetX();
+            case PaintImageBase::imageOffsetYPropertyKey:
+                return object->as<PaintImageBase>()->imageOffsetY();
+            case PaintImageBase::imageRotationPropertyKey:
+                return object->as<PaintImageBase>()->imageRotation();
             case GradientStopBase::positionPropertyKey:
                 return object->as<GradientStopBase>()->position();
             case FeatherBase::strengthPropertyKey:
@@ -4786,6 +4869,8 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
             case ScriptedDrawableBase::scriptAssetIdPropertyKey:
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+            case ScriptedTransitionBase::listSourcePropertyKey:
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
             case LayoutComponentStyleBase::interpolatorIdPropertyKey:
@@ -4816,6 +4901,7 @@ public:
             case ListenerInputTypeEventBase::eventIdPropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case TargetEffectBase::targetIdPropertyKey:
+            case PaintImageBase::imageAssetIdPropertyKey:
             case ListPathBase::listSourcePropertyKey:
             case ClippingShapeBase::sourceIdPropertyKey:
             case ImageBase::assetIdPropertyKey:
@@ -4986,6 +5072,10 @@ public:
             case ColorChannelsBase::colorAlphaPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
+            case PaintImageBase::imageSamplerFilterPropertyKey:
+            case PaintImageBase::imageSamplerWrapXPropertyKey:
+            case PaintImageBase::imageSamplerWrapYPropertyKey:
+            case PaintImageBase::imageSizeModePropertyKey:
             case FeatherBase::spaceValuePropertyKey:
             case TrimPathBase::modeValuePropertyKey:
             case FillBase::fillRulePropertyKey:
@@ -5271,6 +5361,11 @@ public:
             case LinearGradientBase::opacityPropertyKey:
             case DashBase::lengthPropertyKey:
             case StrokeBase::thicknessPropertyKey:
+            case PaintImageBase::imageScaleXPropertyKey:
+            case PaintImageBase::imageScaleYPropertyKey:
+            case PaintImageBase::imageOffsetXPropertyKey:
+            case PaintImageBase::imageOffsetYPropertyKey:
+            case PaintImageBase::imageRotationPropertyKey:
             case GradientStopBase::positionPropertyKey:
             case FeatherBase::strengthPropertyKey:
             case FeatherBase::offsetXPropertyKey:
@@ -5490,6 +5585,10 @@ public:
                 return object->is<ScriptedDrawableBase>();
             case ScriptedDataConverterBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedDataConverterBase>();
+            case ScriptedTransitionBase::activeComponentIdPropertyKey:
+                return object->is<ScriptedTransitionBase>();
+            case ScriptedTransitionBase::listSourcePropertyKey:
+                return object->is<ScriptedTransitionBase>();
             case ScriptedInterpolatorBase::scriptAssetIdPropertyKey:
                 return object->is<ScriptedInterpolatorBase>();
             case ScriptedPathEffectBase::scriptAssetIdPropertyKey:
@@ -5550,6 +5649,8 @@ public:
                 return object->is<BlendStateTransitionBase>();
             case TargetEffectBase::targetIdPropertyKey:
                 return object->is<TargetEffectBase>();
+            case PaintImageBase::imageAssetIdPropertyKey:
+                return object->is<PaintImageBase>();
             case ListPathBase::listSourcePropertyKey:
                 return object->is<ListPathBase>();
             case ClippingShapeBase::sourceIdPropertyKey:
@@ -5880,6 +5981,14 @@ public:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:
                 return object->is<StrokeBase>();
+            case PaintImageBase::imageSamplerFilterPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageSamplerWrapXPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageSamplerWrapYPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageSizeModePropertyKey:
+                return object->is<PaintImageBase>();
             case FeatherBase::spaceValuePropertyKey:
                 return object->is<FeatherBase>();
             case TrimPathBase::modeValuePropertyKey:
@@ -6442,6 +6551,16 @@ public:
                 return object->is<DashBase>();
             case StrokeBase::thicknessPropertyKey:
                 return object->is<StrokeBase>();
+            case PaintImageBase::imageScaleXPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageScaleYPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageOffsetXPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageOffsetYPropertyKey:
+                return object->is<PaintImageBase>();
+            case PaintImageBase::imageRotationPropertyKey:
+                return object->is<PaintImageBase>();
             case GradientStopBase::positionPropertyKey:
                 return object->is<GradientStopBase>();
             case FeatherBase::strengthPropertyKey:

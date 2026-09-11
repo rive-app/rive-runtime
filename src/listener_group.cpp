@@ -6,6 +6,7 @@
 #include "rive/profiler/rive_profile.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 
 using namespace rive;
 
@@ -340,6 +341,8 @@ ListenerGroupProvider* ListenerGroupProvider::from(Core* component)
             return component->as<ScriptedLayout>();
         case ScriptedDrawable::typeKey:
             return component->as<ScriptedDrawable>();
+        case ScriptedTransition::typeKey:
+            return component->as<ScriptedTransition>();
     }
     return nullptr;
 }

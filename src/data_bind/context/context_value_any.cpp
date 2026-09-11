@@ -1,5 +1,6 @@
 #include "rive/data_bind/context/context_value_any.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -36,6 +37,11 @@ void DataBindContextValueAny::apply(Core* target,
                     target->as<Solo>()->updateByIndex(
                         (size_t)std::round(value));
                 }
+                else if (target && target->is<ScriptedTransition>())
+                {
+                    target->as<ScriptedTransition>()->updateByIndex(
+                        (size_t)std::round(value));
+                }
                 else if (CoreRegistry::isSignedInt(propertyKey))
                 {
                     // No clamp: a negative grid line is end-relative.
@@ -54,6 +60,11 @@ void DataBindContextValueAny::apply(Core* target,
                 if (target && target->is<Solo>())
                 {
                     target->as<Solo>()->updateByName(
+                        dataValue->as<DataValueString>()->value());
+                }
+                else if (target && target->is<ScriptedTransition>())
+                {
+                    target->as<ScriptedTransition>()->updateByName(
                         dataValue->as<DataValueString>()->value());
                 }
             }

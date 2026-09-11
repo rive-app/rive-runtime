@@ -7281,6 +7281,27 @@ void WasmScriptingVM::callListenerPerform(ScriptedObject* object,
     guestFree(dataPtr);
 }
 
+// The transition protocol has no module-lane wire type for TransitionChild
+// yet, so these hold the host-side defaults: the container composites nothing.
+// Because callTransitionDraw below is a no-op, we must NOT claim to manage the
+// incoming child -- otherwise it would be hidden from the normal draw loop for
+// the duration of every transition and nothing at all would render.
+bool WasmScriptingVM::transitionManagesTo(int selfRef) { return false; }
+
+void WasmScriptingVM::callTransitionChanged(ScriptedObject* object,
+                                            int selfRef,
+                                            const TransitionChildRef& from,
+                                            const TransitionChildRef& to,
+                                            int direction)
+{}
+
+void WasmScriptingVM::callTransitionDraw(ScriptedObject* object,
+                                         int selfRef,
+                                         Renderer* renderer,
+                                         const TransitionChildRef& from,
+                                         const TransitionChildRef& to)
+{}
+
 void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
                                        int selfRef,
                                        Vec2D size)

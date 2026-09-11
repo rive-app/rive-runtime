@@ -27,6 +27,7 @@ protected:
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
+
     void invalidateEffects(StrokeEffect* effect) override;
     void invalidateEffects() override;
     virtual void invalidateRendering();
@@ -107,7 +108,15 @@ public:
     TransformComponent* parentTransformComponent() const;
 
 private:
+    /// Install (or clear) the modulating image contributed by the optional
+    /// PaintImage child onto m_RenderPaint, fit to [bounds].
+    void applyModulatedImage(const AABB& bounds);
+
     Feather* m_feather = nullptr;
+    /// Whether the last draw installed a modulating image on m_RenderPaint. The
+    /// paint persists across draws, so we track this to clear it once the
+    /// PaintImage child (or its asset) goes away.
+    bool m_hasModulatedImage = false;
 };
 } // namespace rive
 

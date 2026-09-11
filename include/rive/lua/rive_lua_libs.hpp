@@ -66,6 +66,7 @@ namespace rive
 {
 class Artboard;
 class ArtboardInstance;
+class NestedArtboard;
 class Factory;
 class File;
 class ModuleDetails;
@@ -191,6 +192,7 @@ enum class LuaAtoms : int16_t
 
     // Artboards
     draw,
+    modulateOpacity,
     advance,
     frameOrigin,
     data,
@@ -1075,6 +1077,7 @@ public:
     void restore(lua_State* L);
     void transform(lua_State* L, const Mat2D& mat2d);
     void clipPath(lua_State* L, ScriptedPathData* path);
+    void modulateOpacity(lua_State* L, float opacity);
     Renderer* validate(lua_State* L);
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 9;
@@ -1085,6 +1088,34 @@ private:
     // Not owned by the ScriptedRenderer, only valid when passed in.
     Renderer* m_renderer = nullptr;
     uint32_t m_saveCount = 0;
+};
+
+// A handle to one child of a ScriptedTransition — a mounted artboard, either an
+// authored NestedArtboard's instance or one instanced from a bound view-model
+// list — handed to the transition script's draw() so it can composite the
+// outgoing (from) and incoming (to) children. Non-owning; invalidated after the
+// hosting draw() returns so a stashed handle can never outlive the frame.
+class TransitionChild
+{
+public:
+    TransitionChild(Artboard* artboard, const Mat2D& worldTransform) :
+        m_artboard(artboard), m_worldTransform(worldTransform)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 68;
+    static constexpr const char* luaName = "TransitionChild";
+    static constexpr bool hasMetatable = true;
+
+    // Draw this child's artboard content at the renderer's current transform,
+    // placed by the child's world transform. No-op once invalidated.
+    void draw(Renderer* renderer);
+    float width() const;
+    float height() const;
+    void invalidate() { m_artboard = nullptr; }
+
+private:
+    Artboard* m_artboard = nullptr;
+    Mat2D m_worldTransform;
 };
 
 class ScriptReffedArtboard : public RefCnt<ScriptReffedArtboard>
