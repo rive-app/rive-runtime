@@ -159,11 +159,14 @@ PLS_MAIN(@drawFragmentMain)
         }
 #endif // ENABLE_CLIP_RECT
 
-        half4 color = find_paint_color(v_paint,
+        half4 color = find_paint_color(
 #ifdef @ENABLE_MODULATED_IMAGE
-                                       v_image,
+            v_image,
 #endif
-                                       coverage FRAGMENT_CONTEXT_UNPACK);
+#ifdef @ENABLE_ADVANCED_BLEND
+            cast_half_to_ushort(v_blendMode),
+#endif
+            v_paint FRAGMENT_CONTEXT_UNPACK);
 
         half4 dstColorPremul;
         if (coverageBufferID != v_pathID)
@@ -189,21 +192,16 @@ PLS_MAIN(@drawFragmentMain)
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (@ENABLE_ADVANCED_BLEND)
+        if (@ENABLE_ADVANCED_BLEND &&
+            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
-            // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
-            // advanced blend needs unmultiplied colors.
-            if (v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
-            {
-                color.rgb =
-                    advanced_color_blend(color.rgb,
-                                         dstColorPremul,
-                                         cast_half_to_ushort(v_blendMode));
-            }
-            // Premultiply alpha now.
-            color.rgb *= color.a;
+            color.rgb = advanced_color_blend(color.rgb,
+                                             dstColorPremul,
+                                             cast_half_to_ushort(v_blendMode)) *
+                        color.a;
         }
 #endif
+        color *= coverage;
 
         // Certain platforms give us less control of the format of what we are
         // rendering too. Specifically, we are auto converted from linear ->

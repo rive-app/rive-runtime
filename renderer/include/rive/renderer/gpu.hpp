@@ -1674,7 +1674,8 @@ public:
              uint32_t clipID,
              bool hasClipRect,
              bool hasImage,
-             BlendMode);
+             BlendMode,
+             bool solidUnmultiplied);
 
 private:
     WRITEONLY uint32_t m_params; // [clipID, flags, paintType]

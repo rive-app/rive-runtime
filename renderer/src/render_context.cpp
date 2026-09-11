@@ -1556,7 +1556,8 @@ void RenderContext::LogicalFlush::writeResources()
                                 /*clipID =*/0,
                                 /*hasClipRect =*/false,
                                 /*hasImage =*/false,
-                                BlendMode::srcOver);
+                                BlendMode::srcOver,
+                                /*solidUnmultiplied =*/false);
     m_ctx->m_paintAuxData.skip_back();
 
     // Render padding vertices in the tessellation texture.
@@ -3094,14 +3095,20 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
                                m_currentZIndex,
                                draw->featherAtlasTransform(),
                                draw->coverageBufferRange());
-    m_ctx->m_paintData.set_back(draw->drawContents(),
-                                draw->paintType(),
-                                draw->simplePaintValue(),
-                                m_gradTextureLayout,
-                                draw->clipID(),
-                                draw->hasClipRect(),
-                                draw->hasImageTexture(),
-                                draw->blendMode());
+    m_ctx->m_paintData.set_back(
+        draw->drawContents(),
+        draw->paintType(),
+        draw->simplePaintValue(),
+        m_gradTextureLayout,
+        draw->clipID(),
+        draw->hasClipRect(),
+        draw->hasImageTexture(),
+        draw->blendMode(),
+        // Solid paints are unmultiplied for advanced-blend draws, except
+        // when depthStencil uses KHR_blend_equation_advanced
+        draw->blendMode() != BlendMode::srcOver &&
+            !(m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
+              m_ctx->platformFeatures().supportsBlendAdvancedKHR));
     m_ctx->m_paintAuxData.set_back(draw->paintMatrix(),
                                    draw->imageMatrix(),
                                    draw->paintType(),

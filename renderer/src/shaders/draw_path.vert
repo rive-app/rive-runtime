@@ -2,21 +2,6 @@
  * Copyright 2022 Rive
  */
 
-// undef GENERATE_UNMULTIPLIED_PAINT_COLORS first because this file gets
-// included multiple times with different defines in the Metal library.
-#undef GENERATE_UNMULTIPLIED_PAINT_COLORS
-
-#ifdef @ENABLE_ADVANCED_BLEND
-// If advanced blend is enabled, we generate unmultiplied paint colors in the
-// shader. Otherwise we would have to just turn around and unmultiply them in
-// order to run the blend equation.
-#define GENERATE_UNMULTIPLIED_PAINT_COLORS @ENABLE_ADVANCED_BLEND
-#else
-// As long as advanced blend is not enabled, it's more efficient for the shader
-// to generate premultiplied paint colors from the start.
-#define GENERATE_UNMULTIPLIED_PAINT_COLORS false
-#endif
-
 // undef COVERAGE_TYPE first because this file gets included multiple times with
 // different defines in the Metal library.
 #undef COVERAGE_TYPE
@@ -259,18 +244,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
-        half4 color = unpackUnorm4x8(paintData.y);
-        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
-        {
-            // naga can't handle "if (!SpecConst)" when transpiling spv to wgsl.
-            // Use this if -> else construct instead so we don't have to negate
-            // a specialization constant.
-        }
-        else
-        {
-            color.rgb *= color.a;
-        }
-        v_paint = float4(color);
+        v_paint = float4(unpackUnorm4x8(paintData.y));
     }
 #if defined(@ENABLE_CLIPPING) && !defined(@FEATHER_ATLAS_BLIT)
     else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
@@ -400,22 +374,27 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 
 // Add a function here for fragments to unpack the paint since we're the ones
 // who packed it in the vertex shader.
-INLINE half4 find_paint_color(float4 paint,
+INLINE half4 find_paint_color(
 #ifdef @ENABLE_MODULATED_IMAGE
-                              float3 image,
+    float3 image,
 #endif
-                              float coverage FRAGMENT_CONTEXT_DECL)
+#ifdef @ENABLE_ADVANCED_BLEND
+    ushort blendMode,
+#endif
+    float4 paint FRAGMENT_CONTEXT_DECL)
 {
+#ifdef @ENABLE_ADVANCED_BLEND
+    bool paintHasAdvancedBlend =
+        @ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER;
+#else
+    const bool paintHasAdvancedBlend = false;
+#endif
     half4 color;
     if (paint.a >= .0) // Is the paint a solid color?
     {
-        // The vertex shader will have premultiplied 'paint' (or not) based on
-        // GENERATE_UNMULTIPLIED_PAINT_COLORS.
+        // The CPU sent 'paint' unmultiplied for advanced-blend draws and
+        // premultiplied otherwise, matching paintHasAdvancedBlend.
         color = cast_float4_to_half4(paint);
-        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
-            color.a *= coverage;
-        else
-            color *= coverage;
     }
     else // Paint is a gradient (linear or radial)?
     {
@@ -425,20 +404,11 @@ INLINE half4 find_paint_color(float4 paint,
         float2 gradientTexCoord = getGradientCoord(paint);
         color =
             TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradientTexCoord, .0);
-        color.a *= coverage;
 
         // Gradients are always unmultiplied so we don't lose color data while
         // doing the hardware filter.
-        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
-        {
-            // naga can't handle "if (!SpecConst)" when transpiling spv to wgsl.
-            // Use this if -> else construct instead so we don't have to
-            // negate a specialization constant.
-        }
-        else
-        {
+        if (!paintHasAdvancedBlend)
             color.rgb *= color.a;
-        }
     }
 
 #if defined(@ENABLE_MODULATED_IMAGE)
@@ -451,8 +421,9 @@ INLINE half4 find_paint_color(float4 paint,
                                                       lod);
 
         // Images are always premultiplied so the (transparent) background color
-        // doesn't bleed into the edges during the hardware filter.
-        if (GENERATE_UNMULTIPLIED_PAINT_COLORS)
+        // doesn't bleed into the edges during the hardware filter; unmultiply
+        // to match this draw's convention if needed.
+        if (paintHasAdvancedBlend)
             imageColor = make_half4(unmultiply_rgb(imageColor), imageColor.a);
 
         color *= imageColor;

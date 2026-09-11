@@ -59,11 +59,15 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
         1.;
 #endif
-    half4 color = find_paint_color(v_paint,
+
+    half4 color = find_paint_color(
 #ifdef @ENABLE_MODULATED_IMAGE
-                                   v_image,
+        v_image,
 #endif
-                                   coverage FRAGMENT_CONTEXT_UNPACK);
+#ifdef @ENABLE_ADVANCED_BLEND
+        cast_half_to_ushort(v_blendMode),
+#endif
+        v_paint FRAGMENT_CONTEXT_UNPACK);
 #endif
 
 // Need to check both flags here because in GL when KHR_blend_equation_advanced
@@ -74,17 +78,15 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     color.rgb = unmultiply_rgb(color);
     ushort blendMode = v_imageBlendMode;
 #else
-    // NOTE: for non-image-meshes, "color" is already unmultiplied because
-    // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
-    // blend.
     ushort blendMode = cast_half_to_ushort(v_blendMode);
 #endif
     half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
-    color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
+    color.rgb =
+        advanced_color_blend(color.rgb, dstColorPremul, blendMode) * color.a;
+#endif
 
-    // Src-over blending is enabled, so just premultiply and let the HW
-    // finish the the the alpha portion of the blend mode.
-    color.rgb *= color.a;
+#ifndef @DRAW_IMAGE_MESH
+    color *= coverage;
 #endif
 
     // Certain platforms give us less control of the format of what we are

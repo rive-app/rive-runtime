@@ -867,7 +867,7 @@ uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor)
     uint4 rgba = (rive::uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
     uint32_t alpha = rgba.w;
     rgba.w = 255;
-    uint4 premul = rgba * alpha / 255;
+    uint4 premul = (rgba * alpha + 127) / 255;
     return simd::reduce_or(premul << uint4{0, 8, 16, 24});
 }
 
@@ -1007,7 +1007,8 @@ void PaintData::set(DrawContents singleDrawContents,
                     uint32_t clipID,
                     bool hasClipRect,
                     bool hasImage,
-                    BlendMode blendMode)
+                    BlendMode blendMode,
+                    bool solidUnmultiplied)
 {
     uint32_t shiftedClipID = clipID << 16;
     uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
@@ -1017,8 +1018,12 @@ void PaintData::set(DrawContents singleDrawContents,
         case PaintType::solidColor:
         {
             // Swizzle the riveColor to little-endian RGBA (the order expected
-            // by GLSL).
-            m_color = SwizzleRiveColorToRGBA(simplePaintValue.color);
+            // by GLSL). Advanced blend draws take unmultiplied color, srcOver
+            // draws and KHR fixed-function blend path are premult
+            m_color =
+                solidUnmultiplied
+                    ? SwizzleRiveColorToRGBA(simplePaintValue.color)
+                    : SwizzleRiveColorToRGBAPremul(simplePaintValue.color);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }

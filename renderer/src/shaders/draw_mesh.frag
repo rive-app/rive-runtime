@@ -86,11 +86,14 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
 #ifdef @FEATHER_ATLAS_BLIT
-    half4 color = find_paint_color(v_paint,
+    half4 color = find_paint_color(
 #ifdef @ENABLE_MODULATED_IMAGE
-                                   v_image,
+        v_image,
 #endif
-                                   1. FRAGMENT_CONTEXT_UNPACK);
+#ifdef @ENABLE_ADVANCED_BLEND
+        cast_half_to_ushort(v_blendMode),
+#endif
+        v_paint FRAGMENT_CONTEXT_UNPACK);
     half coverage = clamp(TEXTURE_SAMPLE_LOD(@featherAtlasTexture,
                                              featherAtlasSampler,
                                              v_atlasCoord,
@@ -147,38 +150,23 @@ PLS_MAIN(@drawFragmentMain)
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
-    if (@ENABLE_ADVANCED_BLEND)
-    {
 #ifdef @FEATHER_ATLAS_BLIT
-        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case for
-        // find_paint_color() because advanced blend needs unmultiplied colors.
-        ushort blendMode = cast_half_to_ushort(v_blendMode);
+    ushort blendMode = cast_half_to_ushort(v_blendMode);
 #endif
-
 #ifdef @DRAW_IMAGE_MESH
-        // Unmultiply the image for advanced blend. Images are always
-        // premultiplied so that the filtering works correctly.
-        // TODO: This unmultiply technically isn't necessary with srcOver blend.
-        // We may want to experiment with dynamically not premultiplying here
-        // and in find_paint_color() when the blend mode is srcOver.
-        color.rgb = unmultiply_rgb(color);
-        ushort blendMode = v_imageBlendMode;
+    ushort blendMode = v_imageBlendMode;
 #endif
-
-        if (blendMode != BLEND_SRC_OVER)
-        {
-            color.rgb =
-                advanced_color_blend(color.rgb, dstColorPremul, blendMode);
-        }
-        // Premultiply alpha now.
-        color.a *= coverage;
-        color.rgb *= color.a;
-    }
-    else
-#endif // @ENABLE_ADVANCED_BLEND
+    if (@ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER)
     {
-        color *= coverage;
+        // Advanced-blend draws operate on unmultiplied color.
+#ifdef @DRAW_IMAGE_MESH
+        color.rgb = unmultiply_rgb(color);
+#endif
+        color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode) *
+                    color.a;
     }
+#endif // @ENABLE_ADVANCED_BLEND
+    color *= coverage;
 
     // Certain platforms give us less control of the format of what we are
     // rendering too. Specifically, we are auto converted from linear -> sRGB on
