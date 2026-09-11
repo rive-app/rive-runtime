@@ -28,6 +28,7 @@ public:
     // to SHADER_READ_ONLY_OPTIMAL, so Rive's own barrier logic sees the correct
     // layout on the next draw.
     virtual void updateLastAccess(const vkutil::ImageAccess&) {}
+    virtual vkutil::ImageAccess targetLastAccess() const { return {}; }
 
     // Performs a pipeline barrier and returns the target image in the requested
     // layout.
@@ -121,7 +122,7 @@ public:
         m_targetLastAccess = targetLastAccess;
     }
 
-    const vkutil::ImageAccess& targetLastAccess() const
+    vkutil::ImageAccess targetLastAccess() const override
     {
         return m_targetLastAccess;
     }

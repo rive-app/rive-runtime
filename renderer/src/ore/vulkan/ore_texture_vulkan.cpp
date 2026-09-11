@@ -53,6 +53,18 @@ static VkImageAspectFlags aspectMask(TextureFormat fmt)
 // Texture
 // ============================================================================
 
+bool TextureVulkan::vkMarkWritten(uint32_t mip, uint32_t layer)
+{
+    size_t i = static_cast<size_t>(layer) * m_numMipmaps + mip;
+    if (i >= m_vkWritten.size())
+    {
+        m_vkWritten.resize(i + 1, false);
+    }
+    bool wasWritten = m_vkWritten[i];
+    m_vkWritten[i] = true;
+    return wasWritten;
+}
+
 void TextureVulkan::upload(const TextureDataDesc& data)
 {
     // Stage CPU-side, queue for the next host CB. Callers may run with
@@ -236,6 +248,7 @@ void TextureVulkan::upload(const TextureDataDesc& data)
                           static_cast<int32_t>(data.z)};
     region.imageExtent = {width, height, depth};
 
+    vkMarkWritten(data.mipLevel, data.layer);
     m_vkOreContext->vkQueuePendingTextureUpload({
         ref_rcp(this),
         std::move(stagingBuffer),

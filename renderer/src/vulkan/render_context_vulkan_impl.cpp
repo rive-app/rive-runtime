@@ -306,6 +306,10 @@ public:
     {
         m_texture->lastAccess() = a;
     }
+    vkutil::ImageAccess targetLastAccess() const override
+    {
+        return m_texture->lastAccess();
+    }
 
     VkImage accessTargetImage(VkCommandBuffer commandBuffer,
                               const vkutil::ImageAccess& dstAccess,

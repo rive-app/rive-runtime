@@ -394,6 +394,13 @@ bool Player::doFrame()
     // skips the async-work pump in Artboard::advance; pump it here so scripted
     // image decodes resolve (without threads they only run when polled).
     m_artboard->pollAsyncWork();
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    // Scavenges the script nursery, which otherwise grows until it traps.
+    if (const char* warning = m_file->frameBoundary())
+    {
+        fprintf(stderr, "%s\n", warning);
+    }
+#endif
     m_scene->advanceAndApply(m_paused ? 0 : advanceDeltaTime);
 
     m_copiesLeft = std::max(m_copiesLeft, 0);
