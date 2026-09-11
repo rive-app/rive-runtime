@@ -428,9 +428,12 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType =
         VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // Vulkan drops depth writes whenever the test is off, so a write with
+    // an always compare still needs the test enabled
     depthStencil.depthTestEnable =
         (hasDepthStencil &&
-         desc.depthStencil.depthCompare != CompareFunction::always)
+         (desc.depthStencil.depthCompare != CompareFunction::always ||
+          desc.depthStencil.depthWriteEnabled))
             ? VK_TRUE
             : VK_FALSE;
     depthStencil.depthWriteEnable =
