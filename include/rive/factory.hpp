@@ -86,6 +86,20 @@ public:
     // scripts draw straight to the driver.
     virtual cmd::DeferredCanvasHost* deferredCanvasHost() { return nullptr; }
 
+    // A host that can hand out an offscreen frame to draw into, used by
+    // features that rasterize into a texture rather than to the screen (e.g.
+    // an artboard caching itself as a bitmap). A recording session doubles as
+    // one, which is the default.
+    //
+    // Kept separate from deferredCanvasHost() on purpose: that one answers
+    // "content is being recorded for a later replay", and the scripting layer
+    // keys canvas allocation and frame handling off it. A renderer that draws
+    // immediately can serve this hook, but must not answer that one.
+    virtual cmd::DeferredCanvasHost* canvasContentHost()
+    {
+        return deferredCanvasHost();
+    }
+
     rcp<Font> decodeFont(Span<const uint8_t>);
 
     rcp<AudioSource> decodeAudio(Span<const uint8_t>);

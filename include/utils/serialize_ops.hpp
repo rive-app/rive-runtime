@@ -53,6 +53,13 @@ enum class SerializeOp : uint32_t
     frameSize = 29,
     modulateOpacity = 30,
     paintModulatedImage = 31,
+
+    // Offscreen canvases (cache-as-bitmap). Content records inline between the
+    // begin and end brackets; the canvas id shares the image id space so a
+    // later drawImage of that id composites the canvas.
+    makeRenderCanvas = 32,   // id, width, height
+    canvasContentBegin = 33, // id, clearColor
+    canvasContentEnd = 34,   // id
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

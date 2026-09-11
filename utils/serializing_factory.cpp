@@ -3,6 +3,8 @@
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/artboard.hpp"
+#include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/render_context.hpp"
 #include <cstring>
 #include <stdlib.h>
 #ifndef RIVE_NO_FILESYSTEM
@@ -103,6 +105,14 @@ static const char* opToName(SerializeOp op)
             return "frameSize";
         case SerializeOp::modulateOpacity:
             return "modulateOpacity";
+
+        // Offscreen canvases (cache-as-bitmap).
+        case SerializeOp::makeRenderCanvas:
+            return "makeRenderCanvas";
+        case SerializeOp::canvasContentBegin:
+            return "canvasContentBegin";
+        case SerializeOp::canvasContentEnd:
+            return "canvasContentEnd";
     }
     return "???";
 }
@@ -526,7 +536,10 @@ rcp<RenderImage> SerializingFactory::decodeImage(Span<const uint8_t> data)
 class SerializingRenderer : public Renderer
 {
 public:
-    SerializingRenderer(BinaryWriter* writer) : m_writer(writer) {}
+    SerializingRenderer(BinaryWriter* writer,
+                        const SerializingFactory* factory) :
+        m_writer(writer), m_factory(factory)
+    {}
 
     void save() override
     {
@@ -571,8 +584,7 @@ public:
                            float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImage);
-        m_writer->writeVarUint(
-            static_cast<const SerializingRenderImage*>(image)->id());
+        m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
     }
@@ -588,8 +600,7 @@ public:
                                float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMesh);
-        m_writer->writeVarUint(
-            static_cast<const SerializingRenderImage*>(image)->id());
+        m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
         m_writer->writeVarUint(
@@ -602,6 +613,7 @@ public:
 
 private:
     BinaryWriter* m_writer;
+    const SerializingFactory* m_factory;
 };
 
 SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
@@ -610,9 +622,120 @@ SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
     m_writer.writeVarUint((uint32_t)1);
 }
 
+// Out of line so this translation unit anchors the vtable.
+SerializingFactory::~SerializingFactory() = default;
+
 std::unique_ptr<Renderer> SerializingFactory::makeRenderer()
 {
-    return std::make_unique<SerializingRenderer>(&m_writer);
+    return std::make_unique<SerializingRenderer>(&m_writer, this);
+}
+
+void SerializingFactory::enableBitmapCache(gpu::RenderContext* renderContext)
+{
+    m_bitmapCacheContext = renderContext;
+}
+
+Factory* SerializingFactory::renderContext() { return m_bitmapCacheContext; }
+
+cmd::DeferredCanvasHost* SerializingFactory::deferredCanvasHost()
+{
+    // Both hooks stay null until enableBitmapCache() runs, so an existing
+    // [silver] test keeps recording the plain vector path.
+    return m_bitmapCacheContext != nullptr ? this : nullptr;
+}
+
+cmd::DeferredCanvasHost* SerializingFactory::canvasContentHost()
+{
+    return deferredCanvasHost();
+}
+
+rcp<gpu::RenderCanvas> SerializingFactory::makeContentCanvas(uint32_t width,
+                                                             uint32_t height)
+{
+#ifdef RIVE_CANVAS
+    // Nothing is allocated on a device here -- the canvas only needs the
+    // identity the stream refers to, which is why a null-device context is
+    // enough. Whoever replays installs the pixels.
+    return m_bitmapCacheContext != nullptr
+               ? m_bitmapCacheContext->makeDeferredRenderCanvas(width, height)
+               : nullptr;
+#else
+    // Offscreen canvases are compiled out, so the artboard falls back to a
+    // plain vector draw.
+    return nullptr;
+#endif
+}
+
+rcp<RenderImage> SerializingFactory::contentCanvasImage(
+    gpu::RenderCanvas* canvas)
+{
+    return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
+                             : nullptr;
+}
+
+uint64_t SerializingFactory::canvasId(gpu::RenderCanvas* canvas)
+{
+    const RenderImage* image = canvas->renderImage();
+    auto it = m_canvasImageIds.find(image);
+    if (it != m_canvasImageIds.end())
+    {
+        return it->second;
+    }
+    uint64_t id = m_renderImageId++;
+    m_canvasImageIds[image] = id;
+    m_retainedCanvases.push_back(ref_rcp(canvas));
+    m_writer.writeVarUint((uint32_t)SerializeOp::makeRenderCanvas);
+    m_writer.writeVarUint(id);
+    m_writer.writeVarUint(canvas->width());
+    m_writer.writeVarUint(canvas->height());
+    return id;
+}
+
+uint64_t SerializingFactory::imageId(const RenderImage* image) const
+{
+    auto it = m_canvasImageIds.find(image);
+    if (it != m_canvasImageIds.end())
+    {
+        return it->second;
+    }
+    // Everything this factory hands out that is not canvas backed carries its
+    // own id.
+    return static_cast<const SerializingRenderImage*>(image)->id();
+}
+
+Renderer* SerializingFactory::beginCanvasContent(gpu::RenderCanvas* canvas,
+                                                 uint32_t clearColor)
+{
+    if (canvas == nullptr)
+    {
+        return nullptr;
+    }
+    // Minted before the bracket so a replayer knows the canvas's size by the
+    // time it has to open a frame on it.
+    uint64_t id = canvasId(canvas);
+    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentBegin);
+    m_writer.writeVarUint(id);
+    m_writer.writeVarUint(clearColor);
+    if (m_canvasRenderer == nullptr)
+    {
+        // Content records inline into the same stream, so one recorder serves
+        // every canvas. Kept for the factory's lifetime rather than released
+        // at endCanvasContent: a nested cache brackets inside an outer one,
+        // and freeing on the inner end would dangle the pointer the outer
+        // content is still drawing through.
+        m_canvasRenderer = makeRenderer();
+    }
+    return m_canvasRenderer.get();
+}
+
+void SerializingFactory::endCanvasContent(gpu::RenderCanvas* canvas)
+{
+    if (canvas == nullptr)
+    {
+        return;
+    }
+    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentEnd);
+    m_writer.writeVarUint(canvasId(canvas));
 }
 
 void SerializingFactory::addFrame()
@@ -1364,6 +1487,58 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                   "modulateopacity_value",
                                   readerA,
                                   readerB))
+                {
+                    return false;
+                }
+                break;
+
+            // Offscreen canvases (cache-as-bitmap). The content between a
+            // begin/end bracket is ordinary inline ops, so the walk needs
+            // nothing beyond each bracket's own payload.
+            case SerializeOp::makeRenderCanvas:
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_width",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_height",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::canvasContentBegin:
+                if (!varUintMatches(opA,
+                                    "canvascontentbegin_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "canvascontentbegin_clearcolor",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::canvasContentEnd:
+                if (!varUintMatches(opA,
+                                    "canvascontentend_id",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }

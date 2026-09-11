@@ -235,6 +235,20 @@ public:
     // captured by save() and restored by restore().
     virtual void modulateOpacity(float opacity) = 0;
 
+    // Reports the renderer's current transform (CTM) into *out, if the
+    // renderer tracks one. Returns false and leaves *out untouched otherwise.
+    // Needed when a draw has to be re-issued through a different renderer that
+    // does not share this one's state.
+    virtual bool currentTransform(Mat2D* out) const { return false; }
+
+    // Reports the opacity accumulated by modulateOpacity() into *out, if the
+    // renderer tracks it. Returns false and leaves *out untouched otherwise.
+    // The companion to currentTransform(): a draw re-issued through a fresh
+    // renderer starts at opacity 1, so an enclosing modulateOpacity() scope
+    // (a ScriptedDrawable fading its children, say) has to be carried across
+    // by hand or the re-issued draw comes out too opaque.
+    virtual bool currentModulatedOpacity(float* out) const { return false; }
+
     // helpers
 
     void translate(float x, float y);

@@ -58,6 +58,18 @@ public:
                        float opacity) override;
     void modulateOpacity(float opacity) override;
 
+    bool currentTransform(Mat2D* out) const override
+    {
+        *out = m_renderStateStack.back().matrix;
+        return true;
+    }
+
+    bool currentModulatedOpacity(float* out) const override
+    {
+        *out = m_renderStateStack.back().modulatedOpacity;
+        return true;
+    }
+
     // Determines if a path is an axis-aligned rectangle that can be represented
     // by rive::AABB.
     static bool IsAABB(const RawPath&, AABB* result);

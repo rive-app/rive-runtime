@@ -6,6 +6,9 @@
 
 #include "rive/renderer/rive_render_image.hpp"
 #include "utils/factory_utils.hpp"
+#ifdef RIVE_CANVAS
+#include "rive/renderer/render_canvas.hpp"
+#endif
 
 using namespace rive;
 using namespace rive::gpu;
@@ -91,3 +94,15 @@ std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::makeVertexBufferRing(
 {
     return std::make_unique<BufferRingNULL>(capacityInBytes);
 }
+
+#ifdef RIVE_CANVAS
+void RenderContextNULL::ensureCanvasBacking(rive::gpu::RenderCanvas* canvas)
+{
+    if (canvas->isBacked())
+    {
+        return;
+    }
+    canvas->setBacking(make_rcp<Texture>(canvas->width(), canvas->height()),
+                       makeRenderTarget(canvas->width(), canvas->height()));
+}
+#endif

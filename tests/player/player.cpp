@@ -17,6 +17,7 @@
 #include "rive/scene.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/raw_text.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/lua/scripting_vm.hpp"
@@ -65,6 +66,7 @@ void Player::shutdown()
         m_fps.reset();
         m_scene = nullptr;
         m_artboard = nullptr;
+        m_viewModelInstance = nullptr;
         m_file = nullptr;
         m_session = nullptr;
         m_replayer = nullptr;
@@ -322,12 +324,26 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
 
     m_artboard = m_file->artboardDefault();
     assert(m_artboard);
+
+    // Bind the artboard's default view model instance, if it has one, the same
+    // way a real host runtime would.
+    m_viewModelInstance =
+        m_file->createDefaultViewModelInstance(m_artboard.get());
+    if (m_viewModelInstance != nullptr)
+    {
+        m_artboard->bindViewModelInstance(m_viewModelInstance);
+    }
+
     m_scene = m_artboard->defaultStateMachine();
     if (!m_scene)
     {
         m_scene = m_artboard->animationAt(0);
     }
     assert(m_scene);
+    if (m_viewModelInstance != nullptr)
+    {
+        m_scene->bindViewModelInstance(m_viewModelInstance);
+    }
 
     // Setup FPS.
     m_fps->roboto = HBFont::Decode(assets::roboto_flex_ttf());

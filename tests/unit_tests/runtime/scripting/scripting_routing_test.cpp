@@ -5,6 +5,10 @@
 #include "rive/command_server.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
+// makeContentCanvas returns rcp<gpu::RenderCanvas> by value, so this TU has to
+// see the complete type to instantiate ~rcp (MSVC diagnoses it; clang does
+// not).
+#include "rive/renderer/render_canvas.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/no_op_factory.hpp"
 
@@ -20,6 +24,15 @@ public:
         return nullptr;
     }
     void endCanvasContent(gpu::RenderCanvas*) override {}
+    // A stub that never draws has nothing to allocate against.
+    rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t, uint32_t) override
+    {
+        return nullptr;
+    }
+    rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas*) override
+    {
+        return nullptr;
+    }
 };
 
 // Shared shape of the deferred session doubles. The ore pointer is a

@@ -122,6 +122,7 @@
 #include "rive/assets/text_asset.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/backboard.hpp"
+#include "rive/bitmap_cache.hpp"
 #include "rive/bones/bone.hpp"
 #include "rive/bones/cubic_weight.hpp"
 #include "rive/bones/root_bone.hpp"
@@ -930,6 +931,8 @@ public:
                 return new FileAssetContents();
             case ScriptModuleAssetBase::typeKey:
                 return new ScriptModuleAsset();
+            case BitmapCacheBase::typeKey:
+                return new BitmapCache();
             case AudioEventBase::typeKey:
                 return new AudioEvent();
             case UserInputBase::typeKey:
@@ -1918,6 +1921,9 @@ public:
             case ScriptModuleAssetBase::languagePropertyKey:
                 object->as<ScriptModuleAssetBase>()->language(value);
                 break;
+            case BitmapCacheBase::cacheFlagsPropertyKey:
+                object->as<BitmapCacheBase>()->cacheFlags(value);
+                break;
             case GamepadInputBase::kindPropertyKey:
                 object->as<GamepadInputBase>()->kind(value);
                 break;
@@ -2474,6 +2480,12 @@ public:
                 break;
             case ScriptAssetBase::isModulePropertyKey:
                 object->as<ScriptAssetBase>()->isModule(value);
+                break;
+            case BitmapCacheBase::cacheEnabledPropertyKey:
+                object->as<BitmapCacheBase>()->cacheEnabled(value);
+                break;
+            case BitmapCacheBase::ditherPropertyKey:
+                object->as<BitmapCacheBase>()->dither(value);
                 break;
         }
     }
@@ -3197,6 +3209,9 @@ public:
                 break;
             case DrawableAssetBase::widthPropertyKey:
                 object->as<DrawableAssetBase>()->width(value);
+                break;
+            case BitmapCacheBase::resolutionPropertyKey:
+                object->as<BitmapCacheBase>()->resolution(value);
                 break;
         }
     }
@@ -3933,6 +3948,8 @@ public:
                 return object->as<ImageAssetBase>()->samplerWrapY();
             case ScriptModuleAssetBase::languagePropertyKey:
                 return object->as<ScriptModuleAssetBase>()->language();
+            case BitmapCacheBase::cacheFlagsPropertyKey:
+                return object->as<BitmapCacheBase>()->cacheFlags();
             case GamepadInputBase::kindPropertyKey:
                 return object->as<GamepadInputBase>()->kind();
             case GamepadInputBase::mappingPropertyKey:
@@ -4328,6 +4345,10 @@ public:
                 return object->as<TextBase>()->fitFontSizeResizesBox();
             case ScriptAssetBase::isModulePropertyKey:
                 return object->as<ScriptAssetBase>()->isModule();
+            case BitmapCacheBase::cacheEnabledPropertyKey:
+                return object->as<BitmapCacheBase>()->cacheEnabled();
+            case BitmapCacheBase::ditherPropertyKey:
+                return object->as<BitmapCacheBase>()->dither();
         }
         return false;
     }
@@ -4825,6 +4846,8 @@ public:
                 return object->as<DrawableAssetBase>()->height();
             case DrawableAssetBase::widthPropertyKey:
                 return object->as<DrawableAssetBase>()->width();
+            case BitmapCacheBase::resolutionPropertyKey:
+                return object->as<BitmapCacheBase>()->resolution();
         }
         return 0.0f;
     }
@@ -5144,6 +5167,7 @@ public:
             case ImageAssetBase::samplerWrapXPropertyKey:
             case ImageAssetBase::samplerWrapYPropertyKey:
             case ScriptModuleAssetBase::languagePropertyKey:
+            case BitmapCacheBase::cacheFlagsPropertyKey:
             case GamepadInputBase::kindPropertyKey:
             case GamepadInputBase::mappingPropertyKey:
             case GamepadInputBase::inputIndexPropertyKey:
@@ -5236,6 +5260,8 @@ public:
             case TextBase::fitFromBaselinePropertyKey:
             case TextBase::fitFontSizeResizesBoxPropertyKey:
             case ScriptAssetBase::isModulePropertyKey:
+            case BitmapCacheBase::cacheEnabledPropertyKey:
+            case BitmapCacheBase::ditherPropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
             case CustomPropertyNumberBase::propertyValuePropertyKey:
@@ -5474,6 +5500,7 @@ public:
             case ExportAudioBase::volumePropertyKey:
             case DrawableAssetBase::heightPropertyKey:
             case DrawableAssetBase::widthPropertyKey:
+            case BitmapCacheBase::resolutionPropertyKey:
                 return CoreDoubleType::id;
             case ScriptInputViewModelPropertyBase::dataBindPathIdsPropertyKey:
             case NestedArtboardBase::dataBindPathIdsPropertyKey:
@@ -6125,6 +6152,8 @@ public:
                 return object->is<ImageAssetBase>();
             case ScriptModuleAssetBase::languagePropertyKey:
                 return object->is<ScriptModuleAssetBase>();
+            case BitmapCacheBase::cacheFlagsPropertyKey:
+                return object->is<BitmapCacheBase>();
             case GamepadInputBase::kindPropertyKey:
                 return object->is<GamepadInputBase>();
             case GamepadInputBase::mappingPropertyKey:
@@ -6305,6 +6334,10 @@ public:
                 return object->is<TextBase>();
             case ScriptAssetBase::isModulePropertyKey:
                 return object->is<ScriptAssetBase>();
+            case BitmapCacheBase::cacheEnabledPropertyKey:
+                return object->is<BitmapCacheBase>();
+            case BitmapCacheBase::ditherPropertyKey:
+                return object->is<BitmapCacheBase>();
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceNumberBase>();
             case CustomPropertyNumberBase::propertyValuePropertyKey:
@@ -6777,6 +6810,8 @@ public:
                 return object->is<DrawableAssetBase>();
             case DrawableAssetBase::widthPropertyKey:
                 return object->is<DrawableAssetBase>();
+            case BitmapCacheBase::resolutionPropertyKey:
+                return object->is<BitmapCacheBase>();
             case ViewModelInstanceTriggerBase::firePropertyKey:
                 return object->is<ViewModelInstanceTriggerBase>();
             case CustomPropertyTriggerBase::firePropertyKey:

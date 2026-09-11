@@ -101,8 +101,9 @@ parser.add_argument("--cols",
                     help="number of columns in the goldens grid")
 parser.add_argument("--deferred",
                     action='store_true',
-                    help="record goldens through a deferred session and replay "\
-                         "synchronously; output must match immediate mode "\
+                    help="record through a deferred session and replay it; for "\
+                         "goldens the output must match immediate mode, and "\
+                         "the player needs this for artboard cache-as-bitmap "\
                          "(needs a --with_rive_canvas build)")
 parser.add_argument("-m", "--match",
                     type=str,
@@ -693,6 +694,8 @@ def launch_player(test_harness_server):
         cmd += ["--options", args.options]
     if args.window:
         cmd += ["--window"]
+    if args.deferred:
+        cmd += ["--deferred"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     if os.path.isdir(args.src):

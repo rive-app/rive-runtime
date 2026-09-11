@@ -66,6 +66,15 @@
 #endif
 #endif
 #include "rive/async/work_pool.hpp"
+#include "rive/bitmap_cache.hpp"
+#ifdef RIVE_CANVAS
+#include "rive/renderer/render_context.hpp"
+#include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/cmd/deferred_canvas_host.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
+#include <algorithm>
+#include <cmath>
+#endif
 
 #include <set>
 #include <unordered_map>
@@ -82,6 +91,10 @@ Artboard::Artboard()
     callbackUserData = this;
 #endif
 }
+
+#ifdef TESTING
+Artboard::Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
+#endif
 
 Artboard::~Artboard()
 {
@@ -463,6 +476,9 @@ StatusCode Artboard::initialize()
                 m_Joysticks.push_back(joystick);
                 break;
             }
+            case BitmapCacheBase::typeKey:
+                m_BitmapCache = object->as<BitmapCache>();
+                break;
         }
         auto advancingComponent = AdvancingComponent::from(object);
         if (advancingComponent)
@@ -1804,10 +1820,25 @@ void Artboard::draw(Renderer* renderer)
         m_watermark->draw(renderer, bounds());
         return;
     }
-    drawInternal(renderer);
+    // A standalone/root artboard is never cached as a bitmap: it is already the
+    // top-level render target, and a host can skip drawing entirely via
+    // didChange(). Only nested/instanced draws (which reach drawInternal
+    // directly) participate in cache-as-bitmap.
+    drawContent(renderer);
 }
 
 void Artboard::drawInternal(Renderer* renderer)
+{
+#ifdef RIVE_CANVAS
+    if (m_BitmapCache != nullptr && drawCachedAsBitmap(renderer))
+    {
+        return;
+    }
+#endif
+    drawContent(renderer);
+}
+
+void Artboard::drawContent(Renderer* renderer)
 {
     RIVE_PROF_SCOPE_L(1)
     m_didChange = false;
@@ -1910,6 +1941,288 @@ void Artboard::drawInternal(Renderer* renderer)
         renderer->restore();
     }
 }
+
+#ifdef RIVE_CANVAS
+bool Artboard::drawCachedAsBitmap(Renderer* renderer)
+{
+    // Only reached when m_BitmapCache != nullptr (guarded in drawInternal).
+    BitmapCache& cache = *m_BitmapCache;
+
+    if (!cache.cacheEnabled())
+    {
+        // Authored off (or animated/bound off): behave as though the artboard
+        // had no BitmapCache at all. The texture is released by
+        // BitmapCache::cacheFlagsChanged when the bit clears.
+        return false;
+    }
+
+    if (childOpacity() == 0.0f)
+    {
+        // Fully transparent: nothing to draw, and no need to (re)rasterize.
+        // The pending change still has to be consumed the way drawContent()
+        // would have on the vector path -- a host that gates frame submission
+        // on didChange() (Unity does) otherwise resubmits this invisible
+        // artboard every frame, forever. Fold it into the cache rather than
+        // dropping it, so content that moved while it was transparent still
+        // re-rasterizes when it becomes visible again instead of compositing
+        // the raster it had before.
+        cache.m_dirty = cache.m_dirty || didChange();
+        m_didChange = false;
+        return true;
+    }
+
+    Factory* f = factory();
+    // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
+    // rasterize into, and an immediate renderer can provide that without
+    // claiming its content is being recorded. The host also allocates the
+    // canvas, so nothing here has to go looking for a device.
+    auto* deferredHost = f ? f->canvasContentHost() : nullptr;
+    // No host means nobody can give us an offscreen frame (a plain non-GPU or
+    // test factory), so fall back to a normal vector draw.
+    if (deferredHost == nullptr)
+    {
+        return false;
+    }
+
+    // The artboard's own box, which is not [0,0,width,height] in general: with
+    // frameOrigin off, bounds() is offset by the origin -- and NestedArtboard
+    // turns frameOrigin off on everything it hosts, which is the only way to
+    // reach this path. Rasterizing [0,0,w,h] there would capture the wrong
+    // region and composite it in the wrong place. bounds() also tracks the
+    // resolved layout size rather than the authored width/height.
+    const AABB box = bounds();
+    const float w = box.width();
+    const float h = box.height();
+    if (w <= 0.0f || h <= 0.0f)
+    {
+        return false;
+    }
+
+    // drawContent applies the artboard's own rotation/scale, so a self
+    // transform ends up baked into the raster -- while the target and the
+    // composite below are both sized and placed from the untransformed box.
+    // A scaled artboard would be cropped to its original extent, and a rotated
+    // one flattened into an axis-aligned texture whose footprint no longer
+    // matches what the vector path draws. Caching that correctly needs the
+    // target sized from the transformed bounds and the composite placed by the
+    // same transform; until then these artboards draw as vectors.
+    if (hasSelfTransform())
+    {
+        return false;
+    }
+
+    // How many device pixels one artboard unit covers right now: viewport zoom
+    // times window density times whatever scale the mount transform adds. This
+    // is the number the old sizing ignored -- it rasterized in artboard units,
+    // so on a 2x display at 100% zoom a resolution-1 cache was already a
+    // half-resolution image being magnified, which is what softens text.
+    // Reading it here (rather than at replay) is why DeferredRenderer shadows
+    // its CTM: the raster size has to be chosen while recording.
+    Mat2D ctm;
+    const bool haveCtm = renderer->currentTransform(&ctm);
+    // Read before rasterizing, for the same reason as the CTM: if the host
+    // hands back a fresh renderer to composite through, that renderer starts
+    // at opacity 1 and the enclosing modulateOpacity() scope has to be carried
+    // over by hand.
+    float modulatedOpacity = 1.0f;
+    const bool haveOpacity =
+        renderer->currentModulatedOpacity(&modulatedOpacity);
+    float deviceScale = 1.0f;
+    if (haveCtm)
+    {
+        const float s = ctm.findMaxScale();
+        if (std::isfinite(s) && s > 0.0f)
+        {
+            // Quantize to sixteenths so scrubbing zoom does not re-raster and
+            // re-allocate on every frame. Rounding up keeps the raster at least
+            // as fine as the screen, and the scales a user actually rests at
+            // (1, 1.5, 2, 3, 4) are already multiples of 1/16, so the cases
+            // that matter stay pixel exact rather than merely close.
+            constexpr float kScaleQuantum = 16.0f;
+            deviceScale = std::ceil(s * kScaleQuantum) / kScaleQuantum;
+        }
+    }
+
+    constexpr float kMinRes = 0.01f;
+    constexpr float kMaxRes = 8.0f;
+    float res =
+        std::min<float>(std::max<float>(cache.resolution(), kMinRes), kMaxRes);
+
+    // Texels per artboard unit. resolution 1 means one texel per screen pixel,
+    // so the composite is a 1:1 blit; 2 is a genuine 2x supersample of what the
+    // screen shows. A renderer that cannot report a transform leaves
+    // deviceScale at 1, which is the old artboard-unit meaning.
+    float rasterScale = res * deviceScale;
+
+    // Cap by shrinking the scale, not by clamping one axis: clamping a single
+    // dimension would make the two axes disagree about the mapping, and the
+    // composite below inverts one scale for both. Uniform coarsening at least
+    // keeps the image undistorted.
+    constexpr uint32_t kMaxDim = 2048;
+    const float maxScale = std::min<float>(static_cast<float>(kMaxDim) / w,
+                                           static_cast<float>(kMaxDim) / h);
+    rasterScale = std::min<float>(rasterScale, maxScale);
+    if (!(rasterScale > 0.0f) || !std::isfinite(rasterScale))
+    {
+        return false;
+    }
+
+    uint32_t widthPx = static_cast<uint32_t>(
+        std::min<float>(std::max<float>(std::ceil(w * rasterScale), 1.0f),
+                        static_cast<float>(kMaxDim)));
+    uint32_t heightPx = static_cast<uint32_t>(
+        std::min<float>(std::max<float>(std::ceil(h * rasterScale), 1.0f),
+                        static_cast<float>(kMaxDim)));
+
+    // Rebuild when there is no cache, it was explicitly invalidated (resolution
+    // changed), the target size or raster scale changed (artboard resized, or
+    // the artboard is being viewed at a different zoom), or the content changed
+    // this frame.
+    bool geomChanged = widthPx != cache.m_widthPx ||
+                       heightPx != cache.m_heightPx ||
+                       rasterScale != cache.m_rasterScale;
+    if (cache.m_canvas == nullptr || cache.m_dirty || geomChanged ||
+        didChange())
+    {
+        renderIntoCanvas(deferredHost, widthPx, heightPx, rasterScale);
+    }
+    if (cache.m_canvas == nullptr)
+    {
+        return false; // allocation failed; fall back to vector draw.
+    }
+
+    // Composite the cached texture in place of the vector content. The
+    // renderer's CTM already includes the mount transform; drawImage() spans
+    // (widthPx, heightPx), so undoing the raster's fit -- scale back to the
+    // box, then move it to the box's corner -- maps a local point (lx,ly) to
+    // CTM * (lx,ly), pixel-exact with the vector path.
+    // The artboard's own opacity is already baked into the raster (host/render
+    // opacity propagate to children and invalidate the cache via didChange()),
+    // so the only opacity left to apply is an enclosing modulateOpacity()
+    // scope -- and only on the fresh-renderer path, which does not inherit it.
+    // Not necessarily the canvas's own image: some backends cannot sample
+    // their canvas textures directly and stand in a companion for it.
+    rcp<RenderImage> image =
+        deferredHost->contentCanvasImage(cache.m_canvas.get());
+    if (image == nullptr)
+    {
+        return false;
+    }
+    // Some hosts cannot composite through the renderer that was drawing when
+    // the offscreen frame interrupted it, and hand back a clean one instead.
+    // It shares no state, so the current transform and the modulated opacity
+    // both have to be re-applied by hand -- and it inherits no clip. Known
+    // limitation: on that path (WebGL today) an ancestor's clip does not
+    // constrain the composite, so a cached artboard under a clipping shape can
+    // paint outside it where the vector draw would have been cropped.
+    Renderer* composite = renderer;
+    // The opacity the composite has to supply itself. Stays 1 on the in-place
+    // path, where the interrupted renderer still carries its own modulated
+    // opacity and folds it into the draw below.
+    float compositeOpacity = 1.0f;
+    if (Renderer* fresh = deferredHost->compositeRenderer())
+    {
+        if (haveCtm && haveOpacity)
+        {
+            composite = fresh;
+            compositeOpacity = modulatedOpacity;
+        }
+    }
+    composite->save();
+    if (composite != renderer)
+    {
+        composite->transform(ctm);
+    }
+    // Pixel snap. Even at a perfectly matched scale, an origin that lands on a
+    // half pixel makes every bilinear tap a blend of two texels -- a box blur
+    // over the whole image, and the reason cache-as-bitmap has historically
+    // needed a pixelSnapping switch. Only meaningful when the transform is axis
+    // aligned; under rotation or skew there is no pixel grid to snap to.
+    if (haveCtm && ctm.xy() == 0.0f && ctm.yx() == 0.0f && ctm.xx() != 0.0f &&
+        ctm.yy() != 0.0f)
+    {
+        const Vec2D deviceOrigin = ctm * Vec2D(box.left(), box.top());
+        const Vec2D delta = {std::round(deviceOrigin.x) - deviceOrigin.x,
+                             std::round(deviceOrigin.y) - deviceOrigin.y};
+        // The nudge is in device space but transform() concatenates in local
+        // space, so push it back through the (diagonal) linear part.
+        composite->translate(delta.x / ctm.xx(), delta.y / ctm.yy());
+    }
+    composite->translate(box.left(), box.top());
+    // The exact inverse of the scale the content was rasterized at. Deriving it
+    // from w / m_widthPx instead would fold ceil()'s rounding into the mapping,
+    // leaving a fractional-width artboard permanently resampled at ~0.995x --
+    // a blur on every pixel for nothing. The cost is that the quad reaches up
+    // to one texel past the box on the right and bottom, which is the sliver
+    // that rounding allocated anyway.
+    const float invScale = 1.0f / cache.m_rasterScale;
+    composite->transform(Mat2D::fromScale(invScale, invScale));
+    composite->drawImage(image.get(),
+                         ImageSampler::LinearClamp(),
+                         BlendMode::srcOver,
+                         compositeOpacity);
+    composite->restore();
+    return true;
+}
+
+void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
+                                uint32_t widthPx,
+                                uint32_t heightPx,
+                                float rasterScale)
+{
+    const AABB box = bounds();
+    BitmapCache& cache = *m_BitmapCache;
+    // Reuse the texture whenever it is already the right size. This runs on
+    // every frame the artboard changes, and on an immediate host each of these
+    // is a real GPU allocation -- re-minting one per frame both defeats the
+    // point of a cache and thrashes the driver.
+    if (cache.m_canvas == nullptr || cache.m_widthPx != widthPx ||
+        cache.m_heightPx != heightPx)
+    {
+        // The host decides whether this needs real pixels now or can defer
+        // them to whoever replays.
+        cache.m_canvas = deferredHost->makeContentCanvas(widthPx, heightPx);
+    }
+    if (cache.m_canvas == nullptr)
+    {
+        return;
+    }
+
+    // beginCanvasContent hands back a recording renderer whose frame targets
+    // the canvas texture. Draw our content into it at exactly rasterScale
+    // texels per artboard unit -- not widthPx/w, which would bake ceil()'s
+    // rounding into the mapping. Curve flattening and feathering read this
+    // transform, so this is also what decides how finely the content is
+    // tessellated. clearColor is transparent black.
+    Renderer* r = deferredHost->beginCanvasContent(cache.m_canvas.get(), 0);
+    if (r == nullptr)
+    {
+        // The host could not open an offscreen frame (an unbacked canvas, or a
+        // host that cannot nest one). Nothing was drawn, so the canvas holds
+        // whatever it held before -- uninitialized on the first attempt. Drop
+        // it rather than end a bracket that never began: the caller's null
+        // check then takes the vector path, and leaving the cache dirty means
+        // a later frame retries instead of compositing this hole forever.
+        cache.m_canvas.reset();
+        cache.m_widthPx = 0;
+        cache.m_heightPx = 0;
+        cache.m_dirty = true;
+        return;
+    }
+    r->save();
+    r->transform(Mat2D::fromScale(rasterScale, rasterScale));
+    r->translate(-box.left(), -box.top());
+    // drawContent (not drawInternal) so we never re-enter the cache hook.
+    drawContent(r);
+    r->restore();
+    deferredHost->endCanvasContent(cache.m_canvas.get());
+
+    cache.m_widthPx = widthPx;
+    cache.m_heightPx = heightPx;
+    cache.m_rasterScale = rasterScale;
+    cache.m_dirty = false;
+}
+#endif
 
 void Artboard::addToRenderPath(RenderPath* path, const Mat2D& transform)
 {

@@ -41,6 +41,16 @@ class ArtboardHost;
 class File;
 class Drawable;
 class Factory;
+namespace gpu
+{
+class RenderContext;
+class RenderCanvas;
+} // namespace gpu
+namespace cmd
+{
+class DeferredCanvasHost;
+} // namespace cmd
+class BitmapCache;
 class Node;
 class DrawTarget;
 class ArtboardImporter;
@@ -319,7 +329,11 @@ public:
 private:
 #ifdef TESTING
 public:
-    Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
+    // Defined out of line: Artboard holds an rcp<gpu::RenderCanvas>, which is
+    // only forward-declared here. An inline constructor would instantiate the
+    // member's destructor (the exception-unwind path) in every TU that includes
+    // this header, where RenderCanvas is incomplete.
+    Artboard(Factory* factory);
 #endif
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);
@@ -332,6 +346,10 @@ public:
     bool validateObjects();
     StatusCode initialize();
     bool didChange() { return m_didChange; }
+
+    // The BitmapCache child of this artboard, if one exists. Its presence
+    // enables cache-as-bitmap rendering. Populated during initialize().
+    BitmapCache* bitmapCache() const { return m_BitmapCache; }
 
     Core* resolve(Id id) const override;
 #ifdef WITH_RIVE_EDITOR
@@ -492,6 +510,13 @@ public:
     /// frozen. Releases the watermark on the handover frame, so every frame
     /// after that is a null check and the pre-roll never plays twice.
     bool advanceWatermark(float elapsedSeconds);
+
+    // The actual vector-drawing body of drawInternal. Split out so the
+    // cache-as-bitmap hook (in drawInternal) can rasterize into an offscreen
+    // canvas without re-entering the hook, and so the standalone-root draw()
+    // path can bypass caching entirely.
+    void drawContent(Renderer* renderer);
+
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);
 
@@ -851,9 +876,26 @@ public:
 #ifdef WITH_RIVE_LAYOUT
     void propagateSize() override;
 #endif
+#ifdef RIVE_CANVAS
+    // Renders this artboard's content into the BitmapCache child's offscreen
+    // RenderCanvas (if the cache is missing/stale) and composites it into
+    // `renderer`. Returns false if caching is unavailable (no GPU render
+    // context / deferred host, zero size, or allocation failure), so the caller
+    // falls back to drawContent.
+    bool drawCachedAsBitmap(Renderer* renderer);
+    void renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
+                          uint32_t widthPx,
+                          uint32_t heightPx,
+                          float rasterScale);
+#endif
+
 private:
     float m_volume = 1.0f;
     float m_hostOpacity = 1.0f;
+    // The BitmapCache child, collected in initialize(). Null unless the
+    // artboard has one; the object itself owns the offscreen render state
+    // (freed when the object is deleted).
+    BitmapCache* m_BitmapCache = nullptr;
 #ifdef WITH_RIVE_TOOLS
     ArtboardCallback m_layoutChangedCallback = nullptr;
     ArtboardCallback m_layoutDirtyCallback = nullptr;

@@ -10,6 +10,7 @@
 #include "rive/renderer/cmd/render_replay.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
 #include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/render_context.hpp"
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
@@ -79,6 +80,32 @@ public:
     }
     Factory* renderContext() override { return m_renderContext; }
     cmd::DeferredCanvasHost* deferredCanvasHost() override { return this; }
+
+    // Recording: the stream only names the canvas, and whoever replays
+    // resolves it against its own device.
+    rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas* canvas) override
+    {
+        return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
+                                 : nullptr;
+    }
+
+    // The canvas needs no pixels here; whoever replays allocates them on the
+    // context it replays against, so this only mints the identity the stream
+    // refers to. That minting lives behind RIVE_CANVAS, so a build without it
+    // reports "no canvas available" and the caller draws vectors instead.
+    rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width,
+                                             uint32_t height) override
+    {
+#ifdef RIVE_CANVAS
+        auto* rc = static_cast<gpu::RenderContext*>(m_renderContext);
+        return rc != nullptr ? rc->makeDeferredRenderCanvas(width, height)
+                             : nullptr;
+#else
+        (void)width;
+        (void)height;
+        return nullptr;
+#endif
+    }
 
     // Routed so a screen draw issued while a canvas range is open lands in a
     // screen range, not the canvas's.
@@ -251,6 +278,14 @@ public:
         m_hasOpenScreen = false;
         m_hasOreMarker = false;
         m_segments.clear();
+        // Screen recorders are kept across frames (FFI hosts hold a raw
+        // pointer), so their CTM shadow is ours to clear. Canvas recorders are
+        // rebuilt above and start at identity already.
+        for (auto& entry : m_screenRenderers)
+        {
+            static_cast<DeferredRenderer*>(entry.second.get())
+                ->resetTransform();
+        }
     }
 
     // Physical bytes this session's producer streams hold. Computed on

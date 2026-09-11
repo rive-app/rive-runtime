@@ -11,6 +11,7 @@
 
 #ifdef RIVE_CANVAS
 
+#include "common/testing_window_deferred_sink.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/cmd/deferred_replayer.hpp"
@@ -22,82 +23,6 @@ using namespace rive::gpu;
 
 namespace
 {
-// DeferredFrameSink over the GM harness. The harness frame is already open,
-// so the first sink action flushes it and later frames resume with preserve.
-class DagGMSink : public rive::cmd::DeferredFrameSink
-{
-public:
-    DagGMSink(RenderContext* rc,
-              const RenderContext::FrameDescriptor& mainDesc) :
-        m_rc(rc), m_mainDesc(mainDesc)
-    {}
-
-    Factory* factory() override { return TestingWindow::Get()->factory(); }
-
-    RenderContext* renderContext() override { return m_rc; }
-
-    // The GM harness owns one main render target.
-    Renderer* beginScreenFrame(uint64_t target) override
-    {
-        assert(target == 0);
-        flushOpenFrame();
-        auto d = m_mainDesc;
-        d.loadAction = LoadAction::preserveRenderTarget;
-        m_rc->beginFrame(std::move(d));
-        m_frameOpen = true;
-        m_screen = std::make_unique<RiveRenderer>(m_rc);
-        return m_screen.get();
-    }
-
-    Renderer* beginCanvasContent(RenderCanvas* canvas,
-                                 uint32_t clearColor) override
-    {
-        flushOpenFrame();
-        m_activeCanvas = canvas;
-        auto d = m_mainDesc;
-        d.renderTargetWidth = canvas->width();
-        d.renderTargetHeight = canvas->height();
-        d.loadAction = LoadAction::clear;
-        d.clearColor = clearColor;
-        m_rc->beginFrame(std::move(d));
-        m_frameOpen = true;
-        m_canvasRenderer = std::make_unique<RiveRenderer>(m_rc);
-        return m_canvasRenderer.get();
-    }
-
-    void endCanvasContent() override
-    {
-        if (m_activeCanvas == nullptr)
-        {
-            return;
-        }
-        TestingWindow::Get()->flushPLSContext(m_activeCanvas->renderTarget());
-        m_frameOpen = false;
-        m_canvasRenderer = nullptr;
-        m_activeCanvas = nullptr;
-    }
-
-private:
-    // The harness (or the previous replay) leaves the main frame open.
-    void flushOpenFrame()
-    {
-        if (!m_flushedHarnessFrame || m_frameOpen)
-        {
-            TestingWindow::Get()->flushPLSContext();
-            m_flushedHarnessFrame = true;
-            m_frameOpen = false;
-        }
-    }
-
-    RenderContext* m_rc;
-    RenderContext::FrameDescriptor m_mainDesc;
-    bool m_flushedHarnessFrame = false;
-    bool m_frameOpen = false;
-    std::unique_ptr<RiveRenderer> m_screen;
-    std::unique_ptr<RiveRenderer> m_canvasRenderer;
-    RenderCanvas* m_activeCanvas = nullptr;
-};
-
 rcp<RenderPath> ovalPath(rive::cmd::DeferredSession& session, AABB bounds)
 {
     RawPath raw;
@@ -130,7 +55,7 @@ void replayFrameThroughGM(rive::cmd::DeferredSession& session,
 {
     rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(session);
     session.resetFrame();
-    DagGMSink sink(rc, mainDesc);
+    rive_tests::TestingWindowFrameSink sink(TestingWindow::Get(), rc, mainDesc);
     replayer.replayFrame(frame, sink);
 }
 } // namespace

@@ -22,6 +22,22 @@ struct SerializedReplayHooks
 {
     std::function<void()> onFrame = nullptr;
     std::function<void(uint32_t width, uint32_t height)> onFrameSize = nullptr;
+
+    // Cache-as-bitmap: the stream carries offscreen canvas content inline,
+    // bracketed by canvasContentBegin/End, and composites the canvas with an
+    // ordinary drawImage of its id. A host with offscreen support opens the
+    // canvas's frame here and returns the renderer its draws replay into,
+    // plus the image a later composite should sample through *image.
+    // Returning null drops the content and the composite, which is what a
+    // host with no offscreen target does -- the rest of the frame still
+    // replays.
+    std::function<Renderer*(uint64_t id,
+                            uint32_t width,
+                            uint32_t height,
+                            uint32_t clearColor,
+                            rcp<RenderImage>* image)>
+        onCanvasContentBegin = nullptr;
+    std::function<void(uint64_t id)> onCanvasContentEnd = nullptr;
 };
 
 // Returns false on a bad header, unknown opcode, or truncated stream. The

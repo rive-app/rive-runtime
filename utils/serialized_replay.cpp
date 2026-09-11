@@ -6,6 +6,7 @@
 #include "utils/serialize_ops.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/math/mat2d.hpp"
+#include "utils/no_op_renderer.hpp"
 #include <unordered_map>
 #include <vector>
 
@@ -44,6 +45,33 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
     std::unordered_map<uint64_t, rcp<RenderShader>> shaders;
     std::unordered_map<uint64_t, rcp<RenderImage>> images;
     std::unordered_map<uint64_t, rcp<RenderBuffer>> buffers;
+
+    // Cache-as-bitmap. A canvas is declared by makeRenderCanvas, its content
+    // arrives inline between canvasContentBegin/End, and the composite that
+    // samples it is an ordinary drawImage of the same id -- so a canvas image
+    // lands in `images` alongside the decoded ones.
+    struct CanvasSize
+    {
+        uint32_t width;
+        uint32_t height;
+    };
+    std::unordered_map<uint64_t, CanvasSize> canvasSizes;
+    // Where the ops currently being read draw. The screen renderer at the
+    // bottom, a host-supplied one for each open canvas, and the null sink for
+    // a canvas the host declined -- its content still has to parse (later ops
+    // reference resources declared inside it) but must not reach the screen.
+    NoOpRenderer droppedContent;
+    Renderer* active = renderer;
+    // One entry per open canvas bracket. The id rides along with the renderer
+    // it interrupted so an end can be checked against the begin that opened
+    // it; without it the stack depth is the only thing validated, and a
+    // mismatched end would close the wrong canvas and still report success.
+    struct OpenCanvas
+    {
+        uint64_t id;
+        Renderer* interruptedRenderer;
+    };
+    std::vector<OpenCanvas> interrupted;
 
     while (!reader.reachedEnd())
     {
@@ -282,21 +310,21 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 break;
             }
             case SerializeOp::save:
-                renderer->save();
+                active->save();
                 break;
             case SerializeOp::restore:
-                renderer->restore();
+                active->restore();
                 break;
             case SerializeOp::transform:
             {
                 float m[6];
                 for (int i = 0; i < 6; ++i)
                     m[i] = reader.readFloat32();
-                renderer->transform(Mat2D(m[0], m[1], m[2], m[3], m[4], m[5]));
+                active->transform(Mat2D(m[0], m[1], m[2], m[3], m[4], m[5]));
                 break;
             }
             case SerializeOp::modulateOpacity:
-                renderer->modulateOpacity(reader.readFloat32());
+                active->modulateOpacity(reader.readFloat32());
                 break;
             case SerializeOp::drawPath:
             {
@@ -306,7 +334,7 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 RenderPaint* paint = find(paints, paintId);
                 if (path == nullptr || paint == nullptr)
                     return false;
-                renderer->drawPath(path, paint);
+                active->drawPath(path, paint);
                 break;
             }
             case SerializeOp::clipPath:
@@ -315,7 +343,7 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 RenderPath* path = find(paths, pathId);
                 if (path == nullptr)
                     return false;
-                renderer->clipPath(path);
+                active->clipPath(path);
                 break;
             }
             case SerializeOp::drawImage:
@@ -323,10 +351,16 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 uint64_t imageId = reader.readVarUint64();
                 auto blend = static_cast<BlendMode>(reader.readVarUint64());
                 float opacity = reader.readFloat32();
-                renderer->drawImage(images[imageId].get(),
-                                    ImageSampler::LinearClamp(),
-                                    blend,
-                                    opacity);
+                // Null when a decode failed or when the host declined the
+                // canvas this id names; either way there is nothing to
+                // composite and the rest of the frame still replays.
+                if (RenderImage* image = find(images, imageId))
+                {
+                    active->drawImage(image,
+                                      ImageSampler::LinearClamp(),
+                                      blend,
+                                      opacity);
+                }
                 break;
             }
             case SerializeOp::drawImageMesh:
@@ -345,15 +379,96 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                     idx ? static_cast<uint32_t>(idx->sizeInBytes() /
                                                 sizeof(uint16_t))
                         : 0;
-                renderer->drawImageMesh(images[imageId].get(),
-                                        ImageSampler::LinearClamp(),
-                                        pos,
-                                        uvs,
-                                        idx,
-                                        vertexCount,
-                                        indexCount,
-                                        blend,
-                                        opacity);
+                // Same rule as drawImage: the id can name a decode that
+                // failed or a canvas the host declined, and there is nothing
+                // to draw either way. Looked up rather than indexed so a
+                // missing id does not insert a null entry that a later
+                // composite would then find.
+                if (RenderImage* image = find(images, imageId))
+                {
+                    active->drawImageMesh(image,
+                                          ImageSampler::LinearClamp(),
+                                          pos,
+                                          uvs,
+                                          idx,
+                                          vertexCount,
+                                          indexCount,
+                                          blend,
+                                          opacity);
+                }
+                break;
+            }
+            case SerializeOp::makeRenderCanvas:
+            {
+                uint64_t id = reader.readVarUint64();
+                uint32_t w = static_cast<uint32_t>(reader.readVarUint64());
+                uint32_t h = static_cast<uint32_t>(reader.readVarUint64());
+                // No allocation here: the host mints the target when the
+                // content actually opens, on whatever device it replays
+                // against.
+                canvasSizes[id] = {w, h};
+                break;
+            }
+            case SerializeOp::canvasContentBegin:
+            {
+                uint64_t id = reader.readVarUint64();
+                uint32_t clearColor =
+                    static_cast<uint32_t>(reader.readVarUint64());
+                auto it = canvasSizes.find(id);
+                if (it == canvasSizes.end())
+                {
+                    return false; // content for a canvas never declared
+                }
+                interrupted.push_back({id, active});
+                rcp<RenderImage> image;
+                Renderer* content =
+                    hooks.onCanvasContentBegin
+                        ? hooks.onCanvasContentBegin(id,
+                                                     it->second.width,
+                                                     it->second.height,
+                                                     clearColor,
+                                                     &image)
+                        : nullptr;
+                // A host with no offscreen target returns null. Its content is
+                // parsed and dropped, and the composite that names this id
+                // finds no image and draws nothing.
+                if (content != nullptr)
+                {
+                    images[id] = std::move(image);
+                }
+                else
+                {
+                    // The raster was declined, so whatever the host may have
+                    // allocated holds no content for this bracket. Drop any
+                    // image it set, and any image a previous bracket left under
+                    // this id, so the composite draws nothing rather than stale
+                    // or uninitialized pixels.
+                    images.erase(id);
+                }
+                active = content != nullptr ? content : &droppedContent;
+                break;
+            }
+            case SerializeOp::canvasContentEnd:
+            {
+                uint64_t id = reader.readVarUint64();
+                if (interrupted.empty())
+                {
+                    return false; // end without a matching begin
+                }
+                if (interrupted.back().id != id)
+                {
+                    // Ending a canvas the innermost bracket never opened.
+                    // Honoring it would tell the host to close an unrelated
+                    // canvas and hand the wrong renderer back to the ops that
+                    // follow, so treat it as a malformed stream.
+                    return false;
+                }
+                if (hooks.onCanvasContentEnd)
+                {
+                    hooks.onCanvasContentEnd(id);
+                }
+                active = interrupted.back().interruptedRenderer;
+                interrupted.pop_back();
                 break;
             }
             case SerializeOp::frame:
@@ -374,5 +489,6 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
         if (reader.hasError())
             return false;
     }
-    return true;
+    // A canvas left open means the stream was cut mid-bracket.
+    return interrupted.empty();
 }

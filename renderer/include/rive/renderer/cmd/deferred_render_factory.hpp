@@ -14,6 +14,7 @@
 #include "rive/renderer/cmd/render_commands.hpp"
 #include <cassert>
 #include <cstdio>
+#include <vector>
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
 #endif
@@ -314,19 +315,47 @@ public:
     void save() override
     {
         route();
+        m_transformStack.push_back(m_transformStack.back());
         m_buffer->appendType(static_cast<uint8_t>(RenderCmd::save));
     }
     void restore() override
     {
         route();
+        if (m_transformStack.size() > 1)
+        {
+            // An unbalanced restore is the caller's bug, but leaving the
+            // bottom entry in place keeps the shadow usable either way.
+            m_transformStack.pop_back();
+        }
         m_buffer->appendType(static_cast<uint8_t>(RenderCmd::restore));
     }
     void transform(const Mat2D& m) override
     {
         route();
+        m_transformStack.back() = m_transformStack.back() * m;
         m_buffer->append(
             static_cast<uint8_t>(RenderCmd::transform),
             TransformPOD{m.xx(), m.xy(), m.yx(), m.yy(), m.tx(), m.ty()});
+    }
+
+    // Recording is otherwise write only, but a draw that has to pick a raster
+    // size needs to know the scale it will land at -- Artboard's bitmap cache
+    // sizes its offscreen from this. Mirroring the transform ops costs one
+    // Mat2D multiply per transform() and keeps the answer available at record
+    // time, where the decision has to be made.
+    bool currentTransform(Mat2D* out) const override
+    {
+        *out = m_transformStack.back();
+        return true;
+    }
+
+    // Screen recorders outlive a frame (FFI hosts hold a raw pointer across
+    // frames), so the shadow has to drop back to identity at the frame
+    // boundary or a top level transform accumulates into the next frame.
+    void resetTransform()
+    {
+        m_transformStack.clear();
+        m_transformStack.emplace_back();
     }
     void drawPath(RenderPath* path, RenderPaint* paint) override
     {
@@ -496,6 +525,9 @@ private:
     ForeignImageRegistry* m_canvases;
     DeferredRouteHost* m_routeHost;
     uint64_t m_routeTarget;
+    // Shadow of the CTM the replaying renderer will build. Bottom entry is the
+    // identity the replay starts from, so this is never empty.
+    std::vector<Mat2D> m_transformStack{Mat2D()};
 };
 
 inline std::unique_ptr<Renderer> DeferredFactory::makeRenderer(

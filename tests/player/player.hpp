@@ -18,6 +18,7 @@ class ArtboardInstance;
 class Factory;
 class File;
 class Scene;
+class ViewModelInstance;
 } // namespace rive
 
 namespace rive::cmd
@@ -102,6 +103,7 @@ private:
     rive::rcp<rive::File> m_file;
     std::unique_ptr<rive::ArtboardInstance> m_artboard;
     std::unique_ptr<rive::Scene> m_scene;
+    rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
 
     int m_lastReportedCopyCount = 0;
     bool m_lastReportedPauseState = false;

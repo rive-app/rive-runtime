@@ -24,6 +24,11 @@ public:
         return nullptr;
     }
 
+    // Backs an offscreen canvas with null-device pixels so replay actually
+    // opens its frame instead of dropping the content. Without this a canvas
+    // recorded against this context stays unbacked and its draws are
+    // discarded, which would make an offscreen render look free.
+    void ensureCanvasBacking(rive::gpu::RenderCanvas*) override;
 #endif
 
     rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,
