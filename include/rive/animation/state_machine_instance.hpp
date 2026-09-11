@@ -193,7 +193,18 @@ public:
 
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
+    /// hitTest, except that a scripted layout counts only inside its own
+    /// box. Scripts are handed every pointer event and bounds-check
+    /// themselves, so hitTest has to say yes everywhere once one listens;
+    /// a host deciding whether a press is the scene's at all (or the
+    /// window's, say) wants the box. A scripted drawable with no box still
+    /// counts everywhere.
+    bool hitTestBounded(Vec2D position) const;
 
+private:
+    bool hitTestInternal(Vec2D position, bool bounded) const;
+
+public:
     float durationSeconds() const override { return -1; }
     Loop loop() const override { return Loop::oneShot; }
     bool isTranslucent() const override { return true; }
@@ -465,6 +476,12 @@ public:
                               ListenerType hitType,
                               int pointerId) = 0;
     virtual bool hitTest(Vec2D position) const = 0;
+    /// See StateMachineInstance::hitTestBounded; the same as hitTest for
+    /// everything but scripted drawables.
+    virtual bool hitTestBounded(Vec2D position) const
+    {
+        return hitTest(position);
+    }
     virtual void enablePointerEvents(int pointerId = 0) {}
     virtual void disablePointerEvents(int pointerId = 0) {}
 #ifdef TESTING

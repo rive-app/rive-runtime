@@ -40,6 +40,17 @@ public:
     void addProperty(CustomProperty* prop) override;
     Core* clone() const override;
     ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
+    /// The size the layout engine last gave this box; false before it has.
+    bool layoutSize(Vec2D& outSize) const
+    {
+        if (!m_sizeKnown)
+        {
+            // m_size is unset until then; outSize is left alone.
+            return false;
+        }
+        outSize = m_size;
+        return true;
+    }
 };
 } // namespace rive
 

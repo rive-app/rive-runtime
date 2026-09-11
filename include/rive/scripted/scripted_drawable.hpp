@@ -95,6 +95,7 @@ public:
     }
 
     bool hitTest(Vec2D position) const override { return true; }
+    bool hitTestBounded(Vec2D position) const override;
     void prepareEvent(Vec2D position,
                       ListenerType hitType,
                       int pointerId) override

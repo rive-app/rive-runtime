@@ -2,6 +2,7 @@
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_layout.hpp"
 
 using namespace rive;
 
@@ -309,6 +310,27 @@ void ScriptedDrawable::markNeedsUpdate()
         return;
     }
     addScriptedDirt(ComponentDirt::ScriptUpdate);
+}
+
+bool HitScriptedDrawable::hitTestBounded(Vec2D position) const
+{
+    if (!m_drawable->is<ScriptedLayout>())
+    {
+        // A scripted node has no box of its own; everywhere, like hitTest.
+        return true;
+    }
+    Vec2D size;
+    if (!m_drawable->as<ScriptedLayout>()->layoutSize(size))
+    {
+        return false;
+    }
+    Vec2D local;
+    if (!m_drawable->worldToLocal(position, &local))
+    {
+        return false;
+    }
+    return local.x >= 0.0f && local.y >= 0.0f && local.x <= size.x &&
+           local.y <= size.y;
 }
 
 bool ScriptedDrawable::worldToLocal(Vec2D world, Vec2D* local)

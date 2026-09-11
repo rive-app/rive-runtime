@@ -965,6 +965,29 @@ public:
         }
         return false;
     }
+    bool hitTestBounded(Vec2D position) const override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->hitTestBounded(
+                    nestedPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
     HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) override
@@ -1125,6 +1148,31 @@ public:
             }
             auto stateMachine = componentList->stateMachineInstance(i);
             if (stateMachine != nullptr && stateMachine->hitTest(listPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    bool hitTestBounded(Vec2D position) const override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr &&
+                stateMachine->hitTestBounded(listPosition))
             {
                 return true;
             }
@@ -1639,6 +1687,16 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
 
 bool StateMachineInstance::hitTest(Vec2D position) const
 {
+    return hitTestInternal(position, false);
+}
+
+bool StateMachineInstance::hitTestBounded(Vec2D position) const
+{
+    return hitTestInternal(position, true);
+}
+
+bool StateMachineInstance::hitTestInternal(Vec2D position, bool bounded) const
+{
     if (m_artboardInstance->frameOrigin())
     {
         position -= Vec2D(
@@ -1664,7 +1722,8 @@ bool StateMachineInstance::hitTest(Vec2D position) const
     {
         // TODO: quick reject.
 
-        if (hitShape->hitTest(position))
+        if (bounded ? hitShape->hitTestBounded(position)
+                    : hitShape->hitTest(position))
         {
             return true;
         }

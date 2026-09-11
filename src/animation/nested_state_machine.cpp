@@ -71,6 +71,15 @@ bool NestedStateMachine::hitTest(Vec2D position) const
     return false;
 }
 
+bool NestedStateMachine::hitTestBounded(Vec2D position) const
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->hitTestBounded(position);
+    }
+    return false;
+}
+
 HitResult NestedStateMachine::pointerMove(Vec2D position,
                                           float timeStamp,
                                           int pointerId)
