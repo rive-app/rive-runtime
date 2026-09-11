@@ -6053,6 +6053,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     // rewinding or finalizing.
     m_frameMinor = wasm_runtime_lookup_function(m_state->instance,
                                                 "__riveFrameMinor") != nullptr;
+    m_frameMajorsProbe =
+        wasm_runtime_lookup_function(m_state->instance, "__riveFrameMajors") !=
+        nullptr;
     // Stub modules report their bump position; page counts go blind once
     // the aot lanes pregrow to wasmMaxPages.
     m_heapUsedProbe = wasm_runtime_lookup_function(m_state->instance,
@@ -6395,6 +6398,11 @@ uint32_t WasmScriptingVM::memoryPages() const
                              : (uint32_t)wasm_memory_get_cur_page_count(memory);
 }
 
+uint32_t WasmScriptingVM::frameMajors()
+{
+    return m_frameMajorsProbe ? callModule("__riveFrameMajors", 0, nullptr) : 0;
+}
+
 const char* WasmScriptingVM::handleLeakWarning()
 {
     if (!m_handleWatch || !m_advancedOnce)
@@ -6414,11 +6422,36 @@ const char* WasmScriptingVM::handleLeakWarning()
     // per-frame mint with no release, not a working set.
     constexpr uint32_t kHandleWarnCount = 512;
     constexpr uint32_t kHandleWarnMinFrames = 120;
-    if (m_handleFrames < kHandleWarnMinFrames ||
-        live + 1 < m_handleBaselineLive + kHandleWarnCount)
+    if (live + 1 < m_handleBaselineLive + kHandleWarnCount)
+    {
+        m_handleCollectPending = false;
+        return nullptr;
+    }
+    if (m_handleFrames < kHandleWarnMinFrames)
     {
         return nullptr;
     }
+    // Wrappers that outlived a boundary die in the old region, which only
+    // a major sweeps, and its size trigger cannot see the host side of a
+    // handle. Ask for one and only warn if the growth survives it. A bake
+    // without the majors counter cannot say when that is, so it stays quiet.
+    if (m_collectedRuntime && !m_frameMajorsProbe)
+    {
+        return nullptr;
+    }
+    if (m_collectedRuntime && !m_handleCollectPending)
+    {
+        m_handleCollectPending = true;
+        m_handleCollectMajors = frameMajors();
+        callModule("__riveCollect", 0, nullptr);
+        return nullptr;
+    }
+    // A sliced major spans boundaries, so wait for the count to move.
+    if (m_handleCollectPending && frameMajors() == m_handleCollectMajors)
+    {
+        return nullptr;
+    }
+    m_handleCollectPending = false;
     // Re-arm so a leaking session keeps warning every 512 handles.
     uint32_t grown = live + 1 - m_handleBaselineLive;
     uint32_t frames = m_handleFrames;

@@ -506,6 +506,10 @@ private:
     bool m_handleWatch = false;
     uint32_t m_handleBaselineLive = 0;
     uint32_t m_handleFrames = 0;
+    uint32_t frameMajors();
+    bool m_handleCollectPending = false;
+    uint32_t m_handleCollectMajors = 0;
+    bool m_frameMajorsProbe = false;
     RawPath* m_pathEffectOut = nullptr;
     ScriptDataResult* m_convertResultOut = nullptr;
     std::vector<ViewModel*>* m_viewModels = nullptr;
