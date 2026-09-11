@@ -1190,6 +1190,7 @@ enum class StencilType
 {
     disabled,
     activeStencilClip,
+    clipStroke,
     borrowedCoverage,
     forwardClippedByBackward,
     backwardTriangleCleanup,

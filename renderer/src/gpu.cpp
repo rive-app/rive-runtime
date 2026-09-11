@@ -1485,10 +1485,21 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
 
     switch (drawType)
     {
+        case DrawType::depthStrokes:
+            // depthStrokes could be a clip, so handle that.
+            if (enums::is_flag_set(drawContents, DrawContents::clipUpdate))
+            {
+                return {
+                    StencilType::clipStroke,
+                    DrawContents::activeClip | DrawContents::clipUpdate,
+                    areDrawContentsValid,
+                };
+            }
+
+            [[fallthrough]];
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::featherAtlasBlit:
-        case DrawType::depthStrokes:
             if (enums::is_flag_set(drawContents, DrawContents::activeClip))
             {
                 return {
@@ -1634,6 +1645,23 @@ static void get_stencil_settings(InterlockMode interlockMode,
                 .compareOp = StencilCompareOp::equal,
             };
 
+            pipelineState->stencilDoubleSided = false;
+            break;
+
+        case StencilType::clipStroke:
+            // If nested, we want to set the low bit of the stencil buffer when
+            // we're inside of the parent clip, otherwise we want to always
+            // write 0x80.
+            pipelineState->stencilCompareMask = 0xff;
+            pipelineState->stencilWriteMask = hasActiveClip ? 0x01 : 0xff;
+            pipelineState->stencilReference = hasActiveClip ? 0x01 : 0x80;
+            pipelineState->stencilFrontOps = {
+                .stencilFailOp = StencilOp::keep,
+                .depthFailOp = StencilOp::keep,
+                .depthStencilPassOp = StencilOp::replace,
+                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
+                                           : StencilCompareOp::always,
+            };
             pipelineState->stencilDoubleSided = false;
             break;
 
@@ -1969,7 +1997,7 @@ bool get_color_write_enable(DrawType drawType,
             return fixedFunctionColorOutput ||
                    interlockMode == InterlockMode::depthStencil;
         case DrawType::depthStrokes:
-            return true;
+            return enums::no_flags_set(drawContents, DrawContents::clipUpdate);
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilOuterCubicBorrowedCoverage:

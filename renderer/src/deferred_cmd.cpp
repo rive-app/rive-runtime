@@ -108,6 +108,7 @@ void replayRenderCommands(Factory* factory,
             case RenderCmd::transform:
             case RenderCmd::drawPath:
             case RenderCmd::clipPath:
+            case RenderCmd::clipStroke:
             case RenderCmd::drawImage:
             case RenderCmd::drawImageMesh:
             case RenderCmd::modulateOpacity:
@@ -633,6 +634,22 @@ void replayRenderCommands(Factory* factory,
                 }
                 break;
             }
+            case RenderCmd::clipStroke:
+            {
+                auto c = reader.read<ClipStrokePOD>();
+                if (cur)
+                {
+                    if (auto* p = paths.get(c.path, c.version))
+                        cur->clipStroke(p,
+                                        {
+                                            .thickness = c.thickness,
+                                            .join = StrokeJoin(c.join),
+                                            .cap = StrokeCap(c.cap),
+                                        });
+                }
+                break;
+            }
+
             case RenderCmd::drawImage:
             {
                 auto c = reader.read<DrawImagePOD>();

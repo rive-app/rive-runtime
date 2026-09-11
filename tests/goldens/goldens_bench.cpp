@@ -93,6 +93,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::clipPath:
                 r.read<ClipPathPOD>();
                 break;
+            case RenderCmd::clipStroke:
+                r.read<ClipStrokePOD>();
+                break;
             case RenderCmd::resourceNewVersion:
                 r.read<ResourceVersionPOD>();
                 break;

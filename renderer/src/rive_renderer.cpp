@@ -314,6 +314,26 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
     }
 }
 
+void RiveRenderer::clipStroke(RenderPath* renderPath,
+                              const StrokeParams& params)
+{
+    RIVE_PROF_SCOPE_L(2)
+    LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
+
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
+    {
+        return;
+    }
+
+    if (path->getRawPath().empty())
+    {
+        m_renderStateStack.back().overallClipPixelBounds = {};
+        return;
+    }
+
+    clipPathImpl(path, params);
+}
+
 // Finds a new rect, if such a rect exists, such that:
 //
 //     currentMatrix * rect == newMatrix * newRect

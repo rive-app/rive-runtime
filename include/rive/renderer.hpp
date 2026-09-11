@@ -34,6 +34,14 @@ Mat2D computeAlignment(Fit,
                        const AABB& content,
                        const float scaleFactor = 1.0f);
 
+// Common parameters to describe a path's stroke.
+struct StrokeParams
+{
+    float thickness = 1.0f;
+    StrokeJoin join = StrokeJoin::miter;
+    StrokeCap cap = StrokeCap::butt;
+};
+
 enum class RenderBufferType
 {
     index,
@@ -128,6 +136,16 @@ public:
     virtual void invalidateStroke() = 0;
     virtual void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&)
     {} // TODO: Implement on others
+
+    // Set the style to stroke and update all of the stroke parameters with a
+    // single update.
+    void stroke(const StrokeParams& params)
+    {
+        style(RenderPaintStyle::stroke);
+        thickness(params.thickness);
+        join(params.join);
+        cap(params.cap);
+    }
 };
 
 #if defined(__EMSCRIPTEN__)
@@ -215,6 +233,10 @@ public:
     virtual void transform(const Mat2D& transform) = 0;
     virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
     virtual void clipPath(RenderPath* path) = 0;
+
+    // Not implementable on some backends so default to nothing
+    virtual void clipStroke(RenderPath*, const StrokeParams&) {}
+
     virtual void drawImage(const RenderImage*,
                            ImageSampler,
                            BlendMode,

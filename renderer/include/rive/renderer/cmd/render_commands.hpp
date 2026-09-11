@@ -58,6 +58,7 @@ enum class RenderCmd : uint8_t
     transform,       // TransformPOD
     drawPath,        // DrawPathPOD
     clipPath,        // ClipPathPOD
+    clipStroke,      // ClipStrokePOD
     drawImage,       // DrawImagePOD
     drawImageMesh,   // DrawImageMeshPOD
     modulateOpacity, // OpacityPOD
@@ -234,6 +235,15 @@ struct ClipPathPOD
     uint32_t version;
 };
 
+struct ClipStrokePOD
+{
+    RenderHandle path;
+    uint32_t version;
+    float thickness;
+    uint8_t join; // StrokeJoin
+    uint8_t cap;  // StrokeCap
+};
+
 struct DecodeImagePOD
 {
     RenderHandle id;
@@ -328,6 +338,7 @@ struct CanvasContentPOD
     X(transform, TransformPOD)                                                 \
     X(drawPath, DrawPathPOD)                                                   \
     X(clipPath, ClipPathPOD)                                                   \
+    X(clipStroke, ClipStrokePOD)                                               \
     X(drawImage, DrawImagePOD)                                                 \
     X(drawImageMesh, DrawImageMeshPOD)                                         \
     X(modulateOpacity, OpacityPOD)                                             \

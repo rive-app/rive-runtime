@@ -391,6 +391,23 @@ public:
                          ClipPathPOD{DeferredRenderPath::idOfPath(path),
                                      dp != nullptr ? dp->version() : 0});
     }
+    void clipStroke(RenderPath* path, const StrokeParams& params) override
+    {
+        DeferredRenderPath::flushScratchOf(path);
+        auto* dp = lite_rtti_cast<DeferredRenderPath*>(path);
+        if (dp != nullptr)
+        {
+            dp->markDrawn();
+        }
+        route();
+        m_buffer->append(
+            static_cast<uint8_t>(RenderCmd::clipStroke),
+            ClipStrokePOD{DeferredRenderPath::idOfPath(path),
+                          dp != nullptr ? dp->version() : 0,
+                          params.thickness,
+                          math::lossless_numeric_cast<uint8_t>(params.join),
+                          math::lossless_numeric_cast<uint8_t>(params.cap)});
+    }
     void modulateOpacity(float opacity) override
     {
         route();

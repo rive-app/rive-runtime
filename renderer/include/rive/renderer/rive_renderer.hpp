@@ -22,15 +22,6 @@ class GrInnerFanTriangulator;
 class RiveRenderPath;
 class RiveRenderPaint;
 
-// Common parameters to describe a path's stroke (used internally across the
-// RiveRenderer's classes)
-struct StrokeParams
-{
-    float thickness;
-    StrokeJoin join;
-    StrokeCap cap;
-};
-
 // Renderer implementation for Rive's pixel local storage renderer.
 class RiveRenderer : public Renderer
 {
@@ -47,6 +38,7 @@ public:
                    ImageSampler,
                    BlendMode,
                    float opacity) override;
+    void clipStroke(RenderPath*, const StrokeParams&) override;
     void drawImageMesh(const RenderImage*,
                        ImageSampler,
                        rcp<RenderBuffer> vertices_f32,
