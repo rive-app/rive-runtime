@@ -3882,7 +3882,7 @@ bool CommandServer::processCommands()
             {
                 ViewModelInstanceHandle handle;
                 uint64_t requestId;
-                CommandQueue::ViewModelInstanceData value;
+                CommandQueue::ViewModelInstanceData value{};
                 commandStream >> value.metaData.type;
                 commandStream >> handle;
                 commandStream >> requestId;
@@ -3891,6 +3891,7 @@ bool CommandServer::processCommands()
 
                 if (auto viewModelInstance = getViewModelInstance(handle))
                 {
+                    bool found = false;
                     switch (value.metaData.type)
                     {
                         case DataType::boolean:
@@ -3900,6 +3901,7 @@ bool CommandServer::processCommands()
                                         value.metaData.name))
                             {
                                 value.boolValue = property->value();
+                                found = true;
                             }
                             else
                             {
@@ -3923,6 +3925,7 @@ bool CommandServer::processCommands()
                                         value.metaData.name))
                             {
                                 value.numberValue = property->value();
+                                found = true;
                             }
                             else
                             {
@@ -3946,6 +3949,7 @@ bool CommandServer::processCommands()
                                         value.metaData.name))
                             {
                                 value.colorValue = property->value();
+                                found = true;
                             }
                             else
                             {
@@ -3969,6 +3973,7 @@ bool CommandServer::processCommands()
                                         value.metaData.name))
                             {
                                 value.stringValue = property->value();
+                                found = true;
                             }
                             else
                             {
@@ -3991,6 +3996,7 @@ bool CommandServer::processCommands()
                                     value.metaData.name))
                             {
                                 value.stringValue = property->value();
+                                found = true;
                             }
                             else
                             {
@@ -4009,6 +4015,14 @@ bool CommandServer::processCommands()
                         }
                         default:
                             RIVE_UNREACHABLE();
+                    }
+
+                    if (!found)
+                    {
+                        // Exit this command, preserving the batch/draw
+                        // epilogue. Failed reads must not emit a second,
+                        // invalid value response.
+                        break;
                     }
 
                     std::unique_lock<std::mutex> messageLock(

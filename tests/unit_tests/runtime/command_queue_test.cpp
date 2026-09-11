@@ -1994,6 +1994,134 @@ public:
     uint64_t m_receivedErrors = 0;
 };
 
+/** Records failed reads without inspecting an invalid scalar payload. */
+class FailedPropertyReadListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    /**
+     * Records each error's request ID and verifies its instance and diagnostic.
+     */
+    void onViewModelInstanceError(ViewModelInstanceHandle handle,
+                                  uint64_t requestId,
+                                  std::string error) override
+    {
+        CHECK(handle == expectedHandle);
+        CHECK(error.find("Could not find view model property") !=
+              std::string::npos);
+        errorIds.push_back(requestId);
+    }
+
+    /**
+     * Records value responses so failed requests cannot silently emit values.
+     */
+    void onViewModelDataReceived(
+        ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
+    {
+        CHECK(handle == expectedHandle);
+        CHECK(data.metaData.name == expectedPath);
+        CHECK(data.metaData.type == expectedType);
+        valueIds.push_back(requestId);
+    }
+
+    ViewModelInstanceHandle expectedHandle;
+    std::string expectedPath;
+    DataType expectedType;
+    std::vector<uint64_t> errorIds;
+    std::vector<uint64_t> valueIds;
+};
+
+TEST_CASE("Failed property reads emit only errors and preserve later commands",
+          "[CommandQueue]")
+{
+    using Getter =
+        void (CommandQueue::*)(ViewModelInstanceHandle, std::string, uint64_t);
+    struct ReadCase
+    {
+        DataType type;
+        Getter getter;
+        const char* validPath;
+        const char* wrongTypePath;
+    };
+    const ReadCase cases[] = {
+        {DataType::boolean,
+         &CommandQueue::requestViewModelInstanceBool,
+         "Test Bool",
+         "Test Num"},
+        {DataType::number,
+         &CommandQueue::requestViewModelInstanceNumber,
+         "Test Num",
+         "Test Bool"},
+        {DataType::color,
+         &CommandQueue::requestViewModelInstanceColor,
+         "Test Color",
+         "Test Bool"},
+        {DataType::string,
+         &CommandQueue::requestViewModelInstanceString,
+         "Test String",
+         "Test Bool"},
+        {DataType::enumType,
+         &CommandQueue::requestViewModelInstanceEnum,
+         "Test Enum",
+         "Test Bool"},
+    };
+    const auto& read = cases[GENERATE(0, 1, 2, 3, 4)];
+    CAPTURE(read.validPath);
+
+    auto queue = make_rcp<CommandQueue>();
+    auto context = RenderContextNULL::MakeContext();
+    FailedPropertyReadListener listener;
+    CommandServer server(queue, context.get());
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    REQUIRE(stream.is_open());
+    auto file = queue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto artboard = queue->instantiateDefaultArtboard(file);
+    auto instance =
+        queue->instantiateDefaultViewModelInstance(file, artboard, &listener);
+    listener.expectedHandle = instance;
+    listener.expectedPath = read.validPath;
+    listener.expectedType = read.type;
+
+    // Draws queued before a failed read must still reach the batch epilogue.
+    bool drew = false;
+    queue->draw(queue->createDrawKey(),
+                [&](DrawKey, CommandServer*) { drew = true; });
+    uint64_t requestId = 0;
+    std::vector<uint64_t> expectedErrors;
+    for (const char* path : {"nonexistent",
+                             "Test Nested/nonexistent",
+                             "nonexistent/child",
+                             read.wrongTypePath})
+    {
+        CAPTURE(path);
+        expectedErrors.push_back(++requestId);
+        (queue.get()->*read.getter)(instance, path, requestId);
+    }
+    // A valid read in the same batch must survive all preceding lookup
+    // failures.
+    const auto validRequestId = ++requestId;
+    (queue.get()->*read.getter)(instance, read.validPath, validRequestId);
+    bool reachedLaterCommand = false;
+    queue->runOnce([&](CommandServer*) { reachedLaterCommand = true; });
+    server.processCommands();
+    queue->processMessages();
+
+    CHECK(reachedLaterCommand);
+    CHECK(drew);
+    CHECK(listener.errorIds == expectedErrors);
+    CHECK(listener.valueIds == std::vector<uint64_t>{validRequestId});
+
+    queue->deleteViewModelInstance(instance);
+    queue->deleteArtboard(artboard);
+    queue->deleteFile(file);
+    queue->disconnect();
+    server.processCommands();
+    queue->processMessages();
+}
+
 TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
