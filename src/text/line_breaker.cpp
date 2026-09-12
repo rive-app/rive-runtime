@@ -164,6 +164,12 @@ public:
         {
             m_index--;
         }
+        // Never stop inside a glyph cluster.
+        while (m_index > 0 &&
+               m_run->textIndices[m_index] == m_run->textIndices[m_index - 1])
+        {
+            m_index--;
+        }
         // If there are any word-joiners, do not break on them and find the
         // closest index that does not wrap a WJ
         if (m_run->joiners.size() > 0 && m_run->textIndices[m_index] > 0)
@@ -248,6 +254,11 @@ public:
             }
         }
         else
+        {
+            m_index++;
+        }
+        while (m_index > 0 && m_index < m_run->glyphs.size() &&
+               m_run->textIndices[m_index] == m_run->textIndices[m_index - 1])
         {
             m_index++;
         }
