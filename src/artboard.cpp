@@ -123,7 +123,9 @@ Artboard::~Artboard()
 
 #ifdef WITH_RIVE_AUDIO
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-    auto audioEngine = m_audioEngine;
+    auto audioEngine = m_audioEngine != nullptr
+                           ? m_audioEngine
+                           : AudioEngine::RuntimeEngine(false);
 #else
     auto audioEngine = AudioEngine::RuntimeEngine(false);
 #endif

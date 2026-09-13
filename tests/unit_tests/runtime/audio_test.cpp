@@ -190,6 +190,35 @@ TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
     REQUIRE(engine->playingSoundCount() == 0);
 }
 
+// An artboard with no engine of its own still starts its sounds on the
+// runtime engine, because AudioEvent::play falls back to it. Teardown has to
+// resolve the engine the same way, or those sounds keep playing into whatever
+// the process renders next. Artboard::audioEngine only pushes down the tree at
+// the moment it is called, so artboards instantiated later -- list items from
+// ArtboardComponentList::createArtboard -- still reach teardown with none.
+TEST_CASE("audio sounds stop when the artboard has no engine assigned",
+          "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
+    REQUIRE(AudioEngine::RuntimeEngine(false) == engine);
+
+    auto file = ReadRiveFile("assets/sound.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    // Deliberately no artboard->audioEngine(engine) here.
+
+    auto audioEvent = artboard->find<AudioEvent>()[0];
+    REQUIRE(audioEvent->asset() != nullptr);
+    REQUIRE(audioEvent->asset()->hasAudioSource());
+
+    audioEvent->play();
+    audioEvent->play();
+    REQUIRE(engine->playingSoundCount() == 2);
+
+    artboard = nullptr;
+    REQUIRE(engine->playingSoundCount() == 0);
+}
+
 TEST_CASE("Artboard has audio", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
