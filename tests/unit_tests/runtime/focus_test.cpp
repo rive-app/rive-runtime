@@ -1702,6 +1702,63 @@ TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
     CHECK(state.expectsKeyboardInput == false);
 }
 
+namespace
+{
+// Records what it was offered and answers a fixed claim, so a FocusData with
+// two of these shows whether the first one's claim cut the second one off.
+class RecordingKeyboardListener : public KeyboardListener
+{
+public:
+    RecordingKeyboardListener(bool claims) : m_claims(claims) {}
+
+    bool keyInput(Key, KeyModifiers, bool, bool) override
+    {
+        calls++;
+        return m_claims;
+    }
+    bool textInput(const std::string&) override { return false; }
+
+    int calls = 0;
+
+private:
+    bool m_claims;
+};
+} // namespace
+
+// A claim stops the key travelling UP, not sideways. Two listeners on one
+// element -- a component's own and one an author added beside it -- both
+// asked for the key, and both still get it; only the report to the focus
+// manager is shared. This is the split the DOM draws between
+// stopPropagation and stopImmediatePropagation, and authored files predate
+// any listener being able to claim at all, so peers must keep firing.
+TEST_CASE("a claiming keyboard listener does not cut off its peers",
+          "[FocusData]")
+{
+    FocusData focusData;
+    RecordingKeyboardListener first(/*claims=*/true);
+    RecordingKeyboardListener second(/*claims=*/false);
+    focusData.addKeyboardListener(&first);
+    focusData.addKeyboardListener(&second);
+
+    CHECK(focusData.keyInput(Key::a, KeyModifiers::none, true, false));
+    CHECK(first.calls == 1);
+    CHECK(second.calls == 1);
+}
+
+TEST_CASE("a focus data with no claiming listener reports unhandled",
+          "[FocusData]")
+{
+    FocusData focusData;
+    RecordingKeyboardListener first(/*claims=*/false);
+    RecordingKeyboardListener second(/*claims=*/false);
+    focusData.addKeyboardListener(&first);
+    focusData.addKeyboardListener(&second);
+
+    CHECK(!focusData.keyInput(Key::a, KeyModifiers::none, true, false));
+    CHECK(first.calls == 1);
+    CHECK(second.calls == 1);
+}
+
 TEST_CASE("StateMachineInstance::keyInput and textInput route to the focused "
           "element",
           "[FocusManager]")

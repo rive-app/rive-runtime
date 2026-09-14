@@ -171,15 +171,20 @@ bool FocusData::keyInput(Key value,
                          bool isPressed,
                          bool isRepeat)
 {
-    // Notify listeners
+    // Every listener on this node is offered the key, even once one has
+    // claimed it: two listeners on the same element watching the same key
+    // both run, the way they always have. A claim reports upward, where
+    // FocusManager::keyInput stops the bubble -- the same split the DOM draws
+    // between stopPropagation and stopImmediatePropagation.
+    bool claimed = false;
     for (auto* listener : m_keyboardListeners)
     {
         if (listener->keyInput(value, modifiers, isPressed, isRepeat))
         {
-            return true;
+            claimed = true;
         }
     }
-    return false;
+    return claimed;
 }
 
 bool FocusData::textInput(const std::string& text)

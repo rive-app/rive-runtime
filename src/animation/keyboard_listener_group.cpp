@@ -137,8 +137,13 @@ bool KeyboardListenerGroup::keyInput(Key key,
         listener()->performChanges(
             m_stateMachineInstance,
             ListenerInvocation::keyboard(key, modifiers, isPressed, isRepeat));
-        // Always return false for now. In the future we will let listeners
-        // decide whether they stop event propagation
+        // The listener asked for this exact key and its changes have run, so
+        // the keystroke is spent: FocusManager::keyInput stops bubbling to
+        // ancestors, and the host learns the scene consumed it rather than
+        // also firing whatever the key means to the application around it.
+        // Peers on the same FocusData still see it -- FocusData::keyInput
+        // offers the key to all of them and only reports the claim upward.
+        return true;
     }
     return false;
 }
