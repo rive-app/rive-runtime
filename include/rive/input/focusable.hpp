@@ -11,6 +11,8 @@ namespace rive
 class ListenerInvocation;
 class ScriptedDrawable;
 
+// KeyboardInput.modifiers uses these numeric bit values as a raw RML bitmask.
+// Adding or renumbering them requires updating that property's description.
 enum class KeyModifiers : uint8_t
 {
     none = 0,
@@ -30,6 +32,9 @@ inline KeyModifiers operator&(const KeyModifiers& a, const KeyModifiers& b)
     return (KeyModifiers)((uint8_t)a & (uint8_t)b);
 }
 
+// Mirrored as keyType's enumValues in dev/defs/inputs/keyboard_input.json,
+// which is what rml authors write. Adding or renumbering here means editing
+// that too; nothing checks the two against each other.
 enum class Key : uint16_t
 {
     space = 32,
