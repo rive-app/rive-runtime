@@ -355,7 +355,7 @@ ViewModelInstanceHandle CommandQueue::referenceListViewModelInstance(
     if (listener)
     {
         assert(listener->m_handle == RIVE_NULL_HANDLE);
-        listener->m_handle = handle;
+        listener->m_handle = viewHandle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(viewHandle, listener);
     }

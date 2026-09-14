@@ -3178,6 +3178,81 @@ TEST_CASE("View Model Property Async Subscriptions", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("Child listener destruction preserves parent subscriptions",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    auto nullContext = RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    REQUIRE(stream.is_open());
+    auto file = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ViewModelPropertySubscriptionListener parent;
+    parent.m_handle =
+        commandQueue->instantiateBlankViewModelInstance(file,
+                                                        "Test All",
+                                                        &parent);
+    commandQueue->subscribeToViewModelProperty(parent.m_handle,
+                                               "Test Num",
+                                               DataType::number);
+    parent.pushExpectation(commandQueue.get(), "Test Num", 10.0f);
+    server.processCommands();
+    commandQueue->processMessages();
+    REQUIRE(parent.m_receivedCallbacks == 1);
+    CHECK(parent.m_receivedErrors == 0);
+
+    {
+        ViewModelPropertySubscriptionListener child;
+        ViewModelInstanceHandle childHandle = RIVE_NULL_HANDLE;
+
+        SECTION("Nested property child")
+        {
+            childHandle =
+                commandQueue->referenceNestedViewModelInstance(parent.m_handle,
+                                                               "Test Nested",
+                                                               &child);
+        }
+
+        SECTION("List element child")
+        {
+            auto nested =
+                commandQueue->referenceNestedViewModelInstance(parent.m_handle,
+                                                               "Test Nested");
+            commandQueue->insertViewModelInstanceListViewModel(parent.m_handle,
+                                                               "Test List",
+                                                               nested,
+                                                               0);
+            childHandle =
+                commandQueue->referenceListViewModelInstance(parent.m_handle,
+                                                             "Test List",
+                                                             0,
+                                                             &child);
+        }
+
+        child.m_handle = childHandle;
+        server.processCommands();
+        commandQueue->processMessages();
+        REQUIRE(server.getViewModelInstance(childHandle) != nullptr);
+        CHECK(child.m_receivedErrors == 0);
+
+        parent.pushExpectation(commandQueue.get(), "Test Num", 20.0f);
+        server.processCommands();
+        commandQueue->processMessages();
+        REQUIRE(parent.m_receivedCallbacks == 2);
+    }
+
+    parent.pushExpectation(commandQueue.get(), "Test Num", 30.0f);
+    server.processCommands();
+    commandQueue->processMessages();
+    CHECK(parent.m_receivedCallbacks == 3);
+    CHECK(parent.m_receivedErrors == 0);
+
+    commandQueue->disconnect();
+}
+
 class ListViewModelPropertyListener
     : public CommandQueue::ViewModelInstanceListener
 {
