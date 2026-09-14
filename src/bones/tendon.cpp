@@ -30,7 +30,14 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
     auto coreObject = context->resolve(boneId());
     if (coreObject == nullptr || !coreObject->is<Bone>())
     {
+#ifdef WITH_RIVE_EDITOR
+        // Coop can deliver the bone in a later batch; resolveBone rewires it.
         return StatusCode::MissingObject;
+#else
+        // Skin::buildDependencies dereferences the bone, so the artboard
+        // cannot load; MissingObject would let it try and crash.
+        return StatusCode::InvalidObject;
+#endif
     }
 
 #ifdef WITH_RIVE_EDITOR
