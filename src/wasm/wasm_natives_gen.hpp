@@ -287,6 +287,33 @@ void artboardNodeDecomposeImpl(WasmScriptingVM* vm, uint32_t node, const float* 
 uint32_t artboardNodePathVerbsImpl(WasmScriptingVM* vm, uint32_t node, uint8_t* out, uint32_t outCount);
 uint32_t artboardNodePathPointsImpl(WasmScriptingVM* vm, uint32_t node, float* out, uint32_t outCount);
 uint32_t artboardNodePaintImpl(WasmScriptingVM* vm, uint32_t node, uint32_t* out, uint32_t outCount);
+uint32_t artboardNodeChildrenImpl(WasmScriptingVM* vm, uint32_t node, uint32_t* out, uint32_t outCount);
+uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t node);
+uint32_t audioSourceImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
+void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t source);
+float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t source);
+uint32_t audioSourceSampleRateImpl(WasmScriptingVM* vm, uint32_t source);
+uint32_t audioSourceChannelsImpl(WasmScriptingVM* vm, uint32_t source);
+uint32_t audioPlayImpl(WasmScriptingVM* vm, uint32_t source);
+uint32_t audioPlayAtTimeImpl(WasmScriptingVM* vm, uint32_t source, float seconds);
+uint32_t audioPlayInTimeImpl(WasmScriptingVM* vm, uint32_t source, float seconds);
+uint32_t audioPlayAtFrameImpl(WasmScriptingVM* vm, uint32_t source, double frame);
+uint32_t audioPlayInFrameImpl(WasmScriptingVM* vm, uint32_t source, double frame);
+float audioTimeImpl(WasmScriptingVM* vm);
+double audioTimeFrameImpl(WasmScriptingVM* vm);
+uint32_t audioSampleRateImpl(WasmScriptingVM* vm);
+void audioSoundReleaseImpl(WasmScriptingVM* vm, uint32_t sound);
+void audioSoundPlayImpl(WasmScriptingVM* vm, uint32_t sound);
+void audioSoundPauseImpl(WasmScriptingVM* vm, uint32_t sound);
+void audioSoundResumeImpl(WasmScriptingVM* vm, uint32_t sound);
+void audioSoundStopImpl(WasmScriptingVM* vm, uint32_t sound, uint32_t fadeFrames);
+uint32_t audioSoundSeekImpl(WasmScriptingVM* vm, uint32_t sound, float seconds);
+uint32_t audioSoundSeekFrameImpl(WasmScriptingVM* vm, uint32_t sound, double frame);
+uint32_t audioSoundCompletedImpl(WasmScriptingVM* vm, uint32_t sound);
+float audioSoundTimeImpl(WasmScriptingVM* vm, uint32_t sound);
+double audioSoundTimeFrameImpl(WasmScriptingVM* vm, uint32_t sound);
+float audioSoundVolumeImpl(WasmScriptingVM* vm, uint32_t sound);
+void audioSoundSetVolumeImpl(WasmScriptingVM* vm, uint32_t sound, float value);
 uint32_t pathNewImpl(WasmScriptingVM* vm);
 void pathUpdateImpl(WasmScriptingVM* vm, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule);
 void pathReleaseImpl(WasmScriptingVM* vm, uint32_t path);
@@ -778,6 +805,114 @@ uint32_t artboardNodePaint(wasm_exec_env_t env, uint32_t node, uint32_t* out, ui
 {
     return artboardNodePaintImpl(vmFromEnv(env), node, out, outCount);
 }
+uint32_t artboardNodeChildren(wasm_exec_env_t env, uint32_t node, uint32_t* out, uint32_t outCount)
+{
+    return artboardNodeChildrenImpl(vmFromEnv(env), node, out, outCount);
+}
+uint32_t artboardNodeParent(wasm_exec_env_t env, uint32_t node)
+{
+    return artboardNodeParentImpl(vmFromEnv(env), node);
+}
+uint32_t audioSource(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
+{
+    return audioSourceImpl(vmFromEnv(env), object, name, nameLength);
+}
+void audioSourceRelease(wasm_exec_env_t env, uint32_t source)
+{
+    audioSourceReleaseImpl(vmFromEnv(env), source);
+}
+float audioSourceDuration(wasm_exec_env_t env, uint32_t source)
+{
+    return audioSourceDurationImpl(vmFromEnv(env), source);
+}
+uint32_t audioSourceSampleRate(wasm_exec_env_t env, uint32_t source)
+{
+    return audioSourceSampleRateImpl(vmFromEnv(env), source);
+}
+uint32_t audioSourceChannels(wasm_exec_env_t env, uint32_t source)
+{
+    return audioSourceChannelsImpl(vmFromEnv(env), source);
+}
+uint32_t audioPlay(wasm_exec_env_t env, uint32_t source)
+{
+    return audioPlayImpl(vmFromEnv(env), source);
+}
+uint32_t audioPlayAtTime(wasm_exec_env_t env, uint32_t source, float seconds)
+{
+    return audioPlayAtTimeImpl(vmFromEnv(env), source, seconds);
+}
+uint32_t audioPlayInTime(wasm_exec_env_t env, uint32_t source, float seconds)
+{
+    return audioPlayInTimeImpl(vmFromEnv(env), source, seconds);
+}
+uint32_t audioPlayAtFrame(wasm_exec_env_t env, uint32_t source, double frame)
+{
+    return audioPlayAtFrameImpl(vmFromEnv(env), source, frame);
+}
+uint32_t audioPlayInFrame(wasm_exec_env_t env, uint32_t source, double frame)
+{
+    return audioPlayInFrameImpl(vmFromEnv(env), source, frame);
+}
+float audioTime(wasm_exec_env_t env)
+{
+    return audioTimeImpl(vmFromEnv(env));
+}
+double audioTimeFrame(wasm_exec_env_t env)
+{
+    return audioTimeFrameImpl(vmFromEnv(env));
+}
+uint32_t audioSampleRate(wasm_exec_env_t env)
+{
+    return audioSampleRateImpl(vmFromEnv(env));
+}
+void audioSoundRelease(wasm_exec_env_t env, uint32_t sound)
+{
+    audioSoundReleaseImpl(vmFromEnv(env), sound);
+}
+void audioSoundPlay(wasm_exec_env_t env, uint32_t sound)
+{
+    audioSoundPlayImpl(vmFromEnv(env), sound);
+}
+void audioSoundPause(wasm_exec_env_t env, uint32_t sound)
+{
+    audioSoundPauseImpl(vmFromEnv(env), sound);
+}
+void audioSoundResume(wasm_exec_env_t env, uint32_t sound)
+{
+    audioSoundResumeImpl(vmFromEnv(env), sound);
+}
+void audioSoundStop(wasm_exec_env_t env, uint32_t sound, uint32_t fadeFrames)
+{
+    audioSoundStopImpl(vmFromEnv(env), sound, fadeFrames);
+}
+uint32_t audioSoundSeek(wasm_exec_env_t env, uint32_t sound, float seconds)
+{
+    return audioSoundSeekImpl(vmFromEnv(env), sound, seconds);
+}
+uint32_t audioSoundSeekFrame(wasm_exec_env_t env, uint32_t sound, double frame)
+{
+    return audioSoundSeekFrameImpl(vmFromEnv(env), sound, frame);
+}
+uint32_t audioSoundCompleted(wasm_exec_env_t env, uint32_t sound)
+{
+    return audioSoundCompletedImpl(vmFromEnv(env), sound);
+}
+float audioSoundTime(wasm_exec_env_t env, uint32_t sound)
+{
+    return audioSoundTimeImpl(vmFromEnv(env), sound);
+}
+double audioSoundTimeFrame(wasm_exec_env_t env, uint32_t sound)
+{
+    return audioSoundTimeFrameImpl(vmFromEnv(env), sound);
+}
+float audioSoundVolume(wasm_exec_env_t env, uint32_t sound)
+{
+    return audioSoundVolumeImpl(vmFromEnv(env), sound);
+}
+void audioSoundSetVolume(wasm_exec_env_t env, uint32_t sound, float value)
+{
+    audioSoundSetVolumeImpl(vmFromEnv(env), sound, value);
+}
 uint32_t pathNew(wasm_exec_env_t env)
 {
     return pathNewImpl(vmFromEnv(env));
@@ -1261,6 +1396,36 @@ NativeSymbol kArtboardNatives[] = {
     {"node_path_verbs", (void*)artboardNodePathVerbs, "(i*~)i", nullptr},
     {"node_path_points", (void*)artboardNodePathPoints, "(i*~)i", nullptr},
     {"node_paint", (void*)artboardNodePaint, "(i*~)i", nullptr},
+    {"node_children", (void*)artboardNodeChildren, "(i*~)i", nullptr},
+    {"node_parent", (void*)artboardNodeParent, "(i)i", nullptr},
+};
+
+NativeSymbol kAudioNatives[] = {
+    {"source", (void*)audioSource, "(i*~)i", nullptr},
+    {"source_release", (void*)audioSourceRelease, "(i)", nullptr},
+    {"source_duration", (void*)audioSourceDuration, "(i)f", nullptr},
+    {"source_sample_rate", (void*)audioSourceSampleRate, "(i)i", nullptr},
+    {"source_channels", (void*)audioSourceChannels, "(i)i", nullptr},
+    {"play", (void*)audioPlay, "(i)i", nullptr},
+    {"play_at_time", (void*)audioPlayAtTime, "(if)i", nullptr},
+    {"play_in_time", (void*)audioPlayInTime, "(if)i", nullptr},
+    {"play_at_frame", (void*)audioPlayAtFrame, "(iF)i", nullptr},
+    {"play_in_frame", (void*)audioPlayInFrame, "(iF)i", nullptr},
+    {"time", (void*)audioTime, "()f", nullptr},
+    {"time_frame", (void*)audioTimeFrame, "()F", nullptr},
+    {"sample_rate", (void*)audioSampleRate, "()i", nullptr},
+    {"sound_release", (void*)audioSoundRelease, "(i)", nullptr},
+    {"sound_play", (void*)audioSoundPlay, "(i)", nullptr},
+    {"sound_pause", (void*)audioSoundPause, "(i)", nullptr},
+    {"sound_resume", (void*)audioSoundResume, "(i)", nullptr},
+    {"sound_stop", (void*)audioSoundStop, "(ii)", nullptr},
+    {"sound_seek", (void*)audioSoundSeek, "(if)i", nullptr},
+    {"sound_seek_frame", (void*)audioSoundSeekFrame, "(iF)i", nullptr},
+    {"sound_completed", (void*)audioSoundCompleted, "(i)i", nullptr},
+    {"sound_time", (void*)audioSoundTime, "(i)f", nullptr},
+    {"sound_time_frame", (void*)audioSoundTimeFrame, "(i)F", nullptr},
+    {"sound_volume", (void*)audioSoundVolume, "(i)f", nullptr},
+    {"sound_set_volume", (void*)audioSoundSetVolume, "(if)", nullptr},
 };
 
 NativeSymbol kPathNatives[] = {
@@ -1401,6 +1566,10 @@ inline bool registerRiveBindingNatives()
                "rive_artboard_v1",
                kArtboardNatives,
                sizeof(kArtboardNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_audio_v1",
+               kAudioNatives,
+               sizeof(kAudioNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_path_v1",
                kPathNatives,

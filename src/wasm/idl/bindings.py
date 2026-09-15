@@ -20,6 +20,11 @@ def f32(name):
     return {'kind': 'f32', 'name': name}
 
 
+# Wide counters such as PCM frame clocks, which outgrow u32 within a day.
+def f64(name):
+    return {'kind': 'f64', 'name': name}
+
+
 def handle(tag, name=None):
     return {'kind': 'handle', 'tag': tag, 'name': name or tag}
 
@@ -440,6 +445,46 @@ NAMESPACES = [
         # returns 0 when the node carries no shape paint.
         op('node_paint', [handle('node'),
                           mutbuf('uint32_t', 'out', 'outCount')], ret='u32'),
+        # Retrying copy-out of the node's transform children as new node
+        # handles; handles mint only when they all fit.
+        op('node_children', [handle('node'),
+                             mutbuf('uint32_t', 'out', 'outCount')],
+           ret='u32'),
+        # The parent as a new node handle, 0 when it is not a transform.
+        op('node_parent', [handle('node')], ret='u32'),
+    ]),
+    # The Luau Audio surface: sources resolve from the object's file by
+    # asset name, sounds come back from the play ops. Frame clocks cross as
+    # f64 since the engine's run past u32; fades are frames, as the Luau
+    # lane passes them.
+    ns('rive_audio_v1', 'audio', [
+        op('source', [handle('object'), string('name', 'nameLength')],
+           ret='u32'),
+        op('source_release', [handle('source')]),
+        op('source_duration', [handle('source')], ret='f32'),
+        op('source_sample_rate', [handle('source')], ret='u32'),
+        op('source_channels', [handle('source')], ret='u32'),
+        # Each returns a new sound handle, 0 without an engine or source.
+        op('play', [handle('source')], ret='u32'),
+        op('play_at_time', [handle('source'), f32('seconds')], ret='u32'),
+        op('play_in_time', [handle('source'), f32('seconds')], ret='u32'),
+        op('play_at_frame', [handle('source'), f64('frame')], ret='u32'),
+        op('play_in_frame', [handle('source'), f64('frame')], ret='u32'),
+        op('time', ret='f32'),
+        op('time_frame', ret='f64'),
+        op('sample_rate', ret='u32'),
+        op('sound_release', [handle('sound')]),
+        op('sound_play', [handle('sound')]),
+        op('sound_pause', [handle('sound')]),
+        op('sound_resume', [handle('sound')]),
+        op('sound_stop', [handle('sound'), u32('fadeFrames')]),
+        op('sound_seek', [handle('sound'), f32('seconds')], ret='u32'),
+        op('sound_seek_frame', [handle('sound'), f64('frame')], ret='u32'),
+        op('sound_completed', [handle('sound')], ret='u32'),
+        op('sound_time', [handle('sound')], ret='f32'),
+        op('sound_time_frame', [handle('sound')], ret='f64'),
+        op('sound_volume', [handle('sound')], ret='f32'),
+        op('sound_set_volume', [handle('sound'), f32('value')]),
     ]),
     ns('rive_path_v1', 'path', [
         op('new', ret='u32'),

@@ -99,6 +99,9 @@ public:
             artboard,
             animation,
             node,
+            audioSource,
+            audioSound,
+            count,
         };
         struct Slot
         {
@@ -307,6 +310,10 @@ public:
     /// module's shader natives consult it before file assets.
     void registerShaderRstb(std::string name, std::vector<uint8_t> bytes);
     const std::vector<uint8_t>* findShaderRstb(const std::string& name) const;
+    /// The wasm twin of ScriptingContext::isPlaying: hosts pause and resume
+    /// it with playback, and audio refuses to play while it is off.
+    void isPlaying(bool value) { m_isPlaying = value; }
+    bool isPlaying() const { return m_isPlaying; }
 #endif
 
     const std::string& lastError() const { return m_lastError; }
@@ -530,6 +537,7 @@ private:
     int m_embeddedModules = 0;
 #ifdef WITH_RIVE_TOOLS
     std::unordered_map<std::string, std::vector<uint8_t>> m_shaderRstbs;
+    bool m_isPlaying = false;
 #endif
 
     friend struct WasmScriptingVMNatives;

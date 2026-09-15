@@ -80,6 +80,8 @@ def c_params(params):
             out.append('int32_t ' + p['name'])
         elif kind == 'f32':
             out.append('float ' + p['name'])
+        elif kind == 'f64':
+            out.append('double ' + p['name'])
         elif kind == 'buf':
             out.append('const %s* %s' % (p['elem'], p['name']))
             out.append('uint32_t ' + p['count'])
@@ -109,6 +111,8 @@ def host_params(params):
             out.append('int32_t ' + p['name'])
         elif kind == 'f32':
             out.append('float ' + p['name'])
+        elif kind == 'f64':
+            out.append('double ' + p['name'])
         elif kind == 'buf':
             out.append('const %s* %s' % (p['elem'], p['name']))
             out.append('uint32_t ' + p['count'])
@@ -133,7 +137,7 @@ def host_args(params):
     out = []
     for p in params:
         kind = p['kind']
-        if kind in ('u32', 'handle', 'i32', 'f32', 'addr'):
+        if kind in ('u32', 'handle', 'i32', 'f32', 'f64', 'addr'):
             out.append(p['name'])
         elif kind in ('buf', 'mutbuf', 'str'):
             out.append(p['name'])
@@ -169,6 +173,8 @@ def wamr_signature(op):
             sig += 'i'
         elif kind == 'f32':
             sig += 'f'
+        elif kind == 'f64':
+            sig += 'F'
         elif kind in ('buf', 'mutbuf', 'str', 'pod'):
             sig += '*~'
         else:
@@ -176,15 +182,20 @@ def wamr_signature(op):
     sig += ')'
     if op['ret'] == 'f32':
         sig += 'f'
+    elif op['ret'] == 'f64':
+        sig += 'F'
     elif op['ret'] is not None:
         sig += 'i'
     return sig
 
 
+RET_CTYPES = {'f32': 'float', 'f64': 'double'}
+
+
 def ret_ctype(op):
     if op['ret'] is None:
         return 'void'
-    return 'float' if op['ret'] == 'f32' else 'uint32_t'
+    return RET_CTYPES.get(op['ret'], 'uint32_t')
 
 
 def check_all_ops():
@@ -357,7 +368,7 @@ def emit_stubs():
         for op in namespace['ops']:
             if op['stub'] == 'hook':
                 value = 'hooks.%s ?? noop' % camel(op['name'])
-            elif op['stub'] == 'zero' or op['ret'] == 'f32':
+            elif op['stub'] == 'zero' or op['ret'] in ('f32', 'f64'):
                 value = 'zero'
             elif op['ret'] is not None:
                 value = 'mint'
@@ -383,6 +394,8 @@ def as_params(params):
             out.append('%s: i32' % p['name'])
         elif kind == 'f32':
             out.append('%s: f32' % p['name'])
+        elif kind == 'f64':
+            out.append('%s: f64' % p['name'])
         elif kind in ('buf', 'mutbuf', 'str'):
             out.append('%s: usize' % p['name'])
             out.append('%s: u32' % p['count'])
@@ -399,7 +412,7 @@ def as_params(params):
 def as_ret(op):
     if op['ret'] is None:
         return 'void'
-    return 'f32' if op['ret'] == 'f32' else 'u32'
+    return op['ret'] if op['ret'] in ('f32', 'f64') else 'u32'
 
 
 def emit_as():
@@ -499,6 +512,9 @@ def as_wrapper_params(params):
             args.append(name)
         elif kind == 'f32':
             decl.append('%s: f32' % name)
+            args.append(name)
+        elif kind == 'f64':
+            decl.append('%s: f64' % name)
             args.append(name)
         elif kind == 'str':
             decl.append('%s: string' % name)
@@ -638,7 +654,7 @@ def web_op(namespace, op):
     for p in op['params']:
         kind = p['kind']
         name = camel(p['name'])
-        if kind in ('u32', 'i32', 'f32', 'handle'):
+        if kind in ('u32', 'i32', 'f32', 'f64', 'handle'):
             js_params.append(name)
             args.append(name)
         elif kind in ('str', 'buf', 'mutbuf'):

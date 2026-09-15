@@ -16,8 +16,15 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/blob_asset.hpp"
+#ifdef WITH_RIVE_AUDIO
+#include "rive/assets/audio_asset.hpp"
+#include "rive/audio/audio_engine.hpp"
+#include "rive/audio/audio_sound.hpp"
+#include "rive/audio/audio_source.hpp"
+#endif
 #include "rive/bones/root_bone.hpp"
 #include "rive/constraints/constraint.hpp"
+#include "rive/container_component.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/node.hpp"
 #include "rive/shapes/path.hpp"
@@ -1156,6 +1163,43 @@ void paintShaderImpl(WasmScriptingVM* vm,
     paint->shader(hostShader != nullptr ? hostShader->shader : nullptr);
 }
 
+// The object's file asset of type T by name; accept skips matches that
+// carry nothing, the way the Luau lookups keep scanning past them.
+template <typename T>
+T* findFileAsset(WasmScriptingVM* vm,
+                 uint32_t objectHandle,
+                 const char* name,
+                 uint32_t length,
+                 bool (*accept)(T*) = nullptr)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    auto object = static_cast<ScriptedObject*>(
+        vm->handles().resolve(objectHandle,
+                              WasmScriptingVM::HandleTable::Tag::object));
+    if (object == nullptr || object->scriptAsset() == nullptr ||
+        object->scriptAsset()->file() == nullptr)
+    {
+        return nullptr;
+    }
+    std::string key(name, length);
+    for (const auto& asset : object->scriptAsset()->file()->assets())
+    {
+        if (!asset->is<T>() || asset->name() != key)
+        {
+            continue;
+        }
+        T* match = asset->template as<T>();
+        if (accept == nullptr || accept(match))
+        {
+            return match;
+        }
+    }
+    return nullptr;
+}
+
 struct HostImage
 {
     rcp<RenderImage> image;
@@ -1181,33 +1225,13 @@ uint32_t imageFromAssetImpl(WasmScriptingVM* vm,
                             const char* name,
                             uint32_t length)
 {
-    if (vm == nullptr)
+    auto asset = findFileAsset<ImageAsset>(vm, objectHandle, name, length);
+    if (asset == nullptr || asset->renderImage() == nullptr)
     {
         return 0;
     }
-    auto object = static_cast<ScriptedObject*>(
-        vm->handles().resolve(objectHandle,
-                              WasmScriptingVM::HandleTable::Tag::object));
-    if (object == nullptr || object->scriptAsset() == nullptr ||
-        object->scriptAsset()->file() == nullptr)
-    {
-        return 0;
-    }
-    std::string key(name, length);
-    for (const auto& asset : object->scriptAsset()->file()->assets())
-    {
-        if (asset->is<ImageAsset>() && asset->name() == key)
-        {
-            RenderImage* renderImage = asset->as<ImageAsset>()->renderImage();
-            if (renderImage == nullptr)
-            {
-                return 0;
-            }
-            return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::image,
-                                      new HostImage{ref_rcp(renderImage)});
-        }
-    }
-    return 0;
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::image,
+                              new HostImage{ref_rcp(asset->renderImage())});
 }
 
 uint32_t imageWidthImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -2078,29 +2102,17 @@ uint32_t gpuShaderAssetBytesImpl(WasmScriptingVM* vm,
         }
     }
 #endif
-    auto object = static_cast<ScriptedObject*>(
-        vm->handles().resolve(objectHandle,
-                              WasmScriptingVM::HandleTable::Tag::object));
-    if (object == nullptr || object->scriptAsset() == nullptr ||
-        object->scriptAsset()->file() == nullptr)
+    auto asset = findFileAsset<ShaderAsset>(vm, objectHandle, name, nameLength);
+    if (asset == nullptr)
     {
         return 0;
     }
-    std::string key(name, nameLength);
-    for (const auto& asset : object->scriptAsset()->file()->assets())
+    auto rstb = asset->rstb();
+    if (rstb.size() <= outCount)
     {
-        if (!asset->is<ShaderAsset>() || asset->name() != key)
-        {
-            continue;
-        }
-        auto rstb = asset->as<ShaderAsset>()->rstb();
-        if (rstb.size() <= outCount)
-        {
-            memcpy(out, rstb.data(), rstb.size());
-        }
-        return (uint32_t)rstb.size();
+        memcpy(out, rstb.data(), rstb.size());
     }
-    return 0;
+    return (uint32_t)rstb.size();
 }
 
 uint32_t gpuShaderAssetIdImpl(WasmScriptingVM* vm,
@@ -2108,27 +2120,8 @@ uint32_t gpuShaderAssetIdImpl(WasmScriptingVM* vm,
                               const char* name,
                               uint32_t nameLength)
 {
-    if (vm == nullptr)
-    {
-        return 0;
-    }
-    auto object = static_cast<ScriptedObject*>(
-        vm->handles().resolve(objectHandle,
-                              WasmScriptingVM::HandleTable::Tag::object));
-    if (object == nullptr || object->scriptAsset() == nullptr ||
-        object->scriptAsset()->file() == nullptr)
-    {
-        return 0;
-    }
-    std::string key(name, nameLength);
-    for (const auto& asset : object->scriptAsset()->file()->assets())
-    {
-        if (asset->is<ShaderAsset>() && asset->name() == key)
-        {
-            return asset->assetId();
-        }
-    }
-    return 0;
+    auto asset = findFileAsset<ShaderAsset>(vm, objectHandle, name, nameLength);
+    return asset != nullptr ? asset->assetId() : 0;
 }
 
 uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm,
@@ -4830,6 +4823,59 @@ uint32_t artboardNodePaintImpl(WasmScriptingVM* vm,
     return 1;
 }
 
+uint32_t artboardNodeChildrenImpl(WasmScriptingVM* vm,
+                                  uint32_t handle,
+                                  uint32_t* out,
+                                  uint32_t outCount)
+{
+    auto host = resolveNode(vm, handle);
+    if (host == nullptr || !host->component->is<ContainerComponent>())
+    {
+        return 0;
+    }
+    auto& children = host->component->as<ContainerComponent>()->children();
+    uint32_t count = 0;
+    for (auto child : children)
+    {
+        if (child->is<TransformComponent>())
+        {
+            count++;
+        }
+    }
+    if (count > outCount)
+    {
+        return count;
+    }
+    uint32_t index = 0;
+    for (auto child : children)
+    {
+        if (child->is<TransformComponent>())
+        {
+            out[index++] = vm->handles().mint(
+                WasmScriptingVM::HandleTable::Tag::node,
+                new HostNode{host->owner, child->as<TransformComponent>()});
+        }
+    }
+    return count;
+}
+
+uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveNode(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    auto parent = host->component->parent();
+    if (parent == nullptr || !parent->is<TransformComponent>())
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::node,
+        new HostNode{host->owner, parent->as<TransformComponent>()});
+}
+
 // --- rive_data_v1 asset properties (image/font/blob) ------------------------
 
 struct HostFont
@@ -4996,34 +5042,405 @@ uint32_t blobAssetBytesImpl(WasmScriptingVM* vm,
                             uint8_t* out,
                             uint32_t outCount)
 {
+    auto asset = findFileAsset<BlobAsset>(
+        vm,
+        objectHandle,
+        name,
+        nameLength,
+        [](BlobAsset* blob) { return !blob->bytes().empty(); });
+    if (asset == nullptr)
+    {
+        return 0;
+    }
+    auto bytes = asset->bytes();
+    if (bytes.size() <= outCount)
+    {
+        memcpy(out, bytes.data(), bytes.size());
+    }
+    return (uint32_t)bytes.size();
+}
+
+// --- rive_audio_v1 ---------------------------------------------------------
+
+#ifdef WITH_RIVE_AUDIO
+struct HostAudioSource
+{
+    rcp<AudioSource> source;
+};
+
+struct HostAudioSound
+{
+    rcp<AudioSound> sound;
+};
+
+HostAudioSource* resolveAudioSource(WasmScriptingVM* vm, uint32_t handle)
+{
     if (vm == nullptr)
     {
-        return 0;
+        return nullptr;
     }
-    auto object = static_cast<ScriptedObject*>(
-        vm->handles().resolve(objectHandle,
-                              WasmScriptingVM::HandleTable::Tag::object));
-    if (object == nullptr || object->scriptAsset() == nullptr ||
-        object->scriptAsset()->file() == nullptr)
+    return static_cast<HostAudioSource*>(
+        vm->handles().resolve(handle,
+                              WasmScriptingVM::HandleTable::Tag::audioSource));
+}
+
+HostAudioSound* resolveAudioSound(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostAudioSound*>(
+        vm->handles().resolve(handle,
+                              WasmScriptingVM::HandleTable::Tag::audioSound));
+}
+
+// The Luau play and playFrame shapes: relative times offset from the
+// engine clock, the sound minted at the artboard-free volume of 1. Tools
+// builds refuse to play while playback is paused.
+uint32_t audioPlaySound(WasmScriptingVM* vm, rcp<AudioSound> sound)
+{
+    if (sound == nullptr)
     {
         return 0;
     }
-    std::string key(name, nameLength);
-    for (const auto& asset : object->scriptAsset()->file()->assets())
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::audioSound,
+                              new HostAudioSound{std::move(sound)});
+}
+
+rcp<AudioEngine> audioPlayEngine(WasmScriptingVM* vm, HostAudioSource* host)
+{
+    if (host == nullptr)
     {
-        if (!asset->is<BlobAsset>() || asset->name() != key ||
-            asset->as<BlobAsset>()->bytes().empty())
-        {
-            continue;
-        }
-        auto bytes = asset->as<BlobAsset>()->bytes();
-        if (bytes.size() <= outCount)
-        {
-            memcpy(out, bytes.data(), bytes.size());
-        }
-        return (uint32_t)bytes.size();
+        return nullptr;
     }
+#ifdef WITH_RIVE_TOOLS
+    if (!vm->isPlaying())
+    {
+        return nullptr;
+    }
+#endif
+    return AudioEngine::RuntimeEngine(true);
+}
+
+uint32_t audioPlaySeconds(WasmScriptingVM* vm,
+                          uint32_t sourceHandle,
+                          float seconds,
+                          bool relative)
+{
+    auto host = resolveAudioSource(vm, sourceHandle);
+    auto engine = audioPlayEngine(vm, host);
+    if (engine == nullptr)
+    {
+        return 0;
+    }
+    if (relative)
+    {
+        seconds += engine->timeInSeconds();
+    }
+    return audioPlaySound(vm, engine->playSeconds(host->source, seconds, 0, 0));
+}
+
+uint32_t audioPlayFrames(WasmScriptingVM* vm,
+                         uint32_t sourceHandle,
+                         double frames,
+                         bool relative)
+{
+    auto host = resolveAudioSource(vm, sourceHandle);
+    auto engine = audioPlayEngine(vm, host);
+    if (engine == nullptr)
+    {
+        return 0;
+    }
+    uint64_t startTime = (uint64_t)frames;
+    if (relative)
+    {
+        startTime += engine->timeInFrames();
+    }
+    return audioPlaySound(vm, engine->play(host->source, startTime, 0, 0));
+}
+#endif
+
+uint32_t audioSourceImpl(WasmScriptingVM* vm,
+                         uint32_t objectHandle,
+                         const char* name,
+                         uint32_t nameLength)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto asset = findFileAsset<AudioAsset>(
+        vm,
+        objectHandle,
+        name,
+        nameLength,
+        [](AudioAsset* audio) { return audio->audioSource() != nullptr; });
+    if (asset == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::audioSource,
+                              new HostAudioSource{asset->audioSource()});
+#endif
     return 0;
+}
+
+void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSource(vm, handle);
+    if (host == nullptr)
+    {
+        return;
+    }
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::audioSource);
+    delete host;
+#endif
+}
+
+float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSource(vm, handle);
+    return host != nullptr ? host->source->duration() : 0.0f;
+#else
+    return 0.0f;
+#endif
+}
+
+uint32_t audioSourceSampleRateImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSource(vm, handle);
+    return host != nullptr ? host->source->sampleRate() : 0;
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioSourceChannelsImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSource(vm, handle);
+    return host != nullptr ? host->source->channels() : 0;
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioPlayImpl(WasmScriptingVM* vm, uint32_t source)
+{
+#ifdef WITH_RIVE_AUDIO
+    return audioPlaySeconds(vm, source, 0.0f, true);
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioPlayAtTimeImpl(WasmScriptingVM* vm,
+                             uint32_t source,
+                             float seconds)
+{
+#ifdef WITH_RIVE_AUDIO
+    return audioPlaySeconds(vm, source, seconds, false);
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioPlayInTimeImpl(WasmScriptingVM* vm,
+                             uint32_t source,
+                             float seconds)
+{
+#ifdef WITH_RIVE_AUDIO
+    return audioPlaySeconds(vm, source, seconds, true);
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioPlayAtFrameImpl(WasmScriptingVM* vm,
+                              uint32_t source,
+                              double frame)
+{
+#ifdef WITH_RIVE_AUDIO
+    return audioPlayFrames(vm, source, frame, false);
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioPlayInFrameImpl(WasmScriptingVM* vm,
+                              uint32_t source,
+                              double frame)
+{
+#ifdef WITH_RIVE_AUDIO
+    return audioPlayFrames(vm, source, frame, true);
+#else
+    return 0;
+#endif
+}
+
+float audioTimeImpl(WasmScriptingVM* vm)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto engine = AudioEngine::RuntimeEngine(true);
+    return engine != nullptr ? engine->timeInSeconds() : 0.0f;
+#else
+    return 0.0f;
+#endif
+}
+
+double audioTimeFrameImpl(WasmScriptingVM* vm)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto engine = AudioEngine::RuntimeEngine(true);
+    return engine != nullptr ? (double)engine->timeInFrames() : 0.0;
+#else
+    return 0.0;
+#endif
+}
+
+uint32_t audioSampleRateImpl(WasmScriptingVM* vm)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto engine = AudioEngine::RuntimeEngine(true);
+    return engine != nullptr ? engine->sampleRate() : 0;
+#else
+    return 0;
+#endif
+}
+
+void audioSoundReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host == nullptr)
+    {
+        return;
+    }
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::audioSound);
+    delete host;
+#endif
+}
+
+void audioSoundPlayImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host != nullptr)
+    {
+        host->sound->play();
+    }
+#endif
+}
+
+void audioSoundPauseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host != nullptr)
+    {
+        host->sound->pause();
+    }
+#endif
+}
+
+void audioSoundResumeImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host != nullptr)
+    {
+        host->sound->resume();
+    }
+#endif
+}
+
+void audioSoundStopImpl(WasmScriptingVM* vm,
+                        uint32_t handle,
+                        uint32_t fadeFrames)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host != nullptr)
+    {
+        host->sound->stop(fadeFrames);
+    }
+#endif
+}
+
+uint32_t audioSoundSeekImpl(WasmScriptingVM* vm, uint32_t handle, float seconds)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr && host->sound->seekSeconds(seconds) ? 1 : 0;
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioSoundSeekFrameImpl(WasmScriptingVM* vm,
+                                 uint32_t handle,
+                                 double frame)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr && host->sound->seek((uint64_t)frame) ? 1 : 0;
+#else
+    return 0;
+#endif
+}
+
+uint32_t audioSoundCompletedImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr && host->sound->completed() ? 1 : 0;
+#else
+    return 0;
+#endif
+}
+
+float audioSoundTimeImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr ? host->sound->timeInSeconds() : 0.0f;
+#else
+    return 0.0f;
+#endif
+}
+
+double audioSoundTimeFrameImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr ? (double)host->sound->timeInFrames() : 0.0;
+#else
+    return 0.0;
+#endif
+}
+
+float audioSoundVolumeImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    return host != nullptr ? host->sound->volume() : 0.0f;
+#else
+    return 0.0f;
+#endif
+}
+
+void audioSoundSetVolumeImpl(WasmScriptingVM* vm, uint32_t handle, float value)
+{
+#ifdef WITH_RIVE_AUDIO
+    auto host = resolveAudioSound(vm, handle);
+    if (host != nullptr)
+    {
+        host->sound->volume(value);
+    }
+#endif
 }
 
 uint32_t dataBlobPresentImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -5330,6 +5747,14 @@ WasmScriptingVM::~WasmScriptingVM()
             case HandleTable::Tag::node:
                 delete static_cast<HostNode*>(slot.object);
                 break;
+#ifdef WITH_RIVE_AUDIO
+            case HandleTable::Tag::audioSource:
+                delete static_cast<HostAudioSource*>(slot.object);
+                break;
+            case HandleTable::Tag::audioSound:
+                delete static_cast<HostAudioSound*>(slot.object);
+                break;
+#endif
 #ifdef RIVE_CANVAS
             case HandleTable::Tag::canvas:
                 delete static_cast<HostCanvas*>(slot.object);
@@ -6346,7 +6771,12 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "animation";
         case Tag::node:
             return "node";
+        case Tag::audioSource:
+            return "audioSource";
+        case Tag::audioSound:
+            return "audioSound";
         case Tag::empty:
+        case Tag::count:
             break;
     }
     return "unknown";
@@ -6457,7 +6887,7 @@ const char* WasmScriptingVM::handleLeakWarning()
     uint32_t frames = m_handleFrames;
     m_handleBaselineLive = live + 1;
     m_handleFrames = 0;
-    uint32_t counts[(size_t)HandleTable::Tag::node + 1] = {0};
+    uint32_t counts[(size_t)HandleTable::Tag::count] = {0};
     for (const HandleTable::Slot& slot : m_handles.slots)
     {
         if (slot.tag != HandleTable::Tag::empty)

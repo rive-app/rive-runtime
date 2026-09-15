@@ -327,6 +327,46 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(out_p, out, outCount * 4);
                 return ret;
             },
+            node_children: (node, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_artboard_node_children(node, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            node_parent: calls.rive_artboard_node_parent,
+        },
+        rive_audio_v1: {
+            source: (object, name, nameLength) => {
+                stackReset();
+                const name_p = stageIn(name, nameLength);
+                const ret = calls.rive_audio_source(object, name_p, nameLength);
+                return ret;
+            },
+            source_release: calls.rive_audio_source_release,
+            source_duration: calls.rive_audio_source_duration,
+            source_sample_rate: calls.rive_audio_source_sample_rate,
+            source_channels: calls.rive_audio_source_channels,
+            play: calls.rive_audio_play,
+            play_at_time: calls.rive_audio_play_at_time,
+            play_in_time: calls.rive_audio_play_in_time,
+            play_at_frame: calls.rive_audio_play_at_frame,
+            play_in_frame: calls.rive_audio_play_in_frame,
+            time: calls.rive_audio_time,
+            time_frame: calls.rive_audio_time_frame,
+            sample_rate: calls.rive_audio_sample_rate,
+            sound_release: calls.rive_audio_sound_release,
+            sound_play: calls.rive_audio_sound_play,
+            sound_pause: calls.rive_audio_sound_pause,
+            sound_resume: calls.rive_audio_sound_resume,
+            sound_stop: calls.rive_audio_sound_stop,
+            sound_seek: calls.rive_audio_sound_seek,
+            sound_seek_frame: calls.rive_audio_sound_seek_frame,
+            sound_completed: calls.rive_audio_sound_completed,
+            sound_time: calls.rive_audio_sound_time,
+            sound_time_frame: calls.rive_audio_sound_time_frame,
+            sound_volume: calls.rive_audio_sound_volume,
+            sound_set_volume: calls.rive_audio_sound_set_volume,
         },
         rive_path_v1: {
             new: calls.rive_path_new,

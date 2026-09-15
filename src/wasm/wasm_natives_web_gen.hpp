@@ -510,6 +510,141 @@ uint32_t rive_web_artboard_node_paint(uint32_t vmHandle, uint32_t node, uint32_t
     return artboardNodePaintImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_node_children(uint32_t vmHandle, uint32_t node, uint32_t* out, uint32_t outCount)
+{
+    return artboardNodeChildrenImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_node_parent(uint32_t vmHandle, uint32_t node)
+{
+    return artboardNodeParentImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
+{
+    return audioSourceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_source_release(uint32_t vmHandle, uint32_t source)
+{
+    audioSourceReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_audio_source_duration(uint32_t vmHandle, uint32_t source)
+{
+    return audioSourceDurationImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_source_sample_rate(uint32_t vmHandle, uint32_t source)
+{
+    return audioSourceSampleRateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_source_channels(uint32_t vmHandle, uint32_t source)
+{
+    return audioSourceChannelsImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_play(uint32_t vmHandle, uint32_t source)
+{
+    return audioPlayImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_play_at_time(uint32_t vmHandle, uint32_t source, float seconds)
+{
+    return audioPlayAtTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, seconds);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_play_in_time(uint32_t vmHandle, uint32_t source, float seconds)
+{
+    return audioPlayInTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, seconds);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_play_at_frame(uint32_t vmHandle, uint32_t source, double frame)
+{
+    return audioPlayAtFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, frame);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_play_in_frame(uint32_t vmHandle, uint32_t source, double frame)
+{
+    return audioPlayInFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, frame);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_audio_time(uint32_t vmHandle)
+{
+    return audioTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+}
+EMSCRIPTEN_KEEPALIVE
+double rive_web_audio_time_frame(uint32_t vmHandle)
+{
+    return audioTimeFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_sample_rate(uint32_t vmHandle)
+{
+    return audioSampleRateImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_release(uint32_t vmHandle, uint32_t sound)
+{
+    audioSoundReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_play(uint32_t vmHandle, uint32_t sound)
+{
+    audioSoundPlayImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_pause(uint32_t vmHandle, uint32_t sound)
+{
+    audioSoundPauseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_resume(uint32_t vmHandle, uint32_t sound)
+{
+    audioSoundResumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_stop(uint32_t vmHandle, uint32_t sound, uint32_t fadeFrames)
+{
+    audioSoundStopImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, fadeFrames);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_sound_seek(uint32_t vmHandle, uint32_t sound, float seconds)
+{
+    return audioSoundSeekImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, seconds);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_sound_seek_frame(uint32_t vmHandle, uint32_t sound, double frame)
+{
+    return audioSoundSeekFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, frame);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_audio_sound_completed(uint32_t vmHandle, uint32_t sound)
+{
+    return audioSoundCompletedImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_audio_sound_time(uint32_t vmHandle, uint32_t sound)
+{
+    return audioSoundTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+double rive_web_audio_sound_time_frame(uint32_t vmHandle, uint32_t sound)
+{
+    return audioSoundTimeFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_audio_sound_volume(uint32_t vmHandle, uint32_t sound)
+{
+    return audioSoundVolumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_audio_sound_set_volume(uint32_t vmHandle, uint32_t sound, float value)
+{
+    audioSoundSetVolumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, value);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_path_new(uint32_t vmHandle)
 {
     return pathNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle);

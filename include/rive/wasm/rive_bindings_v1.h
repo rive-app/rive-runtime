@@ -403,6 +403,62 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "node_path_points")
 uint32_t rive_artboard_node_path_points(uint32_t node, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_paint")
 uint32_t rive_artboard_node_paint(uint32_t node, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_children")
+uint32_t rive_artboard_node_children(uint32_t node, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "node_parent")
+uint32_t rive_artboard_node_parent(uint32_t node);
+
+// rive_audio_v1
+RIVE_BINDING_IMPORT("rive_audio_v1", "source")
+uint32_t rive_audio_source(uint32_t object, const char* name, uint32_t nameLength);
+RIVE_BINDING_IMPORT("rive_audio_v1", "source_release")
+void rive_audio_source_release(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "source_duration")
+float rive_audio_source_duration(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "source_sample_rate")
+uint32_t rive_audio_source_sample_rate(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "source_channels")
+uint32_t rive_audio_source_channels(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "play")
+uint32_t rive_audio_play(uint32_t source);
+RIVE_BINDING_IMPORT("rive_audio_v1", "play_at_time")
+uint32_t rive_audio_play_at_time(uint32_t source, float seconds);
+RIVE_BINDING_IMPORT("rive_audio_v1", "play_in_time")
+uint32_t rive_audio_play_in_time(uint32_t source, float seconds);
+RIVE_BINDING_IMPORT("rive_audio_v1", "play_at_frame")
+uint32_t rive_audio_play_at_frame(uint32_t source, double frame);
+RIVE_BINDING_IMPORT("rive_audio_v1", "play_in_frame")
+uint32_t rive_audio_play_in_frame(uint32_t source, double frame);
+RIVE_BINDING_IMPORT("rive_audio_v1", "time")
+float rive_audio_time(void);
+RIVE_BINDING_IMPORT("rive_audio_v1", "time_frame")
+double rive_audio_time_frame(void);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sample_rate")
+uint32_t rive_audio_sample_rate(void);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_release")
+void rive_audio_sound_release(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_play")
+void rive_audio_sound_play(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_pause")
+void rive_audio_sound_pause(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_resume")
+void rive_audio_sound_resume(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_stop")
+void rive_audio_sound_stop(uint32_t sound, uint32_t fadeFrames);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_seek")
+uint32_t rive_audio_sound_seek(uint32_t sound, float seconds);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_seek_frame")
+uint32_t rive_audio_sound_seek_frame(uint32_t sound, double frame);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_completed")
+uint32_t rive_audio_sound_completed(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_time")
+float rive_audio_sound_time(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_time_frame")
+double rive_audio_sound_time_frame(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_volume")
+float rive_audio_sound_volume(uint32_t sound);
+RIVE_BINDING_IMPORT("rive_audio_v1", "sound_set_volume")
+void rive_audio_sound_set_volume(uint32_t sound, float value);
 
 // rive_path_v1
 RIVE_BINDING_IMPORT("rive_path_v1", "new")
