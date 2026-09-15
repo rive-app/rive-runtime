@@ -171,6 +171,11 @@ void BackboardImporter::addInterpolator(KeyFrameInterpolator* interpolator)
     m_interpolators.push_back(interpolator);
 }
 
+void BackboardImporter::seedInterpolator(KeyFrameInterpolator* interpolator)
+{
+    m_interpolators.push_back(interpolator);
+}
+
 void BackboardImporter::addPhysics(ScrollPhysics* physics)
 {
     m_physics.push_back(physics);

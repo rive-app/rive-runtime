@@ -1,10 +1,14 @@
 #include "rive/file.hpp"
+
+#include <algorithm>
+
 #include "rive/bindable_artboard.hpp"
 #include "rive/runtime_header.hpp"
 #include "rive/watermark.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/artboard_referencer.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
@@ -368,8 +372,40 @@ rcp<File> File::import(Span<const uint8_t> bytes,
 
 ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
 {
+#ifdef WITH_RIVE_TOOLS
+    // Keep the header: re-importing a single artboard later needs its property
+    // table to decode objects.
+    m_header = header;
+#endif
     ImportStack importStack;
     importStack.version(header.majorVersion(), header.minorVersion());
+    auto result = readObjects(reader, header, importStack, nullptr);
+    if (result != ImportResult::success)
+    {
+        return result;
+    }
+#ifdef WITH_RIVE_SCRIPTING
+    registerScripts();
+#endif
+    return result;
+}
+
+/// Reads objects from [reader] into [importStack] until the stream ends.
+///
+/// With [capturedArtboard] null this is the whole-file path: artboards are
+/// appended to m_artboards and their byte ranges recorded. Non-null instead
+/// captures the single artboard the stream contains and leaves m_artboards
+/// alone, which is how one artboard is re-imported in place.
+///
+/// Resolves [importStack] before returning. That has to happen here rather
+/// than in the caller: importers hold pointers to locals of this function
+/// (inBandContent), and resolve() dereferences them.
+ImportResult File::readObjects(BinaryReader& reader,
+                               const RuntimeHeader& header,
+                               ImportStack& importStack,
+                               Artboard** capturedArtboard)
+{
+    const bool wholeFile = capturedArtboard == nullptr;
 #ifdef WITH_RIVE_SCRIPTING
     std::vector<InBandContent> inBandContent;
 #endif
@@ -377,8 +413,16 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
     // simple because Core doesn't have a typeKey, so it should be treated as
     // a special case. In any case, it's not that bad having it here for now.
     Core* lastBindableObject = nullptr;
+#ifdef WITH_RIVE_TOOLS
+    // Start of the object about to be read, so an Artboard's run can be
+    // measured from its own first byte.
+    const uint8_t* const streamStart = reader.position();
+#endif
     while (!reader.reachedEnd())
     {
+#ifdef WITH_RIVE_TOOLS
+        const size_t objectStart = (size_t)(reader.position() - streamStart);
+#endif
         bool malformed = false;
         auto object = readRuntimeObject(reader, header, malformed);
         if (malformed)
@@ -409,7 +453,25 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 {
                     Artboard* ab = object->as<Artboard>();
                     ab->m_Factory = m_factory;
-                    m_artboards.push_back(ab);
+                    if (wholeFile)
+                    {
+#ifdef WITH_RIVE_TOOLS
+                        // This artboard's run starts here and ends where the
+                        // next one starts (closed out below), so ranges stay
+                        // contiguous.
+                        if (!m_artboardByteRanges.empty())
+                        {
+                            m_artboardByteRanges.back().end = objectStart;
+                        }
+                        m_artboardByteRanges.push_back(
+                            {objectStart, objectStart});
+#endif
+                        m_artboards.push_back(ab);
+                    }
+                    else
+                    {
+                        *capturedArtboard = ab;
+                    }
                 }
                 break;
                 case ImageAsset::typeKey:
@@ -726,6 +788,17 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         {
             return ImportResult::malformed;
         }
+        // These lists describe the whole file, and the file owns (and deletes)
+        // the first three. A single artboard's run only ever adds objects the
+        // artboard itself owns, so appending them here would double-delete on
+        // teardown and leave m_scriptedInterpolators pointing at an artboard a
+        // later splice has already freed. The file-global entries a partial
+        // read needs to *resolve* against are seeded into the import stack by
+        // the caller instead.
+        if (!wholeFile)
+        {
+            continue;
+        }
         if (object->is<DataConverter>())
         {
             m_DataConverters.push_back(object->as<DataConverter>());
@@ -753,14 +826,140 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         }
     }
 
-    auto resolved = importStack.resolve();
-#ifdef WITH_RIVE_SCRIPTING
-    registerScripts();
+#ifdef WITH_RIVE_TOOLS
+    // The last artboard runs to wherever the stream stopped. Measured from
+    // streamStart like every other offset -- lengthInBytes() would include the
+    // header, which these offsets are relative to the end of.
+    if (wholeFile && !m_artboardByteRanges.empty())
+    {
+        m_artboardByteRanges.back().end =
+            (size_t)(reader.position() - streamStart);
+    }
 #endif
+
+    auto resolved = importStack.resolve();
     return !reader.hasError() && resolved == StatusCode::Ok
                ? ImportResult::success
                : ImportResult::malformed;
 }
+
+#ifdef WITH_RIVE_TOOLS
+ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
+{
+    if (index >= m_artboards.size() || bytes.size() == 0)
+    {
+        return ImportResult::malformed;
+    }
+
+    BinaryReader reader(bytes);
+    ImportStack importStack;
+    importStack.version(m_header.majorVersion(), m_header.minorVersion());
+
+    // The run holds no Backboard, assets or view models of its own, so seed an
+    // importer with the ones this file already has. That is what lets the new
+    // artboard's asset and nested-artboard references resolve.
+    auto backboardImporter = std::make_unique<BackboardImporter>(m_backboard);
+    backboardImporter->file(this);
+    for (auto* existing : m_artboards)
+    {
+        backboardImporter->addArtboard(existing);
+    }
+    for (auto& asset : m_fileAssets)
+    {
+        backboardImporter->addFileAsset(asset);
+    }
+    // The run's DataBinds resolve their converters by index into this list,
+    // its converters resolve their interpolators by index into the next, and a
+    // ScrollConstraint resolves its physics by index into the third. All three
+    // live outside any artboard, so the run carries none of them and an
+    // unseeded importer would silently leave every one of those references
+    // unbound.
+    for (auto* converter : m_DataConverters)
+    {
+        backboardImporter->addDataConverter(converter);
+    }
+    for (auto* interpolator : m_keyframeInterpolators)
+    {
+        backboardImporter->seedInterpolator(interpolator);
+    }
+    for (auto* physics : m_scrollPhysics)
+    {
+        backboardImporter->addPhysics(physics);
+    }
+    if (importStack.makeLatest(Backboard::typeKey,
+                               std::move(backboardImporter)) != StatusCode::Ok)
+    {
+        return ImportResult::malformed;
+    }
+
+    Artboard* imported = nullptr;
+    if (readObjects(reader, m_header, importStack, &imported) !=
+            ImportResult::success ||
+        imported == nullptr)
+    {
+        delete imported;
+        return ImportResult::malformed;
+    }
+
+    // addArtboard() stamps whatever the importer's running counter is, and
+    // seeding it with every existing artboard left that counter at
+    // m_artboards.size(). The replacement takes over a slot, not a new one.
+    imported->artboardId((uint16_t)index);
+
+    // m_scriptedInterpolators is not rebuilt by a partial read (see
+    // readObjects), so swap the outgoing artboard's entries for the
+    // replacement's by hand -- leaving them would point the list at objects
+    // the delete below frees.
+    Artboard* outgoing = m_artboards[index];
+    m_scriptedInterpolators.erase(
+        std::remove_if(m_scriptedInterpolators.begin(),
+                       m_scriptedInterpolators.end(),
+                       [outgoing](ScriptedInterpolator* interpolator) {
+                           for (auto* object : outgoing->objects())
+                           {
+                               if (object == interpolator)
+                               {
+                                   return true;
+                               }
+                           }
+                           return false;
+                       }),
+        m_scriptedInterpolators.end());
+    for (auto* object : imported->objects())
+    {
+        if (object != nullptr && object->is<ScriptedInterpolator>())
+        {
+            m_scriptedInterpolators.push_back(
+                object->as<ScriptedInterpolator>());
+        }
+    }
+
+    delete m_artboards[index];
+    m_artboards[index] = imported;
+
+    // Other artboards hold a resolved pointer to the artboard that was just
+    // deleted (BackboardImporter::resolve stamped it in at import time), so
+    // re-point every referencer of this index at the replacement. Missing one
+    // would leave a dangling pointer rather than a visible failure.
+    for (auto* artboard : m_artboards)
+    {
+        for (auto* object : artboard->objects())
+        {
+            if (object == nullptr)
+            {
+                continue;
+            }
+            auto* referencer = ArtboardReferencer::from(object);
+            if (referencer != nullptr &&
+                referencer->referencedArtboardId() == (int)index)
+            {
+                referencer->referencedArtboard(imported);
+            }
+        }
+    }
+    return ImportResult::success;
+}
+#endif
 
 void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 {

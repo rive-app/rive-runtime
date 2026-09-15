@@ -57,7 +57,14 @@ private:
     static OnParentIdChangedCallback s_onParentIdChanged;
 #endif
 
-    unsigned int m_GraphOrder;
+    /// Position in the owning artboard's dependency order, written by
+    /// Artboard::sortDependencies. Starts at a sentinel no order can hand out:
+    /// sortDependencies only stamps the components it actually placed, and an
+    /// artboard holds plenty it does not -- reading an uninitialized value for
+    /// those is undefined behavior, and a garbage stamp that happens to land
+    /// inside a real order's range is indistinguishable from a real position.
+    static constexpr unsigned int unsortedGraphOrder = ~0u;
+    unsigned int m_GraphOrder = unsortedGraphOrder;
     Artboard* m_Artboard = nullptr;
     LazyVector<DataBind*> m_collapsables;
 
