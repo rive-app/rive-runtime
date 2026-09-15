@@ -149,27 +149,13 @@ bool ViewModelInstance::replaceViewModelByName(const std::string& name,
                     viewModelProperty->as<ViewModelPropertyViewModel>()
                         ->viewModelReferenceId())
                 {
-                    auto previousViewModelInstance =
-                        propertyValue->as<ViewModelInstanceViewModel>()
-                            ->referenceViewModelInstance();
-                    propertyValue->as<ViewModelInstanceViewModel>()
-                        ->referenceViewModelInstance(value);
-                    // Invalidate value-level dependents (e.g. scripted property
-                    // wrappers) so cached references to the previous instance
-                    // are dropped. Multiple dependents can share this property.
-                    // Snapshot because relinkDataBind can mutate the dependents
-                    // list.
-                    auto dependentsSnapshot = propertyValue->dependents();
-                    for (auto& dependent : dependentsSnapshot)
-                    {
-                        dependent->relinkDataBind();
-                    }
-                    rebindDependents();
-                    if (previousViewModelInstance)
-                    {
-                        previousViewModelInstance->rebindProperties();
-                    }
-                    return true;
+                    // Share the by-property implementation so both entry points
+                    // behave identically — same invalidation sequence, same
+                    // same-value guard. Callers must not see different churn
+                    // depending on which API they reached for.
+                    return replaceViewModelByProperty(
+                        propertyValue->as<ViewModelInstanceViewModel>(),
+                        value);
                 }
                 break;
             }
@@ -189,6 +175,20 @@ bool ViewModelInstance::replaceViewModelByProperty(
             auto previousViewModelInstance =
                 propertyValue->as<ViewModelInstanceViewModel>()
                     ->referenceViewModelInstance();
+            // Assigning the instance the property already holds is a no-op,
+            // but the work below is not: it re-parents, marks Bindings dirt,
+            // fires the WITH_RIVE_TOOLS changed callback, and relinks every
+            // dependent. The data-bind apply path reaches here on every
+            // advance (DataBindContextValueViewModel::apply ->
+            // updateViewModel) without comparing first, so an unchanged
+            // reference would churn all of that every frame. The invalidation
+            // below exists to drop caches pointing at a *previous* instance;
+            // with no swap there are none. Still reports success: the property
+            // was found and holds the requested value.
+            if (previousViewModelInstance == value)
+            {
+                return true;
+            }
             propertyValue->as<ViewModelInstanceViewModel>()
                 ->referenceViewModelInstance(value);
             // Invalidate value-level dependents (e.g. scripted property
