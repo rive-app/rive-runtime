@@ -493,32 +493,181 @@ uint32_t resizeHeap(wasm_exec_env_t env, uint32_t size)
     return wasm_runtime_enlarge_memory(inst, wantPages - curPages) ? 1 : 0;
 }
 
-uint32_t strftimeNative(wasm_exec_env_t env,
-                        uint32_t a,
-                        uint32_t b,
-                        uint32_t c,
-                        uint32_t d)
+static bool localTime(double epochSeconds, time_t& at, struct tm& local)
 {
-    return 0;
+    at = (time_t)epochSeconds;
+#ifdef _WIN32
+    return localtime_s(&local, &at) == 0;
+#else
+    return localtime_r(&at, &local) != nullptr;
+#endif
 }
+
+// Seconds the local rendering sits ahead of UTC.
+static int32_t utcOffsetOf(struct tm local, time_t at)
+{
+#ifdef _WIN32
+    return (int32_t)(_mkgmtime(&local) - at);
+#else
+    return (int32_t)(timegm(&local) - at);
+#endif
+}
+
+// --- emscripten time imports: the Luau VM blob's os.date and os.time walk
+// through these, so they serve the host's real calendar. Without WASM_BIGINT
+// the module passes time_t as two i32 halves. struct tm is musl's wasm32
+// layout: nine ints, the gmtoff long, then tm_zone, which the module's own
+// libc fills.
+
+static time_t moduleTime(uint32_t low, uint32_t high)
+{
+    return (time_t)(((uint64_t)high << 32) | low);
+}
+
+static void writeTm(wasm_exec_env_t env,
+                    uint32_t tmPtr,
+                    const struct tm& time,
+                    int32_t gmtoff)
+{
+    int32_t* fields = (int32_t*)vmFromEnv(env)->resolveModulePtr(tmPtr, 44);
+    if (fields == nullptr)
+    {
+        return;
+    }
+    fields[0] = time.tm_sec;
+    fields[1] = time.tm_min;
+    fields[2] = time.tm_hour;
+    fields[3] = time.tm_mday;
+    fields[4] = time.tm_mon;
+    fields[5] = time.tm_year;
+    fields[6] = time.tm_wday;
+    fields[7] = time.tm_yday;
+    fields[8] = time.tm_isdst;
+    fields[9] = gmtoff;
+}
+
+void gmtimeJs(wasm_exec_env_t env, uint32_t low, uint32_t high, uint32_t tmPtr)
+{
+    time_t at = moduleTime(low, high);
+    struct tm utc;
+#ifdef _WIN32
+    if (gmtime_s(&utc, &at) != 0)
+#else
+    if (gmtime_r(&at, &utc) == nullptr)
+#endif
+    {
+        return;
+    }
+    writeTm(env, tmPtr, utc, 0);
+}
+
+void localtimeJs(wasm_exec_env_t env,
+                 uint32_t low,
+                 uint32_t high,
+                 uint32_t tmPtr)
+{
+    time_t at;
+    struct tm local;
+    if (!localTime((double)moduleTime(low, high), at, local))
+    {
+        return;
+    }
+    writeTm(env, tmPtr, local, utcOffsetOf(local, at));
+}
+
+// The module's tzset: seconds west of UTC, whether the zone observes
+// daylight saving, and the two zone names into its 17 byte buffers.
+void tzsetJs(wasm_exec_env_t env,
+             uint32_t timezonePtr,
+             uint32_t daylightPtr,
+             uint32_t stdNamePtr,
+             uint32_t dstNamePtr)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+#ifdef _WIN32
+    _tzset();
+    long west = 0;
+    int observesDst = 0;
+    _get_timezone(&west);
+    _get_daylight(&observesDst);
+    const char* names[2] = {_tzname[0], _tzname[1]};
+#else
+    tzset();
+    long west = timezone;
+    int observesDst = daylight;
+    const char* names[2] = {tzname[0], tzname[1]};
+#endif
+    if (int32_t* out = (int32_t*)vm->resolveModulePtr(timezonePtr, 4))
+    {
+        *out = (int32_t)west;
+    }
+    if (int32_t* out = (int32_t*)vm->resolveModulePtr(daylightPtr, 4))
+    {
+        *out = observesDst;
+    }
+    uint32_t namePtrs[2] = {stdNamePtr, dstNamePtr};
+    for (int i = 0; i < 2; i++)
+    {
+        if (char* out = (char*)vm->resolveModulePtr(namePtrs[i], 17))
+        {
+            strncpy(out, names[i] != nullptr ? names[i] : "", 16);
+            out[16] = '\0';
+        }
+    }
+}
+
+uint32_t strftimeNative(wasm_exec_env_t env,
+                        uint32_t out,
+                        uint32_t capacity,
+                        uint32_t format,
+                        uint32_t tmPtr)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    char* outPtr = (char*)vm->resolveModulePtr(out, capacity);
+    const int32_t* fields = (const int32_t*)vm->resolveModulePtr(tmPtr, 44);
+    if (outPtr == nullptr || fields == nullptr ||
+        !wasm_runtime_validate_app_str_addr(inst, format))
+    {
+        return 0;
+    }
+    struct tm time = {};
+    time.tm_sec = fields[0];
+    time.tm_min = fields[1];
+    time.tm_hour = fields[2];
+    time.tm_mday = fields[3];
+    time.tm_mon = fields[4];
+    time.tm_year = fields[5];
+    time.tm_wday = fields[6];
+    time.tm_yday = fields[7];
+    time.tm_isdst = fields[8];
+#ifndef _WIN32
+    time.tm_gmtoff = fields[9];
+    // The zone name lives in module memory, so it must be translated before
+    // the host's %Z reads it.
+    uint32_t zone = (uint32_t)fields[10];
+    if (zone != 0 && wasm_runtime_validate_app_str_addr(inst, zone))
+    {
+        time.tm_zone = (char*)wasm_runtime_addr_app_to_native(inst, zone);
+    }
+#endif
+    return (uint32_t)strftime(
+        outPtr,
+        capacity,
+        (const char*)wasm_runtime_addr_app_to_native(inst, format),
+        &time);
+}
+
 // Older libc++ routes stream formatting through the locale variant.
 uint32_t strftimeLNative(wasm_exec_env_t env,
-                         uint32_t a,
-                         uint32_t b,
-                         uint32_t c,
-                         uint32_t d,
-                         uint32_t e)
+                         uint32_t out,
+                         uint32_t capacity,
+                         uint32_t format,
+                         uint32_t tmPtr,
+                         uint32_t locale)
 {
-    return 0;
+    return strftimeNative(env, out, capacity, format, tmPtr);
 }
-void tzsetJs(wasm_exec_env_t env,
-             uint32_t a,
-             uint32_t b,
-             uint32_t c,
-             uint32_t d)
-{}
-void localtimeJs(wasm_exec_env_t env, uint32_t a, uint32_t b, uint32_t c) {}
-void gmtimeJs(wasm_exec_env_t env, uint32_t a, uint32_t b, uint32_t c) {}
 
 // A module assert would otherwise trap with no message.
 void assertFail(wasm_exec_env_t env,
@@ -3223,6 +3372,38 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
     // Terminates like a trap when the native returns, so the caller's
     // failed-op handling engages.
     vm->raiseModuleError("execution exceeded timeout");
+}
+
+uint32_t rtUtcOffsetImpl(WasmScriptingVM* vm, double epochSeconds)
+{
+    time_t at;
+    struct tm local;
+    return localTime(epochSeconds, at, local) ? (uint32_t)utcOffsetOf(local, at)
+                                              : 0;
+}
+
+uint32_t rtIsDstImpl(WasmScriptingVM* vm, double epochSeconds)
+{
+    time_t at;
+    struct tm local;
+    return localTime(epochSeconds, at, local) && local.tm_isdst > 0 ? 1 : 0;
+}
+
+uint32_t rtZoneNameImpl(WasmScriptingVM* vm,
+                        double epochSeconds,
+                        char* buffer,
+                        uint32_t capacity)
+{
+    time_t at;
+    struct tm local;
+    if (!localTime(epochSeconds, at, local))
+    {
+        return 0;
+    }
+    char name[64];
+    size_t length = strftime(name, sizeof(name), "%Z", &local);
+    memcpy(buffer, name, length < capacity ? length : capacity);
+    return (uint32_t)length;
 }
 
 // Module start has no exec env to carry the vm; the probes its top level

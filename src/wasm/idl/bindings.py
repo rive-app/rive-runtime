@@ -244,6 +244,14 @@ NAMESPACES = [
         op('debug_enter', [u32('func'), u32('line')]),
         op('debug_line', [u32('line')], ret='u32', stub='zero'),
         op('debug_leave'),
+        # os.date local time at an epoch: the host's UTC offset in seconds,
+        # signed, crossing as i32 bits; whether daylight saving is in
+        # effect; the zone name under the retrying length contract.
+        op('utc_offset', [f64('epochSeconds')], ret='u32', stub='zero'),
+        op('is_dst', [f64('epochSeconds')], ret='u32', stub='zero'),
+        op('zone_name', [f64('epochSeconds'),
+                         mutbuf('char', 'buffer', 'capacity')],
+           ret='u32', stub='zero'),
     ]),
     # Data binding tracer: numbers only; more property types, listeners, and
     # the valueChanged callback channel land with the properties namespace.
