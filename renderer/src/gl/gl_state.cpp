@@ -47,7 +47,7 @@ void GLState::invalidate()
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-#ifndef RIVE_ANDROID
+#if !defined(RIVE_ANDROID) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
     // D3D and Metal both have a provoking vertex convention of "first" for flat
     // varyings, and it's very costly for ANGLE to implement the OpenGL
     // convention of "last" on these backends. To workaround this, ANGLE
@@ -60,8 +60,8 @@ void GLState::invalidate()
     }
 #endif
 
-    // WebGL doesn't support glMaxShaderCompilerThreadsKHR.
-#ifndef RIVE_WEBGL
+    // WebGL, iOS GLES 3.0 and Win32 GLES PVR don't support glMaxShaderCompilerThreadsKHR.
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
     if (m_capabilities.KHR_parallel_shader_compile)
     {
         // Allow GL's shader compilation to use 2 background threads.

@@ -100,9 +100,9 @@ public:
         return deferredCanvasHost();
     }
 
-    rcp<Font> decodeFont(Span<const uint8_t>);
+    virtual rcp<Font> decodeFont(Span<const uint8_t>);
 
-    rcp<AudioSource> decodeAudio(Span<const uint8_t>);
+    virtual rcp<AudioSource> decodeAudio(Span<const uint8_t>);
 
     // Non-virtual helpers
 

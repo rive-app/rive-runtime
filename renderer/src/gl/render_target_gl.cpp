@@ -68,7 +68,7 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(
     {
         m_headlessFramebuffer = glutils::Framebuffer();
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_headlessFramebuffer);
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES)
         if (capabilities.ARB_shader_image_load_store)
         {
             glFramebufferParameteri(GL_DRAW_FRAMEBUFFER,
@@ -163,7 +163,7 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::
                                    m_externalTextureID,
                                    0);
         }
-#ifndef RIVE_WEBGL
+#if !defined(RIVE_WEBGL) && !defined(RIVE_IOS_GLES) && !defined(RIVE_DESKTOP_GLES_PVR)
         else if (renderContextImpl->capabilities()
                      .EXT_multisampled_render_to_texture)
         {
