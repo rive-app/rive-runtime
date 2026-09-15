@@ -192,17 +192,33 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
             CHECK(mappedBbox.top() == Approx(mappedPt.y));
             CHECK(mappedBbox.right() == Approx(mappedPt.x));
             CHECK(mappedBbox.bottom() == Approx(mappedPt.y));
+
+            mappedBbox = m.mapBoundingBox(Span{&pt, 1});
+
+            CHECK(mappedBbox.left() == Approx(mappedPt.x));
+            CHECK(mappedBbox.top() == Approx(mappedPt.y));
+            CHECK(mappedBbox.right() == Approx(mappedPt.x));
+            CHECK(mappedBbox.bottom() == Approx(mappedPt.y));
         }
 
         // Check n - 1 points (ensures we test one even-length and one
         // odd-length array).
         m.mapPoints(mappedPts.data(), testPts.data() + 1, testPts.size() - 1);
-        mappedBbox = m.mapBoundingBox(testPts.data() + 1, testPts.size() - 1);
         AABB testBbox = {1e9f, 1e9f, -1e9f, -1e9f};
         for (size_t i = 0; i < testPts.size() - 1; ++i)
         {
             AABB::expandTo(testBbox, mappedPts[i]);
         }
+
+        mappedBbox = m.mapBoundingBox(testPts.data() + 1, testPts.size() - 1);
+        CHECK(mappedBbox.left() == Approx(testBbox.left()));
+        CHECK(mappedBbox.top() == Approx(testBbox.top()));
+        CHECK(mappedBbox.right() == Approx(testBbox.right()));
+        CHECK(mappedBbox.bottom() == Approx(testBbox.bottom()));
+
+        // Test again using the span version of mapBoundingBox
+        mappedBbox =
+            m.mapBoundingBox(Span{testPts.data() + 1, testPts.size() - 1});
         CHECK(mappedBbox.left() == Approx(testBbox.left()));
         CHECK(mappedBbox.top() == Approx(testBbox.top()));
         CHECK(mappedBbox.right() == Approx(testBbox.right()));
@@ -210,12 +226,20 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
 
         // Check n points.
         m.mapPoints(mappedPts.data(), testPts.data(), testPts.size());
-        mappedBbox = m.mapBoundingBox(testPts.data(), testPts.size());
         testBbox = {1e9f, 1e9f, -1e9f, -1e9f};
         for (size_t i = 0; i < testPts.size(); ++i)
         {
             AABB::expandTo(testBbox, mappedPts[i]);
         }
+
+        mappedBbox = m.mapBoundingBox(testPts.data(), testPts.size());
+        CHECK(mappedBbox.left() == Approx(testBbox.left()));
+        CHECK(mappedBbox.top() == Approx(testBbox.top()));
+        CHECK(mappedBbox.right() == Approx(testBbox.right()));
+        CHECK(mappedBbox.bottom() == Approx(testBbox.bottom()));
+
+        // Test again using the Span version of mapBoundingBox
+        mappedBbox = m.mapBoundingBox(Span<const rive::Vec2D>{testPts});
         CHECK(mappedBbox.left() == Approx(testBbox.left()));
         CHECK(mappedBbox.top() == Approx(testBbox.top()));
         CHECK(mappedBbox.right() == Approx(testBbox.right()));
@@ -223,7 +247,7 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
 
         // Check mapping of a bounding box.
         Vec2D bboxPts[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-        AABB mappedBboxFromPts = m.mapBoundingBox(bboxPts, 4);
+        AABB mappedBboxFromPts = m.mapBoundingBox(bboxPts);
         AABB mappedBboxFromAABB = m.mapBoundingBox(AABB{0, 0, 1, 1});
         CHECK(mappedBboxFromPts.left() == Approx(mappedBboxFromAABB.left()));
         CHECK(mappedBboxFromPts.top() == Approx(mappedBboxFromAABB.top()));

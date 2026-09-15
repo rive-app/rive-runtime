@@ -1,11 +1,28 @@
 #include "rive/animation/keyframe_bool.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/data_bind/bindable_property_boolean.hpp"
 
 using namespace rive;
 
-void KeyFrameBool::apply(Core* object, int propertyKey, float mix)
+bool KeyFrameBool::effectiveValue(const LinearAnimationInstance* context) const
 {
-    CoreRegistry::setBool(object, propertyKey, value());
+    if (context != nullptr)
+    {
+        if (auto* holder = context->keyFrameValueHolder(this))
+        {
+            return holder->as<BindablePropertyBoolean>()->propertyValue();
+        }
+    }
+    return value();
+}
+
+void KeyFrameBool::apply(Core* object,
+                         int propertyKey,
+                         float mix,
+                         const LinearAnimationInstance* context)
+{
+    CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
 }
 
 void KeyFrameBool::applyInterpolation(Core* object,
@@ -15,6 +32,5 @@ void KeyFrameBool::applyInterpolation(Core* object,
                                       float mix,
                                       const LinearAnimationInstance* context)
 {
-    (void)context;
-    CoreRegistry::setBool(object, propertyKey, value());
+    CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
 }

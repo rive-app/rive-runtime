@@ -4,17 +4,17 @@
 
 #include "background_shader_compiler.h"
 
-#include "generated/shaders/metal.glsl.hpp"
-#include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
-#include "generated/shaders/flush_uniforms.glsl.hpp"
-#include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
+#include "generated/shaders/constants.glsl.hpp"
+#include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/draw_image_mesh.vert.hpp"
+#include "generated/shaders/draw_mesh.frag.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
-#include "generated/shaders/draw_image_mesh.vert.hpp"
-#include "generated/shaders/draw_mesh.frag.hpp"
+#include "generated/shaders/flush_uniforms.glsl.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
+#include "generated/shaders/metal.glsl.hpp"
 
 #ifndef RIVE_IOS
 // iOS doesn't need the atomic shaders; every non-simulated iOS device supports
@@ -100,7 +100,7 @@ void BackgroundShaderCompiler::threadMain()
         auto defines = [[NSMutableDictionary alloc] init];
         defines[@GLSL_VERTEX] = @"";
         defines[@GLSL_FRAGMENT] = @"";
-        for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
+        for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
         {
             const auto feature = ShaderFeatures(1 << i);
             if (enums::is_flag_set(shaderFeatures, feature))
@@ -138,10 +138,6 @@ void BackgroundShaderCompiler::threadMain()
                              gpu::glsl::constants,
                              gpu::glsl::flush_uniforms,
                              gpu::glsl::common];
-        if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
-        {
-            [source appendFormat:@"%s\n", gpu::glsl::image_draw_uniforms];
-        }
         if (enums::is_flag_set(shaderFeatures,
                                ShaderFeatures::ENABLE_ADVANCED_BLEND))
         {
@@ -160,8 +156,8 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::interiorTriangulation:
                 defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
                 break;
-            case DrawType::atlasBlit:
-                defines[@GLSL_ATLAS_BLIT] = @"1";
+            case DrawType::featherAtlasBlit:
+                defines[@GLSL_FEATHER_ATLAS_BLIT] = @"1";
                 break;
             case DrawType::imageRect:
 #ifdef RIVE_IOS
@@ -219,13 +215,19 @@ void BackgroundShaderCompiler::threadMain()
                 }
 #endif
                 break;
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
                 RIVE_UNREACHABLE();
         }
@@ -234,6 +236,7 @@ void BackgroundShaderCompiler::threadMain()
         if (interlockMode == gpu::InterlockMode::atomics)
         {
             [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+            [source appendFormat:@"%s\n", gpu::glsl::gradient_packing_common];
             [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
         }
         else
@@ -247,13 +250,17 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::outerCurvePatches:
                 case DrawType::interiorTriangulation:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+                    [source appendFormat:@"%s\n",
+                                         gpu::glsl::gradient_packing_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
                     [source
                         appendFormat:@"%s\n",
                                      gpu::glsl::draw_raster_order_path_frag];
                     break;
-                case DrawType::atlasBlit:
+                case DrawType::featherAtlasBlit:
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];
+                    [source appendFormat:@"%s\n",
+                                         gpu::glsl::gradient_packing_common];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_path_vert];
                     [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;
@@ -263,13 +270,19 @@ void BackgroundShaderCompiler::threadMain()
                     [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;
                 case DrawType::imageRect:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubics:
+                case DrawType::depthStrokes:
+                case DrawType::stencilMidpointFanBorrowedCoverage:
+                case DrawType::stencilDynamicMidpointFans:
+                case DrawType::stencilDynamicOuterCubics:
+                case DrawType::stencilMidpointFans:
+                case DrawType::stencilMidpointFanReset:
+                case DrawType::stencilMidpointFanWinding:
+                case DrawType::stencilMidpointFanCover:
+                case DrawType::stencilOuterCubicBorrowedCoverage:
+                case DrawType::stencilOuterCubicReset:
+                case DrawType::stencilOuterCubicWinding:
+                case DrawType::stencilOuterCubicCover:
+                case DrawType::stencilOuterCubics:
                 case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                 case DrawType::renderPassResolve:

@@ -29,54 +29,84 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
+    static const uint16_t focusFlagsPropertyKey = 1033;
     static const uint16_t canFocusPropertyKey = 953;
+    static const uint32_t canFocusBitmask = 1u << 0;
     static const uint16_t canTouchPropertyKey = 954;
+    static const uint32_t canTouchBitmask = 1u << 1;
     static const uint16_t canTraversePropertyKey = 955;
+    static const uint32_t canTraverseBitmask = 1u << 2;
     static const uint16_t edgeBehaviorValuePropertyKey = 956;
 
 protected:
-    bool m_CanFocus = true;
-    bool m_CanTouch = true;
-    bool m_CanTraverse = true;
+    uint32_t m_FocusFlags = 7;
     uint32_t m_EdgeBehaviorValue = 0;
 
 public:
-    inline bool canFocus() const { return m_CanFocus; }
+    inline uint32_t focusFlags() const { return m_FocusFlags; }
+    void focusFlags(uint32_t value)
+    {
+        if (m_FocusFlags == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(focusFlagsPropertyKey, &m_FocusFlags, &value);
+        m_FocusFlags = value;
+        RIVE_EDITOR_CHANGED(focusFlagsChanged());
+        notifyPropertyChanged(focusFlagsPropertyKey);
+    }
+
+    inline bool canFocus() const
+    {
+        return (m_FocusFlags & canFocusBitmask) != 0;
+    }
     void canFocus(bool value)
     {
-        if (m_CanFocus == value)
+        const bool prev = (m_FocusFlags & canFocusBitmask) != 0;
+        if (prev == value)
         {
             return;
         }
-        m_CanFocus = value;
-        canFocusChanged();
-        notifyPropertyChanged(canFocusPropertyKey);
+        RIVE_EDITOR_CHANGING(canFocusPropertyKey, &prev, &value);
+        m_FocusFlags = value ? (m_FocusFlags | canFocusBitmask)
+                             : (m_FocusFlags & ~canFocusBitmask);
+        RIVE_EDITOR_CHANGED(focusFlagsChanged());
+        notifyPropertyChanged(focusFlagsPropertyKey);
     }
-
-    inline bool canTouch() const { return m_CanTouch; }
+    inline bool canTouch() const
+    {
+        return (m_FocusFlags & canTouchBitmask) != 0;
+    }
     void canTouch(bool value)
     {
-        if (m_CanTouch == value)
+        const bool prev = (m_FocusFlags & canTouchBitmask) != 0;
+        if (prev == value)
         {
             return;
         }
-        m_CanTouch = value;
-        canTouchChanged();
-        notifyPropertyChanged(canTouchPropertyKey);
+        RIVE_EDITOR_CHANGING(canTouchPropertyKey, &prev, &value);
+        m_FocusFlags = value ? (m_FocusFlags | canTouchBitmask)
+                             : (m_FocusFlags & ~canTouchBitmask);
+        RIVE_EDITOR_CHANGED(focusFlagsChanged());
+        notifyPropertyChanged(focusFlagsPropertyKey);
     }
-
-    inline bool canTraverse() const { return m_CanTraverse; }
+    inline bool canTraverse() const
+    {
+        return (m_FocusFlags & canTraverseBitmask) != 0;
+    }
     void canTraverse(bool value)
     {
-        if (m_CanTraverse == value)
+        const bool prev = (m_FocusFlags & canTraverseBitmask) != 0;
+        if (prev == value)
         {
             return;
         }
-        m_CanTraverse = value;
-        canTraverseChanged();
-        notifyPropertyChanged(canTraversePropertyKey);
+        RIVE_EDITOR_CHANGING(canTraversePropertyKey, &prev, &value);
+        m_FocusFlags = value ? (m_FocusFlags | canTraverseBitmask)
+                             : (m_FocusFlags & ~canTraverseBitmask);
+        RIVE_EDITOR_CHANGED(focusFlagsChanged());
+        notifyPropertyChanged(focusFlagsPropertyKey);
     }
-
     inline uint32_t edgeBehaviorValue() const { return m_EdgeBehaviorValue; }
     void edgeBehaviorValue(uint32_t value)
     {
@@ -84,17 +114,18 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(edgeBehaviorValuePropertyKey,
+                             &m_EdgeBehaviorValue,
+                             &value);
         m_EdgeBehaviorValue = value;
-        edgeBehaviorValueChanged();
+        RIVE_EDITOR_CHANGED(edgeBehaviorValueChanged());
         notifyPropertyChanged(edgeBehaviorValuePropertyKey);
     }
 
     Core* clone() const override;
     void copy(const FocusDataBase& object)
     {
-        m_CanFocus = object.m_CanFocus;
-        m_CanTouch = object.m_CanTouch;
-        m_CanTraverse = object.m_CanTraverse;
+        m_FocusFlags = object.m_FocusFlags;
         m_EdgeBehaviorValue = object.m_EdgeBehaviorValue;
         Component::copy(object);
     }
@@ -103,14 +134,8 @@ public:
     {
         switch (propertyKey)
         {
-            case canFocusPropertyKey:
-                m_CanFocus = CoreBoolType::deserialize(reader);
-                return true;
-            case canTouchPropertyKey:
-                m_CanTouch = CoreBoolType::deserialize(reader);
-                return true;
-            case canTraversePropertyKey:
-                m_CanTraverse = CoreBoolType::deserialize(reader);
+            case focusFlagsPropertyKey:
+                m_FocusFlags = CoreUintType::deserialize(reader);
                 return true;
             case edgeBehaviorValuePropertyKey:
                 m_EdgeBehaviorValue = CoreUintType::deserialize(reader);
@@ -120,10 +145,11 @@ public:
     }
 
 protected:
-    virtual void canFocusChanged() {}
-    virtual void canTouchChanged() {}
-    virtual void canTraverseChanged() {}
+    virtual void focusFlagsChanged() {}
     virtual void edgeBehaviorValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/focus_data_ext.inl"
+#endif
 };
 } // namespace rive
 

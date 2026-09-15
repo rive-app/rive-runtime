@@ -2,6 +2,7 @@
  * Copyright 2022 Rive
  */
 
+#include "rive/renderer/rive_render_image.hpp"
 #include "rive_render_paint.hpp"
 #include "gradient.hpp"
 
@@ -16,7 +17,6 @@ void RiveRenderPaint::color(ColorInt color)
     m_paintType = gpu::PaintType::solidColor;
     m_simpleValue.color = color;
     m_gradient.reset();
-    m_imageTexture.reset();
 }
 
 void RiveRenderPaint::shader(rcp<RenderShader> shader)
@@ -28,7 +28,6 @@ void RiveRenderPaint::shader(rcp<RenderShader> shader)
     // for a this gradient's color ramp will decided by the render context every
     // frame.
     m_simpleValue.color = 0xff000000;
-    m_imageTexture.reset();
 }
 
 rcp<gpu::Gradient> RiveRenderPaint::getGradientWithOpacity(float opacity) const
@@ -40,10 +39,26 @@ rcp<gpu::Gradient> RiveRenderPaint::getGradientWithOpacity(float opacity) const
     return nullptr;
 }
 
+void RiveRenderPaint::modulatedImage(const RenderImage* renderImage,
+                                     ImageSampler sampler,
+                                     const Mat2D& matrix)
+{
+    if (renderImage == nullptr)
+    {
+        m_imageTexture = nullptr;
+        return;
+    }
+
+    m_imageSampler = sampler;
+    m_imageTransform = matrix;
+    LITE_RTTI_CAST_OR_RETURN(riveImage, const RiveRenderImage*, renderImage);
+    m_imageTexture = riveImage->refTexture();
+}
+
 void RiveRenderPaint::image(rcp<gpu::Texture> imageTexture, float opacity)
 {
-    m_paintType = gpu::PaintType::image;
-    m_simpleValue.imageOpacity = opacity;
+    m_paintType = gpu::PaintType::solidColor;
+    m_simpleValue.color = colorModulateOpacity(0xFFFFFFFF, opacity);
     m_gradient.reset();
     m_imageTexture = std::move(imageTexture);
 }
@@ -66,6 +81,13 @@ bool RiveRenderPaint::getIsOpaque() const
     {
         return false;
     }
+    if (m_imageTexture != nullptr)
+    {
+        // We can't assume opacity with an image (as it might have non-1.0
+        // alpha)
+        return false;
+    }
+
     switch (m_paintType)
     {
         case gpu::PaintType::solidColor:
@@ -73,7 +95,6 @@ bool RiveRenderPaint::getIsOpaque() const
         case gpu::PaintType::linearGradient:
         case gpu::PaintType::radialGradient:
             return m_gradient->isOpaque();
-        case gpu::PaintType::image:
         case gpu::PaintType::clipUpdate:
             return false;
     }

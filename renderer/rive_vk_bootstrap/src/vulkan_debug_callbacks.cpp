@@ -31,6 +31,15 @@ static bool should_error_message_be_fully_ignored(const char* message)
         " (format maxArrayLayers: 0)",
         "maximum resource size = 0 for format ",
         "(format sampleCounts: VkSampleCountFlags(0))",
+        // Some PowerVR drivers (e.g. Rogue GE9215) don't support descriptor
+        // indexing, so the update-after-bind input attachment limits are
+        // reported as 0. The layer then flags our rasterOrdering PLS input
+        // attachments against those limits (both the per-stage VUID-03027 and
+        // the whole-set VUID-03043) even though none of our set layouts use
+        // UPDATE_AFTER_BIND, which is what those VUIDs are gated on. This is
+        // spurious. The real (non-update-after-bind) limits are satisfied. The
+        // shared substring matches both messages.
+        "UpdateAfterBindInputAttachments limit (0)",
     };
 
     for (const char* ignore : s_ignoreList)
@@ -85,41 +94,43 @@ VKAPI_ATTR VkBool32 VKAPI_CALL defaultDebugUtilCallback(
     void* pUserData)
 {
     bool shouldAbort = true;
-    if (should_error_message_be_fully_ignored(pCallbackData->pMessage))
+    if (!should_error_message_be_fully_ignored(pCallbackData->pMessage))
     {
-        return VK_TRUE;
-    }
+        switch (messageType)
+        {
+            case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+                shouldAbort =
+                    should_error_message_abort(pCallbackData->pMessage);
+                LOG_ERROR_LINE("Rive Vulkan error%s: %i: %s: %s\n",
+                               (shouldAbort) ? "" : " (error ignored)",
+                               pCallbackData->messageIdNumber,
+                               pCallbackData->pMessageIdName,
+                               pCallbackData->pMessage);
 
-    switch (messageType)
-    {
-        case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-            shouldAbort = should_error_message_abort(pCallbackData->pMessage);
-            LOG_ERROR_LINE("Rive Vulkan error%s: %i: %s: %s\n",
-                           (shouldAbort) ? "" : " (error ignored)",
-                           pCallbackData->messageIdNumber,
-                           pCallbackData->pMessageIdName,
-                           pCallbackData->pMessage);
+                if (shouldAbort)
+                {
+                    abort();
+                }
+                break;
 
-            if (shouldAbort)
-            {
+            case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+                LOG_ERROR_LINE("Rive Vulkan Validation error: %i: %s: %s",
+                               pCallbackData->messageIdNumber,
+                               pCallbackData->pMessageIdName,
+                               pCallbackData->pMessage);
                 abort();
-            }
-            break;
-
-        case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
-            LOG_ERROR_LINE("Rive Vulkan Validation error: %i: %s: %s",
-                           pCallbackData->messageIdNumber,
-                           pCallbackData->pMessageIdName,
-                           pCallbackData->pMessage);
-            abort();
-        case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
-            LOG_ERROR_LINE("Rive Vulkan Performance warning: %i: %s: %s",
-                           pCallbackData->messageIdNumber,
-                           pCallbackData->pMessageIdName,
-                           pCallbackData->pMessage);
-            break;
+            case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+                LOG_ERROR_LINE("Rive Vulkan Performance warning: %i: %s: %s",
+                               pCallbackData->messageIdNumber,
+                               pCallbackData->pMessageIdName,
+                               pCallbackData->pMessage);
+                break;
+        }
     }
-    return VK_TRUE;
+    // VK_FALSE: never ask the layer to fail the triggering call. Paths that
+    // reach here are non-aborting (ignored errors, perf warnings); returning
+    // VK_TRUE would make those calls return VK_ERROR_VALIDATION_FAILED_EXT.
+    return VK_FALSE;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL

@@ -14,9 +14,9 @@ void IKConstraint::buildDependencies()
     // IK Constraint needs to depend on the target so that world transform
     // changes can propagate to the bones (and they can be reset before IK
     // runs).
-    if (m_Target != nullptr)
+    if (auto* t = target())
     {
-        m_Target->addDependent(this);
+        t->addDependent(this);
     }
 }
 
@@ -173,9 +173,7 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     constrainRotation(*firstChild, r2);
     if (firstChild != fk2)
     {
-        Bone* bone = fk2->bone;
-        bone->mutableWorldTransform() =
-            getParentWorld(*bone) * bone->transform();
+        fk2->bone->composeWorldTransform();
     }
 
     // Simple storage, need this for interpolation.
@@ -188,7 +186,6 @@ void IKConstraint::invertDirectionChanged() { markConstraintDirty(); }
 void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 {
     Bone* bone = fk.bone;
-    const Mat2D& parentWorld = getParentWorld(*bone);
     Mat2D& transform = bone->mutableTransform();
     TransformComponents& c = fk.transformComponents;
 
@@ -213,28 +210,42 @@ void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
         transform[3] = transform[1] * skew + transform[3];
     }
 
-    bone->mutableWorldTransform() = parentWorld * transform;
+    bone->composeWorldTransform();
 }
 
 void IKConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return;
     }
 
-    Vec2D worldTargetTranslation = m_Target->worldTranslation();
+    Vec2D worldTargetTranslation = tgt->worldTranslation();
 
-    // Decompose the chain.
+    // Decompose the chain where it currently stands, before rebuilding any of
+    // it, so no bone is measured against a parent we already rebuilt. A
+    // constraint that ran before us left its work here and nowhere else.
     for (BoneChainLink& item : m_FkChain)
     {
-        auto bone = item.bone;
-        const Mat2D& parentWorld = getParentWorld(*bone);
-        item.parentWorldInverse = parentWorld.invertOrIdentity();
+        item.parentWorldInverse = getParentWorld(*item.bone).invertOrIdentity();
+        item.transformComponents =
+            (item.parentWorldInverse * item.bone->worldTransform()).decompose();
+    }
 
-        Mat2D& boneTransform = bone->mutableTransform();
-        boneTransform = item.parentWorldInverse * bone->worldTransform();
-        item.transformComponents = boneTransform.decompose();
+    // Take the angle back from the FK base. Rotation is the only component we
+    // write, so reading ours back would blend from the pose we solved last
+    // pass; translation, scale and skew we merely carry, so they stay as
+    // whatever constrained the bone left them.
+    for (BoneChainLink& item : m_FkChain)
+    {
+        Bone* bone = item.bone;
+        bone->updateTransform();
+        item.transformComponents.rotation(
+            bone->transform().decompose().rotation());
+
+        item.parentWorldInverse = getParentWorld(*bone).invertOrIdentity();
+        constrainRotation(item, item.transformComponents.rotation());
     }
 
     int count = (int)m_FkChain.size();

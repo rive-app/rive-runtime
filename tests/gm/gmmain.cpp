@@ -6,10 +6,11 @@
 #ifndef TESTING
 
 #include "gm.hpp"
+#include "gm_runner.hpp"
 #include "common/testing_window.hpp"
 #include "common/test_harness.hpp"
 
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
 #include "common/rive_android_app.hpp"
 #include <sys/system_properties.h>
 #endif
@@ -23,9 +24,12 @@
 
 using namespace rivegm;
 
-static bool verbose = false;
-static int loopCount = 1;
 std::vector<std::tuple<std::function<GM*(void)>, std::string>> gmRegistry;
+// Deferred parity families. Each runs its immediate GM and every deferred
+// variant in-process and requires byte identical frames, so the machinery
+// carries no goldens of its own; the scenes' pixels are the renderer GMs' job.
+std::vector<std::tuple<std::vector<std::function<GM*(void)>>, std::string>>
+    parityRegistry;
 extern "C" void gms_build_registry()
 {
     // Only call gms_build_registry() once!
@@ -34,6 +38,24 @@ extern "C" void gms_build_registry()
 #define MAKE_GM(NAME)                                                          \
     extern GM* RIVE_MACRO_CONCAT(make_, NAME)();                               \
     gmRegistry.emplace_back(RIVE_MACRO_CONCAT(make_, NAME), #NAME);
+
+#define MAKE_PARITY_GM2(NAME, IMM, VAR)                                        \
+    extern GM* RIVE_MACRO_CONCAT(make_, IMM)();                                \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR)();                                \
+    parityRegistry.emplace_back(                                               \
+        std::vector<std::function<GM*(void)>>{RIVE_MACRO_CONCAT(make_, IMM),   \
+                                              RIVE_MACRO_CONCAT(make_, VAR)},  \
+        #NAME);
+
+#define MAKE_PARITY_GM3(NAME, IMM, VAR1, VAR2)                                 \
+    extern GM* RIVE_MACRO_CONCAT(make_, IMM)();                                \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR1)();                               \
+    extern GM* RIVE_MACRO_CONCAT(make_, VAR2)();                               \
+    parityRegistry.emplace_back(                                               \
+        std::vector<std::function<GM*(void)>>{RIVE_MACRO_CONCAT(make_, IMM),   \
+                                              RIVE_MACRO_CONCAT(make_, VAR1),  \
+                                              RIVE_MACRO_CONCAT(make_, VAR2)}, \
+        #NAME);
 
     // Add slow GMs first so they get more time to run in a multiprocess
     // execution.
@@ -62,6 +84,11 @@ extern "C" void gms_build_registry()
     MAKE_GM(clip_shapes_small_corners)
     MAKE_GM(clip_shapes_small_corners_feathered)
     MAKE_GM(clip_shapes_small_corners_feathered_blend)
+    MAKE_GM(clip_stroke_basic)
+    MAKE_GM(clip_stroke_nested_a)
+    MAKE_GM(clip_stroke_nested_b)
+    MAKE_GM(clip_stroke_nested_c)
+    MAKE_GM(clip_stroke_open)
     MAKE_GM(concavepaths)
     MAKE_GM(convexpaths)
     MAKE_GM(convex_lineonly_ths)
@@ -87,6 +114,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(image_filter_options)
     MAKE_GM(image_aa_border)
     MAKE_GM(image_lod)
+    MAKE_GM(image_paint)
     MAKE_GM(gamma_texture)
     MAKE_GM(gamma_correction_clip)
     MAKE_GM(interleavedfeather)
@@ -129,7 +157,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(interleaved_subpasses_with_dst_blend2)
     MAKE_GM(rect)
     MAKE_GM(rect_grad)
-    MAKE_GM(retrofittedcubictriangles)
+    MAKE_GM(retrofitcubictristrips)
     MAKE_GM(roundjoinstrokes)
     MAKE_GM(strokedlines)
     MAKE_GM(strokefill)
@@ -180,6 +208,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(negative_interior_triangles)
     MAKE_GM(negative_interior_triangles_as_clip)
     MAKE_GM(transparentclear_blendmode)
+    MAKE_GM(uber_parity)
+    MAKE_GM(uber_parity_srcover)
     MAKE_GM(emptystrokefeather)
     MAKE_GM(emptystroke)
     MAKE_GM(trickycubicstrokes)
@@ -187,15 +217,22 @@ extern "C" void gms_build_registry()
     MAKE_GM(trickycubicstrokes_feather)
 #ifdef RIVE_CANVAS
     MAKE_GM(render_canvas_basic)
+    MAKE_GM(render_canvas_mesh)
+    MAKE_GM(render_canvas_winding)
     MAKE_GM(render_canvas_persistence)
     MAKE_GM(render_canvas_prepass)
     MAKE_GM(render_canvas_prepass_multi)
+    MAKE_GM(canvas_dag_chain)
+    MAKE_GM(canvas_dag_chain_reversed)
+    MAKE_GM(canvas_dag_cycle)
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
     MAKE_GM(ore_triangle)
     MAKE_GM(ore_mrt)
     MAKE_GM(ore_depth)
+    MAKE_GM(ore_depth_write_always)
     MAKE_GM(ore_cubemap)
     MAKE_GM(ore_image_view)
     MAKE_GM(ore_canvas_import)
@@ -214,37 +251,121 @@ extern "C" void gms_build_registry()
     MAKE_GM(ore_layout_reuse)
     MAKE_GM(ore_layout_mismatch)
     MAKE_GM(ore_depth_only_pipeline)
+    MAKE_PARITY_GM3(ore_deferred_replay,
+                    ore_deferred_replay_immediate,
+                    ore_deferred_replay,
+                    ore_deferred_replay_inline)
+    MAKE_PARITY_GM2(ore_deferred_multipass,
+                    ore_deferred_multipass_immediate,
+                    ore_deferred_multipass)
+    MAKE_PARITY_GM3(ore_nested_pass,
+                    ore_nested_pass_immediate,
+                    ore_nested_pass,
+                    ore_nested_pass_recorded)
+    MAKE_PARITY_GM3(ore_deferred_resource,
+                    ore_deferred_resource_immediate,
+                    ore_deferred_resource,
+                    ore_deferred_resource_unified)
+    MAKE_PARITY_GM2(ore_deferred_context,
+                    ore_deferred_context_immediate,
+                    ore_deferred_context)
+    MAKE_PARITY_GM2(render_deferred_canvas,
+                    render_deferred_canvas_immediate,
+                    render_deferred_canvas)
 #endif
 #endif
+    // 2D only so these are not gated on Ore.
+    MAKE_PARITY_GM2(serialized_replay_2d,
+                    serialized_replay_2d_immediate,
+                    serialized_replay_2d)
+    MAKE_PARITY_GM2(render_deferred_2d,
+                    render_deferred_2d_immediate,
+                    render_deferred_2d)
 }
 
-static void dump_gm(GM* gm, const std::string& name)
+void GMRunner::dumpGM(GM* gm, const std::string& gmName)
 {
     uint32_t width = gm->width();
     uint32_t height = gm->height();
     TestingWindow::Get()->resize(width, height);
     std::vector<uint8_t> pixels;
-    if (verbose)
+    if (m_verbose)
     {
-        printf("[gms] Running %s...\n", name.c_str());
+        printf("[gms] Running %s...\n", gmName.c_str());
     }
-    for (int l = 0; l < loopCount; l++)
+    for (int l = 0; l < m_loopCount; l++)
     {
-        gm->run(name.c_str(), &pixels);
+        gm->run(gmName.c_str(), &pixels);
     }
     assert(pixels.size() == height * width * 4);
     if (TestHarness::Instance().initialized())
     {
         TestHarness::Instance().savePNG({
-            .name = name,
+            .name = gmName,
             .width = width,
             .height = height,
             .pixels = std::move(pixels),
         });
     }
-    if (verbose)
+    if (m_verbose)
     {
-        printf("[gms] Sent %s.png\n", name.c_str());
+        printf("[gms] Sent %s.png\n", gmName.c_str());
+    }
+}
+
+void GMRunner::runParityGM(
+    const std::vector<std::function<rivegm::GM*(void)>>& makers,
+    const std::string& name)
+{
+    if (m_verbose)
+    {
+        printf("[gms] Running parity %s...\n", name.c_str());
+    }
+    std::vector<uint8_t> immediate;
+    std::vector<uint8_t> variant;
+    for (size_t i = 0; i < makers.size(); ++i)
+    {
+        std::unique_ptr<GM> gm(makers[i]());
+        if (!gm)
+        {
+            return;
+        }
+        TestingWindow::Get()->resize(gm->width(), gm->height());
+        gm->onceBeforeDraw();
+        std::vector<uint8_t>* out = i == 0 ? &immediate : &variant;
+        out->clear();
+        gm->run(name.c_str(), out);
+        if (i == 0)
+        {
+            continue;
+        }
+        bool match = variant.size() == immediate.size();
+        int worst = 0;
+        if (match && m_parityMaxChannelDiff > 0)
+        {
+            for (size_t b = 0; b < variant.size(); ++b)
+            {
+                int diff = std::abs(static_cast<int>(variant[b]) -
+                                    static_cast<int>(immediate[b]));
+                worst = std::max(worst, diff);
+            }
+            match = worst <= m_parityMaxChannelDiff;
+        }
+        else if (match)
+        {
+            match = variant == immediate;
+        }
+        if (!match)
+        {
+            m_parityFailures++;
+            fprintf(stderr,
+                    "[gms] PARITY FAILED: %s variant %zu does not match the "
+                    "immediate frame (worst channel diff %d, allowed %d)\n",
+                    name.c_str(),
+                    i,
+                    worst,
+                    m_parityMaxChannelDiff);
+        }
     }
 }
 
@@ -254,11 +375,25 @@ static bool contains(const std::string& str, const std::string& substr)
     return pos < str.size();
 }
 
-static void dumpGMs(const std::string& match, bool interactive)
+void GMRunner::init()
 {
-
-    for (const auto& [make_gm, name] : gmRegistry)
+    // Only one registry per process, however many runners walk it.
+    if (gmRegistry.empty())
     {
+        gms_build_registry();
+    }
+    m_nextGM = 0;
+}
+
+bool GMRunner::doFrame()
+{
+    // At most one GM per call, so a host that owns the main loop gets to tick
+    // between them. GMs this process doesn't draw cost nothing, so skipping
+    // them doesn't burn a frame.
+    while (m_nextGM < gmRegistry.size())
+    {
+        const auto& [make_gm, gmName] = gmRegistry[m_nextGM++];
+
         // Scope the GM so that it destructs (and releases its resources) before
         // we call `onceAfterGM` which potentially tears down the entire display
         // devices (see: TestingWindowAndroidVulkan)
@@ -269,24 +404,24 @@ static void dumpGMs(const std::string& match, bool interactive)
             {
                 continue;
             }
-            if (match.size() && !contains(name, match))
+            if (m_match.size() && !contains(gmName, m_match))
             {
                 continue; // This gm got filtered out by the '--match' argument.
             }
-            if (!TestHarness::Instance().claimGMTest(name))
+            if (!TestHarness::Instance().claimGMTest(gmName))
             {
                 continue; // A different process already drew this gm.
             }
             gm->onceBeforeDraw();
 
-            dump_gm(gm.get(), name);
+            dumpGM(gm.get(), gmName);
         }
 
         // Allow the testing window to do any cleanup it might want to do
         // between GMs
         TestingWindow::Get()->onceAfterGM();
 
-        if (interactive)
+        if (m_interactive)
         {
             // Wait for any key if in interactive mode.
             TestingWindow::InputEventData inputEventData =
@@ -301,14 +436,47 @@ static void dumpGMs(const std::string& match, bool interactive)
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
         if (!rive_android_app_poll_once())
         {
-            return;
+            return false;
         }
 #endif
 #ifdef __EMSCRIPTEN__
         // Yield control back to the browser so it can process its event loop.
         emscripten_sleep(1);
 #endif
+        return true;
     }
+
+    // Then the deferred parity families, one per call as well.
+    while (m_nextParityGM < parityRegistry.size())
+    {
+        const auto& [makers, gmName] = parityRegistry[m_nextParityGM++];
+
+        if (m_match.size() && !contains(gmName, m_match))
+        {
+            continue;
+        }
+        // Claimed like any GM so one worker runs each family; they store no
+        // golden, the claim only partitions the work.
+        if (!TestHarness::Instance().claimGMTest(gmName))
+        {
+            continue;
+        }
+
+        runParityGM(makers, gmName);
+        TestingWindow::Get()->onceAfterGM();
+#ifdef __EMSCRIPTEN__
+        emscripten_sleep(1);
+#endif
+        return true;
+    }
+
+    if (m_parityFailures != 0)
+    {
+        fprintf(stderr, "[gms] %d parity failures\n", m_parityFailures);
+        fflush(stderr);
+    }
+
+    return false;
 }
 
 static bool is_arg(const char arg[],
@@ -317,6 +485,176 @@ static bool is_arg(const char arg[],
 {
     return !strcmp(arg, target) || (arg && !strcmp(arg, alt));
 }
+
+bool GMRunner::parseArgs(int argc,
+                         const char* const argv[],
+                         FrameRunner::LaunchOptions& options)
+{
+    // The gms have always defaulted to a windowed GL backend, unlike the other
+    // tools.
+    options.backend = TestingWindow::Backend::gl;
+    options.visibility = TestingWindow::Visibility::window;
+
+    bool wantVulkanSynchronizationValidation = false;
+    bool onlyUbershaders = false;
+
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--test_harness") == 0)
+        {
+            TestHarness::Instance().init(TCPClient::Connect(argv[++i]),
+                                         m_pngThreads);
+            continue;
+        }
+        if (strcmp(argv[i], "--sync-validation") == 0)
+        {
+            wantVulkanSynchronizationValidation = true;
+            continue;
+        }
+        if (is_arg(argv[i], "--output", "-o"))
+        {
+            TestHarness::Instance().init(std::filesystem::path(argv[++i]),
+                                         m_pngThreads);
+            continue;
+        }
+        if (is_arg(argv[i], "--loop", "-l"))
+        {
+            m_loopCount = atoi(argv[++i]);
+            continue;
+        }
+        if (is_arg(argv[i], "--match", "-m"))
+        {
+            m_match = argv[++i];
+            continue;
+        }
+        if (is_arg(argv[i], "--fast-png", "-f"))
+        {
+            TestHarness::Instance().setPNGCompression(PNGCompression::fast_rle);
+            continue;
+        }
+        if (is_arg(argv[i], "--interactive", "-i"))
+        {
+            m_interactive = true;
+            continue;
+        }
+        if (is_arg(argv[i], "--backend", "-b"))
+        {
+            options.backend =
+                TestingWindow::ParseBackend(argv[++i], &options.backendParams);
+            continue;
+        }
+        if (is_arg(argv[i], "--headless", "-d"))
+        {
+            options.visibility = TestingWindow::Visibility::headless;
+            continue;
+        }
+        if (is_arg(argv[i], "--verbose", "-v"))
+        {
+            m_verbose = true;
+            continue;
+        }
+        if (is_arg(argv[i], "--only_ubershaders", "-u"))
+        {
+            onlyUbershaders = true;
+            continue;
+        }
+        if (sscanf(argv[i], "-p%d", &m_pngThreads) == 1)
+        {
+            m_pngThreads = std::max(m_pngThreads, 1);
+            continue;
+        }
+        printf("Unrecognized argument %s\n", argv[i]);
+        return false;
+    }
+
+    options.backendParams.wantVulkanSynchronizationValidation =
+        wantVulkanSynchronizationValidation;
+
+    // By default we want the gms to use synchronously compiled
+    // shaders/pipleines, in an attempt at determinism.
+    options.backendParams.shaderCompilationMode =
+        onlyUbershaders ? rive::gpu::ShaderCompilationMode::onlyUbershaders
+                        : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
+
+    m_parityMaxChannelDiff = options.backendParams.atomic ? 8 : 0;
+
+    return true;
+}
+
+// Draws every GM and then tears the process down. The unreal tool widget
+// instead ticks doFrame() itself, one GM per engine frame, and owns the
+// teardown.
+#ifndef RIVE_UNREAL
+static int gms_run_to_completion(int argc, const char* const argv[])
+{
+#ifdef _WIN32
+    // Cause stdout and stderr to print immediately without buffering.
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+#endif
+
+    GMRunner runner;
+    FrameRunner::LaunchOptions options;
+    if (!runner.parseArgs(argc, argv, options))
+    {
+        return 1;
+    }
+
+    void* platformWindow = nullptr;
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
+    // Make sure the testing harness always gets initialized on Android so we
+    // pipe stdout & stderr to the android log always get pngs.
+    if (!TestHarness::Instance().initialized())
+    {
+        // Android introduced a lot of changes to external storage at v11. We
+        // need to dump the pngs to different locations pre and post 11.
+        char androidOSVersion[PROP_VALUE_MAX + 1] = {0};
+        __system_property_get("ro.build.version.release", androidOSVersion);
+        int androidOSVersionMajor = atoi(androidOSVersion);
+        const char* pngLocation =
+            androidOSVersionMajor >= 11
+                ? "/sdcard/Pictures/rive_gms"
+                : "/sdcard/Android/data/app.rive.android_tests/files/data/gms";
+        TestHarness::Instance().init(std::filesystem::path(pngLocation), 4);
+        // When the app is launched with no test harness, presumably via tap or
+        // some other automation process, always do verbose output.
+        runner.setVerbose(true);
+    }
+    // Render directly to the main window to give feedback.
+    platformWindow = rive_android_app_wait_for_window();
+    if (platformWindow != nullptr)
+    {
+        options.visibility = TestingWindow::Visibility::fullscreen;
+    }
+#endif
+    TestingWindow::Init(options.backend,
+                        options.backendParams,
+                        options.visibility,
+                        platformWindow);
+
+    runner.init();
+    while (runner.doFrame())
+    {
+    }
+
+    const bool parityFailed = runner.parityFailures() != 0;
+
+    gmRegistry.clear();
+    parityRegistry.clear();
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
+                              // we're done.
+    TestHarness::Instance().shutdown();
+#ifdef __EMSCRIPTEN__
+    EM_ASM(if (window && window.close) window.close(););
+#endif
+    if (parityFailed)
+    {
+        abort();
+    }
+    return 0;
+}
+
+#endif // !RIVE_UNREAL
 
 #if defined(RIVE_UNREAL)
 
@@ -389,8 +727,12 @@ extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
     return true;
 }
 
-extern "C" int gms_main(int argc, const char* argv[])
-#elif defined(EXTERN_TOOLS)
+#endif // RIVE_UNREAL
+
+// Unreal drives GMRunner directly; it has no entry point of its own here.
+#ifndef RIVE_UNREAL
+
+#if defined(EXTERN_TOOLS)
 extern int rive_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int gms_ios_main(int argc, const char* argv[])
@@ -402,140 +744,9 @@ int rive_wasm_main(int argc, const char* const* argv)
 int main(int argc, const char* argv[])
 #endif
 {
-#ifdef _WIN32
-    // Cause stdout and stderr to print immediately without buffering.
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-#endif
-
-    const char* match = "";
-    bool interactive = false;
-    auto backend = TestingWindow::Backend::gl;
-    TestingWindow::BackendParams backendParams;
-    auto visibility = TestingWindow::Visibility::window;
-    int pngThreads = 2;
-    bool wantVulkanSynchronizationValidation = false;
-
-    bool onlyUbershaders = false;
-    for (int i = 1; i < argc; ++i)
-    {
-        if (strcmp(argv[i], "--test_harness") == 0)
-        {
-            TestHarness::Instance().init(TCPClient::Connect(argv[++i]),
-                                         pngThreads);
-            continue;
-        }
-        if (strcmp(argv[i], "--sync-validation") == 0)
-        {
-            wantVulkanSynchronizationValidation = true;
-            continue;
-        }
-        if (is_arg(argv[i], "--output", "-o"))
-        {
-            TestHarness::Instance().init(std::filesystem::path(argv[++i]),
-                                         pngThreads);
-            continue;
-        }
-        if (is_arg(argv[i], "--loop", "-l"))
-        {
-            loopCount = atoi(argv[++i]);
-            continue;
-        }
-        if (is_arg(argv[i], "--match", "-m"))
-        {
-            match = argv[++i];
-            continue;
-        }
-        if (is_arg(argv[i], "--fast-png", "-f"))
-        {
-            TestHarness::Instance().setPNGCompression(PNGCompression::fast_rle);
-            continue;
-        }
-        if (is_arg(argv[i], "--interactive", "-i"))
-        {
-            interactive = true;
-            continue;
-        }
-        if (is_arg(argv[i], "--backend", "-b"))
-        {
-            backend = TestingWindow::ParseBackend(argv[++i], &backendParams);
-            continue;
-        }
-        if (is_arg(argv[i], "--headless", "-d"))
-        {
-            visibility = TestingWindow::Visibility::headless;
-            continue;
-        }
-        if (is_arg(argv[i], "--verbose", "-v"))
-        {
-            verbose = true;
-            continue;
-        }
-        if (is_arg(argv[i], "--only_ubershaders", "-u"))
-        {
-            onlyUbershaders = true;
-            continue;
-        }
-        if (sscanf(argv[i], "-p%d", &pngThreads) == 1)
-        {
-            pngThreads = std::max(pngThreads, 1);
-            continue;
-        }
-        printf("Unrecognized argument %s\n", argv[i]);
-        return 1;
-    }
-
-    void* platformWindow = nullptr;
-    backendParams.wantVulkanSynchronizationValidation =
-        wantVulkanSynchronizationValidation;
-
-    // By default we want the gms to use synchronously compiled
-    // shaders/pipleines, in an attempt at determinism.
-    backendParams.shaderCompilationMode =
-        onlyUbershaders ? rive::gpu::ShaderCompilationMode::onlyUbershaders
-                        : rive::gpu::ShaderCompilationMode::alwaysSynchronous;
-
-#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
-    // Make sure the testing harness always gets initialized on Android so we
-    // pipe stdout & stderr to the android log always get pngs.
-    if (!TestHarness::Instance().initialized())
-    {
-        // Android introduced a lot of changes to external storage at v11. We
-        // need to dump the pngs to different locations pre and post 11.
-        char androidOSVersion[PROP_VALUE_MAX + 1] = {0};
-        __system_property_get("ro.build.version.release", androidOSVersion);
-        int androidOSVersionMajor = atoi(androidOSVersion);
-        const char* pngLocation =
-            androidOSVersionMajor >= 11
-                ? "/sdcard/Pictures/rive_gms"
-                : "/sdcard/Android/data/app.rive.android_tests/files/data/gms";
-        TestHarness::Instance().init(std::filesystem::path(pngLocation), 4);
-        // When the app is launched with no test harness, presumably via tap or
-        // some other automation process, always do verbose output.
-        verbose = true;
-    }
-    // Render directly to the main window to give feedback.
-    platformWindow = rive_android_app_wait_for_window();
-    if (platformWindow != nullptr)
-    {
-        visibility = TestingWindow::Visibility::fullscreen;
-    }
-#endif
-    TestingWindow::Init(backend, backendParams, visibility, platformWindow);
-#ifndef RIVE_UNREAL // unreal calls this directly instead
-    gms_build_registry();
-#endif
-
-    dumpGMs(std::string(match), interactive);
-
-    gmRegistry.clear();
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
-                              // we're done.
-    TestHarness::Instance().shutdown();
-#ifdef __EMSCRIPTEN__
-    EM_ASM(if (window && window.close) window.close(););
-#endif
-    return 0;
+    return gms_run_to_completion(argc, argv);
 }
+
+#endif // !RIVE_UNREAL
 
 #endif

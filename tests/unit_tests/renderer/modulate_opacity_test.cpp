@@ -6,6 +6,7 @@
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/math/raw_path.hpp"
+#include "utils/no_op_renderer.hpp"
 #include "gradient.hpp"
 #include <catch.hpp>
 
@@ -91,6 +92,39 @@ TEST_CASE("modulate-opacity-save-restore", "[RiveRenderer][opacity]")
     // After final restore, opacity should be back to 1.0
     CHECK(renderer.currentModulatedOpacity() == Approx(1.0f));
     renderer.drawPath(path.get(), paint.get());
+
+    flushFrame(ctx.get());
+}
+
+// The Renderer-level query a draw re-issued through a different renderer uses
+// to carry this state across (Artboard::drawCachedAsBitmap compositing through
+// a fresh renderer, say).
+TEST_CASE("modulate-opacity-reported-through-the-renderer-api",
+          "[RiveRenderer][opacity]")
+{
+    auto ctx = RenderContextNULL::MakeContext();
+    ctx->beginFrame(s_frameDescriptor);
+    RiveRenderer renderer(ctx.get());
+
+    float opacity = -1.0f;
+    CHECK(renderer.currentModulatedOpacity(&opacity));
+    CHECK(opacity == 1.0f);
+
+    renderer.save();
+    renderer.modulateOpacity(0.25f);
+    CHECK(renderer.currentModulatedOpacity(&opacity));
+    CHECK(opacity == Approx(0.25f));
+    renderer.restore();
+
+    CHECK(renderer.currentModulatedOpacity(&opacity));
+    CHECK(opacity == Approx(1.0f));
+
+    // A renderer that does not track one leaves the caller's value alone, so
+    // the caller can tell "no opacity to carry" from "opacity 1".
+    NoOpRenderer untracked;
+    opacity = 0.5f;
+    CHECK(!untracked.currentModulatedOpacity(&opacity));
+    CHECK(opacity == 0.5f);
 
     flushFrame(ctx.get());
 }

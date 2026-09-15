@@ -22,10 +22,10 @@ public:
     /// True if [listener] should receive a semantic invocation for [action].
     /// Mirrors [ListenerInputTypeKeyboard::keyboardListenerConstraintsMet]:
     /// a [ListenerInputTypeSemantic] with no [semanticInput] rows matches any
-    /// [action]. A base [ListenerInputType] whose value is
-    /// [ListenerType::semanticAction] (no typed subclass / no rows) also
-    /// matches any [action]. Otherwise at least one [SemanticInput] row must
-    /// match [action].
+    /// [action]; otherwise at least one [SemanticInput] row must match
+    /// [action]. Only the typed subclass matches: a base [ListenerInputType]
+    /// whose value is [ListenerType::semanticAction] builds a listener group
+    /// (see [StateMachineListener::hasListener]) but never fires.
     static bool semanticListenerConstraintsMet(
         const StateMachineListener* listener,
         SemanticActionType action);

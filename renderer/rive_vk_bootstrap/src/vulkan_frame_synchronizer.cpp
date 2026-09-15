@@ -63,7 +63,7 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
 
         VK_CONFIRM_OR_RETURN_MSG(
             m_vkCreateFence(m_device, &fenceCreateInfo, nullptr, &sync.fence),
-            "Failed to create Vulkan fance");
+            "Failed to create Vulkan fence");
 
         VkCommandBufferAllocateInfo cbufferAllocateInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -104,19 +104,34 @@ VulkanFrameSynchronizer::VulkanFrameSynchronizer(
 
 VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
 {
+    // The instance command function pointers are loaded first thing in the
+    // constructor, but if construction failed partway (e.g. an OOM creating a
+    // fence) this destructor still runs while some pointers are null. Guard
+    // every call so teardown of a partially-constructed object cannot segfault.
+    //
     // Note that the derived class will have already waited for the device to be
     // idle so we can safely destroy things here.
     for (auto& frame : m_inFlightFrames)
     {
-        destroySemaphore(frame.semaphore);
-        m_vkFreeCommandBuffers(m_device,
-                               m_commandPool,
-                               1,
-                               &frame.commandBuffer);
-        m_vkDestroyFence(m_device, frame.fence, nullptr);
+        if (m_vkDestroySemaphore != nullptr)
+        {
+            destroySemaphore(frame.semaphore);
+        }
+        if (m_vkFreeCommandBuffers != nullptr &&
+            m_commandPool != VK_NULL_HANDLE)
+        {
+            m_vkFreeCommandBuffers(m_device,
+                                   m_commandPool,
+                                   1,
+                                   &frame.commandBuffer);
+        }
+        if (m_vkDestroyFence != nullptr)
+        {
+            m_vkDestroyFence(m_device, frame.fence, nullptr);
+        }
     }
 
-    if (m_commandPool != VK_NULL_HANDLE)
+    if (m_commandPool != VK_NULL_HANDLE && m_vkDestroyCommandPool != nullptr)
     {
         m_vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     }
@@ -125,6 +140,11 @@ VulkanFrameSynchronizer::~VulkanFrameSynchronizer()
 VkResult VulkanFrameSynchronizer::waitForFenceAndBeginFrame(
     VkSemaphore* optionalOutSemaphore)
 {
+    assert(!m_isFrameStarted);
+
+    // There is a new most-recent frame, so clear this flag if it was set.
+    m_isMostRecentFrameDone = false;
+
     // Before we can use the command buffers/semaphores for the current frame,
     // we need to wait on its fence to stall the CPU until it's ready.
     static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
@@ -152,12 +172,14 @@ VkResult VulkanFrameSynchronizer::waitForFenceAndBeginFrame(
         *optionalOutSemaphore = current().semaphore;
     }
 
+    m_isFrameStarted = true;
     return VK_SUCCESS;
 }
 
 VkResult VulkanFrameSynchronizer::endFrame(
     std::optional<VkSemaphore> externalSignalSemaphore)
 {
+    assert(m_isFrameStarted);
     auto& frame = current();
 
     // This frame is done - reset the fence so that the submit can signal it.
@@ -207,6 +229,7 @@ VkResult VulkanFrameSynchronizer::endFrame(
         m_pixelReadState = PixelReadState::Ready;
     }
 
+    m_isFrameStarted = false;
     return VK_SUCCESS;
 }
 
@@ -371,6 +394,30 @@ VkResult VulkanFrameSynchronizer::createSemaphore(VkSemaphore* outSemaphore)
 void VulkanFrameSynchronizer::destroySemaphore(VkSemaphore semaphore)
 {
     m_vkDestroySemaphore(m_device, semaphore, nullptr);
+}
+
+bool VulkanFrameSynchronizer::checkMostRecentFrameCompletion()
+{
+    if (m_isFrameStarted)
+    {
+        assert(!m_isMostRecentFrameDone);
+        return false;
+    }
+
+    if (!m_isMostRecentFrameDone)
+    {
+        auto& frame = prev();
+        if (m_vkGetFenceStatus(m_device, frame.fence) == VK_SUCCESS)
+        {
+            // The fence for the last-completed frame is signaled, so that frame
+            // has run through completely. At this point, it is safe to free any
+            // per-frame resources for anything in frames rendered to this swap
+            // chain.
+            m_isMostRecentFrameDone = true;
+        }
+    }
+
+    return m_isMostRecentFrameDone;
 }
 
 } // namespace rive_vkb

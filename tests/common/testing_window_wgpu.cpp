@@ -12,8 +12,9 @@ TestingWindow* TestingWindow::MakeWGPU(const BackendParams&) { return nullptr; }
 
 #include "common/offscreen_render_target.hpp"
 #include "rive/renderer/rive_renderer.hpp"
-#include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
+
+#include <algorithm>
 
 #ifdef RIVE_WAGYU
 #include <webgpu/webgpu_wagyu.h>
@@ -88,6 +89,18 @@ public:
                     : wgpu::PowerPreference::HighPerformance,
         };
 
+#ifdef RIVE_WAGYU
+        // Wagyu's OpenGL ES backend requires WebGPU compatibility mode.
+        const bool compatibilityMode =
+            wgpuWagyuInstanceGetBackend(m_instance.Get()) ==
+            WGPUBackendType_OpenGLES;
+        if (compatibilityMode)
+        {
+            requestAdapterOptions.featureLevel =
+                wgpu::FeatureLevel::Compatibility;
+        }
+#endif
+
         m_instance.RequestAdapter(
             &requestAdapterOptions,
             wgpu::CallbackMode::AllowSpontaneous,
@@ -104,8 +117,56 @@ public:
             emscripten_sleep(1);
         }
 
+        wgpu::DeviceDescriptor deviceDesc = {};
+#ifdef RIVE_WAGYU
+        wgpu::Limits requiredLimits = {};
+        wgpu::CompatibilityModeLimits compatLimits = {};
+        if (compatibilityMode)
+        {
+            // Rive uses storage buffers in the vertex shader. In compatibility
+            // mode this isn't allowed by default, so explicitly request it if
+            // supported. Otherwise, the renderer can fall back to polyfilling
+            // vertex storage buffers via textures.
+            wgpu::Limits adapterLimits = {};
+            wgpu::CompatibilityModeLimits adapterCompatLimits = {};
+            adapterLimits.nextInChain = &adapterCompatLimits;
+            m_adapter.GetLimits(&adapterLimits);
+
+            if (adapterCompatLimits.maxStorageBuffersInVertexStage !=
+                wgpu::kLimitU32Undefined)
+            {
+                compatLimits.maxStorageBuffersInVertexStage =
+                    std::min<uint32_t>(
+                        gpu::kMaxStorageBuffers,
+                        adapterCompatLimits.maxStorageBuffersInVertexStage);
+                requiredLimits.nextInChain = &compatLimits;
+                deviceDesc.requiredLimits = &requiredLimits;
+            }
+        }
+#endif
+
+        std::vector<wgpu::FeatureName> requiredFeatures;
+#ifdef RIVE_WAGYU
+        // Request coherent advanced blend when the adapter advertises it. This
+        // enables Rive to take the "supportsBlendAdvancedCoherentKHR" path on
+        // MSAA, and skip the framebuffer copies and renderPass interruptions
+        // for advanced blend.
+        if (m_adapter.HasFeature(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent)))
+        {
+            requiredFeatures.push_back(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+        }
+#endif
+        if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
+        {
+            requiredFeatures.push_back(wgpu::FeatureName::ClipDistances);
+        }
+        deviceDesc.requiredFeatureCount = requiredFeatures.size();
+        deviceDesc.requiredFeatures = requiredFeatures.data();
+
         m_adapter.RequestDevice(
-            {},
+            &deviceDesc,
             wgpu::CallbackMode::AllowSpontaneous,
             [](wgpu::RequestDeviceStatus status,
                wgpu::Device device,
@@ -174,6 +235,9 @@ public:
         }
 
         RenderContextWebGPUImpl::ContextOptions contextOptions;
+#ifdef RIVE_WAGYU
+        contextOptions.compatibilityMode = compatibilityMode;
+#endif
         m_renderContext = RenderContextWebGPUImpl::MakeContext(m_adapter,
                                                                m_device,
                                                                m_queue,
@@ -181,12 +245,39 @@ public:
 
         wgpu::AdapterInfo adapterInfo;
         m_adapter.GetInfo(&adapterInfo);
-        printf("==== WGPU device: %s %s %s (%s, %s) ====\n",
+        printf("==== WGPU device: %.*s %.*s %.*s (%s",
+               static_cast<int>(adapterInfo.vendor.length),
                adapterInfo.vendor.data,
+               static_cast<int>(adapterInfo.device.length),
                adapterInfo.device.data,
+               static_cast<int>(adapterInfo.description.length),
                adapterInfo.description.data,
-               wgpu_backend_name(impl()->capabilities().backendType),
-               pls_impl_name(impl()->capabilities()));
+               wgpu_backend_name(impl()->capabilities().backendType));
+#ifdef RIVE_WAGYU
+        switch (impl()->capabilities().plsType)
+        {
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                GL_EXT_shader_pixel_local_storage:
+                printf(", GL_EXT_shader_pixel_local_storage");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::
+                VK_EXT_rasterization_order_attachment_access:
+                printf(", VK_EXT_rasterization_order_attachment_access");
+                break;
+            case RenderContextWebGPUImpl::PixelLocalStorageType::none:
+                break;
+        }
+#endif
+        if (m_renderContext->platformFeatures()
+                .supportsBlendAdvancedCoherentKHR)
+        {
+            printf(", WagyuBlendEquationAdvancedCoherent");
+        }
+        if (m_renderContext->platformFeatures().supportsClipPlanes)
+        {
+            printf(", WGPUFeatureName_ClipDistances");
+        }
+        printf(") ====\n");
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }
@@ -298,8 +389,9 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = m_backendParams.msaa ? 4u : 0u,
+            .msaaSampleCount = m_backendParams.msaaSampleCount,
             .disableRasterOrdering = options.disableRasterOrdering,
+            .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,

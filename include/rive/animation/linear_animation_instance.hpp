@@ -16,6 +16,9 @@ class NestedEventNotifier;
 class InterpolatingKeyFrame;
 class ScriptedInterpolator;
 class DataBind;
+class KeyFrame;
+class BindableProperty;
+struct LAIBindingExtras;
 
 class LinearAnimationInstance : public Scene, public NestedEventNotifier
 {
@@ -35,6 +38,19 @@ public:
 
     // Returns a pointer to the instance's animation
     const LinearAnimation* animation() const { return m_animation; }
+
+    // Returns the per-instance holder receiving the data-bound value for the
+    // given keyframe in this animation instance, lazily building it on first
+    // request. On first use for a keyframe that has a source data bind (see
+    // Artboard::keyFrameSourceBind), it clones that bind onto a freshly created
+    // BindableProperty holder, parks the clone on the artboard's data-bind
+    // container (advanced with the rest each frame), and caches the holder.
+    // Returns nullptr when the keyframe is not data bound; keyframes then fall
+    // back to their authored value in effectiveValue(context). This makes data
+    // binding work for ANY playback path (state machine, joystick, nested,
+    // standalone), mirroring the scripted-interpolator mechanism below. Holders
+    // and clones are owned by this LAI and torn down in the destructor.
+    BindableProperty* keyFrameValueHolder(const KeyFrame* keyframe) const;
 
     // Returns the current point in time at which this instance has advance
     // to
@@ -135,29 +151,26 @@ private:
 
     // float because it gets multiplied with other floats
     float m_direction;
-    bool m_didLoop;
+    // Initialized here because the primary ctor does not set it; didLoop()
+    // is readable before the first advance().
+    bool m_didLoop = false;
     int m_loopValue = -1;
 
-    // Lazy outer pointer => the common case (no scripted interpolators) pays
-    // one nullptr check on the apply hot path. Inner unique_ptr destroys the
-    // cloned ScriptedInterpolator (and its Lua ref) when this LAI is
-    // destroyed. `mutable` so the cache populates from the const apply().
-    // Intentionally not copied by the copy ctor — a copied LAI starts with
-    // a fresh empty cache.
-    mutable std::unique_ptr<
-        std::unordered_map<const InterpolatingKeyFrame*,
-                           std::unique_ptr<ScriptedInterpolator>>>
-        m_scriptedInterpolatorInstances;
+    // The four data-binding / scripted-interpolator containers this instance
+    // used to hold inline (80 B, and 40 vs 56 of it depending on the standard
+    // library) now live in one heap struct, allocated on first use. See
+    // linear_animation_instance_extras.hpp for what is in it and why. `mutable`
+    // because both the scripted-interpolator and keyframe-value caches populate
+    // from the const apply() path. Deliberately not copied by the copy ctor —
+    // a copied LAI starts with an empty cluster.
+    mutable std::unique_ptr<LAIBindingExtras> m_bindingExtras;
 
-    // Data binds that cloneProperties() appended to m_artboardInstance on
-    // our behalf for the cloned ScriptedInterpolators above. We must
-    // removeDataBind+delete each of these in ~LinearAnimationInstance BEFORE
-    // m_scriptedInterpolatorInstances tears down, because the bind targets
-    // point at CustomPropertys owned by the clones. Captured by snapshotting
-    // m_artboardInstance->dataBinds().size() before/after each cloneScripted-
-    // Object call (addDataBind only ever appends). `mutable` so it can
-    // populate from the const apply() path. Not copied by the copy ctor.
-    mutable std::vector<DataBind*> m_clonedArtboardDataBinds;
+    // Allocates the cold cluster on first use and returns it.
+    LAIBindingExtras& ensureBindingExtras() const;
+
+    // Lazily clones the source bind onto a holder and parks it on the artboard.
+    BindableProperty* buildKeyFrameValueHolder(const KeyFrame* keyframe,
+                                               DataBind* sourceBind) const;
 };
 } // namespace rive
 #endif

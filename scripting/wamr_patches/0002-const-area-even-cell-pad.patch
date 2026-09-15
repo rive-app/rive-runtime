@@ -1,0 +1,39 @@
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index d3f4720..eac5a99 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -16860,25 +16860,31 @@ re_scan:
+                            + loader_ctx->v128_const_num * 4
+                            + loader_ctx->i32_const_num;
+     if (func->const_cell_num > 0) {
++        /* rive patch: pad the const area to an even cell count so frame_lp
++           keeps an 8-byte phase and i64/f64 slots stay naturally aligned.
++           The pad goes in front and every region shifts with it, so the
++           lp-relative offsets the two passes computed stay valid. */
++        uint32 pad = func->const_cell_num & 1;
++        func->const_cell_num += pad;
+         if (!(func->consts =
+                   loader_malloc((uint64)sizeof(uint32) * func->const_cell_num,
+                                 error_buf, error_buf_size)))
+             goto fail;
+         if (loader_ctx->i64_const_num > 0) {
+-            bh_memcpy_s(func->consts,
++            bh_memcpy_s(func->consts + sizeof(uint32) * pad,
+                         (uint32)sizeof(int64) * loader_ctx->i64_const_num,
+                         loader_ctx->i64_consts,
+                         (uint32)sizeof(int64) * loader_ctx->i64_const_num);
+         }
+         if (loader_ctx->i32_const_num > 0) {
+-            bh_memcpy_s(func->consts
++            bh_memcpy_s(func->consts + sizeof(uint32) * pad
+                             + sizeof(int64) * loader_ctx->i64_const_num,
+                         (uint32)sizeof(int32) * loader_ctx->i32_const_num,
+                         loader_ctx->i32_consts,
+                         (uint32)sizeof(int32) * loader_ctx->i32_const_num);
+         }
+         if (loader_ctx->v128_const_num > 0) {
+-            bh_memcpy_s(func->consts,
++            bh_memcpy_s(func->consts + sizeof(uint32) * pad,
+                         (uint32)sizeof(V128) * loader_ctx->v128_const_num,
+                         loader_ctx->v128_consts,
+                         (uint32)sizeof(V128) * loader_ctx->v128_const_num);

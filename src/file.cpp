@@ -1,11 +1,14 @@
 #include "rive/file.hpp"
 #include "rive/bindable_artboard.hpp"
 #include "rive/runtime_header.hpp"
+#include "rive/watermark.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/generated/animation/listener_types/listener_input_type_semantic_base.hpp"
 #include "rive/generated/core_registry.hpp"
@@ -20,8 +23,10 @@
 #include "rive/importers/text_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/lua/lua_state.hpp"
+#endif
 #endif
 #include "rive/importers/keyed_object_importer.hpp"
 #include "rive/importers/keyed_property_importer.hpp"
@@ -71,10 +76,15 @@
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/assets/script_module_asset.hpp"
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#endif
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
@@ -95,6 +105,7 @@
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/view_model_type.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -124,8 +135,50 @@ size_t File::debugTotalFileCount = 0;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
+#ifdef WITH_RIVE_SCRIPTING_WASM
+void File::adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm)
+{
+    m_wasmVMs.clear();
+    WasmScriptingVM* raw = vm.get();
+    m_wasmVMs.push_back(std::move(vm));
+    for (auto& asset : m_fileAssets)
+    {
+        if (asset->is<ScriptAsset>())
+        {
+            asset->as<ScriptAsset>()->wasmBackend(raw);
+        }
+    }
+}
+
+bool File::applyWasmRegistration(const std::string& moduleName, int ref)
+{
+    for (auto& asset : m_fileAssets)
+    {
+        if (!asset->is<ScriptAsset>())
+        {
+            continue;
+        }
+        auto* script = asset->as<ScriptAsset>();
+        if (script->moduleName() == moduleName)
+        {
+            if (!script->isModule() && ref != 0)
+            {
+                script->registrationComplete(ref);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
+// Reads one object. A property key that neither the runtime nor the file's
+// ToC can type leaves the stream unreadable: nothing after it parses as
+// intended, so `malformed` is set and the caller fails the import instead of
+// treating the rest of the file as a run of unknown objects.
 static Core* readRuntimeObject(BinaryReader& reader,
-                               const RuntimeHeader& header)
+                               const RuntimeHeader& header,
+                               bool& malformed)
 {
     auto coreObjectKey = reader.readVarUintAs<int>();
     auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
@@ -161,13 +214,23 @@ static Core* readRuntimeObject(BinaryReader& reader,
                         "Unknown property key %d, missing from property ToC.\n",
                         propertyKey);
                 delete object;
+                malformed = true;
                 return nullptr;
             }
 
             switch (id)
             {
                 case CoreUintType::id:
-                    CoreUintType::deserialize(reader);
+                    // Uint64 shares the uint type id; skip the full range so
+                    // an unknown 64 bit value never aborts the read.
+                    reader.readVarUint64();
+                    break;
+                case CoreBoolType::id:
+                    // A bool the registry types but the object does not
+                    // store (a bit of a packed mask, written standalone).
+                    // Skipping nothing here read the value byte as the next
+                    // key and desynchronized everything after it.
+                    CoreBoolType::deserialize(reader);
                     break;
                 case CoreStringType::id:
                     CoreStringType::deserialize(reader);
@@ -189,6 +252,15 @@ static Core* readRuntimeObject(BinaryReader& reader,
         //         coreObjectKey);
         return nullptr;
     }
+#ifdef WITH_RIVE_EDITOR
+    // The .riv importer is exclusively the runtime path (editor flow
+    // hydrates via coop, never through here), so imported objects are
+    // fully wired by the import stack — mark them validated or the
+    // editor build's hasValidated() gate starves every generated
+    // ${name}Changed() on runtime instances (frozen animation dirt,
+    // silent VMI value callbacks).
+    object->markValidated();
+#endif
     return object;
 }
 
@@ -208,7 +280,7 @@ File::~File()
 #if defined(DEBUG)
     debugTotalFileCount--;
 #endif
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     cleanupScriptingVM();
 #endif
     for (auto artboard : m_artboards)
@@ -273,11 +345,13 @@ rcp<File> File::import(Span<const uint8_t> bytes,
         return nullptr;
     }
     auto file = make_rcp<File>(factory, std::move(assetLoader));
-#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     if (vm != nullptr)
     {
         file->setScriptingVM(ref_rcp(vm));
     }
+#else
+    (void)vm;
 #endif
 
     auto readResult = file->read(reader, header);
@@ -305,7 +379,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
     Core* lastBindableObject = nullptr;
     while (!reader.reachedEnd())
     {
-        auto object = readRuntimeObject(reader, header);
+        bool malformed = false;
+        auto object = readRuntimeObject(reader, header, malformed);
+        if (malformed)
+        {
+            return ImportResult::malformed;
+        }
         if (object == nullptr)
         {
             importStack.readNullObject();
@@ -338,6 +417,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case AudioAsset::typeKey:
                 case BlobAsset::typeKey:
                 case ScriptAsset::typeKey:
+                case ScriptModuleAsset::typeKey:
                 case ShaderAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
@@ -506,6 +586,16 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 scriptAsset->file(this);
                 break;
             }
+            case ScriptModuleAsset::typeKey:
+            {
+                stackObject = std::make_unique<TextAssetImporter>(
+                    object->as<ScriptModuleAsset>(),
+                    m_assetLoader,
+                    m_factory,
+                    &inBandContent);
+                stackType = FileAsset::typeKey;
+                break;
+            }
             case ShaderAsset::typeKey:
             {
                 auto shaderAsset = object->as<ShaderAsset>();
@@ -546,6 +636,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case TransitionViewModelCondition::typeKey:
             case TransitionArtboardCondition::typeKey:
+            case TransitionFocusCondition::typeKey:
                 stackObject =
                     std::make_unique<TransitionViewModelConditionImporter>(
                         object->as<TransitionViewModelCondition>());
@@ -590,6 +681,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ScriptedDataConverter::typeKey:
             case ScriptedDrawable::typeKey:
             case ScriptedLayout::typeKey:
+            case ScriptedTransition::typeKey:
             case ScriptedPathEffect::typeKey:
             case ScriptedListenerAction::typeKey:
             case ScriptedTransitionCondition::typeKey:
@@ -601,6 +693,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     stackObject = std::make_unique<ScriptedObjectImporter>(
                         scriptedObject);
                     stackType = ScriptedDrawable::typeKey;
+                }
+                // A ScriptedTransition additionally resolves list-source
+                // artboards from the file.
+                if (object->is<ScriptedTransition>())
+                {
+                    object->as<ScriptedTransition>()->file(this);
                 }
                 break;
             }
@@ -670,8 +768,143 @@ void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
 }
 
 #ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_WASM
+const char* File::frameBoundary()
+{
+    const char* warning = nullptr;
+    for (auto& vm : m_wasmVMs)
+    {
+        const char* notice = vm->frameBoundary();
+        if (warning == nullptr)
+        {
+            warning = notice;
+        }
+    }
+    return warning;
+}
+#endif
+
 void File::registerScripts()
 {
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    // A wasm script module supersedes the bytecode path: scripts live inside
+    // the module and ScriptAssets are metadata-only routing records. Assets
+    // arrive grouped, each module followed by its scripts; scripts before the
+    // first module belong to it, which keeps older single-module files
+    // working.
+    auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
+        int resultRef = 0;
+        if (!vm->requireModule(script->moduleName(), &resultRef))
+        {
+            fprintf(stderr,
+                    "wasm script module '%s' failed: %s\n",
+                    script->moduleName().c_str(),
+                    vm->lastError().c_str());
+        }
+        else if (!script->isModule() && resultRef != 0)
+        {
+            // The module's result is the protocol script's generator;
+            // storing the ref lets the standard lazy instantiation flow
+            // run against the wasm backend.
+            script->registrationComplete(resultRef);
+        }
+        script->wasmBackend(vm);
+    };
+    std::vector<ScriptAsset*> pending;
+    WasmScriptingVM* current = nullptr;
+    for (auto& asset : m_fileAssets)
+    {
+        if (asset->is<ScriptModuleAsset>())
+        {
+            auto module = asset->as<ScriptModuleAsset>();
+#ifndef WITH_RIVE_TOOLS
+            if (!module->verified())
+            {
+                continue;
+            }
+#endif
+            std::string error;
+            auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
+            if (vm == nullptr)
+            {
+                fprintf(stderr,
+                        "wasm script module failed to start: %s\n",
+                        error.c_str());
+                continue;
+            }
+            vm->viewModels(&m_ViewModels);
+            vm->file(this);
+            current = vm.get();
+            m_wasmVMs.push_back(std::move(vm));
+            for (auto* script : pending)
+            {
+                registerOn(current, script);
+            }
+            pending.clear();
+        }
+        else if (asset->is<ScriptAsset>() && current == nullptr)
+        {
+            pending.push_back(asset->as<ScriptAsset>());
+        }
+        else if (asset->is<ScriptAsset>())
+        {
+            registerOn(current, asset->as<ScriptAsset>());
+        }
+    }
+    // Bytecode-only files can still run on the wasm backend: with
+    // RIVE_WASM_VM naming a stock vm module, every script registers
+    // dynamically instead of arriving baked into a module asset. Dev and
+    // sweep-harness lane; bytecode is interpreted by the module's Luau VM.
+    if (m_wasmVMs.empty() && !pending.empty())
+    {
+        if (const char* vmPath = getenv("RIVE_WASM_VM"))
+        {
+            FILE* vmFile = fopen(vmPath, "rb");
+            if (vmFile != nullptr)
+            {
+                fseek(vmFile, 0, SEEK_END);
+                long size = ftell(vmFile);
+                fseek(vmFile, 0, SEEK_SET);
+                std::vector<uint8_t> vmBytes(size);
+                size_t read = fread(vmBytes.data(), 1, size, vmFile);
+                fclose(vmFile);
+                std::string error;
+                auto vm = WasmScriptingVM::make(
+                    Span<const uint8_t>(vmBytes.data(), read),
+                    m_factory,
+                    error);
+                if (vm == nullptr)
+                {
+                    fprintf(stderr,
+                            "wasm bytecode lane failed to start: %s\n",
+                            error.c_str());
+                }
+                else
+                {
+                    vm->viewModels(&m_ViewModels);
+                    vm->file(this);
+                    current = vm.get();
+                    m_wasmVMs.push_back(std::move(vm));
+                    for (auto* script : pending)
+                    {
+                        current->registerBytecode(script->moduleName(),
+                                                  script->moduleBytecode());
+                    }
+                    for (auto* script : pending)
+                    {
+                        registerOn(current, script);
+                    }
+                }
+            }
+        }
+    }
+    if (!m_wasmVMs.empty())
+    {
+        return;
+    }
+#endif
+
+#ifdef WITH_RIVE_SCRIPTING_LUAU
     // Check if we have any script assets in the file
     std::vector<ScriptAsset*> scripts;
     for (auto asset : m_fileAssets)
@@ -693,6 +926,15 @@ void File::registerScripts()
         ScriptingVM* vm = m_scriptingVM.get();
         if (vm != nullptr)
         {
+            routeScriptingToImportFactory(vm->context());
+            // Set up the Data global (view model constructors) on the active
+            // VM, whether it was created here or supplied externally (e.g. by
+            // the CommandServer). Skip it when the VM's owner builds Data
+            // itself, as the editor does in Dart.
+            if (!vm->context()->initializesDataGlobalExternally())
+            {
+                initializeLuaData(vm->state(), m_ViewModels);
+            }
             for (auto scriptAsset : scripts)
             {
                 // At runtime, if the script is verified, add it to be
@@ -722,6 +964,37 @@ void File::registerScripts()
             }
         }
     }
+#endif
+}
+
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+// Scripts reach the GPU through their ScriptingContext, and nothing else in
+// the import path hands them one, so a script that opened a gpuCanvas used to
+// fail on every runtime host. Ore and canvas host routing derive from the
+// context's own factory at read time, so route by making that factory the one
+// the file imported through, ahead of performRegistration since registration
+// can run script bodies.
+void File::routeScriptingToImportFactory(ScriptingContext* context)
+{
+    if (context == nullptr || m_factory == nullptr)
+    {
+        return;
+    }
+    // A VM the caller handed in was built before decode chose a recording
+    // session, so its scripts would draw to the driver while the file records.
+    if (context->factory() != m_factory)
+    {
+        context->adoptImportFactory(m_factory);
+    }
+    // The render context has its own late bind flag, and a caller that already
+    // satisfied it outranks the factory's default.
+    if (context->renderContextIsLateBound())
+    {
+        if (Factory* renderContext = m_factory->renderContext())
+        {
+            context->setRenderContext(renderContext);
+        }
+    }
 }
 
 void File::makeScriptingVM()
@@ -729,7 +1002,6 @@ void File::makeScriptingVM()
     cleanupScriptingVM();
     auto context = std::make_unique<CPPRuntimeScriptingContext>(m_factory);
     m_scriptingVM = make_rcp<ScriptingVM>(std::move(context));
-    initializeLuaData(m_scriptingVM->state(), m_ViewModels);
 }
 
 lua_State* File::scriptingState()
@@ -771,6 +1043,7 @@ void File::cleanupScriptingVM()
     // alive until Dart releases too. ~ScriptingVM handles lua_close.
     m_scriptingVM = nullptr;
 }
+#endif
 #endif
 
 Artboard* File::artboard(std::string name) const
@@ -814,43 +1087,113 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
     if (ab)
     {
         auto artboardInstance = ab->instance();
-#ifdef WITH_RIVE_SCRIPTING
-        artboardInstance->scriptingVM(m_scriptingVM.get());
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+        artboardInstance->scriptingVM(m_scriptingVM);
 #endif
         artboardInstance->file(ref_rcp(this));
+
+        // Root instances own the FocusManager for their whole tree; nested
+        // artboards and component-list items adopt it. Established here rather
+        // than by the first state machine so the manager outlives every state
+        // machine built against it, and so the tree is built once instead of
+        // rebuilt per state machine.
+        artboardInstance->buildFocusTree(artboardInstance->ensureFocusManager(),
+                                         nullptr);
+
+        // Global view model instances are no longer auto-created here. Callers
+        // (e.g. the high-level runtime's autoBind, or explicit
+        // setGlobalViewModelInstance) create and bind them on demand.
+
         return artboardInstance;
     }
     return nullptr;
 }
 
+void File::attachWatermark(ArtboardInstance* instance,
+                           const Artboard* source) const
+{
+    auto manifestAsset = manifest();
+    // Index 0 is a legal watermark index, so the enabled flag is the only
+    // thing that says whether this file has one.
+    if (manifestAsset == nullptr || !manifestAsset->hasWatermark())
+    {
+        return;
+    }
+    Artboard* watermarkArtboard =
+        this->artboard(manifestAsset->watermarkArtboardIndex());
+    // Never watermark the watermark: artboardAt(watermarkArtboardIndex()) still
+    // hands back a plain instance so tools can inspect it.
+    if (watermarkArtboard == nullptr || watermarkArtboard == source)
+    {
+        return;
+    }
+    auto watermarkInstance = instanceArtboard(watermarkArtboard);
+    if (watermarkInstance == nullptr)
+    {
+        return;
+    }
+    // A settled state machine is how the pre-roll reports it's done, so an
+    // artboard without one can't drive a watermark.
+    auto stateMachine = watermarkInstance->defaultStateMachine();
+    if (stateMachine == nullptr)
+    {
+        stateMachine = watermarkInstance->stateMachineAt(0);
+    }
+    if (stateMachine == nullptr)
+    {
+        return;
+    }
+    instance->watermark(
+        std::make_unique<Watermark>(std::move(watermarkInstance),
+                                    std::move(stateMachine)));
+}
+
 std::unique_ptr<ArtboardInstance> File::artboardDefault() const
 {
     auto ab = this->artboard();
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardAt(size_t index) const
 {
     auto ab = this->artboard(index);
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
     auto ab = this->artboard(name);
-    return instanceArtboard(ab);
+    auto instance = instanceArtboard(ab);
+    if (instance != nullptr)
+    {
+        attachWatermark(instance.get(), ab);
+    }
+    return instance;
 }
 
 rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const
 {
-    auto ab = this->artboardNamed(name);
+    // instanceArtboard, not artboardNamed: a bindable artboard is drawn nested
+    // inside a host that already carries the watermark, it must not get its
+    // own.
+    auto ab = instanceArtboard(this->artboard(name));
     return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
               : nullptr;
 }
 
 rcp<BindableArtboard> File::bindableArtboardDefault() const
 {
-    auto ab = this->artboardDefault();
+    auto ab = instanceArtboard(this->artboard());
     return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
               : nullptr;
 }
@@ -1170,6 +1513,12 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                 case ViewModelPropertyAssetImageBase::typeKey:
                     viewModelInstanceValue = new ViewModelInstanceAssetImage();
                     break;
+                case ViewModelPropertyAssetFontBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceAssetFont();
+                    break;
+                case ViewModelPropertyAssetBlobBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceAssetBlob();
+                    break;
                 case ViewModelPropertySymbolListIndexBase::typeKey:
                     viewModelInstanceValue =
                         new ViewModelInstanceSymbolListIndex();
@@ -1288,13 +1637,50 @@ ViewModel* File::viewModel(std::string name)
     return nullptr;
 }
 
-ViewModel* File::viewModel(size_t index)
+ViewModel* File::viewModel(size_t index) const
 {
     if (index < m_ViewModels.size())
     {
         return m_ViewModels[index];
     }
     return nullptr;
+}
+
+uint32_t File::viewModelId(const std::string& name) const
+{
+    for (uint32_t i = 0; i < m_ViewModels.size(); i++)
+    {
+        auto vm = m_ViewModels[i];
+        if (vm != nullptr && vm->name() == name)
+        {
+            return i;
+        }
+    }
+    return static_cast<uint32_t>(m_ViewModels.size());
+}
+
+std::vector<ViewModel*> File::globalViewModels() const
+{
+    std::vector<ViewModel*> viewModels;
+    for (ViewModel* vm : m_ViewModels)
+    {
+        if (vm != nullptr && static_cast<ViewModelType>(vm->viewModelType()) ==
+                                 ViewModelType::global)
+        {
+            viewModels.push_back(vm);
+        }
+    }
+    return viewModels;
+}
+
+std::vector<std::string> File::globalViewModelNames() const
+{
+    std::vector<std::string> names;
+    for (ViewModel* vm : globalViewModels())
+    {
+        names.push_back(vm->name());
+    }
+    return names;
 }
 
 ViewModelRuntime* File::viewModelByIndex(size_t index) const
@@ -1326,7 +1712,6 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
 {
     if (artboard == nullptr)
     {
-        fprintf(stderr, "Invalid Artboard\n");
         return nullptr;
     }
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())
@@ -1384,7 +1769,16 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
         uint16_t lastAssetType = 0;
         while (!reader.reachedEnd())
         {
-            auto object = readRuntimeObject(reader, header);
+            bool malformed = false;
+            auto object = readRuntimeObject(reader, header, malformed);
+            if (malformed)
+            {
+                if (result)
+                {
+                    *result = ImportResult::malformed;
+                }
+                return std::vector<uint8_t>();
+            }
             if (object == nullptr)
             {
                 continue;

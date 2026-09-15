@@ -75,6 +75,7 @@ void CoreObjectListener::remap(rcp<ViewModelInstance> instance)
 {
     if (instance != m_instance)
     {
+        deleteProperties();
         m_instance = instance;
         createProperties();
     }

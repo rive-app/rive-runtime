@@ -9,12 +9,12 @@
 #include "/Engine/Private/Common.ush"
 #else
 #include "flush_uniforms.minified.ush"
-#include "image_draw_uniforms.minified.ush"
 #endif
 
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/draw_path_common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
+#include "Generated/gradient_packing_common.minified.ush"
 #include "Generated/draw_path.minified.vert.ush"
 #include "Generated/draw_raster_order_path.minified.frag.ush"

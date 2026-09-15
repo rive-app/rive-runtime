@@ -45,6 +45,9 @@ public:
     void endFrame() override;
     void waitForGPU() override;
 
+    // Metal drains the recorded frame in endFrame before commit.
+    bool usesDeferredFrameReplay() const override { return true; }
+
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,

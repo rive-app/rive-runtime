@@ -3,6 +3,9 @@
 #include <string>
 #include "rive/assets/file_asset.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class TextAssetBase : public FileAsset
@@ -43,14 +46,16 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(folderPathPropertyKey, m_FolderPath, value);
         m_FolderPath = value;
-        folderPathChanged();
+        RIVE_EDITOR_CHANGED(folderPathChanged());
         notifyPropertyChanged(folderPathPropertyKey);
     }
 
     void copy(const TextAssetBase& object)
     {
         m_FolderPath = object.m_FolderPath;
+        RIVE_EDITOR_COPY(object);
         FileAsset::copy(object);
     }
 
@@ -62,11 +67,15 @@ public:
                 m_FolderPath = CoreStringType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return FileAsset::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void folderPathChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/assets/text_asset_ext.inl"
+#endif
 };
 } // namespace rive
 

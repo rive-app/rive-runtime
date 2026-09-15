@@ -1,8 +1,0 @@
-{
-  "name": "TransitionValueEnumComparator",
-  "key": {
-    "int": 485,
-    "string": "transitionvalueenumcomparator"
-  },
-  "extends": "animation/transition_value_id_comparator.json"
-}

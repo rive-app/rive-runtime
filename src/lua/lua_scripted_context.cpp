@@ -5,6 +5,8 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/view_model_type.hpp"
 #ifdef WITH_RIVE_AUDIO
 #include "rive/audio/audio_engine.hpp"
 #include "rive/assets/audio_asset.hpp"
@@ -27,11 +29,27 @@ using namespace rive;
 
 // Pushes a GPU features table onto the Lua stack. Queries the ORE context
 // when available, otherwise returns conservative defaults. Always returns 1.
+//
+// Errors instead of answering when the context is recording and does not yet
+// know its replay device. Conservative defaults would be the wrong answer to
+// give: they are indistinguishable from a real low end device, so a script
+// cannot tell it is being guessed at, and the branch it picks is written into
+// a stream that replays flawlessly on hardware that contradicts it. Failing at
+// the read is the only signal that fits through this API.
 int lua_push_gpu_features(lua_State* L)
 {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     auto* oreCtx = static_cast<ore::Context*>(
         static_cast<ScriptingContext*>(lua_getthreaddata(L))->oreContext());
+    if (oreCtx != nullptr && !oreCtx->featuresKnown())
+    {
+        luaL_error(L,
+                   "context.features is not available yet: this script is "
+                   "recording for a GPU device that has not been attached, so "
+                   "no capability can be reported without guessing at it. "
+                   "Read features from a method that runs after the first "
+                   "frame instead of at module scope");
+    }
     if (oreCtx != nullptr)
     {
         const auto& f = oreCtx->features();
@@ -131,9 +149,9 @@ int ScriptedContext::pushViewModel(lua_State* state)
     if (m_scriptedObject)
     {
         auto dataContext = m_scriptedObject->dataContext();
-        if (dataContext && dataContext->viewModelInstance())
+        if (dataContext && dataContext->mainViewModelInstance())
         {
-            auto viewModelInstance = dataContext->viewModelInstance();
+            auto viewModelInstance = dataContext->mainViewModelInstance();
             lua_newrive<ScriptedViewModel>(
                 state,
                 state,
@@ -167,6 +185,60 @@ int ScriptedContext::pushRootViewModel(lua_State* state)
     }
     m_missingRequestedData = true;
     return 0;
+}
+
+int ScriptedContext::pushGlobalViewModel(lua_State* state)
+{
+    const char* name = luaL_checkstring(state, 2);
+    if (m_scriptedObject)
+    {
+        auto scriptAsset = m_scriptedObject->scriptAsset();
+        auto dataContext = m_scriptedObject->dataContext();
+        if (scriptAsset != nullptr && dataContext != nullptr)
+        {
+            File* file = scriptAsset->file();
+            if (file != nullptr)
+            {
+                auto viewModelInstance =
+                    dataContext->resolveGlobalViewModel(file, name);
+                if (viewModelInstance != nullptr)
+                {
+                    lua_newrive<ScriptedViewModel>(
+                        state,
+                        state,
+                        ref_rcp(viewModelInstance->viewModel()),
+                        viewModelInstance);
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int ScriptedContext::pushGlobalViewModelNames(lua_State* state)
+{
+    std::vector<std::string> names;
+    if (m_scriptedObject)
+    {
+        auto scriptAsset = m_scriptedObject->scriptAsset();
+        if (scriptAsset != nullptr)
+        {
+            File* file = scriptAsset->file();
+            if (file != nullptr)
+            {
+                names = file->globalViewModelNames();
+            }
+        }
+    }
+    lua_createtable(state, (int)names.size(), 0);
+    int index = 1;
+    for (const auto& name : names)
+    {
+        lua_pushstring(state, name.c_str());
+        lua_rawseti(state, -2, index++);
+    }
+    return 1;
 }
 
 int ScriptedContext::pushDataContext(lua_State* state)
@@ -217,6 +289,14 @@ static int context_namecall(lua_State* L)
             {
                 return scriptedContext->pushRootViewModel(L);
             }
+            case (int)LuaAtoms::globalViewModel:
+            {
+                return scriptedContext->pushGlobalViewModel(L);
+            }
+            case (int)LuaAtoms::globalViewModelNames:
+            {
+                return scriptedContext->pushGlobalViewModelNames(L);
+            }
             case (int)LuaAtoms::image:
             {
                 const char* imageName = luaL_checkstring(L, 2);
@@ -263,6 +343,7 @@ static int context_namecall(lua_State* L)
             case (int)LuaAtoms::blob:
             {
                 const char* blobName = luaL_checkstring(L, 2);
+                ScriptingContext::ScopedAssetReference reference(L, blobName);
 
                 auto scriptedObject = scriptedContext->scriptedObject();
                 auto scriptAsset = scriptedObject->scriptAsset();
@@ -271,25 +352,29 @@ static int context_namecall(lua_State* L)
                     File* file = scriptAsset->file();
                     if (file != nullptr)
                     {
-                        auto assets = file->assets();
-                        for (const auto& asset : assets)
+                        BlobAsset* found = nullptr;
+                        int bestRank = 0;
+                        for (const auto& asset : file->assets())
                         {
-                            if (asset->is<BlobAsset>())
+                            if (!asset->is<BlobAsset>())
                             {
-                                BlobAsset* blobAsset = asset->as<BlobAsset>();
-                                if (blobAsset->name() == blobName)
-                                {
-                                    auto bytes = blobAsset->bytes();
-                                    if (!bytes.empty())
-                                    {
-                                        auto scriptedBlob =
-                                            lua_newrive<ScriptedBlob>(L);
-                                        scriptedBlob->asset = ref_rcp(
-                                            static_cast<FileAsset*>(blobAsset));
-                                        return 1;
-                                    }
-                                }
+                                continue;
                             }
+                            BlobAsset* blobAsset = asset->as<BlobAsset>();
+                            int rank = reference.match(blobAsset->name(),
+                                                       blobAsset->name());
+                            if (rank > bestRank && !blobAsset->bytes().empty())
+                            {
+                                bestRank = rank;
+                                found = blobAsset;
+                            }
+                        }
+                        if (found != nullptr)
+                        {
+                            auto scriptedBlob = lua_newrive<ScriptedBlob>(L);
+                            scriptedBlob->asset =
+                                ref_rcp(static_cast<FileAsset*>(found));
+                            return 1;
                         }
                     }
                 }
@@ -371,24 +456,39 @@ static int context_namecall(lua_State* L)
                     static_cast<ScriptingContext*>(lua_getthreaddata(L));
                 auto* renderCtx = static_cast<gpu::RenderContext*>(
                     scriptingCtx->renderContext());
+                auto* handle = lua_newrive<ScriptedCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = renderCtx;
+
+                // A size-less canvas allocates nothing, so it needs no device.
+                // Checked before the context, or a layout script that does not
+                // know its size at init is refused for a device it will only
+                // need at resize().
+                if (cw == 0 || ch == 0)
+                {
+                    return 1;
+                }
                 if (renderCtx == nullptr)
                 {
+                    // A recording session binds its device after import, and
+                    // generators size their canvas at construction, before any
+                    // texture exists. Record the request; satisfyPending
+                    // materializes it on first use once the device arrives.
+                    if (scriptingCtx->deferredCanvasHost() != nullptr)
+                    {
+                        handle->pendingWidth = cw;
+                        handle->pendingHeight = ch;
+                        return 1;
+                    }
                     luaL_error(
                         L,
                         "context:canvas() requires a RenderContext — call "
                         "setRenderContext() first");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedCanvas>(L);
-                handle->m_L = L;
-                handle->renderCtx = renderCtx;
 
-                if (cw == 0 || ch == 0)
-                {
-                    return 1;
-                }
-
-                auto canvas = renderCtx->makeRenderCanvas(cw, ch);
+                auto canvas =
+                    allocScriptRenderCanvas(renderCtx, scriptingCtx, cw, ch);
                 if (!canvas)
                 {
                     luaL_error(
@@ -451,8 +551,27 @@ static int context_namecall(lua_State* L)
                 }
                 auto* gpuRenderCtx = static_cast<gpu::RenderContext*>(
                     gpuScriptingCtx->renderContext());
+                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
+                handle->m_L = L;
+                handle->renderCtx = gpuRenderCtx;
+
+                // The documented size-less contract: no descriptor means no
+                // backing texture, so nothing here touches a device. Checked
+                // ahead of the contexts, or a layout script that learns its
+                // size at resize() is refused for a device it does not use.
+                if (gw == 0 || gh == 0)
+                {
+                    return 1;
+                }
                 if (gpuRenderCtx == nullptr)
                 {
+                    // Same late-device contract as canvas() above.
+                    if (gpuScriptingCtx->deferredCanvasHost() != nullptr)
+                    {
+                        handle->pendingWidth = gw;
+                        handle->pendingHeight = gh;
+                        return 1;
+                    }
                     luaL_error(
                         L,
                         "context:gpuCanvas() requires a RenderContext — call "
@@ -469,16 +588,11 @@ static int context_namecall(lua_State* L)
                         "scriptingWorkspaceSetOreContext() before requestVM()");
                     return 0;
                 }
-                auto* handle = lua_newrive<ScriptedGPUCanvas>(L);
-                handle->m_L = L;
-                handle->renderCtx = gpuRenderCtx;
 
-                if (gw == 0 || gh == 0)
-                {
-                    return 1;
-                }
-
-                auto canvas = gpuRenderCtx->makeRenderCanvas(gw, gh);
+                auto canvas = allocScriptRenderCanvas(gpuRenderCtx,
+                                                      gpuScriptingCtx,
+                                                      gw,
+                                                      gh);
                 if (!canvas)
                 {
                     luaL_error(
@@ -512,34 +626,17 @@ static int context_namecall(lua_State* L)
             {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
                 const char* shaderName = luaL_checkstring(L, 2);
+                ScriptingContext::ScopedAssetReference reference(L, shaderName);
 
-                // Runtime path: search file->assets() for a ShaderAsset
-                // with the matching name.
+                // Runtime path: the file's ShaderAsset best matching the
+                // scoped reference.
                 ShaderAsset* fileAsset = nullptr;
                 auto scriptedObject = scriptedContext->scriptedObject();
                 auto scriptAsset = scriptedObject->scriptAsset();
                 if (scriptAsset != nullptr)
                 {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        for (const auto& asset : file->assets())
-                        {
-                            if (asset->is<ShaderAsset>())
-                            {
-                                auto* sa = asset->as<ShaderAsset>();
-                                // match folderPath/name or bare name
-                                const std::string& fp = sa->folderPath();
-                                if (sa->name() == shaderName ||
-                                    (!fp.empty() &&
-                                     fp + "/" + sa->name() == shaderName))
-                                {
-                                    fileAsset = sa;
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    fileAsset = lua_gpu_find_shader_asset(scriptAsset->file(),
+                                                          reference);
                 }
 
                 auto* scriptingCtx =
@@ -547,7 +644,7 @@ static int context_namecall(lua_State* L)
                 auto* scripted = lua_newrive<ScriptedShader>(L);
                 if (lua_gpu_load_shader_by_name(scripted,
                                                 scriptingCtx,
-                                                shaderName,
+                                                reference,
                                                 fileAsset))
                 {
                     return 1;

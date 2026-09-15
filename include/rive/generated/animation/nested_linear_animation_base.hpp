@@ -43,8 +43,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(mixPropertyKey, &m_Mix, &value);
         m_Mix = value;
-        mixChanged();
+        RIVE_EDITOR_CHANGED(mixChanged());
         notifyPropertyChanged(mixPropertyKey);
     }
 
@@ -67,6 +68,9 @@ public:
 
 protected:
     virtual void mixChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/nested_linear_animation_ext.inl"
+#endif
 };
 } // namespace rive
 

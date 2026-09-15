@@ -69,7 +69,7 @@ private:
                 // Also don't test BGRA on Qualcomm. Various Adreno 6 devices
                 // can get the RGB order wrong when resolving BGRA multisampled
                 // data.
-                (riveRenderable || vk->physicalDeviceProperties().vendorID ==
+                (riveRenderable || vk->physicalDeviceProperties.vendorID ==
                                        rive::gpu::vkutil::vendors::Qualcomm)
                     ? VK_FORMAT_R8G8B8A8_UNORM
                     : VK_FORMAT_B8G8R8A8_UNORM,

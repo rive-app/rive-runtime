@@ -28,6 +28,7 @@ extern rive::Span<const uint32_t> draw_atlas_blit_frag;
 extern rive::Span<const uint32_t> draw_image_mesh_vert;
 extern rive::Span<const uint32_t> draw_image_mesh_frag;
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::atomics shaders.
 extern rive::Span<const uint32_t> atomic_draw_path_vert;
 extern rive::Span<const uint32_t> atomic_draw_path_frag;
@@ -50,6 +51,7 @@ extern rive::Span<const uint32_t> atomic_resolve_frag;
 extern rive::Span<const uint32_t> atomic_resolve_fixedcolor_frag;
 extern rive::Span<const uint32_t> atomic_resolve_coalesced_vert;
 extern rive::Span<const uint32_t> atomic_resolve_coalesced_frag;
+#endif
 
 #ifndef RIVE_ANDROID
 // InterlockMode::clockwise shaders.
@@ -73,6 +75,7 @@ extern rive::Span<const uint32_t> draw_clockwise_image_mesh_frag;
 extern rive::Span<const uint32_t> draw_clockwise_image_mesh_fixedcolor_frag;
 #endif
 
+#ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::clockwiseAtomic shaders.
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_vert;
 extern rive::Span<const uint32_t> draw_clockwise_atomic_path_frag;
@@ -105,23 +108,30 @@ extern rive::Span<const uint32_t> init_clockwise_atomic_workaround_vert;
 extern rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag;
 extern rive::Span<const uint32_t>
     init_clockwise_atomic_workaround_fixedcolor_frag;
+#endif
 
-// InterlockMode::msaa shaders.
-extern rive::Span<const uint32_t> draw_msaa_path_vert;
-extern rive::Span<const uint32_t> draw_msaa_path_noclipdistance_vert;
-extern rive::Span<const uint32_t> draw_msaa_path_frag;
-extern rive::Span<const uint32_t> draw_msaa_path_fixedcolor_frag;
-extern rive::Span<const uint32_t> draw_msaa_stencil_vert;
-extern rive::Span<const uint32_t> draw_msaa_stencil_frag;
-extern rive::Span<const uint32_t> draw_msaa_stencil_fixedcolor_frag;
-extern rive::Span<const uint32_t> draw_msaa_atlas_blit_vert;
-extern rive::Span<const uint32_t> draw_msaa_atlas_blit_noclipdistance_vert;
-extern rive::Span<const uint32_t> draw_msaa_atlas_blit_frag;
-extern rive::Span<const uint32_t> draw_msaa_atlas_blit_fixedcolor_frag;
-extern rive::Span<const uint32_t> draw_msaa_image_mesh_vert;
-extern rive::Span<const uint32_t> draw_msaa_image_mesh_noclipdistance_vert;
-extern rive::Span<const uint32_t> draw_msaa_image_mesh_frag;
-extern rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag;
+// InterlockMode::depthStencil shaders.
+extern rive::Span<const uint32_t> draw_depthstencil_path_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_path_noclipdistance_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_path_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_path_fixedcolor_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_path_msaa_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_frag;
+extern rive::Span<const uint32_t>
+    draw_depthstencil_triangles_nocolor_fixedcolor_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_atlas_blit_vert;
+extern rive::Span<const uint32_t>
+    draw_depthstencil_atlas_blit_noclipdistance_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_atlas_blit_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_atlas_blit_fixedcolor_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_atlas_blit_msaa_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_image_mesh_vert;
+extern rive::Span<const uint32_t>
+    draw_depthstencil_image_mesh_noclipdistance_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_image_mesh_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_image_mesh_fixedcolor_frag;
+extern rive::Span<const uint32_t> draw_depthstencil_image_mesh_msaa_frag;
 extern rive::Span<const uint32_t> draw_fullscreen_quad_vert;
 extern rive::Span<const uint32_t> draw_input_attachment_frag;
 extern rive::Span<const uint32_t> draw_msaa_color_seed_attachment_frag;

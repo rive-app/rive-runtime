@@ -3,6 +3,9 @@
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/span.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class MeshBase : public ContainerComponent
@@ -40,6 +43,7 @@ public:
     void copy(const MeshBase& object)
     {
         copyTriangleIndexBytes(object);
+        RIVE_EDITOR_COPY(object);
         ContainerComponent::copy(object);
     }
 
@@ -51,11 +55,15 @@ public:
                 decodeTriangleIndexBytes(CoreBytesType::deserialize(reader));
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ContainerComponent::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void triangleIndexBytesChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/mesh_ext.inl"
+#endif
 };
 } // namespace rive
 

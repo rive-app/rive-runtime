@@ -1,8 +1,0 @@
-{
-  "name": "TranslationConstraint",
-  "key": {
-    "int": 87,
-    "string": "translationconstraint"
-  },
-  "extends": "constraints/transform_component_constraint_y.json"
-}

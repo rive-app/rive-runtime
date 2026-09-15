@@ -249,7 +249,7 @@ EM_JS(void,
       (uint32_t requestId, const uint8_t* data, int dataLen),
       {
           // Copy from WASM heap (SharedArrayBuffer can't be used for Blob).
-          var sourceView = Module["HEAP8"].subarray(data, data + dataLen);
+          var sourceView = new Uint8Array(wasmMemory.buffer, data, dataLen);
           var buffer = new Uint8Array(dataLen);
           buffer.set(sourceView);
 
@@ -266,7 +266,9 @@ EM_JS(void,
                   // Allocate WASM memory and copy pixels.
                   var numBytes = imageData.data.length;
                   var ptr = Module._malloc(numBytes);
-                  Module.HEAPU8.set(imageData.data, ptr);
+                  // malloc may grow memory, so view the buffer after it.
+                  new Uint8Array(wasmMemory.buffer, ptr, numBytes)
+                      .set(imageData.data);
 
                   Module._wasm_image_decode_complete(requestId,
                                                      bmp.width,

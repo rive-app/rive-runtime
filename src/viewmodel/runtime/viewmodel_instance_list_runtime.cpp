@@ -45,11 +45,15 @@ bool ViewModelInstanceListRuntime::addInstanceAt(
     ViewModelInstanceRuntime* instanceRuntime,
     int index)
 {
+    // Populated before it is published, exactly as addInstance does. addItemAt
+    // notifies synchronously, so an item still holding a null instance reaches
+    // every listener on the list — a scripted list dereferences it and crashes,
+    // and addItemAt's own addParent call is skipped for the same reason.
     auto listItem = make_rcp<ViewModelInstanceListItem>();
+    listItem->viewModelInstance(instanceRuntime->instance());
     auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
     if (list->addItemAt(listItem, index))
     {
-        listItem->viewModelInstance(instanceRuntime->instance());
         m_itemsMap[listItem] = ref_rcp(instanceRuntime);
         return true;
     }

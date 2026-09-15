@@ -11,13 +11,12 @@
 #define DRAW_IMAGE
 
 #include "flush_uniforms.minified.glsl"
-#include "image_draw_uniforms.minified.glsl"
 #include "common.minified.glsl"
 #undef DRAW_IMAGE
 #define DRAW_PATH
 #define DRAW_INTERIOR_TRIANGLES
 #define ENABLE_FEATHER
-#define ATLAS_BLIT
+#define FEATHER_ATLAS_BLIT
 #include "draw_path_common.minified.glsl"
 
 #define ATLAS_FEATHERED_FILL
@@ -26,7 +25,7 @@
 #undef ATLAS_FEATHERED_FILL
 #undef ATLAS_FEATHERED_STROKE
 
-#undef ATLAS_BLIT
+#undef FEATHER_ATLAS_BLIT
 #undef ENABLE_FEATHER
 #undef DRAW_INTERIOR_TRIANGLES
 #undef DRAW_PATH

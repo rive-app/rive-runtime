@@ -117,7 +117,7 @@ protected:
             p->blendMode(mode);
             rivegm::draw_rect(renderer, r, p.get());
 
-            r.inset(-.5f, -.5f);
+            r = r.inset(-.5f, -.5f);
             p->style(RenderPaintStyle::stroke);
             p->shader(nullptr);
             p->blendMode(BlendMode::srcOver);

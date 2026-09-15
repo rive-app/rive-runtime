@@ -41,8 +41,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(randomModeValuePropertyKey,
+                             &m_RandomModeValue,
+                             &value);
         m_RandomModeValue = value;
-        randomModeValueChanged();
+        RIVE_EDITOR_CHANGED(randomModeValueChanged());
         notifyPropertyChanged(randomModeValuePropertyKey);
     }
 
@@ -66,6 +69,9 @@ public:
 
 protected:
     virtual void randomModeValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_formula_ext.inl"
+#endif
 };
 } // namespace rive
 

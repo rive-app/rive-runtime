@@ -1,9 +1,6 @@
 #include "rive/animation/scripted_transition_condition.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/importers/state_machine_importer.hpp"
-#ifdef WITH_RIVE_SCRIPTING
-#include "rive/lua/rive_lua_libs.hpp"
-#endif
 
 using namespace rive;
 
@@ -38,36 +35,12 @@ bool ScriptedTransitionCondition::evaluateStateful(
 {
     bool result = false;
 #ifdef WITH_RIVE_SCRIPTING
-    if (m_vm != nullptr)
+    if (m_vm != nullptr && m_vm->valid())
     {
-        lua_State* L = state();
-        // Stack: []
-        rive_lua_pushRef(L, m_self);
-        // Stack: [self]
-        lua_getfield(L, -1, "evaluate");
-
-        // Stack: [self, field]
-        lua_insert(L, -2); // Swap self and field
-
-        // Stack: [field, self]
-        if (static_cast<lua_Status>(rive_lua_pcall_with_context(
-                L,
-                const_cast<ScriptedTransitionCondition*>(this),
-                1,
-                1)) == LUA_OK)
-        {
-            if (lua_isboolean(L, -1))
-            {
-                result = lua_toboolean(L, -1);
-            }
-            // Stack: [result]
-            rive_lua_pop(L, 1);
-        }
-        else
-        {
-            // Stack: [status]
-            rive_lua_pop(L, 1);
-        }
+        result = m_vm->callBooleanMethod(
+            const_cast<ScriptedTransitionCondition*>(this),
+            m_self,
+            "evaluate");
     }
 #endif
     return result;

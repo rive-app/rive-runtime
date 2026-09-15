@@ -31,6 +31,7 @@ public:
             .clearColor = options.clearColor,
             .msaaSampleCount = options.forceMSAA ? 4u : 0u,
             .disableRasterOrdering = options.disableRasterOrdering,
+            .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .clockwiseFillOverride = options.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,

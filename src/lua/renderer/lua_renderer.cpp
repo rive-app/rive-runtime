@@ -63,6 +63,12 @@ void ScriptedRenderer::clipPath(lua_State* L, ScriptedPathData* path)
     m_renderer->clipPath(path->renderPath(L));
 }
 
+void ScriptedRenderer::modulateOpacity(lua_State* L, float opacity)
+{
+    validate(L);
+    m_renderer->modulateOpacity(opacity);
+}
+
 static int renderer_drawImage(lua_State* L)
 {
     auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
@@ -167,6 +173,14 @@ static int renderer_transform(lua_State* L)
     return 0;
 }
 
+static int renderer_modulateOpacity(lua_State* L)
+{
+    auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
+    auto opacity = float(luaL_checknumber(L, 2));
+    scriptedRenderer->modulateOpacity(L, opacity);
+    return 0;
+}
+
 static int renderer_namecall(lua_State* L)
 {
     int atom;
@@ -185,6 +199,8 @@ static int renderer_namecall(lua_State* L)
                 return renderer_clip_path(L);
             case (int)LuaAtoms::transform:
                 return renderer_transform(L);
+            case (int)LuaAtoms::modulateOpacity:
+                return renderer_modulateOpacity(L);
             case (int)LuaAtoms::drawImage:
                 return renderer_drawImage(L);
             case (int)LuaAtoms::drawImageMesh:

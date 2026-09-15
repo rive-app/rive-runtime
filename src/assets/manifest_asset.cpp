@@ -75,6 +75,51 @@ bool ManifestAsset::decodePaths(BinaryReader& reader)
     return true;
 }
 
+bool ManifestAsset::decodeWatermark(BinaryReader& reader, uint64_t sectionSize)
+{
+    const uint8_t* sectionStart = reader.position();
+
+    uint64_t version = reader.readVarUint64();
+    if (reader.hasError())
+    {
+        return false;
+    }
+
+    if (version == watermarkSectionVersion)
+    {
+        uint64_t flags = reader.readVarUint64();
+        if (reader.hasError())
+        {
+            return false;
+        }
+        // Read as uint32_t rather than truncating a uint64_t: an index that
+        // does not fit is a malformed manifest, and silently wrapping it (2^32
+        // becomes 0) would attach some unrelated artboard as the watermark.
+        // readVarUintAs sets the reader's range error, which the check below
+        // turns into a rejected section.
+        uint32_t artboardIndex = reader.readVarUintAs<uint32_t>();
+        if (reader.hasError())
+        {
+            return false;
+        }
+        m_hasWatermark = (flags & watermarkFlagEnabled) != 0;
+        m_watermarkArtboardIndex = artboardIndex;
+    }
+    // An unrecognized version leaves the watermark unset, but the section is
+    // still consumed below so the rest of the manifest keeps parsing.
+
+    // Unlike names and paths, this section tolerates trailing bytes: a newer
+    // exporter may append fields to it, and decode() requires each known
+    // section be consumed exactly. Swallow whatever is left.
+    size_t bytesRead = static_cast<size_t>(reader.position() - sectionStart);
+    if (bytesRead > sectionSize)
+    {
+        return false;
+    }
+    reader.readBytes(sectionSize - bytesRead);
+    return !reader.hasError();
+}
+
 bool ManifestAsset::decode(SimpleArray<uint8_t>& bytes, Factory* factory)
 {
     if (bytes.empty())
@@ -103,18 +148,29 @@ bool ManifestAsset::decode(SimpleArray<uint8_t>& bytes, Factory* factory)
         // Store the position before reading the section content
         const uint8_t* sectionStart = reader.position();
 
-        if (static_cast<ManifestSections>(sectionValue) ==
-            ManifestSections::names)
+        // Compare the raw id, never a narrowed one: ManifestSections has an
+        // unsigned char base, so casting down aliases every id mod 256 onto a
+        // known section (258 lands on watermark, 256 on names, 257 on paths).
+        // That both misreads malformed input and defeats the skip-unknown
+        // branch below, which is what lets a newer exporter add sections.
+        if (sectionValue == static_cast<uint64_t>(ManifestSections::names))
         {
             if (!decodeNames(reader))
             {
                 return false;
             }
         }
-        else if (static_cast<ManifestSections>(sectionValue) ==
-                 ManifestSections::paths)
+        else if (sectionValue == static_cast<uint64_t>(ManifestSections::paths))
         {
             if (!decodePaths(reader))
+            {
+                return false;
+            }
+        }
+        else if (sectionValue ==
+                 static_cast<uint64_t>(ManifestSections::watermark))
+        {
+            if (!decodeWatermark(reader, sectionSize))
             {
                 return false;
             }

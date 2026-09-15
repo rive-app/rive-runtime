@@ -1,6 +1,7 @@
 #ifndef _RIVE_SOLO_BASE_HPP_
 #define _RIVE_SOLO_BASE_HPP_
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 #include "rive/node.hpp"
 namespace rive
 {
@@ -35,18 +36,21 @@ public:
     static const uint16_t activeComponentIdPropertyKey = 296;
 
 protected:
-    uint32_t m_ActiveComponentId = 0;
+    Id m_ActiveComponentId = 0;
 
 public:
-    inline uint32_t activeComponentId() const { return m_ActiveComponentId; }
-    void activeComponentId(uint32_t value)
+    inline Id activeComponentId() const { return m_ActiveComponentId; }
+    void activeComponentId(Id value)
     {
         if (m_ActiveComponentId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(activeComponentIdPropertyKey,
+                             &m_ActiveComponentId,
+                             &value);
         m_ActiveComponentId = value;
-        activeComponentIdChanged();
+        RIVE_EDITOR_CHANGED(activeComponentIdChanged());
         notifyPropertyChanged(activeComponentIdPropertyKey);
     }
 
@@ -62,7 +66,7 @@ public:
         switch (propertyKey)
         {
             case activeComponentIdPropertyKey:
-                m_ActiveComponentId = CoreUintType::deserialize(reader);
+                m_ActiveComponentId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return Node::deserialize(propertyKey, reader);
@@ -70,6 +74,9 @@ public:
 
 protected:
     virtual void activeComponentIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/solo_ext.inl"
+#endif
 };
 } // namespace rive
 

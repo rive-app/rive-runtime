@@ -4,6 +4,12 @@
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
+#include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/layer_state_flags.hpp"
@@ -15,6 +21,7 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/animation/state_machine_instance_clusters.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_listener.hpp"
@@ -63,6 +70,10 @@
 #include "rive/focus_data.hpp"
 #include "rive/node.hpp"
 #include "rive/semantic/semantic_data.hpp"
+#include "rive/view_model_type.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+#include "rive/file.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include <array>
 #include <memory>
 #include <unordered_map>
@@ -71,6 +82,19 @@
 #include <cmath>
 
 using namespace rive;
+
+// ArtboardComponentList builds one StateMachineInstance per row, so a 1000-row
+// list pays sizeof(StateMachineInstance) a thousand times over before any
+// content exists. The clusters in state_machine_instance_clusters.hpp exist to
+// keep it small: 1080 B before that work, 368 B after, which the allocator
+// rounds to 384 instead of 1280.
+//
+// Before adding an inline member, check whether it belongs in one of the
+// SMI* sidecar clusters instead — anything that is only populated for a
+// specific authored feature (events, bindables, focus/keyboard/gamepad/
+// semantics, scripting) does. Note also that nothing inline here is a
+// std::unordered_map any more, which is what makes this type the same size on
+// libc++ and libstdc++; an inline hash container would give that up.
 
 #ifdef RIVE_MICROPROFILE
 #include "rive/profiler/rive_profile.hpp"
@@ -104,20 +128,6 @@ static std::string getStateName(const StateInstance* stateInstance)
 
 namespace rive
 {
-namespace
-{
-constexpr std::array<ListenerType, 9> kPointerHitListenerTypes = {
-    ListenerType::enter,
-    ListenerType::exit,
-    ListenerType::down,
-    ListenerType::up,
-    ListenerType::move,
-    ListenerType::click,
-    ListenerType::dragStart,
-    ListenerType::dragEnd,
-    ListenerType::drag,
-};
-} // namespace
 
 class StateMachineLayerInstance
 {
@@ -129,33 +139,36 @@ public:
         delete m_stateFrom;
     }
 
-    void init(StateMachineInstance* stateMachineInstance,
-              const StateMachineLayer* layer,
-              ArtboardInstance* instance)
+    /// The artboard every layer of this instance applies to. This is
+    /// identical for all layers of a given StateMachineInstance — as was the
+    /// owning instance pointer — so holding either per layer stored the same
+    /// value layerCount times over. Both are therefore derived from the `smi`
+    /// threaded through the methods below rather than stored per layer.
+    ///
+    /// The layer *definition* is deliberately NOT derived this way. It is
+    /// genuinely per-index data, and while `m_machine->layer(this - m_layers)`
+    /// would recover it, that lookup is only stable in runtime builds. Under
+    /// WITH_RIVE_EDITOR, StateMachine::layer() reads `m_editorLayers`, which
+    /// EditorFile::finalizeBatch clears and rebuilds from arena order after
+    /// every coop batch, while clearStalePlaybackScenes only rebuilds the
+    /// StateMachineInstance when the StateMachine *pointer* changes. So adding
+    /// or reparenting a layer can leave slot i resolving to a different
+    /// definition — or, if a layer was deleted, to nullptr — while m_layers[i]
+    /// still holds the old layer's runtime state. m_layer is captured once at
+    /// init and pinned for the instance's lifetime instead.
+    static ArtboardInstance* artboardOf(const StateMachineInstance* smi)
     {
-
-        if (File::deterministicMode)
-        {
-            srand((unsigned int)1);
-        }
-        else
-        {
-            auto now = std::chrono::high_resolution_clock::now();
-            auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                             now.time_since_epoch())
-                             .count();
-            srand((unsigned int)nanos);
-        }
-        m_stateMachineInstance = stateMachineInstance;
-        m_artboardInstance = instance;
-        assert(m_layer == nullptr);
-        m_anyStateInstance =
-            layer->anyState()->makeInstance(instance).release();
-        m_layer = layer;
-        changeState(m_layer->entryState());
+        return smi->m_artboardInstance;
     }
 
-    void resetState()
+    void init(StateMachineInstance* smi, const StateMachineLayer* layer)
+    {
+        assert(m_layer == nullptr);
+        m_layer = layer;
+        changeState(smi, m_layer->entryState());
+    }
+
+    void resetState(StateMachineInstance* smi)
     {
         if (m_stateFrom != m_anyStateInstance && m_stateFrom != m_currentState)
         {
@@ -167,10 +180,10 @@ public:
             delete m_currentState;
         }
         m_currentState = nullptr;
-        changeState(m_layer->entryState());
+        changeState(smi, m_layer->entryState());
     }
 
-    void updateMix(float seconds)
+    void updateMix(StateMachineInstance* smi, float seconds)
     {
         if (m_transition != nullptr && m_stateFrom != nullptr &&
             resolvedDuration() != 0)
@@ -189,9 +202,11 @@ public:
             {
                 m_transitionCompleted = true;
                 clearAnimationReset();
-                fireEvents(StateMachineFireOccurance::atEnd,
+                fireEvents(smi,
+                           StateMachineFireOccurance::atEnd,
                            m_transition->events());
-                performListenerActions(StateMachineFireOccurance::atEnd,
+                performListenerActions(smi,
+                                       StateMachineFireOccurance::atEnd,
                                        m_transition->listenerActions());
             }
         }
@@ -201,45 +216,42 @@ public:
         }
     }
 
-    bool advance(float seconds, bool newFrame)
+    bool advance(StateMachineInstance* smi, float seconds, bool newFrame)
     {
         if (newFrame)
         {
             m_stateMachineChangedOnAdvance = false;
         }
-        m_currentState->advance(seconds, m_stateMachineInstance);
-        updateMix(seconds);
+        m_currentState->advance(seconds, smi);
+        updateMix(smi, seconds);
 
         if (m_stateFrom != nullptr && m_mix < 1.0f && !m_holdAnimationFrom)
         {
             // This didn't advance during our updateState, but it should now
             // that we realize we need to mix it in.
-            m_stateFrom->advance(seconds, m_stateMachineInstance);
+            m_stateFrom->advance(seconds, smi);
         }
 
-        apply();
+        apply(smi);
 
         bool changedState = false;
 
-        for (int i = 0; updateState(); i++)
+        for (int i = 0; updateState(smi); i++)
         {
             changedState = true;
-            apply();
+            apply(smi);
 
             if (i == maxIterations)
             {
                 auto stateMachineName =
-                    m_stateMachineInstance->stateMachine() == nullptr
+                    smi->stateMachine() == nullptr
                         ? "[SM Not found]"
-                        : m_stateMachineInstance->stateMachine()
-                              ->name()
-                              .c_str();
+                        : smi->stateMachine()->name().c_str();
                 auto layerName = m_layer == nullptr ? "[LY Not found]"
                                                     : m_layer->name().c_str();
-                auto artboardName =
-                    m_stateMachineInstance->artboard() == nullptr
-                        ? "[AB Not found]"
-                        : m_stateMachineInstance->artboard()->name().c_str();
+                auto artboardName = smi->artboard() == nullptr
+                                        ? "[AB Not found]"
+                                        : smi->artboard()->name().c_str();
                 fprintf(stderr,
                         "%s StateMachine exceeded max iterations in layer %s "
                         "on artboard %s\n",
@@ -300,7 +312,32 @@ public:
                resolvedDuration() != 0 && m_mix < 1.0f;
     }
 
-    bool updateState()
+    /// The any state's instance is only ever fed to tryChangeState, so a layer
+    /// whose any state has no transitions never needs one. Most don't, so this
+    /// is built on demand instead of at init: it saves a heap allocation per
+    /// layer in the common case. Lazy rather than a one-shot check at init
+    /// because LayerState::transitionCount() also reports the editor's
+    /// live-edit list, which can grow after this instance was built.
+    void ensureAnyStateInstance(StateMachineInstance* smi)
+    {
+        if (m_anyStateInstance != nullptr)
+        {
+            return;
+        }
+        // A layer without an any state is degenerate but not fatal: every
+        // other use of m_anyStateInstance is either a delete guard or a
+        // tryChangeState call, both of which handle null. Keeping this
+        // tolerant is what lets StateMachineLayer stop requiring the state
+        // to be present, so exports can eventually omit unused ones.
+        auto anyState = m_layer == nullptr ? nullptr : m_layer->anyState();
+        if (anyState == nullptr || anyState->transitionCount() == 0)
+        {
+            return;
+        }
+        m_anyStateInstance = anyState->makeInstance(artboardOf(smi)).release();
+    }
+
+    bool updateState(StateMachineInstance* smi)
     {
         // Don't allow changing state while a transition is taking place
         // (we're mixing one state onto another) if enableEarlyExit is not true.
@@ -311,27 +348,30 @@ public:
 
         m_waitingForExit = false;
 
-        if (tryChangeState(m_anyStateInstance))
+        ensureAnyStateInstance(smi);
+        if (tryChangeState(smi, m_anyStateInstance))
         {
             return true;
         }
 
-        return tryChangeState(m_currentState);
+        return tryChangeState(smi, m_currentState);
     }
 
-    void fireEvents(StateMachineFireOccurance occurs,
+    void fireEvents(StateMachineInstance* smi,
+                    StateMachineFireOccurance occurs,
                     const std::vector<StateMachineFireAction*>& fireEvents)
     {
         for (auto event : fireEvents)
         {
             if (event->occurs() == occurs)
             {
-                event->perform(m_stateMachineInstance);
+                event->perform(smi);
             }
         }
     }
 
     void performListenerActions(
+        StateMachineInstance* smi,
         StateMachineFireOccurance occurs,
         const std::vector<std::unique_ptr<ListenerAction>>& listenerActions)
     {
@@ -339,8 +379,7 @@ public:
         {
             if (action->matchesScheduledOccurrence(occurs))
             {
-                action->perform(m_stateMachineInstance,
-                                ListenerInvocation::none());
+                action->perform(smi, ListenerInvocation::none());
             }
         }
     }
@@ -354,7 +393,7 @@ public:
 
     double randomValue() { return RandomProvider::generateRandomFloat(); }
 
-    void changeState(const LayerState* stateTo)
+    void changeState(StateMachineInstance* smi, const LayerState* stateTo)
     {
         if ((m_currentState == nullptr ? nullptr : m_currentState->state()) ==
             stateTo)
@@ -365,29 +404,33 @@ public:
         // Fire end events for the state we're changing from.
         if (m_currentState != nullptr)
         {
-            fireEvents(StateMachineFireOccurance::atEnd,
+            fireEvents(smi,
+                       StateMachineFireOccurance::atEnd,
                        m_currentState->state()->events());
-            performListenerActions(StateMachineFireOccurance::atEnd,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atEnd,
                                    m_currentState->state()->listenerActions());
         }
 
-        m_currentState =
-            stateTo == nullptr
-                ? nullptr
-                : stateTo->makeInstance(m_artboardInstance).release();
+        m_currentState = stateTo == nullptr
+                             ? nullptr
+                             : stateTo->makeInstance(artboardOf(smi)).release();
 
         // Fire start events for the state we're changing to.
         if (m_currentState != nullptr)
         {
-            fireEvents(StateMachineFireOccurance::atStart,
+            fireEvents(smi,
+                       StateMachineFireOccurance::atStart,
                        m_currentState->state()->events());
-            performListenerActions(StateMachineFireOccurance::atStart,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atStart,
                                    m_currentState->state()->listenerActions());
         }
         return;
     }
 
-    StateTransition* findRandomTransition(StateInstance* stateFromInstance)
+    StateTransition* findRandomTransition(StateMachineInstance* smi,
+                                          StateInstance* stateFromInstance)
     {
         uint32_t totalWeight = 0;
         auto stateFrom = stateFromInstance->state();
@@ -398,9 +441,8 @@ public:
             if (canChangeState(transition->stateTo()))
             {
 
-                auto allowed = transition->allowed(stateFromInstance,
-                                                   m_stateMachineInstance,
-                                                   this);
+                auto allowed =
+                    transition->allowed(stateFromInstance, smi, this);
                 if (allowed == AllowTransition::yes)
                 {
                     transition->evaluatedRandomWeight(
@@ -434,8 +476,7 @@ public:
                     (double)transition->evaluatedRandomWeight();
                 if (currentWeight + transitionWeight > randomWeight)
                 {
-                    transition->useLayerInConditions(m_stateMachineInstance,
-                                                     this);
+                    transition->useLayerInConditions(smi, this);
                     return transition;
                 }
                 currentWeight += transitionWeight;
@@ -445,14 +486,15 @@ public:
         return nullptr;
     }
 
-    StateTransition* findAllowedTransition(StateInstance* stateFromInstance)
+    StateTransition* findAllowedTransition(StateMachineInstance* smi,
+                                           StateInstance* stateFromInstance)
     {
         auto stateFrom = stateFromInstance->state();
         // If it should randomize
         if ((static_cast<LayerStateFlags>(stateFrom->flags()) &
              LayerStateFlags::Random) == LayerStateFlags::Random)
         {
-            return findRandomTransition(stateFromInstance);
+            return findRandomTransition(smi, stateFromInstance);
         }
         // Else search the first valid transition
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length;
@@ -462,15 +504,13 @@ public:
             if (canChangeState(transition->stateTo()))
             {
 
-                auto allowed = transition->allowed(stateFromInstance,
-                                                   m_stateMachineInstance,
-                                                   this);
+                auto allowed =
+                    transition->allowed(stateFromInstance, smi, this);
                 if (allowed == AllowTransition::yes)
                 {
                     transition->evaluatedRandomWeight(
                         transition->randomWeight());
-                    transition->useLayerInConditions(m_stateMachineInstance,
-                                                     this);
+                    transition->useLayerInConditions(smi, this);
                     return transition;
                 }
                 else
@@ -486,12 +526,11 @@ public:
         return nullptr;
     }
 
-    void buildAnimationResetForTransition()
+    void buildAnimationResetForTransition(StateMachineInstance* smi)
     {
-        m_animationReset =
-            AnimationResetFactory::fromStates(m_stateFrom,
-                                              m_currentState,
-                                              m_artboardInstance);
+        m_animationReset = AnimationResetFactory::fromStates(m_stateFrom,
+                                                             m_currentState,
+                                                             artboardOf(smi));
     }
 
     void clearAnimationReset()
@@ -503,44 +542,48 @@ public:
         }
     }
 
-    bool tryChangeState(StateInstance* stateFromInstance)
+    bool tryChangeState(StateMachineInstance* smi,
+                        StateInstance* stateFromInstance)
     {
         if (stateFromInstance == nullptr)
         {
             return false;
         }
         auto outState = m_currentState;
-        auto transition = findAllowedTransition(stateFromInstance);
+        auto transition = findAllowedTransition(smi, stateFromInstance);
         if (transition != nullptr)
         {
             clearAnimationReset();
-            changeState(transition->stateTo());
+            changeState(smi, transition->stateTo());
             m_stateMachineChangedOnAdvance = true;
 #ifdef RIVE_MICROPROFILE
             RiveProfile::instance().recordTransition(
-                m_stateMachineInstance->artboard()->name(),
-                m_stateMachineInstance->name(),
+                smi->artboard()->name(),
+                smi->name(),
                 m_layer->name(),
                 getStateName(outState),
                 getStateName(m_currentState),
-                m_stateMachineInstance->artboard());
+                smi->artboard());
 #endif
             // state actually has changed
             m_transition = transition;
-            m_transitionDurationProperty =
-                m_stateMachineInstance->findTransitionPropertyInstance(
-                    transition,
-                    StateTransitionBase::durationPropertyKey);
-            fireEvents(StateMachineFireOccurance::atStart,
+            m_transitionDurationProperty = smi->findTransitionPropertyInstance(
+                transition,
+                StateTransitionBase::durationPropertyKey);
+            fireEvents(smi,
+                       StateMachineFireOccurance::atStart,
                        transition->events());
-            performListenerActions(StateMachineFireOccurance::atStart,
+            performListenerActions(smi,
+                                   StateMachineFireOccurance::atStart,
                                    transition->listenerActions());
             if (resolvedDuration() == 0)
             {
                 m_transitionCompleted = true;
-                fireEvents(StateMachineFireOccurance::atEnd,
+                fireEvents(smi,
+                           StateMachineFireOccurance::atEnd,
                            transition->events());
-                performListenerActions(StateMachineFireOccurance::atEnd,
+                performListenerActions(smi,
+                                       StateMachineFireOccurance::atEnd,
                                        transition->listenerActions());
             }
             else
@@ -557,7 +600,7 @@ public:
 
             if (!m_transitionCompleted)
             {
-                buildAnimationResetForTransition();
+                buildAnimationResetForTransition(smi);
             }
 
             // If we had an exit time and wanted to pause on exit, make
@@ -596,25 +639,26 @@ public:
                         advanceTime = instance->spilledTime();
                     }
                 }
-                m_currentState->advance(advanceTime, m_stateMachineInstance);
+                m_currentState->advance(advanceTime, smi);
             }
             m_mix = 0.0f;
-            updateMix(0.0f);
+            updateMix(smi, 0.0f);
             m_waitingForExit = false;
             return true;
         }
         return false;
     }
 
-    void apply(/*Artboard* artboard*/)
+    void apply(StateMachineInstance* smi)
     {
+        auto artboardInstance = artboardOf(smi);
         if (m_animationReset != nullptr)
         {
-            m_animationReset->apply(m_artboardInstance);
+            m_animationReset->apply(artboardInstance);
         }
         if (m_holdAnimation != nullptr)
         {
-            m_holdAnimation->apply(m_artboardInstance, m_holdTime, m_mixFrom);
+            m_holdAnimation->apply(artboardInstance, m_holdTime, m_mixFrom);
             m_holdAnimation = nullptr;
         }
 
@@ -629,13 +673,13 @@ public:
             auto fromMix = interpolator != nullptr
                                ? interpolator->transform(m_mixFrom)
                                : m_mixFrom;
-            m_stateFrom->apply(m_artboardInstance, fromMix);
+            m_stateFrom->apply(artboardInstance, fromMix);
         }
         if (m_currentState != nullptr)
         {
             auto mix = interpolator != nullptr ? interpolator->transform(m_mix)
                                                : m_mix;
-            m_currentState->apply(m_artboardInstance, mix);
+            m_currentState->apply(artboardInstance, mix);
         }
     }
 
@@ -662,10 +706,16 @@ public:
 
 private:
     static const int maxIterations = 100;
-    StateMachineInstance* m_stateMachineInstance = nullptr;
-    const StateMachineLayer* m_layer = nullptr;
-    ArtboardInstance* m_artboardInstance = nullptr;
 
+    // One of these exists per layer of every StateMachineInstance, which in an
+    // ArtboardComponentList means per layer per row. Keep the pointers, then
+    // the floats, then the bools: interleaving them costs 8 B of padding for
+    // nothing. The owning instance and its artboard used to be stored here
+    // too; both are the same for every layer of an instance, so they are now
+    // derived from the `smi` argument threaded through the methods above. The
+    // layer definition stays stored — see artboardOf() for why deriving it
+    // from the array index is not safe in editor builds.
+    const StateMachineLayer* m_layer = nullptr;
     StateInstance* m_anyStateInstance = nullptr;
     StateInstance* m_currentState = nullptr;
     StateInstance* m_stateFrom = nullptr;
@@ -673,18 +723,17 @@ private:
     const StateTransition* m_transition = nullptr;
     BindablePropertyNumber* m_transitionDurationProperty = nullptr;
     std::unique_ptr<AnimationReset> m_animationReset = nullptr;
-    bool m_transitionCompleted = false;
-
-    bool m_holdAnimationFrom = false;
+    /// Used to ensure a specific animation is applied on the next apply.
+    const LinearAnimation* m_holdAnimation = nullptr;
 
     float m_mix = 1.0f;
     float m_mixFrom = 1.0f;
-    bool m_stateMachineChangedOnAdvance = false;
-
-    bool m_waitingForExit = false;
-    /// Used to ensure a specific animation is applied on the next apply.
-    const LinearAnimation* m_holdAnimation = nullptr;
     float m_holdTime = 0.0f;
+
+    bool m_transitionCompleted = false;
+    bool m_holdAnimationFrom = false;
+    bool m_stateMachineChangedOnAdvance = false;
+    bool m_waitingForExit = false;
 };
 
 /// Representation of a Component from the Artboard Instance and all the
@@ -916,6 +965,29 @@ public:
         }
         return false;
     }
+    bool hitTestBounded(Vec2D position) const override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->hitTestBounded(
+                    nestedPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
     HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) override
@@ -1076,6 +1148,31 @@ public:
             }
             auto stateMachine = componentList->stateMachineInstance(i);
             if (stateMachine != nullptr && stateMachine->hitTest(listPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    bool hitTestBounded(Vec2D position) const override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr &&
+                stateMachine->hitTestBounded(listPosition))
             {
                 return true;
             }
@@ -1262,6 +1359,7 @@ public:
     virtual ~ListenerViewModelPropertyBinding();
     void addDirt(ComponentDirt value, bool recurse) override;
     void relinkDataBind() override;
+    ViewModelInstanceValue* value() { return m_viewModelInstanceValue.get(); }
 
 protected:
     ListenerViewModel* m_parent = nullptr;
@@ -1345,6 +1443,17 @@ public:
                     }
                 }
                 index++;
+            }
+        }
+        // A trigger fired before this bind (e.g. during script init) stays
+        // pending until the frame resets it; report it so it isn't lost.
+        for (auto& binding : m_propertyBindings)
+        {
+            auto value = binding->value();
+            if (value != nullptr && value->is<ViewModelInstanceTrigger>() &&
+                value->as<ViewModelInstanceTrigger>()->propertyValue() != 0)
+            {
+                reportToStateMachine(value);
             }
         }
     }
@@ -1479,26 +1588,76 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
             m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
             m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
     }
+    // Invert the artboard's own rotation/scale (applied in drawInternal after
+    // the frame-origin translation) so listener hit-testing maps into content
+    // space. Mirrors the adjustment in hitTest(Vec2D).
+    //
+    // A degenerate (0 scale) self transform has no inverse: the contents
+    // collapse to nothing, so nothing in them can be hit. We still run the pass
+    // with every group forced to miss rather than returning early, so hover
+    // unwinds and pending exits fire, and we cancel any gesture in flight so a
+    // press held across the collapse can't resume when the scale comes back.
+    bool contentsCollapsed = false;
+    if (m_artboardInstance->hasSelfTransform())
+    {
+        Mat2D inverse;
+        if (m_artboardInstance->selfTransform().invert(&inverse))
+        {
+            position = inverse * position;
+        }
+        else
+        {
+            contentsCollapsed = true;
+        }
+    }
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
     {
         listenerGroup.get()->reset(pointerId);
     }
-    // Next prepare the event to set the common hover status for each group
-    for (const auto& hitShape : m_hitComponents)
+    // Drag ends owed by cancellation, dispatched once the pass below has had a
+    // chance to emit its hover exits.
+    std::vector<int> dragEnded;
+    if (contentsCollapsed)
     {
-        hitShape->prepareEvent(position, hitType, pointerId);
+        // canHit alone won't do this: it marks a target as occluded, and an
+        // occluded target deliberately keeps its press so a drag survives the
+        // pointer moving over other things (see ListenerGroup::processEvent,
+        // where the phase only resets on down/up and the drag branch ignores
+        // canHit). Collapsed content isn't occluded, it's gone.
+        //
+        // Every tracked pointer is cancelled, not just the one that delivered
+        // this event: the contents are gone for all of them. The drag ends are
+        // only collected here -- dispatching one re-enters updateListeners,
+        // whose reset() overwrites isPrevHovered with the isHovered this pass
+        // already cleared, so any exit still pending would be swallowed, and
+        // whose enablePointerEvents() resets every group's phase, so groups not
+        // yet cancelled would look like they had nothing in flight.
+        for (const auto& listenerGroup : m_listenerGroups)
+        {
+            listenerGroup.get()->cancelPointers(position, timeStamp, dragEnded);
+        }
+    }
+    else
+    {
+        // Next prepare the event to set the common hover status for each group.
+        // Skipped when collapsed so every group stays unhovered.
+        for (const auto& hitShape : m_hitComponents)
+        {
+            hitShape->prepareEvent(position, hitType, pointerId);
+        }
     }
     bool hitSomething = false;
     bool hitOpaque = false;
     // Process the events
     for (const auto& hitShape : m_hitComponents)
     {
-        HitResult hitResult = hitShape->processEvent(position,
-                                                     hitType,
-                                                     !hitOpaque,
-                                                     timeStamp,
-                                                     pointerId);
+        HitResult hitResult =
+            hitShape->processEvent(position,
+                                   hitType,
+                                   !hitOpaque && !contentsCollapsed,
+                                   timeStamp,
+                                   pointerId);
         if (hitResult != HitResult::none)
         {
             hitSomething = true;
@@ -1507,6 +1666,11 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
                 hitOpaque = true;
             }
         }
+    }
+    // Hover exits have been emitted, so it's safe to let dragEnd re-enter now.
+    for (auto endedPointerId : dragEnded)
+    {
+        dragEnd(position, timeStamp, endedPointerId);
     }
     // Finally release events that are complete
     if (hitType == ListenerType::exit)
@@ -1523,18 +1687,43 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
 
 bool StateMachineInstance::hitTest(Vec2D position) const
 {
+    return hitTestInternal(position, false);
+}
+
+bool StateMachineInstance::hitTestBounded(Vec2D position) const
+{
+    return hitTestInternal(position, true);
+}
+
+bool StateMachineInstance::hitTestInternal(Vec2D position, bool bounded) const
+{
     if (m_artboardInstance->frameOrigin())
     {
         position -= Vec2D(
             m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
             m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
     }
+    // Invert the artboard's own rotation/scale (applied in drawInternal after
+    // the frame-origin translation) so the pointer maps into content space.
+    // Covers nested state machines too, which funnel through here.
+    if (m_artboardInstance->hasSelfTransform())
+    {
+        Mat2D inverse;
+        if (!m_artboardInstance->selfTransform().invert(&inverse))
+        {
+            // A degenerate (0 scale) self transform collapses the contents to
+            // nothing, so there's nothing to hit.
+            return false;
+        }
+        position = inverse * position;
+    }
 
     for (const auto& hitShape : m_hitComponents)
     {
         // TODO: quick reject.
 
-        if (hitShape->hitTest(position))
+        if (bounded ? hitShape->hitTestBounded(position)
+                    : hitShape->hitTest(position))
         {
             return true;
         }
@@ -1721,11 +1910,27 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 #endif
     }
 
-    m_layerCount = machine->layerCount();
+    // Seeded once per state machine instance. This used to run inside the
+    // per-layer init(), reseeding the global RNG (and, outside deterministic
+    // mode, reading the clock) once for every layer of every instance.
+    if (File::deterministicMode)
+    {
+        srand((unsigned int)1);
+    }
+    else
+    {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                         now.time_since_epoch())
+                         .count();
+        srand((unsigned int)nanos);
+    }
+
+    m_layerCount = static_cast<uint32_t>(machine->layerCount());
     m_layers = new StateMachineLayerInstance[m_layerCount];
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        m_layers[i].init(this, machine->layer(i), m_artboardInstance);
+        m_layers[i].init(this, machine->layer(i));
     }
 
     // Initialize dataBinds. All databinds are cloned for the state machine
@@ -1749,15 +1954,16 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         addDataBind(dataBindClone);
         if (dataBind->target()->is<BindableProperty>())
         {
+            auto& bindables = ensureBindables();
             auto bindableProperty = dataBind->target()->as<BindableProperty>();
             auto bindablePropertyInstance =
-                m_bindablePropertyInstances.find(bindableProperty);
+                bindables.propertyInstances.find(bindableProperty);
             BindableProperty* bindablePropertyClone;
-            if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+            if (bindablePropertyInstance == bindables.propertyInstances.end())
             {
                 bindablePropertyClone =
                     bindableProperty->clone()->as<BindableProperty>();
-                m_bindablePropertyInstances[bindableProperty] =
+                bindables.propertyInstances[bindableProperty] =
                     bindablePropertyClone;
             }
             else
@@ -1771,12 +1977,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             if ((static_cast<DataBindFlags>(dataBindClone->flags()) &
                  DataBindFlags::ToSource) == DataBindFlags::ToSource)
             {
-                m_bindableDataBindsToSource[bindablePropertyClone] =
+                bindables.dataBindsToSource[bindablePropertyClone] =
                     dataBindClone;
             }
             else
             {
-                m_bindableDataBindsToTarget[bindablePropertyClone] =
+                bindables.dataBindsToTarget[bindablePropertyClone] =
                     dataBindClone;
             }
         }
@@ -1792,8 +1998,9 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 // and propertyKey so the normal apply() path writes
                 // to our instance-local property.
                 auto* prop = new BindablePropertyNumber();
-                m_transitionPropertyInstances[originalTarget]
-                                             [dataBind->propertyKey()] = prop;
+                auto& transitionProps =
+                    ensureBindables().transitionPropertyInstances;
+                transitionProps[originalTarget][dataBind->propertyKey()] = prop;
                 dataBindClone->target(prop);
                 dataBindClone->propertyKey(
                     BindablePropertyNumberBase::propertyValuePropertyKey);
@@ -1815,7 +2022,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         if (listener->hasListener(ListenerType::viewModel))
         {
             auto vmListener = new ListenerViewModel(this, listener);
-            m_listenerViewModels.push_back(vmListener);
+            ensureReporting().listenerViewModels.push_back(vmListener);
             continue;
         }
         // Handle focus/blur listeners - they're driven by FocusManager,
@@ -1843,7 +2050,8 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::make_unique<FocusListenerGroup>(focusData,
                                                              listener,
                                                              this);
-                    m_focusListenerGroups.push_back(std::move(focusGroup));
+                    ensureInputExtras().focusListenerGroups.push_back(
+                        std::move(focusGroup));
                 }
             }
         }
@@ -1870,7 +2078,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                         std::make_unique<KeyboardListenerGroup>(focusData,
                                                                 listener,
                                                                 this);
-                    m_keyboardListenerGroups.push_back(
+                    ensureInputExtras().keyboardListenerGroups.push_back(
                         std::move(keyboardGroup));
                 }
             }
@@ -1888,7 +2096,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 {
                     if (child->is<SemanticData>())
                     {
-                        m_semanticListenerGroups.push_back(
+                        ensureInputExtras().semanticListenerGroups.push_back(
                             std::make_unique<SemanticListenerGroup>(
                                 child->as<SemanticData>(),
                                 listener,
@@ -1899,7 +2107,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
         }
 
-        if (listener->hasListeners(kPointerHitListenerTypes))
+        if (listener->hasPointerListeners())
         {
             auto listenerGroup = std::make_unique<ListenerGroup>(listener);
             auto target = m_artboardInstance->resolve(listener->targetId());
@@ -1922,23 +2130,27 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         if (listener->hasListener(ListenerType::gamepad))
         {
             auto target = m_artboardInstance->resolve(listener->targetId());
-            auto node = target->as<Node>();
-            FocusData* focusData = nullptr;
-            for (auto child : node->children())
+            if (target != nullptr && target->is<Node>())
             {
-                if (child->is<FocusData>())
+                auto node = target->as<Node>();
+                FocusData* focusData = nullptr;
+                for (auto child : node->children())
                 {
-                    focusData = child->as<FocusData>();
-                    break;
+                    if (child->is<FocusData>())
+                    {
+                        focusData = child->as<FocusData>();
+                        break;
+                    }
                 }
-            }
-            if (focusData != nullptr)
-            {
-                auto gamepadGroup =
-                    std::make_unique<GamepadListenerGroup>(focusData,
-                                                           listener,
-                                                           this);
-                m_gamepadListenerGroups.push_back(std::move(gamepadGroup));
+                if (focusData != nullptr)
+                {
+                    auto gamepadGroup =
+                        std::make_unique<GamepadListenerGroup>(focusData,
+                                                               listener,
+                                                               this);
+                    ensureInputExtras().gamepadListenerGroups.push_back(
+                        std::move(gamepadGroup));
+                }
             }
         }
     }
@@ -2046,17 +2258,26 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     }
 #endif
 
-    // Initialize local instances of ScriptedObjects
-    for (auto& scriptedOb : machine->scriptedObjects())
+    // Initialize local instances of ScriptedObjects, in the state machine's
+    // authored order so every downstream walk (dataContext, Lua init) is
+    // deterministic.
+    auto sharedScriptedObjects = machine->scriptedObjects();
+    if (!sharedScriptedObjects.empty())
     {
-        m_scriptedObjectsMap[scriptedOb] =
-            scriptedOb->cloneScriptedObject(this);
+        auto& scripting = ensureScripting();
+        scripting.objects.reserve(sharedScriptedObjects.size());
+        for (auto& scriptedOb : sharedScriptedObjects)
+        {
+            scripting.objects.emplace_back(
+                scriptedOb,
+                scriptedOb->cloneScriptedObject(this));
+        }
+        for (auto& scriptedPair : scripting.objects)
+        {
+            scriptedPair.second->dataContext(m_artboardInstance->dataContext());
+        }
+        initScriptedObjects();
     }
-    for (auto& scriptedPair : m_scriptedObjectsMap)
-    {
-        scriptedPair.second->dataContext(m_artboardInstance->dataContext());
-    }
-    initScriptedObjects();
     // Register Scripted objects as keyboard and text targets when expected,
     // and collect every scripted drawable that wants gamepad events so we can
     // broadcast to it later regardless of focus.
@@ -2080,7 +2301,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                             child->as<FocusData>(),
                             nullptr,
                             this);
-                    m_keyboardListenerGroups.push_back(
+                    ensureInputExtras().keyboardListenerGroups.push_back(
                         std::move(keyboardGroup));
                     break;
                 }
@@ -2091,48 +2312,77 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
              scriptedObject->wantsGamePadEvent()) &&
             object->is<ScriptedDrawable>())
         {
-            m_gamepadScriptedDrawables.push_back(
+            ensureInputExtras().gamepadScriptedDrawables.push_back(
                 object->as<ScriptedDrawable>());
         }
     }
     sortHitComponents();
+}
 
-    // Build the focus tree for this artboard. focusManager() returns the
-    // external manager if set (e.g., when Dart owns the manager at edit time),
-    // otherwise the internal one. For nested artboards that need a parent
-    // FocusNode, Dart should call buildFocusTreeWithParent() after init.
-    m_artboardInstance->buildFocusTree(focusManager(), nullptr);
+FocusManager* StateMachineInstance::focusManager()
+{
+    return m_artboardInstance != nullptr ? m_artboardInstance->focusManager()
+                                         : nullptr;
+}
+
+const FocusManager* StateMachineInstance::focusManager() const
+{
+    return m_artboardInstance != nullptr ? m_artboardInstance->focusManager()
+                                         : nullptr;
+}
+
+SMIReporting& StateMachineInstance::ensureReporting()
+{
+    return *m_reporting.ensureAllocated();
+}
+
+SMIBindables& StateMachineInstance::ensureBindables()
+{
+    return *m_bindables.ensureAllocated();
+}
+
+SMIInputExtras& StateMachineInstance::ensureInputExtras()
+{
+    return *m_inputExtras.ensureAllocated();
+}
+
+SMIScripting& StateMachineInstance::ensureScripting()
+{
+    return *m_scripting.ensureAllocated();
+}
+
+SemanticManager* StateMachineInstance::semanticManager() const
+{
+    auto* extras = inputExtras();
+    if (extras == nullptr)
+    {
+        return nullptr;
+    }
+    return extras->externalSemanticManager ? extras->externalSemanticManager
+                                           : extras->semanticManager.get();
 }
 
 ScriptedObject* StateMachineInstance::scriptedObject(
     const ScriptedObject* source) const
 {
-    auto itr = m_scriptedObjectsMap.find(source);
-    if (itr != m_scriptedObjectsMap.end())
-    {
-        return itr->second;
-    }
-    return nullptr;
+    auto* scripting = this->scripting();
+    return scripting != nullptr ? scripting->find(source) : nullptr;
 }
 
 StateMachineInstance::~StateMachineInstance()
 {
-    // Clean up focus tree BEFORE the internal FocusManager is destroyed.
-    // The artboard stores a raw pointer to our m_focusManager, so we must
-    // clear it before m_focusManager's implicit destruction at end of dtor.
-    if (m_externalFocusManager == nullptr && m_artboardInstance != nullptr)
-    {
-        m_artboardInstance->cleanupFocusTree();
-    }
 
     // Clean up semantic tree BEFORE the internal SemanticManager is destroyed.
     // Only needed when we own the manager; if external, the parent cleans up.
-    if (m_externalSemanticManager == nullptr && m_semanticManager != nullptr &&
-        m_artboardInstance != nullptr)
+    if (auto* extras = inputExtras())
     {
-        m_artboardInstance->cleanupSemanticTree();
+        if (extras->externalSemanticManager == nullptr &&
+            extras->semanticManager != nullptr && m_artboardInstance != nullptr)
+        {
+            m_artboardInstance->cleanupSemanticTree();
+        }
+        extras->embedderGamepads.clear();
     }
-    m_embedderGamepads.clear();
 
     unbind();
     for (auto inst : m_inputInstances)
@@ -2145,30 +2395,40 @@ StateMachineInstance::~StateMachineInstance()
     }
     deleteDataBinds();
     delete[] m_layers;
-    for (auto pair : m_bindablePropertyInstances)
+    // The bindable clones and per-transition property instances are raw-owning,
+    // so they are deleted here rather than by the cluster's destructor.
+    if (auto* bindables = m_bindables.get())
     {
-        delete pair.second;
-        pair.second = nullptr;
-    }
-    for (auto& outer : m_transitionPropertyInstances)
-    {
-        for (auto& inner : outer.second)
+        for (auto& pair : bindables->propertyInstances)
         {
-            delete inner.second;
+            delete pair.second;
         }
+        for (auto& outer : bindables->transitionPropertyInstances)
+        {
+            for (auto& inner : outer.second)
+            {
+                delete inner.second;
+            }
+        }
+        bindables->transitionPropertyInstances.clear();
+        bindables->propertyInstances.clear();
     }
-    m_transitionPropertyInstances.clear();
-    for (auto& listenerViewModel : m_listenerViewModels)
+    if (auto* reporting = this->reporting())
     {
-        delete listenerViewModel;
+        for (auto& listenerViewModel : reporting->listenerViewModels)
+        {
+            delete listenerViewModel;
+        }
+        reporting->listenerViewModels.clear();
     }
-    m_bindablePropertyInstances.clear();
-    for (auto& pair : m_scriptedObjectsMap)
+    if (auto* scripting = m_scripting.get())
     {
-        delete pair.second;
-        pair.second = nullptr;
+        for (auto& pair : scripting->objects)
+        {
+            delete pair.second;
+        }
+        scripting->objects.clear();
     }
-    m_scriptedObjectsMap.clear();
 }
 
 // When a state machine instanced by a higher level runtime is destroyed, we
@@ -2218,7 +2478,10 @@ void StateMachineInstance::removeEventListeners()
 #ifdef WITH_RIVE_TOOLS
 void StateMachineInstance::onDataBindChanged(DataBindChanged callback)
 {
-    for (auto databind : m_dataBinds)
+    // dataBinds() is the DataBindContainer base's list — the one addDataBind()
+    // actually fills. A same-named member used to shadow it here, and it was
+    // never written, so this callback silently never got installed.
+    for (auto databind : dataBinds())
     {
         databind->onChanged(callback);
     }
@@ -2282,7 +2545,7 @@ bool StateMachineInstance::tryChangeState()
     bool hasChangedState = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].updateState())
+        if (m_layers[i].updateState(this))
         {
             hasChangedState = true;
         }
@@ -2292,19 +2555,40 @@ bool StateMachineInstance::tryChangeState()
 
 void StateMachineInstance::applyEvents()
 {
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
+    {
+        // Nothing has ever reported on this instance, so there is provably
+        // nothing to apply and nothing stale to clear.
+        return;
+    }
+    reporting->eventsAppliedDuringLoop.clear();
     int maxIterations = 100;
     int currentIteration = 0;
-    while ((m_reportedEvents.size() > 0 ||
-            m_reportedListenerViewModels.size() > 0) &&
+    while ((reporting->reportedEvents.size() > 0 ||
+            reporting->reportedListenerViewModels.size() > 0) &&
            currentIteration++ < maxIterations)
     {
         updateDataBinds(false);
-        m_reportingEvents = m_reportedEvents;
-        m_reportingListenerViewModels = m_reportedListenerViewModels;
-        m_reportedEvents.clear();
-        m_reportedListenerViewModels.clear();
-        this->notifyEventListeners(m_reportingEvents, nullptr);
-        this->notifyListenerViewModels(m_reportingListenerViewModels);
+        // The reported/reporting split is load-bearing: notifying below can
+        // re-enter reportEvent(), and those events must queue for the next
+        // pass rather than mutate the batch being delivered.
+        reporting->reportingEvents = reporting->reportedEvents;
+        reporting->reportingListenerViewModels =
+            reporting->reportedListenerViewModels;
+        reporting->reportedEvents.clear();
+        reporting->reportedListenerViewModels.clear();
+        if (currentIteration > 1)
+        {
+            // These were reported during the loop, so no host has seen them
+            // yet; keep them visible until the next applyEvents.
+            reporting->eventsAppliedDuringLoop.insert(
+                reporting->eventsAppliedDuringLoop.end(),
+                reporting->reportingEvents.begin(),
+                reporting->reportingEvents.end());
+        }
+        this->notifyEventListeners(reporting->reportingEvents, nullptr);
+        this->notifyListenerViewModels(reporting->reportingListenerViewModels);
     }
     if (currentIteration >= maxIterations)
     {
@@ -2318,25 +2602,9 @@ void StateMachineInstance::applyEvents()
 
 void StateMachineInstance::setExternalFocusManager(FocusManager* manager)
 {
-    if (m_externalFocusManager == manager)
-    {
-        return;
-    }
-
-    // Clean up old focus tree if one was built
-    if (m_artboardInstance != nullptr &&
-        m_artboardInstance->focusManager() != nullptr)
-    {
-        m_artboardInstance->cleanupFocusTree();
-    }
-
-    m_externalFocusManager = manager;
-
-    // Rebuild focus tree with new manager (focusManager() will return the new
-    // external manager if set, or internal if null)
     if (m_artboardInstance != nullptr)
     {
-        m_artboardInstance->buildFocusTree(focusManager(), nullptr);
+        m_artboardInstance->adoptFocusManager(manager);
     }
 }
 
@@ -2346,7 +2614,7 @@ void StateMachineInstance::enableSemantics()
     {
         return;
     }
-    m_semanticManager = std::make_unique<SemanticManager>();
+    ensureInputExtras().semanticManager = std::make_unique<SemanticManager>();
     if (m_artboardInstance != nullptr)
     {
         m_artboardInstance->buildSemanticTree(semanticManager(), nullptr);
@@ -2357,10 +2625,15 @@ void StateMachineInstance::setExternalSemanticManager(
     SemanticManager* manager,
     rcp<SemanticNode> parentNode)
 {
-    if (m_externalSemanticManager == manager)
+    // An unallocated cluster means no external manager is set, so clearing one
+    // on such an instance is a no-op — check before allocating.
+    auto* existing = inputExtras();
+    if ((existing != nullptr ? existing->externalSemanticManager : nullptr) ==
+        manager)
     {
         return;
     }
+    auto& extras = ensureInputExtras();
 
     // Clean up the old semantic tree if one was built with a different manager.
     if (m_artboardInstance != nullptr &&
@@ -2369,7 +2642,7 @@ void StateMachineInstance::setExternalSemanticManager(
         m_artboardInstance->cleanupSemanticTree();
     }
 
-    m_externalSemanticManager = manager;
+    extras.externalSemanticManager = manager;
 
     // Rebuild with the new manager. semanticManager() now returns the external
     // manager if set, or the internal one if null.
@@ -2382,12 +2655,16 @@ void StateMachineInstance::setExternalSemanticManager(
 void StateMachineInstance::queueFocusEvent(FocusListenerGroup* group,
                                            bool isFocus)
 {
-    m_queuedFocusEvents.push_back({group, isFocus});
+    ensureInputExtras().queuedFocusEvents.push_back({group, isFocus});
     m_needsAdvance = true;
 }
 
 void StateMachineInstance::setFocus(FocusData* focusData)
 {
+    if (!focusManager())
+    {
+        return;
+    }
     if (focusData != nullptr)
     {
         auto node = focusData->focusNode();
@@ -2403,8 +2680,11 @@ void StateMachineInstance::setFocus(FocusData* focusData)
 StateMachineInstance::FocusState StateMachineInstance::focusState() const
 {
     FocusState state;
-    const FocusManager* fm =
-        m_externalFocusManager ? m_externalFocusManager : &m_focusManager;
+    const FocusManager* fm = focusManager();
+    if (fm == nullptr)
+    {
+        return state;
+    }
     // primaryFocusPtr() avoids a refcount bump on this poll-friendly path.
     FocusNode* focus = fm->primaryFocusPtr();
     if (focus == nullptr)
@@ -2419,15 +2699,63 @@ StateMachineInstance::FocusState StateMachineInstance::focusState() const
     return state;
 }
 
+const Artboard* StateMachineInstance::rootArtboard() const
+{
+    const Artboard* artboard = m_artboardInstance;
+    while (artboard != nullptr && artboard->host() != nullptr &&
+           artboard->host()->parentArtboard() != nullptr)
+    {
+        artboard = artboard->host()->parentArtboard();
+    }
+    return artboard;
+}
+
+void StateMachineInstance::queueFocusTarget(FocusData* focusData)
+{
+    if (focusData == nullptr)
+    {
+        return;
+    }
+    if (!focusManager())
+    {
+        return;
+    }
+    focusManager()->requestFocus(focusData->focusNode(), rootArtboard());
+    m_needsAdvance = true;
+}
+
+void StateMachineInstance::queueClearFocus()
+{
+    if (!focusManager())
+    {
+        return;
+    }
+    focusManager()->requestClearFocus(rootArtboard());
+    m_needsAdvance = true;
+}
+
+void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
+{
+    if (!focusManager())
+    {
+        return;
+    }
+    focusManager()->requestTraversal(traversalKind, rootArtboard());
+    m_needsAdvance = true;
+}
+
 void StateMachineInstance::processFocusEvents()
 {
-    if (m_queuedFocusEvents.empty())
+    auto* extras = inputExtras();
+    if (extras == nullptr || extras->queuedFocusEvents.empty())
     {
         return;
     }
 
-    auto events = std::move(m_queuedFocusEvents);
-    m_queuedFocusEvents.clear();
+    // Moved out before dispatch: a listener action can queue further focus
+    // events, and those belong to the next advance, not this drain.
+    auto events = std::move(extras->queuedFocusEvents);
+    extras->queuedFocusEvents.clear();
 
     for (const auto& event : events)
     {
@@ -2448,19 +2776,20 @@ void StateMachineInstance::processFocusEvents()
 void StateMachineInstance::queueSemanticEvent(SemanticListenerGroup* group,
                                               SemanticActionType actionType)
 {
-    m_queuedSemanticEvents.push_back({group, actionType});
+    ensureInputExtras().queuedSemanticEvents.push_back({group, actionType});
     m_needsAdvance = true;
 }
 
 void StateMachineInstance::processSemanticEvents()
 {
-    if (m_queuedSemanticEvents.empty())
+    auto* extras = inputExtras();
+    if (extras == nullptr || extras->queuedSemanticEvents.empty())
     {
         return;
     }
 
-    auto events = std::move(m_queuedSemanticEvents);
-    m_queuedSemanticEvents.clear();
+    auto events = std::move(extras->queuedSemanticEvents);
+    extras->queuedSemanticEvents.clear();
 
     for (const auto& event : events)
     {
@@ -2535,7 +2864,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     updateDataBinds(false);
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].advance(seconds, newFrame))
+        if (m_layers[i].advance(this, seconds, newFrame))
         {
             m_needsAdvance = true;
         }
@@ -2553,15 +2882,14 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
             inst->advanced();
         }
     }
-    return m_needsAdvance || !m_reportedEvents.empty() ||
-           !m_reportedListenerViewModels.empty();
+    return m_needsAdvance || hasPendingReports();
 }
 
 void StateMachineInstance::advancedDataContext()
 {
-    if (m_DataContext != nullptr)
+    if (dataBindContext() != nullptr)
     {
-        m_DataContext->advanced();
+        dataBindContext()->advanced();
     }
 }
 
@@ -2573,11 +2901,29 @@ void StateMachineInstance::reset()
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
+    if (m_artboardInstance->advanceWatermark(seconds))
+    {
+        // The file's watermark is playing: settle the artboard at time zero so
+        // its first frame is ready the instant the watermark ends, but don't
+        // let it animate forward. Reporting "keep going" matters here, a false
+        // would read as settled and stop the host's ticker mid pre-roll.
+        advanceAndApply(0.0f, true);
+        return true;
+    }
+    return advanceAndApply(seconds, true);
+}
+
+bool StateMachineInstance::advanceAndApply(float seconds,
+                                           bool advanceViewModels)
+{
     RIVE_PROF_SCOPE_L(1)
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
     bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;
-    focusManager()->dropFocusIfFocusTargetHidden();
+    if (focusManager())
+    {
+        focusManager()->dropFocusIfFocusTargetHidden();
+    }
     if (m_artboardInstance->advanceInternal(
             seconds,
             AdvanceFlags::IsRoot | AdvanceFlags::Animate |
@@ -2591,6 +2937,19 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         if (m_artboardInstance->updatePass(true))
         {
             keepGoing = true;
+        }
+
+        // Authoritative drain: updatePass has recomputed renderOpacity and
+        // propagated collapse, so target eligibility can be measured against
+        // real values. Reaches nested artboards and artboard-component-list
+        // items too, since they share this manager. A target can still need
+        // several passes to settle, so a request that doesn't take here is
+        // kept for the next iteration.
+        if (focusManager())
+        {
+            focusManager()->processPendingFocusRequests(rootArtboard());
+            focusManager()->dropFocusIfFocusTargetHidden(rootArtboard());
+            focusManager()->descendFocusToLeaf(rootArtboard());
         }
 
         // Advance all animations.
@@ -2607,15 +2966,34 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         {
             keepGoing = true;
         }
-        reset();
+        if (advanceViewModels)
+        {
+            reset(); // advancedDataContext() (VM consume) + artboard reset
+        }
+        else
+        {
+            m_artboardInstance->reset(); // artboard component reset only
+        }
 
         if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
         {
             break;
         }
     }
-    return keepGoing || !m_reportedEvents.empty() ||
-           !m_reportedListenerViewModels.empty();
+    // Last chance for this frame: picks up a request queued by the loop's
+    // final tryChangeState, and drops anything that still can't take so an
+    // unreachable target doesn't leave a request queued indefinitely.
+    if (focusManager())
+    {
+        focusManager()->finishPendingFocusRequests(rootArtboard());
+    }
+    if (advanceViewModels)
+    {
+        // Advance detached scripted view models (created via scripts, not part
+        // of the bound view model tree) at the end of the frame.
+        m_artboardInstance->advanceScriptedViewModels();
+    }
+    return keepGoing || hasPendingReports();
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }
@@ -2625,7 +3003,7 @@ void StateMachineInstance::resetState()
 {
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        m_layers[i].resetState();
+        m_layers[i].resetState(this);
     }
 }
 
@@ -2667,26 +3045,174 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
+void StateMachineInstance::setViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    if (viewModelInstance == nullptr)
+    {
+        return;
+    }
+    if (dataBindContext() == nullptr)
+    {
+        dataBindContext(make_rcp<DataContext>(viewModelInstance));
+        dataBindContext()->addDependentContainer(this);
+        return;
+    }
+    // The data context re-points every attached container (this state machine,
+    // the artboard, and any sibling state machines sharing the context) off the
+    // old main and onto the new one.
+    dataBindContext()->setMainViewModelInstance(viewModelInstance);
+}
+
+bool StateMachineInstance::setGlobalViewModelInstance(
+    const std::string& name,
+    rcp<ViewModelInstance> viewModelInstance)
+{
+    // A null instance is allowed: it empties the named slot below.
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return false;
+    }
+    // The slot is addressed by the named view model (its file index), not by
+    // the instance's own view model — so an override instance of a different
+    // view model can be placed on the slot.
+    uint32_t slotKey = file->viewModelId(name);
+    if (slotKey >= file->viewModelCount())
+    {
+        return false;
+    }
+    // Only global view models get a slot; a non-global name is not a valid
+    // global slot and must not be slotted.
+    auto slotViewModel = file->viewModel(slotKey);
+    if (slotViewModel == nullptr ||
+        static_cast<ViewModelType>(slotViewModel->viewModelType()) !=
+            ViewModelType::global)
+    {
+        return false;
+    }
+    if (dataBindContext() == nullptr)
+    {
+        // Nothing to clear when there is no context yet; only create one when
+        // actually placing an instance.
+        if (viewModelInstance == nullptr)
+        {
+            return true;
+        }
+        dataBindContext(make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr)));
+        dataBindContext()->addDependentContainer(this);
+    }
+    // The data context re-points every attached container off any previous
+    // instance occupying this slot and onto the new one (or empties the slot
+    // when the instance is null).
+    dataBindContext()->setViewModelInstanceForSlot(slotKey, viewModelInstance);
+    return true;
+}
+
+void StateMachineInstance::bind()
+{
+    if (dataBindContext() == nullptr)
+    {
+        // No data context yet: create an empty one so the view model
+        // instances it needs can be completed on the fly below.
+        dataBindContext(make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr)));
+        dataBindContext()->addDependentContainer(this);
+    }
+    // Make sure every view model instance the data context needs exists before
+    // it is applied: the main instance plus one for each global view model.
+    // Any that are missing are created (completed) on the fly.
+    completeViewModelInstances();
+    // Apply the current data context: rebind the artboard and state machine
+    // data binds in a single pass.
+    m_artboardInstance->internalDataContext(dataBindContext());
+    internalDataContext(dataBindContext());
+}
+
+void StateMachineInstance::completeViewModelInstances()
+{
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return;
+    }
+    // Ensure a main instance is present. The main is the entry not on the slot
+    // keys; if there is none, create the artboard's default and place it first.
+    if (dataBindContext()->mainViewModelInstance() == nullptr)
+    {
+        auto main = file->createDefaultViewModelInstance(m_artboardInstance);
+        if (main != nullptr)
+        {
+            // setMainViewModelInstance re-points every attached container onto
+            // the new instance.
+            dataBindContext()->setMainViewModelInstance(main);
+        }
+    }
+    // Ensure an instance exists for each global view model slot, creating any
+    // missing ones. Occupancy is checked by slot key, so a cross-view-model
+    // override already sitting in a slot is not treated as empty.
+    for (auto* viewModel : file->globalViewModels())
+    {
+        uint32_t slotKey = file->viewModelId(viewModel->name());
+        if (dataBindContext()->instanceForSlot(slotKey) != nullptr)
+        {
+            continue;
+        }
+        auto instance = file->createDefaultViewModelInstance(viewModel);
+        if (instance != nullptr)
+        {
+            // setViewModelInstanceForSlot re-points every attached container
+            // onto the new instance.
+            dataBindContext()->setViewModelInstanceForSlot(slotKey, instance);
+        }
+    }
+}
+
 void StateMachineInstance::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance)
 {
-    clearDataContext();
-    auto dataContext = make_rcp<DataContext>(viewModelInstance);
-    viewModelInstance->addDependent(this);
-    m_artboardInstance->clearDataContext();
-    m_artboardInstance->internalDataContext(dataContext);
-    internalDataContext(dataContext);
+    if (viewModelInstance == nullptr)
+    {
+        clearDataContext();
+        m_artboardInstance->unbind();
+        return;
+    }
+    setViewModelInstance(std::move(viewModelInstance));
+    bind();
+}
+
+rcp<ViewModelInstance> StateMachineInstance::globalViewModelInstance(
+    const std::string& name)
+{
+    // Pure read: returns the instance in the named slot only if one has been
+    // set/bound; never creates.
+    if (dataBindContext() == nullptr)
+    {
+        return nullptr;
+    }
+    auto file = m_artboardInstance->file();
+    if (file == nullptr)
+    {
+        return nullptr;
+    }
+    return dataBindContext()->instanceForSlot(file->viewModelId(name));
 }
 
 void StateMachineInstance::bindDataContext(rcp<DataContext> dataContext)
 {
     clearDataContext();
-    if (dataContext->viewModelInstance())
-    {
-        dataContext->viewModelInstance()->addDependent(this);
-    }
+    dataContext->addDependentContainer(this);
     m_artboardInstance->clearDataContext();
     m_artboardInstance->internalDataContext(dataContext);
+    internalDataContext(dataContext);
+}
+
+void StateMachineInstance::inheritDataContext(rcp<DataContext> dataContext)
+{
+    if (dataContext == nullptr)
+    {
+        return;
+    }
+    dataContext->addDependentContainer(this);
     internalDataContext(dataContext);
 }
 
@@ -2698,7 +3224,12 @@ void StateMachineInstance::dataContext(rcp<DataContext> dataContext)
 
 void StateMachineInstance::initScriptedObjects()
 {
-    for (auto obj : m_scriptedObjectsMap)
+    auto* scripting = m_scripting.get();
+    if (scripting == nullptr)
+    {
+        return;
+    }
+    for (auto& obj : scripting->objects)
     {
         if (obj.second->scriptAsset() != nullptr)
         {
@@ -2713,15 +3244,20 @@ void StateMachineInstance::initScriptedObjects()
 
 void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
-    m_DataContext = dataContext;
-    bindDataBindsFromContext(dataContext.get());
-    for (auto listenerViewModel : m_listenerViewModels)
+    bindDataBindsFromContext(dataContext);
+    if (auto* reporting = this->reporting())
     {
-        listenerViewModel->bindFromContext(dataContext);
+        for (auto listenerViewModel : reporting->listenerViewModels)
+        {
+            listenerViewModel->bindFromContext(dataContext);
+        }
     }
-    for (auto& scriptedObjectItr : m_scriptedObjectsMap)
+    if (auto* scripting = m_scripting.get())
     {
-        scriptedObjectItr.second->dataContext(dataContext);
+        for (auto& scriptedObjectItr : scripting->objects)
+        {
+            scriptedObjectItr.second->dataContext(dataContext);
+        }
     }
     initScriptedObjects();
 }
@@ -2729,23 +3265,40 @@ void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 void StateMachineInstance::rebind()
 {
     m_artboardInstance->clearDataContext();
-    m_artboardInstance->internalDataContext(m_DataContext);
-    internalDataContext(m_DataContext);
+    m_artboardInstance->internalDataContext(dataBindContext());
+    internalDataContext(dataBindContext());
 };
 
 void StateMachineInstance::clearDataContext()
 {
-    if (m_DataContext)
+    if (dataBindContext() != nullptr)
     {
-        if (m_DataContext->viewModelInstance())
-        {
-            m_DataContext->viewModelInstance()->removeDependent(this);
-        }
-        m_DataContext = nullptr;
+        dataBindContext()->removeDependentContainer(this);
+        dataBindContext(nullptr);
     }
-    for (auto& listenerViewModel : m_listenerViewModels)
+    if (auto* reporting = this->reporting())
     {
-        listenerViewModel->clearDataContext();
+        for (auto& listenerViewModel : reporting->listenerViewModels)
+        {
+            listenerViewModel->clearDataContext();
+        }
+    }
+}
+
+void StateMachineInstance::mainViewModelInstanceChanged()
+{
+    if (m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->mainViewModelInstanceChanged();
+    }
+}
+
+void StateMachineInstance::dropInstanceValueBindsTargeting(Core* target)
+{
+    DataBindContainer::dropInstanceValueBindsTargeting(target);
+    if (m_artboardInstance != nullptr)
+    {
+        m_artboardInstance->dropInstanceValueBindsTargeting(target);
     }
 }
 
@@ -2758,7 +3311,8 @@ void StateMachineInstance::rebuildDataBind(DataBind* dataBind)
 {
     if (dataBind->is<DataBindContext>())
     {
-        dataBind->as<DataBindContext>()->bindFromContext(m_DataContext.get());
+        dataBind->as<DataBindContext>()->bindFromContext(
+            dataBindContext().get());
     }
 };
 
@@ -2829,29 +3383,54 @@ const LinearAnimationInstance* StateMachineInstance::currentAnimationByIndex(
     return nullptr;
 }
 
+bool StateMachineInstance::hasPendingReports() const
+{
+    auto* reporting = this->reporting();
+    return reporting != nullptr &&
+           (!reporting->reportedEvents.empty() ||
+            !reporting->reportedListenerViewModels.empty());
+}
+
 void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
 {
-    m_reportedEvents.push_back(EventReport(event, delaySeconds));
+    ensureReporting().reportedEvents.push_back(
+        EventReport(event, delaySeconds));
 }
 
 void StateMachineInstance::reportListenerViewModel(
     ListenerViewModel* listenerViewModel)
 {
-    m_reportedListenerViewModels.push_back(listenerViewModel);
+    ensureReporting().reportedListenerViewModels.push_back(listenerViewModel);
 }
 
 std::size_t StateMachineInstance::reportedEventCount() const
 {
-    return m_reportedEvents.size();
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
+    {
+        return 0;
+    }
+    return reporting->eventsAppliedDuringLoop.size() +
+           reporting->reportedEvents.size();
 }
 
 const EventReport StateMachineInstance::reportedEventAt(std::size_t index) const
 {
-    if (index >= m_reportedEvents.size())
+    auto* reporting = this->reporting();
+    if (reporting == nullptr)
     {
         return EventReport(nullptr, 0.0f);
     }
-    return m_reportedEvents[index];
+    if (index < reporting->eventsAppliedDuringLoop.size())
+    {
+        return reporting->eventsAppliedDuringLoop[index];
+    }
+    index -= reporting->eventsAppliedDuringLoop.size();
+    if (index >= reporting->reportedEvents.size())
+    {
+        return EventReport(nullptr, 0.0f);
+    }
+    return reporting->reportedEvents[index];
 }
 
 void StateMachineInstance::notify(const std::vector<EventReport>& events,
@@ -3005,9 +3584,14 @@ void StateMachineInstance::disablePointerEvents(int pointerId)
 BindableProperty* StateMachineInstance::bindablePropertyInstance(
     BindableProperty* bindableProperty) const
 {
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
     auto bindablePropertyInstance =
-        m_bindablePropertyInstances.find(bindableProperty);
-    if (bindablePropertyInstance == m_bindablePropertyInstances.end())
+        bindables->propertyInstances.find(bindableProperty);
+    if (bindablePropertyInstance == bindables->propertyInstances.end())
     {
         return nullptr;
     }
@@ -3017,8 +3601,13 @@ BindableProperty* StateMachineInstance::bindablePropertyInstance(
 DataBind* StateMachineInstance::bindableDataBindToSource(
     BindableProperty* bindableProperty) const
 {
-    auto dataBind = m_bindableDataBindsToSource.find(bindableProperty);
-    if (dataBind == m_bindableDataBindsToSource.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto dataBind = bindables->dataBindsToSource.find(bindableProperty);
+    if (dataBind == bindables->dataBindsToSource.end())
     {
         return nullptr;
     }
@@ -3028,8 +3617,13 @@ DataBind* StateMachineInstance::bindableDataBindToSource(
 DataBind* StateMachineInstance::bindableDataBindToTarget(
     BindableProperty* bindableProperty) const
 {
-    auto dataBind = m_bindableDataBindsToTarget.find(bindableProperty);
-    if (dataBind == m_bindableDataBindsToTarget.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto dataBind = bindables->dataBindsToTarget.find(bindableProperty);
+    if (dataBind == bindables->dataBindsToTarget.end())
     {
         return nullptr;
     }
@@ -3040,8 +3634,13 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
     const StateTransition* transition,
     uint32_t propertyKey) const
 {
-    auto it = m_transitionPropertyInstances.find(transition);
-    if (it != m_transitionPropertyInstances.end())
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return nullptr;
+    }
+    auto it = bindables->transitionPropertyInstances.find(transition);
+    if (it != bindables->transitionPropertyInstances.end())
     {
         auto propIt = it->second.find(propertyKey);
         if (propIt != it->second.end())
@@ -3054,28 +3653,63 @@ BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(
 
 bool StateMachineInstance::hasFocusNodes()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
-    return !fm->rootNodes().empty();
+    return fm->hasFocusableContent();
 }
 
 bool StateMachineInstance::focusNext()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->focusNext();
 }
 
 bool StateMachineInstance::focusPrevious()
 {
+    if (!focusManager())
+    {
+        return false;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     return fm->focusPrevious();
 }
 
 void StateMachineInstance::clearFocus()
 {
+    if (!focusManager())
+    {
+        return;
+    }
     auto* fm = focusManager();
-    assert(fm != nullptr);
     fm->clearFocus();
+}
+
+bool StateMachineInstance::keyInput(Key key,
+                                    KeyModifiers modifiers,
+                                    bool isPressed,
+                                    bool isRepeat)
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->keyInput(key, modifiers, isPressed, isRepeat);
+}
+
+bool StateMachineInstance::textInput(const std::string& text)
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->textInput(text);
 }

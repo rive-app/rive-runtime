@@ -4,7 +4,6 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_INTERIOR_TRIANGLES
 #define RENDER_MODE_CLOCKWISE_ATOMIC
-#define NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
 #ifndef FIXED_FUNCTION_COLOR_OUTPUT
 #define USING_PLS_STORAGE_TEXTURES
 #endif
@@ -16,5 +15,6 @@
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "draw_path.minified.vert"
 #include "draw_clockwise_atomic_path.minified.frag"

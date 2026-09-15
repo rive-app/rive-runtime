@@ -8,6 +8,11 @@ newoption({
     description = 'compile with support for vulkan',
 })
 
+newoption({
+    trigger = 'with_android_vulkan_atomics',
+    description = 'compile in support and embed SPIR-V for atomic and clockwiseAtomic shaders on android',
+})
+
 -- Internal capability flag opted into by platform packages.
 newoption({
     trigger = '_console_only_ore_vk',
@@ -26,6 +31,11 @@ if _OPTIONS['with_vulkan'] then
         'VMA_STATIC_VULKAN_FUNCTIONS=0',
         'VMA_DYNAMIC_VULKAN_FUNCTIONS=1',
     })
+    -- The atomic and clockwiseAtomic SPIR-V is large, and android doesn't use
+    -- those modes by default. Make them opt-in only.
+    if rive_target_os ~= 'android' or _OPTIONS['with_android_vulkan_atomics'] then
+        defines({ 'WITH_VULKAN_ATOMICS' })
+    end
 end
 
 if rive_target_os == 'windows' and _OPTIONS['for_unreal'] == nil then
@@ -129,6 +139,12 @@ do
     defines({ 'ORE_BACKEND_VK', 'RIVE_ORE' })
 end
 
+-- Consoles: vulkan-only ORE backend, same shape as the desktop Vulkan lane.
+filter({ 'system:nx64 or ounce64', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+do
+    defines({ 'ORE_BACKEND_VK', 'RIVE_ORE' })
+end
+
 
 newoption({
     trigger = 'with_objc_exceptions',
@@ -190,9 +206,15 @@ if _OPTIONS['with_wagyu'] then
         error('\nWagyu does not support webgpu-version < 2\n  ')
     end
     defines({ 'RIVE_WAGYU' })
-    RIVE_WAGYU_PORT = '--use-port='
-        .. RIVE_RUNTIME_DIR
-        .. '/renderer/src/webgpu/wagyu-port/webgpu-port.py:wagyu=true'
+    if _ACTION == 'export-compile-commands' then
+        -- Manually add the Wagyu include path when building a compilation
+        -- database (e.g., for auto-complete tools).
+        includedirs({ 'src/webgpu/wagyu-port/include' })
+    else
+        RIVE_WAGYU_PORT = '--use-port='
+            .. RIVE_RUNTIME_DIR
+            .. '/renderer/src/webgpu/wagyu-port/webgpu-port.py:wagyu=true'
+    end
 end
 
 newoption({
@@ -247,19 +269,19 @@ end
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
 if os.host() == 'macosx' then
-    if _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'system' then
+    if rive_target_os == 'ios' and _OPTIONS['variant'] == 'system' then
         makecommand = makecommand .. ' rive_pls_ios_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'emulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'emulator' then
         makecommand = makecommand .. ' rive_pls_ios_simulator_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xros' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'xros' then
         makecommand = makecommand .. ' rive_renderer_xros_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xrsimulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'xrsimulator' then
         makecommand = makecommand .. ' rive_renderer_xros_simulator_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvos' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'appletvos' then
         makecommand = makecommand .. ' rive_renderer_appletvos_metallib'
-    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvsimulator' then
+    elseif rive_target_os == 'ios' and _OPTIONS['variant'] == 'appletvsimulator' then
         makecommand = makecommand .. ' rive_renderer_appletvsimulator_metallib'
-    else
+    elseif rive_target_os == 'macosx' then
         makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end
 end
@@ -524,6 +546,12 @@ do
     -- renderer. The vulkan/VMA include dirs are already added project-wide in
     -- the `if _OPTIONS['with_vulkan']` block above.
     filter({ 'system:macosx or windows', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
+    do
+        files({ 'src/ore/vulkan/*.cpp' })
+    end
+
+    -- Consoles: vulkan-only ORE, same backend files as the desktop lane.
+    filter({ 'system:nx64 or ounce64', 'options:with_rive_canvas', 'options:with_vulkan', 'options:not for_unreal' })
     do
         files({ 'src/ore/vulkan/*.cpp' })
     end

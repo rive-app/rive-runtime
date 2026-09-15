@@ -14,6 +14,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/property_symbol_dependent.hpp"
 #include "rive/dirtyable.hpp"
+#include "rive/enums.hpp"
 
 #include <functional>
 #include <unordered_map>
@@ -26,6 +27,7 @@ class Factory;
 class Renderer;
 class TextModifierGroup;
 class TextStylePaint;
+class LayoutParticipant;
 
 // A draw command for interleaving monochrome style paths and color glyphs.
 struct TextDrawCommand
@@ -176,11 +178,36 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void addRun(TextValueRun* run);
     void addModifierGroup(TextModifierGroup* group);
+#ifdef WITH_RIVE_EDITOR
+    void addModifierGroupForEditor(TextModifierGroup* group);
+    void removeModifierGroupForEditor(TextModifierGroup* group);
+    /// Re-order `m_allRuns` (and `m_runs`) by the caller-supplied
+    /// comparator. The runtime `.riv` import preserves sibling
+    /// order via the exporter; coop hydration delivers cores in
+    /// arrival order, so the editor needs to re-sort after batch
+    /// finalize so concatenated text reads in FractionalIndex
+    /// order ("100%", not "%100").
+    void sortRunsForEditor(
+        const std::function<bool(TextValueRun*, TextValueRun*)>& cmp);
+#endif
     void markShapeDirty(bool sendToLayout);
     void modifierShapeDirty();
 
     void update(ComponentDirt value) override;
     void onDirty(ComponentDirt value) override;
+
+    // Participates in a parent layout via an optional
+    // LayoutParticipant child (origin-based; text sizes via its own layout).
+    void composeWorldTransform() override;
+
+protected:
+    void updateConstraints() override;
+
+public:
+    Vec2D layoutBaseTranslation(LayoutParticipant* participant) const;
+    LayoutParticipant* layoutParticipant() const;
+    bool isParticipatingInLayout() const;
+
     Mat2D m_transform;
     Mat2D m_shapeWorldTransform;
 
@@ -203,7 +230,7 @@ public:
         return (VerticalTextAlign)verticalAlignValue();
     }
     TextAlign align() const;
-    void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
+    void overflow(TextOverflow value) { return overflowValue((uint8_t)value); }
     void buildRenderStyles();
     const TextStylePaint* styleFromShaperId(uint16_t id) const;
     bool modifierRangesNeedShape() const;
@@ -211,6 +238,8 @@ public:
     AABB constraintBounds() const override { return localBounds(); }
     void originXChanged() override;
     void originYChanged() override;
+    StatusCode import(ImportStack& importStack) override;
+    Core* clone() const override;
 
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,
@@ -228,16 +257,58 @@ public:
     {
         return std::isnan(m_layoutHeight) ? height() : m_layoutHeight;
     }
+    // Whether a fitFontSize text reports its fitted size to the layout. The
+    // authored flag only takes effect for files built against that behavior:
+    // older ones were laid out against the unshrunk box and would reflow.
+    // See Text::import and File::minorVersion.
+    bool fitFontSizeResizesBoxActive() const
+    {
+        return fitFontSizeResizesBox() &&
+               hasFileFeature(FileFeatures::fitFontSizeResizesBox);
+    }
+    // Whether a layout owns our WIDTH axis, asked of the participant rather
+    // than of m_layoutWidth: that is only written by controlSize, which runs
+    // after the solve, so during the measure pass it is still NAN. A boxed
+    // width means the authored width() is not our width -- the layout's offer
+    // is.
+    bool layoutOwnsWidth() const;
+    // Overflow treats the box as fixed once a layout sizes our box.
+    bool overflowAsFixed() const
+    {
+        return effectiveSizing() == TextSizing::fixed ||
+               !std::isnan(layoutBoxWidth());
+    }
+    // The size a controlling layout imposes on our *box*, or NAN when it
+    // imposes none. Not the same as effectiveWidth/Height above, which use
+    // m_layoutWidth/Height whenever a layout controls us: before 7.3 the
+    // layout sized the text but an auto-sized box still came from the
+    // content, so these are NAN there. See Text::import.
+    float layoutBoxWidth() const
+    {
+        return hasFileFeature(FileFeatures::layoutSizesBox) ? m_layoutWidth
+                                                            : NAN;
+    }
+    float layoutBoxHeight() const
+    {
+        return hasFileFeature(FileFeatures::layoutSizesBox) ? m_layoutHeight
+                                                            : NAN;
+    }
     float computedWidth() override { return localBounds().width(); };
     float computedHeight() override { return localBounds().height(); };
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
 #ifdef WITH_RIVE_TEXT
     const std::vector<TextValueRun*>& runs() const { return m_allRuns; }
+    /// Breaks paragraphs into lines and aligns them. Lines are aligned within
+    /// the larger of the natural paragraph width and minAlignWidth, so a
+    /// caller that wants text aligned within a field wider than the text
+    /// (see RawTextInput::alignWidth) gets that, while text overflowing the
+    /// field falls back to starting at 0.
     static SimpleArray<SimpleArray<GlyphLine>> BreakLines(
         const SimpleArray<Paragraph>& paragraphs,
         float width,
         TextAlign align,
-        TextWrap wrap);
+        TextWrap wrap,
+        float minAlignWidth = 0.0f);
     const std::vector<TextStylePaint*>& textStylePaints()
     {
         return m_textStylePaints;
@@ -280,6 +351,7 @@ protected:
                     float fontScale = 1.0f) const;
     void originValueChanged() override;
     void verticalTrimValueChanged() override;
+    void fitFontSizeResizesBoxChanged() override;
 
 private:
 #ifdef WITH_RIVE_TEXT
@@ -298,6 +370,14 @@ private:
     RawPath m_clipRect;
     ShapePaintPath m_clipPath;
     AABB m_bounds;
+    // The font-size multiplier chosen by the last fitFontSize layout. Per-run
+    // values are baked into the shaped runs by makeStyled; paragraph spacing is
+    // a Text-level gap added between paragraphs during layout, so it is scaled
+    // by this to keep the fitted layout a true uniform scale of the authored
+    // one. Only meaningful while fitFontSize is the active overflow -- read it
+    // through fitParagraphSpacing(), never directly, so a stale value from a
+    // previous fit can't leak into a paint-only rebuild.
+    float m_fitFontScale = 1.0f;
     std::vector<TextModifierGroup*> m_modifierGroups;
 
     StyledText m_styledText;
@@ -312,11 +392,20 @@ private:
     std::
         unordered_map<ColorGlyphCacheKey, rcp<RenderImage>, ColorGlyphCacheHash>
             m_emojiImageCache;
+    float fitParagraphSpacing() const
+    {
+        return overflow() == TextOverflow::fitFontSize
+                   ? paragraphSpacing() * m_fitFontScale
+                   : paragraphSpacing();
+    }
     TextBoundsInfo computeBoundsInfo();
     // For TextOverflow::fitFontSize: binary-searches the largest integer font
     // size that fits the bounds and returns it as a multiplier of the authored
     // font size(s). Returns 1.0f when no fitting is needed/possible.
     float fitFontScale();
+    // Same search, against an explicit box. Used by measure(), where the box
+    // Yoga is offering is not yet reflected in m_layoutWidth/Height.
+    float fitFontScale(float boxWidth, float boxHeight);
     LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
     void buildTextStylePaints();
     std::vector<TextValueRunListener*> m_valueRunListeners;
@@ -327,6 +416,33 @@ private:
     uint8_t m_layoutWidthScaleType = std::numeric_limits<uint8_t>::max();
     uint8_t m_layoutHeightScaleType = std::numeric_limits<uint8_t>::max();
     LayoutDirection m_layoutDirection = LayoutDirection::inherit;
+    // Behaviors the file's version opts into, stamped in Text::import from
+    // the header. Each one guards a change that would relayout content
+    // authored before it, so a file predating the change keeps the old
+    // behavior; anything built in memory is current and gets them all.
+    //
+    // One mask rather than a bool apiece because they are all the same shape
+    // -- stamp at import, carry through clone, read at a single call site --
+    // so the next gate costs a bit instead of a member plus its plumbing.
+    // See File::minorVersion for what each version changed.
+    enum class FileFeatures : uint8_t
+    {
+        none = 0,
+        // 7.3: a controlling layout sizes our box, not just our text. Below
+        // this an auto-sized text still took its box from the content, so the
+        // box could disagree with the slot and every overflow mode was inert.
+        layoutSizesBox = 1 << 0,
+        // 7.4: Text::fitFontSizeResizesBox is honored, so a fitFontSize text
+        // reports its *fitted* size to the layout instead of reserving room
+        // at the authored font size.
+        fitFontSizeResizesBox = 1 << 1,
+        all = layoutSizesBox | fitFontSizeResizesBox,
+    };
+    FileFeatures m_fileFeatures = FileFeatures::all;
+    bool hasFileFeature(FileFeatures feature) const
+    {
+        return enums::is_flag_set(m_fileFeatures, feature);
+    }
     Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive

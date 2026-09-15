@@ -18,6 +18,7 @@ public:
             return;
         }
         auto isRow = m_styleProvider->isRow();
+        artboardInstance->parentIsStack(m_styleProvider->isStack());
         if (m_styleProvider->instanceHeightScaleType() ==
             0) // LayoutScaleType::fixed
         {
@@ -52,6 +53,7 @@ public:
             return;
         }
         auto isRow = m_styleProvider->isRow();
+        artboardInstance->parentIsStack(m_styleProvider->isStack());
         if (m_styleProvider->instanceWidthScaleType() ==
             0) // LayoutScaleType::fixed
         {

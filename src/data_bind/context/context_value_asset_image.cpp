@@ -2,6 +2,7 @@
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/file.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 
 using namespace rive;
 
@@ -47,6 +48,23 @@ void DataBindContextValueAssetImage::apply(Core* target,
                 source->as<ViewModelInstanceAssetImage>()->asset());
         }
     }
+    else if (target->is<PaintImage>())
+    {
+        // A fill/stroke painted with an image binds through its PaintImage
+        // child: same asset-referencer path as Image, so the bound image
+        // modulates the parent paint.
+        auto asset = fileAsset(dataBind);
+        if (asset != nullptr)
+        {
+            target->as<PaintImage>()->setAsset(asset);
+        }
+        else
+        {
+            auto source = dataBind->source();
+            target->as<PaintImage>()->setAsset(
+                source->as<ViewModelInstanceAssetImage>()->asset());
+        }
+    }
     else if (target->is<BindablePropertyAsset>())
     {
         auto source = dataBind->source();
@@ -56,6 +74,20 @@ void DataBindContextValueAssetImage::apply(Core* target,
             target,
             propertyKey,
             source->as<ViewModelInstanceAssetImage>()->propertyValue());
+    }
+    else if (target->is<ViewModelInstanceAssetImage>())
+    {
+        auto source = dataBind->source()->as<ViewModelInstanceAssetImage>();
+        auto sourceValue = source->propertyValue();
+        if (sourceValue == static_cast<uint32_t>(-1))
+        {
+            target->as<ViewModelInstanceAssetImage>()->value(
+                source->asset()->renderImage());
+        }
+        else
+        {
+            CoreRegistry::setUint(target, propertyKey, sourceValue);
+        }
     }
     else
     {

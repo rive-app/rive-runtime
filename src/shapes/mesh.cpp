@@ -37,22 +37,27 @@ StatusCode Mesh::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    // All good, tell the image it has a mesh.
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only; editor build registers via editorParentChanged.
     parent()->as<Image>()->setMesh(this);
+#endif
 
     return StatusCode::Ok;
 }
 
 StatusCode Mesh::onAddedClean(CoreContext* context)
 {
-    // Make sure Core found indices in the file for this Mesh.
+#ifndef WITH_RIVE_EDITOR
+    // Runtime .riv loads: indices must be present and in range.
+    // Editor mode: UAT coop batches don't transmit triangle indices —
+    // editor computes them separately (mirrors Dart's
+    // `packages/rive_core/lib/shapes/mesh.dart:252` onAdded →
+    // triangulate()). Skip the validation so editor-side Meshes load
+    // cleanly; bounds correctness is the editor's responsibility.
     if (m_IndexBuffer == nullptr)
     {
         return StatusCode::InvalidObject;
     }
-
-    // Check the indices are all in range. We should consider having a better
-    // error reporting system to the implementor.
     for (auto index : *m_IndexBuffer)
     {
         if (index >= m_Vertices.size())
@@ -60,6 +65,7 @@ StatusCode Mesh::onAddedClean(CoreContext* context)
             return StatusCode::InvalidObject;
         }
     }
+#endif
     return Super::onAddedClean(context);
 }
 
@@ -86,13 +92,11 @@ void Mesh::markSkinDirty() { addDirt(ComponentDirt::Vertices); }
 
 Core* Mesh::clone() const
 {
-    auto factory = artboard()->factory();
     auto clone = static_cast<Mesh*>(MeshBase::clone());
     clone->m_VertexRenderBufferDirty = true;
-    clone->m_VertexRenderBuffer =
-        factory->makeRenderBuffer(RenderBufferType::vertex,
-                                  RenderBufferFlags::none,
-                                  m_Vertices.size() * sizeof(Vec2D));
+    // The vertex buffer is created lazily at first draw so it lands on the
+    // instance's factory, not the source artboard's. UV and index buffers
+    // are immutable and shared across instances.
     clone->m_UVRenderBuffer = m_UVRenderBuffer;
     clone->m_IndexRenderBuffer = m_IndexRenderBuffer;
     return clone;
@@ -178,6 +182,14 @@ void Mesh::draw(Renderer* renderer,
                 BlendMode blendMode,
                 float opacity)
 {
+    if (m_VertexRenderBufferDirty && m_VertexRenderBuffer == nullptr &&
+        !m_Vertices.empty())
+    {
+        m_VertexRenderBuffer = artboard()->factory()->makeRenderBuffer(
+            RenderBufferType::vertex,
+            RenderBufferFlags::none,
+            m_Vertices.size() * sizeof(Vec2D));
+    }
     if (m_VertexRenderBufferDirty && m_VertexRenderBuffer != nullptr)
     {
         Vec2D* mappedVertices =

@@ -4,7 +4,6 @@
 #define OPTIONALLY_FLAT flat
 #define DRAW_INTERIOR_TRIANGLES
 #define RENDER_MODE_CLOCKWISE_ATOMIC
-#define NEVER_GENERATE_PREMULTIPLIED_PAINT_COLORS
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
@@ -12,5 +11,6 @@
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "draw_path.minified.vert"
 #include "draw_clockwise_atomic_clip.minified.frag"

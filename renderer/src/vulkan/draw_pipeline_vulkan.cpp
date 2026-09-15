@@ -14,58 +14,6 @@
 
 namespace rive::gpu
 {
-static VkStencilOp vk_stencil_op(StencilOp op)
-{
-    switch (op)
-    {
-        case StencilOp::keep:
-            return VK_STENCIL_OP_KEEP;
-        case StencilOp::replace:
-            return VK_STENCIL_OP_REPLACE;
-        case StencilOp::zero:
-            return VK_STENCIL_OP_ZERO;
-        case StencilOp::decrClamp:
-            return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-        case StencilOp::incrWrap:
-            return VK_STENCIL_OP_INCREMENT_AND_WRAP;
-        case StencilOp::decrWrap:
-            return VK_STENCIL_OP_DECREMENT_AND_WRAP;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static VkCompareOp vk_compare_op(gpu::StencilCompareOp op)
-{
-    switch (op)
-    {
-        case gpu::StencilCompareOp::less:
-            return VK_COMPARE_OP_LESS;
-        case gpu::StencilCompareOp::equal:
-            return VK_COMPARE_OP_EQUAL;
-        case gpu::StencilCompareOp::lessOrEqual:
-            return VK_COMPARE_OP_LESS_OR_EQUAL;
-        case gpu::StencilCompareOp::notEqual:
-            return VK_COMPARE_OP_NOT_EQUAL;
-        case gpu::StencilCompareOp::always:
-            return VK_COMPARE_OP_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
-}
-
-static VkCullModeFlags vk_cull_mode(CullFace cullFace)
-{
-    switch (cullFace)
-    {
-        case CullFace::none:
-            return VK_CULL_MODE_NONE;
-        case CullFace::clockwise:
-            return VK_CULL_MODE_FRONT_BIT;
-        case CullFace::counterclockwise:
-            return VK_CULL_MODE_BACK_BIT;
-    }
-    RIVE_UNREACHABLE();
-}
-
 constexpr static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
 {
     switch (equation)
@@ -133,7 +81,17 @@ constexpr static VkBlendFactor vk_dst_blend_factor(gpu::BlendEquation equation)
 uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     const PlatformFeatures& platformFeatures) const
 {
-    uint64_t key = gpu::pipeline_unique_key(
+    // (Not our final line of defense, but still a helpful safeguard. Even
+    // without this static_assert, math::add_bits_to_key() would still assert at
+    // runtime.)
+    static_assert(gpu::PipelineUniqueKeyBitCount +
+                          RenderPassVulkan::KEY_NO_INTERLOCK_MODE_BIT_COUNT +
+                          DrawPipelineVulkan::OPTION_COUNT +
+                          1 /*hasPipelineDynamicState*/
+                      <= 64,
+                  "Vulkan pipeline key exceeds 64 bits");
+
+    uint64_t key = gpu::getPipelineUniqueKey(
         drawType,
         shaderFeatures,
         interlockMode,
@@ -156,13 +114,24 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey(
     key =
         math::add_bits_to_key(key, uint64_t(drawPipelineOptions), OPTION_COUNT);
 
+    // getPipelineUniqueKey() keys on baked depth/stencil/cull/color state, so a
+    // dynamic-state pipeline collides with the static pipelines that share its
+    // state (e.g. stencilDynamicMidpointFans vs. stencilMidpointFans). They
+    // need distinct pipelines -- one uses the dynamic-state layout, the
+    // other bakes -- so fold the layout choice into the key.
+    key = math::add_bits_to_key(
+        key,
+        uint64_t(gpu::drawTypeHasPipelineDynamicState(drawType)),
+        1);
+
     return key;
 }
 
 uint32_t subpass_index(gpu::DrawType drawType,
                        gpu::LoadAction colorLoadAction,
                        gpu::InterlockMode interlockMode,
-                       gpu::ShaderMiscFlags shaderMiscFlags)
+                       gpu::ShaderMiscFlags shaderMiscFlags,
+                       RenderPassOptionsVulkan renderPassOptions)
 {
     if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -174,8 +143,10 @@ uint32_t subpass_index(gpu::DrawType drawType,
                    : 1;
     }
 
+    // Preserving the render target costs msaa an extra subpass upfront, to seed
+    // the transient MSAA color attachment.
     const uint32_t mainSubpassIdx =
-        (interlockMode == gpu::InterlockMode::msaa &&
+        (enums::is_flag_set(renderPassOptions, RenderPassOptionsVulkan::msaa) &&
          colorLoadAction == gpu::LoadAction::preserveRenderTarget)
             ? 1
             : 0;
@@ -188,16 +159,22 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
         case gpu::DrawType::interiorTriangulation:
-        case gpu::DrawType::atlasBlit:
+        case gpu::DrawType::featherAtlasBlit:
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
-        case gpu::DrawType::msaaStrokes:
-        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
-        case gpu::DrawType::msaaMidpointFans:
-        case gpu::DrawType::msaaMidpointFanStencilReset:
-        case gpu::DrawType::msaaMidpointFanPathsStencil:
-        case gpu::DrawType::msaaMidpointFanPathsCover:
-        case gpu::DrawType::msaaOuterCubics:
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
+        case gpu::DrawType::stencilDynamicMidpointFans:
+        case gpu::DrawType::stencilDynamicOuterCubics:
+        case gpu::DrawType::stencilMidpointFans:
+        case gpu::DrawType::stencilMidpointFanReset:
+        case gpu::DrawType::stencilMidpointFanWinding:
+        case gpu::DrawType::stencilMidpointFanCover:
+        case gpu::DrawType::stencilOuterCubicBorrowedCoverage:
+        case gpu::DrawType::stencilOuterCubicReset:
+        case gpu::DrawType::stencilOuterCubicWinding:
+        case gpu::DrawType::stencilOuterCubicCover:
+        case gpu::DrawType::stencilOuterCubics:
         case gpu::DrawType::clipReset:
             return mainSubpassIdx;
         case gpu::DrawType::renderPassResolve:
@@ -245,7 +222,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     uint32_t subpassIndex = subpass_index(props.drawType,
                                           props.colorLoadAction,
                                           interlockMode,
-                                          props.shaderMiscFlags);
+                                          props.shaderMiscFlags,
+                                          pipelineLayout.renderPassOptions());
 
     auto& vertShader =
         pipelineManager->getVertexShaderSynchronous(props.drawType,
@@ -283,12 +261,17 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                            gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES),
         enums::is_flag_set(props.shaderFeatures,
                            gpu::ShaderFeatures::ENABLE_DITHER),
+        enums::is_flag_set(props.shaderFeatures,
+                           gpu::ShaderFeatures::ENABLE_MODULATED_IMAGE),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::clockwiseFill),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::nestedClipUpdateOnly),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::borrowedCoveragePass),
+        enums::is_flag_set(
+            props.shaderMiscFlags,
+            gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::storeColorClear),
         enums::is_flag_set(props.shaderMiscFlags,
@@ -304,13 +287,15 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
-    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 9);
-    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 11);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 12);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 13);
-    static_assert(SPECIALIZATION_COUNT == 14);
+    static_assert(MODULATED_IMAGE_SPECIALIZATION_IDX == 8);
+    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
+    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 12);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
+    static_assert(SPECIALIZATION_COUNT == 16);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -349,11 +334,17 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineRasterizationStateCreateInfo
         pipelineRasterizationStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = enums::is_flag_set(props.drawPipelineOptions,
-                                              Options::wireframe)
-                               ? VK_POLYGON_MODE_LINE
-                               : VK_POLYGON_MODE_FILL,
-            .cullMode = vk_cull_mode(pipelineState.cullFace),
+            .polygonMode =
+                enums::is_flag_set(props.drawPipelineOptions,
+                                   Options::wireframe) &&
+                        // Wireframe is a debugging aid. The initialize/resolve
+                        // are fullscreen operations, so leave them solid even
+                        // in wireframe mode.
+                        props.drawType != gpu::DrawType::renderPassInitialize &&
+                        props.drawType != gpu::DrawType::renderPassResolve
+                    ? VK_POLYGON_MODE_LINE
+                    : VK_POLYGON_MODE_FILL,
+            .cullMode = vkutil::vkCullMode(pipelineState.cullFace),
             .frontFace = VK_FRONT_FACE_CLOCKWISE,
             .lineWidth = 1.0,
         };
@@ -468,11 +459,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     if (pipelineState.stencilTestEnabled)
     {
         depthStencilState.front = {
-            .failOp = vk_stencil_op(pipelineState.stencilFrontOps.failOp),
-            .passOp = vk_stencil_op(pipelineState.stencilFrontOps.passOp),
+            .failOp = vkutil::vkStencilOp(
+                pipelineState.stencilFrontOps.stencilFailOp),
+            .passOp = vkutil::vkStencilOp(
+                pipelineState.stencilFrontOps.depthStencilPassOp),
             .depthFailOp =
-                vk_stencil_op(pipelineState.stencilFrontOps.depthFailOp),
-            .compareOp = vk_compare_op(pipelineState.stencilFrontOps.compareOp),
+                vkutil::vkStencilOp(pipelineState.stencilFrontOps.depthFailOp),
+            .compareOp =
+                vkutil::vkCompareOp(pipelineState.stencilFrontOps.compareOp),
             .compareMask = pipelineState.stencilCompareMask,
             .writeMask = pipelineState.stencilWriteMask,
             .reference = pipelineState.stencilReference,
@@ -481,14 +475,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
             !pipelineState.stencilDoubleSided
                 ? depthStencilState.front
                 : VkStencilOpState{
-                      .failOp =
-                          vk_stencil_op(pipelineState.stencilBackOps.failOp),
-                      .passOp =
-                          vk_stencil_op(pipelineState.stencilBackOps.passOp),
-                      .depthFailOp = vk_stencil_op(
+                      .failOp = vkutil::vkStencilOp(
+                          pipelineState.stencilBackOps.stencilFailOp),
+                      .passOp = vkutil::vkStencilOp(
+                          pipelineState.stencilBackOps.depthStencilPassOp),
+                      .depthFailOp = vkutil::vkStencilOp(
                           pipelineState.stencilBackOps.depthFailOp),
-                      .compareOp =
-                          vk_compare_op(pipelineState.stencilBackOps.compareOp),
+                      .compareOp = vkutil::vkCompareOp(
+                          pipelineState.stencilBackOps.compareOp),
                       .compareMask = pipelineState.stencilCompareMask,
                       .writeMask = pipelineState.stencilWriteMask,
                       .reference = pipelineState.stencilReference,
@@ -498,10 +492,40 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineMultisampleStateCreateInfo msaaState = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .rasterizationSamples =
-            (interlockMode == gpu::InterlockMode::msaa &&
+            (enums::is_flag_set(pipelineLayout.renderPassOptions(),
+                                RenderPassOptionsVulkan::msaa) &&
              props.drawType != gpu::DrawType::renderPassResolve)
                 ? VK_SAMPLE_COUNT_4_BIT
                 : VK_SAMPLE_COUNT_1_BIT,
+    };
+
+    // Everything bakes except viewport and scissor, unless this pipeline
+    // switches its constituent passes with dynamic state.
+    StackVector<VkDynamicState, 8> dynamicStates;
+    dynamicStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+    dynamicStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+    if (gpu::drawTypeHasPipelineDynamicState(props.drawType))
+    {
+        // Dynamic state is currently only used for multi-pass path draws, which
+        // toggle depth-write, stencil, cull, and color-write per pass.
+        // NOTE: depthCompareOp stays baked at LESS and stencilReference is a
+        // constant 0x80, so neither is listed here.
+        dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_WRITE_MASK);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_OP);
+        dynamicStates.push_back(VK_DYNAMIC_STATE_CULL_MODE);
+        // NOTE: if VK_EXT_color_write_enable is NOT supported, the shader will
+        // emulate it. See ShaderMiscFlags::emulateDynamicColorWriteDisable.
+        if (m_vk->features.colorWriteEnable)
+        {
+            dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT);
+        }
+    }
+    const VkPipelineDynamicStateCreateInfo dynamicState = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = dynamicStates.size(),
+        .pDynamicStates = dynamicStates.data(),
     };
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
@@ -511,11 +535,11 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         .pViewportState = &layout::SINGLE_VIEWPORT,
         .pRasterizationState = &pipelineRasterizationStateCreateInfo,
         .pMultisampleState = &msaaState,
-        .pDepthStencilState = interlockMode == gpu::InterlockMode::msaa
+        .pDepthStencilState = interlockMode == gpu::InterlockMode::depthStencil
                                   ? &depthStencilState
                                   : nullptr,
         .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-        .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
+        .pDynamicState = &dynamicState,
         .layout = *pipelineLayout,
         .renderPass = vkRenderPass,
         .subpass = subpassIndex,
@@ -526,13 +550,19 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
             pipelineCreateInfo.pVertexInputState =
                 &layout::PATH_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =
@@ -541,7 +571,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
 
         case DrawType::clipReset:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             pipelineCreateInfo.pVertexInputState =
                 &layout::INTERIOR_TRI_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =

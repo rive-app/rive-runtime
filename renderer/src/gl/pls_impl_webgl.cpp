@@ -87,7 +87,7 @@ EM_JS(void,
           if (pls)
           {
               pls["beginPixelLocalStorageWEBGL"](
-                  Module["HEAPU32"].subarray(loadopsIdx, loadopsIdx + n));
+                  new Uint32Array(wasmMemory.buffer, loadopsIdx * 4, n));
           }
       });
 
@@ -99,7 +99,7 @@ EM_JS(void,
           if (pls)
           {
               pls["endPixelLocalStorageWEBGL"](
-                  Module["HEAPU32"].subarray(storeopsIdx, storeopsIdx + n));
+                  new Uint32Array(wasmMemory.buffer, storeopsIdx * 4, n));
           }
       });
 
@@ -263,7 +263,8 @@ class RenderContextGLImpl::PLSImplWebGL
                 renderContextImpl->state()->setPipelineState(
                     gpu::COLOR_ONLY_PIPELINE_STATE);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                         renderTarget->height());
+                                         renderTarget->height(),
+                                         renderTarget->bottomUp());
             }
         }
 
@@ -319,7 +320,8 @@ class RenderContextGLImpl::PLSImplWebGL
             renderContextImpl->state()->setPipelineState(
                 gpu::COLOR_ONLY_PIPELINE_STATE);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                     framebufferRenderTarget->height());
+                                     framebufferRenderTarget->height(),
+                                     framebufferRenderTarget->bottomUp());
         }
     }
 

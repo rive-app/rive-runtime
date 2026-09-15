@@ -9,7 +9,6 @@
 #include "/Engine/Private/Common.ush"
 #else
 #include "flush_uniforms.minified.ush"
-#include "image_draw_uniforms.minified.ush"
 #endif
 
 #include "Generated/constants.minified.ush"

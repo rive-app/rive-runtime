@@ -178,6 +178,73 @@ public:
         return m;
     }
 
+    // Right-handed view matrix looking from `eye` toward `center` (GLM
+    // convention). `up` need not be normalized.
+    static Mat4 lookAt(const float eye[3],
+                       const float center[3],
+                       const float up[3])
+    {
+        float f[3] = {center[0] - eye[0],
+                      center[1] - eye[1],
+                      center[2] - eye[2]};
+        float fInv = 1.f / std::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+        f[0] *= fInv;
+        f[1] *= fInv;
+        f[2] *= fInv;
+        float s[3] = {f[1] * up[2] - f[2] * up[1],
+                      f[2] * up[0] - f[0] * up[2],
+                      f[0] * up[1] - f[1] * up[0]};
+        float sInv = 1.f / std::sqrt(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+        s[0] *= sInv;
+        s[1] *= sInv;
+        s[2] *= sInv;
+        float u[3] = {s[1] * f[2] - s[2] * f[1],
+                      s[2] * f[0] - s[0] * f[2],
+                      s[0] * f[1] - s[1] * f[0]};
+        Mat4 m;
+        m.m_buffer[0] = s[0];
+        m.m_buffer[1] = u[0];
+        m.m_buffer[2] = -f[0];
+        m.m_buffer[4] = s[1];
+        m.m_buffer[5] = u[1];
+        m.m_buffer[6] = -f[1];
+        m.m_buffer[8] = s[2];
+        m.m_buffer[9] = u[2];
+        m.m_buffer[10] = -f[2];
+        m.m_buffer[12] = -(s[0] * eye[0] + s[1] * eye[1] + s[2] * eye[2]);
+        m.m_buffer[13] = -(u[0] * eye[0] + u[1] * eye[1] + u[2] * eye[2]);
+        m.m_buffer[14] = f[0] * eye[0] + f[1] * eye[1] + f[2] * eye[2];
+        return m;
+    }
+
+    // Right-handed orthographic projection. Maps view-space z=[-near, -far]
+    // to NDC z in either [0, 1] (default, depthZeroToOne=true) or [-1, 1].
+    static Mat4 ortho(float left,
+                      float right,
+                      float bottom,
+                      float top,
+                      float near_,
+                      float far_,
+                      bool depthZeroToOne = true)
+    {
+        Mat4 m;
+        m.m_buffer[0] = 2.f / (right - left);
+        m.m_buffer[5] = 2.f / (top - bottom);
+        m.m_buffer[12] = -(right + left) / (right - left);
+        m.m_buffer[13] = -(top + bottom) / (top - bottom);
+        if (depthZeroToOne)
+        {
+            m.m_buffer[10] = -1.f / (far_ - near_);
+            m.m_buffer[14] = -near_ / (far_ - near_);
+        }
+        else
+        {
+            m.m_buffer[10] = -2.f / (far_ - near_);
+            m.m_buffer[14] = -(far_ + near_) / (far_ - near_);
+        }
+        return m;
+    }
+
     // SIMD: out = lhs * rhs. Both column-major.
     static Mat4 multiply(const Mat4& lhs, const Mat4& rhs)
     {

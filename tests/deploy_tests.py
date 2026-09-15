@@ -5,6 +5,7 @@ import atexit
 import base64
 import glob
 import http.server
+import json
 import os
 import pathlib
 import platform
@@ -24,6 +25,41 @@ import zipfile
 
 HANDSHAKE_TOKEN = 0xfee1600d
 SHUTDOWN_TOKEN = 0xfee1dead
+
+# Metal API validation, gated by metal_validation_env(). Set in our own
+# environment on host, or passed to the launch command on iOS/iossim.
+# These are the vars that Xcode's scheme diagnostics set.
+METAL_VALIDATION_ENV = {
+    "MTL_DEBUG_LAYER": "1",
+    "METAL_DEVICE_WRAPPER_TYPE": "1", # older spelling of MTL_DEBUG_LAYER.
+    "MTL_DEBUG_LAYER_ERROR_MODE": "assert",
+    # Warnings are far too chatty for CI logs.
+    # FIXME: We should address these warnings.
+    "MTL_DEBUG_LAYER_WARNING_MODE": "ignore",
+    # The layer reports through os_log, which only mirrors to stderr when
+    # forced. The harness forwards nothing else.
+    "CFLOG_FORCE_STDERR": "1",
+    "OS_ACTIVITY_DT_MODE": "enable",
+}
+
+# Shader validation re-instruments every pipeline. On device and in the
+# simulator that starves MTLCompilerService, and pipeline creation fails with
+# XPC_ERROR_CONNECTION_INTERRUPTED, so it stays on host.
+METAL_SHADER_VALIDATION_ENV = {
+    "MTL_SHADER_VALIDATION": "1",
+    "MTL_SHADER_VALIDATION_REPORT_TO_STDERR": "1",
+}
+
+# The Metal validation vars for this run, or {} if it doesn't get validation.
+def metal_validation_env():
+    # NOTE: MoltenVK generates Metal validation errors right now, so only turn
+    # these on for our own Metal backends.
+    if "metal" not in args.backend or args.release:
+        return {}
+    env = dict(METAL_VALIDATION_ENV)
+    if args.target == "host":
+        env.update(METAL_SHADER_VALIDATION_ENV)
+    return env
 
 parser = argparse.ArgumentParser(description="Run native gms & goldens, and dump their .pngs")
 parser.add_argument("tools",
@@ -63,6 +99,12 @@ parser.add_argument("--cols",
                     type=int,
                     default=1,
                     help="number of columns in the goldens grid")
+parser.add_argument("--deferred",
+                    action='store_true',
+                    help="record through a deferred session and replay it; for "\
+                         "goldens the output must match immediate mode, and "\
+                         "the player needs this for artboard cache-as-bitmap "\
+                         "(needs a --with_rive_canvas build)")
 parser.add_argument("-m", "--match",
                     type=str,
                     default=None,
@@ -87,6 +129,9 @@ parser.add_argument("-k", "--options",
                     type=str,
                     default=None,
                     help="additional options to pass through (player only)")
+parser.add_argument("-w", "--window",
+                    action='store_true',
+                    help="draw to a visible window instead of offscreen (player only)")
 parser.add_argument("-S", "--server_only",
                     action='store_true',
                     help="Start servers but don't launch gms or goldens tools")
@@ -101,12 +146,20 @@ parser.add_argument("--build-only", action='store_true',
 parser.add_argument("-i", "--install-only", action='store_true',
                     help="only build & install, don't deploy")
 parser.add_argument("--no-rebuild", action='store_true',
-                    help="don't rebuild the native tools in builddir")
+                    help="don't rebuild any native code: the tools in builddir, and "
+                         "(on unreal targets) the rive libraries the plugin links "
+                         "against, which are otherwise built during packaging")
 parser.add_argument("-n", "--no-install", action='store_true',
-                    help="don't package & reinstall the mobile app prior to launch")
+                    help="don't package & reinstall the app prior to launch")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
 parser.add_argument("--sync-validation", action='store_true',
                     help="run with Vulkan synchronization validation")
+parser.add_argument("--unreal-engine", type=str,
+                    default=os.getenv("RIVE_UNREAL_ENGINE"),
+                    help="Unreal Engine root directory. With an unreal target, "
+                         "builds & packages rive_unreal into --builddir via "
+                         "package_project.py instead of assuming a prebuilt "
+                         "package. Env: RIVE_UNREAL_ENGINE.")
 
 args = parser.parse_args()
 skipped_golden_tests = set()
@@ -492,14 +545,18 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
     toolname = os.path.basename(cmd[0])
 
     if args.target == "unreal":
-        unreal_exe_path = os.path.join(dirname, "Windows", "rive_unreal.exe")
-        return [unreal_exe_path, "/Game/maps/" + toolname, "-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
+        unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
+        return [unreal_exe_path] + unreal_tool_args(toolname) + \
+               unreal_engine_args(args.target, args.backend) + \
+               ["-ResX=1280", "-ResY=720"] + unreal_offscreen_args(toolname) + \
+               cmd[1:]
 
     if args.target == "unreal_android":
-        tool_args = ' '.join(["/Game/maps/" + toolname] + cmd[1:])
+        tool_args = ' '.join(unreal_tool_args(toolname) +
+                             unreal_engine_args(args.target, args.backend) + cmd[1:])
         return ["adb", "shell",
                     "am force-stop app.rive.rive_unreal && "
-                    f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e args '{tool_args}'"]
+                    f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e cmdline '{tool_args}'"]
 
     if args.target == "android":
         sharedlib = os.path.join(dirname, "lib%s.so" % toolname)
@@ -513,21 +570,29 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         print("\nDeploying %s on ios (udid=%s, ios_version=%i)..." %
               (toolname, args.ios_udid, target_info["ios_version"]))
         cmd = [toolname] + cmd[1:]
+        validation_env = metal_validation_env()
         if target_info["ios_version"] >= 17:
             # ios-deploy is no longer supported after iOS 17.
             return ["xcrun", "devicectl", "device", "process", "launch",
                     # "--console",  # TODO: "--console" not currently supported.
-                    "--device", args.ios_udid,
-                    "--environment-variables", '{"MTL_DEBUG_LAYER": "1"}',
-                    "rive.app.golden-test-app"] + cmd
+                    "--device", args.ios_udid] + \
+                   (["--environment-variables", json.dumps(validation_env)]
+                    if validation_env else []) + \
+                   ["rive.app.golden-test-app"] + cmd
         else:
             return ["ios-deploy", "--noinstall", "--noninteractive", "--bundle",
-                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app",
-                    "--envs", "MTL_DEBUG_LAYER=1",
-                    "--args", ' '.join(cmd)]
+                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"] + \
+                   (["--envs", ','.join("%s=%s" % kv
+                                        for kv in validation_env.items())]
+                    if validation_env else []) + \
+                   ["--args", ' '.join(cmd)]
 
     elif args.target == "iossim":
         print("\nDeploying %s on ios simulator (udid=%s)..." % (toolname, args.ios_udid))
+        # host-side env already carries the raw vars; simctl also forwards
+        # SIMCTL_CHILD_-prefixed ones to the simulator process.
+        for key, value in metal_validation_env().items():
+            env["SIMCTL_CHILD_" + key] = value
         cmd = [toolname] + cmd[1:]
         return ["xcrun", "simctl", "launch", args.ios_udid, "rive.app.golden-test-app"] + cmd
 
@@ -603,6 +668,8 @@ def launch_goldens(test_harness_server):
                      "-p%i" % args.png_threads]
     if args.verbose:
         cmd = cmd + ["--verbose"]
+    if args.deferred:
+        cmd = cmd + ["--deferred"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
@@ -625,6 +692,10 @@ def launch_player(test_harness_server):
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
+    if args.window:
+        cmd += ["--window"]
+    if args.deferred:
+        cmd += ["--deferred"]
     cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     if os.path.isdir(args.src):
@@ -639,10 +710,171 @@ def launch_player(test_harness_server):
 def force_stop_android_tests_apk():
     subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tests"])
 
+if platform.system() == "Darwin":
+    UNREAL_HOST_PLATFORM = "Mac"
+    # UAT archives the Mac build as a .app bundle; launch its inner binary.
+    UNREAL_HOST_PACKAGE = ("Mac", "rive_unreal.app", "Contents", "MacOS", "rive_unreal")
+elif platform.system() == "Linux":
+    UNREAL_HOST_PLATFORM = "Linux"
+    UNREAL_HOST_PACKAGE = ("Linux", "rive_unreal.sh")
+else:
+    UNREAL_HOST_PLATFORM = "Windows"
+    UNREAL_HOST_PACKAGE = ("Windows", "rive_unreal.exe")
+
+UNREAL_TARGET_PLATFORMS = {
+    "unreal": UNREAL_HOST_PLATFORM,
+    "unreal_android": "Android",
+}
+
+# One map serves every tool: which tool runs is chosen by "-rivetool=<name>",
+# and the map itself holds nothing but a PlayerStart (UGMToolSubsystem puts the
+# tool's widget on screen).
+UNREAL_TOOLS_MAP = "/Game/maps/tools"
+
+def unreal_tool_args(toolname):
+    return [UNREAL_TOOLS_MAP, "-rivetool=" + toolname]
+
+def unreal_offscreen_args(toolname):
+    # The harness tools dump pngs and never need to be seen; the player is
+    # something you watch, so it keeps its window.
+    return [] if toolname == "player" else ["-RenderOffScreen"]
+
+UNREAL_RHI_SWITCHES = {
+    "d3d": "-dx11",
+    "d3d12": "-dx12",
+    "vk": "-vulkan",
+    "metal": "-metal",
+}
+
+UNREAL_INTERLOCK_OVERRIDES = {
+    "": "raster",
+    "atomic": "atomics",
+    "msaa": "msaa",
+}
+
+SUPPORTED_UNREAL_BACKENDS = {
+    "unreal": ["metal"] if platform.system() == "Darwin" else
+              ["vk"] if platform.system() == "Linux" else
+              ["d3d", "d3d12", "vk"],
+    "unreal_android": ["vk"],
+}
+
+DEFAULT_UNREAL_BACKENDS = {
+    "unreal": "metal" if platform.system() == "Darwin" else
+              "vk" if platform.system() == "Linux" else "d3d12",
+    "unreal_android": "vk",
+}
+
+def split_unreal_backend(name):
+    for rhi in sorted(UNREAL_RHI_SWITCHES, key=len, reverse=True):
+        if name.startswith(rhi):
+            return rhi, name[len(rhi):]
+    return None, name
+
+def unreal_engine_args(target, name):
+    rhi, suffix = split_unreal_backend(name)
+    supported = SUPPORTED_UNREAL_BACKENDS.get(target, [])
+    if rhi is None or rhi not in supported:
+        sys.exit("backend '%s' is not supported on --target=%s (supported RHIs: %s)"
+                 % (name, target, ", ".join(supported)))
+    engine_args = [UNREAL_RHI_SWITCHES[rhi]]
+    if target == "unreal_android":
+        dpcvars = ["r.RenderTargetPoolMin=32"]
+        fake_limit = os.getenv("RIVE_VULKAN_FAKE_MEMORY_LIMIT")
+        if fake_limit:
+            dpcvars.append("r.Vulkan.FakeMemoryLimit=%s" % fake_limit)
+        extra_dpcvars = os.getenv("RIVE_EXTRA_DPCVARS")
+        if extra_dpcvars:
+            dpcvars.append(extra_dpcvars)
+        engine_args.append("-dpcvars=" + ",".join(dpcvars))
+    if suffix in UNREAL_INTERLOCK_OVERRIDES:
+        engine_args.append("-riveRenderOverride=%s" % UNREAL_INTERLOCK_OVERRIDES[suffix])
+    extra_args = os.getenv("RIVE_EXTRA_UNREAL_ARGS")
+    if extra_args:
+        engine_args.extend(extra_args.split())
+    return engine_args
+
+def unreal_client_config():
+    # -r builds the native tools release, so package unreal to match.
+    return "Test" if args.release else "Development"
+
+def unreal_android_installer(stage_dir):
+    config = unreal_client_config()
+    name = ("Install_rive_unreal-arm64.bat" if config == "Development"
+            else "Install_rive_unreal-Android-%s-arm64.bat" % config)
+    if os.path.exists(os.path.join(stage_dir, name)):
+        return name
+    staged = sorted(glob.glob(os.path.join(stage_dir, "Install_rive_unreal*.bat")))
+    raise RuntimeError(
+        "expected %s in %s for the %s config, found: %s" %
+        (name, stage_dir, config,
+         ", ".join(os.path.basename(s) for s in staged) or "nothing"))
+
+# The host platform whose build-rive.py target produces the plugin's headers.
+UNREAL_HOST_PLATFORMS = {"Windows": "Windows", "Darwin": "Mac", "Linux": "Linux"}
+
+def unreal_script(*parts):
+    rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(rive_tools_dir, "..", "..", "runtime_unreal", *parts)
+
+def build_rive_host():
+    """Build the host rive libraries and stage the headers and generated shaders.
+
+    Cooking for any target builds the editor, which links these, and only a
+    host build produces the headers every platform then compiles against.
+    """
+    subprocess.check_call([sys.executable,
+                           unreal_script("Plugins", "Rive", "Scripts",
+                                         "build-rive", "build-rive.py"),
+                           "-r", "-t",
+                           UNREAL_HOST_PLATFORMS[platform.system()]])
+
+def build_rive_unreal():
+    """Build the rive libraries the plugin links, and stage what it compiles against.
+
+    A console overrides this: its libraries come from a premake root of its
+    own, and it needs build_rive_host() as well.
+    """
+    subprocess.check_call([sys.executable,
+                           unreal_script("Plugins", "Rive", "Scripts",
+                                         "build-rive", "build-rive.py"),
+                           "-r", "-t", UNREAL_TARGET_PLATFORMS[args.target]])
+
+def unreal_package_platform_args():
+    """How packaging names this target. A console overrides it: the platform
+    table package_project.py keeps is public and has no entry for one."""
+    return ["--platform", UNREAL_TARGET_PLATFORMS[args.target]]
+
+def install_unreal_package():
+    """Put the packaged build on the device. Nothing to do where the launch
+    command reaches it from the host."""
+    pass
+
+def package_unreal_project():
+    # No engine path -> assume the project is already packaged (legacy behavior).
+    if not args.unreal_engine:
+        return
+    if not args.no_rebuild:
+        build_rive_unreal()
+    # The native build is ours either way, so packaging never repeats it.
+    subprocess.check_call([sys.executable,
+                           unreal_script("Scripts", "package_project.py"),
+                           "--engine", args.unreal_engine,
+                           "--output", os.path.abspath(args.builddir),
+                           "--config", unreal_client_config(),
+                           "--no-rive-build"] + unreal_package_platform_args())
+    install_unreal_package()
+
 def main():
-    # Parse skipped tests.
+    # Parse skipped tests. These only apply to a whole-corpus sweep: gms or
+    # goldens pointed at a directory. Anything drawing a single file it was
+    # handed -- the player, or gms/goldens given one .riv -- would just be left
+    # with nothing to fetch.
+    # NOTE: a nonexistent --src is not a single file. Leave the skip list on
+    # and let the existing os.path.exists() check report it.
     rive_skipped_golden_tests = os.getenv("RIVE_SKIPPED_GOLDEN_TESTS")
-    if rive_skipped_golden_tests:
+    if (rive_skipped_golden_tests and not os.path.isfile(args.src) and
+            not set(args.tools).isdisjoint(("gms", "goldens"))):
         for test in rive_skipped_golden_tests.split(","):
             if '/' in test:
                 # A "/" character separates a specific backend from a test name.
@@ -694,8 +926,9 @@ def main():
         args.jobs_per_tool = 1
         if args.builddir == None:
             args.builddir = os.path.join("out", buildconfig)
-        # unreal is currently always rhi, we may have seperate rhi types in the future like rhi_metal etc..
-        args.backend = 'rhi'
+        if args.backend == None:
+            args.backend = DEFAULT_UNREAL_BACKENDS[args.target]
+        unreal_engine_args(args.target, args.backend)
     elif args.target.startswith("web"):
         args.jobs_per_tool = 1
         if args.builddir == None:
@@ -714,11 +947,10 @@ def main():
                            "d3d" if platform.system() == "Windows" else \
                            "gl"
 
-    if "metal" in args.backend:
-        # Turn on Metal validation layers.
-        # NOTE: MoltenVK generates Metal validation errors right now, so only them on for our own
-        # Metal backends.
-        os.environ["MTL_DEBUG_LAYER"] = "1"
+    # Turn on Metal validation layers. (iOS/iossim set these on their launch
+    # commands.)
+    # NOTE: metal_validation_env() is empty on non-Metal targets.
+    os.environ.update(metal_validation_env())
 
     if args.server_only:
         args.jobs_per_tool = 1 # Only print the command for each job once.
@@ -730,8 +962,13 @@ def main():
     else:
         build_targets = args.tools
 
-    # Build the native code.
-    if not args.no_rebuild and not args.no_install:
+    # Build the native code. "--no-rebuild" owns every native build: this one,
+    # and build_rive_unreal() inside package_unreal_project().
+    #
+    # Unreal never runs these host tools -- only their names survive into the
+    # launch command -- so it skips them and builds the rive libraries its
+    # plugin links during packaging instead.
+    if not args.no_rebuild and "unreal" not in args.target:
         build_rive = [os.path.join(rive_tools_dir, "../build/build_rive.sh")]
         if os.name == "nt":
             if subprocess.run(["where", "msbuild.exe"]).returncode == 0:
@@ -744,11 +981,14 @@ def main():
 
     # Build the wrapper app, if applicable
     if not args.no_install:
+        if "unreal" in args.target:
+            package_unreal_project()
         if args.target == "unreal_android":
             unreal_android_path = os.path.join(args.builddir, "Android_ASTC")
             current = os.getcwd()
+            installer = unreal_android_installer(unreal_android_path)
             os.chdir(unreal_android_path)
-            subprocess.check_call(["Install_rive_unreal-arm64.bat"])
+            subprocess.check_call([installer])
             print()
             os.chdir(current)
         if args.target == "android":
@@ -800,7 +1040,11 @@ def main():
                 return -1
 
             # Call gradlew to build the android_tests wrapper app.
-            subprocess.check_call(["./gradlew" if os.name != "nt" else "gradlew.bat",
+            # NOTE: this has to be an absolute path because Python 3.12 dropped
+            # the current directory from the executable search on Windows.
+            subprocess.check_call([os.path.join(os.getcwd(),
+                                                "gradlew" if os.name != "nt"
+                                                else "gradlew.bat"),
                                    ":app:assembleDebug"])
             os.chdir(cwd)
         elif args.target == "ios":

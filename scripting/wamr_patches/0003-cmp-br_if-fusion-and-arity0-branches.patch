@@ -1,0 +1,520 @@
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index 2c369c7..5ceb955 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1683,6 +1683,142 @@ wasm_interp_call_func_bytecode(WASMModuleInstance *module,
+                 HANDLE_OP_END();
+             }
+ 
++/* rive: compact arity-0 branches skip the br-info arity parse, and the
++   fused forms test the compare operands the loader left in place */
++#define DEF_OP_FUSED_BR_IF_CMP(src_type, cond_op)       \
++    do {                                                \
++        if (GET_OPERAND(src_type, I32, 2)               \
++                cond_op GET_OPERAND(src_type, I32, 0))  \
++            frame_ip = (uint8 *)LOAD_PTR(frame_ip + 4); \
++        else                                            \
++            frame_ip += 4 + sizeof(uint8 *);            \
++    } while (0)
++
++            HANDLE_OP(EXT_OP_BR0)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                frame_ip = (uint8 *)LOAD_PTR(frame_ip);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF0)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                cond = frame_lp[GET_OFFSET()];
++
++                if (cond)
++                    frame_ip = (uint8 *)LOAD_PTR(frame_ip);
++                else
++                    frame_ip += sizeof(uint8 *);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_EQZ)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                if (GET_OPERAND(uint32, I32, 0) == 0)
++                    frame_ip = (uint8 *)LOAD_PTR(frame_ip + 2);
++                else
++                    frame_ip += 2 + sizeof(uint8 *);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_EQ)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, ==);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_NE)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, !=);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_LT_S)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(int32, <);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_LT_U)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, <);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_GT_S)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(int32, >);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_GT_U)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, >);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_LE_S)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(int32, <=);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_LE_U)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, <=);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_GE_S)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(int32, >=);
++                HANDLE_OP_END();
++            }
++
++            HANDLE_OP(EXT_OP_BR_IF_I32_GE_U)
++            {
++#if WASM_ENABLE_THREAD_MGR != 0
++                CHECK_SUSPEND_FLAGS();
++#endif
++                DEF_OP_FUSED_BR_IF_CMP(uint32, >=);
++                HANDLE_OP_END();
++            }
++
+             HANDLE_OP(WASM_OP_BR_TABLE)
+             {
+                 uint32 arity, br_item_size;
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index eac5a99..b9d0e0f 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -9241,11 +9241,26 @@ fail:
+         wasm_loader_emit_ptr(loader_ctx, NULL);                              \
+     } while (0)
+ 
+-#define emit_br_info(frame_csp, is_br)                                         \
+-    do {                                                                       \
+-        if (!wasm_loader_emit_br_info(loader_ctx, frame_csp, is_br, error_buf, \
+-                                      error_buf_size))                         \
+-            goto fail;                                                         \
++/* Branch fusion rewrites already-emitted labels, so it needs the fixed
++   label size of the labels-as-values encodings; GC would additionally
++   need frame-ref bookkeeping in the fused handlers */
++#if WASM_ENABLE_LABELS_AS_VALUES != 0 && WASM_ENABLE_GC == 0
++#define WASM_LOADER_FUSE_BR 1
++#if WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0
++#define EMIT_LABEL_SIZE sizeof(void *)
++#else
++#define EMIT_LABEL_SIZE sizeof(int32)
++#endif
++#else
++#define WASM_LOADER_FUSE_BR 0
++#endif
++
++#define emit_br_info(frame_csp, is_br, omit_zero_arity)             \
++    do {                                                            \
++        if (!wasm_loader_emit_br_info(loader_ctx, frame_csp, is_br, \
++                                      omit_zero_arity, error_buf,   \
++                                      error_buf_size))              \
++            goto fail;                                              \
+     } while (0)
+ 
+ #define LAST_OP_OUTPUT_I32()                                                   \
+@@ -9674,7 +9689,8 @@ apply_label_patch(WASMLoaderContext *ctx, uint8 depth, uint8 patch_type)
+ 
+ static bool
+ wasm_loader_emit_br_info(WASMLoaderContext *ctx, BranchBlock *frame_csp,
+-                         bool is_br, char *error_buf, uint32 error_buf_size)
++                         bool is_br, bool omit_zero_arity, char *error_buf,
++                         uint32 error_buf_size)
+ {
+     /* br info layout:
+      *  a) arity of target block
+@@ -9715,8 +9731,11 @@ wasm_loader_emit_br_info(WASMLoaderContext *ctx, BranchBlock *frame_csp,
+                                             &reftype_map_count);
+ #endif
+ 
+-    /* Part a */
+-    emit_uint32(ctx, arity);
++    /* Part a, omitted for the compact branch forms whose handlers
++       assume a zero arity */
++    bh_assert(!omit_zero_arity || arity == 0);
++    if (!omit_zero_arity)
++        emit_uint32(ctx, arity);
+ 
+     if (arity) {
+         /* Part b */
+@@ -10781,7 +10800,8 @@ check_memory_align_equal(uint8 opcode, uint32 align, char *error_buf,
+ 
+ static bool
+ wasm_loader_check_br(WASMLoaderContext *loader_ctx, uint32 depth, uint8 opcode,
+-                     char *error_buf, uint32 error_buf_size)
++                     bool omit_zero_arity, char *error_buf,
++                     uint32 error_buf_size)
+ {
+     BranchBlock *target_block, *cur_block;
+     BlockType *target_block_type;
+@@ -10819,6 +10839,8 @@ wasm_loader_check_br(WASMLoaderContext *loader_ctx, uint32 depth, uint8 opcode,
+ #endif
+     bool ret = false;
+ 
++    (void)omit_zero_arity;
++
+     bh_assert(loader_ctx->csp_num > 0);
+     if (loader_ctx->csp_num - 1 < depth) {
+         set_error_buf(error_buf, error_buf_size,
+@@ -10942,7 +10964,7 @@ wasm_loader_check_br(WASMLoaderContext *loader_ctx, uint32 depth, uint8 opcode,
+         }
+ 
+ #if WASM_ENABLE_FAST_INTERP != 0
+-        emit_br_info(target_block, opcode == WASM_OP_BR);
++        emit_br_info(target_block, opcode == WASM_OP_BR, omit_zero_arity);
+ #endif
+ 
+         /* Restore the stack data, note that frame_ref_bottom,
+@@ -11040,7 +11062,7 @@ wasm_loader_check_br(WASMLoaderContext *loader_ctx, uint32 depth, uint8 opcode,
+     }
+ 
+ #if WASM_ENABLE_FAST_INTERP != 0
+-    emit_br_info(target_block, opcode == WASM_OP_BR);
++    emit_br_info(target_block, opcode == WASM_OP_BR, omit_zero_arity);
+ #endif
+ 
+     ret = true;
+@@ -11061,17 +11083,33 @@ fail:
+     return ret;
+ }
+ 
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_LOADER_FUSE_BR != 0
++static bool
++wasm_loader_branch_arity_zero(WASMLoaderContext *ctx, uint32 depth)
++{
++    BranchBlock *target_block = ctx->frame_csp - depth - 1;
++    uint8 *types = NULL;
++
++    /* loop's arity is its parameter count, block/if arity is result count */
++    if (target_block->label_type == LABEL_TYPE_LOOP)
++        return block_type_get_param_types(&target_block->block_type, &types)
++               == 0;
++    return block_type_get_result_types(&target_block->block_type, &types) == 0;
++}
++#endif
++
+ static BranchBlock *
+ check_branch_block(WASMLoaderContext *loader_ctx, uint8 **p_buf, uint8 *buf_end,
+-                   uint8 opcode, char *error_buf, uint32 error_buf_size)
++                   uint8 opcode, bool omit_zero_arity, char *error_buf,
++                   uint32 error_buf_size)
+ {
+     uint8 *p = *p_buf, *p_end = buf_end;
+     BranchBlock *frame_csp_tmp;
+     uint32 depth;
+ 
+     read_leb_uint32(p, p_end, depth);
+-    if (!wasm_loader_check_br(loader_ctx, depth, opcode, error_buf,
+-                              error_buf_size)) {
++    if (!wasm_loader_check_br(loader_ctx, depth, opcode, omit_zero_arity,
++                              error_buf, error_buf_size)) {
+         goto fail;
+     }
+ 
+@@ -11111,7 +11149,7 @@ check_branch_block_for_delegate(WASMLoaderContext *loader_ctx, uint8 **p_buf,
+     }
+     frame_csp_tmp = loader_ctx->frame_csp - depth - 2;
+ #if WASM_ENABLE_FAST_INTERP != 0
+-    emit_br_info(frame_csp_tmp, false);
++    emit_br_info(frame_csp_tmp, false, false);
+ #endif
+ 
+     *p_buf = p;
+@@ -12264,7 +12302,7 @@ re_scan:
+                 /* check the target catching block:  LABEL_TYPE_CATCH */
+                 if (!(frame_csp_tmp =
+                           check_branch_block(loader_ctx, &p, p_end, opcode,
+-                                             error_buf, error_buf_size)))
++                                             false, error_buf, error_buf_size)))
+                     goto fail;
+ 
+                 if (frame_csp_tmp->label_type != LABEL_TYPE_CATCH
+@@ -12546,10 +12584,31 @@ re_scan:
+ 
+             case WASM_OP_BR:
+             {
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_LOADER_FUSE_BR != 0
++                bool compact_br = false;
++                uint8 *p_peek = p;
++                uint32 peek_depth;
++
++                /* both passes take this decision from identical state, so
++                   the emitted sizes stay consistent */
++                read_leb_uint32(p_peek, p_end, peek_depth);
++                if (peek_depth < loader_ctx->csp_num
++                    && wasm_loader_branch_arity_zero(loader_ctx, peek_depth)) {
++                    compact_br = true;
++                    skip_label();
++                    emit_label(EXT_OP_BR0);
++                }
++
++                if (!(frame_csp_tmp = check_branch_block(
++                          loader_ctx, &p, p_end, opcode, compact_br, error_buf,
++                          error_buf_size)))
++                    goto fail;
++#else
+                 if (!(frame_csp_tmp =
+                           check_branch_block(loader_ctx, &p, p_end, opcode,
+-                                             error_buf, error_buf_size)))
++                                             false, error_buf, error_buf_size)))
+                     goto fail;
++#endif
+ 
+                 RESET_STACK();
+                 SET_CUR_BLOCK_STACK_POLYMORPHIC_STATE(true);
+@@ -12558,12 +12617,82 @@ re_scan:
+ 
+             case WASM_OP_BR_IF:
+             {
+-                POP_I32();
++#if WASM_ENABLE_FAST_INTERP != 0 && WASM_LOADER_FUSE_BR != 0
++                uint8 fused_opcode = 0;
++                bool compact_br_if = false;
++                uint8 *p_peek = p;
++                uint32 peek_depth;
++
++                read_leb_uint32(p_peek, p_end, peek_depth);
++                if (peek_depth < loader_ctx->csp_num
++                    && wasm_loader_branch_arity_zero(loader_ctx, peek_depth)) {
++                    BranchBlock *cur_block_tmp = loader_ctx->frame_csp - 1;
++
++                    /* fuse only when the compare's result is a live stack
++                       top that this branch alone consumes; dead code keeps
++                       the compact form */
++                    if (last_op >= WASM_OP_I32_EQZ
++                        && last_op <= WASM_OP_I32_GE_U
++                        && !cur_block_tmp->is_stack_polymorphic
++                        && loader_ctx->stack_cell_num
++                               > cur_block_tmp->stack_cell_num)
++                        fused_opcode = (uint8)(EXT_OP_BR_IF_I32_EQZ
++                                               + (last_op - WASM_OP_I32_EQZ));
++                    else
++                        compact_br_if = true;
++                }
++
++                if (fused_opcode) {
++                    uint32 opnd_bytes = last_op == WASM_OP_I32_EQZ ? 2 : 4;
++                    int16 opnd[2] = { 0, 0 };
++
++                    if (loader_ctx->p_code_compiled) {
++                        /* the compare's source operands sit right before its
++                           result slot and the just-emitted br_if label */
++                        uint8 *opnd_end =
++                            loader_ctx->p_code_compiled - EMIT_LABEL_SIZE - 2;
++                        bh_memcpy_s(opnd, (uint32)sizeof(opnd),
++                                    opnd_end - opnd_bytes, opnd_bytes);
++                    }
++                    skip_label();
++                    wasm_loader_emit_backspace(loader_ctx, 2 + opnd_bytes);
++                    skip_label();
++                    emit_label(fused_opcode);
++                    emit_operand(loader_ctx, opnd[0]);
++                    if (opnd_bytes == 4)
++                        emit_operand(loader_ctx, opnd[1]);
++                    /* consume the compare's result without emitting a pop,
++                       mirroring wasm_loader_pop_frame_offset */
++                    loader_ctx->frame_offset--;
++                    if ((*(loader_ctx->frame_offset)
++                         > loader_ctx->start_dynamic_offset)
++                        && (*(loader_ctx->frame_offset)
++                            < loader_ctx->max_dynamic_offset))
++                        loader_ctx->dynamic_offset--;
++                    POP_TYPE(VALUE_TYPE_I32);
++                }
++                else if (compact_br_if) {
++                    skip_label();
++                    emit_label(EXT_OP_BR_IF0);
++                    POP_I32();
++                }
++                else {
++                    POP_I32();
++                }
+ 
+                 if (!(frame_csp_tmp =
+                           check_branch_block(loader_ctx, &p, p_end, opcode,
++                                             fused_opcode != 0 || compact_br_if,
+                                              error_buf, error_buf_size)))
+                     goto fail;
++#else
++                POP_I32();
++
++                if (!(frame_csp_tmp =
++                          check_branch_block(loader_ctx, &p, p_end, opcode,
++                                             false, error_buf, error_buf_size)))
++                    goto fail;
++#endif
+ 
+                 break;
+             }
+@@ -12625,9 +12754,9 @@ re_scan:
+                         goto fail;
+                     }
+ 
+-                    if (!(frame_csp_tmp =
+-                              check_branch_block(loader_ctx, &p, p_end, opcode,
+-                                                 error_buf, error_buf_size))) {
++                    if (!(frame_csp_tmp = check_branch_block(
++                              loader_ctx, &p, p_end, opcode, false, error_buf,
++                              error_buf_size))) {
+                         goto fail;
+                     }
+ 
+@@ -13692,9 +13821,9 @@ re_scan:
+                 }
+ 
+                 if (opcode == WASM_OP_BR_ON_NULL) {
+-                    if (!(frame_csp_tmp =
+-                              check_branch_block(loader_ctx, &p, p_end, opcode,
+-                                                 error_buf, error_buf_size))) {
++                    if (!(frame_csp_tmp = check_branch_block(
++                              loader_ctx, &p, p_end, opcode, false, error_buf,
++                              error_buf_size))) {
+                         goto fail;
+                     }
+ #if WASM_ENABLE_FAST_INTERP != 0
+@@ -13739,9 +13868,9 @@ re_scan:
+                     }
+                     PUSH_REF(type);
+                 }
+-                if (!(frame_csp_tmp =
+-                          check_branch_block(loader_ctx, &p, p_end, opcode,
+-                                             error_buf, error_buf_size))) {
++                if (!(frame_csp_tmp = check_branch_block(
++                          loader_ctx, &p, p_end, opcode, false, error_buf,
++                          error_buf_size))) {
+                     goto fail;
+                 }
+                 if (available_stack_cell
+diff --git a/core/iwasm/interpreter/wasm_opcode.h b/core/iwasm/interpreter/wasm_opcode.h
+index 1147384..217c0e0 100644
+--- a/core/iwasm/interpreter/wasm_opcode.h
++++ b/core/iwasm/interpreter/wasm_opcode.h
+@@ -286,6 +286,22 @@ typedef enum WASMOpcode {
+     WASM_OP_SET_GLOBAL_V128 = 0xe1,
+     WASM_OP_SELECT_128 = 0xe2,
+ #endif
++    /* rive: compact arity-0 branches and compare-fused conditional
++       branches, emitted only by the fast-interp loader. Numbered past
++       0xe2 to stay clear of the simde v128 ext ops. */
++    EXT_OP_BR0 = 0xe3,
++    EXT_OP_BR_IF0 = 0xe4,
++    EXT_OP_BR_IF_I32_EQZ = 0xe5,
++    EXT_OP_BR_IF_I32_EQ = 0xe6,
++    EXT_OP_BR_IF_I32_NE = 0xe7,
++    EXT_OP_BR_IF_I32_LT_S = 0xe8,
++    EXT_OP_BR_IF_I32_LT_U = 0xe9,
++    EXT_OP_BR_IF_I32_GT_S = 0xea,
++    EXT_OP_BR_IF_I32_GT_U = 0xeb,
++    EXT_OP_BR_IF_I32_LE_S = 0xec,
++    EXT_OP_BR_IF_I32_LE_U = 0xed,
++    EXT_OP_BR_IF_I32_GE_S = 0xee,
++    EXT_OP_BR_IF_I32_GE_U = 0xef,
+ 
+     /* Post-MVP extend op prefix */
+     WASM_OP_GC_PREFIX = 0xfb,
+@@ -798,10 +814,28 @@ typedef enum WASMAtomicEXTOpcode {
+         SET_GOTO_TABLE_ELEM(WASM_OP_GET_GLOBAL_V128),    /* 0xe0 */ \
+         SET_GOTO_TABLE_ELEM(WASM_OP_SET_GLOBAL_V128),    /* 0xe1 */ \
+         SET_GOTO_TABLE_ELEM(WASM_OP_SELECT_128),         /* 0xe2 */
+-
+ #else
+ #define DEF_EXT_V128_HANDLE()
+ #endif
++
++/* The fused branch opcodes only have handlers in the fast interpreter */
++#if WASM_ENABLE_FAST_INTERP != 0
++#define DEF_EXT_FUSED_BR_HANDLES()                                       \
++    SET_GOTO_TABLE_ELEM(EXT_OP_BR0), SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF0), \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_EQZ),                       \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_EQ),                        \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_NE),                        \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LT_S),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LT_U),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GT_S),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GT_U),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LE_S),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_LE_U),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GE_S),                      \
++        SET_GOTO_TABLE_ELEM(EXT_OP_BR_IF_I32_GE_U),
++#else
++#define DEF_EXT_FUSED_BR_HANDLES()
++#endif
+ /*
+  * Macro used to generate computed goto tables for the C interpreter.
+  */
+@@ -1034,6 +1068,7 @@ typedef enum WASMAtomicEXTOpcode {
+         SET_GOTO_TABLE_ELEM(WASM_OP_SIMD_PREFIX),    /* 0xfd */ \
+         SET_GOTO_TABLE_ELEM(WASM_OP_ATOMIC_PREFIX),  /* 0xfe */ \
+         DEF_DEBUG_BREAK_HANDLE() DEF_EXT_V128_HANDLE()          \
++            DEF_EXT_FUSED_BR_HANDLES()                          \
+     };
+ 
+ #ifdef __cplusplus

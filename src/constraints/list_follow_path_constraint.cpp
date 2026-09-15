@@ -43,7 +43,8 @@ TransformComponents ListFollowPathConstraint::constrainAtOffset(
     const Mat2D& parentTransform,
     float componentOffset)
 {
-    if (m_Target == nullptr || m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt == nullptr || tgt->isCollapsed())
     {
         return TransformComponents();
     }

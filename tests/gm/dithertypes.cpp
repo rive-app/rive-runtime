@@ -55,7 +55,11 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(dithertypes, 0xff000000, 1600, 800, renderer)
             default:
                 break;
         }
-        renderContext->beginFrame(frameDescriptor);
+
+        if (renderContext != nullptr)
+        {
+            renderContext->beginFrame(frameDescriptor);
+        }
 
         renderer->save();
         renderer->translate(0, 0);

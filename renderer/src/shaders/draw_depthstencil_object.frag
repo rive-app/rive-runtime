@@ -1,0 +1,112 @@
+/*
+ * Copyright 2022 Rive
+ */
+
+#ifdef @FRAGMENT
+
+// Path draws include draw_path_common.glsl, which declares the textures &
+// samplers, so we only need to declare these for image meshes.
+#ifdef @DRAW_IMAGE_MESH
+FRAG_TEXTURE_BLOCK_BEGIN
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
+#ifdef @ENABLE_ADVANCED_BLEND
+DST_COLOR_TEXTURE(@dstColorTexture);
+#endif
+FRAG_TEXTURE_BLOCK_END
+
+DYNAMIC_SAMPLER_BLOCK_BEGIN
+SAMPLER_DYNAMIC_IMAGE(imageSampler)
+DYNAMIC_SAMPLER_BLOCK_END
+#endif // @DRAW_IMAGE_MESH
+
+FRAG_DATA_MAIN(half4, @drawFragmentMain)
+{
+#ifdef @DRAW_IMAGE_MESH
+    VARYING_UNPACK(v_imageTexCoord, float2);
+    VARYING_UNPACK(v_imageModulatedColor, half4);
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_imageBlendMode, ushort);
+#endif
+#else
+    VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
+#ifdef @FEATHER_ATLAS_BLIT
+    VARYING_UNPACK(v_atlasCoord, float2);
+#endif // @FEATHER_ATLAS_BLIT
+#ifdef @ENABLE_ADVANCED_BLEND
+    VARYING_UNPACK(v_blendMode, half);
+#endif
+#endif // !@DRAW_IMAGE_MESH
+
+#ifdef @DRAW_IMAGE_MESH
+    half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(@imageTexture,
+                                                 imageSampler,
+                                                 v_imageTexCoord,
+                                                 uniforms.mipMapLODBias) *
+                  v_imageModulatedColor;
+#else
+    half coverage =
+#ifdef @FEATHER_ATLAS_BLIT
+        clamp(TEXTURE_SAMPLE_LOD(@featherAtlasTexture,
+                                 featherAtlasSampler,
+                                 v_atlasCoord,
+                                 .0)
+                  .r,
+              make_half(.0),
+              make_half(1.));
+#else
+        1.;
+#endif
+
+    half4 color = find_paint_color(
+#ifdef @ENABLE_MODULATED_IMAGE
+        v_image,
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+        cast_half_to_ushort(v_blendMode),
+#endif
+        v_paint FRAGMENT_CONTEXT_UNPACK);
+#endif
+
+// Need to check both flags here because in GL when KHR_blend_equation_advanced
+// is supported, it is possible that neither is defined.
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+    // Do the color portion of the blend mode in the shader.
+#ifdef @DRAW_IMAGE_MESH
+    color.rgb = unmultiply_rgb(color);
+    ushort blendMode = v_imageBlendMode;
+#else
+    ushort blendMode = cast_half_to_ushort(v_blendMode);
+#endif
+    half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
+    color.rgb =
+        advanced_color_blend(color.rgb, dstColorPremul, blendMode) * color.a;
+#endif
+
+#ifndef @DRAW_IMAGE_MESH
+    color *= coverage;
+#endif
+
+    // Certain platforms give us less control of the format of what we are
+    // rendering too. Specifically, we are auto converted from linear -> sRGB on
+    // render target writes in unreal. In those cases we made need to end up in
+    // linear color space
+#ifdef @NEEDS_GAMMA_CORRECTION
+    if (@NEEDS_GAMMA_CORRECTION)
+    {
+        color = gamma_to_linear(color);
+    }
+#endif
+
+    color.rgb = add_dither_if_alpha_nonzero(color.rgb,
+                                            color.a,
+                                            _fragCoord.xy,
+                                            uniforms.ditherScale,
+                                            uniforms.ditherBias);
+
+    EMIT_FRAG_DATA(color);
+}
+
+#endif // FRAGMENT

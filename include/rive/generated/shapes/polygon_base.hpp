@@ -50,8 +50,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(pointsPropertyKey, &m_Points, &value);
         m_Points = value;
-        pointsChanged();
+        RIVE_EDITOR_CHANGED(pointsChanged());
         notifyPropertyChanged(pointsPropertyKey);
     }
 
@@ -62,8 +63,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
         m_CornerRadius = value;
-        cornerRadiusChanged();
+        RIVE_EDITOR_CHANGED(cornerRadiusChanged());
         notifyPropertyChanged(cornerRadiusPropertyKey);
     }
 
@@ -92,6 +94,9 @@ public:
 protected:
     virtual void pointsChanged() {}
     virtual void cornerRadiusChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/polygon_ext.inl"
+#endif
 };
 } // namespace rive
 

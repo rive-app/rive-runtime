@@ -12,12 +12,26 @@ class Factory;
 class FileAssetReferencer;
 class FileAsset : public FileAssetBase, public RefCnt<FileAsset>
 {
+#ifdef WITH_RIVE_SCRIPTING
+    friend class TextAssetImporter;
+#endif
+
 private:
     std::vector<uint8_t> m_cdnUuid;
     std::vector<FileAssetReferencer*> m_fileAssetReferencers;
 
 protected:
     virtual bool addsToBackboard() { return true; }
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_verified = false;
+
+public:
+    /// True once the aggregate in-band signature has verified against this
+    /// asset's content. Defaults to false until TextAssetImporter::resolve
+    /// runs. Production (non-tools) consumers should gate use of the content
+    /// behind this check.
+    bool verified() const { return m_verified; }
+#endif
 
 public:
     Span<const uint8_t> cdnUuid() const;

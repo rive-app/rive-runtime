@@ -183,7 +183,43 @@ public:
 
             WGPUAdapterInfo info = {0};
             wgpuAdapterGetInfo(m_adapter.Get(), &info);
-            printf("=== WebGPU GPU: %s ===\n", info.description.data);
+            const char* backendName = "Unknown";
+            switch (info.backendType)
+            {
+                case WGPUBackendType_D3D11:
+                    backendName = "D3D11";
+                    break;
+                case WGPUBackendType_D3D12:
+                    backendName = "D3D12";
+                    break;
+                case WGPUBackendType_Metal:
+                    backendName = "Metal";
+                    break;
+                case WGPUBackendType_Vulkan:
+                    backendName = "Vulkan";
+                    break;
+                case WGPUBackendType_OpenGL:
+                    backendName = "OpenGL";
+                    break;
+                case WGPUBackendType_OpenGLES:
+                    backendName = "OpenGLES";
+                    break;
+                default:
+                    break;
+            }
+            if (info.description.length == WGPU_STRLEN)
+            {
+                printf("=== Dawn GPU (%s): %s ===\n",
+                       backendName,
+                       info.description.data);
+            }
+            else
+            {
+                printf("=== Dawn GPU (%s): %.*s ===\n",
+                       backendName,
+                       (int)info.description.length,
+                       info.description.data);
+            }
 #if 0
             const char* adapter_types[] = {
                 [WGPUAdapterType_DiscreteGPU] = "Discrete GPU",
@@ -229,16 +265,22 @@ public:
             // color supported.limits.maxVertexBufferArrayStride =
             // kVertexStride; supported.limits.maxColorAttachments = 1;
 
-            WGPUDeviceDescriptor deviceDesc = {
-                // notify on errors
-                .uncapturedErrorCallbackInfo = {.callback = &on_device_error},
+            std::vector<WGPUFeatureName> requiredFeatures;
+            if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
+            {
+                requiredFeatures.push_back(WGPUFeatureName_ClipDistances);
+            }
 
+            WGPUDeviceDescriptor deviceDesc = {
                 // extra features:
                 // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Features.cpp
-                //.requiredFeaturesCount = n
-                //.requiredFeatures = (WGPUFeatureName[]) { ... }
+                .requiredFeatureCount = requiredFeatures.size(),
+                .requiredFeatures = requiredFeatures.data(),
                 //.requiredLimits = &(WGPURequiredLimits) { .limits =
                 // supported.limits },
+
+                // notify on errors
+                .uncapturedErrorCallbackInfo = {.callback = &on_device_error},
             };
 
             m_device = wgpu::Device::Acquire(

@@ -1,6 +1,5 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer.hpp"
-#include "rive/text_engine.hpp"
 
 using namespace rive;
 
@@ -139,96 +138,9 @@ RenderImage::~RenderImage() {}
 RenderPath::RenderPath() {}
 RenderPath::~RenderPath() {}
 
-bool rive::isWhiteSpace(Unichar c)
+void RenderPath::addUntrustedRawPath(const RawPath& path)
 {
-    // 0x2028 is a Line separator.
-    // 0x200B is a Zero width space.
-    return c <= ' ' || c == 0x2028 || c == 0x200B;
-}
-
-SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,
-                                       Span<const TextRun> runs,
-                                       int textDirectionFlag) const
-{
-#ifdef DEBUG
-    size_t count = 0;
-    for (const TextRun& tr : runs)
-    {
-        assert(tr.unicharCount > 0);
-        count += tr.unicharCount;
-    }
-    assert(count <= text.size());
-#endif
-
-    SimpleArray<Paragraph> paragraphs =
-        onShapeText(text, runs, textDirectionFlag);
-    bool wantWhiteSpace = false;
-    GlyphRun* lastRun = nullptr;
-    size_t reserveSize = text.size() / 4;
-    SimpleArrayBuilder<uint32_t> breakBuilder(reserveSize);
-    SimpleArrayBuilder<uint32_t> joinerBuilder(reserveSize);
-    for (const Paragraph& para : paragraphs)
-    {
-        for (GlyphRun& gr : para.runs)
-        {
-            if (lastRun != nullptr)
-            {
-                lastRun->breaks = std::move(breakBuilder);
-                lastRun->joiners = std::move(joinerBuilder);
-                // Reset the builder.
-                breakBuilder = SimpleArrayBuilder<uint32_t>(reserveSize);
-                joinerBuilder = SimpleArrayBuilder<uint32_t>(reserveSize);
-            }
-            uint32_t glyphIndex = 0;
-            for (uint32_t offset : gr.textIndices)
-            {
-                Unichar unicode = text[offset];
-                if (unicode == '\n' || unicode == 0x2028)
-                {
-                    breakBuilder.add(glyphIndex);
-                    breakBuilder.add(glyphIndex);
-                }
-                if (unicode == 0x2060)
-                {
-                    joinerBuilder.add(offset);
-                }
-                if (wantWhiteSpace == isWhiteSpace(unicode))
-                {
-                    breakBuilder.add(glyphIndex);
-                    wantWhiteSpace = !wantWhiteSpace;
-                }
-                glyphIndex++;
-            }
-
-            lastRun = &gr;
-        }
-    }
-    if (lastRun != nullptr)
-    {
-        if (wantWhiteSpace)
-        {
-            breakBuilder.add((uint32_t)lastRun->glyphs.size());
-        }
-        else
-        {
-            // Consume the rest of the run.
-            breakBuilder.add(breakBuilder.empty() ? 0 : breakBuilder.back());
-            breakBuilder.add((uint32_t)lastRun->glyphs.size());
-        }
-        lastRun->breaks = std::move(breakBuilder);
-        lastRun->joiners = std::move(joinerBuilder);
-    }
-
-#ifdef DEBUG
-    for (const Paragraph& para : paragraphs)
-    {
-        for (const GlyphRun& gr : para.runs)
-        {
-            assert(gr.glyphs.size() > 0);
-            assert(gr.glyphs.size() == gr.textIndices.size());
-            assert(gr.glyphs.size() + 1 == gr.xpos.size());
-        }
-    }
-#endif
-    return paragraphs;
+    RawPath sanitized(path);
+    sanitized.pruneEmptySegments();
+    addRawPath(sanitized);
 }

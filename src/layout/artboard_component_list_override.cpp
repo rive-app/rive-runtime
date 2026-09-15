@@ -26,6 +26,12 @@ bool ArtboardComponentListOverride::isRow()
                : true;
 }
 
+bool ArtboardComponentListOverride::isStack()
+{
+    return parent()->is<ArtboardComponentList>() &&
+           parent()->as<ArtboardComponentList>()->isStack();
+}
+
 void ArtboardComponentListOverride::updateWidthOverride()
 {
     for (auto& artboardInstance : m_artboards)

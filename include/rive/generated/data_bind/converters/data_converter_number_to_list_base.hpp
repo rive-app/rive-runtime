@@ -1,6 +1,7 @@
 #ifndef _RIVE_DATA_CONVERTER_NUMBER_TO_LIST_BASE_HPP_
 #define _RIVE_DATA_CONVERTER_NUMBER_TO_LIST_BASE_HPP_
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 namespace rive
 {
@@ -31,18 +32,19 @@ public:
     static const uint16_t viewModelIdPropertyKey = 816;
 
 protected:
-    uint32_t m_ViewModelId = -1;
+    Id m_ViewModelId = kEmptyId;
 
 public:
-    inline uint32_t viewModelId() const { return m_ViewModelId; }
-    void viewModelId(uint32_t value)
+    inline Id viewModelId() const { return m_ViewModelId; }
+    void viewModelId(Id value)
     {
         if (m_ViewModelId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
         m_ViewModelId = value;
-        viewModelIdChanged();
+        RIVE_EDITOR_CHANGED(viewModelIdChanged());
         notifyPropertyChanged(viewModelIdPropertyKey);
     }
 
@@ -58,7 +60,7 @@ public:
         switch (propertyKey)
         {
             case viewModelIdPropertyKey:
-                m_ViewModelId = CoreUintType::deserialize(reader);
+                m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return DataConverter::deserialize(propertyKey, reader);
@@ -66,6 +68,9 @@ public:
 
 protected:
     virtual void viewModelIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_number_to_list_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -9,6 +9,12 @@
 #include <rive/shapes/shape.hpp>
 #include <rive/assets/image_asset.hpp>
 #include <rive/assets/font_asset.hpp>
+#include <rive/assets/script_asset.hpp>
+#ifdef WITH_RIVE_SCRIPTING
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+#include <rive/lua/rive_lua_libs.hpp>
+#endif
+#endif
 #include <rive/animation/nested_simple_animation.hpp>
 #include <rive/animation/nested_state_machine.hpp>
 #include <rive/relative_local_asset_loader.hpp>
@@ -143,6 +149,63 @@ TEST_CASE("File with library state machine loads", "[libraries]")
 // }
 
 // we are literally just loading files here.
+TEST_CASE("Library script exports flat under its mangle prefix", "[libraries]")
+{
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/library_scope_edge_test.riv");
+
+    rive::ScriptAsset* script = nullptr;
+    for (auto asset : file->assets())
+    {
+        if (asset->is<rive::ScriptAsset>())
+        {
+            script = asset->as<rive::ScriptAsset>();
+        }
+    }
+
+    // Requires statically link to the mangled registration name; edges and
+    // scope props never reach the runtime.
+    REQUIRE(script != nullptr);
+    REQUIRE(script->moduleName() == "FruitsLib@4/FruitModule");
+
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+    // A file with scripts still makes a VM.
+    REQUIRE(file->scriptingVM() != nullptr);
+#endif
+}
+
+TEST_CASE("Nested library scripts export flat under distinct prefixes",
+          "[libraries]")
+{
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/nested_library_scope_test.riv");
+
+    rive::ScriptAsset* useb = nullptr;
+    rive::ScriptAsset* mesh = nullptr;
+    for (auto asset : file->assets())
+    {
+        if (asset->is<rive::ScriptAsset>() && asset->name() == "mesh")
+        {
+            mesh = asset->as<rive::ScriptAsset>();
+        }
+        else if (asset->is<rive::ScriptAsset>() && asset->name() == "useb")
+        {
+            useb = asset->as<rive::ScriptAsset>();
+        }
+    }
+
+    // Each library's modules register under their own prefix; no scope
+    // props, no edges, everything resolves flat.
+    REQUIRE(useb != nullptr);
+    REQUIRE(useb->moduleName() == "OuterLib@6/useb");
+    REQUIRE(mesh != nullptr);
+    REQUIRE(mesh->moduleName() == "InnerLib@4/mesh");
+
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+    REQUIRE(file->scriptingVM() != nullptr);
+#endif
+}
+
 TEST_CASE("File with library including image", "[libraries]")
 {
     // created by library_import_export_test.dart in rive_core.

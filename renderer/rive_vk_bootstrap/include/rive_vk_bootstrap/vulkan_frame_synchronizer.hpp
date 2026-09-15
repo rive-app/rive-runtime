@@ -74,6 +74,8 @@ public:
 
     VkQueue graphicsQueue() const { return m_graphicsQueue; }
 
+    bool checkMostRecentFrameCompletion();
+
 protected:
     struct Options
     {
@@ -155,6 +157,9 @@ private:
     // frame, and one for the currently-building frame.
     std::vector<InFlightFrame> m_inFlightFrames;
 
+    bool m_isFrameStarted = false;
+    bool m_isMostRecentFrameDone = false;
+
     // These are all the commands the swapchain needs to do its work - this
     // macro is also used to load them in the .cpp
 #define RIVE_VK_FRAME_SYNC_INSTANCE_COMMANDS(F)                                \
@@ -167,6 +172,7 @@ private:
     F(vkAllocateCommandBuffers)                                                \
     F(vkFreeCommandBuffers)                                                    \
     F(vkWaitForFences)                                                         \
+    F(vkGetFenceStatus)                                                        \
     F(vkCmdPipelineBarrier)                                                    \
     F(vkQueueSubmit)                                                           \
     F(vkGetDeviceQueue)                                                        \

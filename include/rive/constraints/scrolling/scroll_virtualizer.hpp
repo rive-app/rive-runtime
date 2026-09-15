@@ -14,8 +14,8 @@ class ScrollConstraint;
 class ScrollVirtualizer
 {
 private:
-    int m_visibleIndexStart = 0;
-    int m_visibleIndexEnd = 0;
+    int m_realizedIndexStart = 0;
+    int m_realizedIndexEnd = 0;
     float m_offset = 0;
     bool m_infinite = false;
     float m_viewportSize = 0;
@@ -25,6 +25,11 @@ private:
                       std::vector<LayoutNodeProvider*>& children,
                       int totalItemCount);
     float getItemSize(LayoutNodeProvider* child, int index, bool isHorizontal);
+    // Size of a global (list-wide) index, resolved across child providers.
+    float getItemSizeAt(int globalIndex,
+                        std::vector<LayoutNodeProvider*>& children,
+                        int totalItemCount,
+                        bool isHorizontal);
 
 public:
     ~ScrollVirtualizer();

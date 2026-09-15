@@ -44,8 +44,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
         m_Offset = value;
-        offsetChanged();
+        RIVE_EDITOR_CHANGED(offsetChanged());
         notifyPropertyChanged(offsetPropertyKey);
     }
 
@@ -56,8 +57,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(normalizedPropertyKey, &m_Normalized, &value);
         m_Normalized = value;
-        normalizedChanged();
+        RIVE_EDITOR_CHANGED(normalizedChanged());
         notifyPropertyChanged(normalizedPropertyKey);
     }
 
@@ -85,6 +87,9 @@ public:
 protected:
     virtual void offsetChanged() {}
     virtual void normalizedChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/axis_ext.inl"
+#endif
 };
 } // namespace rive
 

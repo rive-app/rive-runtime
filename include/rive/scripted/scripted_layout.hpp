@@ -10,6 +10,9 @@ class ScriptedLayout : public ScriptedLayoutBase
 {
 private:
     Vec2D m_size;
+    // controlSize has run; before then m_size is uninitialized and must not
+    // be announced.
+    bool m_sizeKnown = false;
 #ifdef WITH_RIVE_SCRIPTING
     void callScriptedResize(Vec2D size);
 #endif
@@ -17,6 +20,13 @@ private:
 public:
 #ifdef WITH_RIVE_SCRIPTING
     void didHydrateScriptInputs() override;
+    void displayScaleChanged() override
+    {
+        if (m_sizeKnown)
+        {
+            callScriptedResize(m_size);
+        }
+    }
 #endif
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,
@@ -30,6 +40,17 @@ public:
     void addProperty(CustomProperty* prop) override;
     Core* clone() const override;
     ScriptProtocol scriptProtocol() override { return ScriptProtocol::layout; }
+    /// The size the layout engine last gave this box; false before it has.
+    bool layoutSize(Vec2D& outSize) const
+    {
+        if (!m_sizeKnown)
+        {
+            // m_size is unset until then; outSize is left alone.
+            return false;
+        }
+        outSize = m_size;
+        return true;
+    }
 };
 } // namespace rive
 

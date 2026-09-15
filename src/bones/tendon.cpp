@@ -30,10 +30,21 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
     auto coreObject = context->resolve(boneId());
     if (coreObject == nullptr || !coreObject->is<Bone>())
     {
+#ifdef WITH_RIVE_EDITOR
+        // Coop can deliver the bone in a later batch; resolveBone rewires it.
         return StatusCode::MissingObject;
+#else
+        // Skin::buildDependencies dereferences the bone, so the artboard
+        // cannot load; MissingObject would let it try and crash.
+        return StatusCode::InvalidObject;
+#endif
     }
 
+#ifdef WITH_RIVE_EDITOR
+    setBoneForEditor(static_cast<Bone*>(coreObject));
+#else
     m_Bone = static_cast<Bone*>(coreObject);
+#endif
 
     return StatusCode::Ok;
 }
@@ -49,3 +60,18 @@ StatusCode Tendon::onAddedClean(CoreContext* context)
 
     return StatusCode::Ok;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void Tendon::resolveBone(CoreContext* context)
+{
+    if (bone() != nullptr)
+    {
+        return;
+    }
+    auto* core = context->resolve(boneId());
+    if (core != nullptr && core->is<Bone>())
+    {
+        setBoneForEditor(static_cast<Bone*>(core));
+    }
+}
+#endif

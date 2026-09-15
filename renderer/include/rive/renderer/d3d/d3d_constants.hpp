@@ -15,4 +15,5 @@ constexpr static UINT TRIANGLE_VERTEX_DATA_SLOT = 1;
 constexpr static UINT IMAGE_RECT_VERTEX_DATA_SLOT = 2;
 constexpr static UINT IMAGE_MESH_VERTEX_DATA_SLOT = 3;
 constexpr static UINT IMAGE_MESH_UV_DATA_SLOT = 4;
+constexpr static UINT IMAGE_DRAW_INSTANCE_DATA_SLOT = 5;
 } // namespace rive::gpu

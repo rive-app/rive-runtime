@@ -10,11 +10,18 @@ StatusCode PathVertex::onAddedDirty(CoreContext* context)
     {
         return code;
     }
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only: importer guarantees parent-first hydration so
+    // `parent()` is always resolved here. Editor build moves this
+    // registration into `editorParentChanged` (called by Pass 4.5
+    // of the dispatcher AFTER `onAddedClean` confirms parent is
+    // non-null) so coop's intra-batch out-of-order doesn't crash.
     if (!parent()->is<Path>())
     {
         return StatusCode::MissingObject;
     }
     parent()->as<Path>()->addVertex(this);
+#endif
     return StatusCode::Ok;
 }
 

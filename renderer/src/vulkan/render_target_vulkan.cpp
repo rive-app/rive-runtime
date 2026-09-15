@@ -125,6 +125,26 @@ vkutil::Texture2D* RenderTargetVulkan::copyTargetImageToOffscreenColorTexture(
     return accessOffscreenColorTexture(commandBuffer, dstAccessAfterCopy);
 }
 
+vkutil::Texture2D* RenderTargetVulkan::depthStencilTexture(bool msaa)
+{
+    rcp<vkutil::Texture2D>& texture =
+        msaa ? m_msaaDepthStencilTexture : m_depthStencilTexture;
+    if (texture == nullptr)
+    {
+        texture = m_vk->makeTexture2D(
+            {
+                .format = vkutil::get_preferred_depth_stencil_format(
+                    m_vk->supportsD24S8()),
+                .extent = {width(), height(), 1},
+                .samples = msaa ? VK_SAMPLE_COUNT_4_BIT : VK_SAMPLE_COUNT_1_BIT,
+                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+            },
+            msaa ? "MSAA depthStencil Texture" : "depthStencil Texture");
+    }
+    return texture.get();
+}
+
 vkutil::Texture2D* RenderTargetVulkan::msaaColorTexture()
 {
     if (m_msaaColorTexture == nullptr)
@@ -141,24 +161,6 @@ vkutil::Texture2D* RenderTargetVulkan::msaaColorTexture()
             "MSAA Color Texture");
     }
     return m_msaaColorTexture.get();
-}
-
-vkutil::Texture2D* RenderTargetVulkan::msaaDepthStencilTexture()
-{
-    if (m_msaaDepthStencilTexture == nullptr)
-    {
-        m_msaaDepthStencilTexture = m_vk->makeTexture2D(
-            {
-                .format = vkutil::get_preferred_depth_stencil_format(
-                    m_vk->supportsD24S8()),
-                .extent = {width(), height(), 1},
-                .samples = VK_SAMPLE_COUNT_4_BIT,
-                .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                         VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-            },
-            "MSAA Depth/Stencil Texture");
-    }
-    return m_msaaDepthStencilTexture.get();
 }
 
 rcp<RenderTargetVulkanImpl> RenderContextVulkanImpl::makeRenderTarget(

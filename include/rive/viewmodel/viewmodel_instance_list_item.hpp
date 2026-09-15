@@ -21,6 +21,10 @@ public:
     rcp<ViewModelInstance>& viewModelInstance() { return m_viewModelInstance; }
     void artboard(Artboard* value) { m_artboard = value; };
     Artboard* artboard() { return m_artboard; }
+    // Sets this item's `index` symbol (SymbolType::itemIndex) to [index] when
+    // the item's ViewModel defines one. Used when a list populates children so
+    // scripts/bindings can read the item's position.
+    void assignListIndex(uint32_t index);
     StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive

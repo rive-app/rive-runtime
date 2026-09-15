@@ -2,6 +2,8 @@
 #define _RIVE_LAYOUT_DATA_HPP_
 
 #ifdef WITH_RIVE_LAYOUT
+#include "rive/layout/layout_style_applier.hpp"
+#include "rive/lazy_vector.hpp"
 #include "yoga/YGNode.h"
 #include "yoga/YGStyle.h"
 #include "yoga/Yoga.h"
@@ -47,7 +49,49 @@ public:
 #endif
 
     YGNode node;
-    YGStyle style;
+
+    /// The Yoga style lives inside the node itself; this is the single source
+    /// of truth appliers write into. Go through here rather than reaching for
+    /// node.getStyle() so callers don't depend on YGNode's accessor shape.
+    YGStyle& style() { return node.getStyle(); }
+    const YGStyle& style() const { return node.getStyle(); }
+
+    /// Objects contributing to this item's style. Lazy, so an item with none
+    /// pays one null pointer. Unsorted — apply order comes from the phase
+    /// methods, not from list order, which follows file order.
+    LazyVector<LayoutStyleApplier*> appliers;
+
+    /// No matching remove: runtime objects live for the artboard's lifetime.
+    void addApplier(LayoutStyleApplier* applier)
+    {
+        appliers.pushUnique(applier);
+    }
+
+    /// Runs every applier phase by phase, so apply order can't depend on child
+    /// order.
+    void applyLayoutStyles(YGStyle& style, const LayoutSyncContext& context)
+    {
+        if (appliers.empty())
+        {
+            return;
+        }
+        for (auto* applier : appliers)
+        {
+            applier->applyBaseStyle(style, context);
+        }
+        for (auto* applier : appliers)
+        {
+            applier->applyContainerStyle(style, context);
+        }
+        for (auto* applier : appliers)
+        {
+            applier->applyItemStyle(style, context);
+        }
+        for (auto* applier : appliers)
+        {
+            applier->applyPlacementStyle(style, context);
+        }
+    }
 #endif
 };
 

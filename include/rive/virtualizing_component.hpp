@@ -30,7 +30,13 @@ public:
     virtual void addVirtualizable(int index) = 0;
     virtual void virtualizableChanged() = 0;
     virtual void removeVirtualizable(int index) = 0;
+    // Items on screen. Only these report their measured size back, otherwise
+    // realizing an off screen item would change the sizes the virtualizer
+    // sums to pick this very range.
     virtual void setVisibleIndices(int start, int end) = 0;
+    // Items that exist: the visible range plus the buffer on either side.
+    // These are the ones that get drawn.
+    virtual void setRealizedIndices(int start, int end) = 0;
     virtual void setVirtualizablePosition(int index, Vec2D position) = 0;
 };
 } // namespace rive

@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -41,12 +42,14 @@ class File;
 class ArtboardInstance;
 class StateMachineInstance;
 class CommandServer;
+class ScriptingContext;
 
 RIVE_DEFINE_HANDLE(FontHandle);
 RIVE_DEFINE_HANDLE(FileHandle);
 RIVE_DEFINE_HANDLE(ArtboardHandle);
 RIVE_DEFINE_HANDLE(AudioSourceHandle);
 RIVE_DEFINE_HANDLE(RenderImageHandle);
+RIVE_DEFINE_HANDLE(BlobAssetHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
 RIVE_DEFINE_HANDLE(ViewModelInstanceHandle);
 RIVE_DEFINE_HANDLE(DrawKey);
@@ -55,14 +58,25 @@ RIVE_DEFINE_HANDLE(DrawKey);
 using CommandServerCallback = std::function<void(CommandServer*)>;
 using CommandServerDrawCallback = std::function<void(DrawKey, CommandServer*)>;
 
+// Creates the ScriptingContext used for a loaded file's Lua VM. Invoked on the
+// command server thread with the server's Factory so the context is built with
+// the correct factory on the correct thread. Return nullptr (or leave the
+// factory empty) to fall back to the default CPPRuntimeScriptingContext. Used
+// by hosts (e.g. Unreal) to redirect Lua console/error output to their own
+// logging.
+using ScriptingContextFactory =
+    std::function<std::unique_ptr<ScriptingContext>(Factory*)>;
+
 struct ViewModelEnum
 {
     std::string name;
     std::vector<std::string> enumerants;
 };
 
-// Client-side recorder for commands that will be executed by a
-// CommandServer.
+// Client-side recorder for commands that will be executed by a CommandServer.
+// Synchronized operations require an active CommandServer processing this
+// queue on another thread and must not be called after disconnect(); otherwise,
+// they block indefinitely.
 class CommandQueue : public RefCnt<CommandQueue>
 {
 public:
@@ -114,14 +128,32 @@ public:
 
         virtual void onFileLoaded(const FileHandle, uint64_t requestId) {}
 
-        virtual void onArtboardInstantiated(const FileHandle,
+        /**
+         * Called after an artboard instance is created.
+         *
+         * @param fileHandle The file from which the artboard was instantiated.
+         * @param requestId The request that created the artboard handle.
+         * @param artboardHandle The confirmed artboard handle.
+         */
+        virtual void onArtboardInstantiated(const FileHandle fileHandle,
                                             uint64_t requestId,
-                                            ArtboardHandle)
+                                            ArtboardHandle artboardHandle)
         {}
 
-        virtual void onViewModelInstanceInstantiated(const FileHandle,
-                                                     uint64_t requestId,
-                                                     ViewModelInstanceHandle)
+        /**
+         * Called after a view model instance or instance reference is created.
+         *
+         * @param fileHandle The source file for a newly instantiated view
+         * model, or RIVE_NULL_HANDLE when the new handle references an existing
+         * nested or list-item instance. Confirmations with RIVE_NULL_HANDLE are
+         * delivered only to a FileListener registered for RIVE_NULL_HANDLE.
+         * @param requestId The request that created the instance handle.
+         * @param viewModelInstanceHandle The confirmed instance handle.
+         */
+        virtual void onViewModelInstanceInstantiated(
+            const FileHandle fileHandle,
+            uint64_t requestId,
+            ViewModelInstanceHandle viewModelInstanceHandle)
         {}
 
         virtual void onArtboardsListed(const FileHandle,
@@ -132,6 +164,12 @@ public:
         virtual void onViewModelsListed(const FileHandle,
                                         uint64_t requestId,
                                         std::vector<std::string> viewModelNames)
+        {}
+
+        virtual void onGlobalViewModelNamesListed(
+            const FileHandle,
+            uint64_t requestId,
+            std::vector<std::string> globalViewModelNames)
         {}
 
         virtual void onViewModelInstanceNamesListed(
@@ -163,6 +201,7 @@ public:
         struct FileAssetData
         {
             std::string name;
+            std::string uniqueName;
             uint32_t assetID = 0;
             std::string cdnUUID;
             std::string cdnBaseURL;
@@ -228,6 +267,24 @@ public:
         virtual void onFontDeleted(const FontHandle, uint64_t requestId) {}
     };
 
+    class BlobAssetListener
+        : public CommandQueue::ListenerBase<BlobAssetListener, BlobAssetHandle>
+    {
+    public:
+        virtual void onBlobAssetDecoded(const BlobAssetHandle,
+                                        uint64_t requestId)
+        {}
+
+        virtual void onBlobAssetError(const BlobAssetHandle,
+                                      uint64_t requestId,
+                                      std::string error)
+        {}
+
+        virtual void onBlobAssetDeleted(const BlobAssetHandle,
+                                        uint64_t requestId)
+        {}
+    };
+
     class ArtboardListener
         : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
     {
@@ -246,9 +303,18 @@ public:
         virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
         {}
 
-        virtual void onStateMachineInstantiated(const ArtboardHandle,
-                                                uint64_t requestId,
-                                                StateMachineHandle)
+        /**
+         * Called after a state machine instance is created.
+         *
+         * @param artboardHandle The artboard from which the state machine was
+         * instantiated.
+         * @param requestId The request that created the state machine handle.
+         * @param stateMachineHandle The confirmed state machine handle.
+         */
+        virtual void onStateMachineInstantiated(
+            const ArtboardHandle artboardHandle,
+            uint64_t requestId,
+            StateMachineHandle stateMachineHandle)
         {}
 
         virtual void onStateMachinesListed(
@@ -260,6 +326,12 @@ public:
         virtual void onArtboardVolumeReceived(const ArtboardHandle,
                                               uint64_t requestId,
                                               float volume)
+        {}
+
+        virtual void onArtboardSizeReceived(const ArtboardHandle,
+                                            uint64_t requestId,
+                                            float width,
+                                            float height)
         {}
     };
 
@@ -282,19 +354,32 @@ public:
         };
     };
 
+    // Mirrors StateMachineInstance::FocusState for command queue responses.
+    struct FocusState
+    {
+        bool hasFocus = false;
+        bool expectsKeyboardInput = false;
+    };
+
     class ViewModelInstanceListener
         : public CommandQueue::ListenerBase<ViewModelInstanceListener,
                                             ViewModelInstanceHandle>
     {
     public:
+        virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                              uint64_t requestId,
+                                              std::string error)
+        {}
+
         virtual void onViewModelInstanceViewModelNameReceived(
             const ViewModelInstanceHandle,
             uint64_t requestId,
             std::string viewModelName)
         {}
-        virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
-                                              uint64_t requestId,
-                                              std::string error)
+        virtual void onViewModelInstanceNameReceived(
+            const ViewModelInstanceHandle handle,
+            uint64_t requestId,
+            std::string instanceName)
         {}
 
         virtual void onViewModelDeleted(const ViewModelInstanceHandle,
@@ -337,6 +422,23 @@ public:
                                            uint64_t requestId)
         {}
 
+        /**
+         * Called after mainViewModelInstance or globalViewModelInstance
+         * successfully retrieves a view model instance bound to a state
+         * machine. Lookup failures are reported through onStateMachineError.
+         *
+         * @param stateMachineHandle The state machine from which the view model
+         * instance was retrieved.
+         * @param requestId The request that retrieved the view model instance.
+         * @param viewModelInstanceHandle The confirmed view model instance
+         * handle.
+         */
+        virtual void onViewModelInstanceReceived(
+            const StateMachineHandle stateMachineHandle,
+            uint64_t requestId,
+            ViewModelInstanceHandle viewModelInstanceHandle)
+        {}
+
         // Delivered when an incremental semantic diff is available for this
         // state machine. Emitted only when drainSemanticsDiff produces a
         // non-empty diff. Bounds inside the diff are reported in view space
@@ -346,29 +448,120 @@ public:
                                              uint64_t requestId,
                                              SemanticsDiff diff)
         {}
+
+        virtual void onHasFocusNodesReceived(const StateMachineHandle,
+                                             uint64_t requestId,
+                                             bool hasFocusNodes)
+        {}
+
+        virtual void onFocusStateReceived(const StateMachineHandle,
+                                          uint64_t requestId,
+                                          FocusState focusState)
+        {}
     };
 
     CommandQueue();
     ~CommandQueue();
 
-    FileHandle loadFile(std::vector<uint8_t> rivBytes,
-                        FileListener* listener = nullptr,
-                        uint64_t requestId = 0);
+    FileHandle loadFile(
+        std::vector<uint8_t> rivBytes,
+        FileListener* listener = nullptr,
+        uint64_t requestId = 0
+#ifdef WITH_RIVE_SCRIPTING
+        ,
+        ScriptingContextFactory scriptingContextFactory = nullptr
+#endif
+    );
 
     void deleteFile(FileHandle, uint64_t requestId = 0);
 
+    /**
+     * Registers a global image asset that provides the contents for any file's
+     * out-of-band image asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded image resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalImageAsset(std::string name,
-                             RenderImageHandle,
+                             RenderImageHandle handle,
                              uint64_t requestId = 0);
+    /**
+     * Registers a global font asset that provides the contents for any file's
+     * out-of-band font asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded font resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalFontAsset(std::string name,
-                            FontHandle,
+                            FontHandle handle,
                             uint64_t requestId = 0);
+    /**
+     * Registers a global audio asset that provides the contents for any file's
+     * out-of-band audio asset with the same unique name.
+     *
+     * The change reaches files that are already open as well as files loaded
+     * afterward. Registering a name that is already registered replaces its
+     * resource everywhere.
+     *
+     * Assets with embedded contents and assets claimed by a host-supplied file
+     * asset loader are never overridden. Reports an error on the matching
+     * asset listener if the handle is invalid.
+     *
+     * @param name The unique asset name to register.
+     * @param handle The decoded audio resource to provide.
+     * @param requestId The request identifier used for an error callback.
+     */
     void addGlobalAudioAsset(std::string name,
-                             AudioSourceHandle,
+                             AudioSourceHandle handle,
                              uint64_t requestId = 0);
 
+    /**
+     * Unregisters the global image asset with the given unique name, clearing
+     * it from every open file it was applied to. Deleting the backing image
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalImageAsset(std::string name, uint64_t requestId = 0);
+    /**
+     * Unregisters the global font asset with the given unique name, clearing it
+     * from every open file it was applied to. Deleting the backing font
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalFontAsset(std::string name, uint64_t requestId = 0);
+    /**
+     * Unregisters the global audio asset with the given unique name, clearing
+     * it from every open file it was applied to. Deleting the backing audio
+     * resource has the same effect for every name that resource was registered
+     * under.
+     *
+     * @param name The unique asset name to unregister.
+     * @param requestId The request identifier.
+     */
     void removeGlobalAudioAsset(std::string name, uint64_t requestId = 0);
 
     ArtboardHandle instantiateArtboardNamed(
@@ -487,6 +680,10 @@ public:
                                    std::string path,
                                    RenderImageHandle value,
                                    uint64_t requestId = 0);
+    void setViewModelInstanceBlob(ViewModelInstanceHandle,
+                                  std::string path,
+                                  BlobAssetHandle value,
+                                  uint64_t requestId = 0);
     void setViewModelInstanceArtboard(ViewModelInstanceHandle,
                                       std::string path,
                                       ArtboardHandle value,
@@ -570,6 +767,111 @@ public:
     void bindViewModelInstance(StateMachineHandle,
                                ViewModelInstanceHandle,
                                uint64_t requestId = 0);
+
+    // Sets the main (non-global) view model instance without rebinding. Call
+    // bind() to apply.
+    void setViewModelInstance(StateMachineHandle,
+                              ViewModelInstanceHandle,
+                              uint64_t requestId = 0);
+
+    /**
+     * Returns a handle to the main view model instance currently bound to the
+     * state machine. This lookup never creates an instance.
+     *
+     * A successful lookup is reported through
+     * StateMachineListener::onViewModelInstanceReceived. If no main instance
+     * is bound, or if the state machine handle is invalid, the lookup reports
+     * through StateMachineListener::onStateMachineError and the returned handle
+     * maps to nothing.
+     *
+     * The optional ViewModelInstanceListener is associated with the returned
+     * handle for subsequent view model instance operations. It is not notified
+     * of lookup success or failure.
+     *
+     * @param stateMachineHandle The state machine whose main instance should
+     * be retrieved.
+     * @param listener The listener to associate with the returned view model
+     * instance handle.
+     * @param requestId The identifier reported with the asynchronous result.
+     */
+    ViewModelInstanceHandle mainViewModelInstance(
+        StateMachineHandle stateMachineHandle,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    /**
+     * Removes the main (non-global) view model instance from a state machine
+     * without rebinding. Call bind() to create and apply its default main
+     * instance.
+     *
+     * @param stateMachineHandle The state machine whose main instance should
+     * be cleared.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void clearViewModelInstance(StateMachineHandle stateMachineHandle,
+                                uint64_t requestId = 0);
+
+    // Sets/replaces the global view model instance bound under the given global
+    // view model name without rebinding. Call bind() to apply. Reports a state
+    // machine error if the name does not match a global view model.
+    void setGlobalViewModelInstance(StateMachineHandle,
+                                    std::string name,
+                                    ViewModelInstanceHandle,
+                                    uint64_t requestId = 0);
+
+    /**
+     * Removes the instance occupying a named global slot without rebinding,
+     * preserving the main instance and every other global slot. Call bind() to
+     * create and apply that slot's default instance. Reports a state machine
+     * error if name does not identify a global view model.
+     *
+     * @param stateMachineHandle The state machine whose global slot should be
+     * cleared.
+     * @param name The global view model slot to clear.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void clearGlobalViewModelInstance(StateMachineHandle stateMachineHandle,
+                                      std::string name,
+                                      uint64_t requestId = 0);
+
+    /**
+     * Returns a handle to the global view model instance currently bound under
+     * the given name. This lookup never creates an instance.
+     *
+     * A successful lookup is reported through
+     * StateMachineListener::onViewModelInstanceReceived. If no instance is
+     * bound under the name, or if the state machine handle is invalid, the
+     * lookup reports through StateMachineListener::onStateMachineError and the
+     * returned handle maps to nothing.
+     *
+     * The optional ViewModelInstanceListener is associated with the returned
+     * handle for subsequent view model instance operations. It is not notified
+     * of lookup success or failure.
+     *
+     * @param stateMachineHandle The state machine whose global instance should
+     * be retrieved.
+     * @param name The global view model name to look up.
+     * @param listener The listener to associate with the returned view model
+     * instance handle.
+     * @param requestId The identifier reported with the asynchronous result.
+     */
+    ViewModelInstanceHandle globalViewModelInstance(
+        StateMachineHandle stateMachineHandle,
+        std::string name,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    /**
+     * Applies the state machine's current data context to its artboard and
+     * state machine data binds in a single pass. Any missing main or global
+     * view model instances are created from their defaults before binding.
+     * Reports a state machine error asynchronously if the handle is invalid.
+     *
+     * @param stateMachineHandle The state machine whose data context should be
+     * applied.
+     * @param requestId The identifier reported with any asynchronous error.
+     */
+    void bind(StateMachineHandle stateMachineHandle, uint64_t requestId = 0);
 
     void advanceStateMachine(StateMachineHandle,
                              float timeToAdvance,
@@ -662,11 +964,29 @@ public:
 
     void deleteFont(FontHandle, uint64_t requestId = 0);
 
+    BlobAssetHandle decodeBlob(std::vector<uint8_t> blobBytes,
+                               BlobAssetListener* listener = nullptr,
+                               uint64_t requestId = 0);
+
+    BlobAssetHandle addExternalBlob(rcp<BlobAsset> externalBlob,
+                                    BlobAssetListener* listener = nullptr,
+                                    uint64_t requestId = 0);
+
+    void deleteBlob(BlobAssetHandle, uint64_t requestId = 0);
+
     // Create unique draw key for draw.
     DrawKey createDrawKey();
 
-    // Executes a one-time callback on the server. This may eventualy become a
-    // testing-only method.
+    /**
+     * Executes a one-time callback directly on the command server.
+     *
+     * This is an escape hatch for tests and runtime-specific operations that
+     * cannot be represented by the shared command and message protocol. Do not
+     * use it to implement capabilities common to multiple runtimes; add a
+     * canonical command, message, and listener callback instead.
+     *
+     * @param callback The callback to execute on the command server.
+     */
     void runOnce(CommandServerCallback);
 
     // Run draw function for given draw key, only the latest function passed
@@ -692,10 +1012,9 @@ public:
     void disconnect();
 
     void requestViewModelNames(FileHandle, uint64_t requestId = 0);
+    void requestGlobalViewModelNames(FileHandle, uint64_t requestId = 0);
     void requestArtboardNames(FileHandle, uint64_t requestId = 0);
     void requestFileAssets(FileHandle, uint64_t requestId = 0);
-    void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
-                                               uint64_t requestId = 0);
     void requestViewModelEnums(FileHandle, uint64_t requestId = 0);
     void requestViewModelPropertyDefinitions(FileHandle,
                                              std::string viewModelName,
@@ -704,6 +1023,12 @@ public:
     void requestViewModelInstanceNames(FileHandle,
                                        std::string viewModelName,
                                        uint64_t requestId = 0);
+
+    void requestViewModelInstanceViewModelName(ViewModelInstanceHandle,
+                                               uint64_t requestId = 0);
+
+    void requestViewModelInstanceName(ViewModelInstanceHandle handle,
+                                      uint64_t requestId = 0);
 
     void requestViewModelInstanceBool(ViewModelInstanceHandle,
                                       std::string path,
@@ -738,6 +1063,7 @@ public:
                            uint64_t requestId = 0);
     void requestArtboardVolume(ArtboardHandle, uint64_t requestId = 0);
 
+    void requestArtboardSize(ArtboardHandle, uint64_t requestId = 0);
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
     void requestDefaultViewModelInfo(ArtboardHandle,
                                      FileHandle,
@@ -774,6 +1100,18 @@ public:
     {
         m_globalFontListener = listener;
     }
+    void setGlobalBlobAssetListener(BlobAssetListener* listener)
+    {
+        m_globalBlobListener = listener;
+    }
+
+    bool focusNextSynchronized(StateMachineHandle);
+    bool focusPreviousSynchronized(StateMachineHandle);
+    void focusNext(StateMachineHandle, uint64_t requestId = 0);
+    void focusPrevious(StateMachineHandle, uint64_t requestId = 0);
+    void requestHasFocusNodes(StateMachineHandle, uint64_t requestId = 0);
+    void clearFocus(StateMachineHandle, uint64_t requestId = 0);
+    void requestFocusState(StateMachineHandle, uint64_t requestId = 0);
 
 private:
     void registerListener(FileHandle handle, FileListener* listener)
@@ -804,6 +1142,13 @@ private:
         assert(listener);
         assert(m_fontListeners.find(handle) == m_fontListeners.end());
         m_fontListeners.insert({handle, listener});
+    }
+
+    void registerListener(BlobAssetHandle handle, BlobAssetListener* listener)
+    {
+        assert(listener);
+        assert(m_blobListeners.find(handle) == m_blobListeners.end());
+        m_blobListeners.insert({handle, listener});
     }
 
     void registerListener(ArtboardHandle handle, ArtboardListener* listener)
@@ -856,6 +1201,11 @@ private:
         m_fontListeners.erase(handle);
     }
 
+    void unregisterListener(BlobAssetHandle handle, BlobAssetListener* listener)
+    {
+        m_blobListeners.erase(handle);
+    }
+
     void unregisterListener(ArtboardHandle handle, ArtboardListener* listener)
     {
         m_artboardListeners.erase(handle);
@@ -883,9 +1233,12 @@ private:
         externalAudio,
         decodeFont,
         externalFont,
+        decodeBlob,
+        externalBlob,
         deleteImage,
         deleteAudio,
         deleteFont,
+        deleteBlob,
         addImageFileAsset,
         addAudioFileAsset,
         addFontFileAsset,
@@ -918,6 +1271,13 @@ private:
         requestSemanticFocus,
         clearSemanticFocus,
         bindViewModelInstance,
+        setViewModelInstance,
+        getMainViewModelInstance,
+        clearViewModelInstance,
+        setGlobalViewModelInstance,
+        clearGlobalViewModelInstance,
+        getGlobalViewModelInstance,
+        bind,
         runOnce,
         draw,
         cancelDraw,
@@ -936,15 +1296,23 @@ private:
         listStateMachines,
         getDefaultViewModel,
         listViewModels,
+        listGlobalViewModelNames,
         listViewModelInstanceNames,
         listViewModelProperties,
         listViewModelPropertyValue,
         getViewModelInstanceViewModelName,
+        getViewModelInstanceName,
         getViewModelListSize,
         clearViewModelList,
         listFileAssets,
         setArtboardVolume,
-        getArtboardVolume
+        getArtboardVolume,
+        getArtboardSize,
+        focusNext,
+        focusPrevious,
+        requestHasFocusNodes,
+        clearFocus,
+        requestFocusState
     };
 
     enum class Message
@@ -956,7 +1324,9 @@ private:
         stateMachinesListed,
         defaultViewModelReceived,
         viewModelInstanceViewModelNameReceived,
+        viewModelInstanceNameReceived,
         viewModelsListend,
+        globalViewModelNamesListed,
         viewModelInstanceNamesListed,
         viewModelPropertiesListed,
         viewModelPropertyValueReceived,
@@ -973,20 +1343,27 @@ private:
         audioDeleted,
         fontDecoded,
         fontDeleted,
+        blobDecoded,
+        blobDeleted,
         artboardDeleted,
         viewModelDeleted,
         stateMachineDeleted,
         stateMachineSettled,
+        stateMachineViewModelInstanceReceived,
         semanticsDiffReceived,
         fileAssetsListed,
+        artboardSizeReceived,
         fileError,
         artboardError,
         viewModelError,
         imageError,
         audioError,
         fontError,
+        blobError,
         stateMachineError,
-        artboardVolumeReceived
+        artboardVolumeReceived,
+        hasFocusNodesReceived,
+        focusStateReceived
     };
 
     friend class CommandServer;
@@ -997,6 +1374,7 @@ private:
     uint64_t m_currentArtboardHandleIdx = 0;
     uint64_t m_currentViewModelHandleIdx = 0;
     uint64_t m_currentRenderImageHandleIdx = 0;
+    uint64_t m_currentBlobAssetHandleIdx = 0;
     uint64_t m_currentAudioSourceHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
@@ -1007,7 +1385,11 @@ private:
     ObjectStream<rcp<RenderImage>> m_externalImages;
     ObjectStream<rcp<AudioSource>> m_externalAudioSources;
     ObjectStream<rcp<Font>> m_externalFonts;
+    ObjectStream<rcp<BlobAsset>> m_externalBlobs;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
+#ifdef WITH_RIVE_SCRIPTING
+    ObjectStream<ScriptingContextFactory> m_scriptingContextFactories;
+#endif
     ObjectStream<PointerEvent> m_pointerEvents;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
@@ -1024,6 +1406,7 @@ private:
     RenderImageListener* m_globalImageListener = nullptr;
     AudioSourceListener* m_globalAudioListener = nullptr;
     FontListener* m_globalFontListener = nullptr;
+    BlobAssetListener* m_globalBlobListener = nullptr;
     ArtboardListener* m_globalArtboardListener = nullptr;
     ViewModelInstanceListener* m_globalViewModelListener = nullptr;
     StateMachineListener* m_globalStateMachineListener = nullptr;
@@ -1034,6 +1417,7 @@ private:
     std::unordered_map<AudioSourceHandle, AudioSourceListener*>
         m_audioListeners;
     std::unordered_map<FontHandle, FontListener*> m_fontListeners;
+    std::unordered_map<BlobAssetHandle, BlobAssetListener*> m_blobListeners;
     std::unordered_map<ArtboardHandle, ArtboardListener*> m_artboardListeners;
     std::unordered_map<ViewModelInstanceHandle, ViewModelInstanceListener*>
         m_viewModelListeners;

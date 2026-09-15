@@ -531,9 +531,9 @@ public:
                     {
                         auto dataContext = stateMachineInstance->dataContext();
                         if (dataContext != nullptr &&
-                            dataContext->viewModelInstance() != nullptr)
+                            dataContext->mainViewModelInstance() != nullptr)
                         {
-                            return dataContext->viewModelInstance().get();
+                            return dataContext->mainViewModelInstance().get();
                         }
                         return nullptr;
                     }

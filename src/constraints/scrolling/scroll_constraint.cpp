@@ -36,7 +36,14 @@ float ScrollConstraint::contentWidth()
             contentSize += child->layoutBounds().width();
         }
         auto lenOffset = infinite() ? 0 : 1;
-        return contentSize + gap().x * (scrollChildren().size() - lenOffset);
+        contentSize += gap().x * (scrollChildren().size() - lenOffset);
+        if (!infinite())
+        {
+            // Match the non-virtualized layout width; an infinite carousel's
+            // cycle length stays padding free.
+            contentSize += content()->paddingLeft() + content()->paddingRight();
+        }
+        return contentSize;
     }
     return content()->layoutWidth();
 }
@@ -55,7 +62,12 @@ float ScrollConstraint::contentHeight()
             contentSize += child->layoutBounds().height();
         }
         auto lenOffset = infinite() ? 0 : 1;
-        return contentSize + gap().y * (scrollChildren().size() - lenOffset);
+        contentSize += gap().y * (scrollChildren().size() - lenOffset);
+        if (!infinite())
+        {
+            contentSize += content()->paddingTop() + content()->paddingBottom();
+        }
+        return contentSize;
     }
     return content()->layoutHeight();
 }
@@ -193,6 +205,7 @@ bool ScrollConstraint::mainAxisIsColumn()
 
 void ScrollConstraint::constrain(TransformComponent* component)
 {
+    resolveScrollIntents();
     m_scrollTransform =
         Mat2D::fromTranslate(constrainsHorizontal() ? clampedOffsetX() : 0,
                              constrainsVertical() ? clampedOffsetY() : 0);
@@ -206,8 +219,7 @@ void ScrollConstraint::constrainChild(LayoutNodeProvider* child)
     {
         return;
     }
-    auto targetTransform =
-        Mat2D::multiply(component->worldTransform(), m_scrollTransform);
+    auto targetTransform = offsetInParentFrame(component, m_scrollTransform);
     TransformConstraint::constrainWorld(component,
                                         component->worldTransform(),
                                         m_componentsA,
@@ -247,9 +259,21 @@ void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
     if (m_physics != nullptr)
     {
         m_physics->accumulate(scaledDelta, timeStamp);
+        scrollOffsetX(offsetX() + scaledDelta.x);
+        scrollOffsetY(offsetY() + scaledDelta.y);
+        return;
     }
-    scrollOffsetX(offsetX() + scaledDelta.x);
-    scrollOffsetY(offsetY() + scaledDelta.y);
+    // Without physics nothing ever pulls the stored offset back into range,
+    // so overscroll would accumulate out of view and eat the next drag.
+    float x = offsetX() + scaledDelta.x;
+    float y = offsetY() + scaledDelta.y;
+    if (!infinite())
+    {
+        x = maxOffsetX() > 0 ? 0 : math::clamp(x, maxOffsetX(), 0);
+        y = maxOffsetY() > 0 ? 0 : math::clamp(y, maxOffsetY(), 0);
+    }
+    scrollOffsetX(x);
+    scrollOffsetY(y);
 }
 
 std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
@@ -298,7 +322,8 @@ void ScrollConstraint::runPhysics()
 bool ScrollConstraint::advanceComponent(float elapsedSeconds,
                                         AdvanceFlags flags)
 {
-    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
+    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested ||
+        isCollapsed())
     {
         // offsetX(0);
         // offsetY(0);
@@ -343,6 +368,14 @@ std::vector<DraggableProxy*> ScrollConstraint::draggables()
 void ScrollConstraint::buildDependencies()
 {
     Super::buildDependencies();
+    // draggables() hands the viewport's proxy out as the drag hit target, so it
+    // must be injected into the draw order even if the viewport never paints or
+    // clips. Stamp it here, before the artboard's one-time proxy injection.
+    if (parent() != nullptr && parent()->parent() != nullptr &&
+        parent()->parent()->is<LayoutComponent>())
+    {
+        viewport()->markInteractionTarget();
+    }
     m_hasListChildren = false;
     for (auto child : content()->children())
     {
@@ -411,6 +444,8 @@ StatusCode ScrollConstraint::onAddedDirty(CoreContext* context)
 void ScrollConstraint::initPhysics()
 {
     m_isDragging = true;
+    // User interaction supersedes held intents.
+    clearScrollIntents();
     m_lastFrameOffsetX = scrollOffsetX();
     m_lastFrameOffsetY = scrollOffsetY();
     if (m_physics != nullptr)
@@ -463,16 +498,30 @@ bool ScrollConstraint::scrollActive()
 
 float ScrollConstraint::scrollPercentX()
 {
+    if (m_intentX.space == ScrollSpace::percent)
+    {
+        return m_intentX.value;
+    }
     return maxOffsetX() != 0 ? scrollOffsetX() / maxOffsetXForPercent() : 0;
 }
 
 float ScrollConstraint::scrollPercentY()
 {
+    if (m_intentY.space == ScrollSpace::percent)
+    {
+        return m_intentY.value;
+    }
     return maxOffsetY() != 0 ? scrollOffsetY() / maxOffsetYForPercent() : 0;
 }
 
 float ScrollConstraint::scrollIndex()
 {
+    const ScrollAxisIntent& intent =
+        constrainsHorizontal() ? m_intentX : m_intentY;
+    if (intent.space == ScrollSpace::index)
+    {
+        return intent.value;
+    }
     return indexAtPosition(Vec2D(scrollOffsetX(), scrollOffsetY()));
 }
 
@@ -483,8 +532,7 @@ void ScrollConstraint::setScrollPercentX(float value)
         return;
     }
     stopPhysics();
-    float to = value * maxOffsetXForPercent();
-    scrollOffsetX(to);
+    setIntentX({ScrollSpace::percent, value});
 }
 
 void ScrollConstraint::setScrollPercentY(float value)
@@ -494,8 +542,7 @@ void ScrollConstraint::setScrollPercentY(float value)
         return;
     }
     stopPhysics();
-    float to = value * maxOffsetYForPercent();
-    scrollOffsetY(to);
+    setIntentY({ScrollSpace::percent, value});
 }
 
 void ScrollConstraint::setScrollIndex(float value)
@@ -505,37 +552,165 @@ void ScrollConstraint::setScrollIndex(float value)
         return;
     }
     stopPhysics();
-    Vec2D to = positionAtIndex(value);
     if (constrainsHorizontal())
     {
-        scrollOffsetX(to.x);
+        setIntentX({ScrollSpace::index, value});
     }
-    else if (constrainsVertical())
+    if (constrainsVertical())
     {
-        scrollOffsetY(to.y);
+        setIntentY({ScrollSpace::index, value});
     }
 }
 
-Vec2D ScrollConstraint::positionAtIndex(float index)
+// False while hidden or before the first layout pass on the given axis.
+bool ScrollConstraint::scrollLayoutResolvable(bool isX)
 {
-    if (!std::isfinite(index))
+    auto vp = viewport();
+    if (vp == nullptr)
     {
-        return Vec2D();
+        return false;
+    }
+    return isX ? vp->layoutWidth() > 0 : vp->layoutHeight() > 0;
+}
+
+// Resolved offsets clamp to the scrollable range.
+float ScrollConstraint::clampResolvedOffset(float value, bool isX)
+{
+    if (infinite())
+    {
+        return value;
+    }
+    return math::clamp(value, isX ? maxOffsetX() : maxOffsetY(), 0.0f);
+}
+
+// Convert an intent to an offset; false if layout can't resolve yet.
+bool ScrollConstraint::resolveIntent(const ScrollAxisIntent& intent,
+                                     bool isX,
+                                     float& outOffset)
+{
+    // Non-finite indices resolve to the origin without needing layout.
+    if (intent.space == ScrollSpace::index &&
+        (std::isnan(intent.value) ||
+         (infinite() && !std::isfinite(intent.value))))
+    {
+        outOffset = 0;
+        return true;
+    }
+    // Gate both spaces: virtualized lists compute item bounds from authored
+    // sizes, which resolve even while the viewport layout is collapsed.
+    if (!scrollLayoutResolvable(isX))
+    {
+        return false;
+    }
+    switch (intent.space)
+    {
+        case ScrollSpace::percent:
+        {
+            float contentSize = isX ? contentWidth() : contentHeight();
+            if (contentSize <= 0)
+            {
+                // No measured content — can't resolve.
+                return false;
+            }
+            float maxForPercent =
+                isX ? maxOffsetXForPercent() : maxOffsetYForPercent();
+            outOffset = clampResolvedOffset(intent.value * maxForPercent, isX);
+            return true;
+        }
+        case ScrollSpace::index:
+        {
+            Vec2D to;
+            if (!positionAtIndex(intent.value, to))
+            {
+                return false;
+            }
+            outOffset = clampResolvedOffset(isX ? to.x : to.y, isX);
+            return true;
+        }
+        case ScrollSpace::none:
+            break;
+    }
+    return false;
+}
+
+// Resolve eagerly; unresolved intents are held and retried in constrain().
+void ScrollConstraint::setIntentX(ScrollAxisIntent intent)
+{
+    float resolved;
+    if (!resolveIntent(intent, true, resolved))
+    {
+        m_intentX = intent;
+        return;
+    }
+    m_intentX.space = ScrollSpace::none;
+    scrollOffsetX(resolved);
+}
+
+void ScrollConstraint::setIntentY(ScrollAxisIntent intent)
+{
+    float resolved;
+    if (!resolveIntent(intent, false, resolved))
+    {
+        m_intentY = intent;
+        return;
+    }
+    m_intentY.space = ScrollSpace::none;
+    scrollOffsetY(resolved);
+}
+
+// Retry held intents; called from constrain() where layout is fresh.
+void ScrollConstraint::resolveScrollIntents()
+{
+    if (m_intentX.space != ScrollSpace::none)
+    {
+        setIntentX(m_intentX);
+    }
+    if (m_intentY.space != ScrollSpace::none)
+    {
+        setIntentY(m_intentY);
+    }
+}
+
+bool ScrollConstraint::positionAtIndex(float index, Vec2D& outPosition)
+{
+    if (std::isnan(index) || (infinite() && !std::isfinite(index)))
+    {
+        outPosition = Vec2D();
+        return true;
     }
     auto count = scrollItemCount();
     if (content() == nullptr || count == 0)
     {
-        return Vec2D();
+        return false;
     }
     Vec2D contentGap = gap();
-    float normalizedIndex = infinite() ? std::fmod(index, (float)count) : index;
+    float normalizedIndex;
+    if (infinite())
+    {
+        normalizedIndex = std::fmod(index, (float)count);
+        if (normalizedIndex < 0)
+        {
+            normalizedIndex += (float)count;
+        }
+    }
+    else
+    {
+        normalizedIndex = std::max(index, 0.0f);
+        // Past the last item: target the far end (clamps to max scroll).
+        if (normalizedIndex >= (float)count)
+        {
+            if (contentWidth() <= 0 && contentHeight() <= 0)
+            {
+                // No measured content — can't resolve.
+                return false;
+            }
+            outPosition = Vec2D(-contentWidth(), -contentHeight());
+            return true;
+        }
+    }
     float floorIndex = std::floor(normalizedIndex);
     float mod = normalizedIndex - floorIndex;
     uint32_t targetIndex = (uint32_t)floorIndex;
-    if (targetIndex >= (uint32_t)count)
-    {
-        return Vec2D();
-    }
 
     // No list children: O(1) direct index into scrollChildren.
     if (!m_hasListChildren)
@@ -544,9 +719,10 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
         auto bounds = boundsForFlatIndex(targetIndex);
         if (!isBoundsCollapsed(bounds))
         {
-            return Vec2D(-bounds.left() - (bounds.width() + contentGap.x) * mod,
-                         -bounds.top() -
-                             (bounds.height() + contentGap.y) * mod);
+            outPosition =
+                Vec2D(-bounds.left() - (bounds.width() + contentGap.x) * mod,
+                      -bounds.top() - (bounds.height() + contentGap.y) * mod);
+            return true;
         }
         // Target is collapsed — walk forward to next visible item.
         for (uint32_t k = targetIndex + 1; k < (uint32_t)count; k++)
@@ -554,7 +730,8 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
             auto b = boundsForFlatIndex(k);
             if (!isBoundsCollapsed(b))
             {
-                return Vec2D(-b.left(), -b.top());
+                outPosition = Vec2D(-b.left(), -b.top());
+                return true;
             }
         }
         if (infinite())
@@ -565,7 +742,8 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
                 auto b = boundsForFlatIndex(k);
                 if (!isBoundsCollapsed(b))
                 {
-                    return Vec2D(-b.left(), -b.top());
+                    outPosition = Vec2D(-b.left(), -b.top());
+                    return true;
                 }
             }
         }
@@ -577,11 +755,13 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
                 auto b = boundsForFlatIndex(k);
                 if (!isBoundsCollapsed(b))
                 {
-                    return Vec2D(-b.left(), -b.top());
+                    outPosition = Vec2D(-b.left(), -b.top());
+                    return true;
                 }
             }
         }
-        return Vec2D();
+        // Nothing visible — can't resolve.
+        return false;
     }
 
     // Has list children: single-pass through nested child→node structure.
@@ -618,23 +798,25 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
                 reachedTarget = true;
                 if (!isBoundsCollapsed(bounds))
                 {
-                    return Vec2D(
+                    outPosition = Vec2D(
                         -bounds.left() - (bounds.width() + contentGap.x) * mod,
                         -bounds.top() - (bounds.height() + contentGap.y) * mod);
+                    return true;
                 }
                 continue;
             }
             // Past target: return first visible item found.
             if (!isBoundsCollapsed(bounds))
             {
-                return Vec2D(-bounds.left(), -bounds.top());
+                outPosition = Vec2D(-bounds.left(), -bounds.top());
+                return true;
             }
         }
     }
 
     if (!reachedTarget)
     {
-        return Vec2D();
+        return false;
     }
 
     // No visible item after target.
@@ -653,12 +835,14 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
             {
                 if (flatIndex >= targetIndex)
                 {
-                    return Vec2D();
+                    // Nothing visible — can't resolve.
+                    return false;
                 }
                 auto bounds = child->layoutBoundsForNode(j);
                 if (!isBoundsCollapsed(bounds))
                 {
-                    return Vec2D(-bounds.left(), -bounds.top());
+                    outPosition = Vec2D(-bounds.left(), -bounds.top());
+                    return true;
                 }
             }
         }
@@ -666,10 +850,12 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
     else if (hasVisibleBeforeTarget)
     {
         // End of list: fall back to last visible item before target.
-        return lastVisibleBeforeTarget;
+        outPosition = lastVisibleBeforeTarget;
+        return true;
     }
 
-    return Vec2D();
+    // Nothing visible — can't resolve.
+    return false;
 }
 
 float ScrollConstraint::indexAtPosition(Vec2D pos)
@@ -830,6 +1016,8 @@ Vec2D ScrollConstraint::gap()
 
 void ScrollConstraint::scrollToPosition(float targetX, float targetY)
 {
+    // Direct offset writes supersede held intents.
+    clearScrollIntents();
     if (m_physics == nullptr)
     {
         // No physics, just set offset directly

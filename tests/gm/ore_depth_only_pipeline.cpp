@@ -24,7 +24,8 @@
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_VK) || defined(ORE_BACKEND_WGPU) ||                    \
-    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
+    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12) ||                \
+    defined(ORE_BACKEND_RHI)
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
@@ -36,7 +37,8 @@ using namespace rive;
 using namespace rive::gpu;
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_VK) || defined(ORE_BACKEND_WGPU) ||                    \
-    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
+    defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12) ||                \
+    defined(ORE_BACKEND_RHI)
 using namespace rive::ore;
 #define ORE_DEPTH_ONLY_ACTIVE
 #endif
@@ -67,9 +69,9 @@ public:
         // scope: Pipeline shallow-copies PipelineDesc (mirrors Lua's
         // `ownedVertexLayoutData`), so these must outlive the rcp below.
         // VertexAttribute = { format, offset, shaderSlot }.
-        VertexAttribute attrs[] = {
-            {VertexFormat::float2, 0, 0},
-            {VertexFormat::float4, 8, 1},
+        ore::VertexAttribute attrs[] = {
+            {0, 0, VertexFormat::float2},
+            {8, 1, VertexFormat::float4},
         };
         VertexBufferLayout vbl{};
         vbl.stride = 8 + 16;

@@ -31,6 +31,13 @@ public:
 
     const std::vector<Component*>& children() const { return m_children; }
     virtual void addChild(Component* component);
+#ifdef WITH_RIVE_EDITOR
+    /// Remove `component` from this container's children list, if
+    /// present. Called by `EditorFile::removeObject` during cull
+    /// teardown so the parent doesn't dangle a pointer to freed
+    /// memory. Body in editor_native.
+    void removeChildForEditor(Component* component);
+#endif
     bool collapse(bool value) override;
 
     // Returns whether predicate returns true for the current Component.

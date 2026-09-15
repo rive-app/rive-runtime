@@ -19,7 +19,10 @@ public:
     KeyFrameInterpolator* effectiveInterpolator(
         const LinearAnimationInstance* context) const;
 
-    virtual void apply(Core* object, int propertyKey, float mix) = 0;
+    virtual void apply(Core* object,
+                       int propertyKey,
+                       float mix,
+                       const LinearAnimationInstance* context = nullptr) = 0;
     virtual void applyInterpolation(
         Core* object,
         int propertyKey,

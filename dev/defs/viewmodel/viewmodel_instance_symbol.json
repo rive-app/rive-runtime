@@ -1,9 +1,0 @@
-{
-  "name": "ViewModelInstanceSymbol",
-  "key": {
-    "int": 565,
-    "string": "viewmodelinstancesymbol"
-  },
-  "abstract": true,
-  "extends": "viewmodel/viewmodel_instance_value.json"
-}

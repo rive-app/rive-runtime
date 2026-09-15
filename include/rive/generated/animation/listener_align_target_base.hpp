@@ -2,7 +2,8 @@
 #define _RIVE_LISTENER_ALIGN_TARGET_BASE_HPP_
 #include "rive/animation/listener_action.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class ListenerAlignTargetBase : public ListenerAction
@@ -33,19 +34,20 @@ public:
     static const uint16_t preserveOffsetPropertyKey = 541;
 
 protected:
-    uint32_t m_TargetId = -1;
+    Id m_TargetId = kEmptyId;
     bool m_PreserveOffset = false;
 
 public:
-    inline uint32_t targetId() const { return m_TargetId; }
-    void targetId(uint32_t value)
+    inline Id targetId() const { return m_TargetId; }
+    void targetId(Id value)
     {
         if (m_TargetId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
         m_TargetId = value;
-        targetIdChanged();
+        RIVE_EDITOR_CHANGED(targetIdChanged());
         notifyPropertyChanged(targetIdPropertyKey);
     }
 
@@ -56,8 +58,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(preserveOffsetPropertyKey,
+                             &m_PreserveOffset,
+                             &value);
         m_PreserveOffset = value;
-        preserveOffsetChanged();
+        RIVE_EDITOR_CHANGED(preserveOffsetChanged());
         notifyPropertyChanged(preserveOffsetPropertyKey);
     }
 
@@ -74,7 +79,7 @@ public:
         switch (propertyKey)
         {
             case targetIdPropertyKey:
-                m_TargetId = CoreUintType::deserialize(reader);
+                m_TargetId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case preserveOffsetPropertyKey:
                 m_PreserveOffset = CoreBoolType::deserialize(reader);
@@ -86,6 +91,9 @@ public:
 protected:
     virtual void targetIdChanged() {}
     virtual void preserveOffsetChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/listener_align_target_ext.inl"
+#endif
 };
 } // namespace rive
 

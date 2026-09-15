@@ -2,6 +2,9 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
+#include "rive/data_bind/data_values/data_value_asset_font.hpp"
+#include "rive/data_bind/data_values/data_value_asset_blob.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_integer.hpp"
@@ -62,9 +65,25 @@ void DataBindContextTargetValue::initialize(DataBind* dataBind)
             }
             else if (dataBind->source() != nullptr &&
                      dataBind->source()->coreType() ==
+                         ViewModelInstanceAssetFontBase::typeKey)
+            {
+                m_targetValue = new DataValueAssetFont();
+            }
+            else if (dataBind->source() != nullptr &&
+                     dataBind->source()->coreType() ==
+                         ViewModelInstanceAssetBlobBase::typeKey)
+            {
+                m_targetValue = new DataValueAssetBlob();
+            }
+            else if (dataBind->source() != nullptr &&
+                     dataBind->source()->coreType() ==
                          ViewModelInstanceViewModelBase::typeKey)
             {
                 m_targetValue = new DataValueViewModel();
+            }
+            else if (dataBind->sourceOutputType() == DataType::number)
+            {
+                m_targetValue = new DataValueNumber();
             }
             else
             {
@@ -155,22 +174,50 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
             else if (dataBind->target()->coreType() ==
                      BindablePropertyAssetBase::typeKey)
             {
+                auto bindableAsset =
+                    dataBind->target()->as<BindablePropertyAsset>();
                 auto value = CoreRegistry::getUint(dataBind->target(),
                                                    dataBind->propertyKey());
-                auto fileAsset = dataBind->target()
-                                     ->as<BindablePropertyAsset>()
-                                     ->fileAsset();
                 bool didChange = false;
                 if (updateValue<DataValueInteger, int>(value))
                 {
                     didChange = true;
                 }
-                if (fileAsset->renderImage() !=
-                    m_targetValue->as<DataValueAssetImage>()->imageValue())
+                // BindablePropertyAsset carries either a live image or a live
+                // font; sync whichever matches the target value's kind (the id
+                // above is always synced).
+                if (m_targetValue->is<DataValueAssetImage>())
                 {
-                    m_targetValue->as<DataValueAssetImage>()->imageValue(
-                        fileAsset->renderImage());
-                    didChange = true;
+                    auto image = bindableAsset->fileAsset()->renderImage();
+                    if (image !=
+                        m_targetValue->as<DataValueAssetImage>()->imageValue())
+                    {
+                        m_targetValue->as<DataValueAssetImage>()->imageValue(
+                            image);
+                        didChange = true;
+                    }
+                }
+                else if (m_targetValue->is<DataValueAssetFont>())
+                {
+                    auto font = bindableAsset->fontValue();
+                    if (font !=
+                        m_targetValue->as<DataValueAssetFont>()->fontValue())
+                    {
+                        m_targetValue->as<DataValueAssetFont>()->fontValue(
+                            font);
+                        didChange = true;
+                    }
+                }
+                else if (m_targetValue->is<DataValueAssetBlob>())
+                {
+                    auto blob = bindableAsset->blobValue();
+                    if (blob !=
+                        m_targetValue->as<DataValueAssetBlob>()->blobValue())
+                    {
+                        m_targetValue->as<DataValueAssetBlob>()->blobValue(
+                            blob);
+                        didChange = true;
+                    }
                 }
                 return didChange;
             }
@@ -210,8 +257,28 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
             }
             else
             {
-                auto value = CoreRegistry::getUint(dataBind->target(),
-                                                   dataBind->propertyKey());
+                int32_t value;
+                if (CoreRegistry::isSignedInt(dataBind->propertyKey()))
+                {
+                    value = CoreRegistry::getInt(dataBind->target(),
+                                                 dataBind->propertyKey());
+                }
+                else
+                {
+                    value =
+                        (int32_t)CoreRegistry::getUint(dataBind->target(),
+                                                       dataBind->propertyKey());
+                }
+                // Match whatever target value type initialize() created: a
+                // number source (e.g. a color channel bound to a VM number)
+                // reads back as a DataValueNumber; integer/enum sources stay
+                // DataValueInteger. Keying off the real type keeps the two
+                // methods in lockstep regardless of source-resolution timing.
+                if (m_targetValue != nullptr &&
+                    m_targetValue->is<DataValueNumber>())
+                {
+                    return updateValue<DataValueNumber, float>((float)value);
+                }
                 return updateValue<DataValueInteger, int>(value);
             }
         }

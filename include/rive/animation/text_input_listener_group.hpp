@@ -31,6 +31,8 @@ public:
         float timeStamp,
         StateMachineInstance* stateMachineInstance) override;
 
+    bool cancelPointer(int pointerId, Vec2D position, float timeStamp) override;
+
 private:
     // Returns a timestamp in microseconds for multi-click detection. Uses the
     // passed-in (deterministic) timeStamp when File::deterministicMode is set,
@@ -38,7 +40,10 @@ private:
     long long nowMicros(float timeStamp) const;
 
     TextInput* m_textInput;
-    bool m_isDragging = false;
+    // The pointer that owns the in-flight drag, or -1. Held by id rather than
+    // as a bool: cancellation walks every tracked pointer, and only the one
+    // that started the drag may end it.
+    int m_draggingPointerId = -1;
 
     // Multi-click (double/triple-click) detection state.
     int m_clickCount = 0;

@@ -4,9 +4,11 @@
 
 #include "rive_render_path.hpp"
 
+#include "gr_inner_fan_triangulator.hpp"
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/rive_renderer.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
 
@@ -99,6 +101,7 @@ void RiveRenderPath::addRenderPath(const RenderPath* path, const Mat2D& matrix)
 void RiveRenderPath::addRenderPathBackwards(const RenderPath* path,
                                             const Mat2D& transform)
 {
+    assert(m_rawPathMutationLockCount == 0);
     auto riveRenderPath = static_cast<const RiveRenderPath*>(path);
     RawPath::Iter transformedPathIter =
         m_rawPath.addPathBackwards(riveRenderPath->m_rawPath, &transform);
@@ -112,7 +115,9 @@ void RiveRenderPath::addRenderPathBackwards(const RenderPath* path,
 
 void RiveRenderPath::addRawPath(const RawPath& path)
 {
+    assert(m_rawPathMutationLockCount == 0);
     m_rawPath.addPath(path, nullptr);
+    m_dirt = kAllDirt;
 }
 
 const AABB& RiveRenderPath::getBounds() const
@@ -151,6 +156,79 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
         m_dirt &= ~kRawPathMutationIDDirt;
     }
     return m_rawPathMutationID;
+}
+
+// Initial block size for a path's cached-triangulation allocator. Kept small
+// since it holds a single path's inner-fan mesh; it grows fibonacci-style if
+// the triangulation needs more.
+constexpr static size_t TriangulatorInitialBlockSize = 512;
+
+GrInnerFanTriangulator* RiveRenderPath::cachedTriangulator() const
+{
+    if (m_cachedTriangulatorMutationID == getRawPathMutationID())
+    {
+        return m_cachedTriangulator;
+    }
+    if (m_cachedTriangulator != nullptr)
+    {
+        // Mutation IDs only ever increase, so this triangulation can never
+        // become current again. Free the memory now.
+        m_cachedTriangulator = nullptr;
+
+        // Make sure no queued draw is holding this mesh before we reset the
+        // allocator. Otherwise, the draw would be left with dangling pointers.
+        // (It shouldn't happen -- the mutation that made this stale would have
+        // had to happen under that same lock.)
+        assert(m_rawPathMutationLockCount == 0);
+        assert(m_triangulatorAllocator != nullptr);
+        m_triangulatorAllocator->reset();
+    }
+    return nullptr;
+}
+
+GrInnerFanTriangulator* RiveRenderPath::createTriangulator(
+    TrivialBlockAllocator& perFrameAllocator) const
+{
+    // Call cachedTriangulator() first and only come here on a miss. It frees
+    // whatever it found stale, which is what leaves the allocator empty for us
+    // here. We only reset the allocator in cachedTriangulator() because it can
+    // guarantee m_rawPathMutationLockCount == 0.
+    assert(m_cachedTriangulator == nullptr);
+    assert(m_triangulatorAllocator == nullptr ||
+           m_triangulatorAllocator->empty());
+
+    const uint64_t mutationID = getRawPathMutationID();
+    if (m_triangulatorFirstSightingMutationID != mutationID)
+    {
+        // First sighting of this geometry. It may never be drawn again -- an
+        // animating path gets a fresh mutation ID every frame -- so build a
+        // throwaway rather than committing storage that outlives the frame.
+        m_triangulatorFirstSightingMutationID = mutationID;
+        return perFrameAllocator.make<GrInnerFanTriangulator>(
+            m_rawPath,
+            getBounds(),
+            &perFrameAllocator);
+    }
+    else
+    {
+        // Second sighting: the same geometry has now been requested twice, so
+        // it's worth triangulating into persistent storage that outlives the
+        // frame.
+        if (m_triangulatorAllocator == nullptr)
+        {
+            m_triangulatorAllocator = std::make_unique<TrivialBlockAllocator>(
+                TriangulatorInitialBlockSize);
+        }
+        assert(m_triangulatorAllocator->empty());
+
+        m_cachedTriangulator =
+            m_triangulatorAllocator->make<GrInnerFanTriangulator>(
+                m_rawPath,
+                getBounds(),
+                m_triangulatorAllocator.get());
+        m_cachedTriangulatorMutationID = mutationID;
+        return m_cachedTriangulator;
+    }
 }
 
 // Chops the cubic definfed by p[4] at 'numChops' locations, each defined by
@@ -255,7 +333,8 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     // Since curvature is what breaks 1-dimensional feathering along the normal
     // vector, chop into segments that rotate no more than a certain threshold.
     constexpr static int POLAR_JOIN_PRECISION = 2;
-    float r_ = feather * (FEATHER_TEXTURE_STDDEVS / 2) * matrixMaxScale * .25f;
+    float r_ = feather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2) *
+               matrixMaxScale * .25f;
     float polarSegmentsPerRadian =
         math::calc_polar_segments_per_radian<POLAR_JOIN_PRECISION>(r_);
     float rotationBetweenJoins = 1 / polarSegmentsPerRadian;
@@ -369,4 +448,59 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     }
     return make_rcp<RiveRenderPath>(m_fillRule, featheredPath);
 }
+
+float RiveRenderPath::calculateBoundsOutset(
+    const std::optional<StrokeParams>& stroke,
+    float feather)
+{
+    float outset = 0.0f;
+    if (stroke.has_value())
+    {
+        outset = stroke->thickness * .5f;
+        if (stroke->join == StrokeJoin::miter)
+        {
+            // Miter joins may be longer than the stroke radius.
+            outset *= RIVE_MITER_LIMIT;
+        }
+        else if (stroke->cap == StrokeCap::square)
+        {
+            // The diagonal of a square cap is longer than the stroke
+            // radius.
+            outset *= math::SQRT2;
+        }
+    }
+    if (feather != 0.0f)
+    {
+        outset += gpu::featherRadiusFromFeather(feather);
+    }
+    return outset;
+}
+
+IAABB RiveRenderPath::calculatePixelBounds(
+    const Mat2D& matrix,
+    const std::optional<StrokeParams>& stroke,
+    float feather) const
+{
+    AABB mappedBounds = matrix.mapBoundingBox(getRawPath().points());
+
+    assert(mappedBounds.width() >= 0);
+    assert(mappedBounds.height() >= 0);
+    if (stroke.has_value() || feather != 0.0f)
+    {
+        // Outset the path's bounding box to account for stroking &
+        // feathering.
+        float outset = calculateBoundsOutset(stroke, feather);
+        AABB strokePixelOutset = matrix.mapBoundingBox({0, 0, outset, outset});
+        // Add an extra pixel to the stroke outset radius to account for:
+        //   * Butt caps and bevel joins bleed out 1/2 AA width.
+        //   * With Manhattan sytle AA, an AA width can be as large as
+        //   sqrt(2).
+        //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
+        mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
+                                           strokePixelOutset.height() + 1);
+    }
+
+    return mappedBounds.roundOut();
+}
+
 } // namespace rive

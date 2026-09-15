@@ -28,6 +28,23 @@ TextInputListenerGroup::TextInputListenerGroup(
     ListenerGroup(nullptr), m_textInput(textInput)
 {}
 
+// processEvent ends the drag when it sees down -> clicked/out. Cancellation
+// clears the phase itself, so that transition never reaches it and the text
+// input would stay in its dragging state; end it here instead.
+bool TextInputListenerGroup::cancelPointer(int pointerId,
+                                           Vec2D position,
+                                           float timeStamp)
+{
+    bool wasDragging =
+        ListenerGroup::cancelPointer(pointerId, position, timeStamp);
+    if (m_draggingPointerId == pointerId)
+    {
+        m_textInput->endDrag(position);
+        m_draggingPointerId = -1;
+    }
+    return wasDragging;
+}
+
 ProcessEventResult TextInputListenerGroup::processEvent(
     Component* component,
     Vec2D position,
@@ -95,7 +112,7 @@ ProcessEventResult TextInputListenerGroup::processEvent(
         m_lastClickPosition = position;
 
         m_textInput->startDrag(position);
-        m_isDragging = true;
+        m_draggingPointerId = pointerId;
 
         auto* manager = stateMachineInstance->focusManager();
         if (manager != nullptr)
@@ -128,7 +145,8 @@ ProcessEventResult TextInputListenerGroup::processEvent(
     }
     // Handle drag continue: pointer is moving while down
     else if (hitEvent == ListenerType::move &&
-             newPhase == GestureClickPhase::down && m_isDragging)
+             newPhase == GestureClickPhase::down &&
+             m_draggingPointerId == pointerId)
     {
         m_textInput->drag(position);
         return ProcessEventResult::scroll;
@@ -138,10 +156,10 @@ ProcessEventResult TextInputListenerGroup::processEvent(
              (newPhase == GestureClickPhase::clicked ||
               newPhase == GestureClickPhase::out))
     {
-        if (m_isDragging)
+        if (m_draggingPointerId == pointerId)
         {
             m_textInput->endDrag(position);
-            m_isDragging = false;
+            m_draggingPointerId = -1;
         }
     }
 

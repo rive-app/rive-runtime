@@ -27,6 +27,7 @@ protected:
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
+
     void invalidateEffects(StrokeEffect* effect) override;
     void invalidateEffects() override;
     virtual void invalidateRendering();
@@ -79,6 +80,26 @@ public:
 
     void feather(Feather* feather);
     Feather* feather() const;
+#ifdef WITH_RIVE_EDITOR
+    /// Set the feather pointer in editor mode (idempotent).
+    void setFeatherForEditor(Feather* f) { m_feather = f; }
+    /// Clear m_feather only if it currently points at `expected`.
+    void clearFeatherIfForEditor(Feather* expected)
+    {
+        if (m_feather == expected)
+        {
+            m_feather = nullptr;
+        }
+    }
+    // Edit-time reparent/remove dispatch — registers this paint into
+    // the new parent's `m_ShapePaints` and removes from the old
+    // parent's. Without this, removing a Fill/Stroke leaves a stale
+    // pointer in the host Shape's m_ShapePaints, which `buildDeps`
+    // and `pathChanged` iterate and crash on. Body in
+    // `component_parent_editor.cpp`.
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
 
     virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
     void update(ComponentDirt value) override;
@@ -87,7 +108,15 @@ public:
     TransformComponent* parentTransformComponent() const;
 
 private:
+    /// Install (or clear) the modulating image contributed by the optional
+    /// PaintImage child onto m_RenderPaint, fit to [bounds].
+    void applyModulatedImage(const AABB& bounds);
+
     Feather* m_feather = nullptr;
+    /// Whether the last draw installed a modulating image on m_RenderPaint. The
+    /// paint persists across draws, so we track this to clear it once the
+    /// PaintImage child (or its asset) goes away.
+    bool m_hasModulatedImage = false;
 };
 } // namespace rive
 

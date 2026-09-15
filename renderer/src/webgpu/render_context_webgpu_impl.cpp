@@ -23,8 +23,10 @@
 #include "generated/shaders/wgsl/color_ramp.vert.hpp"
 #include "generated/shaders/wgsl/color_ramp.frag.hpp"
 #include "generated/shaders/wgsl/tessellate.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/tessellate.webgpu_nossbo_vert.hpp"
 #include "generated/shaders/wgsl/tessellate.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/render_atlas.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/render_atlas.webgpu_nossbo_vert.hpp"
 #include "generated/shaders/wgsl/render_atlas_fill.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/render_atlas_stroke.webgpu_frag.hpp"
 
@@ -52,21 +54,25 @@
 #include "generated/shaders/wgsl/atomic_init.webgpu_frag.hpp"
 #include "generated/shaders/wgsl/atomic_init.webgpu_fixedcolor_frag.hpp"
 
-// InterlockMode::msaa shaders.
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_path.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_atlas_blit.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_noclipdistance_vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_image_mesh.webgpu_fixedcolor_frag.hpp"
-#include "generated/shaders/wgsl/draw_msaa_stencil.vert.hpp"
-#include "generated/shaders/wgsl/draw_msaa_stencil.frag.hpp"
+// InterlockMode::depthStencil shaders.
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_nossbo_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_nossbo_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_atlas_blit.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_image_mesh.webgpu_fixedcolor_frag.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_triangles_nocolor.vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_triangles_nocolor.frag.hpp"
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
@@ -74,8 +80,6 @@
 
 #ifdef RIVE_WEBGPU
 #include <webgpu/webgpu_cpp.h>
-#include <emscripten.h>
-#include <emscripten/html5.h>
 #if RIVE_WEBGPU == 1
 #include "webgpu_compat.h"
 #endif
@@ -106,18 +110,7 @@ static WGPUOptionalBool wgpu_bool(bool value)
 
 constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
 
-constexpr static uint32_t MSAA_SAMPLE_COUNT = 4u;
-
-constexpr static WGPUBlendComponent BLEND_COMPONENT_SRC_OVER = {
-    .operation = WGPUBlendOperation_Add,
-    .srcFactor = WGPUBlendFactor_One,
-    .dstFactor = WGPUBlendFactor_OneMinusSrcAlpha,
-};
-
-constexpr static WGPUBlendState BLEND_STATE_SRC_OVER = {
-    .color = BLEND_COMPONENT_SRC_OVER,
-    .alpha = BLEND_COMPONENT_SRC_OVER,
-};
+constexpr static uint32_t MSAASampleCount = 4u;
 
 constexpr static WGPUStencilFaceState STENCIL_FACE_STATE_DISABLED = {
     .compare = WGPUCompareFunction_Always,
@@ -183,9 +176,9 @@ static WGPUStencilFaceState wgpu_stencil_face_state(
 {
     return {
         .compare = wgpu_compare_function(face.compareOp),
-        .failOp = wgpu_stencil_operation(face.failOp),
+        .failOp = wgpu_stencil_operation(face.stencilFailOp),
         .depthFailOp = wgpu_stencil_operation(face.depthFailOp),
-        .passOp = wgpu_stencil_operation(face.passOp),
+        .passOp = wgpu_stencil_operation(face.depthStencilPassOp),
     };
 }
 
@@ -249,11 +242,12 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 }
 
 #ifdef RIVE_WAGYU
+#include "rive/renderer/gl/load_store_actions_ext.hpp"
+
 #include <webgpu/webgpu_wagyu.h>
 
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
-#include "generated/shaders/image_draw_uniforms.glsl.hpp"
 #include "generated/shaders/flush_uniforms.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
@@ -268,17 +262,12 @@ static wgpu::ShaderModule compile_shader_module_wgsl(
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
+#include "generated/shaders/gradient_packing_common.glsl.hpp"
 
 // When compiling "glslRaw" shaders, the WebGPU driver will automatically search
 // for a uniform with this name and update its value when draw commands have a
 // base instance.
 constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
-
-EM_JS(int, gl_max_vertex_shader_storage_blocks, (), {
-    const version = globalThis.nrdp ?.version || navigator.getNrdpVersion();
-    return version.libraries.opengl.options.limits
-        .GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS;
-});
 
 static wgpu::ShaderModule compile_shader_module_wagyu(
     wgpu::Device device,
@@ -308,7 +297,7 @@ static bool using_pls(rive::gpu::InterlockMode interlockMode)
             return true;
         case rive::gpu::InterlockMode::atomics:
         case rive::gpu::InterlockMode::clockwiseAtomic:
-        case rive::gpu::InterlockMode::msaa:
+        case rive::gpu::InterlockMode::depthStencil:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -479,7 +468,6 @@ public:
                         .type = wgpu::BufferBindingType::Uniform,
                     },
             },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PATH_BUFFER_IDX,
@@ -490,7 +478,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PATH_BUFFER_IDX,
                     .visibility = pathStorageVisibility,
@@ -499,7 +486,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_BUFFER_IDX,
@@ -510,7 +496,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_BUFFER_IDX,
                     .visibility = paintStorageVisibility,
@@ -519,7 +504,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_AUX_BUFFER_IDX,
@@ -531,7 +515,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = PAINT_AUX_BUFFER_IDX,
                     .visibility = paintStorageVisibility,
@@ -540,7 +523,6 @@ public:
                             .type = wgpu::BufferBindingType::ReadOnlyStorage,
                         },
                 },
-#ifdef RIVE_WAGYU
             impl->m_capabilities.polyfillVertexStorageBuffers ?
                 wgpu::BindGroupLayoutEntry{
                     .binding = CONTOUR_BUFFER_IDX,
@@ -551,7 +533,6 @@ public:
                             .viewDimension = wgpu::TextureViewDimension::e2D,
                         },
                 } :
-#endif
                 wgpu::BindGroupLayoutEntry{
                     .binding = CONTOUR_BUFFER_IDX,
                     .visibility = wgpu::ShaderStage::Vertex,
@@ -561,7 +542,7 @@ public:
                         },
                 },
             {
-                .binding = FEATHER_TEXTURE_IDX,
+                .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
                 .visibility =
                     wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .texture =
@@ -580,7 +561,7 @@ public:
                     },
             },
             {
-                .binding = ATLAS_TEXTURE_IDX,
+                .binding = FEATHER_ATLAS_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .texture =
                     {
@@ -598,17 +579,6 @@ public:
                     },
             },
             {
-                .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                .visibility =
-                    wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                .buffer =
-                    {
-                        .type = wgpu::BufferBindingType::Uniform,
-                        .hasDynamicOffset = true,
-                        .minBindingSize = sizeof(gpu::ImageDrawUniforms),
-                    },
-            },
-            {
                 .binding = DST_COLOR_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .texture =
@@ -618,7 +588,7 @@ public:
                     },
             },
         }};
-        static_assert(DRAW_BINDINGS_COUNT == 11);
+        static_assert(DRAW_BINDINGS_COUNT == 10);
 
         wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
             .entryCount = DRAW_BINDINGS_COUNT,
@@ -728,13 +698,13 @@ public:
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
             {
-                .binding = FEATHER_TEXTURE_IDX,
+                .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
                 .visibility =
                     wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
             {
-                .binding = ATLAS_TEXTURE_IDX,
+                .binding = FEATHER_ATLAS_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .sampler = {.type = wgpu::SamplerBindingType::Filtering},
             },
@@ -818,7 +788,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -955,7 +925,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -993,9 +963,11 @@ public:
         else
 #endif
         {
-            vertexShaderModule =
-                compile_shader_module_wgsl(device,
-                                           wgsl::tessellate_webgpu_vert);
+            vertexShaderModule = compile_shader_module_wgsl(
+                device,
+                impl->m_capabilities.polyfillVertexStorageBuffers
+                    ? wgsl::tessellate_webgpu_nossbo_vert
+                    : wgsl::tessellate_webgpu_vert);
             fragmentShaderModule =
                 compile_shader_module_wgsl(device,
                                            wgsl::tessellate_webgpu_frag);
@@ -1078,17 +1050,17 @@ private:
 };
 
 // Renders tessellated vertices to the tessellation texture.
-class RenderContextWebGPUImpl::AtlasPipeline
+class RenderContextWebGPUImpl::FeatherAtlasPipeline
 {
 public:
-    AtlasPipeline(RenderContextWebGPUImpl* impl)
+    FeatherAtlasPipeline(RenderContextWebGPUImpl* impl)
     {
         const wgpu::Device device = impl->device();
         const auto& drawPipelineLayout =
             impl->drawPipelineLayout(gpu::InterlockMode::rasterOrdering);
 
         wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
-            .entryCount = ATLAS_BINDINGS_COUNT,
+            .entryCount = FEATHER_ATLAS_BINDINGS_COUNT,
             .entries = drawPipelineLayout.perFlushBindingLayoutEntries(),
         };
 
@@ -1116,7 +1088,7 @@ public:
         if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
             // Rive shaders tend to be long and prone to vendor bugs in the
-            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // compiler. Instead of wgsl, send down the raw Rive GLSL sources,
             // which have various workarounds for known issues and are tested
             // regularly.
             std::ostringstream glsl;
@@ -1173,9 +1145,11 @@ public:
         else
 #endif
         {
-            vertexShaderModule =
-                compile_shader_module_wgsl(device,
-                                           wgsl::render_atlas_webgpu_vert);
+            vertexShaderModule = compile_shader_module_wgsl(
+                device,
+                impl->m_capabilities.polyfillVertexStorageBuffers
+                    ? wgsl::render_atlas_webgpu_nossbo_vert
+                    : wgsl::render_atlas_webgpu_vert);
             fillFragmentShaderModule =
                 compile_shader_module_wgsl(device,
                                            wgsl::render_atlas_fill_webgpu_frag);
@@ -1274,6 +1248,7 @@ public:
                  gpu::InterlockMode interlockMode,
                  gpu::ShaderMiscFlags shaderMiscFlags,
                  const gpu::PipelineState& pipelineState,
+                 bool msaa,
                  bool targetIsGLFBO0)
     {
         const bool fixedFunctionColorOutput =
@@ -1357,8 +1332,8 @@ public:
                     case DrawType::interiorTriangulation:
                         addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
                         break;
-                    case DrawType::atlasBlit:
-                        addDefine(GLSL_ATLAS_BLIT);
+                    case DrawType::featherAtlasBlit:
+                        addDefine(GLSL_FEATHER_ATLAS_BLIT);
                         break;
                     case DrawType::imageRect:
                         addDefine(GLSL_DRAW_IMAGE);
@@ -1369,20 +1344,26 @@ public:
                         addDefine(GLSL_DRAW_IMAGE);
                         addDefine(GLSL_DRAW_IMAGE_MESH);
                         break;
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                     case DrawType::renderPassInitialize:
                     case DrawType::renderPassResolve:
                         RIVE_UNREACHABLE();
                         break;
                 }
-                for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
+                for (size_t i = 0; i < gpu::ShaderFeatureCount; ++i)
                 {
                     const auto feature = ShaderFeatures(1 << i);
                     if (enums::is_flag_set(shaderFeatures, feature))
@@ -1427,6 +1408,7 @@ public:
                     case DrawType::outerCurvePatches:
                     case DrawType::interiorTriangulation:
                         glsl << gpu::glsl::draw_path_common << '\n';
+                        glsl << gpu::glsl::gradient_packing_common << '\n';
                         glsl << gpu::glsl::draw_path_vert << '\n';
                         if (interlockMode == gpu::InterlockMode::rasterOrdering)
                         {
@@ -1445,24 +1427,30 @@ public:
                                  << '\n';
                         }
                         break;
-                    case DrawType::atlasBlit:
+                    case DrawType::featherAtlasBlit:
                         glsl << gpu::glsl::draw_path_common << '\n';
+                        glsl << gpu::glsl::gradient_packing_common << '\n';
                         glsl << gpu::glsl::draw_path_vert << '\n';
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;
                     case DrawType::imageMesh:
-                        glsl << gpu::glsl::image_draw_uniforms << '\n';
                         glsl << gpu::glsl::draw_image_mesh_vert << '\n';
                         glsl << gpu::glsl::draw_mesh_frag << '\n';
                         break;
                     case DrawType::imageRect:
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                     case DrawType::renderPassInitialize:
                     case DrawType::renderPassResolve:
@@ -1519,7 +1507,7 @@ public:
                                       atomic_draw_interior_triangles_webgpu_frag;
                         break;
 
-                    case DrawType::atlasBlit:
+                    case DrawType::featherAtlasBlit:
                         vertexShader =
                             &wgsl::atomic_draw_atlas_blit_webgpu_vert;
                         fragmentShader =
@@ -1580,20 +1568,26 @@ public:
                                 : &wgsl::atomic_init_webgpu_frag;
                         break;
 
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                    case DrawType::msaaOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
                     case DrawType::clipReset:
                         RIVE_UNREACHABLE();
                 }
                 break;
             }
 
-            case gpu::InterlockMode::msaa:
+            case gpu::InterlockMode::depthStencil:
             {
                 switch (drawType)
                 {
@@ -1602,67 +1596,113 @@ public:
                     case DrawType::outerCurvePatches:
                         RIVE_UNREACHABLE();
 
-                    case DrawType::msaaOuterCubics:
-                    case DrawType::msaaStrokes:
-                    case DrawType::msaaMidpointFanBorrowedCoverage:
-                    case DrawType::msaaMidpointFans:
-                    case DrawType::msaaMidpointFanStencilReset:
-                    case DrawType::msaaMidpointFanPathsStencil:
-                    case DrawType::msaaMidpointFanPathsCover:
-                        vertexShader =
-                            enums::is_flag_set(shaderFeatures,
-                                               ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_path_webgpu_vert
-                                : &wgsl::
-                                      draw_msaa_path_webgpu_noclipdistance_vert;
-                        fragmentShader =
-                            fixedFunctionColorOutput
-                                ? &wgsl::draw_msaa_path_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_path_webgpu_frag;
-                        break;
-
-                    case DrawType::clipReset:
-                        vertexShader = &wgsl::draw_msaa_stencil_vert;
-                        fragmentShader = &wgsl::draw_msaa_stencil_frag;
-                        break;
-
-                    case DrawType::interiorTriangulation:
-                        // Interior triangulation is not yet implemented for
-                        // MSAA.
-                        RIVE_UNREACHABLE();
-                        break;
-
-                    case DrawType::atlasBlit:
-                        vertexShader =
-                            enums::is_flag_set(shaderFeatures,
-                                               ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_atlas_blit_webgpu_vert
-                                : &wgsl::
-                                      draw_msaa_atlas_blit_webgpu_noclipdistance_vert;
+                    case DrawType::stencilOuterCubicBorrowedCoverage:
+                    case DrawType::stencilOuterCubicReset:
+                    case DrawType::stencilOuterCubicWinding:
+                    case DrawType::stencilOuterCubicCover:
+                    case DrawType::stencilOuterCubics:
+                    case DrawType::depthStrokes:
+                    case DrawType::stencilMidpointFanBorrowedCoverage:
+                    case DrawType::stencilDynamicMidpointFans:
+                    case DrawType::stencilDynamicOuterCubics:
+                    case DrawType::stencilMidpointFans:
+                    case DrawType::stencilMidpointFanReset:
+                    case DrawType::stencilMidpointFanWinding:
+                    case DrawType::stencilMidpointFanCover:
+                        if (context->m_capabilities
+                                .polyfillVertexStorageBuffers)
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::
+                                          draw_depthstencil_path_webgpu_nossbo_vert
+                                    : &wgsl::
+                                          draw_depthstencil_path_webgpu_nossbo_noclipdistance_vert;
+                        }
+                        else
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::draw_depthstencil_path_webgpu_vert
+                                    : &wgsl::
+                                          draw_depthstencil_path_webgpu_noclipdistance_vert;
+                        }
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::
-                                      draw_msaa_atlas_blit_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_atlas_blit_webgpu_frag;
+                                      draw_depthstencil_path_webgpu_fixedcolor_frag
+                                : &wgsl::draw_depthstencil_path_webgpu_frag;
+                        break;
+
+                    case DrawType::clipReset:
+                        vertexShader =
+                            &wgsl::draw_depthstencil_triangles_nocolor_vert;
+                        fragmentShader =
+                            &wgsl::draw_depthstencil_triangles_nocolor_frag;
+                        break;
+
+                    case DrawType::interiorTriangulation:
+                        // depthStencil interior triangles are smuggled in with
+                        // outerCubic patches instead of using the
+                        // interiorTriangulation draw type.
+                        RIVE_UNREACHABLE();
+                        break;
+
+                    case DrawType::featherAtlasBlit:
+                        if (context->m_capabilities
+                                .polyfillVertexStorageBuffers)
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::
+                                          draw_depthstencil_atlas_blit_webgpu_nossbo_vert
+                                    : &wgsl::
+                                          draw_depthstencil_atlas_blit_webgpu_nossbo_noclipdistance_vert;
+                        }
+                        else
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::
+                                          draw_depthstencil_atlas_blit_webgpu_vert
+                                    : &wgsl::
+                                          draw_depthstencil_atlas_blit_webgpu_noclipdistance_vert;
+                        }
+                        fragmentShader =
+                            fixedFunctionColorOutput
+                                ? &wgsl::
+                                      draw_depthstencil_atlas_blit_webgpu_fixedcolor_frag
+                                : &wgsl::
+                                      draw_depthstencil_atlas_blit_webgpu_frag;
                         break;
 
                     case DrawType::imageMesh:
                         vertexShader =
                             enums::is_flag_set(shaderFeatures,
                                                ShaderFeatures::ENABLE_CLIP_RECT)
-                                ? &wgsl::draw_msaa_image_mesh_webgpu_vert
+                                ? &wgsl::
+                                      draw_depthstencil_image_mesh_webgpu_vert
                                 : &wgsl::
-                                      draw_msaa_image_mesh_webgpu_noclipdistance_vert;
+                                      draw_depthstencil_image_mesh_webgpu_noclipdistance_vert;
                         fragmentShader =
                             fixedFunctionColorOutput
                                 ? &wgsl::
-                                      draw_msaa_image_mesh_webgpu_fixedcolor_frag
-                                : &wgsl::draw_msaa_image_mesh_webgpu_frag;
+                                      draw_depthstencil_image_mesh_webgpu_fixedcolor_frag
+                                : &wgsl::
+                                      draw_depthstencil_image_mesh_webgpu_frag;
                         break;
 
                     case DrawType::renderPassInitialize:
-                        // MSAA render passes get initialized by drawing the
-                        // previous contents into the framebuffer.
+                        // depthStencil render passes get initialized by drawing
+                        // the previous contents into the framebuffer.
                         // (LoadAction::preserveRenderTarget only.)
                         vertexShader =
                             &wgsl::blit_texture_as_draw_filtered_webgpu_vert;
@@ -1712,7 +1752,8 @@ public:
                                           fragmentModule,
                                           vertexShader,
                                           fragmentShader,
-                                          pipelineState);
+                                          pipelineState,
+                                          msaa);
         }
     }
 
@@ -1780,6 +1821,15 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_device(device), m_queue(queue), m_contextOptions(contextOptions)
 {
     wgpu::Limits deviceLimits = {};
+    // CompatibilityModeLimits (and compatibility mode itself) don't exist on
+    // legacy WebGPU v1.
+#if RIVE_WEBGPU > 1
+    wgpu::CompatibilityModeLimits compatModeLimits = {};
+    if (contextOptions.compatibilityMode)
+    {
+        deviceLimits.nextInChain = &compatModeLimits;
+    }
+#endif
     const bool deviceLimitsValid = m_device.GetLimits(&deviceLimits);
 
 #ifdef RIVE_WAGYU
@@ -1804,16 +1854,44 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         m_platformFeatures.supportsClockwiseFixedFunctionMode =
             m_capabilities.GL_EXT_shader_pixel_local_storage2;
     }
+#endif
 
-    // Compatibility workarounds.
-    if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
-        gl_max_vertex_shader_storage_blocks() < 4)
+    uint32_t maxStorageBuffersInVertexStage = wgpu::kLimitU32Undefined;
+    if (deviceLimitsValid)
     {
-        // Rive requires 4 storage buffers in the vertex shader. Polyfill them
-        // if the hardware doesn't support this.
+        maxStorageBuffersInVertexStage =
+#if RIVE_WEBGPU > 1
+            m_contextOptions.compatibilityMode
+                // In compatibility mode, the vertex stage has its own
+                // storage-buffer limit.
+                ? compatModeLimits.maxStorageBuffersInVertexStage
+                :
+#endif
+                // Outside compatibility mode, there's no such split:
+                // maxStorageBuffersPerShaderStage applies to every stage,
+                // vertex included
+                deviceLimits.maxStorageBuffersPerShaderStage;
+    }
+    if (maxStorageBuffersInVertexStage == wgpu::kLimitU32Undefined)
+    {
+        maxStorageBuffersInVertexStage =
+#if RIVE_WEBGPU > 1
+            m_contextOptions.compatibilityMode
+                ? 0 // Compat mode doesn't guarantee any vertex storage buffers.
+                :
+#endif
+                8; // Core WebGPU guarantees at least 8 buffers per stage.
+    }
+    if (maxStorageBuffersInVertexStage < gpu::kMaxStorageBuffers)
+    {
+        // Rive uses storage buffers in the vertex shader. Polyfill them via
+        // textures if the device doesn't support a sufficient number of
+        // vertex-stage storage buffers.
+#if RIVE_WEBGPU > 1
+        assert(m_contextOptions.compatibilityMode);
+#endif
         m_capabilities.polyfillVertexStorageBuffers = true;
     }
-#endif
 
     // InterlockMode::atomics binds the color, clip, and coverage PLS planes as
     // storage buffers in the fragment stage. Only advertise support for atomic
@@ -1826,6 +1904,18 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
             "WARNING: atomic mode disabled because deviceLimits.maxStorageBuffersPerShaderStage is not at least 3.");
     }
     m_platformFeatures.atomicPLSInitNeedsDraw = true;
+
+#ifdef RIVE_WAGYU
+    // We can only use advanced blend if the client enabled it when setting up
+    // the device.
+    m_platformFeatures.supportsBlendAdvancedKHR =
+        m_platformFeatures.supportsBlendAdvancedCoherentKHR =
+            m_device.HasFeature(static_cast<wgpu::FeatureName>(
+                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+#endif
+
+    m_platformFeatures.supportsClipPlanes =
+        m_device.HasFeature(wgpu::FeatureName::ClipDistances);
 
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
@@ -1888,11 +1978,11 @@ void RenderContextWebGPUImpl::initGPUObjects()
             .sampler = m_linearSampler,
         },
         {
-            .binding = FEATHER_TEXTURE_IDX,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
             .sampler = m_linearSampler,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
             .sampler = m_linearSampler,
         },
     };
@@ -1992,16 +2082,18 @@ void RenderContextWebGPUImpl::initGPUObjects()
            sizeof(gpu::kImageRectIndices));
     m_imageRectIndexBuffer.Unmap();
 
-    wgpu::TextureDescriptor featherTextureDesc = {
+    wgpu::TextureDescriptor gaussianIntegralTextureDesc = {
         .usage =
             wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
         .dimension = wgpu::TextureDimension::e2D,
-        .size = {gpu::GAUSSIAN_TABLE_SIZE, FEATHER_TEXTURE_1D_ARRAY_LENGTH},
+        .size = {gpu::GAUSSIAN_TABLE_SIZE,
+                 GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH},
         .format = wgpu::TextureFormat::R16Float,
     };
 
-    m_featherTexture = m_device.CreateTexture(&featherTextureDesc);
-    wgpu::TexelCopyTextureInfo dest = {.texture = m_featherTexture};
+    m_gaussianIntegralTexture =
+        m_device.CreateTexture(&gaussianIntegralTextureDesc);
+    wgpu::TexelCopyTextureInfo dest = {.texture = m_gaussianIntegralTexture};
     wgpu::TexelCopyBufferLayout layout = {
         .bytesPerRow = sizeof(gpu::g_gaussianIntegralTableF16),
     };
@@ -2020,7 +2112,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                          sizeof(gpu::g_inverseGaussianIntegralTableF16),
                          &layout,
                          &extent);
-    m_featherTextureView = m_featherTexture.CreateView();
+    m_gaussianIntegralTextureView = m_gaussianIntegralTexture.CreateView();
 
     wgpu::TextureDescriptor nullTextureDesc = {
         .usage = wgpu::TextureUsage::TextureBinding,
@@ -2034,13 +2126,14 @@ void RenderContextWebGPUImpl::initGPUObjects()
 
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
     m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
-    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
+    m_featherAtlasPipeline = std::make_unique<FeatherAtlasPipeline>(this);
 }
 
 RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
 
 RenderTargetWebGPU::RenderTargetWebGPU(
     wgpu::Device device,
+    const gpu::PlatformFeatures& platformFeatures,
     const RenderContextWebGPUImpl::Capabilities& capabilities,
     wgpu::TextureFormat framebufferFormat,
     uint32_t width,
@@ -2049,6 +2142,8 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     m_device(std::move(device)),
     m_framebufferFormat(framebufferFormat),
     m_transientPLSUsage(wgpu::TextureUsage::RenderAttachment),
+    m_transientMSAAColorUsage(wgpu::TextureUsage::RenderAttachment),
+    m_transientDepthStencilUsage(wgpu::TextureUsage::RenderAttachment),
     m_targetTextureView{} // Will be configured later by setTargetTexture().
 {
 #ifdef RIVE_WAGYU
@@ -2058,6 +2153,24 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     {
         m_transientPLSUsage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuInputAttachment |
+            WGPUTextureUsage_WagyuTransientAttachment);
+    }
+    if (platformFeatures.supportsBlendAdvancedKHR)
+    {
+        // Since we support advanced blend, we don't need to interrupt MSAA
+        // render passes to read the framebuffer, so the MSAA buffers can be
+        // transient. Marking the buffers as transient also enables
+        // EXT_multisampled_render_to_texture in GL backends.
+        m_transientMSAAColorUsage |= static_cast<wgpu::TextureUsage>(
+            WGPUTextureUsage_WagyuTransientAttachment |
+            // In GL when using EXT_multisampled_render_to_texture,
+            // WGPUTextureUsage_WagyuMSAAResolveSource lets the driver know it
+            // doesn't actually have to allocate the memory for this color
+            // texture, and in turn, we promise not to use it in an MRT
+            // situation. (MRT is forbidden by
+            // EXT_multisampled_render_to_texture.)
+            WGPUTextureUsage_WagyuMSAAResolveSource);
+        m_transientDepthStencilUsage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuTransientAttachment);
     }
 #endif
@@ -2123,11 +2236,11 @@ wgpu::TextureView RenderTargetWebGPU::msaaColorTextureView()
     if (m_msaaColorTexture == nullptr)
     {
         wgpu::TextureDescriptor desc = {
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = m_transientMSAAColorUsage,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = m_framebufferFormat,
-            .sampleCount = MSAA_SAMPLE_COUNT,
+            .sampleCount = MSAASampleCount,
         };
         m_msaaColorTexture = m_device.CreateTexture(&desc);
         m_msaaColorTextureView = m_msaaColorTexture.CreateView();
@@ -2135,21 +2248,26 @@ wgpu::TextureView RenderTargetWebGPU::msaaColorTextureView()
     return m_msaaColorTextureView;
 }
 
-wgpu::TextureView RenderTargetWebGPU::msaaDepthStencilTextureView()
+wgpu::TextureView RenderTargetWebGPU::depthStencilTextureView(bool msaa)
 {
-    if (m_msaaDepthStencilTexture == nullptr)
+    wgpu::TextureView& textureView =
+        msaa ? m_msaaDepthStencilTextureView : m_depthStencilTextureView;
+    if (textureView == nullptr)
     {
+        wgpu::Texture& texture =
+            msaa ? m_msaaDepthStencilTexture : m_depthStencilTexture;
+        assert(texture == nullptr);
         wgpu::TextureDescriptor desc = {
-            .usage = wgpu::TextureUsage::RenderAttachment,
+            .usage = m_transientDepthStencilUsage,
             .size = {static_cast<uint32_t>(width()),
                      static_cast<uint32_t>(height())},
             .format = wgpu::TextureFormat::Depth24PlusStencil8,
-            .sampleCount = MSAA_SAMPLE_COUNT,
+            .sampleCount = msaa ? MSAASampleCount : 1u,
         };
-        m_msaaDepthStencilTexture = m_device.CreateTexture(&desc);
-        m_msaaDepthStencilTextureView = m_msaaDepthStencilTexture.CreateView();
+        texture = m_device.CreateTexture(&desc);
+        textureView = texture.CreateView();
     }
-    return m_msaaDepthStencilTextureView;
+    return textureView;
 }
 
 wgpu::Texture RenderTargetWebGPU::dstColorTexture()
@@ -2208,6 +2326,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
     uint32_t height)
 {
     return rcp(new RenderTargetWebGPU(m_device,
+                                      m_platformFeatures,
                                       m_capabilities,
                                       framebufferFormat,
                                       width,
@@ -2215,9 +2334,14 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
-                                                            uint32_t height)
+void RenderContextWebGPUImpl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
     wgpu::TextureDescriptor textureDesc = {
         .usage = wgpu::TextureUsage::TextureBinding |
                  wgpu::TextureUsage::RenderAttachment |
@@ -2237,10 +2361,7 @@ rcp<RenderCanvas> RenderContextWebGPUImpl::makeRenderCanvas(uint32_t width,
     renderTarget->setTargetTextureView(texture->textureView(),
                                        texture->texture());
 
-    auto renderImage = make_rcp<RiveRenderImage>(std::move(texture));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(std::move(texture), std::move(renderTarget));
 }
 std::unique_ptr<rive::ore::Context> RenderContextWebGPUImpl::makeOreContext()
 {
@@ -2783,7 +2904,6 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
-#ifdef RIVE_WAGYU
     if (m_capabilities.polyfillVertexStorageBuffers)
     {
         return std::make_unique<StorageTextureBufferWebGPU>(m_device,
@@ -2792,7 +2912,6 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeStorageBufferRing(
                                                             bufferStructure);
     }
     else
-#endif
     {
         return std::make_unique<BufferWebGPU>(m_device,
                                               m_queue,
@@ -2844,8 +2963,8 @@ void RenderContextWebGPUImpl::resizeTessellationTexture(uint32_t width,
     m_tessVertexTextureView = m_tessVertexTexture.CreateView();
 }
 
-void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
-                                                 uint32_t height)
+void RenderContextWebGPUImpl::resizeFeatherAtlasTexture(uint32_t width,
+                                                        uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
@@ -2857,8 +2976,8 @@ void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
         .format = wgpu::TextureFormat::R16Float,
     };
 
-    m_atlasTexture = m_device.CreateTexture(&desc);
-    m_atlasTextureView = m_atlasTexture.CreateView();
+    m_featherAtlasTexture = m_device.CreateTexture(&desc);
+    m_featherAtlasTextureView = m_featherAtlasTexture.CreateView();
 }
 
 void RenderContextWebGPUImpl::resizeAtomicCoverageBacking(uint32_t width,
@@ -2909,6 +3028,159 @@ wgpu::Buffer RenderContextWebGPUImpl::atomicPLSCoverageBuffer()
     return m_atomicPLSCoverageBuffer;
 }
 
+inline auto getWGPUVertexFormat(VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return WGPUVertexFormat_Float32;
+        case VertexElementFormat::float2:
+            return WGPUVertexFormat_Float32x2;
+        case VertexElementFormat::float3:
+            return WGPUVertexFormat_Float32x3;
+        case VertexElementFormat::float4:
+            return WGPUVertexFormat_Float32x4;
+        case VertexElementFormat::uint8x4:
+            return WGPUVertexFormat_Uint8x4;
+        case VertexElementFormat::sint8x4:
+            return WGPUVertexFormat_Sint8x4;
+        case VertexElementFormat::unorm8x4:
+            return WGPUVertexFormat_Unorm8x4;
+        case VertexElementFormat::snorm8x4:
+            return WGPUVertexFormat_Snorm8x4;
+        case VertexElementFormat::uint16x2:
+            return WGPUVertexFormat_Uint16x2;
+        case VertexElementFormat::sint16x2:
+            return WGPUVertexFormat_Sint16x2;
+        case VertexElementFormat::unorm16x2:
+            return WGPUVertexFormat_Unorm16x2;
+        case VertexElementFormat::snorm16x2:
+            return WGPUVertexFormat_Snorm16x2;
+        case VertexElementFormat::uint16x4:
+            return WGPUVertexFormat_Uint16x4;
+        case VertexElementFormat::sint16x4:
+            return WGPUVertexFormat_Sint16x4;
+        case VertexElementFormat::float16x2:
+            return WGPUVertexFormat_Float16x2;
+        case VertexElementFormat::float16x4:
+            return WGPUVertexFormat_Float16x4;
+        case VertexElementFormat::uint32:
+            return WGPUVertexFormat_Uint32;
+    }
+}
+
+// Appends Rive's ImageRect/MeshInstance attribs. The caller is responsible for
+// placing these in a vertex buffer layout with WGPUVertexStepMode_Instance and
+// arrayStride = sizeof(gpu::ImageRect/MeshInstance).
+template <typename ImageDrawInstance, uint32_t Capacity>
+static void appendImageDrawInstanceAttribs(
+    StackVector<WGPUVertexAttribute, Capacity>& attrs)
+{
+    for (const auto& attr : ImageDrawInstance::getAttributes())
+    {
+        attrs.push_back({
+            .format = getWGPUVertexFormat(attr.format),
+            .offset = attr.byteOffset,
+            .shaderLocation = attr.attributeIndex,
+        });
+    }
+}
+
+static WGPUBlendOperation wgpuBlendOp(gpu::BlendEquation blendEquation)
+{
+    switch (blendEquation)
+    {
+        case gpu::BlendEquation::none:
+        case gpu::BlendEquation::srcOver:
+        case gpu::BlendEquation::plus:
+            return WGPUBlendOperation_Add;
+        case gpu::BlendEquation::min:
+            return WGPUBlendOperation_Min;
+        case gpu::BlendEquation::max:
+            return WGPUBlendOperation_Max;
+#ifdef RIVE_WAGYU
+        case gpu::BlendEquation::multiply:
+            return WGPUBlendOperation_WagyuMultiply;
+        case gpu::BlendEquation::screen:
+            return WGPUBlendOperation_WagyuScreen;
+        case gpu::BlendEquation::overlay:
+            return WGPUBlendOperation_WagyuOverlay;
+        case gpu::BlendEquation::darken:
+            return WGPUBlendOperation_WagyuDarken;
+        case gpu::BlendEquation::lighten:
+            return WGPUBlendOperation_WagyuLighten;
+        case gpu::BlendEquation::colorDodge:
+            return WGPUBlendOperation_WagyuColorDodge;
+        case gpu::BlendEquation::colorBurn:
+            return WGPUBlendOperation_WagyuColorBurn;
+        case gpu::BlendEquation::hardLight:
+            return WGPUBlendOperation_WagyuHardLight;
+        case gpu::BlendEquation::softLight:
+            return WGPUBlendOperation_WagyuSoftLight;
+        case gpu::BlendEquation::difference:
+            return WGPUBlendOperation_WagyuDifference;
+        case gpu::BlendEquation::exclusion:
+            return WGPUBlendOperation_WagyuExclusion;
+        case gpu::BlendEquation::hue:
+            return WGPUBlendOperation_WagyuHue;
+        case gpu::BlendEquation::saturation:
+            return WGPUBlendOperation_WagyuSaturation;
+        case gpu::BlendEquation::color:
+            return WGPUBlendOperation_WagyuColor;
+        case gpu::BlendEquation::luminosity:
+            return WGPUBlendOperation_WagyuLuminosity;
+#else
+        case gpu::BlendEquation::multiply:
+        case gpu::BlendEquation::screen:
+        case gpu::BlendEquation::overlay:
+        case gpu::BlendEquation::darken:
+        case gpu::BlendEquation::lighten:
+        case gpu::BlendEquation::colorDodge:
+        case gpu::BlendEquation::colorBurn:
+        case gpu::BlendEquation::hardLight:
+        case gpu::BlendEquation::softLight:
+        case gpu::BlendEquation::difference:
+        case gpu::BlendEquation::exclusion:
+        case gpu::BlendEquation::hue:
+        case gpu::BlendEquation::saturation:
+        case gpu::BlendEquation::color:
+        case gpu::BlendEquation::luminosity:
+            RIVE_UNREACHABLE();
+#endif
+    }
+    RIVE_UNREACHABLE();
+}
+
+static WGPUBlendFactor wgpuDstBlendFactor(gpu::BlendEquation blendEquation)
+{
+    switch (blendEquation)
+    {
+        case gpu::BlendEquation::none:
+        case gpu::BlendEquation::srcOver:
+        case gpu::BlendEquation::multiply:
+        case gpu::BlendEquation::screen:
+        case gpu::BlendEquation::overlay:
+        case gpu::BlendEquation::darken:
+        case gpu::BlendEquation::lighten:
+        case gpu::BlendEquation::colorDodge:
+        case gpu::BlendEquation::colorBurn:
+        case gpu::BlendEquation::hardLight:
+        case gpu::BlendEquation::softLight:
+        case gpu::BlendEquation::difference:
+        case gpu::BlendEquation::exclusion:
+        case gpu::BlendEquation::hue:
+        case gpu::BlendEquation::saturation:
+        case gpu::BlendEquation::color:
+        case gpu::BlendEquation::luminosity:
+            return WGPUBlendFactor_OneMinusSrcAlpha;
+        case gpu::BlendEquation::plus:
+        case gpu::BlendEquation::min:
+        case gpu::BlendEquation::max:
+            return WGPUBlendFactor_One;
+    }
+    RIVE_UNREACHABLE();
+}
+
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     gpu::DrawType drawType,
     gpu::ShaderFeatures shaderFeatures,
@@ -2919,39 +3191,50 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     wgpu::ShaderModule fragmentShaderModule,
     const wgsl::Shader* vertexShader,
     const wgsl::Shader* fragmentShader,
-    const gpu::PipelineState& pipelineState)
+    const gpu::PipelineState& pipelineState,
+    bool msaa)
 {
-    std::vector<WGPUVertexAttribute> attrs;
-    std::vector<WGPUVertexBufferLayout> vertexBufferLayouts;
+    // Only depthStencil is ever multisampled.
+    assert(!msaa || interlockMode == gpu::InterlockMode::depthStencil);
+    // The most vertex buffers any draw type binds is the image mesh: position,
+    // uv, and the per-instance attribute buffer.
+    StackVector<WGPUVertexBufferLayout, 3> vertexBufferLayouts;
+    // The image-draw attribs come last, so the most vertex attribs used across
+    // all 3 buffers is determined by the final image attrib.
+    StackVector<WGPUVertexAttribute, MaxVertexAttributeCount + 1> attrs;
     WGPUPrimitiveTopology topology;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::msaaOuterCubics:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 4 * sizeof(float),
-                    .shaderLocation = 1,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 4 * sizeof(float),
+                .shaderLocation = 1,
+            });
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts.push_back(WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = attrs.size();
             vertexBufferLayouts[0].attributes = attrs.data();
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::PatchVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
@@ -2961,18 +3244,16 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         }
         case DrawType::clipReset:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x3,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x3,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts.push_back(WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = attrs.size();
             vertexBufferLayouts[0].attributes = attrs.data();
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::TriangleVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
@@ -2982,40 +3263,43 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         }
         case DrawType::imageRect:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x4,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x4,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            appendImageDrawInstanceAttribs<ImageRectInstance>(attrs);
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
-            vertexBufferLayouts[0].attributeCount = std::size(attrs);
-            vertexBufferLayouts[0].attributes = attrs.data();
+            vertexBufferLayouts.push_back_n(2, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
+            vertexBufferLayouts[0].attributeCount = 1;
+            vertexBufferLayouts[0].attributes = &attrs[0];
             vertexBufferLayouts[0].arrayStride = sizeof(gpu::ImageRectVertex);
             vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
+
+            assert(attrs.size() == 1 + IMAGE_RECT_ATTRIB_COUNT);
+            vertexBufferLayouts[1].attributeCount = IMAGE_RECT_ATTRIB_COUNT;
+            vertexBufferLayouts[1].attributes = &attrs[1];
+            vertexBufferLayouts[1].arrayStride = sizeof(gpu::ImageRectInstance);
+            vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
             break;
         }
         case DrawType::imageMesh:
         {
-            attrs = {
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x2,
-                    .offset = 0,
-                    .shaderLocation = 0,
-                },
-                WGPUVertexAttribute{
-                    .format = WGPUVertexFormat_Float32x2,
-                    .offset = 0,
-                    .shaderLocation = 1,
-                },
-            };
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x2,
+                .offset = 0,
+                .shaderLocation = 0,
+            });
+            attrs.push_back({
+                .format = WGPUVertexFormat_Float32x2,
+                .offset = 0,
+                .shaderLocation = 1,
+            });
+            appendImageDrawInstanceAttribs<ImageMeshInstance>(attrs);
 
-            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT,
-                                   WGPU_VERTEX_BUFFER_LAYOUT_INIT};
+            vertexBufferLayouts.push_back_n(3, WGPU_VERTEX_BUFFER_LAYOUT_INIT);
 
             vertexBufferLayouts[0].attributeCount = 1;
             vertexBufferLayouts[0].attributes = &attrs[0];
@@ -3026,6 +3310,12 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             vertexBufferLayouts[1].attributes = &attrs[1];
             vertexBufferLayouts[1].arrayStride = sizeof(float) * 2;
             vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Vertex;
+
+            assert(attrs.size() == 2 + IMAGE_MESH_ATTRIB_COUNT);
+            vertexBufferLayouts[2].attributeCount = IMAGE_MESH_ATTRIB_COUNT;
+            vertexBufferLayouts[2].attributes = &attrs[2];
+            vertexBufferLayouts[2].arrayStride = sizeof(gpu::ImageMeshInstance);
+            vertexBufferLayouts[2].stepMode = WGPUVertexStepMode_Instance;
 
             topology = WGPUPrimitiveTopology_TriangleList;
             break;
@@ -3056,17 +3346,26 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     }
 #endif
 
+    const WGPUBlendComponent blendComponent = {
+        .operation = wgpuBlendOp(pipelineState.blendEquation),
+        .srcFactor = WGPUBlendFactor_One,
+        .dstFactor = wgpuDstBlendFactor(pipelineState.blendEquation),
+    };
+
+    const WGPUBlendState blendState = {
+        .color = blendComponent,
+        .alpha = blendComponent,
+    };
+
     StackVector<WGPUColorTargetState, PLS_PLANE_COUNT> colorAttachments;
 
     assert(colorAttachments.size() == COLOR_PLANE_IDX);
-    assert(pipelineState.blendEquation == gpu::BlendEquation::none ||
-           pipelineState.blendEquation == gpu::BlendEquation::srcOver);
     colorAttachments.push_back({
         .nextInChain = extraColorTargetState,
         .format = static_cast<WGPUTextureFormat>(framebufferFormat),
-        .blend = (pipelineState.blendEquation == gpu::BlendEquation::srcOver)
-                     ? &BLEND_STATE_SRC_OVER
-                     : nullptr,
+        .blend = (pipelineState.blendEquation == gpu::BlendEquation::none)
+                     ? nullptr
+                     : &blendState,
         .writeMask = pipelineState.colorWriteEnabled ? WGPUColorWriteMask_All
                                                      : WGPUColorWriteMask_None,
     });
@@ -3126,6 +3425,9 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             enums::is_flag_set(shaderFeatures,
                                gpu::ShaderFeatures::ENABLE_DITHER)),
         static_cast<double>(
+            enums::is_flag_set(shaderFeatures,
+                               gpu::ShaderFeatures::ENABLE_MODULATED_IMAGE)),
+        static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::clockwiseFill)),
         static_cast<double>(
@@ -3134,6 +3436,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::borrowedCoveragePass)),
+        0.0, // EMULATE_DYNAMIC_COLOR_WRITE_DISABLE — ignored for now.
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::storeColorClear)),
@@ -3153,13 +3456,15 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
     static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
     static_assert(DITHER_SPECIALIZATION_IDX == 7);
-    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 8);
-    static_assert(NESTED_CLIP_UPDATE_ONLY_IDX == 9);
-    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 10);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 11);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 12);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 13);
-    static_assert(SPECIALIZATION_COUNT == 14);
+    static_assert(MODULATED_IMAGE_SPECIALIZATION_IDX == 8);
+    static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
+    static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
+    static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
+    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 12);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
+    static_assert(SPECIALIZATION_COUNT == 16);
 
     // Build a per-stage WGPUConstantEntry[] from the shader's own override
     // list.
@@ -3185,6 +3490,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             "11",
             "12",
             "13",
+            "14",
+            "15",
         };
         static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
 
@@ -3224,7 +3531,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
     if (usingPLSInputAttachments)
     {
-        for (size_t i = 0; i < PLS_PLANE_COUNT; ++i)
+        for (uint32_t i = 0; i < PLS_PLANE_COUNT; ++i)
         {
             inputAttachments[i] = WGPU_WAGYU_INPUT_ATTACHMENT_STATE_INIT;
             inputAttachments[i].format = colorAttachments[i].format;
@@ -3253,8 +3560,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 .entryPoint = WGPU_STRING_VIEW("main"),
                 .constantCount = vertexConstantCount,
                 .constants = vertexConstantEntries,
-                .bufferCount = std::size(vertexBufferLayouts),
-                .buffers = vertexBufferLayouts.data(),
+                .bufferCount = vertexBufferLayouts.size(),
+                .buffers = vertexBufferLayouts.dataOrNull(),
             },
         .primitive =
             {
@@ -3264,16 +3571,14 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             },
         .multisample =
             {
-                .count = interlockMode == gpu::InterlockMode::msaa
-                             ? MSAA_SAMPLE_COUNT
-                             : 1u,
+                .count = msaa ? MSAASampleCount : 1u,
                 .mask = 0xffffffff,
             },
         .fragment = &fragmentState,
     };
 
     WGPUDepthStencilState depthStencilState;
-    if (interlockMode == gpu::InterlockMode::msaa)
+    if (interlockMode == gpu::InterlockMode::depthStencil)
     {
         depthStencilState = {
             .format = WGPUTextureFormat_Depth24PlusStencil8,
@@ -3313,6 +3618,8 @@ class RenderContextWebGPUImpl::DrawRenderPass
 public:
     virtual ~DrawRenderPass() { end(); }
 
+    bool msaa() const { return m_msaa; }
+
     // The live render pass encoder. Null before the pass has begun (the MSAA
     // pass defers its begin until the first barrier) and after end().
     const wgpu::RenderPassEncoder& encoder() const { return m_encoder; }
@@ -3336,6 +3643,7 @@ protected:
                    wgpu::CommandEncoder commandEncoder) :
         m_impl(impl),
         m_desc(desc),
+        m_msaa(desc.msaaSampleCount > 1),
         m_renderTarget(static_cast<RenderTargetWebGPU*>(desc.renderTarget)),
         m_commandEncoder(commandEncoder)
     {}
@@ -3352,10 +3660,25 @@ protected:
                               1.0);
         m_encoder.SetBindGroup(WEBGPU_SAMPLER_BINDINGS_SET,
                                m_impl->m_samplerBindings);
+        if (m_desc.interlockMode == InterlockMode::atomics)
+        {
+            // Work around an issue in atomic mode where some gms render just a
+            // little outside of the draw bounds (causing the texture preserve
+            // to fail). Don't do this in depthStencil mode because it
+            // fails to restore properly.
+            // TODO: Figure out why this fails in depthStencil and also
+            // implement the clipScissor functionality to get scissor working
+            // more completely
+            m_encoder.SetScissorRect(m_desc.renderTargetUpdateBounds.left,
+                                     m_desc.renderTargetUpdateBounds.top,
+                                     m_desc.renderTargetUpdateBounds.width(),
+                                     m_desc.renderTargetUpdateBounds.height());
+        }
     }
 
     RenderContextWebGPUImpl* const m_impl;
     const FlushDescriptor& m_desc;
+    const bool m_msaa;
     RenderTargetWebGPU* const m_renderTarget;
     const wgpu::CommandEncoder m_commandEncoder;
     wgpu::RenderPassEncoder m_encoder;
@@ -3654,21 +3977,25 @@ private:
     wgpu::BindGroup m_plsBindings;
 };
 
-// A Rive render pass that uses MSAA. It's restarted once per dstBlend barrier
-// (and may defer its initial begin until the first such barrier); the
-// attachment texture views don't change between restarts, so they're cached
-// once in the constructor and reused.
-class RenderContextWebGPUImpl::MSAADrawRenderPass : public DrawRenderPass
+// A Rive render pass that renders paths with the depth/stencil buffer. It's
+// restarted once per dstBlend barrier (and may defer its initial begin until
+// the first such barrier); the attachment texture views don't change between
+// restarts, so they're cached once in the constructor and reused.
+class RenderContextWebGPUImpl::DepthStencilDrawRenderPass
+    : public DrawRenderPass
 {
 public:
-    MSAADrawRenderPass(RenderContextWebGPUImpl* impl,
-                       const FlushDescriptor& desc,
-                       wgpu::CommandEncoder commandEncoder) :
+    DepthStencilDrawRenderPass(RenderContextWebGPUImpl* impl,
+                               const FlushDescriptor& desc,
+                               wgpu::CommandEncoder commandEncoder) :
         DrawRenderPass(impl, desc, commandEncoder),
-        m_msaaColorTextureView(m_renderTarget->msaaColorTextureView()),
+        m_msaaColorTextureView(
+            msaa() ? m_renderTarget->msaaColorTextureView()
+                   // Single-sampled renders straight to the render target.
+                   : wgpu::TextureView{}),
         m_targetTextureView(m_renderTarget->targetTextureView()),
-        m_msaaDepthStencilTextureView(
-            m_renderTarget->msaaDepthStencilTextureView())
+        m_depthStencilTextureView(
+            m_renderTarget->depthStencilTextureView(msaa()))
     {
         // If we're preserving the render target with a draw, don't begin the
         // render pass yet. We will get a dstBlend barrier on the first draw
@@ -3676,10 +4003,10 @@ public:
         if (m_desc.drawList->empty() || m_desc.drawList->head()->drawType !=
                                             gpu::DrawType::renderPassInitialize)
         {
-            begin(MSAABeginType::primary,
+            begin(DepthStencilBeginType::primary,
                   (m_desc.firstDstBlendBarrier != nullptr)
-                      ? MSAAEndType::breakForDstCopy
-                      : MSAAEndType::finish);
+                      ? DepthStencilEndType::breakForDstCopy
+                      : DepthStencilEndType::finish);
         }
     }
 
@@ -3694,7 +4021,7 @@ public:
         assert(!m_desc.fixedFunctionColorOutput ||
                batch.drawType == gpu::DrawType::renderPassInitialize);
 
-        MSAABeginType msaaBeginType;
+        DepthStencilBeginType beginType;
         if (batch.drawType == gpu::DrawType::renderPassInitialize)
         {
             assert(m_encoder == nullptr);
@@ -3708,7 +4035,7 @@ public:
                 m_commandEncoder,
                 m_renderTarget->bounds());
 
-            msaaBeginType = MSAABeginType::primary;
+            beginType = DepthStencilBeginType::primary;
         }
         else
         {
@@ -3727,67 +4054,91 @@ public:
                         draw->pixelBounds()));
             }
 
-            msaaBeginType = MSAABeginType::restartAfterDstCopy;
+            beginType = DepthStencilBeginType::restartAfterDstCopy;
         }
 
         // Restart the render pass after the copies are finished.
-        begin(msaaBeginType,
+        begin(beginType,
               (batch.nextDstBlendBarrier != nullptr)
-                  ? MSAAEndType::breakForDstCopy
-                  : MSAAEndType::finish);
+                  ? DepthStencilEndType::breakForDstCopy
+                  : DepthStencilEndType::finish);
     }
 
 private:
     // Specifies how to load MSAA color/depth/stencil attachments when beginning
     // an MSAA render pass.
-    enum class MSAABeginType : bool
+    enum class DepthStencilBeginType : bool
     {
         primary,
         restartAfterDstCopy,
     };
 
-    void begin(MSAABeginType msaaBeginType, MSAAEndType msaaEndType)
+    void begin(DepthStencilBeginType beginType, DepthStencilEndType endType)
     {
-        // Our MSAA buffers are treated as completely transient (i.e.,
-        // Clear/Discard) unless we have to do render pass breaks for dst
-        // copies. For LoadAction::preserveRenderTarget, we manually draw the
-        // old content into the transient MSAA buffer, so we still load with
-        // Clear.
+        // depthStencil and MSAA color (if needed) are treated as completely
+        // transient (i.e., Clear/Discard) unless we have to do render pass
+        // breaks for dst copies.
+        // For LoadAction::preserveRenderTarget on a transient MSAA color
+        // buffer, we manually draw the old content into the buffer, so we still
+        // load with Clear.
         // TODO: wgpu::LoadOp::ExpandResolveTexture for the color buffer when
         // supported.
-        const auto msaaLoadOp =
-            msaaBeginType == MSAABeginType::restartAfterDstCopy
+        const auto transientLoadOp =
+            beginType == DepthStencilBeginType::restartAfterDstCopy
                 ? wgpu::LoadOp::Load
                 : wgpu::LoadOp::Clear;
-        const auto msaaStoreOp = (msaaEndType == MSAAEndType::breakForDstCopy)
-                                     ? wgpu::StoreOp::Store
-                                     : wgpu::StoreOp::Discard;
+        const auto transientStoreOp =
+            (endType == DepthStencilEndType::breakForDstCopy)
+                ? wgpu::StoreOp::Store
+                : wgpu::StoreOp::Discard;
 
-        wgpu::RenderPassColorAttachment msaaColorAttachment = {
-            .view = m_msaaColorTextureView,
-            .resolveTarget = m_targetTextureView.Get(),
-            .loadOp = msaaLoadOp,
-            .storeOp = msaaStoreOp,
-            .clearValue = wgpu_color_premul(m_desc.colorClearValue),
-        };
+        wgpu::RenderPassColorAttachment colorAttachment;
+        assert(m_desc.msaaSampleCount > 0);
+        if (m_desc.msaaSampleCount == 1)
+        {
+            // Non-MSAA -- draw directly to the renderTarget.
+            colorAttachment = {
+                .view = m_targetTextureView,
+                .loadOp =
+                    (beginType == DepthStencilBeginType::restartAfterDstCopy ||
+                     m_desc.colorLoadAction ==
+                         gpu::LoadAction::preserveRenderTarget)
+                        ? wgpu::LoadOp::Load
+                        : wgpu::LoadOp::Clear,
+                .storeOp = wgpu::StoreOp::Store,
+                .clearValue = wgpu_color_premul(m_desc.colorClearValue),
+            };
+        }
+        else
+        {
+            // MSAA -- draw to the offscreen MSAA color buffer and resolve to
+            // the renderTarget.
+            colorAttachment = {
+                .view = m_msaaColorTextureView,
+                .resolveTarget = m_targetTextureView.Get(),
+                .loadOp = transientLoadOp,
+                .storeOp = transientStoreOp,
+                .clearValue = wgpu_color_premul(m_desc.colorClearValue),
+            };
+        }
 
-        wgpu::RenderPassDepthStencilAttachment msaaDepthStencilAttachment = {
-            .view = m_msaaDepthStencilTextureView,
-            .depthLoadOp = msaaLoadOp,
-            .depthStoreOp = msaaStoreOp,
+        wgpu::RenderPassDepthStencilAttachment depthStencilAttachment = {
+            .view = m_depthStencilTextureView,
+            .depthLoadOp = transientLoadOp,
+            .depthStoreOp = transientStoreOp,
             .depthClearValue = m_desc.depthClearValue,
             .depthReadOnly = false,
-            .stencilLoadOp = msaaLoadOp,
-            .stencilStoreOp = msaaStoreOp,
+            .stencilLoadOp = transientLoadOp,
+            .stencilStoreOp = transientStoreOp,
             .stencilClearValue = m_desc.stencilClearValue,
             .stencilReadOnly = false,
         };
 
         wgpu::RenderPassDescriptor renderPassDescriptor = {
-            .label = "RIVE_MSAA_RenderPass",
+            .label = "RIVE_DepthStencil_RenderPass",
             .colorAttachmentCount = 1,
-            .colorAttachments = &msaaColorAttachment,
-            .depthStencilAttachment = &msaaDepthStencilAttachment,
+            .colorAttachments = &colorAttachment,
+            .depthStencilAttachment = &depthStencilAttachment,
         };
 
         m_encoder = m_commandEncoder.BeginRenderPass(&renderPassDescriptor);
@@ -3796,7 +4147,7 @@ private:
 
     const wgpu::TextureView m_msaaColorTextureView;
     const wgpu::TextureView m_targetTextureView;
-    const wgpu::TextureView m_msaaDepthStencilTextureView;
+    const wgpu::TextureView m_depthStencilTextureView;
 };
 
 std::unique_ptr<RenderContextWebGPUImpl::DrawRenderPass>
@@ -3809,9 +4160,11 @@ RenderContextWebGPUImpl::makeDrawRenderPass(const FlushDescriptor& desc,
                                                       desc,
                                                       commandEncoder);
     }
-    if (desc.interlockMode == gpu::InterlockMode::msaa)
+    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
-        return std::make_unique<MSAADrawRenderPass>(this, desc, commandEncoder);
+        return std::make_unique<DepthStencilDrawRenderPass>(this,
+                                                            desc,
+                                                            commandEncoder);
     }
     return std::make_unique<PLSDrawRenderPass>(this, desc, commandEncoder);
 }
@@ -3864,7 +4217,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         commandEncoder = wgpu::CommandEncoder::Acquire(wgpuEncoder);
     }
 
-#ifdef RIVE_WAGYU
     // If storage buffers are disabled, copy their contents to textures.
     if (m_capabilities.polyfillVertexStorageBuffers)
     {
@@ -3892,7 +4244,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                                             commandEncoder);
         }
     }
-#endif
 
     wgpu::BindGroupEntry perFlushBindingEntries[DRAW_BINDINGS_COUNT] = {
         {
@@ -3900,78 +4251,65 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             .buffer = webgpu_buffer(flushUniformBufferRing()),
             .offset = desc.flushUniformDataOffsetInBytes,
         },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers
             ? wgpu::BindGroupEntry{.binding = PATH_BUFFER_IDX,
                                    .textureView = webgpu_storage_texture_view(
                                        pathBufferRing())}
             :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PATH_BUFFER_IDX,
                 .buffer = webgpu_buffer(pathBufferRing()),
                 .offset = desc.firstPath * sizeof(gpu::PathData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .buffer = webgpu_buffer(paintBufferRing()),
                 .offset = desc.firstPaint * sizeof(gpu::PaintData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .buffer = webgpu_buffer(paintAuxBufferRing()),
                 .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
             },
-#ifdef RIVE_WAGYU
         m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(contourBufferRing()),
             } :
-#endif
             wgpu::BindGroupEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .buffer = webgpu_buffer(contourBufferRing()),
                 .offset = desc.firstContour * sizeof(gpu::ContourData),
             },
         {
-            .binding = FEATHER_TEXTURE_IDX,
-            .textureView = m_featherTextureView,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+            .textureView = m_gaussianIntegralTextureView,
         },
         {
             .binding = TESS_VERTEX_TEXTURE_IDX,
             .textureView = m_tessVertexTextureView,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
-            .textureView = m_atlasTextureView,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
+            .textureView = m_featherAtlasTextureView,
         },
         {
             .binding = GRAD_TEXTURE_IDX,
             .textureView = m_gradientTextureView,
         },
         {
-            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
-            .size = sizeof(gpu::ImageDrawUniforms),
-        },
-        {
             .binding = DST_COLOR_TEXTURE_IDX,
-            .textureView = desc.interlockMode == gpu::InterlockMode::msaa &&
+            .textureView = desc.interlockMode == gpu::InterlockMode::depthStencil &&
                            !desc.fixedFunctionColorOutput
                                ? renderTarget->dstColorTextureView()
                                : m_nullTextureView,
@@ -4070,16 +4408,17 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
     // Render the atlas if we have any offscreen feathers.
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
         wgpu::BindGroupDescriptor atlasBindGroupDesc = {
-            .layout = m_atlasPipeline->perFlushBindingsLayout(),
-            .entryCount = ATLAS_BINDINGS_COUNT,
+            .layout = m_featherAtlasPipeline->perFlushBindingsLayout(),
+            .entryCount = FEATHER_ATLAS_BINDINGS_COUNT,
             .entries = perFlushBindingEntries,
         };
 
         wgpu::RenderPassColorAttachment attachment{
-            .view = m_atlasTextureView,
+            .view = m_featherAtlasTextureView,
             .loadOp = wgpu::LoadOp::Clear,
             .storeOp = wgpu::StoreOp::Store,
             .clearValue = {0, 0, 0, 0},
@@ -4094,8 +4433,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             commandEncoder.BeginRenderPass(&atlasPassDesc);
         atlasPass.SetViewport(0.f,
                               0.f,
-                              desc.atlasContentWidth,
-                              desc.atlasContentHeight,
+                              desc.featherAtlasContentWidth,
+                              desc.featherAtlasContentHeight,
                               0.0,
                               1.0);
         atlasPass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
@@ -4105,12 +4444,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                m_device.CreateBindGroup(&atlasBindGroupDesc));
         atlasPass.SetBindGroup(WEBGPU_SAMPLER_BINDINGS_SET, m_samplerBindings);
 
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
-            atlasPass.SetPipeline(m_atlasPipeline->fillPipeline());
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            atlasPass.SetPipeline(m_featherAtlasPipeline->fillPipeline());
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 atlasPass.SetScissorRect(fillBatch.scissor.left,
                                          fillBatch.scissor.top,
                                          fillBatch.scissor.width(),
@@ -4123,13 +4463,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
-            atlasPass.SetPipeline(m_atlasPipeline->strokePipeline());
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            atlasPass.SetPipeline(m_featherAtlasPipeline->strokePipeline());
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 atlasPass.SetScissorRect(strokeBatch.scissor.left,
                                          strokeBatch.scissor.top,
                                          strokeBatch.scissor.width(),
@@ -4271,8 +4611,16 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     wgpu::BindGroup perFlushBindings =
         m_device.CreateBindGroup(&perFlushBindGroupDesc);
 
+    // The drawEncoder isn't necessarily created yet. (e.g., depthStencil
+    // sometimes defers creation of the drawEncoder until the first barrier.) So
+    // defer binding the per-flush uniforms until we know the drawEncoder is
+    // valid.
+    bool needsPerFlushBindings = true;
+
+    wgpu::TextureView boundImageTextureView = {};
+    const ImageSampler* boundImageSampler;
+
     // Execute the DrawList.
-    bool needsNewBindings = true;
     for (const DrawBatch& batch : *desc.drawList)
     {
         DrawType drawType = batch.drawType;
@@ -4286,8 +4634,18 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // the barrier. Make sure to give the new drawEncoder our
                 // current bindings.
                 drawEncoder = renderPass->encoder();
-                needsNewBindings = true;
+                needsPerFlushBindings = true;
+                boundImageTextureView = {};
             }
+        }
+
+        if (needsPerFlushBindings)
+        {
+            drawEncoder.SetBindGroup(PER_FLUSH_BINDINGS_SET,
+                                     perFlushBindings,
+                                     0,
+                                     nullptr);
+            needsPerFlushBindings = false;
         }
 
         // Bind the appropriate image texture, if any.
@@ -4296,7 +4654,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 static_cast<const TextureWebGPUImpl*>(batch.imageTexture))
         {
             imageTextureView = imageTexture->textureView();
-            needsNewBindings = true;
         }
         else if (drawType == gpu::DrawType::renderPassInitialize &&
                  desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
@@ -4308,28 +4665,19 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 // attachment (not the target), so the target texture is free to
                 // be sampled here to seed the color buffer. No dst copy needed.
                 imageTextureView = renderTarget->targetTextureView();
-                needsNewBindings = true;
             }
-            else if (desc.interlockMode == gpu::InterlockMode::msaa)
+            else if (desc.interlockMode == gpu::InterlockMode::depthStencil)
             {
-                // MSAA can't sample the target texture here because it's bound
-                // as the resolve target, so it seeds from the dstColorTexture
-                // (copied from the framebuffer previously) instead.
+                // depthStencil can't sample the target texture here because
+                // it's bound as the resolve target, so it seeds from the
+                // dstColorTexture (copied from the framebuffer previously)
+                // instead.
                 imageTextureView = renderTarget->dstColorTextureView();
-                needsNewBindings = true;
             }
         }
-
-        if (needsNewBindings ||
-            // Image draws always re-bind because they update the dynamic offset
-            // to their uniforms.
-            gpu::DrawTypeIsImageDraw(drawType))
+        if (boundImageTextureView.Get() != imageTextureView.Get() ||
+            *boundImageSampler != batch.imageSampler)
         {
-            drawEncoder.SetBindGroup(PER_FLUSH_BINDINGS_SET,
-                                     perFlushBindings,
-                                     1,
-                                     &batch.imageDrawDataOffset);
-
             wgpu::BindGroupEntry perDrawBindingEntries[] = {
                 {
                     .binding = IMAGE_TEXTURE_IDX,
@@ -4355,7 +4703,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                      0,
                                      nullptr);
 
-            needsNewBindings = false;
+            boundImageTextureView = std::move(imageTextureView);
+            boundImageSampler = &batch.imageSampler;
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
@@ -4438,15 +4787,16 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 #endif
 
         uint64_t pipelineKey =
-            gpu::pipeline_unique_key(drawType,
-                                     shaderFeatures,
-                                     desc.interlockMode,
-                                     shaderMiscFlags,
-                                     batch.drawContents,
-                                     desc.fixedFunctionColorOutput,
-                                     batch.firstBlendMode,
-                                     platformFeatures());
+            gpu::getPipelineUniqueKey(drawType,
+                                      shaderFeatures,
+                                      desc.interlockMode,
+                                      shaderMiscFlags,
+                                      batch.drawContents,
+                                      desc.fixedFunctionColorOutput,
+                                      batch.firstBlendMode,
+                                      platformFeatures());
 
+        pipelineKey = math::add_bits_to_key(pipelineKey, renderPass->msaa(), 1);
         pipelineKey = math::add_bits_to_key(pipelineKey, targetIsGLFBO0, 1);
 
         const DrawPipeline& drawPipeline = m_drawPipelines
@@ -4457,6 +4807,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                                             desc.interlockMode,
                                                             shaderMiscFlags,
                                                             pipelineState,
+                                                            renderPass->msaa(),
                                                             targetIsGLFBO0)
                                                .first->second;
         drawEncoder.SetPipeline(
@@ -4471,21 +4822,27 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 drawEncoder.SetVertexBuffer(0, m_pathPatchVertexBuffer);
                 drawEncoder.SetIndexBuffer(m_pathPatchIndexBuffer,
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(gpu::PatchIndexCount(drawType),
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
                                         batch.elementCount,
-                                        gpu::PatchBaseIndex(drawType),
+                                        batch.baseIndex,
                                         0,
                                         batch.baseElement);
                 break;
@@ -4493,7 +4850,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
             case DrawType::clipReset:
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
                 drawEncoder.SetVertexBuffer(
                     0,
@@ -4506,11 +4863,21 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 drawEncoder.SetVertexBuffer(0, m_imageRectVertexBuffer);
+                // Select the batch's fistInstance by offsetting the buffer
+                // binding. We do this rather than "firstInstance=baseElement"
+                // on the draw call because baseInstance support isn't portable
+                // on GL, and we have seen drivers with bugs in their emulation.
+                drawEncoder.SetVertexBuffer(
+                    1,
+                    webgpu_buffer(imageRectInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageRectInstance));
                 drawEncoder.SetIndexBuffer(m_imageRectIndexBuffer,
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(std::size(gpu::kImageRectIndices),
-                                        1,
-                                        batch.baseElement);
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
+                                        batch.elementCount,
+                                        batch.baseIndex,
+                                        0,
+                                        0);
                 break;
             }
 
@@ -4524,11 +4891,21 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                     batch.indexBuffer);
                 drawEncoder.SetVertexBuffer(0, vertexBuffer->submittedBuffer());
                 drawEncoder.SetVertexBuffer(1, uvBuffer->submittedBuffer());
+                // Select the batch's fistInstance by offsetting the buffer
+                // binding. We do this rather than "firstInstance=baseElement"
+                // on the draw call because baseInstance support isn't portable
+                // on GL, and we have seen drivers with bugs in their emulation.
+                drawEncoder.SetVertexBuffer(
+                    2,
+                    webgpu_buffer(imageMeshInstanceBufferRing()),
+                    batch.baseElement * sizeof(gpu::ImageMeshInstance));
                 drawEncoder.SetIndexBuffer(indexBuffer->submittedBuffer(),
                                            wgpu::IndexFormat::Uint16);
-                drawEncoder.DrawIndexed(batch.elementCount,
-                                        1,
-                                        batch.baseElement);
+                drawEncoder.DrawIndexed(batch.indexCountPerInstance,
+                                        batch.elementCount,
+                                        batch.baseIndex,
+                                        0,
+                                        0);
                 break;
             }
 

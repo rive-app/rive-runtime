@@ -491,11 +491,17 @@ static SemanticsDiff buildDiffFromFlats(
             diff.moved.push_back(currentNode);
         }
 
-        // Semantic content detection: any of role, label, stateFlags, or
-        // traitFlags changed. These affect how a screen reader
-        // announces the node (e.g. "button, selected" vs "button").
+        // Semantic content detection: any content field changed. These
+        // affect how a screen reader announces the node (e.g. "button,
+        // selected" vs "button"). Must cover the same seven fields as the
+        // incremental path (patchContentNode): the new snapshot is stored
+        // and dirty sets cleared after this, so a missed field is lost
+        // permanently, not delayed.
         if (previousNode.role != currentNode.role ||
             previousNode.label != currentNode.label ||
+            previousNode.value != currentNode.value ||
+            previousNode.hint != currentNode.hint ||
+            previousNode.headingLevel != currentNode.headingLevel ||
             previousNode.stateFlags != currentNode.stateFlags ||
             previousNode.traitFlags != currentNode.traitFlags)
         {
@@ -960,16 +966,31 @@ void SemanticManager::refresh()
     // -------------------------------------------------------------------------
 
     // -------------------------------------------------------------------------
-    // Check if any content-dirty node is an absorbed child from the last
-    // derivation pass. If so, the parent interactive node's derived label
-    // may be stale — escalate to a full re-flatten so derivation re-runs.
+    // Check if any content-dirty node can invalidate the last derivation
+    // pass. If so, escalate to a full re-flatten so derivation re-runs:
+    //   - an absorbed child changed -> the parent's derived label is stale;
+    //   - a node with a derived label changed -> an explicit label set at
+    //     runtime must win over the stale derived one (and its children
+    //     are no longer absorbed);
+    //   - an interactive node's label is now empty -> an explicit label
+    //     was cleared, so derivation may apply again.
+    // The incremental path cannot handle any of these: patchContentNode
+    // reuses m_derivedLabels/m_excludedIds from the previous flatten.
     // -------------------------------------------------------------------------
     bool needsRederivation = false;
-    if (contentDirty && !m_excludedIds.empty())
+    if (contentDirty)
     {
         for (const auto& id : m_dirtyContentNodes)
         {
-            if (m_excludedIds.count(id))
+            if (m_excludedIds.count(id) || m_derivedLabels.count(id))
+            {
+                needsRederivation = true;
+                break;
+            }
+            auto it = m_nodesById.find(id);
+            if (it != m_nodesById.end() &&
+                isInteractiveRole(it->second->role()) &&
+                it->second->label().empty() && !it->second->children().empty())
             {
                 needsRederivation = true;
                 break;
@@ -1083,6 +1104,22 @@ SemanticsDiff SemanticManager::drainDiff()
 {
     refresh();
     return consumeDiff();
+}
+
+uint32_t SemanticManager::rootId() const
+{
+    return m_roots.size() == 1 ? m_roots.front()->id() : 0;
+}
+
+std::vector<SemanticsBoundsUpdate> SemanticManager::boundsSnapshot() const
+{
+    std::vector<SemanticsBoundsUpdate> bounds;
+    bounds.reserve(m_lastFlatSnapshot.size());
+    for (const auto& node : m_lastFlatSnapshot)
+    {
+        bounds.push_back({node.id, node.minX, node.minY, node.maxX, node.maxY});
+    }
+    return bounds;
 }
 
 // Returns the diff produced by the most recent refresh() and clears it.

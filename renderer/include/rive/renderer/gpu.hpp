@@ -15,6 +15,7 @@
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 
@@ -126,7 +127,8 @@ constexpr static uint8_t STENCIL_CLEAR = 0u;
 struct PlatformFeatures
 {
     // Supported InterlockModes.
-    // FIXME: MSAA is implicit even though it isn't implemented on all backends.
+    // FIXME: depthStencil is implicit even though it isn't implemented on all
+    // backends.
     bool supportsRasterOrderingMode = false;
     bool supportsAtomicMode = false;
     bool supportsClockwiseMode = false;
@@ -134,17 +136,27 @@ struct PlatformFeatures
     // (Only viable for frames that don't use advanced blend.)
     bool supportsClockwiseFixedFunctionMode = false;
     bool supportsClockwiseAtomicMode = false;
-    // Use KHR_blend_equation_advanced in msaa mode?
+    // Use KHR_blend_equation_advanced in depthStencil mode?
     bool supportsBlendAdvancedKHR = false;
     bool supportsBlendAdvancedCoherentKHR = false;
-    // Required for @ENABLE_CLIP_RECT in msaa mode.
+    // Required for @ENABLE_CLIP_RECT in depthStencil mode.
     bool supportsClipPlanes = false;
+    // The backend supports dynamic state that allows Rive to collapse multiple
+    // subpasses onto a single pipeline, namely:
+    //  * Depth (Vulkan 1.3)
+    //  * Stencil (Vulkan 1.3)
+    //  * Cull (Vulkan 1.3)
+    //  * Color-write (VK_EXT_color_write_enable)
+    // With this state being dynamic, we can combine multiple subpasses (e.g.,
+    // borrowed coverage, fans, stencil reset) onto a single dynamic pipeline
+    // with multiple draws and state updates in between.
+    bool supportsPipelineDynamicState = false;
     bool avoidFlatVaryings = false;
     // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
     // to hit some sort of reset condition that corrupts pixel local storage
     // when rendering a complex feather. Provide a workaround that allows the
-    // implementation to opt in to always feathering to the atlas instead of
-    // rendering directly to the screen.
+    // implementation to opt in to always feathering to the feather atlas
+    // instead of rendering directly to the screen.
     bool alwaysFeatherToAtlas = false;
     // clipSpaceBottomUp specifies whether the top of the viewport, in clip
     // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
@@ -196,6 +208,9 @@ struct PlatformFeatures
     //  |                                |                   |
     //  v height                         v +1                v height
     //
+    // A target can keep its rows the other way round from the framebuffer
+    // through RenderTarget::bottomUp(). GL canvases do, so their textures
+    // match every other backend.
     bool clipSpaceBottomUp = false;
     bool framebufferBottomUp = false;
     // Backend cannot initialize PLS with typical clear/load APIs in atomic
@@ -410,7 +425,6 @@ enum class PaintType : uint32_t
     solidColor,
     linearGradient,
     radialGradient,
-    image,
 };
 
 // Specifies the location of a simple or complex horizontal color ramp within
@@ -431,9 +445,8 @@ struct ColorRampLocation
 union SimplePaintValue
 {
     ColorInt color = 0xff000000;         // PaintType::solidColor
-    ColorRampLocation colorRampLocation; // Paintype::linear/radialGradient
-    float imageOpacity;                  // PaintType::image
-    uint32_t outerClipID;                // Paintype::clipUpdate
+    ColorRampLocation colorRampLocation; // PainTtype::linear/radialGradient
+    uint32_t outerClipID;                // PainTtype::clipUpdate
 };
 static_assert(sizeof(SimplePaintValue) == 4);
 
@@ -582,10 +595,19 @@ static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 // # of tessellation segments spanned by the midpoint fan patch.
 constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
-// # of tessellation segments spanned by the outer curve patch. (In this
-// particular instance, the final segment is a bowtie join with zero length and
-// no fan triangle.)
-constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
+// # of tessellation segments spanned by the outer cubic patch, NOT counting the
+// additional bowtie-join segment (zero length, no fan triangle) that is just
+// part of the AA border. Use OuterCubicPatchSegmentSpanPlusJoin where the join
+// segment is included.
+constexpr static uint32_t OuterCubicPatchSegmentSpan = 16;
+
+// The final segment in an outer cubic patch is a zero-length bowtie join.
+constexpr static uint32_t OuterCubicPatchJoinSegmentCount = 1;
+
+// Full tessellation stride of an outer cubic patch: the curve segments plus the
+// trailing bowtie-join segment.
+constexpr static uint32_t OuterCubicPatchSegmentSpanPlusJoin =
+    OuterCubicPatchSegmentSpan + OuterCubicPatchJoinSegmentCount;
 
 // Define vertex and index buffers that contain all the triangles in every
 // PatchType.
@@ -617,13 +639,13 @@ constexpr static uint32_t kMidpointFanCenterAAPatchBaseIndex =
 static_assert((kMidpointFanCenterAAPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
 constexpr static uint32_t kOuterCurvePatchVertexCount =
-    kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
-    kOuterCurvePatchSegmentSpan /*Curve fan*/;
+    OuterCubicPatchSegmentSpanPlusJoin * 8 /*AA center ramp with bowtie*/ +
+    OuterCubicPatchSegmentSpanPlusJoin /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBorderIndexCount =
-    kOuterCurvePatchSegmentSpan * 12 /*AA center ramp with bowtie*/;
+    OuterCubicPatchSegmentSpanPlusJoin * 12 /*AA center ramp with bowtie*/;
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
-    (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
+    (OuterCubicPatchSegmentSpan - 1) * 3 /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBaseIndex =
     kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
@@ -649,26 +671,48 @@ enum class DrawType : uint8_t
     outerCurvePatches,
 
     interiorTriangulation,
-    atlasBlit,
+    featherAtlasBlit,
     imageRect,
     imageMesh,
 
-    // MSAA strokes can't be merged with fills because they require their own
-    // dedicated stencil settings.
-    msaaStrokes,
+    // Strokes that use the depth buffer to work out coverage and avoid double
+    // hits.
+    depthStrokes,
 
-    // MSAA "fast" path: (effectively) single pass rendering.
-    msaaMidpointFanBorrowedCoverage,
-    msaaMidpointFans,
-    msaaMidpointFanStencilReset,
+    // depthStencil "fast" path: (almost) single pass rendering.
+    stencilMidpointFanBorrowedCoverage,
+    stencilMidpointFans,
+    stencilMidpointFanReset,
 
-    // MSAA "slow" path: stencil-then-cover.
-    msaaMidpointFanPathsStencil,
-    msaaMidpointFanPathsCover,
+    // Equivalent to stencilMidpointFanBorrowedCoverage + stencilMidpointFans +
+    // stencilMidpointFanReset on a single pipeline, switching between them
+    // with dynamic color/depth/stencil/cull state. Keeps the three passes on
+    // one batch so the reorderer can still instance non-overlapping paths
+    // together, while collapsing three pipeline binds into one.
+    stencilDynamicMidpointFans,
 
-    // MSAA interior triangulation is not currently supported, but this one draw
-    // type is included in order to support the "retrofittedcubictriangles" GM.
-    msaaOuterCubics,
+    // Same as the midpoint-fan "fast" path, but submits outer-cubic patches
+    // instead of midpoint-fan patches. These use the exact same depth/stencil
+    // settings as their midpoint-fan counterparts; they just draw a different
+    // patch of triangles. Used to fill paths via interior triangulation, whose
+    // interior is smuggled via cubics (RETROFIT_TRI_STRIP_CONTOUR_FLAG).
+    stencilOuterCubicBorrowedCoverage,
+    stencilOuterCubics,
+    stencilOuterCubicReset,
+
+    // The stencilDynamicMidpointFans equivalent for outer cubics: collapses
+    // stencilOuterCubicBorrowedCoverage + stencilOuterCubics +
+    // stencilOuterCubicReset onto a single pipeline, switching between them
+    // with dynamic state. Same geometry as the outer-cubic passes above.
+    stencilDynamicOuterCubics,
+
+    // depthStencil "slow" path: stencil-then-cover.
+    stencilMidpointFanWinding,
+    stencilMidpointFanCover,
+
+    // Same as the midpoint-fan "slow" path, but submits outer-cubic patches.
+    stencilOuterCubicWinding,
+    stencilOuterCubicCover,
 
     // Clear or intersect (based on DrawContents) the clip value.
     clipReset,
@@ -686,6 +730,41 @@ enum class DrawType : uint8_t
 
 };
 
+// True for drawTypes that switch dynamic state on a single pipeline and issue
+// multiple draws, rather than baking multiple pipelines.
+constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+            return true;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
 {
     switch (drawType)
@@ -697,84 +776,24 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::featherAtlasBlit:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             return false;
-    }
-    RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchIndexCount(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchIndexCount;
-        case DrawType::midpointFanCenterAAPatches:
-            return kMidpointFanCenterAAPatchIndexCount;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchIndexCount;
-        case DrawType::msaaStrokes:
-            return kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-            return kMidpointFanPatchIndexCount -
-                   kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubics:
-            return kOuterCurvePatchIndexCount -
-                   kOuterCurvePatchBorderIndexCount;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            RIVE_UNREACHABLE();
-    }
-    RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchBaseIndex(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::msaaStrokes:
-            return kMidpointFanPatchBaseIndex;
-        case DrawType::midpointFanCenterAAPatches:
-            return kMidpointFanCenterAAPatchBaseIndex;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchBaseIndex;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-            return kMidpointFanPatchBaseIndex +
-                   kMidpointFanPatchBorderIndexCount;
-        case DrawType::msaaOuterCubics:
-            return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
 }
@@ -802,13 +821,13 @@ enum class InterlockMode
     // (winding or even/odd) with a "clockwise" fill rule, where only regions
     // with a positive winding number get filled.
     clockwiseAtomic,
-    msaa,
+    depthStencil,
 };
 constexpr static size_t INTERLOCK_MODE_COUNT = 5;
 // # of bits required to contain an InterlockMode.
-constexpr static size_t INTERLOCK_MODE_BIT_COUNT = 3;
-static_assert(INTERLOCK_MODE_COUNT <= (1 << INTERLOCK_MODE_BIT_COUNT));
-static_assert(INTERLOCK_MODE_COUNT > (1 << (INTERLOCK_MODE_BIT_COUNT - 1)));
+constexpr static size_t InterlockModeBitCount = 3;
+static_assert(INTERLOCK_MODE_COUNT <= (1 << InterlockModeBitCount));
+static_assert(INTERLOCK_MODE_COUNT > (1 << (InterlockModeBitCount - 1)));
 
 // Low-level batch of scissored geometry for rendering to the offscreen atlas.
 struct AtlasDrawBatch
@@ -838,14 +857,16 @@ enum class ShaderFeatures
     ENABLE_NESTED_CLIPPING = 1 << 5,
     ENABLE_HSL_BLEND_MODES = 1 << 6,
     ENABLE_DITHER = 1 << 7,
+    ENABLE_MODULATED_IMAGE = 1 << 8,
 };
 
-constexpr static size_t kShaderFeatureCount = 8;
+constexpr static size_t ShaderFeatureCount = 9;
 constexpr static ShaderFeatures kAllShaderFeatures =
-    static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
+    static_cast<gpu::ShaderFeatures>((1 << ShaderFeatureCount) - 1);
 constexpr static ShaderFeatures kVertexShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
-    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER;
+    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER |
+    ShaderFeatures::ENABLE_MODULATED_IMAGE;
 
 // These shader features change the way atomic pipelines are set up (or cause
 //  validation failures when enabled but not used)
@@ -860,7 +881,9 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case InterlockMode::rasterOrdering:
             return kAllShaderFeatures;
         case InterlockMode::atomics:
-            return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
+            return kAllShaderFeatures &
+                   ~(ShaderFeatures::ENABLE_NESTED_CLIPPING |
+                     ShaderFeatures::ENABLE_MODULATED_IMAGE);
         case InterlockMode::clockwise:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_EVEN_ODD;
         case InterlockMode::clockwiseAtomic:
@@ -871,25 +894,31 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                    // clip updates, so they need their own draw anyway and the
                    // ENABLE_NESTED_CLIPPING feature isn't necessary.
                    ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
-        case InterlockMode::msaa:
+        case InterlockMode::depthStencil:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
                    ShaderFeatures::ENABLE_HSL_BLEND_MODES |
-                   ShaderFeatures::ENABLE_DITHER;
+                   ShaderFeatures::ENABLE_DITHER |
+                   ShaderFeatures::ENABLE_MODULATED_IMAGE;
     }
     RIVE_UNREACHABLE();
 }
 
-// Miscellaneous switches that *do* affect the behavior of the fragment shader.
-// The renderContext may add some of these, and a backend may also add them to a
+// Miscellaneous switches that *do* affect the behavior of the shaders. The
+// renderContext may add some of these, and a backend may also add them to a
 // shader key if it wants to implement the behavior.
+// Most only reach the fragment shader. emulateDynamicColorWriteDisable also
+// reaches the vertex shader, so a backend that sets it must key its vertex
+// shaders on it as well.
 enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
 
-    // InterlockMode::atomics only (without advanced blend). Render color to a
-    // standard attachment instead of PLS. The backend implementation is
-    // responsible to turn on src-over blending.
+    // Render to a standard color attachment with pure hardware blending (no dst
+    // reads or in-shader blending). The draw pipeline sets the appropriate
+    // fixed-function hardware blend state.
+    // NOTE: This can be a whole-flush decision (atomics, clockwise), or
+    // decided per draw (clockwiseAtomic, depthStencil).
     fixedFunctionColorOutput = 1 << 0,
 
     // Override all paths' fill rules (winding or even/odd) with an experimental
@@ -914,30 +943,53 @@ enum class ShaderMiscFlags : uint32_t
     // reading the buffer and subtracting.
     borrowedCoveragePass = 1 << 4,
 
-    // DrawType::renderPassInitialize only. Also store the color clear value to
-    // PLS when drawing a clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 5,
+    // The backend can't turn color writes off via dynamic state
+    // (e.g., VK_EXT_color_write_enable), so the vertex shader emulates it by
+    // zeroing its paint, which the fragment shader reads as color == 0.
+    // NOTE: "color == 0" doesn't work with blending disabled (opaquePaint), so
+    // this flag also forces blend on for opaque content.
+    emulateDynamicColorWriteDisable = 1 << 5,
 
-    // DrawType::renderPassInitialize only. Seed the color PLS plane by
-    // sampling the framebuffer contents (previously copied into a dst color
-    // texture bound at IMAGE_TEXTURE_IDX). Used for
+    // InterlockMode::depthStencil only. The shader determines dstColor for
+    // advanced blend by fetching every sample the fragment covers and
+    // averaging them.
+    msaaDstRead = 1 << 6,
+
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Also store
+    // the color clear value to PLS when drawing a clear, in addition to
+    // clearing the other PLS planes.
+    storeColorClear = 1 << 7,
+
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Seed the
+    // color PLS plane by sampling the framebuffer contents (previously copied
+    // into a dst color texture bound at IMAGE_TEXTURE_IDX). Used for
     // LoadAction::preserveRenderTarget on backends that can't directly copy
     // a texture into a storage buffer (e.g. WebGPU).
-    loadColorFromDstTexture = 1 << 6,
+    loadColorFromDstTexture = 1 << 8,
 
-    // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
-    // contents from BGRA to RGBA. (For when this data had to get copied from a
-    // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 7,
+    // InterlockMode::atomics, DrawType::renderPassInitialize only. Swizzle the
+    // existing framebuffer contents from BGRA to RGBA. (For when this data had
+    // to get copied from a BGRA target.)
+    swizzleColorBGRAToRGBA = 1 << 9,
 
-    // DrawType::renderPassResolve only. Optimization for when rendering to an
-    // offscreen texture.
+    // InterlockMode::atomics, DrawType::renderPassResolve only. Optimization
+    // for when rendering to an offscreen texture.
     //
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 8,
+    coalescedResolveAndTransfer = 1 << 10,
 };
+
+constexpr static size_t ShaderMiscFlagCount = 11;
+static_assert(
+    static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
+    1 << (ShaderMiscFlagCount - 1));
+
+// Since shader keys also pack the interlockMode and drawType, they don't have
+// to pack the entire ShaderMiscFlags mask -- only the bits that are relevant to
+// the interlockMode. This is a much smaller set than the entire enum.
+constexpr static size_t ShaderMiscFlagKeyBitCount = 5;
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     DrawType drawType,
@@ -948,7 +1000,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             if (interlockMode != InterlockMode::atomics)
             {
                 mask = ShaderFeatures::ENABLE_CLIPPING |
@@ -956,6 +1008,10 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
                        ShaderFeatures::ENABLE_HSL_BLEND_MODES |
                        ShaderFeatures::ENABLE_DITHER;
+                if (drawType == DrawType::featherAtlasBlit)
+                {
+                    mask |= ShaderFeatures::ENABLE_MODULATED_IMAGE;
+                }
                 break;
             }
             // Since atomic mode has to resolve previous draws, images need to
@@ -965,13 +1021,19 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
             mask = kAllShaderFeatures;
             break;
         case DrawType::clipReset:
@@ -986,10 +1048,10 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
                        ShaderFeatures::ENABLE_DITHER;
             }
-            else if (interlockMode == InterlockMode::msaa)
+            else if (interlockMode == InterlockMode::depthStencil)
             {
-                // MSAA mode only needs to initialize color, and only when
-                // preserving the render target but using a transient MSAA
+                // depthStencil mode only needs to initialize color, and only
+                // when preserving the render target but using a transient MSAA
                 // attachment.
                 mask = ShaderFeatures::ENABLE_DITHER;
             }
@@ -1010,7 +1072,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             else
             {
                 assert(interlockMode == InterlockMode::rasterOrdering ||
-                       interlockMode == InterlockMode::msaa);
+                       interlockMode == InterlockMode::depthStencil);
                 mask = ShaderFeatures::ENABLE_DITHER;
             }
             break;
@@ -1041,9 +1103,9 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     // Ensure that we haven't dropped features we care about somehow
     assert((requestedFeatures & outFeatures) == requestedFeatures);
 
-    // ENABLE_CLIP_RECT shouldn't be set if we're in MSAA mode without clip
-    // plane support.
-    if (interlockMode == InterlockMode::msaa &&
+    // ENABLE_CLIP_RECT shouldn't be set if we're in depthStencil mode without
+    // clip plane support.
+    if (interlockMode == InterlockMode::depthStencil &&
         !platformFeatures.supportsClipPlanes)
     {
         outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
@@ -1076,6 +1138,15 @@ uint32_t ShaderUniqueKey(DrawType,
                          InterlockMode,
                          ShaderMiscFlags);
 
+// ShaderUniqueKey() is currently 20 bits. Be careful when adding to it because
+// some backends pack their own private state into keys, and still need to fit
+// in 64 bits.
+constexpr static uint32_t DrawTypeKeyBitCount = 3;
+constexpr static uint32_t ShaderUniqueKeyBitCount =
+    ShaderMiscFlagKeyBitCount + InterlockModeBitCount + ShaderFeatureCount +
+    DrawTypeKeyBitCount;
+static_assert(ShaderUniqueKeyBitCount == 20);
+
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
 void ForEachUbershaderPermutation(
@@ -1084,8 +1155,8 @@ void ForEachUbershaderPermutation(
     const std::function<bool(DrawType, ShaderFeatures, ShaderMiscFlags)>&);
 
 // Flags indicating the contents of a draw. These don't affect shaders, but in
-// msaa mode they are needed to break up batching. (msaa needs different
-// stencil/blend state, depending on the DrawContents.)
+// depthStencil mode they are needed to break up batching. (depthStencil needs
+// different stencil/blend state, depending on the DrawContents.)
 //
 // These also affect the draw sort order, so we attempt associate more expensive
 // shader branch misses with higher flags.
@@ -1109,8 +1180,8 @@ enum class DrawContents
 };
 
 // These are the only draw contents flags that apply to the pipeline state (and
-// they only matter for MSAA)
-constexpr static DrawContents DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE =
+// they only matter for depthStencil)
+constexpr static DrawContents DrawContentsForDepthStencilPipelineState =
     DrawContents::activeClip | DrawContents::clipUpdate |
     DrawContents::clockwiseFill | DrawContents::evenOddFill |
     DrawContents::opaquePaint;
@@ -1119,6 +1190,7 @@ enum class StencilType
 {
     disabled,
     activeStencilClip,
+    clipStroke,
     borrowedCoverage,
     forwardClippedByBackward,
     backwardTriangleCleanup,
@@ -1128,7 +1200,7 @@ enum class StencilType
     clipReset,
 };
 
-constexpr uint32_t STENCIL_TYPE_BIT_COUNT = 4;
+constexpr uint32_t StencilTypeBitCount = 4;
 
 struct StencilInfo
 {
@@ -1203,8 +1275,15 @@ struct DrawBatch
     const DrawType drawType;
     ShaderMiscFlags shaderMiscFlags;
     DrawContents drawContents;
-    uint32_t elementCount; // Vertex, index, or instance count.
-    uint32_t baseElement;  // Base vertex, index, or instance.
+    // elementCount/baseElement are the "splice axis": the run that grows when
+    // adjacent batches combine. For instanced draws (paths, image draws) that
+    // is instances; for non-indexed triangle runs (interiorTriangulation,
+    // featherAtlasBlit, clipReset) it is vertices.
+    uint32_t elementCount; // Instance count, or vertex count for triangle runs.
+    uint32_t baseElement;  // Base instance, or base vertex for triangle runs.
+    // Geometry parameters for indexed-instanced types (paths and image draws).
+    uint32_t indexCountPerInstance = 0;
+    uint32_t baseIndex = 0;
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
     std::optional<AABBu16> scissorRect;
@@ -1212,9 +1291,8 @@ struct DrawBatch
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
 
     // DrawType::imageRect and DrawType::imageMesh.
-    uint32_t imageDrawDataOffset = 0;
     Texture* imageTexture = nullptr;
-    const ImageSampler imageSampler = ImageSampler::LinearClamp();
+    ImageSampler imageSampler = ImageSampler::LinearClamp();
 
     // DrawType::imageMesh.
     RenderBuffer* vertexBuffer;
@@ -1280,7 +1358,7 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
+    uint32_t msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
@@ -1296,7 +1374,7 @@ struct FlushDescriptor
     // As of now, each tile gets drawn in a separate render pass. The purpose of
     // these virtual tiles, for now, is to break the frame up into smaller
     // chunks so that Rive can be pre-empted by other rendering processes. This
-    // is only supported on Vulkan/non-msaa.
+    // is only supported on Vulkan/non-depthStencil.
     //
     // TODO: We could also explore a different type of virtual tiling that
     // reduces barriers in atomic mode, but that is not how this feature works
@@ -1316,14 +1394,14 @@ struct FlushDescriptor
     // the color buffer, regardless of blend mode.
     bool fixedFunctionColorOutput = false;
 
-    // Physical size of the atlas texture.
-    uint16_t atlasTextureWidth;
-    uint16_t atlasTextureHeight;
+    // Physical size of the feather atlas texture.
+    uint16_t featherAtlasTextureWidth;
+    uint16_t featherAtlasTextureHeight;
 
-    // Boundaries of the content for this specific flush within the atlas
-    // texture.
-    uint16_t atlasContentWidth;
-    uint16_t atlasContentHeight;
+    // Boundaries of the content for this specific flush within the feather
+    // atlas texture.
+    uint16_t featherAtlasContentWidth;
+    uint16_t featherAtlasContentHeight;
 
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
@@ -1375,13 +1453,13 @@ struct FlushDescriptor
 
     // List of feathered fills (if any) that must be rendered to the atlas
     // before the main render pass.
-    const AtlasDrawBatch* atlasFillBatches = nullptr;
-    size_t atlasFillBatchCount = 0;
+    const AtlasDrawBatch* featherAtlasFillBatches = nullptr;
+    size_t featherAtlasFillBatchCount = 0;
 
     // List of feathered strokes (if any) that must be rendered to the atlas
     // before the main render pass.
-    const AtlasDrawBatch* atlasStrokeBatches = nullptr;
-    size_t atlasStrokeBatchCount = 0;
+    const AtlasDrawBatch* featherAtlasStrokeBatches = nullptr;
+    size_t featherAtlasStrokeBatchCount = 0;
 
     // List of draws in the main render pass. These are rendered directly to the
     // renderTarget.
@@ -1463,8 +1541,9 @@ private:
     // drawBounds, or renderTargetBounds if there is a clear. (Used by the
     // "@RESOLVE_PLS" step in InterlockMode::atomics.)
     WRITEONLY IAABB m_renderTargetUpdateBounds;
-    WRITEONLY Vec2D m_atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
-    WRITEONLY Vec2D m_atlasContentInverseViewport; // 2 / atlasContentBounds
+    WRITEONLY Vec2D m_featherAtlasTextureInverseSize; // 1 / [atlasWidth,Height]
+    WRITEONLY Vec2D
+        m_featherAtlasContentInverseViewport; // 2 / atlasContentBounds
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
     // values. (clockwiseAtomic mode only.)
@@ -1488,8 +1567,10 @@ private:
     // RGB10 (as opposed to writing it out to the framebuffer).
     WRITEONLY float m_ditherConversionToRGB10;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
+    // Whether _fragCoord.y counts from the visual bottom of the target.
+    WRITEONLY uint32_t m_renderTargetBottomUp;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 104];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 108];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1521,7 +1602,7 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
     RIVE_UNREACHABLE();
 }
 
-// Defines a transform from screen space into a region of the atlas.
+// Defines a transform from screen space into a region of an atlas.
 // The atlas may have a different scale factor than the screen.
 struct AtlasTransform
 {
@@ -1557,7 +1638,7 @@ public:
              float strokeRadius,
              float featherRadius,
              uint32_t zIndex,
-             const AtlasTransform&,
+             const AtlasTransform& featherAtlasTransform,
              const CoverageBufferRange&);
 
 private:
@@ -1565,10 +1646,10 @@ private:
     // "0" indicates that the path is filled, not stroked.
     WRITEONLY float m_strokeRadius;
     WRITEONLY float m_featherRadius;
-    // InterlockMode::msaa.
+    // InterlockMode::depthStencil.
     WRITEONLY uint32_t m_zIndex;
     // Only used when rendering coverage via the atlas.
-    WRITEONLY AtlasTransform m_atlasTransform;
+    WRITEONLY AtlasTransform m_featherAtlasTransform;
     // InterlockMode::clockwiseAtomic.
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
 };
@@ -1593,7 +1674,9 @@ public:
              GradTextureLayout,
              uint32_t clipID,
              bool hasClipRect,
-             BlendMode);
+             bool hasImage,
+             BlendMode,
+             bool solidUnmultiplied);
 
 private:
     WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
@@ -1602,7 +1685,6 @@ private:
         WRITEONLY uint32_t m_color;     // PaintType::solidColor
         WRITEONLY float m_gradTextureY; // Paintype::linearGradient,
                                         // Paintype::radialGradient
-        WRITEONLY float m_opacity;      // PaintType::image
         WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
     };
 };
@@ -1621,6 +1703,7 @@ public:
         StorageBufferStructure::float32x4;
 
     void set(const Mat2D& viewMatrix,
+             const Mat2D& imageMatrix,
              PaintType,
              SimplePaintValue,
              const Gradient*,
@@ -1630,23 +1713,21 @@ public:
              const gpu::PlatformFeatures&);
 
 private:
-    WRITEONLY float m_matrix[6]; // Maps _fragCoord to paint coordinates.
-    union
-    {
-        WRITEONLY float
-            m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
-                                            // Paintype::radialGradient
-        WRITEONLY float m_imageTextureLOD;  // PaintType::image
-    };
-
+    WRITEONLY float m_paintMatrix[6]; // Maps _fragCoord to paint coordinates.
+    WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
+                                                    // Paintype::radialGradient
     WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized
                                                 // clipRect coords.
-    WRITEONLY Vec2D m_inverseFwidth; // -1 / fwidth(matrix * _fragCoord) -- for
-                                     // antialiasing.
+    WRITEONLY Vec2D m_inverseFwidth;  // -1 / fwidth(matrix * _fragCoord) -- for
+                                      // antialiasing.
+    WRITEONLY float m_imageMatrix[6]; // Maps _fragCoord to image coordinates.
+    WRITEONLY float m_imageTextureLOD;
+    WRITEONLY float
+        m_padding[9]; // Padding out to 128 bytes (to have 256 byte alignment)
 };
 static_assert(sizeof(PaintAuxData) ==
               StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) *
-                  4);
+                  8);
 static_assert(256 % sizeof(PaintAuxData) == 0);
 constexpr static size_t kPaintAuxBufferAlignmentInElements =
     256 / sizeof(PaintAuxData);
@@ -1697,13 +1778,129 @@ private:
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
-// Per-draw uniforms used by image meshes.
-struct ImageDrawUniforms
+enum class BoundVertexInstanceType
+{
+    none,
+    imageRect,
+    imageMesh,
+};
+
+// TODO: This was intentionally made identical to the VertexFormat enum in Ore,
+// and they could/should be merged.
+enum class VertexElementFormat : uint8_t
+{
+    float1,
+    float2,
+    float3,
+    float4,
+    uint8x4,
+    sint8x4,
+    unorm8x4,
+    snorm8x4,
+    uint16x2,
+    sint16x2,
+    unorm16x2,
+    snorm16x2,
+    uint16x4,
+    sint16x4,
+    float16x2,
+    float16x4,
+    uint32,
+};
+
+// NOTE: This would ideally contain the semantic names that D3D wants as well
+// (like "GLSL_a_imageDrawViewMatrix"), but we don't want to include that
+// generated header here, and having the attributes be constexpr is really
+// convenient (and is taken advantage of in the Vulkan renderer), so for now,
+// the D3Ds have to handle the semantic themselves.
+struct VertexAttribute
+{
+    VertexElementFormat format;
+    uint32_t attributeIndex;
+    uint32_t byteOffset;
+    const char* semanticName;
+};
+
+// Per-draw instanced attributes used by imageMeshes and imageRects.
+class ImageDrawInstanceBase
 {
 public:
-    ImageDrawUniforms() = default;
+    static constexpr size_t FirstAttribIdx = 2;
+    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
-    ImageDrawUniforms(const Mat2D&,
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+
+    ImageDrawInstanceBase() = default;
+
+    ImageDrawInstanceBase(const Mat2D&,
+                          ColorInt color,
+                          const ClipRectInverseMatrix*,
+                          uint32_t clipID,
+                          BlendMode,
+                          uint32_t zIndex);
+
+private:
+    WRITEONLY float m_viewMatrix[4];
+    WRITEONLY float m_clipRectInverseMatrix[4];
+
+    WRITEONLY float m_translate[2];
+    WRITEONLY float m_clipRectInverseTranslate[2];
+
+    WRITEONLY uint32_t m_modulatedColor;
+    WRITEONLY uint32_t m_clipID;
+    WRITEONLY uint32_t m_blendMode;
+    WRITEONLY uint32_t m_zIndex;
+};
+
+class ImageRectInstance
+{
+public:
+    constexpr static size_t FirstAttribIdx =
+        ImageDrawInstanceBase::FirstAttribIdx;
+    static constexpr size_t AttributeCount = 11;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+
+    ImageRectInstance() = default;
+
+    ImageRectInstance(const Mat2D&,
+                      ColorInt color,
+                      const ClipRectInverseMatrix*,
+                      uint32_t clipID,
+                      BlendMode,
+                      uint32_t zIndex,
+                      const Mat2D& imageMatrix,
+                      const Mat2D& gradientMatrix,
+                      uint32_t gradientType,
+                      const float (&gradTextureHorizontalSpan)[2],
+                      float gradTextureY);
+
+private:
+    ImageDrawInstanceBase m_commons;
+    WRITEONLY float m_imageMatrix[4];
+    WRITEONLY float m_gradientMatrix[4];
+    WRITEONLY float m_imageTranslate[2];
+    WRITEONLY float m_gradientTranslate[2];
+    WRITEONLY float m_gradTextureHorizontalSpan[2];
+    WRITEONLY float m_gradTextureY;
+    WRITEONLY float m_gradientType;
+};
+
+class ImageMeshInstance
+{
+public:
+    constexpr static size_t FirstAttribIdx =
+        ImageDrawInstanceBase::FirstAttribIdx;
+    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
+
+    static const std::array<VertexAttribute, AttributeCount>& getAttributes();
+
+    ImageMeshInstance() = default;
+
+    ImageMeshInstance(const Mat2D&,
                       float opacity,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
@@ -1711,26 +1908,19 @@ public:
                       uint32_t zIndex);
 
 private:
-    WRITEONLY float m_matrix[6];
-    WRITEONLY float m_opacity;
-    WRITEONLY float m_padding = 0;
-    WRITEONLY float m_clipRectInverseMatrix[6];
-    WRITEONLY uint32_t m_clipID;
-    WRITEONLY uint32_t m_blendMode;
-    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::msaa only.
-    // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 68];
+    ImageDrawInstanceBase m_commons;
 
-    constexpr void staticChecks()
-    {
-        static_assert(offsetof(ImageDrawUniforms, m_matrix) % 16 == 0);
-        static_assert(
-            offsetof(ImageDrawUniforms, m_clipRectInverseMatrix) % 16 == 0);
-        static_assert(sizeof(ImageDrawUniforms) == 256);
-    }
+    // Nothing additional yet
 };
 
 #undef WRITEONLY
+
+constexpr size_t MaxVertexAttributeCount =
+    std::max(ImageMeshInstance::LastAttribIdx,
+             ImageRectInstance::LastAttribIdx) +
+    1;
+constexpr size_t MaxImageDrawInstanceAttributeCount =
+    MaxVertexAttributeCount - ImageDrawInstanceBase::FirstAttribIdx;
 
 // The maximum number of storage buffers we will ever use in a vertex or
 // fragment shader.
@@ -1900,9 +2090,9 @@ enum class StencilCompareOp : uint8_t
 
 struct StencilFaceOps
 {
-    StencilOp failOp = StencilOp::keep;
-    StencilOp passOp = StencilOp::keep;
+    StencilOp stencilFailOp = StencilOp::keep;
     StencilOp depthFailOp = StencilOp::keep;
+    StencilOp depthStencilPassOp = StencilOp::keep;
     StencilCompareOp compareOp = StencilCompareOp::always;
 };
 
@@ -1913,7 +2103,7 @@ enum class CullFace : uint8_t
     counterclockwise,
 };
 
-constexpr uint32_t CULL_FACE_BIT_COUNT = 2;
+constexpr uint32_t CullFaceBitCount = 2;
 
 // Blend equation to select for the fixed-function GPU pipeline (not our own
 // in-shader blending). For now, the backend is free to decide whether it will
@@ -1987,14 +2177,24 @@ struct PipelineState
 };
 
 // Returns a unique value that can be used to key a whole pipeline.
-uint64_t pipeline_unique_key(DrawType,
-                             ShaderFeatures,
-                             InterlockMode,
-                             ShaderMiscFlags,
-                             DrawContents,
-                             bool fixedFunctionColorOutput,
-                             rive::BlendMode,
-                             const PlatformFeatures&);
+uint64_t getPipelineUniqueKey(DrawType,
+                              ShaderFeatures,
+                              InterlockMode,
+                              ShaderMiscFlags,
+                              DrawContents,
+                              bool fixedFunctionColorOutput,
+                              rive::BlendMode,
+                              const PlatformFeatures&);
+
+// getPipelineUniqueKey() is currently 39 bits. Be careful when adding to it
+// because some backends pack their own private state into keys, and still need
+// to fit in 64 bits.
+constexpr static uint32_t PipelineUniqueKeyBitCount =
+    ShaderUniqueKeyBitCount +
+    math::count_set_bits(uint32_t(DrawContentsForDepthStencilPipelineState)) +
+    BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
+    3 /*colorWrite, depthTest, depthWrite*/ + CullFaceBitCount;
+static_assert(PipelineUniqueKeyBitCount == 39);
 
 PipelineState get_pipeline_state(DrawType,
                                  InterlockMode,
@@ -2030,17 +2230,18 @@ constexpr inline PipelineState make_flat_pipeline_state(CullFace cull,
 constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::none, BlendEquation::none);
 
-constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE =
+constexpr static PipelineState FEATHER_ATLAS_FILL_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::none, BlendEquation::plus);
 
-constexpr static PipelineState ATLAS_STROKE_PIPELINE_STATE =
+constexpr static PipelineState FEATHER_ATLAS_STROKE_PIPELINE_STATE =
     make_flat_pipeline_state(CullFace::counterclockwise, BlendEquation::max);
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);
 
 // These tables integrate the gaussian function, and its inverse, covering a
-// spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
+// spread of -GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS to
+// +GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS.
 constexpr static uint32_t GAUSSIAN_TABLE_SIZE = 512;
 extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
@@ -2052,4 +2253,20 @@ extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
+
+// Get the Y coordinate in the gradient texture.
+float getGradientY(ColorRampLocation, GradTextureLayout);
+
+// Get the paint matrix and gradient texture horizontal span for a given
+// gradient.
+void getGradientMatrixAndSpan(const Gradient*,
+                              ColorRampLocation,
+                              const Mat2D& inverseViewMatrix,
+                              const RenderTarget*,
+                              const PlatformFeatures&,
+                              Mat2D& paintMatrixOut,
+                              float (&gradTextureHorizontalSpanOut)[2]);
+
+float featherRadiusFromFeather(float feather);
+
 } // namespace rive::gpu

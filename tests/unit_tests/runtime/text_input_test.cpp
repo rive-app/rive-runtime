@@ -1,6 +1,8 @@
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/cursor.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/layout/layout_component_style.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/text/text_input_text.hpp"
@@ -10,6 +12,8 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/input/focus_manager.hpp"
+#include "rive/input/focus_node.hpp"
 #include "rive_testing.hpp"
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
@@ -375,6 +379,35 @@ TEST_CASE("text input selectWord and selectLine wrappers", "[text_input]")
     CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() == 11);
 }
 
+// A text input drag is torn down when TextInputListenerGroup::processEvent sees
+// the click phase go from down to out. Collapsing the artboard cancels the
+// phase before processEvent runs, so the group has to end the drag as part of
+// cancelling -- otherwise the input stays in its dragging state for good.
+TEST_CASE("collapsing an artboard ends a text input drag", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    stateMachine->advanceAndApply(0.0f);
+
+    stateMachine->pointerDown(Vec2D(8.0f, 8.0f));
+    REQUIRE(textInput->isDragging() == true);
+
+    artboard->scaleX(0.0f);
+    artboard->scaleY(0.0f);
+    artboard->advance(0.0f);
+    stateMachine->pointerMove(Vec2D(20.0f, 8.0f));
+    REQUIRE(textInput->isDragging() == false);
+}
+
 TEST_CASE("text input double and triple click select word and line",
           "[text_input]")
 {
@@ -382,37 +415,35 @@ TEST_CASE("text input double and triple click select word and line",
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     if (stateMachine == nullptr)
     {
         return;
     }
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     if (textInput == nullptr)
     {
         return;
     }
 
     textInput->rawTextInput()->text("hello world");
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
     // Click near the top-left where the first word renders.
     Vec2D clickPosition(8.0f, 8.0f);
 
     auto pressRelease = [&]() {
-        smi.pointerDown(clickPosition);
-        smi.pointerUp(clickPosition);
+        stateMachine->pointerDown(clickPosition);
+        stateMachine->pointerUp(clickPosition);
     };
 
     // Two rapid clicks should select the word under the pointer.
     pressRelease(); // single
     pressRelease(); // double
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
     if (!textInput->rawTextInput()->cursor().hasSelection())
     {
@@ -430,7 +461,7 @@ TEST_CASE("text input double and triple click select word and line",
     // A third rapid click selects the (visual) line, spanning at least the
     // word.
     pressRelease(); // triple
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
     CHECK(textInput->rawTextInput()->cursor().hasSelection());
     CHECK(textInput->rawTextInput()->cursor().last().codePointIndex() >=
           wordEnd);
@@ -482,6 +513,64 @@ TEST_CASE("text input multiline toggles line breaks in displayed text",
     textInput->multiline(true);
     artboard->advance(0.0f);
     CHECK(textInput->rawTextInput()->text() == "line1\nline2");
+}
+
+TEST_CASE("text input alignValue drives the raw text input", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    // Default is left.
+    CHECK(textInput->alignValue() == 0);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::left);
+
+    textInput->alignValue((uint32_t)TextAlign::right);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::right);
+
+    textInput->alignValue((uint32_t)TextAlign::center);
+    artboard->advance(0.0f);
+    CHECK(textInput->rawTextInput()->align() == TextAlign::center);
+}
+
+TEST_CASE("text input aligns its text within the field", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    textInput->text("hi");
+    artboard->advance(0.0f);
+
+    float alignWidth = textInput->rawTextInput()->alignWidth();
+    // The multiline field wraps to its layout width, so we have something to
+    // align within.
+    REQUIRE(alignWidth > 0.0f);
+    AABB leftBounds = textInput->localBounds();
+    REQUIRE(leftBounds.width() < alignWidth);
+    CHECK(leftBounds.minX == 0.0f);
+
+    textInput->alignValue((uint32_t)TextAlign::right);
+    artboard->advance(0.0f);
+    AABB rightBounds = textInput->localBounds();
+    CHECK(rightBounds.minX == Approx(alignWidth - leftBounds.width()));
+    // Alignment moves the text, it doesn't resize it.
+    CHECK(rightBounds.width() == Approx(leftBounds.width()));
+
+    textInput->alignValue((uint32_t)TextAlign::center);
+    artboard->advance(0.0f);
+    AABB centerBounds = textInput->localBounds();
+    CHECK(centerBounds.minX ==
+          Approx((alignWidth - leftBounds.width()) / 2.0f));
+    CHECK(centerBounds.width() == Approx(leftBounds.width()));
 }
 
 TEST_CASE("text input strips inserted line breaks when single line",
@@ -567,21 +656,17 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     auto artboard = file->artboardNamed("Text Input - Multiline");
     CHECK(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachine(0);
+    auto stateMachine = artboard->stateMachineAt(0);
     if (stateMachine == nullptr)
     {
         // Skip if no state machine
         return;
     }
 
-    auto abi = artboard->instance();
-    StateMachineInstance smi(stateMachine, abi.get());
-    auto focusManager = abi->focusManager();
-
     // Advance to initialize
-    smi.advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.0f);
 
-    auto textInput = abi->objects<TextInput>().first();
+    auto textInput = artboard->objects<TextInput>().first();
     if (textInput == nullptr)
     {
         // Skip if no text input found
@@ -589,23 +674,395 @@ TEST_CASE("state machine keyInput and textInput forward to text input",
     }
 
     // Focus the text input (required for text/key input to be handled)
-    auto focusData = abi->objects<FocusData>().first();
+    auto focusData = artboard->objects<FocusData>().first();
     REQUIRE(focusData != nullptr);
-    smi.setFocus(focusData);
+    stateMachine->setFocus(focusData);
 
     // Clear text first
     textInput->rawTextInput()->text("");
     textInput->rawTextInput()->cursor(Cursor::zero());
 
     // Test textInput through state machine
-    bool handled = focusManager->textInput("typed text");
+    bool handled = stateMachine->textInput("typed text");
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed text");
 
     // Test keyInput through state machine (backspace)
     handled =
-        focusManager->keyInput(Key::backspace, KeyModifiers::none, true, false);
+        stateMachine->keyInput(Key::backspace, KeyModifiers::none, true, false);
     CHECK(handled == true);
     CHECK(textInput->rawTextInput()->text() == "typed tex");
+
+    // With focus cleared there is no target, so the state machine reports the
+    // events as unhandled and the text is left alone.
+    stateMachine->clearFocus();
+    CHECK(stateMachine->textInput("more") == false);
+    CHECK(stateMachine->keyInput(Key::backspace,
+                                 KeyModifiers::none,
+                                 true,
+                                 false) == false);
+    CHECK(textInput->rawTextInput()->text() == "typed tex");
+}
+
+TEST_CASE("losing focus clears the text input selection", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+
+    // Unfocused: no cursor is drawn.
+    CHECK(textInput->isFocused() == false);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->isFocused() == true);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    textInput->rawTextInput()->selectAll();
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+
+    stateMachine->clearFocus();
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 11);
+    CHECK(textInput->isFocused() == false);
+    CHECK(cursor->localClockwisePath() == nullptr);
+}
+
+TEST_CASE("a focused text input reports that it accepts text", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto focusManager = stateMachine->focusManager();
+    REQUIRE(focusManager != nullptr);
+    CHECK(focusManager->primaryFocusAcceptsText() == false);
+
+    // The focus target for a text input is its FocusData child; the query
+    // sees through to the TextInput parent.
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    stateMachine->setFocus(focusData);
+    CHECK(artboard->objects<TextInput>().first()->isFocused() == true);
+    CHECK(focusManager->primaryFocusAcceptsText() == true);
+
+    stateMachine->clearFocus();
+    CHECK(focusManager->primaryFocusAcceptsText() == false);
+}
+
+TEST_CASE("the text input cursor blinks while focused", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    CHECK(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    // Unfocused, the caret never draws no matter how much time passes.
+    stateMachine->advanceAndApply(0.6f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // Focusing shows the caret, which then toggles every half second.
+    stateMachine->setFocus(focusData);
+    CHECK(cursor->localClockwisePath() != nullptr);
+    stateMachine->advanceAndApply(0.5f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+    stateMachine->advanceAndApply(0.5f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Typing restarts the cycle so the caret stays solid while editing.
+    stateMachine->advanceAndApply(0.4f);
+    stateMachine->textInput("a");
+    stateMachine->advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Moving the caret restarts it too.
+    stateMachine->advanceAndApply(0.4f);
+    stateMachine->keyInput(Key::left, KeyModifiers::none, true, false);
+    stateMachine->advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Blurring hides it again.
+    stateMachine->clearFocus();
+    CHECK(cursor->localClockwisePath() == nullptr);
+}
+
+// The field the text aligns within is the viewport's content box. Padding on
+// the viewport is space the text can't occupy, so it has to come off the align
+// width -- otherwise centered/right text is pushed into the padding.
+TEST_CASE("viewport padding comes off the alignment box", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    artboard->advance(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    float unpaddedWidth = textInput->rawTextInput()->alignWidth();
+    float unpaddedHeight = textInput->rawTextInput()->alignHeight();
+    CHECK(unpaddedWidth > 0.0f);
+    CHECK(unpaddedHeight > 0.0f);
+
+    // TextInput -> Text Container -> Scroll Content -> Viewport.
+    auto viewportComponent = textInput->parent()->parent()->parent();
+    REQUIRE(viewportComponent != nullptr);
+    REQUIRE(viewportComponent->is<LayoutComponent>());
+    auto viewport = viewportComponent->as<LayoutComponent>();
+    auto style = viewport->style();
+    REQUIRE(style != nullptr);
+
+    style->paddingLeft(12.0f);
+    style->paddingRight(8.0f);
+    style->paddingTop(5.0f);
+    style->paddingBottom(3.0f);
+    artboard->advance(0.0f);
+
+    CHECK(viewport->paddingLeft() == Approx(12.0f));
+    CHECK(textInput->rawTextInput()->alignWidth() ==
+          Approx(unpaddedWidth - 12.0f - 8.0f));
+    CHECK(textInput->rawTextInput()->alignHeight() ==
+          Approx(unpaddedHeight - 5.0f - 3.0f));
+}
+
+// A dropped or suspended frame can hand us an advance spanning several blink
+// phases. Toggling once regardless would leave the caret in the wrong phase
+// for every even number of them.
+TEST_CASE("the caret blink accounts for every elapsed phase", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    stateMachine->advanceAndApply(0.0f);
+
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    stateMachine->setFocus(focusData);
+    REQUIRE(cursor->localClockwisePath() != nullptr);
+
+    // Two whole phases: back to visible, not hidden.
+    stateMachine->advanceAndApply(1.0f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    // Three whole phases: hidden.
+    stateMachine->advanceAndApply(1.5f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // Four whole phases leaves it where it was.
+    stateMachine->advanceAndApply(2.0f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // And the leftover remainder still carries into the next phase: 0.3 after
+    // the 2.0 above puts us 0.3 into a phase, so 0.2 more flips it.
+    stateMachine->advanceAndApply(0.3f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+    stateMachine->advanceAndApply(0.2f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+}
+TEST_CASE("obscured text input keeps selected text off the clipboard",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    textInput->rawTextInput()->text("hunter2");
+    artboard->advance(0.0f);
+    textInput->rawTextInput()->selectAll();
+    std::string selected;
+    REQUIRE(textInput->selectedText(selected));
+    CHECK(selected == "hunter2");
+
+    // A reused non-empty string must come back cleared.
+    textInput->obscured(true);
+    selected = "stale";
+    CHECK(textInput->selectedText(selected));
+    CHECK(selected.empty());
+}
+
+namespace
+{
+class SelectionAncestor : public Focusable
+{
+public:
+    bool keyInput(Key, KeyModifiers, bool, bool) override { return false; }
+    bool textInput(const std::string&) override { return false; }
+    void focused() override {}
+    void blurred() override {}
+    bool selectedText(std::string& outText) const override
+    {
+        outText = "ancestor selection";
+        return true;
+    }
+};
+} // namespace
+
+TEST_CASE("obscured text input stops selection lookup at itself",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+
+    SelectionAncestor ancestor;
+    auto ancestorNode = make_rcp<FocusNode>(&ancestor);
+    auto inputNode = make_rcp<FocusNode>(static_cast<Focusable*>(textInput));
+    ancestorNode->addChild(inputNode);
+
+    FocusManager manager;
+    manager.setFocus(inputNode);
+
+    textInput->rawTextInput()->text("hunter2");
+    artboard->advance(0.0f);
+    textInput->rawTextInput()->selectAll();
+    CHECK(manager.selectedText() == "hunter2");
+
+    // With no selection the lookup still bubbles to the ancestor.
+    textInput->rawTextInput()->clearSelection();
+    CHECK(manager.selectedText() == "ancestor selection");
+
+    // Obscured, the input terminates the lookup even without a selection.
+    textInput->rawTextInput()->selectAll();
+    textInput->obscured(true);
+    CHECK(manager.selectedText().empty());
+
+    manager.setFocus(nullptr);
+}
+TEST_CASE("tab traversal into a text input selects all", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    // Target focus keeps the caret where it was.
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+
+    stateMachine->clearFocus();
+    REQUIRE(stateMachine->focusNext());
+    CHECK(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+}
+
+TEST_CASE("selectAllOnFocus selects on target focus too", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    textInput->selectAllOnFocus(true);
+
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+
+    // Losing focus drops the selection, so the next focus selects again.
+    stateMachine->clearFocus();
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    stateMachine->setFocus(focusData);
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+}
+
+TEST_CASE("selectAllOnFocus press selects all, later press places the caret",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    textInput->rawTextInput()->text("hello world");
+    textInput->selectAllOnFocus(true);
+    stateMachine->advanceAndApply(0.0f);
+
+    // Press inside the input wherever the asset lays it out.
+    AABB bounds;
+    REQUIRE(textInput->worldBounds(bounds));
+    Vec2D pressPosition(bounds.left() + 8.0f, bounds.top() + 8.0f);
+    stateMachine->pointerDown(pressPosition);
+    stateMachine->pointerUp(pressPosition);
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(textInput->isFocused());
+    CHECK(textInput->rawTextInput()->selectedText() == "hello world");
+
+    // Already focused, a press places the caret and a drag extends from it.
+    // Far enough from the first press not to count as a double click.
+    Vec2D secondPress(bounds.left() + 40.0f, bounds.top() + 8.0f);
+    stateMachine->pointerDown(secondPress);
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(textInput->rawTextInput()->cursor().isCollapsed());
+    stateMachine->pointerMove(pressPosition);
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(textInput->rawTextInput()->cursor().hasSelection());
+    CHECK(textInput->rawTextInput()->selectedText() != "hello world");
+    stateMachine->pointerUp(pressPosition);
 }
 #endif

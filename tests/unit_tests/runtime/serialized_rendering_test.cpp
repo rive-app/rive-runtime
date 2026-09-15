@@ -11,12 +11,18 @@
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/math/random.hpp"
+// #include "rive/input/gamepad_batch.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
 #include <cstring>
+#include "rive/profiler/profiler_macros.h"
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 
 using namespace rive;
 

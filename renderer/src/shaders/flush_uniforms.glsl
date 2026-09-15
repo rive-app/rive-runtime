@@ -55,4 +55,6 @@ DECLARE_UNIFORM_FLOAT(ditherBias)
 DECLARE_UNIFORM_FLOAT(ditherConversionToRGB10)
 // Debugging.
 DECLARE_UNIFORM_UINT(wireframeEnabled)
+// Whether _fragCoord.y counts from the visual bottom of the render target.
+DECLARE_UNIFORM_UINT(renderTargetBottomUp)
 UNIFORM_BLOCK_END(uniforms)

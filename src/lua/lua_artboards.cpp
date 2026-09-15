@@ -11,6 +11,7 @@
 #include "rive/bones/root_bone.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/math/transform_components.hpp"
+#include "rive/shapes/path.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -21,11 +22,24 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> parentDataContext) :
+    rcp<DataContext> parentDataContext,
+    ScriptingContext* scriptingContext
+#ifdef WITH_RIVE_TOOLS
+    ,
+    rcp<File> filePin
+#endif
+    ) :
     m_file(file),
+#ifdef WITH_RIVE_TOOLS
+    m_filePin(std::move(filePin)),
+#endif
     m_artboard(std::move(artboardInstance)),
-    m_stateMachine(m_artboard->defaultStateMachine())
+    m_stateMachine(m_artboard->defaultStateMachine()),
+    m_scriptingContext(scriptingContext)
 {
+    // A scripted artboard is a root: nothing hosts it in another artboard's
+    // focus tree, so it owns its FocusManager and builds its own focus tree.
+    m_artboard->buildFocusTree(m_artboard->ensureFocusManager(), nullptr);
     if (viewModelInstance)
     {
         m_viewModelInstance = viewModelInstance;
@@ -47,10 +61,21 @@ ScriptReffedArtboard::ScriptReffedArtboard(
             m_stateMachine->bindViewModelInstance(m_viewModelInstance);
         }
     }
+    // Keep the bound instance tracked for end-of-frame advance for as long as
+    // this artboard uses it — even if the script drops its ScriptedViewModel
+    // wrapper. Covers both the passed-in and the auto-created instance.
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->trackViewModelInstance(m_viewModelInstance);
+    }
 }
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
+    if (m_scriptingContext != nullptr)
+    {
+        m_scriptingContext->untrackViewModelInstance(m_viewModelInstance.get());
+    }
     // Make sure state machine is deleted before artboard since
     // StateMachineInstance destructor accesses the artboard.
     m_stateMachine = nullptr;
@@ -79,20 +104,14 @@ static int artboard_draw(lua_State* L)
     return 0;
 }
 
-static int artboard_draw_canvas(lua_State* L)
-{
-    auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
-    scriptedArtboard->artboard()->internalDrawCanvases();
-
-    return 0;
-}
-
 bool ScriptedArtboard::advance(float seconds)
 {
     auto machine = stateMachine();
     if (machine)
     {
-        return machine->advanceAndApply(seconds);
+        // A scripted artboard's view models are advanced/reset by the host
+        // frame, not by this script-driven advance, so skip the VM consume.
+        return machine->advanceAndApply(seconds, false);
     }
     else
     {
@@ -145,8 +164,10 @@ static int apply_gamepad_event(lua_State* L, int atom)
     {
         auto dispatch = [&](const ListenerInvocation& invocation) {
             ScriptedDrawable* dispatched = nullptr;
-            (void)stateMachine->focusManager()->gamepadDispatch(invocation,
-                                                                &dispatched);
+            if (auto* fm = stateMachine->focusManager())
+            {
+                (void)fm->gamepadDispatch(invocation, &dispatched);
+            }
             result = (int)stateMachine->broadcastGamepadToScriptedDrawables(
                 invocation,
                 dispatched);
@@ -202,8 +223,6 @@ static int artboard_namecall(lua_State* L)
         {
             case (int)LuaAtoms::draw:
                 return artboard_draw(L);
-            case (int)LuaAtoms::drawCanvas:
-                return artboard_draw_canvas(L);
             case (int)LuaAtoms::advance:
                 return artboard_advance(L);
             case (int)LuaAtoms::instance:
@@ -321,12 +340,18 @@ int ScriptedArtboard::instance(lua_State* L,
 {
     auto artboardInstance = artboard()->instance();
     artboardInstance->frameOrigin(false);
+    // Clones share the source's dependency on a cross-lifetime host file.
     lua_newrive<ScriptedArtboard>(L,
                                   L,
                                   m_scriptReffedArtboard->file(),
                                   std::move(artboardInstance),
                                   viewModelInstance,
-                                  m_dataContext);
+                                  m_dataContext
+#ifdef WITH_RIVE_TOOLS
+                                  ,
+                                  m_scriptReffedArtboard->filePin()
+#endif
+    );
     return 1;
 }
 
@@ -469,13 +494,24 @@ ScriptedArtboard::ScriptedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> dataContext) :
+    rcp<DataContext> dataContext
+#ifdef WITH_RIVE_TOOLS
+    ,
+    rcp<File> filePin
+#endif
+    ) :
     m_state(L),
-    m_scriptReffedArtboard(
-        make_rcp<ScriptReffedArtboard>(file,
-                                       std::move(artboardInstance),
-                                       viewModelInstance,
-                                       dataContext)),
+    m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
+        file,
+        std::move(artboardInstance),
+        viewModelInstance,
+        dataContext,
+        static_cast<ScriptingContext*>(lua_getthreaddata(L))
+#ifdef WITH_RIVE_TOOLS
+            ,
+        std::move(filePin)
+#endif
+            )),
     m_dataContext(dataContext)
 {}
 

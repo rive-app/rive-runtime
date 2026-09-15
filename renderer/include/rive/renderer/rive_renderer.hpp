@@ -38,6 +38,7 @@ public:
                    ImageSampler,
                    BlendMode,
                    float opacity) override;
+    void clipStroke(RenderPath*, const StrokeParams&) override;
     void drawImageMesh(const RenderImage*,
                        ImageSampler,
                        rcp<RenderBuffer> vertices_f32,
@@ -49,6 +50,18 @@ public:
                        float opacity) override;
     void modulateOpacity(float opacity) override;
 
+    bool currentTransform(Mat2D* out) const override
+    {
+        *out = m_renderStateStack.back().matrix;
+        return true;
+    }
+
+    bool currentModulatedOpacity(float* out) const override
+    {
+        *out = m_renderStateStack.back().modulatedOpacity;
+        return true;
+    }
+
     // Determines if a path is an axis-aligned rectangle that can be represented
     // by rive::AABB.
     static bool IsAABB(const RawPath&, AABB* result);
@@ -56,22 +69,27 @@ public:
 #ifdef TESTING
     bool hasClipRect() const
     {
-        return m_stack.back().clipRectInverseMatrix != nullptr;
+        return m_renderStateStack.back().clipRectInverseMatrix != nullptr;
     }
-    const AABB& getClipRect() const { return m_stack.back().clipRect; }
+    const AABB& getClipRect() const
+    {
+        return m_renderStateStack.back().clipRect;
+    }
     const Mat2D& getClipRectMatrix() const
     {
-        return m_stack.back().clipRectMatrix;
+        return m_renderStateStack.back().clipRectMatrix;
     }
     float currentModulatedOpacity() const
     {
-        return m_stack.back().modulatedOpacity;
+        return m_renderStateStack.back().modulatedOpacity;
     }
 #endif
 
 protected:
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
-    void clipPathImpl(const RiveRenderPath*);
+    void clipPathImpl(const RiveRenderPath*,
+                      std::optional<StrokeParams> = {},
+                      float feather = 0.0f);
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too
     // complex to be supported by the GPU buffers, even after a logical flush,
@@ -86,7 +104,7 @@ protected:
     {
         success,
         failure,
-        clipEmpty,
+        fullyClipped,
     };
     [[nodiscard]] ApplyClipResult applyClip(gpu::Draw*);
 
@@ -96,28 +114,46 @@ protected:
         size_t clipStackHeight = 0;
         AABB clipRect;
         Mat2D clipRectMatrix;
+        IAABB clipRectPixelBounds;
         const gpu::ClipRectInverseMatrix* clipRectInverseMatrix = nullptr;
-        bool clipIsEmpty = false;
         float modulatedOpacity = 1.0f;
+
+        // The pixel bounds for all clipping (clip rects *and* clip paths),
+        // which defaults to a maximally-large rectangle
+        IAABB overallClipPixelBounds = IAABB::makeMaximal();
     };
-    std::vector<RenderState> m_stack{1};
+    std::vector<RenderState> m_renderStateStack{1};
 
     struct ClipElement
     {
         ClipElement() = default;
-        ClipElement(const Mat2D&, const RiveRenderPath*, FillRule);
+        ClipElement(const Mat2D&,
+                    const RiveRenderPath*,
+                    FillRule,
+                    IAABB pixelBounds,
+                    std::optional<StrokeParams>,
+                    float feather);
         ~ClipElement();
 
-        void reset(const Mat2D&, const RiveRenderPath*, FillRule);
+        void reset(const Mat2D&,
+                   const RiveRenderPath*,
+                   FillRule,
+                   IAABB pixelBounds,
+                   std::optional<StrokeParams>,
+                   float feather);
         bool isEquivalent(const Mat2D&, const RiveRenderPath*) const;
 
         Mat2D matrix;
         uint64_t rawPathMutationID;
         AABB pathBounds;
+        IAABB pixelBounds;
         rcp<const RiveRenderPath> path;
         FillRule fillRule; // Bc RiveRenderPath fillRule can mutate during the
                            // artboard draw process.
         uint32_t clipID;
+
+        std::optional<StrokeParams> stroke;
+        float feather;
     };
     std::vector<ClipElement> m_clipStack;
 
@@ -127,9 +163,5 @@ protected:
 
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<RiveRenderPath> m_unitRectPath;
-
-    // Used to build coarse path interiors for the "interior triangulation"
-    // algorithm.
-    RawPath m_scratchPath;
 };
 } // namespace rive

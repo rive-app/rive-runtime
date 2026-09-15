@@ -11,6 +11,8 @@ namespace rive
 class ListenerInvocation;
 class ScriptedDrawable;
 
+// KeyboardInput.modifiers uses these numeric bit values as a raw RML bitmask.
+// Adding or renumbering them requires updating that property's description.
 enum class KeyModifiers : uint8_t
 {
     none = 0,
@@ -30,6 +32,9 @@ inline KeyModifiers operator&(const KeyModifiers& a, const KeyModifiers& b)
     return (KeyModifiers)((uint8_t)a & (uint8_t)b);
 }
 
+// Mirrored as keyType's enumValues in dev/defs/inputs/keyboard_input.json,
+// which is what rml authors write. Adding or renumbering here means editing
+// that too; nothing checks the two against each other.
 enum class Key : uint16_t
 {
     space = 32,
@@ -175,6 +180,19 @@ public:
                           bool isPressed,
                           bool isRepeat) = 0;
     virtual bool textInput(const std::string& text) = 0;
+
+    /// Fills outText with the currently selected text within this focusable.
+    /// Returns true when this focusable handled the request and the focus
+    /// lookup stops here, even with outText left empty (how an obscured
+    /// input keeps its selection off the clipboard). Lets hosts implement
+    /// clipboard copy/cut, which the runtime can't do itself (no system
+    /// clipboard access).
+    virtual bool selectedText(std::string& outText) const { return false; }
+
+    /// Whether this focusable consumes typed text (a text input). Lets hosts
+    /// decide to start routing the keyboard to the runtime when one takes
+    /// focus. Default: no.
+    virtual bool acceptsTextInput() const { return false; }
 
     /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
     /// `outDispatchedScriptedDrawable` (when non-null) is filled with the

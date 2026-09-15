@@ -8,12 +8,15 @@
 
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/artboard.hpp>
+#include <rive/nested_artboard.hpp>
 #include <rive/semantic/semantic_manager.hpp>
 #include <rive/semantic/semantic_node.hpp>
 #include <rive/semantic/semantic_role.hpp>
 #include <rive/semantic/semantic_snapshot.hpp>
 #include <rive/semantic/semantic_state.hpp>
 #include <rive/semantic/semantic_trait.hpp>
+#include <rive/viewmodel/viewmodel_instance.hpp>
+#include <rive/viewmodel/viewmodel_instance_artboard.hpp>
 #include "rive_file_reader.hpp"
 #include "semantic_test_helpers.hpp"
 #include <catch.hpp>
@@ -492,4 +495,124 @@ TEST_CASE("enableSemantics called twice doesn't duplicate list-item SD entries",
         }
     }
     CHECK(fandomIds.size() == kFandomLabels.size());
+}
+
+TEST_CASE("Semantics enabled before the first advance survives the initial "
+          "data-bind artboard swap",
+          "[semantics][artboard]")
+{
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto sm = artboard->stateMachineAt(0);
+    REQUIRE(sm != nullptr);
+
+    NestedArtboard* slotHost = nullptr;
+    for (auto* host : artboard->nestedArtboards())
+    {
+        if (host->isArtboardDataBound())
+        {
+            slotHost = host;
+        }
+    }
+    REQUIRE(slotHost != nullptr);
+
+    sm->enableSemantics();
+    auto* mgr = sm->semanticManager();
+    REQUIRE(mgr != nullptr);
+
+    // The instance the slot's boundary node was just built against.
+    auto* builtAgainst = slotHost->artboardInstance(0);
+    REQUIRE(builtAgainst != nullptr);
+    REQUIRE(builtAgainst->volume() == 1.0f);
+    builtAgainst->volume(0.25f);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    sm->bindViewModelInstance(vmi);
+
+    sm->advanceAndApply(0.016f);
+
+    // Applying the bind instantiates a replacement and frees `builtAgainst`.
+    // A replacement is built from the source artboard, so it carries the
+    // default volume rather than the marker.
+    auto* afterBind = slotHost->artboardInstance(0);
+    REQUIRE(afterBind != nullptr);
+    REQUIRE(afterBind->volume() == 1.0f);
+
+    // The replacement is registered with the same manager, which also means the
+    // freed instance's boundary node was removed rather than left dangling
+    CHECK(afterBind->semanticManager() == mgr);
+
+    mgr->drainDiff();
+
+    const size_t nodesAfterBind = mgr->nodeCount();
+    for (int i = 0; i < 10; ++i)
+    {
+        sm->advanceAndApply(0.016f);
+        mgr->drainDiff();
+    }
+    CHECK(mgr->nodeCount() == nodesAfterBind);
+    CHECK(slotHost->artboardInstance(0)->semanticManager() == mgr);
+}
+
+TEST_CASE("Swapping a data-bound nested artboard rehomes its semantic subtree",
+          "[semantics][artboard]")
+{
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto sm = artboard->stateMachineAt(0);
+    REQUIRE(sm != nullptr);
+
+    sm->enableSemantics();
+    auto* mgr = sm->semanticManager();
+    REQUIRE(mgr != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    sm->bindViewModelInstance(vmi);
+
+    NestedArtboard* slotHost = nullptr;
+    for (auto* host : artboard->nestedArtboards())
+    {
+        if (host->isArtboardDataBound())
+        {
+            slotHost = host;
+        }
+    }
+    REQUIRE(slotHost != nullptr);
+
+    auto* artboardProp = vmi->propertyValue("artboardProp");
+    REQUIRE(artboardProp != nullptr);
+    REQUIRE(artboardProp->is<ViewModelInstanceArtboard>());
+    auto* vmiArtboard = artboardProp->as<ViewModelInstanceArtboard>();
+
+    auto swap = [&](const char* name) {
+        auto source = file->bindableArtboardNamed(name);
+        REQUIRE(source != nullptr);
+        auto* outgoing = slotHost->artboardInstance(0);
+        REQUIRE(outgoing != nullptr);
+        const std::string outgoingName = outgoing->name();
+        vmiArtboard->asset(source);
+        sm->advanceAndApply(0.016f);
+        mgr->drainDiff();
+        auto* incoming = slotHost->artboardInstance(0);
+        REQUIRE(incoming != nullptr);
+        // Each swap targets a different source artboard, so the name proves the
+        // slot really re-instanced.
+        REQUIRE(incoming->name() != outgoingName);
+        // The swapped-in instance shares the host's manager, so its content
+        // reaches the accessibility tree without re-enabling semantics.
+        CHECK(incoming->semanticManager() == mgr);
+    };
+
+    swap("Swappable2");
+    const size_t nodesAfterFirstSwap = mgr->nodeCount();
+
+    // Alternating swaps return the tree to the same shape each time. A
+    // boundary node orphaned by a freed instance would accumulate here.
+    swap("Swappable1");
+    swap("Swappable2");
+    CHECK(mgr->nodeCount() == nodesAfterFirstSwap);
 }

@@ -108,6 +108,15 @@ const StateMachineInput* StateMachine::input(std::string name) const
             return input.get();
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* input : m_editorInputs)
+    {
+        if (input != nullptr && input->name() == name)
+        {
+            return input;
+        }
+    }
+#endif
     return nullptr;
 }
 
@@ -117,6 +126,12 @@ const StateMachineInput* StateMachine::input(size_t index) const
     {
         return m_Inputs[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_Inputs.empty() && index < m_editorInputs.size())
+    {
+        return m_editorInputs[index];
+    }
+#endif
     return nullptr;
 }
 
@@ -129,6 +144,15 @@ const StateMachineLayer* StateMachine::layer(std::string name) const
             return layer.get();
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* layer : m_editorLayers)
+    {
+        if (layer != nullptr && layer->name() == name)
+        {
+            return layer;
+        }
+    }
+#endif
     return nullptr;
 }
 
@@ -138,6 +162,12 @@ const StateMachineLayer* StateMachine::layer(size_t index) const
     {
         return m_Layers[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_Layers.empty() && index < m_editorLayers.size())
+    {
+        return m_editorLayers[index];
+    }
+#endif
     return nullptr;
 }
 
@@ -147,6 +177,12 @@ const StateMachineListener* StateMachine::listener(size_t index) const
     {
         return m_Listeners[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_Listeners.empty() && index < m_editorListeners.size())
+    {
+        return m_editorListeners[index];
+    }
+#endif
     return nullptr;
 }
 
@@ -156,6 +192,12 @@ const DataBind* StateMachine::dataBind(size_t index) const
     {
         return m_dataBinds[index].get();
     }
+#ifdef WITH_RIVE_EDITOR
+    if (m_dataBinds.empty() && index < m_editorDataBinds.size())
+    {
+        return m_editorDataBinds[index];
+    }
+#endif
     return nullptr;
 }
 

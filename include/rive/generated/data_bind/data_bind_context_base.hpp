@@ -55,6 +55,9 @@ public:
 
 protected:
     virtual void sourcePathIdsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/data_bind_context_ext.inl"
+#endif
 };
 } // namespace rive
 

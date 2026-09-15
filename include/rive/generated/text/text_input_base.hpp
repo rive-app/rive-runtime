@@ -4,7 +4,11 @@
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/drawable.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class TextInputBase : public Drawable
@@ -39,11 +43,19 @@ public:
     static const uint16_t textPropertyKey = 817;
     static const uint16_t selectionRadiusPropertyKey = 818;
     static const uint16_t multilinePropertyKey = 979;
+    static const uint16_t alignValuePropertyKey = 222;
+    static const uint16_t verticalAlignValuePropertyKey = 1094;
+    static const uint16_t obscuredPropertyKey = 1095;
+    static const uint16_t selectAllOnFocusPropertyKey = 1099;
 
 protected:
     std::string m_Text = "";
     float m_SelectionRadius = 5.0f;
     bool m_Multiline = true;
+    uint32_t m_AlignValue = 0;
+    uint32_t m_VerticalAlignValue = 0;
+    bool m_Obscured = false;
+    bool m_SelectAllOnFocus = false;
 
 public:
     inline const std::string& text() const { return m_Text; }
@@ -53,8 +65,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_STRING_CHANGING(textPropertyKey, m_Text, value);
         m_Text = value;
-        textChanged();
+        RIVE_EDITOR_CHANGED(textChanged());
         notifyPropertyChanged(textPropertyKey);
     }
 
@@ -65,8 +78,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(selectionRadiusPropertyKey,
+                             &m_SelectionRadius,
+                             &value);
         m_SelectionRadius = value;
-        selectionRadiusChanged();
+        RIVE_EDITOR_CHANGED(selectionRadiusChanged());
         notifyPropertyChanged(selectionRadiusPropertyKey);
     }
 
@@ -77,9 +93,66 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(multilinePropertyKey, &m_Multiline, &value);
         m_Multiline = value;
-        multilineChanged();
+        RIVE_EDITOR_CHANGED(multilineChanged());
         notifyPropertyChanged(multilinePropertyKey);
+    }
+
+    inline uint32_t alignValue() const { return m_AlignValue; }
+    void alignValue(uint32_t value)
+    {
+        if (m_AlignValue == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(alignValuePropertyKey, &m_AlignValue, &value);
+        m_AlignValue = value;
+        RIVE_EDITOR_CHANGED(alignValueChanged());
+        notifyPropertyChanged(alignValuePropertyKey);
+    }
+
+    inline uint32_t verticalAlignValue() const { return m_VerticalAlignValue; }
+    void verticalAlignValue(uint32_t value)
+    {
+        if (m_VerticalAlignValue == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(verticalAlignValuePropertyKey,
+                             &m_VerticalAlignValue,
+                             &value);
+        m_VerticalAlignValue = value;
+        RIVE_EDITOR_CHANGED(verticalAlignValueChanged());
+        notifyPropertyChanged(verticalAlignValuePropertyKey);
+    }
+
+    inline bool obscured() const { return m_Obscured; }
+    void obscured(bool value)
+    {
+        if (m_Obscured == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(obscuredPropertyKey, &m_Obscured, &value);
+        m_Obscured = value;
+        RIVE_EDITOR_CHANGED(obscuredChanged());
+        notifyPropertyChanged(obscuredPropertyKey);
+    }
+
+    inline bool selectAllOnFocus() const { return m_SelectAllOnFocus; }
+    void selectAllOnFocus(bool value)
+    {
+        if (m_SelectAllOnFocus == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(selectAllOnFocusPropertyKey,
+                             &m_SelectAllOnFocus,
+                             &value);
+        m_SelectAllOnFocus = value;
+        RIVE_EDITOR_CHANGED(selectAllOnFocusChanged());
+        notifyPropertyChanged(selectAllOnFocusPropertyKey);
     }
 
     Core* clone() const override;
@@ -88,6 +161,11 @@ public:
         m_Text = object.m_Text;
         m_SelectionRadius = object.m_SelectionRadius;
         m_Multiline = object.m_Multiline;
+        m_AlignValue = object.m_AlignValue;
+        m_VerticalAlignValue = object.m_VerticalAlignValue;
+        m_Obscured = object.m_Obscured;
+        m_SelectAllOnFocus = object.m_SelectAllOnFocus;
+        RIVE_EDITOR_COPY(object);
         Drawable::copy(object);
     }
 
@@ -104,7 +182,20 @@ public:
             case multilinePropertyKey:
                 m_Multiline = CoreBoolType::deserialize(reader);
                 return true;
+            case alignValuePropertyKey:
+                m_AlignValue = CoreUintType::deserialize(reader);
+                return true;
+            case verticalAlignValuePropertyKey:
+                m_VerticalAlignValue = CoreUintType::deserialize(reader);
+                return true;
+            case obscuredPropertyKey:
+                m_Obscured = CoreBoolType::deserialize(reader);
+                return true;
+            case selectAllOnFocusPropertyKey:
+                m_SelectAllOnFocus = CoreBoolType::deserialize(reader);
+                return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Drawable::deserialize(propertyKey, reader);
     }
 
@@ -112,6 +203,13 @@ protected:
     virtual void textChanged() {}
     virtual void selectionRadiusChanged() {}
     virtual void multilineChanged() {}
+    virtual void alignValueChanged() {}
+    virtual void verticalAlignValueChanged() {}
+    virtual void obscuredChanged() {}
+    virtual void selectAllOnFocusChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_input_ext.inl"
+#endif
 };
 } // namespace rive
 

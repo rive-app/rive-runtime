@@ -2,6 +2,9 @@
 #define _RIVE_EXPORT_AUDIO_BASE_HPP_
 #include "rive/assets/file_asset.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ExportAudioBase : public FileAsset
@@ -42,14 +45,16 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(volumePropertyKey, &m_Volume, &value);
         m_Volume = value;
-        volumeChanged();
+        RIVE_EDITOR_CHANGED(volumeChanged());
         notifyPropertyChanged(volumePropertyKey);
     }
 
     void copy(const ExportAudioBase& object)
     {
         m_Volume = object.m_Volume;
+        RIVE_EDITOR_COPY(object);
         FileAsset::copy(object);
     }
 
@@ -61,11 +66,15 @@ public:
                 m_Volume = CoreDoubleType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return FileAsset::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void volumeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/assets/export_audio_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -28,7 +28,11 @@ public:
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         m_renderContext->static_impl_cast<RenderContextMetalImpl>()
             ->setCommandQueue(m_queue);
-        printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
+        printf("==== MTLDevice: %s (%s) ====\n",
+               m_gpu.name.UTF8String,
+               // MTLDebugDevice when API validation is on, the real driver
+               // class when it isn't.
+               NSStringFromClass([m_gpu class]).UTF8String);
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }
@@ -49,6 +53,7 @@ public:
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
             .disableRasterOrdering = options.disableRasterOrdering,
+            .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,

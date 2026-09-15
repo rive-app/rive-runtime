@@ -33,6 +33,10 @@ public:
     void feather(float feather) override { m_feather = fabsf(feather); }
     void blendMode(BlendMode mode) override { m_blendMode = mode; }
     void shader(rcp<RenderShader> shader) override;
+
+    void modulatedImage(const RenderImage*,
+                        ImageSampler,
+                        const Mat2D&) override;
     void image(rcp<gpu::Texture>, float opacity);
     void imageSampler(ImageSampler imageSampler)
     {
@@ -48,9 +52,9 @@ public:
     rcp<gpu::Gradient> getGradientWithOpacity(float opacity) const;
     gpu::Texture* getImageTexture() const { return m_imageTexture.get(); }
     ImageSampler getImageSampler() const { return m_imageSampler; }
-    float getImageOpacity() const { return m_simpleValue.imageOpacity; }
     float getOuterClipID() const { return m_simpleValue.outerClipID; }
     float getThickness() const { return m_thickness; }
+    const Mat2D& getImageTransform() const { return m_imageTransform; }
     StrokeJoin getJoin() const
     {
         // Feathers ignore the join and always use round.
@@ -78,5 +82,6 @@ private:
     float m_feather = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
     bool m_stroked = false;
+    Mat2D m_imageTransform;
 };
 } // namespace rive

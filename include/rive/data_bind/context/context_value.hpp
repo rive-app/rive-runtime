@@ -33,6 +33,18 @@ public:
                        bool isMainDirection,
                        DataBind* dataBind) {};
     void invalidate() { m_isValid = false; };
+    // Re-read the target after we wrote it ourselves (source->target). The
+    // cached target value is what detects target-side changes; if we leave it
+    // holding the value from before our own write, a later genuine target
+    // change that lands back on that stale value reads as "unchanged" and
+    // never propagates to the source. Only toSource binds allocate the cache.
+    void refreshTargetValue(DataBind* dataBind)
+    {
+        if (dataBind->toSource())
+        {
+            m_targetValue.syncTargetValue(dataBind);
+        }
+    }
     virtual bool syncTargetValue(Core* target, uint32_t propertyKey)
     {
         return false;
@@ -89,7 +101,6 @@ public:
                                                dataBind);
             if (value)
             {
-
                 // Apply value to source
                 dataBind->suppressDirt(true);
                 auto source = dataBind->source();

@@ -60,6 +60,65 @@ D3D12PipelineManager::D3D12PipelineManager(
                                             IID_PPV_ARGS(&m_rootSignature)));
 }
 
+inline DXGI_FORMAT getDXGIFormat(VertexElementFormat format)
+{
+    switch (format)
+    {
+        case VertexElementFormat::float1:
+            return DXGI_FORMAT_R32_FLOAT;
+        case VertexElementFormat::float2:
+            return DXGI_FORMAT_R32G32_FLOAT;
+        case VertexElementFormat::float3:
+            return DXGI_FORMAT_R32G32B32_FLOAT;
+        case VertexElementFormat::float4:
+            return DXGI_FORMAT_R32G32B32A32_FLOAT;
+        case VertexElementFormat::uint8x4:
+            return DXGI_FORMAT_R8G8B8A8_UINT;
+        case VertexElementFormat::sint8x4:
+            return DXGI_FORMAT_R8G8B8A8_SINT;
+        case VertexElementFormat::unorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case VertexElementFormat::snorm8x4:
+            return DXGI_FORMAT_R8G8B8A8_SNORM;
+        case VertexElementFormat::uint16x2:
+            return DXGI_FORMAT_R16G16_UINT;
+        case VertexElementFormat::sint16x2:
+            return DXGI_FORMAT_R16G16_SINT;
+        case VertexElementFormat::unorm16x2:
+            return DXGI_FORMAT_R16G16_UNORM;
+        case VertexElementFormat::snorm16x2:
+            return DXGI_FORMAT_R16G16_SNORM;
+        case VertexElementFormat::uint16x4:
+            return DXGI_FORMAT_R16G16B16A16_UINT;
+        case VertexElementFormat::sint16x4:
+            return DXGI_FORMAT_R16G16B16A16_SINT;
+        case VertexElementFormat::float16x2:
+            return DXGI_FORMAT_R16G16_FLOAT;
+        case VertexElementFormat::float16x4:
+            return DXGI_FORMAT_R16G16B16A16_FLOAT;
+        case VertexElementFormat::uint32:
+            return DXGI_FORMAT_R32_UINT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+template <typename ImageDrawInstance, uint32_t N>
+void addInstanceElements(StackVector<D3D12_INPUT_ELEMENT_DESC, N>& layoutDesc)
+{
+    for (auto& attribute : ImageDrawInstance::getAttributes())
+    {
+        layoutDesc.push_back({
+            .SemanticName = attribute.semanticName,
+            .SemanticIndex = 0,
+            .Format = getDXGIFormat(attribute.format),
+            .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
+            .AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
+            .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+            .InstanceDataStepRate = 1,
+        });
+    }
+}
+
 std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
@@ -69,76 +128,85 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-            result->m_layoutDesc[0] = {
+            result->m_layoutDesc.push_back({
                 GLSL_a_patchVertexData,
                 0,
                 DXGI_FORMAT_R32G32B32A32_FLOAT,
                 PATCH_VERTEX_DATA_SLOT,
                 D3D12_APPEND_ALIGNED_ELEMENT,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_layoutDesc[1] = {
+                0,
+            });
+            result->m_layoutDesc.push_back({
                 GLSL_a_mirroredVertexData,
                 0,
                 DXGI_FORMAT_R32G32B32A32_FLOAT,
                 PATCH_VERTEX_DATA_SLOT,
                 D3D12_APPEND_ALIGNED_ELEMENT,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_vertexAttribCount = 2;
+                0,
+            });
             break;
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-            result->m_layoutDesc[0] = {
+        case DrawType::featherAtlasBlit:
+            result->m_layoutDesc.push_back({
                 GLSL_a_triangleVertex,
                 0,
                 DXGI_FORMAT_R32G32B32_FLOAT,
                 TRIANGLE_VERTEX_DATA_SLOT,
                 0,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_vertexAttribCount = 1;
+                0,
+            });
             break;
         case DrawType::imageRect:
-            result->m_layoutDesc[0] = {
+            result->m_layoutDesc.push_back({
                 GLSL_a_imageRectVertex,
                 0,
                 DXGI_FORMAT_R32G32B32A32_FLOAT,
                 IMAGE_RECT_VERTEX_DATA_SLOT,
                 0,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_vertexAttribCount = 1;
+                0,
+            });
+            addInstanceElements<ImageRectInstance>(result->m_layoutDesc);
             break;
         case DrawType::imageMesh:
-            result->m_layoutDesc[0] = {
+            result->m_layoutDesc.push_back({
                 GLSL_a_position,
                 0,
                 DXGI_FORMAT_R32G32_FLOAT,
                 IMAGE_MESH_VERTEX_DATA_SLOT,
                 D3D12_APPEND_ALIGNED_ELEMENT,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_layoutDesc[1] = {
+                0,
+            });
+            result->m_layoutDesc.push_back({
                 GLSL_a_texCoord,
                 0,
                 DXGI_FORMAT_R32G32_FLOAT,
                 IMAGE_MESH_UV_DATA_SLOT,
                 D3D12_APPEND_ALIGNED_ELEMENT,
                 D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0};
-            result->m_vertexAttribCount = 2;
+                0,
+            });
+            addInstanceElements<ImageMeshInstance>(result->m_layoutDesc);
             break;
         case DrawType::renderPassResolve:
-            result->m_vertexAttribCount = 0;
             break;
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
@@ -164,7 +232,12 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     ComPtr<ID3D12PipelineState> pipelineState;
 
     D3D12_RASTERIZER_DESC rasterDesc = {};
-    rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+    // Wireframe is a debugging aid. The resolve is a fullscreen operation, so
+    // leave it solid even in wireframe mode.
+    rasterDesc.FillMode =
+        (props.wireframe && props.drawType != DrawType::renderPassResolve)
+            ? D3D12_FILL_MODE_WIREFRAME
+            : D3D12_FILL_MODE_SOLID;
     rasterDesc.FrontCounterClockwise = FALSE;
     rasterDesc.DepthBias = 0;
     rasterDesc.SlopeScaledDepthBias = 0;
@@ -179,7 +252,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
+        case DrawType::featherAtlasBlit:
             rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
             break;
         case DrawType::imageRect:
@@ -187,13 +260,19 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::renderPassResolve:
             rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
             break;
-        case DrawType::msaaStrokes:
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanStencilReset:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaMidpointFanPathsCover:
-        case DrawType::msaaOuterCubics:
+        case DrawType::depthStrokes:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
             break;
@@ -217,7 +296,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
             : 0;
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = {vs.m_layoutDesc, vs.m_vertexAttribCount};
+    psoDesc.InputLayout = {vs.m_layoutDesc.data(), vs.m_layoutDesc.size()};
     psoDesc.pRootSignature = m_rootSignature.Get();
     psoDesc.VS = CD3DX12_SHADER_BYTECODE(vs.m_shader.Get());
     psoDesc.PS = CD3DX12_SHADER_BYTECODE(ps.m_shader.Get());
@@ -251,7 +330,6 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
 
 void D3D12PipelineManager::compileTesselationPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc[] = {
         {GLSL_a_p0p1_,
          0,
@@ -328,7 +406,6 @@ void D3D12PipelineManager::compileTesselationPipeline()
 
 void D3D12PipelineManager::compileGradientPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc = {
         GLSL_a_span,
         0,
@@ -382,9 +459,8 @@ void D3D12PipelineManager::compileGradientPipeline()
         IID_PPV_ARGS(&m_gradientPipeline)));
 }
 
-void D3D12PipelineManager::compileAtlasPipeline()
+void D3D12PipelineManager::compileFeatherAtlasPipeline()
 {
-
     D3D12_INPUT_ELEMENT_DESC layoutDesc[2];
     layoutDesc[0] = {GLSL_a_patchVertexData,
                      0,
@@ -442,7 +518,7 @@ void D3D12PipelineManager::compileAtlasPipeline()
 
     VERIFY_OK(device()->CreateGraphicsPipelineState(
         &psoDesc,
-        IID_PPV_ARGS(&m_atlasStrokePipeline)));
+        IID_PPV_ARGS(&m_featherAtlasStrokePipeline)));
 
     psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
     psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
@@ -453,6 +529,6 @@ void D3D12PipelineManager::compileAtlasPipeline()
 
     VERIFY_OK(device()->CreateGraphicsPipelineState(
         &psoDesc,
-        IID_PPV_ARGS(&m_atlasFillPipeline)));
+        IID_PPV_ARGS(&m_featherAtlasFillPipeline)));
 }
 } // namespace rive::gpu

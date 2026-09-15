@@ -106,9 +106,11 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
             thumb()->forcedHeight(thumbHeight);
         }
     }
+    // The thumb offset is in track units, so apply it in the track's frame
+    // rather than the thumb's own — see Constraint::offsetInParentFrame.
     auto targetTransform =
-        Mat2D::multiply(component->worldTransform(),
-                        Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
+        offsetInParentFrame(component,
+                            Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
     TransformConstraint::constrainWorld(component,
                                         component->worldTransform(),
                                         m_componentsA,
@@ -121,6 +123,18 @@ void ScrollBarConstraint::buildDependencies()
 {
     m_scrollConstraint->addDependent(this);
     Super::buildDependencies();
+    // draggables() hands the thumb and track proxies out as drag hit targets,
+    // so they must be injected into the draw order even if they never paint or
+    // clip. Stamp them here, before the artboard's one-time proxy injection.
+    if (parent() != nullptr && parent()->is<LayoutComponent>())
+    {
+        thumb()->markInteractionTarget();
+        if (parent()->parent() != nullptr &&
+            parent()->parent()->is<LayoutComponent>())
+        {
+            track()->markInteractionTarget();
+        }
+    }
 }
 
 StatusCode ScrollBarConstraint::onAddedDirty(CoreContext* context)

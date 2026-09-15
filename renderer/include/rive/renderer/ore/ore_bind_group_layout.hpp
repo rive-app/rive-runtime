@@ -19,6 +19,7 @@ class Context;
 class ContextMetal;
 class ContextGL;
 class ContextD3D11;
+class ShaderModule;
 
 // Public Ore type — created via `Context::makeBindGroupLayout`. Carries the
 // user-supplied entries plus per-backend baked layout handles.
@@ -64,6 +65,56 @@ protected:
     Context* m_context = nullptr;
 };
 
+// Binding map covering both stages of a pipeline. When the two stages come
+// from different modules, each stage's rows come from the module that
+// compiled it — a single module's map only describes its own slots, so
+// taking the vertex module's word for the fragment stage misbinds it.
+//
+// Either module may be null (depth-only pipelines pass no fragment).
+BindingMap bindingMapForStages(const ShaderModule* vertex,
+                               const ShaderModule* fragment);
+
+// Walk a BindingMap for the given group, populating layout entries with
+// kind / visibility / texture metadata / native slots.
+//
+// Returns what the group needs, which may exceed `maxEntries`. Nothing past
+// that is written, so a short buffer must size up and call again.
+//
+// `dynamicUBOBindings` (optional): array of WGSL @binding values within
+// `groupIndex` whose UBO entries should set `hasDynamicOffset = true`.
+uint32_t populateBindGroupLayoutEntries(
+    BindGroupLayoutEntry* entries,
+    uint32_t maxEntries,
+    const BindingMap& bindingMap,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
+
+uint32_t populateBindGroupLayoutEntriesFromShader(
+    BindGroupLayoutEntry* entries,
+    uint32_t maxEntries,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
+
+// Derive the group's entries from a binding map and build the layout via
+// `Context::makeBindGroupLayout`. Pass the map from `bindingMapForStages`
+// for a pipeline whose stages live in different modules.
+rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
+    Context& ctx,
+    const BindingMap& bindingMap,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
+
+rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
+    Context& ctx,
+    const ShaderModule* shader,
+    uint32_t groupIndex,
+    const uint32_t* dynamicUBOBindings = nullptr,
+    uint32_t dynamicUBOCount = 0);
+
 // Validate user-supplied layouts against the shader's reflected binding map.
 //
 // Walks every entry in `bindingMap` and confirms the layout for that group
@@ -77,9 +128,51 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
                                       uint32_t layoutCount,
                                       std::string* outError);
 
+// How far a backend's native slot numbers reach. Metal / D3D11 give each
+// stage its own namespace; Vulkan numbers bindings within a descriptor set;
+// D3D12 and GL share one namespace per resource kind across the whole
+// pipeline.
+enum class NativeSlotScope : uint8_t
+{
+    perStage,
+    perGroup,
+    perKind,
+};
+
+// A pipeline whose stages come from different modules draws its slots from
+// two independent allocator runs, so where a backend shares a slot namespace
+// across stages the two runs can put different bindings on the same slot.
+// Nothing downstream can tell them apart, so reject it here naming both.
+//
+// No-op for single-module pipelines, whose one allocator run cannot collide.
+bool validateSplitStageSlots(bool stagesCompiledApart,
+                             const BindingMap& mergedMap,
+                             NativeSlotScope scope,
+                             std::string* outError);
+
+// Two files can declare one `(group, binding)` as different things — a UBO
+// in the vertex, a texture in the fragment. Merging keeps one of them, and
+// the layout is then built from a row the other stage disagrees with, so the
+// stage that lost reads whatever the winner bound. Compare the maps before
+// they are flattened and name the disagreement.
+bool validateStagesAgree(const BindingMap& vertexMap,
+                         const BindingMap& fragmentMap,
+                         std::string* outError);
+
 // Color outputs require a fragment shader.
 bool validateColorRequiresFragment(uint32_t colorCount,
                                    bool hasFragmentModule,
                                    std::string* outError);
+
+// Every backend's `makePipeline` runs the same checks; only `scope` differs.
+bool validatePipelineDesc(const PipelineDesc& desc,
+                          const BindingMap& mergedMap,
+                          NativeSlotScope scope,
+                          std::string* outError);
+
+// Every backend's `makeBindGroup` runs this before touching native
+// objects. A UBO whose bound range is shorter than the shader's block is
+// undefined on every API and only WebGL says so, at draw time.
+bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError);
 
 } // namespace rive::ore

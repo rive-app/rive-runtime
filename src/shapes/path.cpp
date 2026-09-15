@@ -1,4 +1,5 @@
 #include "rive/shapes/path.hpp"
+#include "rive/shapes/points_path.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
@@ -7,6 +8,7 @@
 #include "rive/shapes/shape.hpp"
 #include "rive/shapes/straight_vertex.hpp"
 #include "rive/math/math_types.hpp"
+#include <algorithm>
 #include <cassert>
 
 using namespace rive;
@@ -102,6 +104,23 @@ void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 void Path::popVertex() { m_Vertices.pop_back(); }
 
+#ifdef WITH_RIVE_EDITOR
+void Path::sortVerticesForEditor()
+{
+    auto byChildOrder = [](const PathVertex* a, const PathVertex* b) {
+        return a->childOrder().compareTo(b->childOrder()) < 0;
+    };
+    if (std::is_sorted(m_Vertices.begin(), m_Vertices.end(), byChildOrder))
+    {
+        return;
+    }
+    std::sort(m_Vertices.begin(), m_Vertices.end(), byChildOrder);
+    // A reorder after the path has built leaves m_rawPath on the old
+    // vertex sequence.
+    markPathDirty();
+}
+#endif
+
 void Path::addFlags(PathFlags flags) { m_pathFlags |= flags; }
 bool Path::isFlagged(PathFlags flags) const
 {
@@ -128,6 +147,91 @@ bool Path::canDeferPathUpdate()
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
 AABB Path::localBounds() const { return m_rawPath.preciseBounds(); }
+
+void Path::addRoundedRect(RawPath& rawPath,
+                          const AABB& bounds,
+                          float topLeft,
+                          float topRight,
+                          float bottomRight,
+                          float bottomLeft)
+{
+    struct Corner
+    {
+        Vec2D pos;
+        Vec2D toPrev;
+        Vec2D toNext;
+        float radius;
+    };
+    // toPrev/toNext are the unit vectors buildPath derives from the adjacent
+    // vertices; for a rectangle they are the axes.
+    const Corner corners[4] = {
+        {{bounds.left(), bounds.top()}, {0.0f, 1.0f}, {1.0f, 0.0f}, topLeft},
+        {{bounds.right(), bounds.top()}, {-1.0f, 0.0f}, {0.0f, 1.0f}, topRight},
+        {{bounds.right(), bounds.bottom()},
+         {0.0f, -1.0f},
+         {-1.0f, 0.0f},
+         bottomRight},
+        {{bounds.left(), bounds.bottom()},
+         {1.0f, 0.0f},
+         {0.0f, -1.0f},
+         bottomLeft},
+    };
+    // buildPath clamps a corner to half of each adjacent edge; a rectangle's
+    // adjacent edges are its full width and height, so every corner shares one
+    // limit.
+    const float maxRadius = std::min(bounds.width(), bounds.height()) * 0.5f;
+
+    Vec2D start;
+    for (int i = 0; i < 4; i++)
+    {
+        const Corner& corner = corners[i];
+        // Branch on the authored radius, as buildPath does: a radius under the
+        // clamp still rounds, it just rounds by very little.
+        if (corner.radius != 0.0f)
+        {
+            const float radius = std::min(std::abs(corner.radius), maxRadius);
+            const float idealDistance =
+                computeIdealControlPointDistance(corner.toPrev,
+                                                 corner.toNext,
+                                                 radius);
+            const Vec2D enter =
+                Vec2D::scaleAndAdd(corner.pos, corner.toPrev, radius);
+            if (i == 0)
+            {
+                start = enter;
+                rawPath.move(enter);
+            }
+            else
+            {
+                rawPath.line(enter);
+            }
+            Vec2D outPoint = Vec2D::scaleAndAdd(corner.pos,
+                                                corner.toPrev,
+                                                radius - idealDistance);
+            Vec2D inPoint = Vec2D::scaleAndAdd(corner.pos,
+                                               corner.toNext,
+                                               radius - idealDistance);
+            const Vec2D exit =
+                Vec2D::scaleAndAdd(corner.pos, corner.toNext, radius);
+            if (corner.radius < 0.0f)
+            {
+                rotatePoints(exit, enter, corner.pos, outPoint, inPoint);
+            }
+            rawPath.cubic(outPoint, inPoint, exit);
+        }
+        else if (i == 0)
+        {
+            start = corner.pos;
+            rawPath.move(corner.pos);
+        }
+        else
+        {
+            rawPath.line(corner.pos);
+        }
+    }
+    rawPath.line(start);
+    rawPath.close();
+}
 
 void Path::buildPath(RawPath& rawPath) const
 {

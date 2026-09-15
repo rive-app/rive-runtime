@@ -142,14 +142,20 @@ public:
     // RSTB blob version byte. Bumped when the on-disk schema changes in a
     // way that renders old blobs unreadable. A mismatch on load is a loud
     // error, never a silent misbind.
-    static constexpr uint8_t kBlobVersion = 2;
+    //
+    // v3 added the group layout-id table. v2 is rejected, since every
+    // producer is in-tree and re-bakes.
+    static constexpr uint8_t kBlobVersion = 3;
 
     // Allocator version currently supported. Pipelines load with this
     // value; any blob stamped with a different version fails `fromBlob`
     // with a clear error.
     //
-    // WebGPU-aligned global-counter-per-kind allocation.
-    static constexpr uint8_t kAllocatorVersion = 1;
+    // WebGPU-aligned global-counter-per-kind allocation. v2 made SPIR-V
+    // numbering identity — a binding keeps its `@binding` — so two files
+    // compiled apart agree on a binding they share. Blobs baked at v1 are
+    // rejected rather than mixed with v2 ones.
+    static constexpr uint8_t kAllocatorVersion = 2;
 
     // One row of the binding map. Layout matches the on-disk RSTB row
     // but packed tighter (fewer bits where the semantics allow).
@@ -169,7 +175,21 @@ public:
         TextureViewDim textureViewDim = TextureViewDim::Undefined;
         TextureSampleType textureSampleType = TextureSampleType::Undefined;
         bool textureMultisampled = false;
+        // UBO only: WGSL size of the block, the smallest range a bind
+        // group may bind here. 0 = no minimum.
+        uint32_t minBindingSize = 0;
     };
+
+    // Equal ids share one `BindGroupLayout`. Backend scoped, since the id
+    // covers native slots.
+    struct GroupLayout
+    {
+        uint8_t group;
+        uint64_t layoutId;
+    };
+
+    // No baked identity, so the caller derives at runtime.
+    static constexpr uint64_t kNoLayoutId = 0;
 
     BindingMap() = default;
 
@@ -183,6 +203,15 @@ public:
     // `kAllocatorVersion`; mismatch either and parse fails loudly.
     // Serialization (`toBlob`) lives in the tooling-gated portion of the API.
     static bool fromBlob(const uint8_t* data, size_t size, BindingMap* out);
+
+    // Take everything `stage` needs from `other`, dropping what this map
+    // held for it. Slots are allocated per module, so a pipeline whose
+    // stages compile from different modules can only bind correctly if each
+    // stage's rows come from the module that emitted its source.
+    //
+    // Clears the baked group layout ids, which described the map before the
+    // swap and would otherwise intern this as a layout it no longer is.
+    void replaceStage(const BindingMap& other, Stage stage);
 
     // Per-stage backend-slot lookup. Returns kAbsent when the resource
     // is not in the map, or not visible to the requested stage, or the
@@ -232,6 +261,23 @@ public:
     // `WITH_RIVE_TOOLS`).
     const Entry& at(size_t i) const { return m_entries[i]; }
 
+    // Key the runtime's layout intern cache off this.
+    uint64_t layoutIdForGroup(uint32_t group) const
+    {
+        for (const GroupLayout& g : m_groupLayouts)
+        {
+            if (g.group == group)
+                return g.layoutId;
+        }
+        return kNoLayoutId;
+    }
+
+    size_t groupLayoutCount() const { return m_groupLayouts.size(); }
+    const GroupLayout& groupLayoutAt(size_t i) const
+    {
+        return m_groupLayouts[i];
+    }
+
     // ----------------------------------------------------------------
     // Tooling-only API. Compiled only in builds that define
     // WITH_RIVE_TOOLS (editor, scripting_workspace, unit_tests). The
@@ -253,6 +299,10 @@ public:
     }
 
     void finalize();
+
+    // Requires `finalize()` first, since the id hashes entries in sorted
+    // order. Excludes hasDynamicOffset, which the toolchain cannot see.
+    void computeLayoutIds();
 
     bool isFinalized() const { return m_finalized; }
 
@@ -293,6 +343,7 @@ private:
     }
 
     std::vector<Entry> m_entries;
+    std::vector<GroupLayout> m_groupLayouts;
 #ifdef WITH_RIVE_TOOLS
     bool m_finalized = false;
 #endif

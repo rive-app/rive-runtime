@@ -145,6 +145,15 @@ if _OPTIONS['with_optick'] then
     RIVE_OPTICK_VERSION = '1.4.0.0'
 end
 
+newoption({
+    trigger = 'with_rive_path_query',
+    description = 'Deferred render paths retain a queryable RawPath twin on '
+        .. 'request, for hosts that hit test and measure recorded paths.',
+})
+if _OPTIONS['with_rive_path_query'] then
+    defines({ 'WITH_RIVE_PATH_QUERY' })
+end
+
 newoption({ trigger = 'with_microprofile', description = 'use microprofile profiler' })
 if _OPTIONS['with_microprofile'] then
     defines({ 'RIVE_MICROPROFILE' })
@@ -323,6 +332,36 @@ do
     runtime('Release')
 end
 
+-- Opt in to Incredibuild-friendly MSVC settings by setting
+-- $RIVE_USE_INCREDIBUILD. (See also the Incredibuild handling in
+-- build_rive.sh.)
+if os.getenv('RIVE_USE_INCREDIBUILD') then
+    -- Debug only: release enables LTO (/LTCG) above, which is incompatible with
+    -- /INCREMENTAL -- the linker warns (LNK4075) and drops one of them.
+    -- Incremental linking is a debug-iteration feature anyway, so scope it (and
+    -- the rest of these tweaks) to debug, where LTO is already disabled.
+    filter({ 'system:windows', 'options:not for_unreal', 'options:config=debug' })
+    do
+        if type(incrementallink) == 'function' then
+            incrementallink('On')
+        else
+            -- Older Premake automatically passes /INCREMENTAL to Visual Studio Debug configs.
+        end
+        if linktimeoptimization then
+            linktimeoptimization('Off') -- Disables /LTCG.
+        else
+            removeflags({ 'LinkTimeOptimization' })
+        end
+        symbols('On') -- Turns on MSVC debug symbol generation.
+        editandcontinue('Off') -- Disables /ZI (Edit & Continue) and forces /Zi (Program Database).
+        -- Embeds the debug symbols directly into each individual .obj file
+        -- instead of a single shared PDB (/Z7), which can create contention on
+        -- a massively parallel build. (The final monolithic PDB is then
+        -- generated normally during the link step).
+        debugformat "c7"
+    end
+end
+
 -- Unreal requires c++20 under most circumstances. However, some platforms require 17. So make it a seperate flag
 newoption({ trigger = 'cpp20', description = 'use c++ 20 standard' })
 filter({'options:cpp20'})
@@ -439,6 +478,55 @@ filter({})
 -- needed in the first place (otherwise the build script would just be passing it in)
 rive_target_os = os.target()
 
+-- Native Windows targets only. Android and wasm happen to build through ninja
+-- on a Windows host too, but they retarget to the android_ndk/emsdk toolsets
+-- below and would choke on these flags.
+if os.host() == 'windows'
+    and _ACTION == 'ninja'
+    and not _OPTIONS['for_android']
+    and _OPTIONS['arch'] ~= 'wasm'
+    and _OPTIONS['arch'] ~= 'js'
+then
+    if _OPTIONS['toolset'] ~= 'clang' then
+        error('Unsupported toolset ' .. _OPTIONS['toolset'] .. '. Only clang is supported on windows/ninja')
+    end
+    -- The vstudio actions compile through clang-cl, but ninja invokes the clang
+    -- toolset's binaries directly, and premake's clang toolset names the GNU
+    -- archiver 'ar', which doesn't exist on Windows. Rename just that binary to
+    -- the llvm-ar that ships with Visual Studio.
+    --
+    -- Patch gettoolname in place rather than cloning into a new toolset the way
+    -- android_ndk and emsdk do below: those target a different system, but this
+    -- is still the clang toolset, and renaming it would stop every
+    -- 'toolset:clang' filter in the tree from matching (libwebp's -msse4.1
+    -- flags, for two).
+    local win_clang_tools = { ar = 'llvm-ar' }
+    local base_gettoolname = premake.tools.clang.gettoolname
+    function premake.tools.clang.gettoolname(cfg, tool)
+        return win_clang_tools[tool] or base_gettoolname(cfg, tool)
+    end
+
+    local WINDOWS_TARGET_ARCHS = {
+        host = 'x86_64', -- the system:windows filter above pins architecture('x64') regardless
+        x64 = 'x86_64',
+        x86 = 'i686',
+        arm64 = 'aarch64',
+        arm = 'armv7',
+    }
+    local target_arch = WINDOWS_TARGET_ARCHS[_OPTIONS['arch']]
+    if not target_arch then
+        error('Unsupported arch ' .. _OPTIONS['arch'] .. ' for windows/ninja')
+    end
+    local target = '--target=' .. target_arch .. '-pc-windows-msvc'
+    buildoptions({ target })
+
+    -- clang++ links through MSVC's link.exe by default, which can't read the
+    -- GNU thin archives some of our prebuilt dependencies ship (Dawn's
+    -- webgpu_dawn.lib -> LNK1107). lld-link reads them, and is already what the
+    -- vstudio ClangCL builds link with.
+    linkoptions({ target, '-fuse-ld=lld' })
+end
+
 -- Don't use filter() here because we don't want to generate the "android_ndk" toolset if not
 -- building for android.
 if _OPTIONS['for_android'] then
@@ -450,10 +538,6 @@ if _OPTIONS['for_android'] then
     -- Detect the NDK.
     local EXPECTED_NDK_VERSION = 'r27c'
     local NDK_LONG_VERSION_STRING = "27.2.12479018"
-    if _OPTIONS['for_unreal'] then
-        EXPECTED_NDK_VERSION = '25.1.8937393'
-        NDK_LONG_VERSION_STRING = '25.1.8937393'
-    end
     ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK') or '<undefined>'
     local ndk_version = '<undetected>'
     local ndk_long_version = '<undetected>'
@@ -519,18 +603,18 @@ if _OPTIONS['for_android'] then
         premake.tools.android_ndk[k] = v
     end
 
-    -- Windows requires extentions for .cmd files.
-    local ndk_ext = ''
-    if os.host() == 'windows' then
-        ndk_ext = '.cmd'
-    end
-
     -- update the android_ndk toolset to use the appropriate binaries.
-    local android_ndk_tools = {
-        cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang' .. ndk_ext,
-        cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++' .. ndk_ext,
-        ar = ndk_toolchain .. '/bin/llvm-ar',
-    }
+    local android_ndk_tools = { ar = ndk_toolchain .. '/bin/llvm-ar' }
+    if os.host() == 'windows' then
+        -- Invoke clang directly instead of going through the .cmd wrappers,
+        -- which only add '--target=' and add a process layer between the build
+        -- system and the compiler.
+        android_ndk_tools.cc = ndk_toolchain .. '/bin/clang.exe --target=' .. android_target
+        android_ndk_tools.cxx = ndk_toolchain .. '/bin/clang++.exe --target=' .. android_target
+    else
+        android_ndk_tools.cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang'
+        android_ndk_tools.cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++'
+    end
     function premake.tools.android_ndk.gettoolname(cfg, tool)
         return android_ndk_tools[tool]
     end
@@ -702,6 +786,16 @@ if os.host() == 'macosx' then
         buildoptions({
             '-mmacosx-version-min=11.0',
         })
+        -- Pass the deployment target at LINK time too. Without this, the linker
+        -- stamps LC_BUILD_VERSION.minos from the build host's SDK, so a dylib
+        -- built against a newer SDK can advertise a higher min OS version and
+        -- fail to load on older macOS versions.
+        --
+        -- Note: buildoptions affects compilation only (e.g., availability macros)
+        -- and does not influence the link step that stamps the final dylib.
+        linkoptions({
+            '-mmacosx-version-min=11.0',
+        })
     end
 
     filter({ 'system:macosx', 'options:arch=host', 'action:xcode4' })
@@ -827,7 +921,8 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
 
     filter({ 'options:arch=wasm', 'options:no-wasm-simd' })
     do
-        linkoptions({ '-s MIN_SAFARI_VERSION=120000' })
+        -- 120200 (Safari 12.2) is the oldest emsdk >=4.0 supports; was 120000.
+        linkoptions({ '-s MIN_SAFARI_VERSION=120200' })
     end
 
     filter('options:arch=js')

@@ -31,8 +31,8 @@ TEXTURE_TESSDATA4(PER_FLUSH_BINDINGS_SET,
                   @tessVertexTexture);
 #ifdef @ENABLE_FEATHER
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
-                      FEATHER_TEXTURE_IDX,
-                      @featherTexture);
+                      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+                      @gaussianIntegralTexture);
 #endif
 VERTEX_TEXTURE_BLOCK_END
 
@@ -44,25 +44,27 @@ STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
 #endif // @VERTEX
 
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#if defined(@ENABLE_FEATHER) || defined(@FEATHER_ATLAS_BLIT)
+SAMPLER_LINEAR(GAUSSIAN_INTEGRAL_TEXTURE_IDX, gaussianIntegralSampler)
 #endif
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
+#if defined(@ENABLE_FEATHER) || defined(@FEATHER_ATLAS_BLIT)
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
-                      FEATHER_TEXTURE_IDX,
-                      @featherTexture);
+                      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+                      @gaussianIntegralTexture);
 #endif
-#ifdef @ATLAS_BLIT
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#ifdef @FEATHER_ATLAS_BLIT
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET,
+             FEATHER_ATLAS_TEXTURE_IDX,
+             @featherAtlasTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
-#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+#if defined(@RENDER_MODE_DEPTH_STENCIL) && defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
 DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
@@ -70,9 +72,9 @@ FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
-// definition of featherSampler in this case.
-#ifdef @ATLAS_BLIT
-SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
+// definition of gaussianIntegralSampler in this case.
+#ifdef @FEATHER_ATLAS_BLIT
+SAMPLER_LINEAR(FEATHER_ATLAS_TEXTURE_IDX, featherAtlasSampler)
 #endif
 DYNAMIC_SAMPLER_BLOCK_BEGIN
 SAMPLER_DYNAMIC_IMAGE(imageSampler)
@@ -183,7 +185,7 @@ INLINE half eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
     // NOTE: The derivative FEATHER'(t) is the normal distribution with:
     //
     //   mu = 1/2
-    //   sigma = 1 / (2 * FEATHER_TEXTURE_STDDEVS)
+    //   sigma = 1 / (2 * GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS)
     //
     // We can evaluate this directly without a lookup table.
     //
@@ -275,7 +277,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            int _instanceID,
                                            OUT(uint) outPathID,
                                            OUT(float2) outVertexPosition
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
                                            ,
                                            OUT(float4) outCoverages
 #else
@@ -478,9 +480,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Never use a feather harder than 1.5 standard deviations across a
         // radius of 1/2px. This is the point where feathering just looks like
         // antialiasing, and any harder looks aliased.
-        featherRadius =
-            max(featherRadius,
-                (FEATHER_TEXTURE_STDDEVS / 3.) / length(MUL(M, norm)));
+        featherRadius = max(featherRadius,
+                            (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 3.) /
+                                length(MUL(M, norm)));
     }
 
     if (strokeRadius != .0) // Is this a stroke?
@@ -512,7 +514,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         float2 vertexOffset =
             norm * (strokeRadius + aaRadius); // Bloat stroke width for AA.
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
         // Calculate the AA distance to both the outset and inset edges of the
         // stroke. The fragment shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
@@ -619,7 +621,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             float2 pt = abs(outset) * vertexOffset;
             float clipDistance = (clipAARadius - dot(pt, bisector)) /
                                  (bisectPixelWidth * (AA_RADIUS * 2.));
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
                 outCoverages.y = clipDistance;
             else
@@ -627,7 +629,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 #endif
         }
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
         outCoverages.xy *= globalCoverage;
 
         // Bias outCoverages.y slightly upwards in order to guarantee
@@ -651,7 +653,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     }
     else // This is a fill.
     {
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
         // "outCoverages.y < 0" indicates to the fragment shader that this is
         // a fill, as opposed to a stroke.
         outCoverages = float4(fillCoverage, -1., .0, .0);
@@ -724,7 +726,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                 float inverseFeather =
                     INVERSE_FEATHER(featherAtNStddevOutset);
                 float stddevsAwayFromCenter =
-                    (.5 - inverseFeather) * (FEATHER_TEXTURE_STDDEVS * 2.);
+                    (.5 - inverseFeather) * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS * 2.);
                 float contraction = N / max(stddevsAwayFromCenter, N);
                 outset *= contraction;
 #endif
@@ -755,15 +757,15 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             // compiler that also negates Y.
             outCoverages *= float4(-1., +1., +1., +1.);
         }
-#endif // !RENDER_MODE_MSAA
+#endif // !RENDER_MODE_DEPTH_STENCIL
 
         // Place the fan point.
         if (vertexType == FAN_MIDPOINT_VERTEX)
             origin = midpoint;
 
-        // If we're actually just drawing a triangle, throw away the entire
-        // patch except a single fan triangle.
-        if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u &&
+        // If we're actually drawing a triangle strip, throw away the entire
+        // patch except the fan triangles.
+        if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u &&
             vertexType != FAN_VERTEX)
         {
             return false;
@@ -772,7 +774,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
     outVertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
 
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
     uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
     outPathZIndex = cast_uint_to_ushort(pathData2.r);
 #else
@@ -790,7 +792,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 #if defined(@VERTEX) && defined(@DRAW_INTERIOR_TRIANGLES)
 INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
                                               OUT(uint) outPathID
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
                                               ,
                                               OUT(ushort) outPathZIndex
 #else
@@ -800,14 +802,14 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
                                                   VERTEX_CONTEXT_DECL)
 {
     outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
     uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
     outPathZIndex = cast_uint_to_ushort(pathData2.x);
 #else
     outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
 #endif
     float2 vertexPos = triangleVertex.xy;
-    // ATLAS_BLIT draws vertices in screen space.
+    // FEATHER_ATLAS_BLIT draws vertices in screen space.
     float2x2 M = make_float2x2(
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
@@ -817,18 +819,18 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
 }
 #endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES
 
-#if defined(@VERTEX) && defined(@ATLAS_BLIT)
+#if defined(@VERTEX) && defined(@FEATHER_ATLAS_BLIT)
 INLINE float2
 unpack_atlas_coverage_vertex(float3 triangleVertex,
                              OUT(uint) outPathID,
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
                              OUT(ushort) outPathZIndex,
 #endif
                              OUT(float2) outAtlasCoord VERTEX_CONTEXT_DECL)
 {
     outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
     uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-#ifdef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_DEPTH_STENCIL
     outPathZIndex = cast_uint_to_ushort(pathData2.x);
 #endif
     float2 vertexPos = triangleVertex.xy;
@@ -839,7 +841,7 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
                     uniforms.atlasTextureInverseSize;
     return vertexPos;
 }
-#endif // @VERTEX && @ATLAS_BLIT
+#endif // @VERTEX && @FEATHER_ATLAS_BLIT
 
 // Calculates a coverage value to multiply into the paintColor that will
 // convert the current framebuffer value from "paint blended on top with
@@ -860,6 +862,7 @@ INLINE half incremental_clockwise_coverage(half c0, half c1, half paintAlpha)
     return (c1 - c0) / max(1. - c0 * paintAlpha, EPSILON_FP16_NON_DENORM);
 }
 
+#if defined(@RENDER_MODE_CLOCKWISE_ATOMIC) || defined(@PLS_IMPL_STORAGE_BUFFER)
 // Converts an x,y image coordinate into a buffer index, swizzling into
 // BUFFER_IMAGE_TILE_SIZE x BUFFER_IMAGE_TILE_SIZE tiles for better cache
 // performance.
@@ -877,6 +880,7 @@ INLINE uint swizzle_image_buffer_idx(uint2 imageCoord, uint imageWidth)
     idx += ((imageCoord.y & 0x3u) << 2) + (imageCoord.x & 0x3u);
     return idx;
 }
+#endif // @RENDER_MODE_CLOCKWISE_ATOMIC || @PLS_IMPL_STORAGE_BUFFER
 
 #ifdef @RENDER_MODE_CLOCKWISE_ATOMIC
 

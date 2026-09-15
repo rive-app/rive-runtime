@@ -21,6 +21,7 @@ public:
     void value(rcp<BindableArtboard> bindableArtboard);
     void viewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     const DataType dataType() override { return DataType::artboard; }
+    std::string artboardName() const;
 
 #ifdef TESTING
     rcp<BindableArtboard> testing_value();

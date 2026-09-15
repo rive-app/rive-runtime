@@ -3,6 +3,9 @@
 #include "rive/component_dirt.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_container.hpp"
+#include "rive/data_bind/converters/data_converter_formula.hpp"
+#include "rive/data_bind/converters/data_converter_group.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include "rive/data_bind_flags.hpp"
 
 using namespace rive;
@@ -13,7 +16,10 @@ namespace
 class TestContainer : public DataBindContainer
 {
 public:
+    using DataBindContainer::bindDataBindsFromContext;
+    using DataBindContainer::dataBindContext;
     using DataBindContainer::deleteDataBinds;
+    using DataBindContainer::unbindDataBinds;
 };
 
 class TestDataBind : public DataBind
@@ -35,6 +41,14 @@ public:
     {
         updateSourceBindingCalls++;
     }
+};
+
+// bindFromContext/unbind are protected on DataConverterFormula.
+class TestFormula : public DataConverterFormula
+{
+public:
+    using DataConverterFormula::bindFromContext;
+    using DataConverterFormula::unbind;
 };
 
 TestDataBind* makeBind(DataBindFlags f = DataBindFlags::ToTarget)
@@ -279,4 +293,183 @@ TEST_CASE("pending-dirty binds swap into dirty on next tick",
     REQUIRE(dependent->inDirtyList() == false);
 
     c.deleteDataBinds();
+}
+
+TEST_CASE("source-originated dirt does not run target->source",
+          "[data_bind_container]")
+{
+    // A non-persisting bind carrying only source-flavored dirt must NOT trigger
+    // the target->source apply — otherwise (once a converter's Dependents dirt
+    // invalidates the cached value) it clobbers the source's fresh value with
+    // the stale target before update() propagates it.
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    c.addDataBind(b);
+    REQUIRE(b->inPersistingList() == false);
+    b->dirt(ComponentDirt::Bindings);
+    c.addDirtyDataBind(b);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateCalls == 1);
+    CHECK(b->updateSourceBindingCalls == 0);
+
+    // Same, but for the interpolator-driven frame shape that markConverterDirty
+    // produces (Bindings | Dependents) — the Dependents bit must not re-open
+    // the target->source path for a source-originated change.
+    b->dirt(ComponentDirt::Bindings | ComponentDirt::Dependents);
+    c.addDirtyDataBind(b);
+    c.updateDataBinds();
+    CHECK(b->updateSourceBindingCalls == 0);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("target-originated dirt runs target->source", "[data_bind_container]")
+{
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    c.addDataBind(b);
+    b->dirt(ComponentDirt::BindingsTarget);
+    c.addDirtyDataBind(b);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateSourceBindingCalls == 1);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("persisting bind polls target->source regardless of origin",
+          "[data_bind_container]")
+{
+    // Polled (non-push) toSource targets never receive BindingsTarget, so the
+    // gate must still run target->source for them every frame.
+    TestContainer c;
+    auto* b = makeBind(DataBindFlags::ToSource);
+    c.addDataBind(b);
+    REQUIRE(b->inPersistingList() == true);
+    b->dirt(ComponentDirt::Bindings);
+
+    c.updateDataBinds();
+
+    CHECK(b->updateSourceBindingCalls == 1);
+
+    c.deleteDataBinds();
+}
+
+TEST_CASE("addDirt latches a single change origin", "[data_bind_container]")
+{
+    auto* b = makeBind(DataBindFlags::ToTarget);
+    b->addDirt(ComponentDirt::Bindings, false);
+    CHECK(b->targetOrigin() == false);
+    b->addDirt(ComponentDirt::BindingsTarget, false);
+    CHECK(b->targetOrigin() == true);
+    // Suppressed self-notify must not flip the latched origin.
+    b->suppressDirt(true);
+    b->addDirt(ComponentDirt::Bindings, false);
+    CHECK(b->targetOrigin() == true);
+    b->suppressDirt(false);
+    delete b;
+
+    // Reconcile marks both bits — the favored direction wins the origin.
+    auto* favorTarget = makeBind(DataBindFlags::TwoWay);
+    favorTarget->addDirt(ComponentDirt::Bindings |
+                             ComponentDirt::BindingsTarget,
+                         false);
+    CHECK(favorTarget->targetOrigin() == true);
+    delete favorTarget;
+
+    auto* favorSource = makeBind(DataBindFlags::TwoWay |
+                                 DataBindFlags::SourceToTargetRunsFirst);
+    favorSource->addDirt(ComponentDirt::Bindings |
+                             ComponentDirt::BindingsTarget,
+                         false);
+    CHECK(favorSource->targetOrigin() == false);
+    delete favorSource;
+}
+
+// The container's data context is a single owning member. Artboard and
+// StateMachineInstance used to keep their own rcp<DataContext> alongside this
+// one, and only the derived copy was cleared by clearDataContext() — leaving
+// the pointer addDataBind() reads pointing at a context that could already be
+// freed. There is one member now, so binding must take a reference and every
+// clear must release it.
+TEST_CASE("container owns the data context it is bound to",
+          "[data_bind_container]")
+{
+    auto context = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+    REQUIRE(context->debugging_refcnt() == 1);
+
+    {
+        TestContainer c;
+        REQUIRE(c.dataBindContext() == nullptr);
+
+        c.bindDataBindsFromContext(context);
+        CHECK(c.dataBindContext() == context);
+        // The container holds the context alive; it is not a bare observer.
+        CHECK(context->debugging_refcnt() == 2);
+
+        c.unbindDataBinds();
+        CHECK(c.dataBindContext() == nullptr);
+        CHECK(context->debugging_refcnt() == 1);
+
+        // Rebind, then let the container fall out of scope still bound.
+        c.bindDataBindsFromContext(context);
+        CHECK(context->debugging_refcnt() == 2);
+    }
+
+    CHECK(context->debugging_refcnt() == 1);
+}
+
+TEST_CASE("clearing the container context clears what addDataBind reads",
+          "[data_bind_container]")
+{
+    TestContainer c;
+    auto context = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+    c.bindDataBindsFromContext(context);
+    CHECK(c.dataBindContext() == context);
+
+    // Drop every other reference. Before the members were unified this is the
+    // point where the container was left holding a dangling raw pointer.
+    c.dataBindContext(nullptr);
+    context = nullptr;
+
+    CHECK(c.dataBindContext() == nullptr);
+    // addDataBind() consults the context; with nothing bound it must simply
+    // take ownership of the bind and not dereference anything.
+    auto* bind = makeBind();
+    c.addDataBind(bind);
+    CHECK(bind->m_container == &c);
+    c.deleteDataBinds();
+}
+
+// DataConverterGroup and DataConverterFormula both bind through
+// DataConverter::bindFromContext, which takes an owning reference to the
+// context. Their unbind() overrides do specialized cleanup of their own, so
+// they must still delegate to the base — otherwise that reference, and the
+// whole view-model graph hanging off it, outlives the unbind and is only
+// released when the converter is destroyed.
+TEST_CASE("converter unbind releases the data context", "[data_bind_container]")
+{
+    auto context = make_rcp<DataContext>(rcp<ViewModelInstance>(nullptr));
+    REQUIRE(context->debugging_refcnt() == 1);
+
+    {
+        DataConverterGroup group;
+        group.bindFromContext(context.get(), nullptr);
+        CHECK(context->debugging_refcnt() == 2);
+        group.unbind();
+        CHECK(context->debugging_refcnt() == 1);
+    }
+
+    {
+        TestFormula formula;
+        formula.bindFromContext(context.get(), nullptr);
+        CHECK(context->debugging_refcnt() == 2);
+        formula.unbind();
+        CHECK(context->debugging_refcnt() == 1);
+    }
+
+    CHECK(context->debugging_refcnt() == 1);
 }

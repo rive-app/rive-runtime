@@ -54,8 +54,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(radialPropertyKey, &m_Radial, &value);
         m_Radial = value;
-        radialChanged();
+        RIVE_EDITOR_CHANGED(radialChanged());
         notifyPropertyChanged(radialPropertyKey);
     }
 
@@ -66,8 +67,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(orientPropertyKey, &m_Orient, &value);
         m_Orient = value;
-        orientChanged();
+        RIVE_EDITOR_CHANGED(orientChanged());
         notifyPropertyChanged(orientPropertyKey);
     }
 
@@ -78,8 +80,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(startPropertyKey, &m_Start, &value);
         m_Start = value;
-        startChanged();
+        RIVE_EDITOR_CHANGED(startChanged());
         notifyPropertyChanged(startPropertyKey);
     }
 
@@ -90,8 +93,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(endPropertyKey, &m_End, &value);
         m_End = value;
-        endChanged();
+        RIVE_EDITOR_CHANGED(endChanged());
         notifyPropertyChanged(endPropertyKey);
     }
 
@@ -102,8 +106,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
         m_Strength = value;
-        strengthChanged();
+        RIVE_EDITOR_CHANGED(strengthChanged());
         notifyPropertyChanged(strengthPropertyKey);
     }
 
@@ -114,8 +119,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
         m_Offset = value;
-        offsetChanged();
+        RIVE_EDITOR_CHANGED(offsetChanged());
         notifyPropertyChanged(offsetPropertyKey);
     }
 
@@ -164,6 +170,9 @@ protected:
     virtual void endChanged() {}
     virtual void strengthChanged() {}
     virtual void offsetChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_follow_path_modifier_ext.inl"
+#endif
 };
 } // namespace rive
 

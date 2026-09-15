@@ -1,0 +1,55 @@
+diff --git a/core/iwasm/common/wasm_memory.c b/core/iwasm/common/wasm_memory.c
+index 59d478c..f78d76e 100644
+--- a/core/iwasm/common/wasm_memory.c
++++ b/core/iwasm/common/wasm_memory.c
+@@ -1390,9 +1390,9 @@ wasm_check_app_addr_and_convert(WASMModuleInstance *module_inst, bool is_str,
+         goto success;
+     }
+ 
+-    /* No need to check the app_offset and buf_size if memory access
+-       boundary check with hardware trap is enabled */
+-#ifndef OS_ENABLE_HW_BOUND_CHECK
++    /* rive patch: validate strictly even in hw-bounds builds; a permissive
++       pass here turns a bad app pointer into a guard-page longjmp from
++       inside a host native's frame. */
+     SHARED_MEMORY_LOCK(memory_inst);
+ 
+     if (app_buf_addr >= memory_inst->memory_data_size) {
+@@ -1417,18 +1417,15 @@ wasm_check_app_addr_and_convert(WASMModuleInstance *module_inst, bool is_str,
+     }
+ 
+     SHARED_MEMORY_UNLOCK(memory_inst);
+-#endif
+ 
+ success:
+     *p_native_addr = (void *)native_addr;
+     return true;
+ 
+-#ifndef OS_ENABLE_HW_BOUND_CHECK
+ fail:
+     SHARED_MEMORY_UNLOCK(memory_inst);
+     wasm_set_exception(module_inst, "out of bounds memory access");
+     return false;
+-#endif
+ }
+ 
+ WASMMemoryInstance *
+diff --git a/core/iwasm/interpreter/wasm_interp_fast.c b/core/iwasm/interpreter/wasm_interp_fast.c
+index ddaf564..cfc6682 100644
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -25,6 +25,14 @@
+ #include "simde/wasm/simd128.h"
+ #endif
+ 
++/* rive patch: sw-bounds artifacts (Luau) must never unwind through hardware
++   traps, so the interpreter keeps software bounds checks even in hw-bounds
++   builds. Headers are already parsed, so only this file's conditionals see
++   the undef; no struct layout depends on it past this point. */
++#ifdef OS_ENABLE_HW_BOUND_CHECK
++#undef OS_ENABLE_HW_BOUND_CHECK
++#endif
++
+ typedef int32 CellType_I32;
+ typedef int64 CellType_I64;
+ typedef float32 CellType_F32;

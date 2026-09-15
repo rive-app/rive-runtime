@@ -21,6 +21,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_layout.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -235,6 +236,41 @@ TEST_CASE("Setting a bindable artboard clears stale bound instance",
     CHECK(vmiArtboard->boundViewModelInstance() == nullptr);
 }
 
+TEST_CASE("Runtime artboard property exposes the bound artboard name",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+
+    auto runtimeVmi = make_rcp<ViewModelInstanceRuntime>(vmi);
+    auto runtimeArtboard = runtimeVmi->propertyArtboard("ab");
+    REQUIRE(runtimeArtboard != nullptr);
+
+    auto sourceA = file->bindableArtboardNamed("ch1");
+    auto sourceB = file->bindableArtboardNamed("ch2");
+    REQUIRE(sourceA != nullptr);
+    REQUIRE(sourceB != nullptr);
+
+    // The name reflects the currently bound bindable artboard.
+    runtimeArtboard->value(sourceA);
+    CHECK(runtimeArtboard->artboardName() == "ch1");
+
+    // Rebinding updates the reported name.
+    runtimeArtboard->value(sourceB);
+    CHECK(runtimeArtboard->artboardName() == "ch2");
+
+    // Clearing the source reports an empty name rather than dangling.
+    runtimeArtboard->value(nullptr);
+    CHECK(runtimeArtboard->artboardName().empty());
+}
+
 TEST_CASE("Test default data binding artboard from different source",
           "[data binding]")
 {
@@ -290,6 +326,9 @@ TEST_CASE("Test default data binding artboard from different source",
     CHECK(silver.matches("data_binding_artboards_default_test"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE(
     "Test Scripted Artboard Input data bound to internal and external artboards",
     "[data binding]")
@@ -352,6 +391,7 @@ TEST_CASE(
     artboard->draw(renderer.get());
     CHECK(silver.matches("data_bind_artboard_input"));
 }
+#endif
 
 TEST_CASE("Data bind external artboard with no initial source artboard",
           "[silver]")
@@ -439,4 +479,106 @@ TEST_CASE("Data bound artboard with view model instance resets its properties",
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("bindable_artboard_nesty"));
+}
+
+TEST_CASE(
+    "Data bound artboards with multiple targets bound to same property bidirectionally",
+    "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/bidirectional_binding_source.riv", &silver);
+    auto file2 =
+        ReadRiveFile("assets/bidirectional_binding_target_1.riv", &silver);
+    auto file3 =
+        ReadRiveFile("assets/bidirectional_binding_target_2.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    auto renderer = silver.makeRenderer();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto abProp = vmi->propertyValue("costume_db_artboard")
+                      ->as<ViewModelInstanceArtboard>();
+
+    auto costume1 = file2->bindableArtboardNamed("costume_artboard");
+    auto costume2 = file3->bindableArtboardNamed("costume_artboard");
+
+    auto newProp =
+        vmi->propertyValue("costume_db_bool")->as<ViewModelInstanceBoolean>();
+    newProp->propertyValue(true);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume2);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    abProp->asset(costume2);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("bidirectional_binding_source"));
+}
+
+TEST_CASE("Null-bound artboard swap survives pending layout sync",
+          "[data binding]")
+{
+    // The swap host has a static artboard AND an artboardId bind whose
+    // view-model artboard property is never set. The first advance applies
+    // the bind as an explicit null, tearing down the statically nested
+    // instance while it is still registered in the hosting artboard's dirty
+    // layout set. Regression test for a use-after-free in syncStyleChanges
+    // (run under ASAN for the strongest signal).
+    auto file = ReadRiveFile("assets/databind_null_artboard_swap.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    artboard->bindViewModelInstance(vmi);
+
+    auto host = artboard->find<NestedArtboardLayout>("swap host");
+    REQUIRE(host != nullptr);
+    REQUIRE(host->artboardInstance() != nullptr);
+
+    artboard->advance(0.0f);
+    artboard->advance(0.0f);
+
+    // The null bind cleared the nested instance without crashing.
+    REQUIRE(host->artboardInstance() == nullptr);
 }

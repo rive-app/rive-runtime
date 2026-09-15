@@ -9,7 +9,7 @@
 #define PI_OVER_2 1.57079632679
 #define ONE_OVER_SQRT_2 0.70710678118 // 1/sqrt(2)
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
 #define AA_RADIUS float(.5)
 #else
 #define AA_RADIUS float(.0)
@@ -51,16 +51,16 @@
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 #define FEATHER(X)                                                             \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
+                                gaussianIntegralSampler,                       \
                                 X,                                             \
                                 FEATHER_FUNCTION_ARRAY_INDEX,                  \
                                 float(FEATHER_FUNCTION_ARRAY_INDEX),           \
                                 .0)                                            \
         .r
 #define INVERSE_FEATHER(X)                                                     \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@gaussianIntegralTexture,                      \
+                                gaussianIntegralSampler,                       \
                                 X,                                             \
                                 FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
                                 float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
@@ -308,18 +308,48 @@ INLINE half get_dither(float2 fragCoord, half scale, half bias)
                           : .0;
 }
 
-INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         float2 fragCoord,
+                                         half scale,
+                                         half bias)
 {
-    return @ENABLE_DITHER
+    // Skip dither at alpha == 0, where src-over is an identity on an already
+    // quantized destination -- there is no rounding to randomize, and the noise
+    // would land in the framebuffer undiluted. It only varies with fragCoord,
+    // so that error accumulates with overdraw rather than averaging out.
+    return (@ENABLE_DITHER && alpha != .0)
                ? (interleaved_gradient_noise(fragCoord, scale, bias) + color)
                : color;
 }
 
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         half precomputedDither)
+{
+    // Skip dither at alpha == 0, where src-over is an identity on an already
+    // quantized destination -- there is no rounding to randomize, and the noise
+    // would land in the framebuffer undiluted. It only varies with fragCoord,
+    // so that error accumulates with overdraw rather than averaging out.
+    return (@ENABLE_DITHER && alpha != .0) ? (precomputedDither + color)
+                                           : color;
+}
 #else
 
 INLINE half get_dither(float2 fragCoord, float scale, float bias) { return 0.; }
 
-INLINE half3 add_dither(half3 color, float2 fragCoord, half scale, half bias)
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         float2 fragCoord,
+                                         half scale,
+                                         half bias)
+{
+    return color;
+}
+
+INLINE half3 add_dither_if_alpha_nonzero(half3 color,
+                                         half alpha,
+                                         half precomputedDither)
 {
     return color;
 }
@@ -337,7 +367,7 @@ INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
                   1.);
 }
 
-#ifndef @RENDER_MODE_MSAA
+#ifndef @RENDER_MODE_DEPTH_STENCIL
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to
 // the point at each edge of the clipRect where coverage = 0.
 //
@@ -369,7 +399,7 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
     }
 }
 
-#else // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
+#else // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
 
 INLINE float normalize_z_index(uint zIndex)
 {
@@ -410,7 +440,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 }
 #endif // ENABLE_CLIP_RECT
 
-#endif // @RENDER_MODE_MSAA
+#endif // @RENDER_MODE_DEPTH_STENCIL
 #endif // VERTEX
 
 #ifdef @FRAGMENT
@@ -437,7 +467,7 @@ INLINE half4 gamma_to_linear(half4 color)
 
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
-#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_DEPTH_STENCIL) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
 INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 {
@@ -450,7 +480,8 @@ INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
     else
     {
         // Average together only the samples that are inside the sample mask.
-        half4 mask = float4(notEqual(sampleMask & int4(1, 2, 4, 8), int4(0)));
+        half4 mask =
+            float4(notEqual(sampleMask & int4(1, 2, 4, 8), int4(0, 0, 0, 0)));
         half4 ret = MUL(dstSamples, mask);
         // Since the sample mask can only have 4 bits, counting them is faster
         // this way on Galaxy S24 than calling bitCount().
@@ -460,4 +491,5 @@ INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
         return ret;
     }
 }
-#endif // @FRAGMENT && @RENDER_MODE_MSAA && !@FIXED_FUNCTION_COLOR_OUTPUT
+#endif // @FRAGMENT && @RENDER_MODE_DEPTH_STENCIL &&
+       // !@FIXED_FUNCTION_COLOR_OUTPUT

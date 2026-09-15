@@ -3,7 +3,7 @@
 
 namespace rive
 {
-enum class TransitionConditionOp : int
+enum class TransitionConditionOp : uint8_t
 {
     equal = 0,
     notEqual = 1,

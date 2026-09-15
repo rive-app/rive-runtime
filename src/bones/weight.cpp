@@ -11,12 +11,16 @@ StatusCode Weight::onAddedDirty(CoreContext* context)
     {
         return code;
     }
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only path; editor build registers via
+    // `editorParentChanged` (dispatcher Pass 4.5).
     if (!parent()->is<Vertex>())
     {
         return StatusCode::MissingObject;
     }
 
     parent()->as<Vertex>()->weight(this);
+#endif
 
     return StatusCode::Ok;
 }

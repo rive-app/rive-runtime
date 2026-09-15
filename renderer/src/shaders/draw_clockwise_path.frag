@@ -22,6 +22,9 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
 #else
@@ -53,7 +56,14 @@ PLS_MAIN(@drawFragmentMain)
 #endif
     {
         // Calculate the paint color before entering the interlock.
-        paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
+        paintColor = find_paint_color(
+#ifdef @ENABLE_MODULATED_IMAGE
+            v_image,
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+            cast_half_to_ushort(v_blendMode),
+#endif
+            v_paint FRAGMENT_CONTEXT_UNPACK);
 
         maxCoverage = 1.;
 #ifdef @ENABLE_CLIP_RECT
@@ -126,11 +136,12 @@ PLS_MAIN(@drawFragmentMain)
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (@ENABLE_ADVANCED_BLEND)
+        if (@ENABLE_ADVANCED_BLEND &&
+            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
-            // Don't bother with advanced blend until coverage becomes > 0. This
-            // way, cutout regions don't pay the cost of advanced blend.
-            if (v_blendMode != cast_uint_to_half(BLEND_SRC_OVER) && c1 != .0)
+            // Don't bother with advanced blend until coverage becomes > 0.
+            // This way, cutout regions don't pay the cost of advanced blend.
+            if (c1 != .0)
             {
                 if (c0 == .0)
                 {
@@ -188,9 +199,6 @@ PLS_MAIN(@drawFragmentMain)
                     PLS_PRESERVE_4F(blendColorBuffer);
                 }
             }
-            // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when
-            // @ENABLE_ADVANCED_BLEND is defined because advanced blend needs
-            // unmultiplied colors. Premultiply alpha now.
             paintColor.rgb *= paintColor.a;
         }
 #endif // @ENABLE_ADVANCED_BLEND
@@ -200,10 +208,8 @@ PLS_MAIN(@drawFragmentMain)
         // equivalent to applying the c0 -> c1 coverage delta.
         paintColor *= incremental_clockwise_coverage(c0, c1, paintColor.a);
 #ifdef @ENABLE_DITHER
-        if (@ENABLE_DITHER)
-        {
-            paintColor.rgb += dither;
-        }
+        paintColor.rgb =
+            add_dither_if_alpha_nonzero(paintColor.rgb, paintColor.a, dither);
 #endif
 #ifndef @DRAW_INTERIOR_TRIANGLES
         // Update the coverage buffer with our final value if we aren't an

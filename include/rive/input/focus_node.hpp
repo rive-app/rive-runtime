@@ -28,19 +28,68 @@ enum class EdgeBehavior : uint8_t
 class FocusNode : public RefCnt<FocusNode>
 {
 public:
-    FocusNode(Focusable* focusable = nullptr) : m_focusable(focusable) {}
+    FocusNode(Focusable* focusable = nullptr) : m_focusable(focusable)
+    {
+        if (focusable != nullptr)
+        {
+            setFlag(Flag::kHadFocusable, true);
+        }
+    }
+    ~FocusNode();
+
+    // Transparent structural scope: unbacked (no Focusable) and never a focus
+    // target itself. Traversal descends through it to reach focusable
+    // descendants (see focusNodeTraversable); empty scopes contribute no
+    // focus stops. Used by data-bound nested-artboard hosts and component
+    // lists.
+    static rcp<FocusNode> makeStructuralScope()
+    {
+        auto node = make_rcp<FocusNode>();
+        node->canFocus(false);
+        node->canTraverse(false);
+        node->canTouch(false);
+        return node;
+    }
 
     // === Focusable ===
 
     Focusable* focusable() const { return m_focusable; }
-    void setFocusable(Focusable* focusable) { m_focusable = focusable; }
-    void clearFocusable() { m_focusable = nullptr; }
+    void setFocusable(Focusable* focusable)
+    {
+        const bool backingChanged =
+            (m_focusable == nullptr) != (focusable == nullptr);
+        m_focusable = focusable;
+        if (focusable != nullptr)
+        {
+            setFlag(Flag::kHadFocusable, true);
+        }
+        if (backingChanged)
+        {
+            invalidateFocusableContent();
+        }
+    }
+    void clearFocusable() { setFocusable(nullptr); }
+
+    /// True once this node has been backed by a Focusable. Never cleared, so a
+    /// node whose Focusable was destroyed (~FocusData clears the backing) can
+    /// be told apart from a node that legitimately never had one — a
+    /// structural scope, or a target a host created through this API. The
+    /// former is defunct and must stop being a focus stop; the latter is
+    /// still a valid target. See focusNodeEligibleForFocus.
+    bool hadFocusable() const { return m_flags & Flag::kHadFocusable; }
 
     // === Properties (bitfield-backed) ===
 
     // Master switch: if false, node cannot receive focus at all
     bool canFocus() const { return m_flags & Flag::kCanFocus; }
-    void canFocus(bool value) { setFlag(Flag::kCanFocus, value); }
+    void canFocus(bool value)
+    {
+        if (canFocus() != value)
+        {
+            setFlag(Flag::kCanFocus, value);
+            invalidateFocusableContent();
+        }
+    }
 
     // Can receive focus via pointer/touch click
     bool canTouch() const { return m_flags & Flag::kCanTouch; }
@@ -160,13 +209,19 @@ private:
     // Used by FocusManager to update focus state
     void setHasFocus(bool value) { setFlag(Flag::kHasFocus, value); }
 
+    // Tell this node's manager (if any) that its cached
+    // hasFocusableContent() answer may be stale. Out-of-line because
+    // FocusManager is only forward-declared here.
+    void invalidateFocusableContent();
+
     enum Flag : uint8_t
     {
         kCanFocus = 1 << 0,    // default: true
         kCanTouch = 1 << 1,    // default: true
         kCanTraverse = 1 << 2, // default: true
         // bits 3-4: EdgeBehavior (2 bits)
-        kHasFocus = 1 << 5, // true if this node or descendant has focus
+        kHasFocus = 1 << 5,     // true if this node or descendant has focus
+        kHadFocusable = 1 << 6, // sticky: was ever backed by a Focusable
     };
     static constexpr uint8_t edgeBehaviorShift = 3;
     static constexpr uint8_t edgeBehaviorMask = 0x3;

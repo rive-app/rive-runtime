@@ -40,12 +40,8 @@ void NestedStateMachine::initializeAnimation(ArtboardInstance* artboard)
                 auto* parentFM = parentArtboard->focusManager();
                 m_StateMachineInstance->setExternalFocusManager(parentFM);
 
-                // Find closest focus node (handles artboard boundaries)
-                auto parentNode =
-                    FocusData::findClosestFocusNode(nestedArtboard);
-
-                // Build nested artboard's focus tree under parent
-                artboard->buildFocusTree(parentFM, parentNode);
+                nestedArtboard->syncNestedFocusTree(
+                    FocusData::findClosestFocusNode(nestedArtboard));
             }
         }
     }
@@ -71,6 +67,15 @@ bool NestedStateMachine::hitTest(Vec2D position) const
     if (m_StateMachineInstance != nullptr)
     {
         return m_StateMachineInstance->hitTest(position);
+    }
+    return false;
+}
+
+bool NestedStateMachine::hitTestBounded(Vec2D position) const
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->hitTestBounded(position);
     }
     return false;
 }

@@ -6,15 +6,19 @@
 #include "rive/animation/nested_remap_animation.hpp"
 #include "rive/math/mat2d.hpp"
 #include <stdio.h>
+#include <memory>
 
 namespace rive
 {
 class Artboard;
 class LinearAnimation;
+class LinearAnimationInstance;
 class TransformComponent;
 class Joystick : public JoystickBase, public IntrinsicallySizeable
 {
 public:
+    Joystick();
+    ~Joystick() override;
     void update(ComponentDirt value) override;
     void apply(Artboard* artboard) const;
     StatusCode onAddedClean(CoreContext* context) override;
@@ -53,6 +57,13 @@ private:
     Mat2D m_inverseWorldTransform;
     LinearAnimation* m_xAnimation = nullptr;
     LinearAnimation* m_yAnimation = nullptr;
+    // Per-instance playback contexts for the x/y animations. Joysticks apply
+    // the shared LinearAnimation directly (not via a playing scene), so these
+    // carry the LinearAnimationInstance context needed to resolve data-bound
+    // keyframe values (see LinearAnimationInstance::keyFrameValueHolder). Only
+    // created on artboard instances; null on the source artboard.
+    std::unique_ptr<LinearAnimationInstance> m_xAnimationInstance;
+    std::unique_ptr<LinearAnimationInstance> m_yAnimationInstance;
     TransformComponent* m_handleSource = nullptr;
     std::vector<NestedRemapAnimation*> m_dependents;
 

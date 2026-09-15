@@ -244,8 +244,6 @@ static Path hiragino_maru_gothic_pro_dash()
     return path;
 }
 
-float lerp(float a, float b, float t) { return a + t * (b - a); }
-
 float scalarInterpFunc(float searchKey,
                        const float keys[],
                        const float values[],

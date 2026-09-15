@@ -8,10 +8,9 @@
 #include "rive/gpu_texture_format.hpp"
 
 #ifdef RIVE_CANVAS
+#include "rive/renderer/render_canvas.hpp"
 #include <memory>
-#endif
 
-#ifdef RIVE_CANVAS
 namespace rive::ore
 {
 class Context;
@@ -20,9 +19,6 @@ class Context;
 
 namespace rive::gpu
 {
-#ifdef RIVE_CANVAS
-class RenderCanvas;
-#endif
 class Texture;
 
 // This class manages GPU buffers and isues the actual rendering commands from
@@ -40,6 +36,19 @@ public:
     virtual rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
                                                RenderBufferFlags,
                                                size_t) = 0;
+
+#ifdef WITH_RIVE_TOOLS
+    // Changes how pipelines are selected and compiled for subsequent flushes,
+    // returning the previous mode. Backends that don't support runtime
+    // changes ignore the request (and echo the requested mode back). Testing
+    // only: lets the golden tests render individual frames through
+    // ubershaders.
+    virtual ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode)
+    {
+        return mode;
+    }
+#endif
 
     // Use platform apis to decode the image bytes and creates a texture if
     // available. If not available leaving its default implementation will cause
@@ -74,11 +83,26 @@ public:
         bool generateRemainingMips = false) = 0;
 
 #ifdef RIVE_CANVAS
+    // Allocates a canvas's texture and render target on this device, once,
+    // before its first use here. A backend with no canvas support leaves the
+    // canvas unbacked, which is how makeRenderCanvas reports it made none.
+    virtual void ensureCanvasBacking(RenderCanvas*) {}
+
+    // A canvas nothing has allocated for yet. The recording only needs the
+    // image identity it refers to, so this touches no device and whichever
+    // context replays owns the pixels.
+    rcp<RenderCanvas> makeDeferredRenderCanvas(uint32_t width, uint32_t height)
+    {
+        return make_rcp<RenderCanvas>(width, height);
+    }
+
     // Creates a RenderCanvas: a GPU texture usable as both a render target
     // and a render image. Returns nullptr if not supported by this backend.
-    virtual rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
+    rcp<RenderCanvas> makeRenderCanvas(uint32_t width, uint32_t height)
     {
-        return nullptr;
+        rcp<RenderCanvas> canvas = makeDeferredRenderCanvas(width, height);
+        ensureCanvasBacking(canvas.get());
+        return canvas->isBacked() ? canvas : nullptr;
     }
 
     // If canvas is enabled then the backend Impl MUST implement this.
@@ -95,7 +119,6 @@ public:
     // 'elementSizeInBytes' represents the size of one array element when the
     // shader accesses this buffer as a storage buffer.
     virtual void resizeFlushUniformBuffer(size_t sizeInBytes) = 0;
-    virtual void resizeImageDrawUniformBuffer(size_t sizeInBytes) = 0;
     virtual void resizePathBuffer(size_t sizeInBytes,
                                   gpu::StorageBufferStructure) = 0;
     virtual void resizePaintBuffer(size_t sizeInBytes,
@@ -107,6 +130,8 @@ public:
     virtual void resizeGradSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
+    virtual void resizeImageRectInstanceBuffer(size_t sizeInBytes) = 0;
+    virtual void resizeImageMeshInstanceBuffer(size_t sizeInBytes) = 0;
 
     virtual void preBeginFrame(RenderContext*) {}
 
@@ -121,7 +146,8 @@ public:
         const IAABB& renderTargetUpdateBounds,
         uint32_t virtualTileWidth,
         uint32_t virtualTileHeight,
-        gpu::DrawContents combinedDrawContents) const
+        gpu::DrawContents combinedDrawContents,
+        uint32_t msaaSampleCount) const
     {
         return false;
     }
@@ -142,7 +168,6 @@ public:
     // buffers in rings, in order to avoid expensive synchronization with the
     // GPU pipeline. See RenderContextBufferRingImpl.)
     virtual void* mapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
-    virtual void* mapImageDrawUniformBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapPaintBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
@@ -150,10 +175,11 @@ public:
     virtual void* mapGradSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapImageRectInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void* mapImageMeshInstanceBuffer(size_t mapSizeInBytes) = 0;
 
     // Unmap GPU buffers. All buffers will be unmapped before flush().
     virtual void unmapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
-    virtual void unmapImageDrawUniformBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapPathBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapPaintBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
@@ -161,11 +187,13 @@ public:
     virtual void unmapGradSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
     virtual void unmapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapImageRectInstanceBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapImageMeshInstanceBuffer(size_t mapSizeInBytes) = 0;
 
     // Allocate resources that are updated and used during flush().
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;
     virtual void resizeTessellationTexture(uint32_t width, uint32_t height) = 0;
-    virtual void resizeAtlasTexture(uint32_t width, uint32_t height)
+    virtual void resizeFeatherAtlasTexture(uint32_t width, uint32_t height)
     {
         // Override this method to support atlas feathering.
         assert(width == 0 && height == 0);
@@ -208,6 +236,11 @@ public:
     // Called after all logical flushes in a frame have completed.
     virtual void postFlush(const RenderContext::FlushResources&) {}
 
+    // Called after replayed Ore passes, before the renderer draws again. Ore
+    // leaves behind state a backend's own cache does not track, which the
+    // next flush would then skip updating and render black.
+    virtual void scrubStateAfterOre() {}
+
     // Creates a platform-specific command buffer for use with flush().
     // Returns an opaque pointer that should be passed as
     // FlushResources::externalCommandBuffer.
@@ -226,17 +259,3 @@ protected:
     PlatformFeatures m_platformFeatures;
 };
 } // namespace rive::gpu
-
-#if defined(ORE_BACKEND_GL) && defined(RIVE_CANVAS)
-namespace rive
-{
-class RiveRenderImage;
-// Returns a Y-flipped companion of a GL canvas texture, or nullptr on
-// non-GL backends. Hides the RenderContextGLImpl downcast so callers
-// don't need GL headers.
-rcp<RiveRenderImage> getCanvasImportMirrorGL(gpu::RenderContext*,
-                                             gpu::Texture* sourceTex,
-                                             uint32_t width,
-                                             uint32_t height);
-} // namespace rive
-#endif

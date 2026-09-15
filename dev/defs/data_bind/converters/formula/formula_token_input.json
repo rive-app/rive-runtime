@@ -1,8 +1,0 @@
-{
-  "name": "FormulaTokenInput",
-  "key": {
-    "int": 545,
-    "string": "formulatokeninput"
-  },
-  "extends": "data_bind/converters/formula/formula_token.json"
-}

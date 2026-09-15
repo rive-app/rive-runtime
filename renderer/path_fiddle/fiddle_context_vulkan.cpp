@@ -133,7 +133,7 @@ public:
     {
         if (!m_swapchain->isFrameStarted())
         {
-            VK_CHECK(m_swapchain->beginFrame());
+            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_swapchain->currentVkImageView(),
@@ -150,7 +150,7 @@ public:
     {
         FiddleContext::endOreFrame(oreContext);
         auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_CHECK(m_swapchain->endFrame(lastAccess));
+        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
     }
 
     void onSizeChanged(GLFWwindow* window,
@@ -172,17 +172,17 @@ public:
                                   nullptr);
         }
 
-        VK_CHECK(glfwCreateWindowSurface(m_instance->vkInstance(),
-                                         window,
-                                         nullptr,
-                                         &m_windowSurface));
+        VK_ABORT_ON_FAIL(glfwCreateWindowSurface(m_instance->vkInstance(),
+                                                 window,
+                                                 nullptr,
+                                                 &m_windowSurface));
 
         auto vkGetPhysicalDeviceSurfaceCapabilitiesKHR =
             m_instance->loadInstanceFunc<
                 PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
                 "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
         VkSurfaceCapabilitiesKHR windowCapabilities{};
-        VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+        VK_ABORT_ON_FAIL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
             m_device->vkPhysicalDevice(),
             m_windowSurface,
             &windowCapabilities));
@@ -283,7 +283,7 @@ public:
     {
         if (!m_swapchain->isFrameStarted())
         {
-            VK_CHECK(m_swapchain->beginFrame());
+            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
 
             m_renderTarget->setTargetImageView(
                 m_swapchain->currentVkImageView(),
@@ -313,11 +313,12 @@ public:
                 rive::IAABB::MakeWH(m_renderTarget->width(),
                                     m_renderTarget->height()));
         }
-        VK_CHECK(m_swapchain->endFrame(lastAccess));
+        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
 
         if (pixelData != nullptr)
         {
-            VK_CHECK(m_swapchain->getPixelsFromLastImageCopy(pixelData));
+            VK_ABORT_ON_FAIL(
+                m_swapchain->getPixelsFromLastImageCopy(pixelData));
         }
     }
 

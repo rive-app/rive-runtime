@@ -4,7 +4,9 @@ do
 end
 filter({ 'system:windows' })
 do
-    buildoptions({ '/fp:strict' })
+    -- Visual Studio compiles through clang-cl and takes MSVC flag syntax; ninja drives clang++
+    -- directly, which only understands the GNU spelling.
+    buildoptions({ _ACTION == 'ninja' and '-ffp-model=strict' or '/fp:strict' })
 end
 filter({ 'system:windows', 'options:toolset=clang' })
 do
@@ -56,7 +58,9 @@ do
         '../../include',
         '../../decoders/include',
         '../../renderer/include',
+        '../../renderer/rive_vk_bootstrap/include',
         '../../renderer/src',
+        '../../../rive_native/native/include',
         '../../../texture_compressor/src',
         harfbuzz .. '/src',
         miniaudio,
@@ -68,6 +72,15 @@ do
         luau .. '/Ast/include',
         luau .. '/Common/include',
     })
+
+    -- The renderer premake only puts these on rive_pls_renderer's search path,
+    -- but the vulkan tests include vkutil.hpp directly.
+    if _OPTIONS['with_vulkan'] then
+        externalincludedirs({
+            vulkan_headers .. '/include',
+            vulkan_memory_allocator .. '/include',
+        })
+    end
 
     links({
         'rive',
@@ -91,6 +104,12 @@ do
         '../common/render_context_null.cpp',
         '../../../texture_compressor/src/write_ktx2.cpp',
     })
+
+    -- These exercise the Luau backend directly; the wasm backend's coverage
+    -- is the two-runner differential in rive-cli until wasm twins land.
+    if _OPTIONS['scripting_vm'] == 'wasm' then
+        removefiles({ 'runtime/scripting/**' })
+    end
 
     filter('system:linux')
     do
@@ -120,10 +139,20 @@ do
             'CoreGraphics.framework',
             'CoreText.framework',
         })
-        -- The ore helper pulls in <Metal/Metal.h>, so compile this test as
+        -- The ore helper pulls in <Metal/Metal.h>, so compile these tests as
         -- Obj-C++ on Apple instead of the C++ glob.
-        files({ 'renderer/ore_buffer_race_test.mm' })
-        removefiles({ 'renderer/ore_buffer_race_test.cpp' })
+        files({
+            'renderer/ore_buffer_race_test.mm',
+            'renderer/ore_layout_intern_test.mm',
+            'renderer/ore_scratch_pass_objects_test.mm',
+            'renderer/ore_split_stage_test.mm',
+        })
+        removefiles({
+            'renderer/ore_buffer_race_test.cpp',
+            'renderer/ore_layout_intern_test.cpp',
+            'renderer/ore_scratch_pass_objects_test.cpp',
+            'renderer/ore_split_stage_test.cpp',
+        })
     end
 
     filter({ 'toolset:not msc' })

@@ -1,9 +1,0 @@
-{
-  "name": "LottieAsset",
-  "key": {
-    "int": 133,
-    "string": "lottieasset"
-  },
-  "extends": "assets/drawable_asset.json",
-  "runtime": false
-}

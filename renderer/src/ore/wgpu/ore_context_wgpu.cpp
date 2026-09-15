@@ -852,13 +852,10 @@ rcp<Pipeline> ContextWGPU::makePipeline(const PipelineDesc& desc,
     // shader binding must be declared by the corresponding layout.
     {
         std::string err;
-        if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
-                                              desc.bindGroupLayouts,
-                                              desc.bindGroupLayoutCount,
-                                              &err) ||
-            !validateColorRequiresFragment(desc.colorCount,
-                                           desc.fragmentModule != nullptr,
-                                           &err))
+        if (!validatePipelineDesc(desc,
+                                  pipeline->m_bindingMap,
+                                  NativeSlotScope::perStage,
+                                  &err))
         {
             if (outError)
                 *outError = err;
@@ -952,6 +949,11 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     auto layout = lite_rtti_cast<BindGroupLayoutWGPU*>(desc.layout);
     assert(layout != nullptr);
     if (layout->groupIndex() >= kMaxBindGroups)
@@ -1022,7 +1024,7 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
             {buffer,
              ubo.slot,
              ubo.offset,
-             (ubo.size > 0) ? ubo.size : buffer->size()});
+             (ubo.size > 0) ? ubo.size : buffer->size() - ubo.offset});
         bg->m_retainedBuffers.push_back(ref_rcp(buffer));
     }
 
@@ -1063,8 +1065,6 @@ std::unique_ptr<RenderPass> ContextWGPU::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
-
     assert(m_wgpuCommandEncoder != nullptr &&
            "beginFrame must be called before beginRenderPass");
 

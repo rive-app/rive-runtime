@@ -36,6 +36,6 @@ void FocusActionTarget::perform(StateMachineInstance* stateMachineInstance,
 
     if (focusData != nullptr)
     {
-        stateMachineInstance->setFocus(focusData);
+        stateMachineInstance->queueFocusTarget(focusData);
     }
 }

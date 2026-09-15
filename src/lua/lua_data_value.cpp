@@ -246,7 +246,7 @@ static int data_value_newindex(lua_State* L)
                 }
                 case ScriptedDataValueColor::luaTag:
                 {
-                    auto val = luaL_checkinteger(L, 3);
+                    auto val = luaL_checkunsigned(L, 3);
                     scriptedDataValue->dataValue()->as<DataValueColor>()->value(
                         val);
                     return 1;

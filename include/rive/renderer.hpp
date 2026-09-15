@@ -24,6 +24,7 @@
 namespace rive
 {
 class Vec2D;
+class RenderImage;
 
 // Helper that computes a matrix to "align" content (source) to fit inside frame
 // (destination).
@@ -32,6 +33,14 @@ Mat2D computeAlignment(Fit,
                        const AABB& frame,
                        const AABB& content,
                        const float scaleFactor = 1.0f);
+
+// Common parameters to describe a path's stroke.
+struct StrokeParams
+{
+    float thickness = 1.0f;
+    StrokeJoin join = StrokeJoin::miter;
+    StrokeCap cap = StrokeCap::butt;
+};
 
 enum class RenderBufferType
 {
@@ -125,6 +134,18 @@ public:
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;
+    virtual void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&)
+    {} // TODO: Implement on others
+
+    // Set the style to stroke and update all of the stroke parameters with a
+    // single update.
+    void stroke(const StrokeParams& params)
+    {
+        style(RenderPaintStyle::stroke);
+        thickness(params.thickness);
+        join(params.join);
+        cap(params.cap);
+    }
 };
 
 #if defined(__EMSCRIPTEN__)
@@ -194,7 +215,13 @@ public:
         // No-op on non rive renderer.
     }
 
+    // The caller is expected to provide a valid path with no zero length
+    // segments.
     virtual void addRawPath(const RawPath& path) = 0;
+
+    // Same, but prunes zero length segments first, for paths we did not build
+    // like scripted ones.
+    void addUntrustedRawPath(const RawPath& path);
 };
 
 class Renderer
@@ -206,6 +233,10 @@ public:
     virtual void transform(const Mat2D& transform) = 0;
     virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
     virtual void clipPath(RenderPath* path) = 0;
+
+    // Not implementable on some backends so default to nothing
+    virtual void clipStroke(RenderPath*, const StrokeParams&) {}
+
     virtual void drawImage(const RenderImage*,
                            ImageSampler,
                            BlendMode,
@@ -225,6 +256,20 @@ public:
     // modulateOpacity(0.2) = 0.1 effective opacity). The modulated opacity is
     // captured by save() and restored by restore().
     virtual void modulateOpacity(float opacity) = 0;
+
+    // Reports the renderer's current transform (CTM) into *out, if the
+    // renderer tracks one. Returns false and leaves *out untouched otherwise.
+    // Needed when a draw has to be re-issued through a different renderer that
+    // does not share this one's state.
+    virtual bool currentTransform(Mat2D* out) const { return false; }
+
+    // Reports the opacity accumulated by modulateOpacity() into *out, if the
+    // renderer tracks it. Returns false and leaves *out untouched otherwise.
+    // The companion to currentTransform(): a draw re-issued through a fresh
+    // renderer starts at opacity 1, so an enclosing modulateOpacity() scope
+    // (a ScriptedDrawable fading its children, say) has to be carried across
+    // by hand or the re-issued draw comes out too opaque.
+    virtual bool currentModulatedOpacity(float* out) const { return false; }
 
     // helpers
 

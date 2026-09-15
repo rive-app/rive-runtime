@@ -1,0 +1,46 @@
+diff --git a/core/iwasm/aot/aot_loader.c b/core/iwasm/aot/aot_loader.c
+index 771ef87..5979df1 100644
+--- a/core/iwasm/aot/aot_loader.c
++++ b/core/iwasm/aot/aot_loader.c
+@@ -473,7 +473,10 @@ static bool
+ check_feature_flags(char *error_buf, uint32 error_buf_size,
+                     uint64 feature_flags)
+ {
+-#if WASM_ENABLE_SIMD == 0
++/* rive patch: aot simd code is precompiled native, so a sw-simd runtime can
++   run it as long as no v128 crosses the host boundary; rasc emits neither
++   v128 globals nor v128 export signatures */
++#if WASM_ENABLE_SIMD == 0 && !defined(RIVE_AOT_SIMD_ARTIFACTS)
+     if (feature_flags & WASM_FEATURE_SIMD_128BIT) {
+         set_error_buf(error_buf, error_buf_size,
+                       "SIMD is not enabled in this build");
+diff --git a/core/iwasm/common/wasm_loader_common.c b/core/iwasm/common/wasm_loader_common.c
+index 4243e91..9b018ca 100644
+--- a/core/iwasm/common/wasm_loader_common.c
++++ b/core/iwasm/common/wasm_loader_common.c
+@@ -140,7 +140,9 @@ is_valid_value_type(uint8 type)
+ #elif WASM_ENABLE_REF_TYPES != 0
+         || (type == VALUE_TYPE_FUNCREF || type == VALUE_TYPE_EXTERNREF)
+ #endif
+-#if WASM_ENABLE_SIMD != 0
++/* rive patch: aot artifacts may carry v128 internally; the interpreter
++   wrapper below still rejects it for .wasm modules */
++#if WASM_ENABLE_SIMD != 0 || defined(RIVE_AOT_SIMD_ARTIFACTS)
+         || type == VALUE_TYPE_V128 /* 0x7B */
+ #endif
+     )
+diff --git a/core/iwasm/interpreter/wasm_loader.c b/core/iwasm/interpreter/wasm_loader.c
+index 3f64472..917540b 100644
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -15534,8 +15534,8 @@ re_scan:
+                         }
+                         PUSH_REF(type_tmp);
+                         if (!(frame_csp_tmp = check_branch_block(
+-                                  loader_ctx, &p, p_end, opcode, error_buf,
+-                                  error_buf_size))) {
++                                  loader_ctx, &p, p_end, opcode, false,
++                                  error_buf, error_buf_size))) {
+                             goto fail;
+                         }
+                         /* Ignore heap_types */

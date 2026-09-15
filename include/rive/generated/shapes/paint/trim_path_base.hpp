@@ -48,8 +48,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(startPropertyKey, &m_Start, &value);
         m_Start = value;
-        startChanged();
+        RIVE_EDITOR_CHANGED(startChanged());
         notifyPropertyChanged(startPropertyKey);
     }
 
@@ -60,8 +61,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(endPropertyKey, &m_End, &value);
         m_End = value;
-        endChanged();
+        RIVE_EDITOR_CHANGED(endChanged());
         notifyPropertyChanged(endPropertyKey);
     }
 
@@ -72,8 +74,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
         m_Offset = value;
-        offsetChanged();
+        RIVE_EDITOR_CHANGED(offsetChanged());
         notifyPropertyChanged(offsetPropertyKey);
     }
 
@@ -84,8 +87,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
         m_ModeValue = value;
-        modeValueChanged();
+        RIVE_EDITOR_CHANGED(modeValueChanged());
         notifyPropertyChanged(modeValuePropertyKey);
     }
 
@@ -124,6 +128,9 @@ protected:
     virtual void endChanged() {}
     virtual void offsetChanged() {}
     virtual void modeValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/paint/trim_path_ext.inl"
+#endif
 };
 } // namespace rive
 

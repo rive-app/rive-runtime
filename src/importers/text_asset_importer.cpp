@@ -34,18 +34,13 @@ const uint8_t g_scriptVerificationPublicKey[32] = {
 } // namespace rive
 
 TextAssetImporter::TextAssetImporter(
-    TextAsset* fileAsset,
+    FileAsset* fileAsset,
     rcp<FileAssetLoader> assetLoader,
     Factory* factory,
     std::vector<InBandContent>* verificationSet) :
     FileAssetImporter(fileAsset, assetLoader, factory),
     m_verificationSet(verificationSet)
 {}
-
-TextAsset* TextAssetImporter::textAsset()
-{
-    return m_fileAsset->as<TextAsset>();
-}
 
 void TextAssetImporter::onFileAssetContents(
     std::unique_ptr<FileAssetContents> contents)
@@ -58,13 +53,13 @@ void TextAssetImporter::onFileAssetContents(
     {
         auto content = header.content();
         SimpleArray<uint8_t> rawContent(content.data(), content.size());
-        m_verificationSet->emplace_back(InBandContent(textAsset(), rawContent));
+        m_verificationSet->emplace_back(InBandContent(m_fileAsset, rawContent));
     }
     FileAssetImporter::onFileAssetContents(std::move(contents));
 }
 
-InBandContent::InBandContent(TextAsset* asset, SimpleArray<uint8_t>& content) :
-    m_textAsset(asset), m_bytes(SimpleArray<uint8_t>(content))
+InBandContent::InBandContent(FileAsset* asset, SimpleArray<uint8_t>& content) :
+    m_asset(asset), m_bytes(SimpleArray<uint8_t>(content))
 {}
 
 StatusCode TextAssetImporter::resolve()
@@ -99,10 +94,10 @@ StatusCode TextAssetImporter::resolve()
                                            g_scriptVerificationPublicKey);
 
         // Propagate the aggregate verification result to every participating
-        // TextAsset (Luau modules and RSTB blobs alike).
+        // asset (Luau bytecode, RSTB blobs, and wasm modules alike).
         for (auto& inband : *m_verificationSet)
         {
-            inband.m_textAsset->m_verified = isVerified == 0;
+            inband.m_asset->m_verified = isVerified == 0;
         }
         m_verificationSet->clear();
     }

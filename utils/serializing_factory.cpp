@@ -1,58 +1,38 @@
 #include "utils/serializing_factory.hpp"
+#include "utils/serialize_ops.hpp"
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/core/binary_reader.hpp"
 #include "rive/artboard.hpp"
+#include "rive/renderer/render_canvas.hpp"
+#include "rive/renderer/render_context.hpp"
 #include <cstring>
 #include <stdlib.h>
+#ifndef RIVE_NO_FILESYSTEM
 #include <filesystem>
+#endif
 #include <inttypes.h>
 #include <unordered_map>
+#include <algorithm>
+#include <cmath>
 
 using namespace rive;
 
 // Threshold for floating point tests.
 static const float epsilon = 0.001f;
 
-enum class SerializeOp : unsigned char
+// Serialized geometry is not bit-reproducible across platforms -- compilers and
+// libms order the same mesh/vertex math differently, so results drift by a
+// handful of ULPs. A flat absolute epsilon does not express that: at
+// coordinates in the ~1000 range 0.001f is only ~8 float ULPs, which the drift
+// exceeds, while at coordinates in the ~100 range it is ~66. Scale the
+// tolerance with the magnitude being compared so it stays a consistent
+// precision budget instead of tightening as geometry grows.
+static const float relativeEpsilon = 1e-5f;
+
+static float toleranceFor(float magnitude)
 {
-    makeRenderBuffer = 0,
-    makeLinearGradient = 1,
-    makeRadialGradient = 2,
-    makeRenderPath = 3,
-    makeRenderPaint = 5,
-    decodeImage = 6,
-    save = 7,
-    restore = 8,
-    transform = 9,
-    drawPath = 10,
-    clipPath = 11,
-    drawImage = 12,
-    drawImageMesh = 13,
-
-    // RenderBuffer
-    setVertexBufferData = 14,
-    setIndexBufferData = 15,
-
-    // RenderPath
-    addRawPath = 16,
-    rewind = 17,
-    fillRule = 18,
-
-    // RenderPaint
-    style = 20,
-    color = 21,
-    thickness = 22,
-    join = 23,
-    cap = 24,
-    feather = 25,
-    blendMode = 26,
-    shader = 27,
-
-    frame = 28,
-    frameSize = 29,
-    modulateOpacity = 30,
-
-};
+    return epsilon + relativeEpsilon * std::abs(magnitude);
+}
 
 static const char* opToName(SerializeOp op)
 {
@@ -116,6 +96,8 @@ static const char* opToName(SerializeOp op)
             return "blendMode";
         case SerializeOp::shader:
             return "shader";
+        case SerializeOp::paintModulatedImage:
+            return "paintModulatedImage";
 
         case SerializeOp::frame:
             return "frame";
@@ -123,6 +105,14 @@ static const char* opToName(SerializeOp op)
             return "frameSize";
         case SerializeOp::modulateOpacity:
             return "modulateOpacity";
+
+        // Offscreen canvases (cache-as-bitmap).
+        case SerializeOp::makeRenderCanvas:
+            return "makeRenderCanvas";
+        case SerializeOp::canvasContentBegin:
+            return "canvasContentBegin";
+        case SerializeOp::canvasContentEnd:
+            return "canvasContentEnd";
     }
     return "???";
 }
@@ -142,23 +132,6 @@ public:
 private:
     uint64_t m_id;
 };
-
-static void serializeRawPath(BinaryWriter* writer, const RawPath& path)
-{
-    auto verbs = path.verbs();
-    auto points = path.points();
-    writer->writeVarUint((uint64_t)verbs.size());
-    for (auto verb : verbs)
-    {
-        writer->writeVarUint((uint64_t)verb);
-    }
-    writer->writeVarUint((uint64_t)points.size());
-    for (auto point : points)
-    {
-        writer->writeFloat(point.x);
-        writer->writeFloat(point.y);
-    }
-}
 
 class SerializingRenderShader : public RenderShader
 {
@@ -265,6 +238,27 @@ public:
             shader == nullptr
                 ? 0
                 : static_cast<SerializingRenderShader*>(shader.get())->id());
+    }
+    void modulatedImage(const RenderImage* image,
+                        ImageSampler sampler,
+                        const Mat2D& matrix) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::paintModulatedImage);
+        m_writer->writeVarUint(m_id);
+        // Image id is offset by one so 0 unambiguously means "no image".
+        m_writer->writeVarUint(
+            image == nullptr
+                ? 0
+                : static_cast<const SerializingRenderImage*>(image)->id() + 1);
+        m_writer->writeVarUint((uint32_t)sampler.filter);
+        m_writer->writeVarUint((uint32_t)sampler.wrapX);
+        m_writer->writeVarUint((uint32_t)sampler.wrapY);
+        m_writer->writeFloat(matrix.xx());
+        m_writer->writeFloat(matrix.xy());
+        m_writer->writeFloat(matrix.yx());
+        m_writer->writeFloat(matrix.yy());
+        m_writer->writeFloat(matrix.tx());
+        m_writer->writeFloat(matrix.ty());
     }
     void invalidateStroke() override {}
     void feather(float value) override
@@ -542,7 +536,10 @@ rcp<RenderImage> SerializingFactory::decodeImage(Span<const uint8_t> data)
 class SerializingRenderer : public Renderer
 {
 public:
-    SerializingRenderer(BinaryWriter* writer) : m_writer(writer) {}
+    SerializingRenderer(BinaryWriter* writer,
+                        const SerializingFactory* factory) :
+        m_writer(writer), m_factory(factory)
+    {}
 
     void save() override
     {
@@ -587,8 +584,7 @@ public:
                            float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImage);
-        m_writer->writeVarUint(
-            static_cast<const SerializingRenderImage*>(image)->id());
+        m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
     }
@@ -604,8 +600,7 @@ public:
                                float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMesh);
-        m_writer->writeVarUint(
-            static_cast<const SerializingRenderImage*>(image)->id());
+        m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
         m_writer->writeVarUint(
@@ -618,6 +613,7 @@ public:
 
 private:
     BinaryWriter* m_writer;
+    const SerializingFactory* m_factory;
 };
 
 SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
@@ -626,9 +622,120 @@ SerializingFactory::SerializingFactory() : m_writer(&m_buffer)
     m_writer.writeVarUint((uint32_t)1);
 }
 
+// Out of line so this translation unit anchors the vtable.
+SerializingFactory::~SerializingFactory() = default;
+
 std::unique_ptr<Renderer> SerializingFactory::makeRenderer()
 {
-    return std::make_unique<SerializingRenderer>(&m_writer);
+    return std::make_unique<SerializingRenderer>(&m_writer, this);
+}
+
+void SerializingFactory::enableBitmapCache(gpu::RenderContext* renderContext)
+{
+    m_bitmapCacheContext = renderContext;
+}
+
+Factory* SerializingFactory::renderContext() { return m_bitmapCacheContext; }
+
+cmd::DeferredCanvasHost* SerializingFactory::deferredCanvasHost()
+{
+    // Both hooks stay null until enableBitmapCache() runs, so an existing
+    // [silver] test keeps recording the plain vector path.
+    return m_bitmapCacheContext != nullptr ? this : nullptr;
+}
+
+cmd::DeferredCanvasHost* SerializingFactory::canvasContentHost()
+{
+    return deferredCanvasHost();
+}
+
+rcp<gpu::RenderCanvas> SerializingFactory::makeContentCanvas(uint32_t width,
+                                                             uint32_t height)
+{
+#ifdef RIVE_CANVAS
+    // Nothing is allocated on a device here -- the canvas only needs the
+    // identity the stream refers to, which is why a null-device context is
+    // enough. Whoever replays installs the pixels.
+    return m_bitmapCacheContext != nullptr
+               ? m_bitmapCacheContext->makeDeferredRenderCanvas(width, height)
+               : nullptr;
+#else
+    // Offscreen canvases are compiled out, so the artboard falls back to a
+    // plain vector draw.
+    return nullptr;
+#endif
+}
+
+rcp<RenderImage> SerializingFactory::contentCanvasImage(
+    gpu::RenderCanvas* canvas)
+{
+    return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
+                             : nullptr;
+}
+
+uint64_t SerializingFactory::canvasId(gpu::RenderCanvas* canvas)
+{
+    const RenderImage* image = canvas->renderImage();
+    auto it = m_canvasImageIds.find(image);
+    if (it != m_canvasImageIds.end())
+    {
+        return it->second;
+    }
+    uint64_t id = m_renderImageId++;
+    m_canvasImageIds[image] = id;
+    m_retainedCanvases.push_back(ref_rcp(canvas));
+    m_writer.writeVarUint((uint32_t)SerializeOp::makeRenderCanvas);
+    m_writer.writeVarUint(id);
+    m_writer.writeVarUint(canvas->width());
+    m_writer.writeVarUint(canvas->height());
+    return id;
+}
+
+uint64_t SerializingFactory::imageId(const RenderImage* image) const
+{
+    auto it = m_canvasImageIds.find(image);
+    if (it != m_canvasImageIds.end())
+    {
+        return it->second;
+    }
+    // Everything this factory hands out that is not canvas backed carries its
+    // own id.
+    return static_cast<const SerializingRenderImage*>(image)->id();
+}
+
+Renderer* SerializingFactory::beginCanvasContent(gpu::RenderCanvas* canvas,
+                                                 uint32_t clearColor)
+{
+    if (canvas == nullptr)
+    {
+        return nullptr;
+    }
+    // Minted before the bracket so a replayer knows the canvas's size by the
+    // time it has to open a frame on it.
+    uint64_t id = canvasId(canvas);
+    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentBegin);
+    m_writer.writeVarUint(id);
+    m_writer.writeVarUint(clearColor);
+    if (m_canvasRenderer == nullptr)
+    {
+        // Content records inline into the same stream, so one recorder serves
+        // every canvas. Kept for the factory's lifetime rather than released
+        // at endCanvasContent: a nested cache brackets inside an outer one,
+        // and freeing on the inner end would dangle the pointer the outer
+        // content is still drawing through.
+        m_canvasRenderer = makeRenderer();
+    }
+    return m_canvasRenderer.get();
+}
+
+void SerializingFactory::endCanvasContent(gpu::RenderCanvas* canvas)
+{
+    if (canvas == nullptr)
+    {
+        return;
+    }
+    m_writer.writeVarUint((uint32_t)SerializeOp::canvasContentEnd);
+    m_writer.writeVarUint(canvasId(canvas));
 }
 
 void SerializingFactory::addFrame()
@@ -654,6 +761,7 @@ void SerializingFactory::save(const char* filename)
 void SerializingFactory::saveTarnished(const char* filename)
 {
     auto path = std::string("silvers/tarnished/");
+#ifndef RIVE_NO_FILESYSTEM
     if (!std::filesystem::exists(path))
     {
         if (!std::filesystem::create_directories(path))
@@ -663,6 +771,9 @@ void SerializingFactory::saveTarnished(const char* filename)
     }
     auto fullFileName = path + std::string(filename) + std::string(".sriv");
     save(fullFileName.c_str());
+#else
+    printf("No std::filesystem api support. Ignoring tarnished save.");
+#endif
 }
 
 static bool varUintMatches(uint64_t op,
@@ -723,35 +834,11 @@ static bool floatMatches(uint64_t op,
 {
     auto valueA = readerA.readFloat32();
     auto valueB = readerB.readFloat32();
-    if (std::abs(valueA - valueB) > epsilon)
+    if (std::abs(valueA - valueB) >
+        toleranceFor(std::max(std::abs(valueA), std::abs(valueB))))
     {
         fprintf(stderr,
                 "%s for %s doesn't match %f != %f\n",
-                name.c_str(),
-                opToName((SerializeOp)op),
-                valueA,
-                valueB);
-        return false;
-    }
-    if (value != nullptr)
-    {
-        *value = valueA;
-    }
-    return true;
-}
-
-static bool shortMatches(uint64_t op,
-                         std::string name,
-                         BinaryReader& readerA,
-                         BinaryReader& readerB,
-                         uint16_t* value = nullptr)
-{
-    auto valueA = readerA.readUint16();
-    auto valueB = readerB.readUint16();
-    if (valueA != valueB)
-    {
-        fprintf(stderr,
-                "%s for %s doesn't match %i != %i\n",
                 name.c_str(),
                 opToName((SerializeOp)op),
                 valueA,
@@ -778,7 +865,10 @@ static bool vec2DMatches(uint64_t op,
     auto by = readerB.readFloat32();
 
     // if (ax != bx || ay != by)
-    if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) > epsilon)
+    float magnitude = std::max(std::max(std::abs(ax), std::abs(ay)),
+                               std::max(std::abs(bx), std::abs(by)));
+    if (rive::Vec2D::distance(Vec2D(ax, ay), Vec2D(bx, by)) >
+        toleranceFor(magnitude))
     {
         fprintf(stderr,
                 "%s for %s doesn't match (%f, %f) != (%f, %f)\n",
@@ -875,6 +965,18 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     "expected %s but got %s\n",
                     opToName((SerializeOp)opA),
                     opToName((SerializeOp)opB));
+            return false;
+        }
+        // Past an unrecognized opcode there is no way to know how many bytes
+        // the record holds, so the walk would silently reinterpret the rest of
+        // the stream as garbage instead of reporting a mismatch.
+        if (strcmp(opToName((SerializeOp)opA), "???") == 0)
+        {
+            fprintf(stderr,
+                    "advancedMatch: unknown op %" PRIu64 ", stream is out of "
+                    "sync.\n",
+                    opA);
+            return false;
         }
         switch ((SerializeOp)opA)
         {
@@ -895,6 +997,13 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                     readerA,
                                     readerB,
                                     &size))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_renderbuffer_type",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }
@@ -1140,11 +1249,13 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 uint64_t shortCount = size / sizeof(uint16_t);
                 for (int i = 0; i < shortCount; i++)
                 {
-                    if (!shortMatches(opA,
-                                      std::string("setindexbufferdata_[") +
-                                          std::to_string(i) + std::string("]"),
-                                      readerA,
-                                      readerB))
+                    // Indices go out as varuints, not fixed-width shorts.
+                    if (!varUintMatches(opA,
+                                        std::string("setindexbufferdata_[") +
+                                            std::to_string(i) +
+                                            std::string("]"),
+                                        readerA,
+                                        readerB))
                     {
                         return false;
                     }
@@ -1309,6 +1420,55 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     return false;
                 }
                 break;
+            case SerializeOp::paintModulatedImage:
+                if (!varUintMatches(opA,
+                                    "modulatedimage_paint_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_image_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_filter",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_wrapx",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "modulatedimage_wrapy",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                for (const char* field : {"modulatedimage_xx",
+                                          "modulatedimage_xy",
+                                          "modulatedimage_yx",
+                                          "modulatedimage_yy",
+                                          "modulatedimage_tx",
+                                          "modulatedimage_ty"})
+                {
+                    if (!floatMatches(opA, field, readerA, readerB))
+                    {
+                        return false;
+                    }
+                }
+                break;
 
             case SerializeOp::frame:
                 break;
@@ -1327,6 +1487,58 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                   "modulateopacity_value",
                                   readerA,
                                   readerB))
+                {
+                    return false;
+                }
+                break;
+
+            // Offscreen canvases (cache-as-bitmap). The content between a
+            // begin/end bracket is ordinary inline ops, so the walk needs
+            // nothing beyond each bracket's own payload.
+            case SerializeOp::makeRenderCanvas:
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_width",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "make_rendercanvas_height",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::canvasContentBegin:
+                if (!varUintMatches(opA,
+                                    "canvascontentbegin_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "canvascontentbegin_clearcolor",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::canvasContentEnd:
+                if (!varUintMatches(opA,
+                                    "canvascontentend_id",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }
@@ -1357,12 +1569,14 @@ bool SerializingFactory::matches(const char* filename)
 {
     auto fullFileName =
         std::string("silvers/") + std::string(filename) + std::string(".sriv");
+#ifndef NO_GETENV
     const char* rebaseline = getenv("REBASELINE_SILVERS");
     if (rebaseline != nullptr)
     {
         save(fullFileName.c_str());
         return true;
     }
+#endif
 
     FILE* fp = fopen(fullFileName.c_str(), "rb");
     if (fp == nullptr)

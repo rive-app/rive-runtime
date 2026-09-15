@@ -113,6 +113,12 @@ private:
         const std::vector<VkExtensionProperties>& supportedExtensions,
         std::vector<const char*>& extensions);
 
+    std::optional<VkPhysicalDeviceColorWriteEnableFeaturesEXT>
+    tryEnableColorWriteEnableFeatures(
+        VulkanInstance&,
+        const std::vector<VkExtensionProperties>& supportedExtensions,
+        std::vector<const char*>& extensions);
+
     bool addExtensionIfSupported(
         const char* name,
         const std::vector<VkExtensionProperties>& supportedExtensions,

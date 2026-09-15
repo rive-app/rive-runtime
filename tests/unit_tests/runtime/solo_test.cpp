@@ -1,15 +1,25 @@
 #include <rive/solo.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/shapes/path.hpp>
+#include <rive/shapes/clipping_shape.hpp>
+#include <rive/constraints/translation_constraint.hpp>
+#include <rive/focus_data.hpp>
+#include <rive/semantic/semantic_data.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/nested_artboard.hpp>
+#include <rive/nested_artboard_leaf.hpp>
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include "rive_file_reader.hpp"
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
+#include "rive/viewmodel/viewmodel_property_enum.hpp"
+#include "rive/viewmodel/data_enum.hpp"
+#include "utils/no_op_factory.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
+#include <cstdint>
 #include <cstdio>
 
 TEST_CASE("file with skins in solos loads correctly", "[solo]")
@@ -318,6 +328,92 @@ TEST_CASE("hit test on nested artboards in solos", "[solo]")
     REQUIRE(inactiveRectFillSolidColor->colorValue() == green_color);
 }
 
+TEST_CASE("solo index/name selection skips property-like children", "[solo]")
+{
+    // Build an artboard with a solo whose children interleave real solo options
+    // (shapes) with property-like children (constraint, clipping shape, focus
+    // data, semantic data). Those property-like children must be skipped by
+    // index/name based selection so data binding targets only real options.
+    rive::NoOpFactory factory;
+    rive::Artboard artboard(&factory);
+
+    auto* solo = new rive::Solo();
+    auto* clip = new rive::ClippingShape();
+    auto* constraint = new rive::TranslationConstraint();
+    auto* blue = new rive::Shape();
+    auto* focus = new rive::FocusData();
+    auto* green = new rive::Shape();
+    auto* semantic = new rive::SemanticData();
+    auto* red = new rive::Shape();
+
+    blue->name("Blue");
+    green->name("Green");
+    red->name("Red");
+
+    artboard.addObject(&artboard);  // id 0
+    artboard.addObject(solo);       // id 1
+    artboard.addObject(clip);       // id 2
+    artboard.addObject(constraint); // id 3
+    artboard.addObject(blue);       // id 4
+    artboard.addObject(focus);      // id 5
+    artboard.addObject(green);      // id 6
+    artboard.addObject(semantic);   // id 7
+    artboard.addObject(red);        // id 8
+
+    solo->parentId(0);
+    clip->parentId(1);
+    constraint->parentId(1);
+    blue->parentId(1);
+    focus->parentId(1);
+    green->parentId(1);
+    semantic->parentId(1);
+    red->parentId(1);
+
+    // The clipping shape needs a valid source node to initialize.
+    clip->sourceId(artboard.idOf(blue));
+
+    REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
+
+    // Index 0 must resolve to the first real option (Blue), NOT the clipping
+    // shape that physically precedes it in the child list.
+    solo->updateByIndex(0);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == blue);
+    REQUIRE(solo->getActiveChildIndex() == 0);
+
+    solo->updateByIndex(1);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == green);
+    REQUIRE(solo->getActiveChildIndex() == 1);
+
+    solo->updateByIndex(2);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+    REQUIRE(solo->getActiveChildIndex() == 2);
+    REQUIRE(solo->getActiveChildName() == "Red");
+
+    // Out of range for the solo set (there are only 3 options) is a no-op.
+    solo->updateByIndex(3);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+
+    // An index past the whole child list (e.g. a negative float cast to size_t
+    // by the data-binding path) is also a no-op.
+    solo->updateByIndex(SIZE_MAX);
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == red);
+
+    // Name based selection skips the property-like children too.
+    solo->updateByName("Green");
+    REQUIRE(artboard.resolve(solo->activeComponentId()) == green);
+    REQUIRE(solo->getActiveChildIndex() == 1);
+
+    // With Green active, only the non-active solo options collapse. The
+    // property-like children follow the solo's own (uncollapsed) state.
+    REQUIRE(blue->isCollapsed() == true);
+    REQUIRE(green->isCollapsed() == false);
+    REQUIRE(red->isCollapsed() == true);
+    REQUIRE(clip->isCollapsed() == false);
+    REQUIRE(constraint->isCollapsed() == false);
+    REQUIRE(focus->isCollapsed() == false);
+    REQUIRE(semantic->isCollapsed() == false);
+}
+
 TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
 {
     rive::SerializingFactory silver;
@@ -355,4 +451,286 @@ TEST_CASE("Data bound solos with enums work in both directions", "[silver]")
     CHECK(enuToSourceProp->propertyValue() == 5);
 
     CHECK(silver.matches("databind_solo_to_enum"));
+}
+
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+TEST_CASE("Do not advance collapsed scripts", "[silver]")
+{
+    auto file = ReadRiveFile("assets/script_advance_test.riv");
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    stateMachine->bindViewModelInstance(vmi);
+    auto soloIndexProp =
+        vmi->propertyValue("soloIndex")->as<rive::ViewModelInstanceNumber>();
+    auto advanceCountProp =
+        vmi->propertyValue("advanceCount")->as<rive::ViewModelInstanceNumber>();
+
+    REQUIRE(soloIndexProp->propertyValue() == 0);
+    REQUIRE(advanceCountProp->propertyValue() == 0);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 1);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 2);
+
+    // Toggles to another script
+    soloIndexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 3);
+
+    // Toggles to a nested artboard with a script
+    soloIndexProp->propertyValue(2);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 4);
+
+    // Toggling to an index where no script advances
+    soloIndexProp->propertyValue(3);
+    stateMachine->advanceAndApply(0.016f);
+    // Value updates once more because advance is always off-by-one frame to
+    // the update cycle
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    stateMachine->advanceAndApply(0.016f);
+    // Now script does not advance anymore
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    soloIndexProp->propertyValue(0);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 5);
+
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(advanceCountProp->propertyValue() == 6);
+}
+#endif
+
+TEST_CASE("Data bind by index skipping non hierarchical children", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/solo_index_test.riv", &silver);
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    auto indexProp =
+        vmi->propertyValue("index")->as<rive::ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    indexProp->propertyValue(1);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    indexProp->propertyValue(2);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    indexProp->propertyValue(3);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("solo_index_test"));
+}
+
+// Every kind of child a Solo can hold, laid out by one parent layout: nested
+// artboard leaves, plain and participating shapes/text/images. The view
+// model's `states` enum picks the active one by name, so walking its values
+// renders each child in turn.
+TEST_CASE("solo children of a layout render for every state", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_solos.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+
+    auto statesValue = vmi->propertyValue("states");
+    REQUIRE(statesValue != nullptr);
+    auto states = statesValue->as<rive::ViewModelInstanceEnum>();
+
+    auto enumProperty =
+        states->viewModelProperty()->as<rive::ViewModelPropertyEnum>();
+    auto dataEnum = enumProperty->dataEnum();
+    REQUIRE(dataEnum != nullptr);
+    REQUIRE(!dataEnum->values().empty());
+
+    auto renderer = silver.makeRenderer();
+    for (uint32_t i = 0; i < (uint32_t)dataEnum->values().size(); i++)
+    {
+        // The solo matches the enum value against its children's names and
+        // silently keeps the current child when nothing matches, so assert the
+        // write landed rather than re-rendering the previous state.
+        REQUIRE(states->value(i));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    CHECK(silver.matches("layout_solos"));
+}
+
+// The same scene as above with every leaf opted in to fitToLayoutParent. The
+// asset was authored before the flag existed so its flag is false, which is
+// what the sibling silver records; flipping it here is the only difference
+// between the two, so the pair is the render-level statement of what the flag
+// does. A leaf whose Solo has no layout above it is unaffected either way.
+TEST_CASE("solo children of a layout render fitted to the layout parent",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/layout/layout_solos.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto leaves = artboard->find<rive::NestedArtboardLeaf>();
+    REQUIRE(!leaves.empty());
+    for (auto* leaf : leaves)
+    {
+        REQUIRE(leaf->fitToLayoutParent() == false);
+        leaf->fitToLayoutParent(true);
+    }
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+
+    auto statesValue = vmi->propertyValue("states");
+    REQUIRE(statesValue != nullptr);
+    auto states = statesValue->as<rive::ViewModelInstanceEnum>();
+
+    auto enumProperty =
+        states->viewModelProperty()->as<rive::ViewModelPropertyEnum>();
+    auto dataEnum = enumProperty->dataEnum();
+    REQUIRE(dataEnum != nullptr);
+    REQUIRE(!dataEnum->values().empty());
+
+    auto renderer = silver.makeRenderer();
+    for (uint32_t i = 0; i < (uint32_t)dataEnum->values().size(); i++)
+    {
+        REQUIRE(states->value(i));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    CHECK(silver.matches("layout_solos_fit_to_layout_parent"));
+}
+
+// solo_nested_artboard_leaf.riv holds the same 500x250 scene three ways, each
+// nesting the "Item" artboard through a contain-fit NestedArtboardLeaf:
+//
+//   NoSolo                        leaf parented straight to the artboard
+//   SoloWithLeafFitsToParentLayout  leaf under a Solo, fitToLayoutParent set
+//   SoloWithLeaf                  leaf under a Solo, flag clear (legacy)
+//
+// The first two must render the same -- the flag is what lets sizing reach
+// through the Solo to the artboard, so opting in restores what a direct child
+// gets. The third must differ: with the flag clear the Solo stops the sizing
+// and the leaf frames its own bounds, which is how every file written before
+// the flag existed behaves.
+// expectSolo/expectFitToLayoutParent assert what the asset was authored to
+// hold, so a re-export that loses the flag fails here rather than quietly
+// re-recording a silver that no longer tests anything.
+static void renderSoloLeafArtboard(const char* artboardName,
+                                   const char* silverName,
+                                   bool expectSolo,
+                                   bool expectFitToLayoutParent)
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/solo_nested_artboard_leaf.riv", &silver);
+
+    auto artboard = file->artboardNamed(artboardName);
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto leaves = artboard->find<rive::NestedArtboardLeaf>();
+    REQUIRE(leaves.size() == 1);
+    auto* leaf = leaves[0];
+    REQUIRE(leaf->parent() != nullptr);
+    REQUIRE(leaf->parent()->is<rive::Solo>() == expectSolo);
+    if (expectSolo)
+    {
+        // Only asserted under a Solo, which is the only place the flag decides
+        // anything. Parented straight to the artboard both reaches find it, so
+        // whatever the editor defaulted the flag to there is incidental.
+        REQUIRE(leaf->fitToLayoutParent() == expectFitToLayoutParent);
+    }
+    REQUIRE(leaf->fit() == (uint8_t)rive::Fit::contain);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    if (vmi != nullptr)
+    {
+        stateMachine->bindViewModelInstance(vmi);
+    }
+
+    auto renderer = silver.makeRenderer();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    CHECK(silver.matches(silverName));
+}
+
+TEST_CASE("a leaf parented by the artboard fits it", "[silver]")
+{
+    renderSoloLeafArtboard("NoSolo",
+                           "solo_nested_artboard_leaf_no_solo",
+                           /*expectSolo=*/false,
+                           /*expectFitToLayoutParent=*/false); // unchecked
+}
+
+TEST_CASE("an opted-in leaf under a Solo fits the layout above it", "[silver]")
+{
+    renderSoloLeafArtboard("SoloWithLeafFitsToParentLayout",
+                           "solo_nested_artboard_leaf_fits_parent_layout",
+                           /*expectSolo=*/true,
+                           /*expectFitToLayoutParent=*/true);
+}
+
+TEST_CASE("a legacy leaf under a Solo frames its own bounds", "[silver]")
+{
+    renderSoloLeafArtboard("SoloWithLeaf",
+                           "solo_nested_artboard_leaf_solo",
+                           /*expectSolo=*/true,
+                           /*expectFitToLayoutParent=*/false);
 }

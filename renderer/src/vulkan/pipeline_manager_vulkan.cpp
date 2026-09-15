@@ -50,10 +50,26 @@ static VkFilter vk_filter(rive::ImageFilter option)
     RIVE_UNREACHABLE();
 }
 
+std::unique_ptr<PipelineManagerVulkan> PipelineManagerVulkan::make(
+    rcp<VulkanContext> vk,
+    ShaderCompilationMode mode,
+    VkImageView nullTextureView)
+{
+    std::unique_ptr<PipelineManagerVulkan> pipelineManager(
+        new PipelineManagerVulkan(std::move(vk), mode));
+    if (!pipelineManager->init(nullTextureView))
+    {
+        return nullptr;
+    }
+    return pipelineManager;
+}
+
 PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
-                                             ShaderCompilationMode mode,
-                                             VkImageView nullTextureView) :
-    Super(mode), m_vk(std::move(vk)), m_atlasFormat(VK_FORMAT_R16_SFLOAT)
+                                             ShaderCompilationMode mode) :
+    Super(mode), m_vk(std::move(vk)), m_featherAtlasFormat(VK_FORMAT_R16_SFLOAT)
+{}
+
+bool PipelineManagerVulkan::init(VkImageView nullTextureView)
 {
     // Create the immutable samplers.
     VkSamplerCreateInfo linearSamplerCreateInfo = {
@@ -67,10 +83,12 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .maxLod = 0,
     };
 
-    VK_CHECK(m_vk->CreateSampler(m_vk->device,
-                                 &linearSamplerCreateInfo,
-                                 nullptr,
-                                 &m_linearSampler));
+    m_linearSampler =
+        VK_CREATE_HANDLE(m_vk, CreateSampler, &linearSamplerCreateInfo);
+    if (m_linearSampler == VK_NULL_HANDLE)
+    {
+        return false;
+    }
 
     for (size_t i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
     {
@@ -90,10 +108,12 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .maxLod = VK_LOD_CLAMP_NONE,
         };
 
-        VK_CHECK(m_vk->CreateSampler(m_vk->device,
-                                     &samplerCreateInfo,
-                                     nullptr,
-                                     m_imageSamplers + i));
+        m_imageSamplers[i] =
+            VK_CREATE_HANDLE(m_vk, CreateSampler, &samplerCreateInfo);
+        if (m_imageSamplers[i] == VK_NULL_HANDLE)
+        {
+            return false;
+        }
     }
 
     // All pipelines share the same perFlush bindings.
@@ -101,13 +121,6 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         {
             .binding = FLUSH_UNIFORM_BUFFER_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags =
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
             .descriptorCount = 1,
             .stageFlags =
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -158,7 +171,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .pImmutableSamplers = &m_linearSampler,
         },
         {
-            .binding = FEATHER_TEXTURE_IDX,
+            .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags =
@@ -166,7 +179,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .pImmutableSamplers = &m_linearSampler,
         },
         {
-            .binding = ATLAS_TEXTURE_IDX,
+            .binding = FEATHER_ATLAS_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -180,10 +193,12 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .pBindings = perFlushLayoutBindings,
     };
 
-    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                             &perFlushLayoutInfo,
-                                             nullptr,
-                                             &m_perFlushDescriptorSetLayout));
+    m_perFlushDescriptorSetLayout =
+        VK_CREATE_HANDLE(m_vk, CreateDescriptorSetLayout, &perFlushLayoutInfo);
+    if (m_perFlushDescriptorSetLayout == VK_NULL_HANDLE)
+    {
+        return false;
+    }
 
     // The imageTexture gets updated with every draw that uses it.
     VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
@@ -201,10 +216,12 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .pBindings = perDrawLayoutBindings,
     };
 
-    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                             &perDrawLayoutInfo,
-                                             nullptr,
-                                             &m_perDrawDescriptorSetLayout));
+    m_perDrawDescriptorSetLayout =
+        VK_CREATE_HANDLE(m_vk, CreateDescriptorSetLayout, &perDrawLayoutInfo);
+    if (m_perDrawDescriptorSetLayout == VK_NULL_HANDLE)
+    {
+        return false;
+    }
 
     // For when a set isn't used at all by a shader.
     VkDescriptorSetLayoutCreateInfo emptyLayoutInfo = {
@@ -212,10 +229,12 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .bindingCount = 0,
     };
 
-    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                             &emptyLayoutInfo,
-                                             nullptr,
-                                             &m_emptyDescriptorSetLayout));
+    m_emptyDescriptorSetLayout =
+        VK_CREATE_HANDLE(m_vk, CreateDescriptorSetLayout, &emptyLayoutInfo);
+    if (m_emptyDescriptorSetLayout == VK_NULL_HANDLE)
+    {
+        return false;
+    }
 
     // Create static descriptor sets.
     VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
@@ -233,10 +252,13 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .pPoolSizes = staticDescriptorPoolSizes,
     };
 
-    VK_CHECK(m_vk->CreateDescriptorPool(m_vk->device,
-                                        &staticDescriptorPoolCreateInfo,
-                                        nullptr,
-                                        &m_staticDescriptorPool));
+    m_staticDescriptorPool = VK_CREATE_HANDLE(m_vk,
+                                              CreateDescriptorPool,
+                                              &staticDescriptorPoolCreateInfo);
+    if (m_staticDescriptorPool == VK_NULL_HANDLE)
+    {
+        return false;
+    }
 
     // Create a descriptor set to bind m_nullImageTexture when there is no image
     // paint.
@@ -247,9 +269,10 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
         .pSetLayouts = &m_perDrawDescriptorSetLayout,
     };
 
-    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
-                                          &nullImageDescriptorSetInfo,
-                                          &m_nullImageDescriptorSet));
+    VK_RETURN_FALSE_ON_FAIL(
+        m_vk->AllocateDescriptorSets(m_vk->device,
+                                     &nullImageDescriptorSetInfo,
+                                     &m_nullImageDescriptorSet));
 
     m_vk->updateImageDescriptorSets(
         m_nullImageDescriptorSet,
@@ -262,6 +285,8 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
             .imageView = nullTextureView,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
+
+    return true;
 }
 
 PipelineManagerVulkan::~PipelineManagerVulkan()
@@ -416,7 +441,7 @@ static Span<const BlendMode> get_relevant_blend_modes_for_pipeline_creation(
         case InterlockMode::clockwiseAtomic:
             return make_span(SRC_OVER_ONLY);
 
-        case InterlockMode::msaa:
+        case InterlockMode::depthStencil:
             // If this assert ever fires (i.e. if we ever support GPU fixed-
             // function advanced blend in Vulkan), we'll need to return a list
             // of all blend modes instead of just srcOver.
@@ -434,6 +459,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
     VkFormat renderTargetFormat,
     VkImageUsageFlags renderTargetUsage,
     LoadAction colorLoadAction,
+    DrawPipelineVulkan::Options drawPipelineOptions,
     const PlatformFeatures& platformFeatures,
     const std::function<bool(const PipelineProps&)>& func)
 {
@@ -448,23 +474,23 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                 .shaderFeatures = shaderFeatures,
                 .interlockMode = interlockMode,
                 .shaderMiscFlags = shaderMiscFlags,
-                .drawPipelineOptions = DrawPipelineVulkan::Options::none,
+                .drawPipelineOptions = drawPipelineOptions,
                 .renderTargetFormat = renderTargetFormat,
                 .colorLoadAction = colorLoadAction,
             };
 
-            // only MSAA has draw contents options that are relevant to pipeline
-            // creation
+            // only depthStencil has draw contents options that are relevant to
+            // pipeline creation
             const auto validDrawContents =
-                (interlockMode == InterlockMode::msaa)
-                    ? DRAW_CONTENTS_FOR_MSAA_PIPELINE_STATE
+                (interlockMode == InterlockMode::depthStencil)
+                    ? DrawContentsForDepthStencilPipelineState
                     : DrawContents::none;
 
             RenderPassOptionsVulkan fixedPassOptions =
                 RenderPassOptionsVulkan::none;
 
             if (interlockMode != InterlockMode::clockwiseAtomic &&
-                interlockMode != InterlockMode::msaa &&
+                interlockMode != InterlockMode::depthStencil &&
                 enums::is_flag_set(shaderMiscFlags,
                                    ShaderMiscFlags::fixedFunctionColorOutput))
             {
@@ -501,6 +527,7 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                     // no additional options
                     break;
                 case InterlockMode::clockwiseAtomic:
+#ifdef WITH_VULKAN_ATOMICS
                     // Clockwise atomic render passes are allowed to (not) have
                     // this flag even if the shader has it specified (a shader
                     // is allowed to say "I don't read from the framebuffer"
@@ -513,19 +540,23 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                             RenderPassOptionsVulkan::fixedFunctionColorOutput;
                     }
                     break;
+#else
+                    RIVE_UNREACHABLE();
+#endif
 
-                case InterlockMode::msaa:
+                case InterlockMode::depthStencil:
                     validPassOptions |=
                         RenderPassOptionsVulkan::manuallyResolved |
-                        RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture;
+                        RenderPassOptionsVulkan::msaaSeedFromOffscreenTexture |
+                        RenderPassOptionsVulkan::msaa;
 
                     if (enums::is_flag_set(
                             shaderMiscFlags,
                             ShaderMiscFlags::fixedFunctionColorOutput))
                     {
-                        // Like clockwiseAtomic, msaa render passes are allowed
-                        // to not have this flag even if a specific shader
-                        // specifies it.
+                        // Like clockwiseAtomic, depthStencil render passes are
+                        // allowed to not have this flag even if a specific
+                        // shader specifies it.
                         validPassOptions |=
                             RenderPassOptionsVulkan::fixedFunctionColorOutput;
                     }
@@ -560,6 +591,22 @@ void PipelineManagerVulkan::forEachUbershaderPermutation(
                         // manuallyResolved and these other flags are mutually
                         // exclusive
                         continue;
+                    }
+
+                    if (interlockMode == InterlockMode::depthStencil)
+                    {
+                        if (enums::is_flag_set(
+                                props.renderPassOptions,
+                                RenderPassOptionsVulkan::
+                                    msaaSeedFromOffscreenTexture) &&
+                            !enums::is_flag_set(props.renderPassOptions,
+                                                RenderPassOptionsVulkan::msaa))
+                        {
+                            // Single-sampled preserves via
+                            // VK_ATTACHMENT_LOAD_OP_LOAD, so
+                            // msaaSeedFromOffscreenTexture is invalid.
+                            continue;
+                        }
                     }
 
                     if (enums::is_flag_set(
@@ -627,6 +674,7 @@ bool PipelineManagerVulkan::isValidUbershaderPipelineProps(
             ? VkImageUsageFlagBits(0)
             : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         props.colorLoadAction,
+        props.drawPipelineOptions,
         platformFeatures,
         [&found, curKey, &platformFeatures](const PipelineProps& validProps) {
             auto testKey = validProps.createKey(platformFeatures);
@@ -654,6 +702,7 @@ void PipelineManagerVulkan::queueUbershaderPipelineCreation(
         renderTargetFormat,
         renderTargetUsage,
         colorLoadAction,
+        DrawPipelineVulkan::Options::none,
         platformFeatures,
         [this, &platformFeatures](const PipelineProps& props) {
             queuePipelineIfNotFound(props, platformFeatures);

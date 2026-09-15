@@ -26,14 +26,18 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    void copy(const KeyFrameInterpolatorBase& object) {}
+    void copy(const KeyFrameInterpolatorBase& object)
+    {
+        RIVE_EDITOR_COPY_VALIDATED(object);
+    }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
     {
         return false;
     }
-
-protected:
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/keyframe_interpolator_ext.inl"
+#endif
 };
 } // namespace rive
 

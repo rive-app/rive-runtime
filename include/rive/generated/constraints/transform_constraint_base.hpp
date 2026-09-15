@@ -46,8 +46,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
         m_OriginX = value;
-        originXChanged();
+        RIVE_EDITOR_CHANGED(originXChanged());
         notifyPropertyChanged(originXPropertyKey);
     }
 
@@ -58,8 +59,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
         m_OriginY = value;
-        originYChanged();
+        RIVE_EDITOR_CHANGED(originYChanged());
         notifyPropertyChanged(originYPropertyKey);
     }
 
@@ -88,6 +90,9 @@ public:
 protected:
     virtual void originXChanged() {}
     virtual void originYChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/constraints/transform_constraint_ext.inl"
+#endif
 };
 } // namespace rive
 

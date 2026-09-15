@@ -64,7 +64,7 @@ void ListenerViewModelChange::perform(
             auto context = stateMachineInstance->dataContext();
             if (context != nullptr)
             {
-                auto value = context->viewModelInstance().get();
+                auto value = context->mainViewModelInstance().get();
                 targetValue->viewModelInstanceValue(value);
                 CoreRegistry::setUint(
                     targetValue,

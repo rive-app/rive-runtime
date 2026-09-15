@@ -18,7 +18,7 @@ FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32_ATOMIC(COVERAGE_BUFFER_IDX, CoverageBuffer, coverageBuffer);
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
+INLINE half apply_stroke_coverage(float paintAlpha,
                                   half fragCoverage,
                                   uint coverageIndex,
                                   OUT(uint) preexistingCoverageValue,
@@ -32,7 +32,7 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
         // if another fragment from the path will get drawn on top. This is
         // because any fragment drawn on top will be the same color, and any
         // color blended onto a fully opaque version of itself is a no-op.
-        return;
+        return 1.;
     }
 #endif
 
@@ -79,10 +79,10 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
 #endif
     }
 
-    paintAlpha *= X;
+    return X;
 }
 
-INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
+INLINE half apply_fill_coverage(float paintAlpha,
                                 half fragCoverageRemaining,
                                 uint coverageIndex,
                                 OUT(uint) preexistingCoverageValue,
@@ -107,7 +107,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
         // top. This is because any fragment drawn on top will be the same
         // color, and any color blended onto a fully opaque version of itself is
         // a no-op.
-        return;
+        return 1.;
     }
 #endif
 
@@ -192,12 +192,15 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
              incremental_clockwise_coverage(c0, c1, paintAlpha);
     }
 
-    paintAlpha *= X;
+    return X;
 }
 
 CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef @ENABLE_MODULATED_IMAGE
+    VARYING_UNPACK(v_image, float3);
+#endif
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
 #else
@@ -216,7 +219,14 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
 
-    half4 paintColor = find_paint_color(v_paint, 1. FRAGMENT_CONTEXT_UNPACK);
+    half4 paintColor = find_paint_color(
+#ifdef @ENABLE_MODULATED_IMAGE
+        v_image,
+#endif
+#ifdef @ENABLE_ADVANCED_BLEND
+        cast_half_to_ushort(v_blendMode),
+#endif
+        v_paint FRAGMENT_CONTEXT_UNPACK);
 
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
     // Fetch the framebuffer BEFORE any atomic operations on the coverage
@@ -276,24 +286,25 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     fragCoverage = clamp(fragCoverage, .0, maxCoverage);
 
     uint preexistingCoverageValue;
+    half incrementalCoverage;
     float newCoverage;
 #ifndef @DRAW_INTERIOR_TRIANGLES
     if (is_stroke(v_coverages))
     {
-        apply_stroke_coverage(paintColor.a,
-                              fragCoverage,
-                              coverageIndex,
-                              preexistingCoverageValue,
-                              newCoverage);
+        incrementalCoverage = apply_stroke_coverage(paintColor.a,
+                                                    fragCoverage,
+                                                    coverageIndex,
+                                                    preexistingCoverageValue,
+                                                    newCoverage);
     }
     else // It's a fill.
 #endif   // !DRAW_INTERIOR_TRIANGLES
     {
-        apply_fill_coverage(paintColor.a,
-                            fragCoverage,
-                            coverageIndex,
-                            preexistingCoverageValue,
-                            newCoverage);
+        incrementalCoverage = apply_fill_coverage(paintColor.a,
+                                                  fragCoverage,
+                                                  coverageIndex,
+                                                  preexistingCoverageValue,
+                                                  newCoverage);
     }
 
 #ifdef @ENABLE_DITHER
@@ -306,68 +317,80 @@ CLOCKWISE_ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 #endif
 
-#ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-    if (paintColor.a > .0)
+#ifdef @FIXED_FUNCTION_COLOR_OUTPUT
+    paintColor *= incrementalCoverage;
+#else
+    if (@ENABLE_ADVANCED_BLEND &&
+        cast_half_to_ushort(v_blendMode) != BLEND_SRC_OVER)
     {
-        bool wasBlendColorValid =
-            preexistingCoverageValue >= uniforms.coverageBufferPrefix &&
-            (preexistingCoverageValue & BLEND_COLOR_VALID_BIT) != 0u;
-        if (!wasBlendColorValid)
+        // Advanced-blend draws operate on unmultiplied color.
+        paintColor.a *= incrementalCoverage;
+        if (paintColor.a > .0)
         {
-            // If the saved blend color was not yet valid after we fetched
-            // dstColor, we are guaranteed that dstColor is valid because the
-            // BLEND_COLOR_VALID_BIT gets set before any color outputs that
-            // might overwrite the framebuffer.
-            // Calculate a blendColor based on dstColor.
-            paintColor.rgb =
-                advanced_color_blend(paintColor.rgb,
-                                     dstColor,
-                                     cast_half_to_ushort(v_blendMode));
-
-            // Anybody who updated, or will update, the coverage buffer before
-            // we overwrite the framebuffer is guaranteed to have a dstColor
-            // that is unaffected by our color output. They already have it.
-            // But if 0 < coverage < 1 after our fragment, we have to save out
-            // the blend color we just found for any future fragments that may
-            // need to blend, before we overwrite the contents of the
-            // framebuffer.
-            if (newCoverage < 1.)
+            bool wasBlendColorValid =
+                preexistingCoverageValue >= uniforms.coverageBufferPrefix &&
+                (preexistingCoverageValue & BLEND_COLOR_VALID_BIT) != 0u;
+            if (!wasBlendColorValid)
             {
-                half3 blendRGBToSave = paintColor.rgb;
-#ifdef @ENABLE_DITHER
-                if (@ENABLE_DITHER)
-                {
-                    blendRGBToSave += dither * uniforms.ditherConversionToRGB10;
-                }
-#endif
-                PLS_STORE4F_UAV(blendColorBuffer,
-                                make_half4(blendRGBToSave, .0));
+                // If the saved blend color was not yet valid after we fetched
+                // dstColor, we are guaranteed that dstColor is valid because
+                // the BLEND_COLOR_VALID_BIT gets set before any color outputs
+                // that might overwrite the framebuffer. Calculate a blendColor
+                // based on dstColor.
+                paintColor.rgb =
+                    advanced_color_blend(paintColor.rgb,
+                                         dstColor,
+                                         cast_half_to_ushort(v_blendMode));
 
-                // Mark this pixel as having a valid blendColor, AFTER writing
-                // out the blendColor, but BEFORE updating the framebuffer.
-                memoryBarrier();
-                STORAGE_BUFFER_ATOMIC_OR(coverageBuffer,
-                                         coverageIndex,
-                                         BLEND_COLOR_VALID_BIT);
+                // Anybody who updated, or will update, the coverage buffer
+                // before we overwrite the framebuffer is guaranteed to have a
+                // dstColor that is unaffected by our color output. They already
+                // have it. But if 0 < coverage < 1 after our fragment, we have
+                // to save out the blend color we just found for any future
+                // fragments that may need to blend, before we overwrite the
+                // contents of the framebuffer.
+                if (newCoverage < 1.)
+                {
+                    half3 blendRGBToSave = paintColor.rgb;
+#ifdef @ENABLE_DITHER
+                    if (@ENABLE_DITHER)
+                    {
+                        blendRGBToSave +=
+                            dither * uniforms.ditherConversionToRGB10;
+                    }
+#endif
+                    PLS_STORE4F_UAV(blendColorBuffer,
+                                    make_half4(blendRGBToSave, .0));
+
+                    // Mark this pixel as having a valid blendColor, AFTER
+                    // writing out the blendColor, but BEFORE updating the
+                    // framebuffer.
+                    memoryBarrier();
+                    STORAGE_BUFFER_ATOMIC_OR(coverageBuffer,
+                                             coverageIndex,
+                                             BLEND_COLOR_VALID_BIT);
+                }
+            }
+            else
+            {
+                // Use the saved blendColor whenever it's valid, because shortly
+                // after that point the framebuffer can be overwritten,
+                // invalidating the dstColor.
+                paintColor.rgb = PLS_LOAD4F_UAV(blendColorBuffer).rgb;
             }
         }
-        else
-        {
-            // Use the saved blendColor whenever it's valid, because shortly
-            // after that point the framebuffer can be overwritten, invalidating
-            // the dstColor.
-            paintColor.rgb = PLS_LOAD4F_UAV(blendColorBuffer).rgb;
-        }
+        paintColor.rgb *= paintColor.a;
+    }
+    else
+    {
+        // srcOver draws are premultiplied; coverage scales all channels.
+        paintColor *= incrementalCoverage;
     }
 #endif
 
-    paintColor.rgb *= paintColor.a;
-
 #ifdef @ENABLE_DITHER
-    if (@ENABLE_DITHER)
-    {
-        paintColor.rgb += dither;
-    }
+    paintColor.rgb =
+        add_dither_if_alpha_nonzero(paintColor.rgb, paintColor.a, dither);
 #endif
 
     // Since blend is enabled, storing 0 to the clip will ensure it remains

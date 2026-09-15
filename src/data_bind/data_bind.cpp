@@ -1,5 +1,6 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/artboard.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
@@ -17,6 +18,8 @@
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_any.hpp"
 #include "rive/data_bind/context/context_value_asset_image.hpp"
+#include "rive/data_bind/context/context_value_asset_font.hpp"
+#include "rive/data_bind/context/context_value_asset_blob.hpp"
 #include "rive/data_bind/context/context_value_artboard.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
@@ -38,6 +41,8 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
+#include "rive/importers/viewmodel_instance_importer.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/component.hpp"
 
 using namespace rive;
@@ -152,6 +157,20 @@ StatusCode DataBind::import(ImportStack& importStack)
                         artboardImporter->addDataBind(this);
                         return Super::import(importStack);
                     }
+                    // A file level instance value owns its binds; they clone
+                    // with the instance and bind wherever it is bound.
+                    if (target()->is<ViewModelInstanceValue>())
+                    {
+                        auto instanceImporter =
+                            importStack.latest<ViewModelInstanceImporter>(
+                                ViewModelInstance::typeKey);
+                        if (instanceImporter != nullptr)
+                        {
+                            instanceImporter->viewModelInstance()
+                                ->addValueDataBind(this);
+                            return Super::import(importStack);
+                        }
+                    }
                     break;
                 }
             }
@@ -195,6 +214,10 @@ DataType DataBind::sourceOutputType()
                 return DataType::symbolListIndex;
             case ViewModelInstanceAssetImageBase::typeKey:
                 return DataType::assetImage;
+            case ViewModelInstanceAssetFontBase::typeKey:
+                return DataType::assetFont;
+            case ViewModelInstanceAssetBlobBase::typeKey:
+                return DataType::assetBlob;
             case ViewModelInstanceArtboardBase::typeKey:
                 return DataType::artboard;
             case ViewModelInstanceViewModelBase::typeKey:
@@ -278,6 +301,12 @@ void DataBind::bind()
         case DataType::assetImage:
             m_ContextValue = new DataBindContextValueAssetImage(this);
             break;
+        case DataType::assetFont:
+            m_ContextValue = new DataBindContextValueAssetFont(this);
+            break;
+        case DataType::assetBlob:
+            m_ContextValue = new DataBindContextValueAssetBlob(this);
+            break;
         case DataType::artboard:
             m_ContextValue = new DataBindContextValueArtboard(this);
             break;
@@ -316,9 +345,13 @@ void DataBind::bind()
         m_target->addPropertyObserver(this);
         setFlag(Flag::Observing, true);
     }
-    addDirt(ComponentDirt::Bindings, true);
+    // (Re)bind is a reconcile, not a one-sided change: mark every direction the
+    // bind supports so both sides sync in favor order (as before origin gating
+    // existed). A one-sided change instead marks only its own direction bit.
+    addDirt(reconcileDirt(), true);
 }
 
+#ifndef WITH_RIVE_EDITOR
 void DataBind::target(Core* value)
 {
     if (m_target == value)
@@ -335,12 +368,23 @@ void DataBind::target(Core* value)
         setFlag(Flag::Observing, false);
     }
     m_target = value;
+    // `clip` is bindable; a layout bound on clip needs its DrawableProxy up
+    // front so it exists before the artboard's one-time proxy injection, even
+    // while clip is currently false. Stamped here so it also covers instance
+    // clones, whose targets are re-assigned through this setter.
+    if (m_target != nullptr &&
+        propertyKey() == LayoutComponentBase::clipPropertyKey &&
+        m_target->is<LayoutComponent>())
+    {
+        m_target->as<LayoutComponent>()->markClipMayBeDynamic();
+    }
     if (toSource() && m_target != nullptr && targetSupportsPush())
     {
         m_target->addPropertyObserver(this);
         setFlag(Flag::Observing, true);
     }
 }
+#endif
 
 void DataBind::unbind()
 {
@@ -396,7 +440,13 @@ bool DataBind::targetSupportsPush() const
         key == ScrollConstraintBase::scrollPercentYPropertyKey ||
         key == ScrollConstraintBase::velocityXPropertyKey ||
         key == ScrollConstraintBase::velocityYPropertyKey ||
-        key == ScrollConstraintBase::scrollActivePropertyKey)
+        key == ScrollConstraintBase::scrollActivePropertyKey ||
+        key == ScrollConstraintBase::computedContentWidthPropertyKey ||
+        key == ScrollConstraintBase::computedContentHeightPropertyKey ||
+        key == ColorChannelsBase::colorAlphaPropertyKey ||
+        key == ColorChannelsBase::colorRedPropertyKey ||
+        key == ColorChannelsBase::colorBluePropertyKey ||
+        key == ColorChannelsBase::colorGreenPropertyKey)
     {
         return false;
     }
@@ -412,8 +462,8 @@ bool DataBind::targetSupportsPush() const
 
 bool DataBind::canSkip()
 {
-    return m_target && m_target->is<Component>() &&
-           m_target->as<Component>()->isCollapsed() &&
+    auto* t = target();
+    return t && t->is<Component>() && t->as<Component>()->isCollapsed() &&
            propertyKey() != LayoutComponentStyleBase::displayValuePropertyKey;
 }
 
@@ -437,11 +487,14 @@ void DataBind::update(ComponentDirt value)
                 // test_2 / virtualize_blendmode regress). Mirror the
                 // suppressDirt pattern used by the source-apply path.
                 suppressDirt(true);
-                m_ContextValue->apply(m_target,
+                m_ContextValue->apply(target(),
                                       propertyKey(),
                                       (flagsValue & DataBindFlags::Direction) ==
                                           DataBindFlags::ToTarget,
                                       this);
+                // We just wrote the target; sync the cached target value so it
+                // reflects what we wrote instead of what was there before.
+                m_ContextValue->refreshTargetValue(this);
                 suppressDirt(false);
             }
         }
@@ -458,13 +511,13 @@ void DataBind::updateDependents()
 
 void DataBind::updateSourceBinding(bool invalidate)
 {
-    if (toSource() && m_target && m_ContextValue != nullptr)
+    if (toSource() && target() && m_ContextValue != nullptr)
     {
         if (invalidate)
         {
             m_ContextValue->invalidate();
         }
-        m_ContextValue->applyToSource(m_target,
+        m_ContextValue->applyToSource(target(),
                                       propertyKey(),
                                       isMainToSource(),
                                       this);
@@ -484,12 +537,39 @@ bool DataBind::sourceToTargetRunsFirst()
            DataBindFlags::SourceToTargetRunsFirst;
 }
 
+ComponentDirt DataBind::reconcileDirt()
+{
+    return (toTarget() ? ComponentDirt::Bindings : ComponentDirt::None) |
+           (toSource() ? ComponentDirt::BindingsTarget : ComponentDirt::None);
+}
+
 void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
     if (hasFlag(Flag::SuppressDirt) || (m_Dirt & value) == value)
     {
         // Already marked.
         return;
+    }
+
+    // Latch the direction this change came from so a converter that re-dirties
+    // us over multiple frames (interpolators) re-asserts the same direction —
+    // per-frame dirt gets cleared and can't carry the origin forward. Placed
+    // after the guards above so a suppressed self-notify (from applying either
+    // direction) can't flip the origin. Record a single origin, never the OR:
+    // a reconcile marks both bits, in which case the favored direction wins.
+    bool hasSource = enums::is_flag_set(value, ComponentDirt::Bindings);
+    bool hasTarget = enums::is_flag_set(value, ComponentDirt::BindingsTarget);
+    if (hasSource && hasTarget)
+    {
+        setFlag(Flag::TargetOrigin, !sourceToTargetRunsFirst());
+    }
+    else if (hasTarget)
+    {
+        setFlag(Flag::TargetOrigin, true);
+    }
+    else if (hasSource)
+    {
+        setFlag(Flag::TargetOrigin, false);
     }
 
     m_Dirt |= value;
@@ -569,6 +649,19 @@ void DataBind::collapse(bool isCollapsed)
     {
         m_container->addDirtyDataBind(this);
     }
+}
+
+DataBind* DataBind::cloneWithTarget(Core* newTarget) const
+{
+    auto dataBindClone = static_cast<DataBind*>(clone());
+    dataBindClone->target(newTarget);
+    dataBindClone->file(m_file);
+    dataBindClone->initialize();
+    if (m_dataConverter != nullptr)
+    {
+        dataBindClone->converter(m_dataConverter->clone()->as<DataConverter>());
+    }
+    return dataBindClone;
 }
 
 void DataBind::initialize()

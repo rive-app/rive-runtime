@@ -52,8 +52,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(widthPropertyKey, &m_Width, &value);
         m_Width = value;
-        widthChanged();
+        RIVE_EDITOR_CHANGED(widthChanged());
         notifyPropertyChanged(widthPropertyKey);
     }
 
@@ -64,8 +65,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(heightPropertyKey, &m_Height, &value);
         m_Height = value;
-        heightChanged();
+        RIVE_EDITOR_CHANGED(heightChanged());
         notifyPropertyChanged(heightPropertyKey);
     }
 
@@ -76,8 +78,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
         m_OriginX = value;
-        originXChanged();
+        RIVE_EDITOR_CHANGED(originXChanged());
         notifyPropertyChanged(originXPropertyKey);
     }
 
@@ -88,8 +91,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
         m_OriginY = value;
-        originYChanged();
+        RIVE_EDITOR_CHANGED(originYChanged());
         notifyPropertyChanged(originYPropertyKey);
     }
 
@@ -127,6 +131,9 @@ protected:
     virtual void heightChanged() {}
     virtual void originXChanged() {}
     virtual void originYChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/parametric_path_ext.inl"
+#endif
 };
 } // namespace rive
 

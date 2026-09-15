@@ -1,6 +1,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/paint/feather.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/artboard.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/factory.hpp"
@@ -23,6 +24,21 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
     {
         container->addPaint(this);
     }
+
+#ifdef WITH_RIVE_EDITOR
+    // Edit-time: Stroke / Fill::update derefs `m_RenderPaint` which
+    // is set by `initRenderPaint` only if a child mutator
+    // (SolidColor / LinearGradient) successfully initialized. Coop
+    // can deliver duplicate or conflicting mutators where all but
+    // the first return InvalidObject from `initPaintMutator`,
+    // leaving `m_RenderPaint` null. Signal the dispatcher to cull
+    // this ShapePaint so it doesn't enter `m_DependencyOrder` and
+    // crash inside `update()`.
+    if (m_RenderPaint == nullptr)
+    {
+        return StatusCode::InvalidObject;
+    }
+#endif
 
     return StatusCode::Ok;
 }
@@ -89,7 +105,7 @@ void ShapePaint::draw(Renderer* renderer,
     if (m_feather != nullptr)
     {
         bool offsetInArtboard = m_feather->space() == TransformSpace::world;
-        if (offsetInArtboard && !m_feather->inner())
+        if (offsetInArtboard && !m_feather->isInner())
         {
             if (m_feather->offsetX() != 0 || m_feather->offsetY() != 0)
             {
@@ -120,10 +136,16 @@ void ShapePaint::draw(Renderer* renderer,
 
     if (m_feather != nullptr)
     {
-        if (m_feather->inner())
+        if (m_feather->isInner())
         {
             if (m_feather->innerPath() == nullptr)
             {
+                // Bail out, but never leave the renderer's state stack
+                // unbalanced: we may already have saved above.
+                if (saved && needsSaveOperation)
+                {
+                    renderer->restore();
+                }
                 return;
             }
             // When a path effect is active, the inner path and clip must be
@@ -158,7 +180,7 @@ void ShapePaint::draw(Renderer* renderer,
 
         // If we're offseting in world space, apply the offset last.
         if (m_feather->space() != TransformSpace::world &&
-            !m_feather->inner() &&
+            !m_feather->isInner() &&
             (m_feather->offsetX() != 0 || m_feather->offsetY() != 0))
         {
             if (!saved)
@@ -179,6 +201,14 @@ void ShapePaint::draw(Renderer* renderer,
             renderPath->fillRule((FillRule)as<Fill>()->fillRule());
         }
 
+        // Modulate this paint with the (optional) PaintImage child, fit to the
+        // shape's local bounds. Skipped when drawing with an external override
+        // paint. The child is discovered by type rather than cached.
+        if (overridePaint == nullptr)
+        {
+            applyModulatedImage(shapePaintPath->rawPath()->bounds());
+        }
+
         renderer->drawPath(renderPath,
                            overridePaint != nullptr ? overridePaint
                                                     : renderPaint());
@@ -190,19 +220,45 @@ void ShapePaint::draw(Renderer* renderer,
     }
 }
 
+void ShapePaint::applyModulatedImage(const AABB& bounds)
+{
+    PaintImage* image = firstChild<PaintImage>();
+    if (image != nullptr && image->applyTo(renderPaint(), bounds))
+    {
+        m_hasModulatedImage = true;
+        return;
+    }
+    if (m_hasModulatedImage)
+    {
+        // No image to modulate with any more -- the child was removed, its
+        // asset cleared, or the replacement hasn't decoded yet. The RenderPaint
+        // persists across draws, so drop the stale texture explicitly.
+        renderPaint()->modulatedImage(nullptr,
+                                      ImageSampler::LinearClamp(),
+                                      Mat2D());
+        m_hasModulatedImage = false;
+    }
+}
+
 void ShapePaint::invalidateEffects(StrokeEffect* invalidatingEffect)
 {
     EffectsContainer::invalidateEffects(invalidatingEffect);
     if (m_feather != nullptr)
     {
         m_feather->markEffectPathDirty();
+        // The path we paint changed; an inner feather derives its geometry
+        // from that path so it has to rebuild.
+        if (m_feather->isInner())
+        {
+            m_feather->addDirt(ComponentDirt::Path);
+        }
     }
     invalidateRendering();
 }
 
 void ShapePaint::invalidateEffects() { invalidateEffects(nullptr); }
 
-void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path); }
+void ShapePaint::invalidateRendering() { addDirt(ComponentDirt::Path, true); }
 
 void ShapePaint::addStrokeEffect(StrokeEffect* effect)
 {

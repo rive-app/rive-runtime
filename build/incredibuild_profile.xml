@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<Profile FormatVersion="1">
+  <Tools>
+    <!-- Intercept the build orchestrators on the host machine only; they dispatch the work but
+         shouldn't themselves run remotely (ninja for a ninja build, make for a gmake2 build). -->
+    <Tool Filename="ninja" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="ninja.exe" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="make" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="make.exe" AllowIntercept="true" AllowRemote="false" />
+
+    <!-- Copy local path/environment mirror to helpers -->
+    <Tool Filename="clang" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang++" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="clang++.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+
+    <!-- The vs2022 build compiles with the ClangCL toolset, so the tool is clang-cl rather than
+         clang++. No GenerateEnvironment here: MSBuild already derives the toolchain environment
+         from the .vcxproj, and mirroring the local one on top costs a sync per task. -->
+    <Tool Filename="clang-cl" Type="Compiler" AllowRemote="true" />
+    <Tool Filename="clang-cl.exe" Type="Compiler" AllowRemote="true" />
+
+    <!-- Shader compilers, spawned by the shader Makefile (intercepted by IBConsole.exe if premake5 is launched through it) -->
+    <Tool Filename="naga" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="naga.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="glslangValidator" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="glslangValidator.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="spirv-opt" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+    <Tool Filename="spirv-opt.exe" Type="Compiler" AllowRemote="true" GenerateEnvironment="true" />
+
+    <!-- Emscripten compiles via "python3 emcc.py", which spawns the real clang as a child process.
+         Intercept the driver (locally) so those clang tasks become visible and distributable. -->
+    <Tool Filename="python" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python3" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python.exe" AllowIntercept="true" AllowRemote="false" />
+    <Tool Filename="python3.exe" AllowIntercept="true" AllowRemote="false" />
+
+    <!-- Explicitly pin linker tasks locally to prevent sandbox failures. llvm-lib/lld-link are the
+         ClangCL toolset's archiver and linker, i.e. the vs2022 equivalents of llvm-ar/ld. -->
+    <Tool Filename="llvm-ar" AllowRemote="false" />
+    <Tool Filename="llvm-ar.exe" AllowRemote="false" />
+    <Tool Filename="ld" AllowRemote="false" />
+    <Tool Filename="ld.exe" AllowRemote="false" />
+    <Tool Filename="llvm-lib" AllowRemote="false" />
+    <Tool Filename="llvm-lib.exe" AllowRemote="false" />
+    <Tool Filename="lld-link" AllowRemote="false" />
+    <Tool Filename="lld-link.exe" AllowRemote="false" />
+  </Tools>
+</Profile>

@@ -1,8 +1,0 @@
-{
-    "name": "BlobAsset",
-    "key": {
-        "int": 649,
-        "string": "blobasset"
-    },
-    "extends": "assets/file_asset.json"
-}

@@ -1,0 +1,24 @@
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -95,6 +95,21 @@
+         return NULL;
+     }
+ 
++    /* Hard-float lowering emits llvm.experimental.constrained.* calls;
++       LangRef requires strictfp on any function containing them, or the
++       optimizer and ISel are free to assume default FP semantics and
++       miscompile (observed at opt-level >= 1 once mem2reg/sroa expose the
++       dataflow). */
++    {
++        unsigned kind = LLVMGetEnumAttributeKindForName("strictfp", 8);
++        if (kind != 0) {
++            LLVMAddAttributeAtIndex(
++                func, (LLVMAttributeIndex)LLVMAttributeFunctionIndex,
++                LLVMCreateEnumAttribute(LLVMGetModuleContext(module), kind,
++                                        0));
++        }
++    }
++
+     j = 0;
+     local_value = LLVMGetParam(func, j++);
+     LLVMSetValueName(local_value, "exec_env");

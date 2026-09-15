@@ -139,6 +139,171 @@ TEST_CASE("vector static length/lengthSquared/normalized work", "[scripting]")
               -1) == 0.0f);
 }
 
+TEST_CASE("vector 3D constructor and cross3 work", "[scripting]")
+{
+    auto t = ScriptingTest("local v = Vector.xyz(1, 2, 3)\n"
+                           "return v.x, v.y, v.z\n",
+                           3);
+    CHECK(lua_tonumber(t.state(), -3) == 1.0f);
+    CHECK(lua_tonumber(t.state(), -2) == 2.0f);
+    CHECK(lua_tonumber(t.state(), -1) == 3.0f);
+
+    // x cross y = z
+    auto c = ScriptingTest(
+        "local v = Vector.cross3(Vector.xyz(1,0,0), Vector.xyz(0,1,0))\n"
+        "return v.x, v.y, v.z\n",
+        3);
+    CHECK(lua_tonumber(c.state(), -3) == 0.0f);
+    CHECK(lua_tonumber(c.state(), -2) == 0.0f);
+    CHECK(lua_tonumber(c.state(), -1) == 1.0f);
+
+    // y cross x = -z
+    CHECK(lua_tonumber(ScriptingTest("return Vector.cross3(Vector.xyz(0,1,0), "
+                                     "Vector.xyz(1,0,0)).z")
+                           .state(),
+                       -1) == -1.0f);
+}
+
+TEST_CASE("vector magnitude ops use all 3 components", "[scripting]")
+{
+    CHECK(lua_tonumber(
+              ScriptingTest("return Vector.length(Vector.xyz(1,2,2))").state(),
+              -1) == 3.0f);
+
+    CHECK(lua_tonumber(
+              ScriptingTest("return Vector.lengthSquared(Vector.xyz(1,2,3))")
+                  .state(),
+              -1) == 14.0f);
+
+    // (1,2,3) . (4,5,6) = 4 + 10 + 18
+    CHECK(lua_tonumber(ScriptingTest("return Vector.dot(Vector.xyz(1,2,3), "
+                                     "Vector.xyz(4,5,6))")
+                           .state(),
+                       -1) == 32.0f);
+
+    CHECK(lua_tonumber(ScriptingTest("return Vector.distance("
+                                     "Vector.xyz(1,1,1), Vector.xyz(1,1,4))")
+                           .state(),
+                       -1) == 3.0f);
+
+    CHECK(lua_tonumber(ScriptingTest("return Vector.distanceSquared("
+                                     "Vector.xyz(0,0,0), Vector.xyz(1,2,3))")
+                           .state(),
+                       -1) == 14.0f);
+
+    auto n = ScriptingTest("local v = Vector.normalized(Vector.xyz(0,3,4))\n"
+                           "return v.y, v.z\n",
+                           2);
+    CHECK(lua_tonumber(n.state(), -2) == Approx(0.6f));
+    CHECK(lua_tonumber(n.state(), -1) == Approx(0.8f));
+
+    // Zero-length normalize stays the zero vector
+    CHECK(lua_tonumber(
+              ScriptingTest("return Vector.normalized(Vector.origin()).x")
+                  .state(),
+              -1) == 0.0f);
+
+    CHECK(lua_tonumber(ScriptingTest("return Vector.lerp(Vector.xyz(0,0,10), "
+                                     "Vector.xyz(0,0,20), 0.5).z")
+                           .state(),
+                       -1) == 15.0f);
+
+    CHECK(lua_tonumber(
+              ScriptingTest("return Vector.scaleAndAdd(Vector.xyz(0,0,1), "
+                            "Vector.xyz(0,0,2), 3).z")
+                  .state(),
+              -1) == 7.0f);
+
+    CHECK(lua_tonumber(
+              ScriptingTest("return Vector.scaleAndSub(Vector.xyz(0,0,7), "
+                            "Vector.xyz(0,0,2), 3).z")
+                  .state(),
+              -1) == 1.0f);
+}
+
+TEST_CASE("vector writeToBuffer and writeVec4 work", "[scripting]")
+{
+    auto t = ScriptingTest("local buf = buffer.create(16)\n"
+                           "Vector.xyz(1, 2, 3):writeToBuffer(buf, 4)\n"
+                           "return buffer.readf32(buf, 4),\n"
+                           "    buffer.readf32(buf, 8),\n"
+                           "    buffer.readf32(buf, 12)\n",
+                           3);
+    CHECK(lua_tonumber(t.state(), -3) == 1.0f);
+    CHECK(lua_tonumber(t.state(), -2) == 2.0f);
+    CHECK(lua_tonumber(t.state(), -1) == 3.0f);
+
+    auto v4 = ScriptingTest("local buf = buffer.create(16)\n"
+                            "Vector.xyz(1, 2, 3):writeVec4(buf, 0, 4)\n"
+                            "return buffer.readf32(buf, 0),\n"
+                            "    buffer.readf32(buf, 12)\n",
+                            2);
+    CHECK(lua_tonumber(v4.state(), -2) == 1.0f);
+    CHECK(lua_tonumber(v4.state(), -1) == 4.0f);
+
+    // Out-of-range offsets error rather than corrupt memory
+    CHECK(!lua_toboolean(
+        ScriptingTest("local buf = buffer.create(12)\n"
+                      "return (pcall(function()\n"
+                      "    Vector.origin():writeToBuffer(buf, 4)\n"
+                      "end))\n")
+            .state(),
+        -1));
+
+    CHECK(!lua_toboolean(
+        ScriptingTest("local buf = buffer.create(16)\n"
+                      "return (pcall(function()\n"
+                      "    Vector.origin():writeVec4(buf, 4, 1)\n"
+                      "end))\n")
+            .state(),
+        -1));
+}
+
+TEST_CASE("vector fastcall and C binding paths agree", "[scripting]")
+{
+    // Static Vector.op(...) calls compile to Luau-fork fastcalls; v:op(...)
+    // and indirect calls hit the C bindings in lua_vec2d.cpp. Pins the two
+    // implementations bit-identical so neither can silently diverge.
+    const char* src =
+        "local a = Vector.xyz(1.5, -2.25, 3.75)\n"
+        "local b = Vector.xyz(-4.5, 5.25, -6.5)\n"
+        "local function check(name, x, y)\n"
+        "    if x ~= y then\n"
+        "        error(`{name} diverged: {x} vs {y}`)\n"
+        "    end\n"
+        "end\n"
+        "-- namecall (C binding) vs static (fastcall)\n"
+        "check('length', a:length(), Vector.length(a))\n"
+        "check('lengthSquared', a:lengthSquared(), Vector.lengthSquared(a))\n"
+        "check('normalized', a:normalized(), Vector.normalized(a))\n"
+        "check('distance', a:distance(b), Vector.distance(a, b))\n"
+        "check('distanceSquared', a:distanceSquared(b),\n"
+        "    Vector.distanceSquared(a, b))\n"
+        "check('dot', a:dot(b), Vector.dot(a, b))\n"
+        "for _, t in {0, 0.375, 1} do\n"
+        "    check(`lerp t={t}`, a:lerp(b, t), Vector.lerp(a, b, t))\n"
+        "end\n"
+        "-- ops with no instance form: indirect call (C binding) vs direct\n"
+        "-- static (fastcall); a table load can't compile to FASTCALL\n"
+        "local ind = {\n"
+        "    Vector.scaleAndAdd,\n"
+        "    Vector.scaleAndSub,\n"
+        "    Vector.cross,\n"
+        "    Vector.normalized,\n"
+        "}\n"
+        "check('scaleAndAdd', ind[1](a, b, 2.5), Vector.scaleAndAdd(a, b, "
+        "2.5))\n"
+        "check('scaleAndSub', ind[2](a, b, 2.5), Vector.scaleAndSub(a, b, "
+        "2.5))\n"
+        "check('cross', ind[3](a, b), Vector.cross(a, b))\n"
+        "-- zero-length normalize stays zero (not NaN) on both paths\n"
+        "local z = Vector.origin()\n"
+        "check('normalizedZero', ind[4](z), Vector.normalized(z))\n"
+        "check('normalizedZeroValue', Vector.normalized(z), z)\n"
+        "return true\n";
+    CHECK(lua_toboolean(ScriptingTest(src).state(), -1));
+}
+
 TEST_CASE("vector indexing work", "[scripting]")
 {
     CHECK(lua_tonumber(ScriptingTest("return Vector.xy(19, 27)[1]").state(),

@@ -29,11 +29,48 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define GLFW_INCLUDE_NONE
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#endif
 #include <GLFW/glfw3.h>
+#ifdef _WIN32
+#include <GLFW/glfw3native.h>
+#endif
 
 using namespace rive;
 using namespace rive::gpu;
+
+#ifdef _WIN32
+// Windows only lets a process take the foreground if it already owns it,
+// or was started by whoever does. Launching from a terminal usually
+// satisfies neither, so SetForegroundWindow() is silently ignored and the
+// window opens behind the shell. AttachThreadInput() makes the two threads
+// share a single input state, which is the attachment SetForegroundWindow()
+// looks for. The sharing is mutual, so the argument order is immaterial --
+// what matters is that the detach repeats the attach.
+static void forceWindowToForeground(GLFWwindow* window)
+{
+    HWND hwnd = glfwGetWin32Window(window);
+    HWND foreground = GetForegroundWindow();
+    DWORD foregroundThread =
+        foreground ? GetWindowThreadProcessId(foreground, nullptr) : 0;
+    DWORD thisThread = GetCurrentThreadId();
+    bool attached = foregroundThread != 0 && foregroundThread != thisThread &&
+                    AttachThreadInput(foregroundThread, thisThread, TRUE);
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    if (attached)
+    {
+        AttachThreadInput(foregroundThread, thisThread, FALSE);
+    }
+}
+#endif
 
 static std::queue<TestingWindow::InputEventData> inputEvents;
 static float dpi = 1.0f;
@@ -144,7 +181,7 @@ public:
         if (backend == Backend::angle)
         {
 #if !defined(__EMSCRIPTEN__)
-            switch (backendParams.angleRenderer)
+            switch (m_backendParams.angleRenderer)
             {
                 case ANGLERenderer::metal:
                     glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
@@ -181,32 +218,49 @@ public:
             glfwWindowHint(GLFW_SAMPLES, 0);
             glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
         }
-        else if (backend == Backend::angle)
-        {
-            glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-        }
         else
         {
-            glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-        }
-        if (backendParams.msaa)
-        {
-            m_msaaSampleCount = 4;
-            glfwWindowHint(GLFW_SAMPLES, m_msaaSampleCount);
-            glfwWindowHint(GLFW_STENCIL_BITS, 8);
-            glfwWindowHint(GLFW_DEPTH_BITS, 24);
+            if (backend == Backend::angle)
+            {
+                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+            }
+            else
+            {
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+            }
+            if (m_backendParams.msaaSampleCount <= 1)
+            {
+                // A request of 1 sample is interpreted by the GL driver as a
+                // request for MSAA, and can be non-intuitively rounded up to 2
+                // or 4. In our case, a sample count of 1 means non-MSAA (duh),
+                // so request GLFW_SAMPLES=0.
+                glfwWindowHint(GLFW_SAMPLES, 0);
+            }
+            else
+            {
+                glfwWindowHint(GLFW_SAMPLES, m_backendParams.msaaSampleCount);
+            }
+            if (m_backendParams.msaaSampleCount >= 1)
+            {
+                // msaaSampleCount >= 1 selects depthStencil, which renders
+                // directly to the screen.
+                glfwWindowHint(GLFW_STENCIL_BITS, 8);
+                glfwWindowHint(GLFW_DEPTH_BITS, 24);
+            }
         }
 
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        if (visibility == Visibility::headless)
-        {
-            glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-        }
+        // Create hidden, then show. GLFW_FOCUS_ON_SHOW only applies to a
+        // hidden->visible transition, so with the default (visible) the show
+        // below is a no-op and the window can come up behind the terminal.
+        // Headless simply never gets shown.
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
 
         GLFWmonitor* fullscreenMonitor = nullptr;
         if (visibility == Visibility::fullscreen)
@@ -270,6 +324,17 @@ public:
         glfwSwapInterval(0);
 #endif
 
+        if (visibility != Visibility::headless)
+        {
+            glfwShowWindow(m_glfwWindow);
+            // Windows can still refuse to hand over the foreground, so ask
+            // explicitly as well.
+            glfwFocusWindow(m_glfwWindow);
+#ifdef _WIN32
+            forceWindowToForeground(m_glfwWindow);
+#endif
+        }
+
         glfwSetKeyCallback(m_glfwWindow, key_callback);
         glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);
         glfwSetMouseButtonCallback(m_glfwWindow, mouse_button_callback);
@@ -295,11 +360,13 @@ public:
         switch (backend)
         {
             case Backend::wgpu:
-            case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::canvas2d:
+            case Backend::svg:
             case Backend::external:
             case Backend::null:
+            case Backend::invalid:
                 break;
             case Backend::gl:
             case Backend::angle:
@@ -338,7 +405,7 @@ public:
         m_fiddleContext->onSizeChanged(m_glfwWindow,
                                        m_width,
                                        m_height,
-                                       m_msaaSampleCount);
+                                       m_backendParams.msaaSampleCount);
     }
 
     ~TestingWindowFiddleContext() override
@@ -364,7 +431,7 @@ public:
             m_fiddleContext->onSizeChanged(m_glfwWindow,
                                            width,
                                            height,
-                                           m_msaaSampleCount);
+                                           m_backendParams.msaaSampleCount);
             m_width = width;
             m_height = height;
         }
@@ -442,9 +509,10 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount =
-                std::max(m_msaaSampleCount, options.forceMSAA ? 4u : 0u),
+            .msaaSampleCount = std::max(m_backendParams.msaaSampleCount,
+                                        options.forceMSAA ? 4u : 0u),
             .disableRasterOrdering = options.disableRasterOrdering,
+            .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
@@ -536,21 +604,14 @@ public:
         auto oreContext = renderContext()->getOreContext();
         if (oreContext == nullptr)
             return;
-        if (auto* pass = oreContext->activeRenderPass())
-        {
-            if (!pass->isFinished())
-                pass->finish();
-            oreContext->setActiveRenderPass(nullptr);
-        }
-
+        oreContext->finishOpenRenderPassesFrom(0);
         m_fiddleContext->endOreFrame(oreContext);
     }
 #endif
 
 private:
+    const BackendParams m_backendParams;
     GLFWwindow* m_glfwWindow = nullptr;
-    uint32_t m_msaaSampleCount = 0;
-    BackendParams m_backendParams;
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 

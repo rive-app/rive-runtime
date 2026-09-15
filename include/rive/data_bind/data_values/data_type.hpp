@@ -1,9 +1,10 @@
 #ifndef _RIVE_DATA_TYPE_HPP_
 #define _RIVE_DATA_TYPE_HPP_
+#include <cstdint>
 namespace rive
 {
 /// Data types used for converters.
-enum class DataType : unsigned int
+enum class DataType : uint8_t
 {
     /// None.
     none = 0,
@@ -43,6 +44,12 @@ enum class DataType : unsigned int
 
     /// Artboard.
     artboard = 12,
+
+    /// Asset Font.
+    assetFont = 13,
+
+    /// Asset Blob.
+    assetBlob = 14,
 
     /// Special case, this type is used to indicate it uses the input type.
     input = 99,

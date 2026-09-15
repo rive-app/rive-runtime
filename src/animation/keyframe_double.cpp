@@ -1,5 +1,7 @@
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/animation/linear_animation_instance.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
 
 using namespace rive;
 
@@ -10,6 +12,14 @@ using namespace rive;
 
 static void applyDouble(Core* object, int propertyKey, float mix, float value)
 {
+    // Single setter — mirrors the Dart editor where the call site
+    // doesn't choose between animation-mode and design-mode paths.
+    // Generated `<name>(value)` setters internally consult
+    // `Core::isAnimationContextActive()`: when EditorFile has the
+    // animation context active they route the write to the
+    // per-property override overlay; otherwise to the persistent
+    // static field. Runtime builds compile out the overlay branch
+    // entirely.
     if (mix == 1.0f)
     {
         CoreRegistry::setDouble(object, propertyKey, value);
@@ -24,9 +34,25 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value)
     }
 }
 
-void KeyFrameDouble::apply(Core* object, int propertyKey, float mix)
+float KeyFrameDouble::effectiveValue(
+    const LinearAnimationInstance* context) const
 {
-    applyDouble(object, propertyKey, mix, value());
+    if (context != nullptr)
+    {
+        if (auto* holder = context->keyFrameValueHolder(this))
+        {
+            return holder->as<BindablePropertyNumber>()->propertyValue();
+        }
+    }
+    return value();
+}
+
+void KeyFrameDouble::apply(Core* object,
+                           int propertyKey,
+                           float mix,
+                           const LinearAnimationInstance* context)
+{
+    applyDouble(object, propertyKey, mix, effectiveValue(context));
 }
 
 void KeyFrameDouble::applyInterpolation(Core* object,
@@ -38,19 +64,20 @@ void KeyFrameDouble::applyInterpolation(Core* object,
 {
     auto kfd = nextFrame->as<KeyFrameDouble>();
     const KeyFrameDouble& nextDouble = *kfd;
+    float fromValue = effectiveValue(context);
+    float toValue = nextDouble.effectiveValue(context);
     float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
     float frameValue;
     if (KeyFrameInterpolator* keyframeInterpolator =
             effectiveInterpolator(context))
     {
-        frameValue = keyframeInterpolator->transformValue(value(),
-                                                          nextDouble.value(),
-                                                          f);
+        frameValue =
+            keyframeInterpolator->transformValue(fromValue, toValue, f);
     }
     else
     {
-        frameValue = value() + (nextDouble.value() - value()) * f;
+        frameValue = fromValue + (toValue - fromValue) * f;
     }
 
     applyDouble(object, propertyKey, mix, frameValue);

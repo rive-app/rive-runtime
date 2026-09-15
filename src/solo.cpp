@@ -1,9 +1,60 @@
 #include "rive/solo.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/shapes/clipping_shape.hpp"
+#include "rive/focus_data.hpp"
+#include "rive/semantic/semantic_data.hpp"
 #include "rive/artboard.hpp"
+#include "rive/node.hpp"
+#include "rive/container_component.hpp"
+#include "rive/transform_component.hpp"
+#include "rive/layout_component.hpp"
+#include "rive/layout/layout_node_provider.hpp"
 
 using namespace rive;
+
+// Some child components shouldn't be considered as part of the solo set as they
+// are more akin to properties/metadata of the solo itself (constraints,
+// clipping shapes, focus and semantic data) rather than selectable solo
+// options. These are excluded both from collapse propagation and from
+// index/name based selection so that data binding targets only the real solo
+// options.
+static bool isSoloSetMember(Component* child)
+{
+    return !(child->is<Constraint>() || child->is<ClippingShape>() ||
+             child->is<FocusData>() || child->is<SemanticData>());
+}
+
+Component* Solo::activeComponent()
+{
+    auto* ab = artboard();
+    Core* active = ab != nullptr ? ab->resolve(activeComponentId()) : nullptr;
+    // The active id refers to one of our children; match by pointer so we get
+    // it typed as a Component.
+    for (Component* child : children())
+    {
+        if (child == active)
+        {
+            return child;
+        }
+    }
+    return nullptr;
+}
+
+#ifdef WITH_RIVE_LAYOUT
+void Solo::recollectOwningLayout()
+{
+    // We are not a LayoutComponent, so walk up for the layout that owns the
+    // slot our active child occupies.
+    for (Component* p = parent(); p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            p->as<LayoutComponent>()->syncLayoutChildren();
+            return;
+        }
+    }
+}
+#endif
 
 void Solo::propagateCollapse(bool collapse)
 {
@@ -11,10 +62,9 @@ void Solo::propagateCollapse(bool collapse)
         collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
-        // Some child components shouldn't be considered as part of the solo set
-        // as they are more aking to properties of the solo itself. For those
-        // components, simply pass on the collapse value of the solo itself.
-        if (child->is<Constraint>() || child->is<ClippingShape>())
+        // For components that aren't part of the solo set, simply pass on the
+        // collapse value of the solo itself.
+        if (!isSoloSetMember(child))
         {
             child->collapse(collapse);
             continue;
@@ -39,7 +89,15 @@ bool Solo::collapse(bool value)
     return true;
 }
 
-void Solo::activeComponentIdChanged() { propagateCollapse(isCollapsed()); }
+void Solo::activeComponentIdChanged()
+{
+    propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_LAYOUT
+    // Only the active child is exposed to layout, so a swap changes the owning
+    // layout's child set.
+    recollectOwningLayout();
+#endif
+}
 
 StatusCode Solo::onAddedClean(CoreContext* context)
 {
@@ -49,24 +107,68 @@ StatusCode Solo::onAddedClean(CoreContext* context)
         return code;
     }
 
-    propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_EDITOR
+    // Coop-apply runs Pass 4 onAddedClean before a renderer is attached;
+    // `propagateCollapse` fires `onDirty` on every child, which in
+    // subclasses like Image/Mesh allocates render buffers via the
+    // factory — so skip during hydration (post-validation edits re-fire
+    // it via activeComponentIdChanged). Runtime .riv imports are marked
+    // validated at read time and need it now or inactive Solo children
+    // render un-collapsed.
+    if (hasValidated())
+#endif
+    {
+        propagateCollapse(isCollapsed());
+#ifdef WITH_RIVE_LAYOUT
+        // Parent chain + active child are resolved now; make sure the owning
+        // layout has collected the active child.
+        recollectOwningLayout();
+#endif
+    }
     return StatusCode::Ok;
 }
 
 void Solo::updateByIndex(size_t index)
 {
-    if (index >= 0 && index < children().size() && artboard())
+    // The number of solo options is always <= children().size(), so any index
+    // that big can never match. Bail early to avoid an O(n) walk every frame
+    // for out-of-range indices (the data-binding path casts rounded floats to
+    // size_t without clamping, so negative values arrive as huge indices).
+    if (!artboard() || index >= children().size())
     {
-        auto child = children()[index];
-        int globalIndex = artboard()->idOf(child);
-        activeComponentId(globalIndex);
+        return;
+    }
+    // The index refers to the Nth solo option, skipping property-like children
+    // (constraints, clipping shapes, focus/semantic data) so it matches the
+    // ordering exposed by getActiveChildIndex.
+    size_t soloIndex = 0;
+    for (auto& child : children())
+    {
+        if (!isSoloSetMember(child))
+        {
+            continue;
+        }
+        if (soloIndex == index)
+        {
+            activeComponentId(artboard()->idOf(child));
+            return;
+        }
+        soloIndex++;
     }
 }
 
 void Solo::updateByName(const std::string& name)
 {
+    if (!artboard())
+    {
+        return;
+    }
     for (auto& child : children())
     {
+        if (!isSoloSetMember(child))
+        {
+            continue;
+        }
         if (child->name() == name)
         {
 
@@ -79,12 +181,20 @@ void Solo::updateByName(const std::string& name)
 
 int Solo::getActiveChildIndex()
 {
+    if (!artboard())
+    {
+        return -1;
+    }
     Core* active = artboard()->resolve(activeComponentId());
     if (active)
     {
         int index = 0;
         for (auto& child : children())
         {
+            if (!isSoloSetMember(child))
+            {
+                continue;
+            }
             if (child == active)
             {
                 return index;
@@ -97,6 +207,10 @@ int Solo::getActiveChildIndex()
 
 std::string Solo::getActiveChildName()
 {
+    if (!artboard())
+    {
+        return "";
+    }
     Core* active = artboard()->resolve(activeComponentId());
     if (active && active->is<Component>())
     {

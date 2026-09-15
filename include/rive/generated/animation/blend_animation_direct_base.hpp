@@ -2,7 +2,12 @@
 #define _RIVE_BLEND_ANIMATION_DIRECT_BASE_HPP_
 #include "rive/animation/blend_animation.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class BlendAnimationDirectBase : public BlendAnimation
@@ -34,20 +39,21 @@ public:
     static const uint16_t blendSourcePropertyKey = 298;
 
 protected:
-    uint32_t m_InputId = -1;
+    Id m_InputId = kEmptyId;
     float m_MixValue = 100.0f;
     uint32_t m_BlendSource = 0;
 
 public:
-    inline uint32_t inputId() const { return m_InputId; }
-    void inputId(uint32_t value)
+    inline Id inputId() const { return m_InputId; }
+    void inputId(Id value)
     {
         if (m_InputId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
         m_InputId = value;
-        inputIdChanged();
+        RIVE_EDITOR_CHANGED(inputIdChanged());
         notifyPropertyChanged(inputIdPropertyKey);
     }
 
@@ -58,8 +64,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(mixValuePropertyKey, &m_MixValue, &value);
         m_MixValue = value;
-        mixValueChanged();
+        RIVE_EDITOR_CHANGED(mixValueChanged());
         notifyPropertyChanged(mixValuePropertyKey);
     }
 
@@ -70,8 +77,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(blendSourcePropertyKey, &m_BlendSource, &value);
         m_BlendSource = value;
-        blendSourceChanged();
+        RIVE_EDITOR_CHANGED(blendSourceChanged());
         notifyPropertyChanged(blendSourcePropertyKey);
     }
 
@@ -81,6 +89,7 @@ public:
         m_InputId = object.m_InputId;
         m_MixValue = object.m_MixValue;
         m_BlendSource = object.m_BlendSource;
+        RIVE_EDITOR_COPY(object);
         BlendAnimation::copy(object);
     }
 
@@ -89,7 +98,7 @@ public:
         switch (propertyKey)
         {
             case inputIdPropertyKey:
-                m_InputId = CoreUintType::deserialize(reader);
+                m_InputId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case mixValuePropertyKey:
                 m_MixValue = CoreDoubleType::deserialize(reader);
@@ -98,6 +107,7 @@ public:
                 m_BlendSource = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return BlendAnimation::deserialize(propertyKey, reader);
     }
 
@@ -105,6 +115,9 @@ protected:
     virtual void inputIdChanged() {}
     virtual void mixValueChanged() {}
     virtual void blendSourceChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/blend_animation_direct_ext.inl"
+#endif
 };
 } // namespace rive
 

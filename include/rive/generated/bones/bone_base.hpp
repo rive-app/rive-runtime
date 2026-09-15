@@ -45,8 +45,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(lengthPropertyKey, &m_Length, &value);
         m_Length = value;
-        lengthChanged();
+        RIVE_EDITOR_CHANGED(lengthChanged());
         notifyPropertyChanged(lengthPropertyKey);
     }
 
@@ -70,6 +71,9 @@ public:
 
 protected:
     virtual void lengthChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/bones/bone_ext.inl"
+#endif
 };
 } // namespace rive
 

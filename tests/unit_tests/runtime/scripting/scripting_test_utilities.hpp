@@ -11,6 +11,15 @@
 
 namespace rive
 {
+// Tests compile a generator chunk that lands on the stack top; the backend
+// seam wants it as a ref.
+inline int refTopFunction(lua_State* L)
+{
+    int ref = lua_ref(L, -1);
+    lua_pop(L, 1);
+    return ref;
+}
+
 class ScriptingTest;
 
 // A ScriptingContext that delegates callbacks to ScriptingTest
@@ -37,15 +46,20 @@ private:
     bool m_errorOk;
 
 public:
+    // A caller supplied factory stands in for the import factory the context
+    // derives its GPU routing from; null uses the serializing factory.
     ScriptingTest(const char* source,
                   int numResults = 1,
                   bool errorOk = false,
                   std::unordered_map<std::string, std::string> modules = {},
-                  bool executeImmediately = true)
+                  bool executeImmediately = true,
+                  Factory* factory = nullptr)
     {
         m_numResults = numResults;
         m_errorOk = errorOk;
-        auto context = std::make_unique<TestScriptingContext>(&m_factory, this);
+        auto context = std::make_unique<TestScriptingContext>(
+            factory != nullptr ? factory : &m_factory,
+            this);
         m_vm = make_rcp<ScriptingVM>(std::move(context));
 
         for (const auto& pair : modules)

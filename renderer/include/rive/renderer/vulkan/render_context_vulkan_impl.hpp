@@ -33,6 +33,10 @@ public:
         // mode.
         bool disableClockwiseFixedFunctionMode = false;
 
+        /** Whether optional Vulkan debug names may be assigned to GPU objects.
+         */
+        bool enableDebugNames = true;
+
         ShaderCompilationMode shaderCompilationMode =
             ShaderCompilationMode::standard;
     };
@@ -99,8 +103,8 @@ public:
                                    VkFormat format);
 
 #ifdef RIVE_CANVAS
-    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
-                                       uint32_t height) override;
+    void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
+
     std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
@@ -120,16 +124,18 @@ public:
 private:
     RenderContextVulkanImpl(rcp<VulkanContext>, const ContextOptions&);
 
-    // Called outside the constructor so we can use virtual methods.
-    void initGPUObjects(ShaderCompilationMode);
+    // Returns false if the driver fails to create our objects.
+    // A driver that can't allocate our startup resources should fall back on
+    // another backend rather than abort the process.
+    bool initGPUObjects(ShaderCompilationMode);
 
-    bool wantsManualRenderPassResolve(
-        gpu::InterlockMode,
-        const RenderTarget*,
-        const IAABB& renderTargetUpdateBounds,
-        uint32_t virtualTileWidth,
-        uint32_t virtualTileHeight,
-        gpu::DrawContents combinedDrawContents) const override;
+    bool wantsManualRenderPassResolve(gpu::InterlockMode,
+                                      const RenderTarget*,
+                                      const IAABB& renderTargetUpdateBounds,
+                                      uint32_t virtualTileWidth,
+                                      uint32_t virtualTileHeight,
+                                      gpu::DrawContents combinedDrawContents,
+                                      uint32_t msaaSampleCount) const override;
 
     void prepareToFlush(uint64_t nextFrameNumber,
                         uint64_t safeFrameNumber) override;
@@ -170,7 +176,6 @@ private:
     }
 
     IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBuffer)
-    IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBuffer)
     IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBuffer)
     IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBuffer)
     IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBuffer)
@@ -178,13 +183,15 @@ private:
     IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
     IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBuffer)
     IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBuffer)
+    IMPLEMENT_PLS_BUFFER(ImageRectInstanceBuffer, m_imageRectInstanceBuffer)
+    IMPLEMENT_PLS_BUFFER(ImageMeshInstanceBuffer, m_imageMeshInstanceBuffer)
 
 #undef IMPLEMENT_PLS_BUFFER
 #undef IMPLEMENT_PLS_STRUCTURED_BUFFER
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeTransientPLSBacking(uint32_t width,
                                    uint32_t height,
                                    uint32_t planeCount) override;
@@ -293,7 +300,10 @@ private:
                        const IAABB& drawBounds,
                        VkImageView colorImageView,
                        VkImageView msaaColorSeedImageView,
-                       VkImageView msaaResolveImageView,
+                       // MSAA resolve, or copy target when rendering
+                       // single-sampled offscreen for a render target that
+                       // doesn't support input attachments.
+                       VkImageView depthStencilFinalColorImageView,
                        RenderPassOptionsVulkan,
                        const IAABB& scissor);
 
@@ -334,7 +344,9 @@ private:
         const IAABB m_drawBounds;
         const VkImageView m_colorImageView;
         const VkImageView m_msaaColorSeedImageView;
-        const VkImageView m_msaaResolveImageView;
+        // MSAA resolve, or copy target when rendering single-sampled offscreen
+        // for a render target that doesn't support input attachments.
+        const VkImageView m_depthStencilFinalColorImageView;
         const DrawPipelineLayoutVulkan& m_pipelineLayout;
 
         // Initialized by beginDrawRenderPass().
@@ -386,6 +398,13 @@ private:
         // resolve attachments. For now we just always manually resolve these
         // render passes that use advanced blend on Qualcomm.
         bool needsManualMSAAResolveAfterDstRead = true;
+        // Adreno returns garbage when reading the renderTarget itself as an
+        // input attachment (and only if there aren't other MRT color
+        // attachments ¯\_(ツ)_/¯).
+        // ((And yes, VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT is set!))
+        // NOTE: This isn't about the swapchain. A plain offscreen texture also
+        // fails in the same way when it's the renderTarget.
+        bool avoidDstReadFromNonMRTRenderTarget = false;
     };
 
     const DriverWorkarounds m_workarounds;
@@ -393,7 +412,6 @@ private:
     // Rive buffer pools. These don't need to be rcp<> because the destructor of
     // RenderContextVulkanImpl is already synchronized.
     vkutil::BufferPool m_flushUniformBufferPool;
-    vkutil::BufferPool m_imageDrawUniformBufferPool;
     vkutil::BufferPool m_pathBufferPool;
     vkutil::BufferPool m_paintBufferPool;
     vkutil::BufferPool m_paintAuxBufferPool;
@@ -401,11 +419,12 @@ private:
     vkutil::BufferPool m_gradSpanBufferPool;
     vkutil::BufferPool m_tessSpanBufferPool;
     vkutil::BufferPool m_triangleBufferPool;
+    vkutil::BufferPool m_imageRectInstanceBufferPool;
+    vkutil::BufferPool m_imageMeshInstanceBufferPool;
 
     // Specific Rive buffers that have been acquired for the current frame.
     // When the frame ends, these get recycled back in their respective pools.
     rcp<vkutil::Buffer> m_flushUniformBuffer;
-    rcp<vkutil::Buffer> m_imageDrawUniformBuffer;
     rcp<vkutil::Buffer> m_pathBuffer;
     rcp<vkutil::Buffer> m_paintBuffer;
     rcp<vkutil::Buffer> m_paintAuxBuffer;
@@ -413,6 +432,8 @@ private:
     rcp<vkutil::Buffer> m_gradSpanBuffer;
     rcp<vkutil::Buffer> m_tessSpanBuffer;
     rcp<vkutil::Buffer> m_triangleBuffer;
+    rcp<vkutil::Buffer> m_imageRectInstanceBuffer;
+    rcp<vkutil::Buffer> m_imageMeshInstanceBuffer;
 
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
@@ -438,11 +459,11 @@ private:
     rcp<vkutil::Texture2D> m_tesselationSyncIssueWorkaroundTexture;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
-    // Renders feathers to the atlas.
-    class AtlasPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasPipeline;
-    rcp<vkutil::Texture2D> m_atlasTexture;
-    rcp<vkutil::Framebuffer> m_atlasFramebuffer;
+    // Renders feathers to the feather atlas.
+    class FeatherAtlasPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasPipeline;
+    rcp<vkutil::Texture2D> m_featherAtlasTexture;
+    rcp<vkutil::Framebuffer> m_featherAtlasFramebuffer;
 
     // Pixel local storage backing resources.
     VkImageUsageFlags m_plsTransientUsageFlags;
@@ -461,7 +482,7 @@ private:
     rcp<vkutil::Buffer> m_coverageBuffer;
 
     // Gaussian integral table for feathering.
-    rcp<vkutil::Texture2D> m_featherTexture;
+    rcp<vkutil::Texture2D> m_gaussianIntegralTexture;
 
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;
@@ -471,6 +492,11 @@ private:
     rcp<DescriptorSetPoolPool> m_descriptorSetPoolPool;
 
     std::unique_ptr<PipelineManagerVulkan> m_pipelineManager;
+
+#ifdef WITH_RIVE_TOOLS
+    ShaderCompilationMode testingOnly_setShaderCompilationMode(
+        ShaderCompilationMode mode) override;
+#endif
 };
 } // namespace rive::gpu
 

@@ -10,6 +10,8 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_enum_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_list_index_runtime.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -115,6 +117,12 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                     case DataType::assetImage:
                         return viewModelInstanceRuntime->propertyImage(
                             propertyName);
+                    case DataType::assetFont:
+                        return viewModelInstanceRuntime->propertyFont(
+                            propertyName);
+                    case DataType::assetBlob:
+                        return viewModelInstanceRuntime->propertyBlob(
+                            propertyName);
                     case DataType::artboard:
                         return viewModelInstanceRuntime->propertyArtboard(
                             propertyName);
@@ -126,6 +134,9 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                             propertyName);
                     case DataType::trigger:
                         return viewModelInstanceRuntime->propertyTrigger(
+                            propertyName);
+                    case DataType::symbolListIndex:
+                        return viewModelInstanceRuntime->propertyListIndex(
                             propertyName);
                     default:
                         break;
@@ -269,6 +280,22 @@ ViewModelInstanceListRuntime* ViewModelInstanceRuntime::propertyList(
     return nullptr;
 }
 
+ViewModelInstanceListIndexRuntime* ViewModelInstanceRuntime::propertyListIndex(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceSymbolListIndex,
+                                  ViewModelInstanceListIndexRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
 rcp<ViewModelInstance> ViewModelInstanceRuntime::viewModelInstanceProperty(
     const std::string& name) const
 {
@@ -324,6 +351,38 @@ ViewModelInstanceAssetImageRuntime* ViewModelInstanceRuntime::propertyImage(
         return viewModelInstance
             ->getPropertyInstance<ViewModelInstanceAssetImage,
                                   ViewModelInstanceAssetImageRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceAssetFontRuntime* ViewModelInstanceRuntime::propertyFont(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceAssetFont,
+                                  ViewModelInstanceAssetFontRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceAssetBlobRuntime* ViewModelInstanceRuntime::propertyBlob(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceAssetBlob,
+                                  ViewModelInstanceAssetBlobRuntime>(
                 propertyName);
     }
     return nullptr;

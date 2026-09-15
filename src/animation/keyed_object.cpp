@@ -2,6 +2,7 @@
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/artboard.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/importers/linear_animation_importer.hpp"
 #include "rive/generated/core_registry.hpp"
 
@@ -23,6 +24,12 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
+    // `clip` is animatable; a layout whose clip is keyed needs its
+    // DrawableProxy up front so it exists before the artboard's one-time proxy
+    // injection, even while clip is currently false. This runs on the source
+    // only (instances share animations); LayoutComponent::clone carries the
+    // flag to instances.
+    const bool isLayout = coreObject->is<LayoutComponent>();
 
     for (auto itr = m_keyedProperties.begin(); itr != m_keyedProperties.end();)
     {
@@ -35,6 +42,11 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
             itr = m_keyedProperties.erase(itr);
             continue;
         }
+        if (isLayout &&
+            property->propertyKey() == LayoutComponentBase::clipPropertyKey)
+        {
+            coreObject->as<LayoutComponent>()->markClipMayBeDynamic();
+        }
         StatusCode code;
         if ((code = property->onAddedDirty(context)) != StatusCode::Ok)
         {
@@ -42,6 +54,28 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
         }
         itr++;
     }
+#ifdef WITH_RIVE_EDITOR
+    // The editor list is rebuilt by `finalizeBatch` AFTER Pass 3
+    // onAddedDirty runs, so at the time the dispatcher calls us on a
+    // freshly-hydrated KeyedObject it's still empty. On subsequent
+    // finalizeBatch runs (new coop batch), the editor list carries
+    // the previously-wired coop keyed properties; walking it again
+    // here keeps CoreRegistry::objectSupportsProperty pruning
+    // consistent with the runtime path.
+    for (auto itr = m_editorKeyedProperties.begin();
+         itr != m_editorKeyedProperties.end();)
+    {
+        auto* property = *itr;
+        if (!CoreRegistry::objectSupportsProperty(coreObject,
+                                                  property->propertyKey()))
+        {
+            itr = m_editorKeyedProperties.erase(itr);
+            continue;
+        }
+        property->onAddedDirty(context);
+        itr++;
+    }
+#endif
     return StatusCode::Ok;
 }
 
@@ -51,8 +85,18 @@ StatusCode KeyedObject::onAddedClean(CoreContext* context)
     {
         property->onAddedClean(context);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        property->onAddedClean(context);
+    }
+#endif
     return StatusCode::Ok;
 }
+
+// `addKeyedPropertyForEditor` and `clearEditorKeyedProperties` live in
+// `editor_native/native/src/editor/animation/keyed_object_editor.cpp`
+// — see the matching comment in `keyed_property.cpp`.
 
 void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        float secondsFrom,
@@ -71,6 +115,20 @@ void KeyedObject::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                        secondsTo,
                                        isAtStartFrame);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        if (!CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
+        property->reportKeyedCallbacks(reporter,
+                                       objectId(),
+                                       secondsFrom,
+                                       secondsTo,
+                                       isAtStartFrame);
+    }
+#endif
 }
 
 void KeyedObject::apply(Artboard* artboard,
@@ -91,6 +149,16 @@ void KeyedObject::apply(Artboard* artboard,
         }
         property->apply(object, time, mix, context);
     }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* property : m_editorKeyedProperties)
+    {
+        if (CoreRegistry::isCallback(property->propertyKey()))
+        {
+            continue;
+        }
+        property->apply(object, time, mix);
+    }
+#endif
 }
 
 StatusCode KeyedObject::import(ImportStack& importStack)

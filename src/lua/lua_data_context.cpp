@@ -29,7 +29,7 @@ int ScriptedDataContext::pushParent()
 
 int ScriptedDataContext::pushViewModel()
 {
-    auto vmi = m_dataContext->viewModelInstance();
+    auto vmi = m_dataContext->mainViewModelInstance();
     if (vmi)
     {
         lua_newrive<ScriptedViewModel>(m_state,

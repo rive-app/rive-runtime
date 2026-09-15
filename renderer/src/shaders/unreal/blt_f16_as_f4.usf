@@ -1,0 +1,14 @@
+﻿#include "/Engine/Public/Platform.ush"
+
+Texture2D<float> SourceTexture;
+SamplerState SourceSampler;
+
+uint2 ViewSize;
+
+void FragmentMain( in float4 Position : SV_Position,
+    out float4 OutColor : SV_Target0)
+{
+    float2 UV = Position.xy / float2(ViewSize);
+    float Result = SourceTexture.Sample(SourceSampler, UV);
+    OutColor = float4( Result, 0, 0, 1.0 );
+}

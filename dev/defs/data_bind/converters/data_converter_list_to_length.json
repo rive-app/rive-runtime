@@ -1,8 +1,0 @@
-{
-  "name": "DataConverterListToLength",
-  "key": {
-    "int": 591,
-    "string": "dataconverterlisttolength"
-  },
-  "extends": "data_bind/converters/data_converter.json"
-}

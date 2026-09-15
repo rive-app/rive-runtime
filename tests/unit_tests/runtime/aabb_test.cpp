@@ -103,4 +103,95 @@ TEST_CASE("IAABB overlaps", "[AABB]")
     CHECK(!IAABB{0, 0, 100, 100}.overlaps(IAABB{10, 100, 190, 90}));
 }
 
+TEST_CASE("AABB overlaps", "[AABB]")
+{
+    // Completely contained
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, 10.0f, 90.0f, 90.0f}));
+
+    // Coincident
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{0.0f, 0.0f, 100.0f, 100.0f}));
+
+    // One edge out of range
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-1000.0f, 10.0f, 90.0f, 90.0f}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, -1000.0f, 90.0f, 90.0f}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, 10.0f, 1000.0f, 90.0f}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, 10.0f, 90.0f, 1000.0f}));
+
+    // One edge still in range
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-1000, -1000, 1000, 90}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-1000, -1000, 90, 1000}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-1000.0f, 10.0f, 1000.0f, 1000.0f}));
+    CHECK(AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, -1000.0f, 1000.0f, 1000.0f}));
+
+    // Disjoint
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{110.0f, 10.0f, 190.0f, 90.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, 110.0f, 90.0f, 190.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-110.0f, 10.0f, -10.0f, 90.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, -110.0f, 90.0f, -10.0f}));
+
+    // Abuting, but disjoint
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{-10.0f, 10.0f, 0.0f, 90.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, -10.0f, 90.0f, 0.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{100.0f, 10.0f, 190.0f, 90.0f}));
+    CHECK(!AABB{0.0f, 0.0f, 100.0f, 100.0f}.overlaps(
+        AABB{10.0f, 100.0f, 190.0f, 90.0f}));
+}
+
+TEST_CASE("TAABB::makeMaximal", "[AABB]")
+{
+    auto testType = [](auto valueForType) {
+        using T = decltype(valueForType);
+        std::ignore = valueForType;
+
+        constexpr auto Min = std::numeric_limits<T>::min();
+        constexpr auto Max = std::numeric_limits<T>::max();
+
+        CHECK(TAABB<T>::makeMaximal() == TAABB<T>{Min, Min, Max, Max});
+    };
+
+    testType(int16_t{});
+    testType(uint16_t{});
+    testType(int32_t{});
+    testType(uint32_t{});
+    testType(int64_t{});
+    testType(uint64_t{});
+}
+
+TEST_CASE("TAABB::makeMaximallyNegative", "[AABB]")
+{
+    auto testType = [](auto valueForType) {
+        using T = decltype(valueForType);
+        std::ignore = valueForType;
+
+        constexpr auto Min = std::numeric_limits<T>::min();
+        constexpr auto Max = std::numeric_limits<T>::max();
+
+        CHECK(TAABB<T>::makeMaximallyNegative() ==
+              TAABB<T>{Max, Max, Min, Min});
+    };
+
+    testType(int16_t{});
+    testType(uint16_t{});
+    testType(int32_t{});
+    testType(uint32_t{});
+    testType(int64_t{});
+    testType(uint64_t{});
+}
 } // namespace rive

@@ -41,8 +41,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(operationTypePropertyKey,
+                             &m_OperationType,
+                             &value);
         m_OperationType = value;
-        operationTypeChanged();
+        RIVE_EDITOR_CHANGED(operationTypeChanged());
         notifyPropertyChanged(operationTypePropertyKey);
     }
 
@@ -66,6 +69,9 @@ public:
 
 protected:
     virtual void operationTypeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/converters/data_converter_operation_ext.inl"
+#endif
 };
 } // namespace rive
 

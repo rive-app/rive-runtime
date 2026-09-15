@@ -313,6 +313,163 @@ TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
     REQUIRE(text->m_transform.xx() == Approx(1.0f));
 }
 
+TEST_CASE("fitFontSize scales custom line height and letter spacing "
+          "proportionally",
+          "[text]")
+{
+    auto file = ReadRiveFile("assets/ellipsis.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // Author absolute custom line height and letter spacing on every style so
+    // we can verify they track the fitted font size.
+    const float authoredLineHeight = 40.0f;
+    const float authoredLetterSpacing = 3.0f;
+    auto styles = artboard->find<rive::TextStyle>();
+    REQUIRE(!styles.empty());
+    for (auto style : styles)
+    {
+        style->lineHeight(authoredLineHeight);
+        style->letterSpacing(authoredLetterSpacing);
+    }
+
+    // Authored (unscaled) size: the custom values pass through as-is.
+    text->overflow(rive::TextOverflow::visible);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float authoredSize = text->shape()[0].runs[0].size;
+    REQUIRE(authoredSize > 1.0f);
+    REQUIRE(text->shape()[0].runs[0].lineHeight == Approx(authoredLineHeight));
+    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
+            Approx(authoredLetterSpacing));
+
+    // With fitFontSize the font shrinks; the custom line height and letter
+    // spacing must shrink by the same multiplier so the layout stays a uniform
+    // scale of the authored one.
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float fittedSize = text->shape()[0].runs[0].size;
+    REQUIRE(fittedSize < authoredSize);
+
+    float expectedScale = fittedSize / authoredSize;
+    REQUIRE(text->shape()[0].runs[0].lineHeight ==
+            Approx(authoredLineHeight * expectedScale));
+    REQUIRE(text->shape()[0].runs[0].letterSpacing ==
+            Approx(authoredLetterSpacing * expectedScale));
+}
+
+TEST_CASE("fitFontSize scales paragraph spacing proportionally", "[text]")
+{
+    // double_line.riv has multiple paragraphs (explicit new lines), so the
+    // paragraph gap actually contributes to the vertical layout.
+    auto file = ReadRiveFile("assets/double_line.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // A large absolute paragraph gap so any (mis)scaling of it is obvious.
+    text->paragraphSpacing(30.0f);
+
+    // A wide fixed box keeps line breaking identical between the two passes
+    // (only the width affects breaking), so the ordered lines line up 1:1.
+    text->sizingValue((uint32_t)rive::TextSizing::fixed);
+    text->width(2000.0f);
+    text->height(2000.0f);
+
+    // Authored pass: visible never shrinks, so this is the natural layout.
+    text->overflow(rive::TextOverflow::visible);
+    artboard->advance(0.0f);
+
+    // The fixture must actually have multiple paragraphs or the gap is never
+    // exercised.
+    REQUIRE(text->shape().size() >= 2);
+    REQUIRE(!text->shape()[0].runs.empty());
+    float authoredSize = text->shape()[0].runs[0].size;
+    REQUIRE(authoredSize > 1.0f);
+
+    std::vector<float> authoredY;
+    for (const rive::OrderedLine& line : text->orderedLines())
+    {
+        authoredY.push_back(line.y());
+    }
+    REQUIRE(authoredY.size() >= 2);
+
+    // Fitted pass: same width (same breaking) but a short box forces the font
+    // to shrink. Everything absolute -- including the paragraph gap -- must
+    // shrink with it.
+    text->height(40.0f);
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+
+    REQUIRE(!text->shape()[0].runs.empty());
+    float fittedSize = text->shape()[0].runs[0].size;
+    REQUIRE(fittedSize < authoredSize);
+
+    const auto& fittedLines = text->orderedLines();
+    REQUIRE(fittedLines.size() == authoredY.size());
+
+    const float scale = fittedSize / authoredSize;
+
+    // A true uniform scale: every line's y (which accumulates line heights AND
+    // the paragraph gap) tracks the font size. Without scaling the paragraph
+    // gap, lines past the first paragraph would sit too low.
+    for (size_t i = 0; i < authoredY.size(); i++)
+    {
+        REQUIRE(fittedLines[i].y() == Approx(authoredY[i] * scale));
+    }
+
+    // The vertical span across paragraphs (which is dominated by the gap) must
+    // itself have shrunk by the same ratio -- guards against a trivial pass at
+    // y == 0.
+    float authoredSpan = authoredY.back() - authoredY.front();
+    float fittedSpan = fittedLines.back().y() - fittedLines.front().y();
+    REQUIRE(authoredSpan > 0.0f);
+    REQUIRE(fittedSpan < authoredSpan);
+    REQUIRE(fittedSpan == Approx(authoredSpan * scale));
+}
+
+TEST_CASE("changing paragraph spacing reshapes fitFontSize text", "[text]")
+{
+    auto file = ReadRiveFile("assets/double_line.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+
+    // A fixed box that forces the multi-paragraph text to shrink to fit.
+    text->sizingValue((uint32_t)rive::TextSizing::fixed);
+    text->width(2000.0f);
+    text->height(150.0f);
+    text->overflow(rive::TextOverflow::fitFontSize);
+
+    text->paragraphSpacing(0.0f);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float sizeWithoutGap = text->shape()[0].runs[0].size;
+    REQUIRE(sizeWithoutGap > 1.0f);
+
+    // Growing the paragraph gap eats vertical space, so the fitted font must
+    // shrink. This only happens if the change re-runs the fit search (a
+    // reshape); a plain paint rebuild would leave the size untouched.
+    text->paragraphSpacing(60.0f);
+    artboard->advance(0.0f);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    float sizeWithGap = text->shape()[0].runs[0].size;
+
+    REQUIRE(sizeWithGap < sizeWithoutGap);
+}
+
 static std::vector<rive::Unichar> toUnicode(const char text[])
 {
     std::vector<rive::Unichar> codePoints;
@@ -769,4 +926,273 @@ TEST_CASE("Vertical Trim", "[text]")
     }
 
     CHECK(silver.matches("text_vertical_trim_test"));
+}
+
+// Renders a text/layout matrix for five frames against the named silver.
+static void checkTextLayoutSilver(const char* asset, const char* silverName)
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile(asset, &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->defaultStateMachine();
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    if (vmi != nullptr)
+    {
+        if (stateMachine != nullptr)
+        {
+            stateMachine->bindViewModelInstance(vmi);
+        }
+        else
+        {
+            artboard->bindViewModelInstance(vmi);
+        }
+    }
+
+    auto advance = [&](float dt) {
+        if (stateMachine != nullptr)
+        {
+            stateMachine->advanceAndApply(dt);
+        }
+        else
+        {
+            artboard->advance(dt);
+        }
+    };
+
+    advance(0.0f);
+    artboard->draw(renderer.get());
+    for (int i = 0; i < 4; i++)
+    {
+        silver.addFrame();
+        advance(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches(silverName));
+}
+
+// These two assets are the same scene and differ only in their header's minor
+// version (see gen_layout_text_match.py), so any difference between the two
+// silvers is attributable to the Text::import gate and nothing else.
+//
+// Below 7.3, FileFeatures::layoutSizesBox stays off: an auto-sized text keeps
+// content-sized bounds and every overflow mode stays inert, so the six
+// overflow modes in each half of the matrix all render identically.
+TEST_CASE("Text box keeps its content size before 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout_text_match.riv", "layout_text_match");
+}
+
+// At 7.3 the box takes the layout's size and the overflow modes engage, so the
+// matrix fans out. Rows 15-18 cover verticalAlign middle/bottom over both a
+// taller box (minHeight) and a shorter one (maxHeight, where align and line
+// culling interact).
+TEST_CASE("Text box matches layout-controlled size", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout_text_match_7_3.riv",
+                          "layout_text_match_7_3");
+}
+
+// The two assets are the same scene apart from the version stamp and two
+// inert ComponentOrigin children (the editor materialises those on selection;
+// neither file carries a pivotOrigin), so they are authored exports rather
+// than a generated pair.
+TEST_CASE("Middle-aligned hug-layout text before 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout/text_layout_pre_7_3.riv",
+                          "text_layout_pre_7_3");
+}
+
+TEST_CASE("Middle-aligned hug-layout text at 7.3", "[silver]")
+{
+    checkTextLayoutSilver("assets/layout/text_layout_7_3.riv",
+                          "text_layout_7_3");
+}
+
+TEST_CASE("Fit font size with varying sizes", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/text_fit_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.032f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(3.0f / 0.032f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.032f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("text_fit_test"));
+}
+
+TEST_CASE("Text with background color with active feather", "[text]")
+{
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/text_background_feather_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto renderer = silver.makeRenderer();
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get()->viewModelId(), 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.032f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("text_background_feather_test"));
+}
+// A fitFontSize text used to leave dead space under itself: measure() sized
+// the box from the *authored* font, so a hug slot reserved room the shrunk
+// text never filled. `fit_font_size_hug_test.riv` is a 175pt no-wrap title in
+// a hug layout with a bar below it; the fit drops the font to 121pt (0.691x),
+// which used to leave ~131px of gap.
+//
+// The new measure is gated on the file version (7.4) *and* the authored
+// Text::fitFontSizeResizesBox flag, so all three combinations are walked off
+// one asset -- the 7.4 copy is the same bytes with the header's minor version
+// stamped up.
+static rive::rcp<rive::File> importTextWithMinorVersion(uint8_t minor)
+{
+    auto bytes = ReadFile("assets/fit_font_size_hug_test.riv");
+    // "RIVE", then varuint major, varuint minor. Both versions in play here
+    // are single-byte varuints, so the minor is just byte 5.
+    REQUIRE(bytes.size() > 5);
+    REQUIRE(bytes[4] == 7);
+    bytes[5] = minor;
+
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file != nullptr);
+    return file;
+}
+
+// Advances the artboard and reports (hug slot height, y of the bar below it).
+static std::pair<float, float> solveTitleLayout(rive::File* file,
+                                                bool resizesBox)
+{
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    auto texts = artboard->find<rive::Text>();
+    rive::Text* title = nullptr;
+    for (auto text : texts)
+    {
+        if (!text->runs().empty() && !text->runs()[0]->text().empty())
+        {
+            title = text;
+            break;
+        }
+    }
+    REQUIRE(title != nullptr);
+    REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
+    title->fitFontSizeResizesBox(resizesBox);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    REQUIRE(title->parent()->is<rive::LayoutComponent>());
+    auto hug = title->parent()->as<rive::LayoutComponent>();
+    REQUIRE(hug->parent()->is<rive::LayoutComponent>());
+    auto container = hug->parent()->as<rive::LayoutComponent>();
+
+    rive::LayoutComponent* bar = nullptr;
+    for (auto child : container->children())
+    {
+        if (child != hug && child->is<rive::LayoutComponent>())
+        {
+            bar = child->as<rive::LayoutComponent>();
+            break;
+        }
+    }
+    REQUIRE(bar != nullptr);
+    return {hug->layoutHeight(), bar->layoutY()};
+}
+
+TEST_CASE("fitFontSize hug slot keeps the authored size before 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(3);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+    // Measured at 175pt even though the text draws at 121pt, so the bar sits
+    // ~131px lower than the text it follows. The flag is on here; the version
+    // gate is what holds the old behavior in place.
+    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+    CHECK(barY == Approx(439.49f).margin(0.5f));
+}
+
+TEST_CASE("fitFontSize hug slot tracks the fitted text at 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(4);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), true);
+    // 423.49 * (121/175) -- the slot now matches the text actually drawn, and
+    // the bar closes up against it (8px padding either side).
+    CHECK(hugHeight == Approx(292.81f).margin(0.5f));
+    CHECK(barY == Approx(308.81f).margin(0.5f));
+}
+
+TEST_CASE("fitFontSize hug slot honors fitFontSizeResizesBox at 7.4", "[text]")
+{
+    auto file = importTextWithMinorVersion(4);
+    auto [hugHeight, barY] = solveTitleLayout(file.get(), false);
+    // Version is new enough, but the author turned the behavior off.
+    CHECK(hugHeight == Approx(423.49f).margin(0.5f));
+    CHECK(barY == Approx(439.49f).margin(0.5f));
+}
+
+TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/fit_font_size_hug_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("fit_font_size_hug_test"));
 }

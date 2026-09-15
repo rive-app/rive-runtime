@@ -14,6 +14,7 @@
 #include "rive/node.hpp"
 #include "rive/parent_traversal.hpp"
 #include "rive/semantic/semantic_data.hpp"
+#include "rive/semantic/semantic_provider.hpp"
 #include "rive/semantic/semantic_state.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/transform_component.hpp"
@@ -42,11 +43,36 @@ FocusData::~FocusData()
         // Clear the focusable pointer first to prevent callbacks during removal
         m_focusNode->clearFocusable();
 
-        // Remove from manager if registered
-        auto* manager = m_focusNode->manager();
+        // Take the node out of the focus tree. Its own manager pointer is the
+        // normal route, but a node can end up without one (a detach that was
+        // never paired with a re-add, or a manager torn down around it). Left
+        // parented, such a node survives with a null focusable, which is a
+        // state nothing else can clean up.
+        //
+        // Fall back to the nearest ancestor that still knows its manager, so
+        // removal keeps clearing focus and invalidating the manager's cached
+        // focusable-content answer; only when nothing in the chain is
+        // registered do we settle for a plain detach.
+        FocusManager* manager = m_focusNode->manager();
+        if (manager == nullptr)
+        {
+            for (FocusNode* p = m_focusNode->parent(); p != nullptr;
+                 p = p->parent())
+            {
+                if (p->manager() != nullptr)
+                {
+                    manager = p->manager();
+                    break;
+                }
+            }
+        }
         if (manager != nullptr)
         {
             manager->removeChild(m_focusNode);
+        }
+        else
+        {
+            m_focusNode->removeFromParent();
         }
         // m_focusNode (rcp) is released automatically when this destructor ends
     }
@@ -57,9 +83,9 @@ rcp<FocusNode> FocusData::focusNode()
     if (m_focusNode == nullptr)
     {
         m_focusNode = rcp<FocusNode>(new FocusNode(this));
-        m_focusNode->canFocus(m_CanFocus);
-        m_focusNode->canTouch(m_CanTouch);
-        m_focusNode->canTraverse(m_CanTraverse);
+        m_focusNode->canFocus((focusFlags() & canFocusBitmask) != 0);
+        m_focusNode->canTouch((focusFlags() & canTouchBitmask) != 0);
+        m_focusNode->canTraverse((focusFlags() & canTraverseBitmask) != 0);
         m_focusNode->edgeBehavior(
             static_cast<EdgeBehavior>(m_EdgeBehaviorValue));
         m_focusNode->name(name());
@@ -145,15 +171,20 @@ bool FocusData::keyInput(Key value,
                          bool isPressed,
                          bool isRepeat)
 {
-    // Notify listeners
+    // Every listener on this node is offered the key, even once one has
+    // claimed it: two listeners on the same element watching the same key
+    // both run, the way they always have. A claim reports upward, where
+    // FocusManager::keyInput stops the bubble -- the same split the DOM draws
+    // between stopPropagation and stopImmediatePropagation.
+    bool claimed = false;
     for (auto* listener : m_keyboardListeners)
     {
         if (listener->keyInput(value, modifiers, isPressed, isRepeat))
         {
-            return true;
+            claimed = true;
         }
     }
-    return false;
+    return claimed;
 }
 
 bool FocusData::textInput(const std::string& text)
@@ -167,6 +198,25 @@ bool FocusData::textInput(const std::string& text)
         }
     }
     return false;
+}
+
+bool FocusData::selectedText(std::string& outText) const
+{
+    // Mirror the TextInput special case in KeyboardListenerGroup's
+    // key/text routing: the focus target for a text input is a FocusData
+    // child whose parent is the TextInput itself.
+    Component* target = parent();
+    if (target != nullptr && target->is<TextInput>())
+    {
+        return target->as<TextInput>()->selectedText(outText);
+    }
+    return false;
+}
+
+bool FocusData::acceptsTextInput() const
+{
+    Component* target = parent();
+    return target != nullptr && target->is<TextInput>();
 }
 
 bool FocusData::gamepadDispatch(
@@ -352,6 +402,12 @@ void FocusData::focused()
     {
         sibling->setFocusedState(true);
     }
+
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<TextInput>())
+    {
+        parentComponent->as<TextInput>()->focused();
+    }
 }
 
 void FocusData::blurred()
@@ -367,29 +423,21 @@ void FocusData::blurred()
     {
         sibling->setFocusedState(false);
     }
-}
 
-void FocusData::canFocusChanged()
-{
-    if (m_focusNode != nullptr)
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<TextInput>())
     {
-        m_focusNode->canFocus(m_CanFocus);
+        parentComponent->as<TextInput>()->blurred();
     }
 }
 
-void FocusData::canTouchChanged()
+void FocusData::focusFlagsChanged()
 {
     if (m_focusNode != nullptr)
     {
-        m_focusNode->canTouch(m_CanTouch);
-    }
-}
-
-void FocusData::canTraverseChanged()
-{
-    if (m_focusNode != nullptr)
-    {
-        m_focusNode->canTraverse(m_CanTraverse);
+        m_focusNode->canFocus((focusFlags() & canFocusBitmask) != 0);
+        m_focusNode->canTouch((focusFlags() & canTouchBitmask) != 0);
+        m_focusNode->canTraverse((focusFlags() & canTraverseBitmask) != 0);
     }
 }
 
@@ -613,6 +661,25 @@ void FocusData::update(ComponentDirt value)
     }
 }
 
+bool FocusData::worldBounds(AABB& outBounds)
+{
+    auto* parentComponent = parent();
+    if (parentComponent == nullptr || !parentComponent->is<LayoutComponent>())
+    {
+        return false;
+    }
+    AABB bounds = parentComponent->as<LayoutComponent>()->worldBounds();
+    // Transform to root artboard space (handles nested artboards); all four
+    // corners so rotated/skewed hosts still yield a valid AABB.
+    auto* ab = artboard();
+    if (ab != nullptr)
+    {
+        bounds = SemanticProvider::rootTransformAABB(ab, bounds);
+    }
+    outBounds = bounds;
+    return true;
+}
+
 void FocusData::updateWorldBounds()
 {
     if (m_focusNode == nullptr)
@@ -620,24 +687,13 @@ void FocusData::updateWorldBounds()
         return;
     }
 
-    auto* parentComponent = parent();
-    if (parentComponent != nullptr && parentComponent->is<LayoutComponent>())
+    AABB bounds;
+    if (worldBounds(bounds))
     {
-        // LayoutComponent has worldBounds based on its layout dimensions
-        AABB bounds = parentComponent->as<LayoutComponent>()->worldBounds();
-        // Transform to root artboard space (handles nested artboards)
-        auto* ab = artboard();
-        if (ab != nullptr)
-        {
-            Vec2D min = ab->rootTransform(Vec2D(bounds.minX, bounds.minY));
-            Vec2D max = ab->rootTransform(Vec2D(bounds.maxX, bounds.maxY));
-            bounds = AABB(min.x, min.y, max.x, max.y);
-        }
         m_focusNode->worldBounds(bounds);
     }
     else
     {
-        // For non-layout parents, clear bounds (will fall back to position)
         m_focusNode->clearWorldBounds();
     }
 }

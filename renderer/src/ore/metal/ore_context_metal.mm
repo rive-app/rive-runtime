@@ -12,6 +12,7 @@
 #include "ore_texture_metal.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/metal/render_context_metal_impl.h"
+#include "rive/renderer/ore/cmd/ore_replay.hpp"
 #include "rive/rive_types.hpp"
 
 #include <string>
@@ -58,11 +59,11 @@ static MTLPixelFormat oreFormatToMTL(TextureFormat format)
         case TextureFormat::depth16unorm:
             return MTLPixelFormatDepth16Unorm;
         case TextureFormat::depth24plusStencil8:
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR) || TARGET_CPU_ARM64
-            // iOS and Apple Silicon (ARM64) don't support Depth24Unorm.
-            return MTLPixelFormatDepth32Float_Stencil8;
-#else
+#if TARGET_OS_OSX && !TARGET_CPU_ARM64
             return MTLPixelFormatDepth24Unorm_Stencil8;
+#else
+            // Only Intel macs support Depth24Unorm.
+            return MTLPixelFormatDepth32Float_Stencil8;
 #endif
         case TextureFormat::depth32float:
             return MTLPixelFormatDepth32Float;
@@ -70,19 +71,19 @@ static MTLPixelFormat oreFormatToMTL(TextureFormat format)
             return MTLPixelFormatDepth32Float_Stencil8;
         case TextureFormat::bc1unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC1_RGBA;
 #endif
             RIVE_UNREACHABLE();
         case TextureFormat::bc3unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC3_RGBA;
 #endif
             RIVE_UNREACHABLE();
         case TextureFormat::bc7unorm:
 #if TARGET_OS_OSX || (__IPHONE_OS_VERSION_MAX_ALLOWED >= 160400)
-            if (@available(iOS 16.4, *))
+            if (@available(iOS 16.4, tvOS 16.4, *))
                 return MTLPixelFormatBC7_RGBAUnorm;
 #endif
             RIVE_UNREACHABLE();
@@ -371,6 +372,7 @@ inline void ContextMetal::mtlPopulateFeatures(id<MTLDevice> device)
 {
     Features& f = m_features;
     f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
     f.textureViewSampling = true;
@@ -619,12 +621,8 @@ inline rcp<Pipeline> ContextMetal::mtlMakePipeline(const PipelineDesc& desc,
     // --- Validate user-supplied layouts against shader binding map ---
     {
         std::string err;
-        if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
-                                              desc.bindGroupLayouts,
-                                              desc.bindGroupLayoutCount,
-                                              &err) ||
-            !validateColorRequiresFragment(
-                desc.colorCount, desc.fragmentModule != nullptr, &err))
+        if (!validatePipelineDesc(
+                desc, pipeline->m_bindingMap, NativeSlotScope::perStage, &err))
         {
             if (outError)
                 *outError = err;
@@ -844,6 +842,11 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     if (desc.layout == nullptr)
     {
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
+        return nullptr;
+    }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
         return nullptr;
     }
     BindGroupLayout* layout = desc.layout;
@@ -1152,6 +1155,7 @@ void ContextMetal::beginFrame(const FrameDescriptor&)
     m_mtlCommandBuffer = [m_mtlQueue commandBuffer];
     // Serial of the command buffer about to be recorded.
     ++m_currentSerial;
+    m_pendingFrame.reset();
 }
 
 void ContextMetal::waitForGPU()
@@ -1166,6 +1170,14 @@ void ContextMetal::endFrame()
 {
     if (m_mtlCommandBuffer)
     {
+        // Drain the recorded frame before commit. Keyed on a non empty
+        // recording rather than the flag so a mid frame toggle still drains.
+        if (!m_pendingFrame.empty())
+        {
+            cmd::replayCommandBuffer(*this, m_pendingFrame);
+            m_pendingFrame.reset();
+        }
+
         // Capture deferred BindGroups in a `__block` vector that the
         // completion handler clears once the GPU is done with the
         // command buffer. Pre-fix the next `beginFrame()` cleared
@@ -1290,7 +1302,6 @@ rcp<BindGroupLayout> ContextMetal::makeBindGroupLayout(
 std::unique_ptr<RenderPass> ContextMetal::beginRenderPass(
     const RenderPassDesc& desc, std::string* outError)
 {
-    finishActiveRenderPass();
     return mtlBeginRenderPass(desc, outError);
 }
 

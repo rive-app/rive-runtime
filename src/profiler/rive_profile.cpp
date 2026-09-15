@@ -147,7 +147,14 @@ void RiveProfile::start()
     MicroProfile* pState = MicroProfileGet();
     if (pState != nullptr)
     {
-        m_lastFlushedFrameIndex = pState->nFramePutIndex;
+        // Skip the boundary frame. nFramePutIndex only advances on flip, and we
+        // only flip while profiling is active, so the frame slot at
+        // nFramePutIndex holds a stale tick from before this session (the
+        // MicroProfileInit tick, or the last flip of a previous session). Its
+        // "duration" would be the idle gap before start() rather than a real
+        // frame, producing an absurd spike. Start one frame later so the first
+        // emitted frame is bounded by two in-session flips.
+        m_lastFlushedFrameIndex = pState->nFramePutIndex + 1;
     }
 #endif
 }
@@ -191,6 +198,14 @@ void RiveProfile::flushFrameDataTo(std::vector<uint8_t>& buffer)
     {
         m_lastFlushedFrameIndex = endFrameIndex - maxHistory;
     }
+    // Emit every real frame, however slow. The whole point of the profiler is
+    // to measure performance across devices, so a genuinely slow frame (even
+    // hundreds of ms on weak hardware) MUST reach the tool - we do not drop by
+    // magnitude here. The only frames skipped are corrupt ones: a negative
+    // duration means the two frame-start slots are out of order (e.g. a stale
+    // ring slot that hasn't been written this session). Pauses/stalls (which
+    // look like a single very long frame) are left in the stream and flagged
+    // downstream so they can be shown without wrecking the aggregates.
     for (uint64_t frameIdx = m_lastFlushedFrameIndex; frameIdx < endFrameIndex;
          frameIdx++)
     {
@@ -198,6 +213,12 @@ void RiveProfile::flushFrameDataTo(std::vector<uint8_t>& buffer)
             static_cast<uint32_t>(frameIdx % MICROPROFILE_MAX_FRAME_HISTORY);
         uint32_t nextRingIdx = static_cast<uint32_t>(
             (frameIdx + 1) % MICROPROFILE_MAX_FRAME_HISTORY);
+        int64_t durationTicks = pState->Frames[nextRingIdx].nFrameStartCpu -
+                                pState->Frames[ringIdx].nFrameStartCpu;
+        if (durationTicks < 0)
+        {
+            continue;
+        }
         writeFrameEvents(writer, pState, ringIdx, nextRingIdx);
     }
     m_lastFlushedFrameIndex = endFrameIndex;

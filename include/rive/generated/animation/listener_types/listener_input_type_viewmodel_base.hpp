@@ -3,6 +3,9 @@
 #include "rive/animation/listener_types/listener_input_type.hpp"
 #include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/span.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ListenerInputTypeViewModelBase : public ListenerInputType
@@ -40,6 +43,7 @@ public:
     void copy(const ListenerInputTypeViewModelBase& object)
     {
         copyViewModelPathIds(object);
+        RIVE_EDITOR_COPY(object);
         ListenerInputType::copy(object);
     }
 
@@ -51,11 +55,15 @@ public:
                 decodeViewModelPathIds(CoreBytesType::deserialize(reader));
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ListenerInputType::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void viewModelPathIdsChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/listener_types/listener_input_type_viewmodel_ext.inl"
+#endif
 };
 } // namespace rive
 

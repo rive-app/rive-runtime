@@ -15,6 +15,7 @@
 #include "rive_testing.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <string>
 #include <vector>
 
 TEST_CASE("Component List Artboard Count", "[component_list]")
@@ -139,7 +140,8 @@ TEST_CASE("Component List Artboards Data Context", "[component_list]")
         auto artboard = list->artboardInstance(i);
         REQUIRE(artboard != nullptr);
         auto context = artboard->dataContext();
-        auto vmString = context->viewModelInstance()->propertyValue("Label");
+        auto vmString =
+            context->mainViewModelInstance()->propertyValue("Label");
         REQUIRE(vmString->is<rive::ViewModelInstanceString>());
         REQUIRE(
             vmString->as<rive::ViewModelInstanceString>()->propertyValue() ==
@@ -179,7 +181,7 @@ TEST_CASE("Component list state machine listener", "[component_list]")
 {
     auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+    auto artboard = file->artboardNamed("Main");
     REQUIRE(artboard != nullptr);
     auto stateMachine = artboard->stateMachine("State Machine 1");
     REQUIRE(stateMachine != nullptr);
@@ -402,6 +404,112 @@ TEST_CASE("Component List Virtualized Artboards & State Machines",
             REQUIRE(sm == nullptr);
         }
     }
+}
+
+TEST_CASE("Component List Virtualized Buffer", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // This fixture is a carousel, so the leading buffer wraps to the tail
+    // rather than clamping at index 0.
+    REQUIRE(scroll->infinite() == true);
+
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+
+    REQUIRE(list->artboardCount() == 20);
+    // Items 0-4 are visible, 5-6 are the trailing buffer, and the leading
+    // buffer wraps around to 19 and 18. Collected in index order.
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "0 1 2 3 4 5 6 18 19 ");
+}
+
+TEST_CASE("Component List Virtualized Buffer Clamps When Not Infinite",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    // Without the carousel the leading buffer has nowhere to wrap to, so it
+    // clamps at index 0 instead.
+    scroll->infinite(false);
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "0 1 2 3 4 5 6 ");
+}
+
+TEST_CASE("Component List Virtualized Buffer Both Sides", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    scroll->virtualizeBuffer(2);
+    artboard->advance(0.0f);
+    // Bring items 5..9 into view.
+    scroll->setScrollIndex(5);
+    artboard->advance(0.0f);
+
+    // 3..4 buffered before, 5..9 visible, 10..11 buffered after.
+    std::string realized;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            realized += std::to_string(i) + " ";
+        }
+    }
+    INFO("realized indices: " << realized);
+    REQUIRE(realized == "3 4 5 6 7 8 9 10 11 ");
 }
 
 TEST_CASE("Component List Virtualized Artboards Layout Bounds",
@@ -1184,4 +1292,209 @@ TEST_CASE("Draw index overrides draw order", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("draw_index_list"));
+}
+namespace
+{
+// Records draw and clip calls with world-space bounds so tests can assert
+// which clip was active when each path was drawn.
+class ClipProbePath : public rive::RenderPath
+{
+public:
+    rive::RawPath rawPath;
+    ClipProbePath() {}
+    ClipProbePath(rive::RawPath& path) : rawPath(path) {}
+    void rewind() override { rawPath.rewind(); }
+    void fillRule(rive::FillRule) override {}
+    void addPath(rive::CommandPath*, const rive::Mat2D&) override {}
+    void addRenderPath(const rive::RenderPath*, const rive::Mat2D&) override {}
+    void addRawPath(const rive::RawPath& path) override
+    {
+        rawPath.addPath(path, nullptr);
+    }
+    void moveTo(float, float) override {}
+    void lineTo(float, float) override {}
+    void cubicTo(float, float, float, float, float, float) override {}
+    void close() override {}
+};
+
+class ClipProbeFactory : public rive::NoOpFactory
+{
+    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath,
+                                               rive::FillRule) override
+    {
+        return rive::make_rcp<ClipProbePath>(rawPath);
+    }
+    rive::rcp<rive::RenderPath> makeEmptyRenderPath() override
+    {
+        return rive::make_rcp<ClipProbePath>();
+    }
+};
+
+class ClipProbeRenderer : public rive::Renderer
+{
+public:
+    struct DrawEvent
+    {
+        rive::AABB bounds;
+        rive::AABB clip;
+        bool hasClip = false;
+    };
+
+    std::vector<DrawEvent> draws;
+
+    void save() override { m_stack.push_back(m_stack.back()); }
+    void restore() override { m_stack.pop_back(); }
+    void transform(const rive::Mat2D& m) override
+    {
+        m_stack.back().transform = m_stack.back().transform * m;
+    }
+    void clipPath(rive::RenderPath* path) override
+    {
+        auto world = worldBounds(path);
+        auto& state = m_stack.back();
+        if (!state.hasClip)
+        {
+            state.clip = world;
+            state.hasClip = true;
+        }
+        else
+        {
+            state.clip = {std::max(state.clip.minX, world.minX),
+                          std::max(state.clip.minY, world.minY),
+                          std::min(state.clip.maxX, world.maxX),
+                          std::min(state.clip.maxY, world.maxY)};
+        }
+    }
+    void drawPath(rive::RenderPath* path, rive::RenderPaint*) override
+    {
+        draws.push_back(
+            {worldBounds(path), m_stack.back().clip, m_stack.back().hasClip});
+    }
+    void modulateOpacity(float) override {}
+    void drawImage(const rive::RenderImage*,
+                   rive::ImageSampler,
+                   rive::BlendMode,
+                   float) override
+    {}
+    void drawImageMesh(const rive::RenderImage*,
+                       rive::ImageSampler,
+                       rive::rcp<rive::RenderBuffer>,
+                       rive::rcp<rive::RenderBuffer>,
+                       rive::rcp<rive::RenderBuffer>,
+                       uint32_t,
+                       uint32_t,
+                       rive::BlendMode,
+                       float) override
+    {}
+
+private:
+    struct State
+    {
+        rive::Mat2D transform;
+        rive::AABB clip;
+        bool hasClip = false;
+    };
+    std::vector<State> m_stack{State()};
+
+    rive::AABB worldBounds(rive::RenderPath* path)
+    {
+        auto probe = static_cast<ClipProbePath*>(path);
+        return m_stack.back().transform.mapBoundingBox(
+            probe->rawPath.points().data(),
+            probe->rawPath.points().size());
+    }
+};
+
+int countMounted(rive::ArtboardComponentList* list)
+{
+    int mounted = 0;
+    for (int i = 0; i < (int)list->artboardCount(); i++)
+    {
+        if (list->artboardInstance(i) != nullptr)
+        {
+            mounted++;
+        }
+    }
+    return mounted;
+}
+} // namespace
+
+// The list sits in a hug-height content layout inside a 200x200 clipping
+// viewport at (100, 100) in a 400x400 artboard, six 200x50 items with a 10
+// gap, plus an absolute overlay at the artboard bottom.
+TEST_CASE("Virtualized list items are clipped by an ancestor layout viewport",
+          "[component_list]")
+{
+    const rive::AABB viewport(100.0f, 100.0f, 300.0f, 300.0f);
+
+    ClipProbeFactory factory;
+    auto file =
+        ReadRiveFile("assets/component_list_clipped_viewport.riv", &factory);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(list->artboardCount() == 6);
+    REQUIRE(list->virtualizationEnabled() == true);
+    // Only items intersecting the viewport are mounted.
+    REQUIRE(countMounted(list) == 4);
+
+    ClipProbeRenderer renderer;
+    artboard->draw(&renderer);
+
+    // Artboard background, four item fills, overlay fill.
+    REQUIRE(renderer.draws.size() == 6);
+
+    // Every item fill draws with the viewport clip active.
+    for (int i = 1; i <= 4; i++)
+    {
+        auto& item = renderer.draws[i];
+        REQUIRE(item.hasClip);
+        REQUIRE(item.clip.minX == viewport.minX);
+        REQUIRE(item.clip.minY == viewport.minY);
+        REQUIRE(item.clip.maxX == viewport.maxX);
+        REQUIRE(item.clip.maxY == viewport.maxY);
+    }
+    // The last mounted item straddles the viewport bottom; without the clip
+    // it would paint outside the viewport.
+    REQUIRE(renderer.draws[4].bounds.maxY > viewport.maxY);
+
+    // The overlay is outside the viewport subtree and must not inherit its
+    // clip; it draws after (above) the items.
+    auto& overlay = renderer.draws[5];
+    REQUIRE(overlay.bounds.minY == 360.0f);
+    if (overlay.hasClip)
+    {
+        // Any clip it does carry (the artboard's) is wider than the viewport.
+        REQUIRE(overlay.clip.maxY > viewport.maxY);
+    }
+
+    // Scrolling moves the virtualization window and keeps items clipped.
+    auto scrolls = artboard->find<rive::ScrollConstraint>();
+    REQUIRE(scrolls.size() == 1);
+    auto scroll = scrolls[0];
+    scroll->setScrollIndex(2);
+    artboard->advance(0.0f);
+
+    REQUIRE(list->artboardInstance(0) == nullptr);
+    REQUIRE(list->artboardInstance(5) != nullptr);
+
+    ClipProbeRenderer scrolled;
+    artboard->draw(&scrolled);
+    REQUIRE(scrolled.draws.size() == 6);
+    for (int i = 1; i <= 4; i++)
+    {
+        REQUIRE(scrolled.draws[i].hasClip);
+        REQUIRE(scrolled.draws[i].clip.minY == viewport.minY);
+        REQUIRE(scrolled.draws[i].clip.maxY == viewport.maxY);
+    }
+    // First visible item is item 2, flush with the viewport top.
+    REQUIRE(scrolled.draws[1].bounds.minY == viewport.minY);
 }

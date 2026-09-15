@@ -7,26 +7,27 @@ using namespace rive;
 
 void RotationConstraint::constrain(TransformComponent* component)
 {
-    if (m_Target != nullptr && m_Target->isCollapsed())
+    auto* tgt = target();
+    if (tgt != nullptr && tgt->isCollapsed())
     {
         return;
     }
     const Mat2D& transformA = component->worldTransform();
     Mat2D transformB;
     m_ComponentsA = transformA.decompose();
-    if (m_Target == nullptr)
+    if (tgt == nullptr)
     {
         transformB = transformA;
         m_ComponentsB = m_ComponentsA;
     }
     else
     {
-        transformB = m_Target->worldTransform();
+        transformB = tgt->worldTransform();
         if (sourceSpace() == TransformSpace::local)
         {
             Mat2D inverse;
 
-            if (!getParentWorld(*m_Target).invert(&inverse))
+            if (!getParentWorld(*tgt).invert(&inverse))
             {
                 return;
             }
@@ -111,5 +112,5 @@ void RotationConstraint::constrain(TransformComponent* component)
     m_ComponentsB.scaleY(m_ComponentsA.scaleY());
     m_ComponentsB.skew(m_ComponentsA.skew());
 
-    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
+    composeKeepingAnchor(component, m_ComponentsB);
 }

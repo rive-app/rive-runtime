@@ -33,6 +33,11 @@ public:
 
     Core* clone() const override;
     void addVariation(TextStyleAxis* axis);
+#ifdef WITH_RIVE_EDITOR
+    /// Idempotent — TextStyleAxis::editorParentChanged calls this.
+    void addVariationForEditor(TextStyleAxis* axis);
+    void removeVariationForEditor(TextStyleAxis* axis);
+#endif
     void addFeature(TextStyleFeature* feature);
     void updateVariableFont() const;
     StatusCode onAddedClean(CoreContext* context) override;

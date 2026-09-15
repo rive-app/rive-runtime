@@ -14,7 +14,8 @@
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
@@ -30,7 +31,8 @@ using namespace rive::gpu;
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
 using namespace rive::ore;
 #endif
 
@@ -50,7 +52,8 @@ public:
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK)
+    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
+    defined(ORE_BACKEND_RHI)
         auto& ctx = *renderContext->getOreContext();
         constexpr uint32_t kSize = 128;
 

@@ -24,6 +24,18 @@ public:
     Skin* skin() const { return m_Skin; }
     virtual void markSkinDirty() = 0;
 
+#ifdef WITH_RIVE_EDITOR
+    /// Skin::editorParentChanged calls these on parent transitions.
+    void setSkinForEditor(Skin* s) { m_Skin = s; }
+    void clearSkinIfForEditor(Skin* expected)
+    {
+        if (m_Skin == expected)
+        {
+            m_Skin = nullptr;
+        }
+    }
+#endif
+
     static Skinnable* from(Component* component);
 };
 } // namespace rive

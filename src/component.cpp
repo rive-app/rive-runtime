@@ -10,6 +10,18 @@
 
 using namespace rive;
 
+#ifdef WITH_RIVE_EDITOR
+Component::OnParentIdChangedCallback Component::s_onParentIdChanged = nullptr;
+
+void Component::parentIdChanged()
+{
+    if (s_onParentIdChanged != nullptr)
+    {
+        s_onParentIdChanged(this);
+    }
+}
+#endif
+
 bool Component::validate(CoreContext* context)
 {
     auto coreObject = context->resolve(parentId());
@@ -18,6 +30,68 @@ bool Component::validate(CoreContext* context)
 
 StatusCode Component::onAddedDirty(CoreContext* context)
 {
+#ifdef WITH_RIVE_EDITOR
+    // editor_native's coop-apply passes an EditorFile as the
+    // CoreContext — NOT an Artboard. The runtime's `static_cast` below
+    // is invalid in that case (produces garbage). Mirror Dart's
+    // `resolveArtboard()` in `packages/rive_core/lib/component.dart:175`:
+    // walk up the parent chain by id to find the Artboard. Uses
+    // `parentId()` (populated in Pass 2 of the coop-apply ordering)
+    // rather than `parent()` pointers, so result is independent of
+    // whether the parent's own `onAddedDirty` has run yet.
+    if (this->is<Artboard>())
+    {
+        m_Artboard = this->as<Artboard>();
+        return StatusCode::Ok;
+    }
+    auto* resolved = context->resolve(parentId());
+    if (resolved == nullptr || !resolved->is<ContainerComponent>())
+    {
+        // Parent not in the file (typeKey unknown to this build,
+        // or coop hasn't delivered it yet). Tell subclass
+        // `onAddedDirty` to bail too — propagating MissingObject
+        // means the subclass's `Super::onAddedDirty()` check at
+        // the top of every override returns early without
+        // calling typed setup like `initPaintMutator` /
+        // `parent()->as<X>()->addY(this)`. This mirrors Dart's
+        // `validate()` cull (rive_core/lib/component.dart:409 +
+        // rive_file.dart:750-764): orphan Cores are simply not
+        // wired into the live graph.
+        return StatusCode::MissingObject;
+    }
+    auto* parentContainer = resolved->as<ContainerComponent>();
+    setParentForEditor(parentContainer);
+    for (Core* curr = resolved; curr != nullptr;)
+    {
+        if (curr->is<Artboard>())
+        {
+            m_Artboard = curr->as<Artboard>();
+            break;
+        }
+        if (!curr->is<Component>())
+        {
+            break;
+        }
+        curr = context->resolve(curr->as<Component>()->parentId());
+    }
+    if (m_Artboard == nullptr)
+    {
+        // Parent chain broken before reaching the Artboard.
+        // Same propagation as no-parent: subclass `onAddedDirty`
+        // overrides bail on MissingObject from Super, so
+        // typed setup like `initPaintMutator(this)` (which derefs
+        // `artboard()->factory()`) never runs and never crashes.
+        // Pass G in `EditorFile::finalizeBatch` re-resolves the
+        // chain on every batch; if a subsequent coop batch fills
+        // the missing ancestor, `m_Artboard` gets populated and
+        // a re-validation pass (Slice 6 follow-up) can re-run
+        // the typed setup.
+        setParentForEditor(nullptr);
+        return StatusCode::MissingObject;
+    }
+    parentContainer->addChild(this);
+    return StatusCode::Ok;
+#else
     m_Artboard = static_cast<Artboard*>(context);
     if (this == m_Artboard)
     {
@@ -27,6 +101,7 @@ StatusCode Component::onAddedDirty(CoreContext* context)
     m_Parent = context->resolve(parentId())->as<ContainerComponent>();
     m_Parent->addChild(this);
     return StatusCode::Ok;
+#endif
 }
 
 bool Component::addDirt(ComponentDirt value, bool recurse)

@@ -8,6 +8,7 @@
 
 #include "rive/math/aabb.hpp"
 #include "rive/math/simd.hpp"
+#include "rive/renderer/gpu.hpp"
 
 namespace rive::gpu
 {
@@ -26,6 +27,15 @@ public:
                      0,
                      static_cast<int>(m_width),
                      static_cast<int>(m_height)};
+    }
+
+    // Whether row 0 of the target holds the visual bottom. Targets follow
+    // their framebuffer unless a backend keeps some the other way round, and
+    // everything that maps Rive pixel space onto the target compensates per
+    // flush. Stays inline so a lane linking a subclass never needs gpu.cpp.
+    virtual bool bottomUp(const PlatformFeatures& platformFeatures) const
+    {
+        return platformFeatures.framebufferBottomUp;
     }
 
 protected:

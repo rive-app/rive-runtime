@@ -29,7 +29,10 @@ StatusCode TextModifierGroup::onAddedDirty(CoreContext* context)
 
     if (parent() != nullptr && parent()->is<Text>())
     {
+#ifndef WITH_RIVE_EDITOR
+        // Runtime-only; editor build registers via editorParentChanged.
         parent()->as<Text>()->addModifierGroup(this);
+#endif
         return StatusCode::Ok;
     }
 

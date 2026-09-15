@@ -23,6 +23,12 @@ public:
     {
         return nullptr;
     }
+
+    // Backs an offscreen canvas with null-device pixels so replay actually
+    // opens its frame instead of dropping the content. Without this a canvas
+    // recorded against this context stays unbacked and its draws are
+    // discarded, which would make an offscreen render look free.
+    void ensureCanvasBacking(rive::gpu::RenderCanvas*) override;
 #endif
 
     rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,
@@ -54,7 +60,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override {}
     void resizeTessellationTexture(uint32_t width, uint32_t height) override {}
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override {}
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override {}
     void resizeCoverageBuffer(size_t) override {}
 
     void flush(const rive::gpu::FlushDescriptor&) override {}

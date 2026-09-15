@@ -597,6 +597,9 @@ TEST_CASE("Listeners are sorted in the right order", "[silver]")
     CHECK(silver.matches("sorted_listeners"));
 }
 
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Listeners with multiple types of events", "[silver]")
 {
     SerializingFactory silver;
@@ -646,6 +649,11 @@ TEST_CASE("Listeners with multiple types of events", "[silver]")
 
     CHECK(silver.matches("multi_listeners"));
 }
+
+// The test asset carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+#endif
 
 TEST_CASE("Listeners with multiple types of events and rebinding", "[silver]")
 {
@@ -715,6 +723,7 @@ TEST_CASE("Listeners with multiple types of events and rebinding", "[silver]")
 
     CHECK(silver.matches("multi_listeners-rebind"));
 }
+#endif
 
 TEST_CASE("Transition duration in nested state machines is bindable",
           "[silver]")
@@ -958,4 +967,40 @@ TEST_CASE("Transitions and state layers can trigger actions", "[silver]")
     }
 
     CHECK(silver.matches("transition_actions"));
+}
+
+TEST_CASE(
+    "Paused state machine changes opacity and relayouts when parent's opacity or layout changes",
+    "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/paused_nested_artboard_opacity.riv", &silver);
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(2.0f / 0.05f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.05f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("paused_nested_artboard_opacity"));
 }

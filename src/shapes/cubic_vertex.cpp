@@ -75,6 +75,15 @@ void CubicVertex::deform(const Mat2D& worldTransform,
     Super::deform(worldTransform, boneTransforms);
 
     auto cubicWeight = weight<CubicWeight>();
+#ifdef WITH_RIVE_EDITOR
+    // See `Vertex::deform` — editor coop hydration can deliver a
+    // skin-bound cubic vertex without its CubicWeight child (or with
+    // a base Weight that isn't a CubicWeight subclass yet). Skip
+    // rather than null-deref. Runtime importer rejects such files
+    // so the runtime build never reaches this branch.
+    if (cubicWeight == nullptr)
+        return;
+#endif
 
     cubicWeight->inTranslation() = Weight::deform(inPoint(),
                                                   cubicWeight->inIndices(),

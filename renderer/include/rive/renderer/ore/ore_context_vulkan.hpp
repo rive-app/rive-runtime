@@ -196,6 +196,11 @@ private:
     };
     std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
     void vkFlushPendingInitialTransitions();
+    // Loading a never written subresource reads undefined contents, and
+    // some ICDs then reject every fragment of the pass, so clear instead.
+    // Marks the view's range written either way.
+    static LoadOp firstUseLoadOp(TextureView* view, LoadOp loadOp);
+
     // Queue a transition for `texture` from its current m_vkLayout to
     // `newLayout` (typically SHADER_READ_ONLY_OPTIMAL for sampled use).
     // No-op when the texture is already in the target layout.  Safe to

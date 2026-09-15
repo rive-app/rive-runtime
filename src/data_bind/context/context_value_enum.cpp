@@ -1,6 +1,7 @@
 #include "rive/data_bind/context/context_value_enum.hpp"
 #include "rive/data_bind/data_values/data_value_enum.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 
 using namespace rive;
 
@@ -22,8 +23,11 @@ void DataBindContextValueEnum::apply(Core* target,
     {
         case CoreUintType::id:
         {
-            if (target && target->is<Solo>())
+            if (target &&
+                (target->is<Solo>() || target->is<ScriptedTransition>()))
             {
+                // Select by the enum item's NAME: its id is meaningless as a
+                // child id.
                 if (m_dataValue->is<DataValueEnum>())
                 {
                     auto dataValueEnum = m_dataValue->as<DataValueEnum>();
@@ -31,7 +35,15 @@ void DataBindContextValueEnum::apply(Core* target,
                     if (dataEnum)
                     {
                         auto valueString = dataEnum->value(value);
-                        target->as<Solo>()->updateByName(valueString);
+                        if (target->is<Solo>())
+                        {
+                            target->as<Solo>()->updateByName(valueString);
+                        }
+                        else
+                        {
+                            target->as<ScriptedTransition>()->updateByName(
+                                valueString);
+                        }
                     }
                 }
             }

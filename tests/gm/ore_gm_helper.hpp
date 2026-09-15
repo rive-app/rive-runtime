@@ -11,18 +11,26 @@
 
 #include "common/testing_window.hpp"
 #include "rive/renderer/render_context.hpp"
+#include "rive/renderer/render_context_impl.hpp"
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
 
-// Include Ore headers when any backend is compiled.
-// Multiple backends may be active simultaneously (e.g. Metal + GL on macOS).
+// True when any Ore backend is compiled. Multiple backends may be active
+// simultaneously (e.g. Metal + GL on macOS). Source of truth for every GM.
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
     defined(ORE_BACKEND_RHI)
+#define ORE_GM_HAS_BACKEND 1
+#else
+#define ORE_GM_HAS_BACKEND 0
+#endif
+
+#if ORE_GM_HAS_BACKEND
 #include "rive/renderer/ore/ore_context.hpp"
 #include <memory>
 #endif
@@ -67,14 +75,12 @@
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #endif
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
 #include "ore_gm_shaders.rstb.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
+#include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #endif
 
 namespace ore_gm
@@ -84,7 +90,13 @@ namespace ore_gm
 // Ore backend.
 inline bool isOreBackendActive()
 {
-    auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+    if (TestingWindow::isUnreal())
+    {
+        return true;
+    }
+#endif
+    [[maybe_unused]] auto b = TestingWindow::backend();
 #if defined(ORE_BACKEND_METAL)
     if (b == TestingWindow::Backend::metal)
     {
@@ -123,12 +135,6 @@ inline bool isOreBackendActive()
         return true;
     }
 #endif
-#if defined(ORE_BACKEND_RHI)
-    if (b == TestingWindow::Backend::rhi)
-    {
-        return true;
-    }
-#endif
     return false;
 }
 
@@ -141,14 +147,17 @@ struct OreGMContext
     bool ensureContext(rive::gpu::RenderContext* renderContext)
     {
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
         if (!renderContext || !isOreBackendActive())
             return false;
 
-        auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+        if (TestingWindow::isUnreal())
+        {
+            return true;
+        }
+#endif
+        [[maybe_unused]] auto b = TestingWindow::backend();
 
 #if defined(ORE_BACKEND_METAL)
         if (b == TestingWindow::Backend::metal)
@@ -178,12 +187,6 @@ struct OreGMContext
 #endif
 #if defined(ORE_BACKEND_D3D12)
         if (b == TestingWindow::Backend::d3d12)
-        {
-            return true;
-        }
-#endif
-#if defined(ORE_BACKEND_RHI)
-        if (b == TestingWindow::Backend::rhi)
         {
             return true;
         }
@@ -226,44 +229,12 @@ struct OreGMContext
     }
 };
 
-// Ore's GL backend modifies GL state (blend, depth, stencil, cull, front face
-// winding, etc.) that Rive's GLState cache tracks. After Ore rendering,
-// invalidate the cache so Rive re-issues all GL state changes on the next
-// flush. Without this, the MSAA path (which relies on correct cached state for
-// culling and stencil) renders black because GLState skips state updates it
-// thinks are redundant.
-// For WGPU, command submission is handled by Context::endFrame() and there
-// is no shared GL state cache to invalidate.
-inline void invalidateGLStateAfterOre(
-    [[maybe_unused]] rive::gpu::RenderContext* renderContext)
+// Ore leaves GL state behind that Rive's own cache does not track, so the
+// next flush would skip updating it and render black. The backend owns the
+// cleanup; every other backend no-ops.
+inline void invalidateGLStateAfterOre(rive::gpu::RenderContext* renderContext)
 {
-#if defined(ORE_BACKEND_GL)
-    auto b = TestingWindow::backend();
-    if (b == TestingWindow::Backend::gl || b == TestingWindow::Backend::angle)
-    {
-        // Ensure all Ore GPU commands are complete before returning to Rive.
-        // On some MSAA drivers, pending Ore FBO operations can interfere with
-        // subsequent Rive MSAA flush.
-        glFinish();
-
-        // Unbind sampler objects from all texture units. Sampler objects are
-        // global state (not per-FBO/VAO) and not restored by
-        // Context::endFrame() or tracked by GLState. A stale sampler can
-        // override Rive's texture sampling parameters and cause black renders
-        // on the MSAA path.
-        for (int i = 0; i < 16; ++i)
-        {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-            glBindSampler(i, 0);
-        }
-        glActiveTexture(GL_TEXTURE0);
-
-        renderContext->static_impl_cast<rive::gpu::RenderContextGLImpl>()
-            ->invalidateGLState();
-    }
-#endif
+    renderContext->impl()->scrubStateAfterOre();
 }
 
 #if defined(ORE_BACKEND_D3D11) || defined(ORE_BACKEND_D3D12)
@@ -314,10 +285,10 @@ inline std::vector<uint8_t> compileHLSL(const char* source,
 // ShaderTarget constants (must match RSTB format):
 //   0=WGSL, 1=GLSL_ES3, 2=MSL, 3=HLSL_SM5, 5=SPIR-V
 
-#if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
-    defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
-    defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
-    defined(ORE_BACKEND_RHI)
+#if ORE_GM_HAS_BACKEND
+
+// Keeps GM shader asset ids clear of riv asset ids and 0 (unset).
+constexpr uint32_t kOreGMShaderAssetIdBase = 0x80000000u;
 
 enum OreGMShader : uint32_t
 {
@@ -372,7 +343,11 @@ inline rive::ShaderAsset& getRstbAssetForShader(uint32_t shaderId)
 /// Map TestingWindow backend to RSTB ShaderTarget.
 inline uint8_t shaderTargetForBackend()
 {
-    auto b = TestingWindow::backend();
+#if defined(ORE_BACKEND_RHI)
+    if (TestingWindow::isUnreal())
+        return 3; // HLSL SM5
+#endif
+    [[maybe_unused]] auto b = TestingWindow::backend();
 #if defined(ORE_BACKEND_METAL)
     if (b == TestingWindow::Backend::metal)
         return 2; // MSL
@@ -387,10 +362,6 @@ inline uint8_t shaderTargetForBackend()
 #endif
 #if defined(ORE_BACKEND_D3D12)
     if (b == TestingWindow::Backend::d3d12)
-        return 3; // HLSL SM5
-#endif
-#if defined(ORE_BACKEND_RHI)
-    if (b == TestingWindow::Backend::rhi)
         return 3; // HLSL SM5
 #endif
 #if defined(ORE_BACKEND_WGPU)
@@ -534,6 +505,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
                 continue;
             ShaderModuleDesc desc{};
             desc.stage = isVtx ? ShaderStage::vertex : ShaderStage::fragment;
+            desc.shaderAssetId = kOreGMShaderAssetIdBase + shaderId;
             desc.bindingMapBytes = bindingMapBytes;
             desc.bindingMapSize = bindingMapSize;
             if (target == 3)
@@ -572,6 +544,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     if (!parseWholeModuleContainer(blobData, blobSize, views, &src, &srcLen))
         return result;
     ShaderModuleDesc desc{};
+    desc.shaderAssetId = kOreGMShaderAssetIdBase + shaderId;
     desc.code = src;
     desc.codeSize = srcLen;
     if (target == 0)
@@ -586,34 +559,7 @@ inline OreGMShaderResult loadShader(rive::ore::Context& ctx, uint32_t shaderId)
     return result;
 }
 
-// Map ResourceKind (binding-map enum) to BindingKind (public layout enum).
-inline rive::ore::BindingKind bindingKindFromResource(rive::ore::ResourceKind k)
-{
-    using K = rive::ore::BindingKind;
-    using R = rive::ore::ResourceKind;
-    switch (k)
-    {
-        case R::UniformBuffer:
-            return K::uniformBuffer;
-        case R::StorageBufferRO:
-            return K::storageBufferRO;
-        case R::StorageBufferRW:
-            return K::storageBufferRW;
-        case R::SampledTexture:
-            return K::sampledTexture;
-        case R::StorageTexture:
-            return K::storageTexture;
-        case R::Sampler:
-            return K::sampler;
-        case R::ComparisonSampler:
-            return K::comparisonSampler;
-    }
-    return K::uniformBuffer;
-}
-
 // Build a `BindGroupLayout` from a shader's `BindingMap` for a given group.
-// Walks every entry whose `group == g`, copies kind / visibility / native
-// slots into a `BindGroupLayoutEntry`, and calls `ctx.makeBindGroupLayout`.
 //
 // `dynamicUBOBindings` (optional): array of WGSL @binding values within
 // `group` whose UBO entries should set `hasDynamicOffset = true`. Mirrors
@@ -625,106 +571,59 @@ inline rive::rcp<rive::ore::BindGroupLayout> makeLayoutFromShader(
     const uint32_t* dynamicUBOBindings = nullptr,
     uint32_t dynamicUBOCount = 0)
 {
-    using namespace rive::ore;
-    static constexpr int kMaxEntries = 16;
-    BindGroupLayoutEntry entries[kMaxEntries]{};
-    uint32_t n = 0;
-
-    auto isDynamic = [&](uint32_t binding) -> bool {
-        for (uint32_t i = 0; i < dynamicUBOCount; ++i)
-            if (dynamicUBOBindings[i] == binding)
-                return true;
-        return false;
-    };
-
-    auto viewDimFromBindingMap =
-        [](rive::ore::TextureViewDim d) -> rive::ore::TextureViewDimension {
-        using D = rive::ore::TextureViewDim;
-        using O = rive::ore::TextureViewDimension;
-        switch (d)
-        {
-            case D::Cube:
-                return O::cube;
-            case D::CubeArray:
-                return O::cubeArray;
-            case D::D3:
-                return O::texture3D;
-            case D::D2Array:
-                return O::array2D;
-            case D::D1:
-            case D::D2:
-            case D::Undefined:
-                return O::texture2D;
-        }
-        return O::texture2D;
-    };
-
-    auto sampleTypeFromBindingMap = [](rive::ore::TextureSampleType s)
-        -> rive::ore::BindGroupLayoutEntry::SampleType {
-        using S = rive::ore::TextureSampleType;
-        using O = rive::ore::BindGroupLayoutEntry::SampleType;
-        switch (s)
-        {
-            case S::UnfilterableFloat:
-                return O::floatUnfilterable;
-            case S::Depth:
-                return O::depth;
-            case S::Sint:
-                return O::sint;
-            case S::Uint:
-                return O::uint;
-            case S::Float:
-            case S::Undefined:
-                return O::floatFilterable;
-        }
-        return O::floatFilterable;
-    };
-
-    const BindingMap& bm = shader->m_bindingMap;
-    for (size_t i = 0; i < bm.size() && n < kMaxEntries; ++i)
-    {
-        const BindingMap::Entry& e = bm.at(i);
-        if (e.group != group)
-            continue;
-        BindGroupLayoutEntry& out = entries[n++];
-        out.binding = e.binding;
-        out.kind = bindingKindFromResource(e.kind);
-        // Mirror the shader's declared visibility — narrower than this
-        // would be rejected by validateLayoutsAgainstBindingMap.
-        uint8_t vis = 0;
-        if (e.stageMask & BindingMap::kStageVertex)
-            vis |= StageVisibility::kVertex;
-        if (e.stageMask & BindingMap::kStageFragment)
-            vis |= StageVisibility::kFragment;
-        if (e.stageMask & BindingMap::kStageCompute)
-            vis |= StageVisibility::kCompute;
-        out.visibility.mask = vis;
-        out.hasDynamicOffset =
-            (out.kind == BindingKind::uniformBuffer && isDynamic(e.binding));
-        // Texture reflection — required for validation to accept cube /
-        // 3D / array textures that don't match the texture2D default.
-        out.textureViewDim = viewDimFromBindingMap(e.textureViewDim);
-        out.textureSampleType = sampleTypeFromBindingMap(e.textureSampleType);
-        out.textureMultisampled = e.textureMultisampled;
-        // Pre-resolve native slots from the shader's binding map.
-        const uint16_t vs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
-        const uint16_t fs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
-        out.nativeSlotVS = (vs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(vs);
-        out.nativeSlotFS = (fs == BindingMap::kAbsent)
-                               ? BindGroupLayoutEntry::kNativeSlotAbsent
-                               : static_cast<uint32_t>(fs);
-    }
-
-    BindGroupLayoutDesc desc;
-    desc.groupIndex = group;
-    desc.entries = entries;
-    desc.entryCount = n;
-    return ctx.makeBindGroupLayout(desc);
+    return rive::ore::makeBindGroupLayoutFromShader(ctx,
+                                                    shader,
+                                                    group,
+                                                    dynamicUBOBindings,
+                                                    dynamicUBOCount);
 }
+
+// Shared triangle pass used by the deferred GMs.
+struct TriVertex
+{
+    float x, y;
+    float r, g, b, a;
+};
+
+inline constexpr TriVertex kTriVertices[] = {
+    {0.0f, 0.6f, 1.0f, 0.2f, 0.2f, 1.0f},
+    {-0.6f, -0.6f, 0.2f, 1.0f, 0.2f, 1.0f},
+    {0.6f, -0.6f, 0.2f, 0.2f, 1.0f, 1.0f},
+};
+
+// desc points into attrs and layout, so this object must stay alive through
+// makePipeline and cannot be copied.
+struct TrianglePipeline
+{
+    TrianglePipeline(const OreGMShaderResult& shader,
+                     rive::ore::TextureFormat targetFormat,
+                     const char* label)
+    {
+        layout.stride = sizeof(TriVertex);
+        layout.stepMode = rive::ore::VertexStepMode::vertex;
+        layout.attributes = attrs;
+        layout.attributeCount = 2;
+        desc.vertexModule = shader.vsModule.get();
+        desc.fragmentModule = shader.psModule.get();
+        desc.vertexEntryPoint = shader.vsEntryPoint;
+        desc.fragmentEntryPoint = shader.fsEntryPoint;
+        desc.vertexBuffers = &layout;
+        desc.vertexBufferCount = 1;
+        desc.topology = rive::ore::PrimitiveTopology::triangleList;
+        desc.colorTargets[0].format = targetFormat;
+        desc.colorCount = 1;
+        desc.label = label;
+    }
+    TrianglePipeline(const TrianglePipeline&) = delete;
+    TrianglePipeline& operator=(const TrianglePipeline&) = delete;
+
+    rive::ore::VertexAttribute attrs[2] = {
+        {offsetof(TriVertex, x), 0, rive::ore::VertexFormat::float2},
+        {offsetof(TriVertex, r), 1, rive::ore::VertexFormat::float4},
+    };
+    rive::ore::VertexBufferLayout layout{};
+    rive::ore::PipelineDesc desc{};
+};
 
 #endif // ORE_BACKEND_*
 

@@ -31,7 +31,7 @@ RenderPath* ScriptedPathData::renderPath(lua_State* L)
         {
             m_renderPath->rewind();
         }
-        m_renderPath->addRawPath(rawPath);
+        m_renderPath->addUntrustedRawPath(rawPath);
     }
 
     return m_renderPath.get();

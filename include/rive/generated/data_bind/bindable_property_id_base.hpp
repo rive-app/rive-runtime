@@ -1,6 +1,7 @@
 #ifndef _RIVE_BINDABLE_PROPERTY_ID_BASE_HPP_
 #define _RIVE_BINDABLE_PROPERTY_ID_BASE_HPP_
-#include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/core/id.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 namespace rive
 {
@@ -31,18 +32,21 @@ public:
     static const uint16_t propertyValuePropertyKey = 823;
 
 protected:
-    uint32_t m_PropertyValue = -1;
+    Id m_PropertyValue = kEmptyId;
 
 public:
-    inline uint32_t propertyValue() const { return m_PropertyValue; }
-    void propertyValue(uint32_t value)
+    inline Id propertyValue() const { return m_PropertyValue; }
+    void propertyValue(Id value)
     {
         if (m_PropertyValue == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
+                             &m_PropertyValue,
+                             &value);
         m_PropertyValue = value;
-        propertyValueChanged();
+        RIVE_EDITOR_CHANGED(propertyValueChanged());
         notifyPropertyChanged(propertyValuePropertyKey);
     }
 
@@ -57,7 +61,7 @@ public:
         switch (propertyKey)
         {
             case propertyValuePropertyKey:
-                m_PropertyValue = CoreUintType::deserialize(reader);
+                m_PropertyValue = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return BindableProperty::deserialize(propertyKey, reader);
@@ -65,6 +69,9 @@ public:
 
 protected:
     virtual void propertyValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/data_bind/bindable_property_id_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -20,10 +20,14 @@ bool NestedAnimation::validate(CoreContext* context)
 StatusCode NestedAnimation::onAddedDirty(CoreContext* context)
 {
     StatusCode code = Super::onAddedDirty(context);
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only: importer guarantees parent is a NestedArtboard.
+    // Editor build registers via editorParentChanged (Pass 4.5).
     if (code == StatusCode::Ok)
     {
         auto nestedArtboard = parent()->as<NestedArtboard>();
         nestedArtboard->addNestedAnimation(this);
     }
+#endif
     return code;
 }

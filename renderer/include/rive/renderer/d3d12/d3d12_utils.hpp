@@ -564,8 +564,8 @@ private:
     D3D12ResourceManager* d3d() const;
 
     constexpr static size_t MAX_POOL_SIZE = 8;
-    UINT m_targetSize;
     UINT m_alignment;
+    UINT m_targetSize;
 };
 
 class D3D12DescriptorHeapPool : public GPUResourcePool

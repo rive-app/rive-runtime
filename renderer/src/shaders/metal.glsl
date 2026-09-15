@@ -212,14 +212,23 @@
         Varyings _varyings;
 #endif
 
-#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)     \
+// imageDrawAttrs is $device, not $constant: the host binds it at a per-draw
+// offset of baseElement * sizeof(ImageRectInstance), and macOS requires
+// constant-address-space offsets to be 256-byte aligned.
+#define IMAGE_RECT_VERTEX_MAIN(NAME,                                           \
+                               Attrs,                                          \
+                               attrs,                                          \
+                               ImageDrawAttrs,                                 \
+                               imageDrawAttrs,                                 \
+                               _vertexID,                                      \
+                               _instanceID)                                    \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
         uint _vertexID [[$vertex_id]],                                         \
+        uint _instanceID [[$instance_id]],                                     \
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
+        const $device ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]],           \
         VertexTextures _textures,                                              \
         VertexStorageBuffers _buffers)                                         \
     {                                                                          \
@@ -230,15 +239,17 @@
                                position,                                       \
                                UVAttr,                                         \
                                uv,                                             \
+                               ImageDrawAttrs,                                 \
+                               imageDrawAttrs,                                 \
                                _vertexID)                                      \
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
         uint _vertexID [[$vertex_id]],                                         \
+        uint _instanceID [[$instance_id]],                                     \
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         $constant PositionAttr* position [[$buffer(0)]],                       \
-        $constant UVAttr* uv [[$buffer(1)]])                                   \
+        $constant UVAttr* uv [[$buffer(1)]],                                   \
+        const $device ImageDrawAttrs* imageDrawAttrs [[$buffer(2)]])           \
     {                                                                          \
         Varyings _varyings;
 
@@ -358,34 +369,11 @@
         uint2 _plsCoord = uint2($metal::floor(_fragCoord));                    \
         uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
 
-#define PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)                               \
-    $__attribute__(($visibility("default"))) $fragment NAME(                   \
-        PLS _pls,                                                              \
-        $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
-        Varyings _varyings [[$stage_in]],                                      \
-        DynamicSamplers _dynamicSampler,                                       \
-        FragmentTextures _textures,                                            \
-        FragmentStorageBuffers _buffers)                                       \
-    {                                                                          \
-        float2 _fragCoord = _varyings._pos.xy;                                 \
-        uint2 _plsCoord = uint2($metal::floor(_fragCoord));                    \
-        uint _plsIdx = _plsCoord.y * uniforms.renderTargetWidth + _plsCoord.x;
-
 #define PLS_MAIN(NAME) void PLS_METAL_MAIN(NAME)
-#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                     \
-    void PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)
 #define EMIT_PLS }
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                              \
     half4 PLS_METAL_MAIN(NAME)                                                 \
-    {                                                                          \
-        half4 _fragColor;
-
-#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
-    half4 PLS_METAL_MAIN_WITH_IMAGE_UNIFORMS(NAME)                             \
     {                                                                          \
         half4 _fragColor;
 
@@ -454,19 +442,6 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
                    FragmentTextures _textures,                                 \
                    FragmentStorageBuffers _buffers)
 
-#define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                     \
-    PLS_METAL_MAIN(                                                            \
-        NAME,                                                                  \
-        PLS _inpls,                                                            \
-        $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        Varyings _varyings [[$stage_in]],                                      \
-        FragmentTextures _textures,                                            \
-        FragmentStorageBuffers _buffers,                                       \
-        DynamicSamplers _dynamicSampler,                                       \
-        $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]])
-
 #define EMIT_PLS                                                               \
     }                                                                          \
     return _pls;
@@ -493,18 +468,6 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers)
-
-#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
-    PLS_FRAG_COLOR_METAL_MAIN(                                                 \
-        NAME,                                                                  \
-        PLS _inpls,                                                            \
-        $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
-        Varyings _varyings [[$stage_in]],                                      \
-        FragmentTextures _textures,                                            \
-        FragmentStorageBuffers _buffers,                                       \
-        $__VA_ARGS__ $constant @ImageDrawUniforms& imageDrawUniforms           \
-        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]])
 
 #define EMIT_PLS_AND_FRAG_COLOR                                                \
     }                                                                          \

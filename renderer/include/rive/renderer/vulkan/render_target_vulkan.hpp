@@ -28,6 +28,7 @@ public:
     // to SHADER_READ_ONLY_OPTIMAL, so Rive's own barrier logic sees the correct
     // layout on the next draw.
     virtual void updateLastAccess(const vkutil::ImageAccess&) {}
+    virtual vkutil::ImageAccess targetLastAccess() const { return {}; }
 
     // Performs a pipeline barrier and returns the target image in the requested
     // layout.
@@ -78,9 +79,10 @@ protected:
         const vkutil::ImageAccess& dstAccessAfterCopy,
         const IAABB& copyBounds);
 
-    // InterlockMode::msaa.
+    // Extra attachments for InterlockMode::depthStencil. Allocated lazily as
+    // needed.
+    vkutil::Texture2D* depthStencilTexture(bool msaa);
     vkutil::Texture2D* msaaColorTexture();
-    vkutil::Texture2D* msaaDepthStencilTexture();
 
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
@@ -90,9 +92,10 @@ protected:
     // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
     rcp<vkutil::Texture2D> m_offscreenColorTexture;
 
-    // InterlockMode::msaa.
-    rcp<vkutil::Texture2D> m_msaaColorTexture;
+    // InterlockMode::depthStencil.
+    rcp<vkutil::Texture2D> m_depthStencilTexture;
     rcp<vkutil::Texture2D> m_msaaDepthStencilTexture;
+    rcp<vkutil::Texture2D> m_msaaColorTexture;
 };
 
 class RenderTargetVulkanImpl : public RenderTargetVulkan
@@ -119,7 +122,7 @@ public:
         m_targetLastAccess = targetLastAccess;
     }
 
-    const vkutil::ImageAccess& targetLastAccess() const
+    vkutil::ImageAccess targetLastAccess() const override
     {
         return m_targetLastAccess;
     }

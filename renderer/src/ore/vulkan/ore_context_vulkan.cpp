@@ -386,6 +386,14 @@ VkDescriptorSetLayout ContextVulkan::vkGetOrCreateEmptyDSL()
     return m_vkEmptyDSL;
 }
 
+LoadOp ContextVulkan::firstUseLoadOp(TextureView* view, LoadOp loadOp)
+{
+    auto tex = lite_rtti_cast<TextureVulkan*>(view->texture());
+    // The framebuffer renders one layer, so only the base layer gets contents.
+    bool written = tex->vkMarkWritten(view->baseMipLevel(), view->baseLayer());
+    return loadOp == LoadOp::load && !written ? LoadOp::clear : loadOp;
+}
+
 void ContextVulkan::vkQueueTransitionToLayout(Texture* texture,
                                               VkImageAspectFlags aspectMask,
                                               VkImageLayout newLayout)
@@ -1209,6 +1217,11 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         setLastError("makeBindGroup: BindGroupDesc::layout is null");
         return nullptr;
     }
+    if (std::string err; !validateBindGroupDesc(desc, &err))
+    {
+        setLastError("makeBindGroup: %s", err.c_str());
+        return nullptr;
+    }
     BindGroupLayoutVulkan* layout =
         lite_rtti_cast<BindGroupLayoutVulkan*>(desc.layout);
     assert(layout != nullptr);
@@ -1294,7 +1307,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
         w.buffer = buffer;
         w.dstBinding = dstBinding;
         w.offset = ubo.offset;
-        w.range = (ubo.size > 0) ? ubo.size : buffer->size();
+        w.range = (ubo.size > 0) ? ubo.size : buffer->size() - ubo.offset;
         w.type = layout->hasDynamicOffset(ubo.slot)
                      ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
                      : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1375,8 +1388,6 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    finishActiveRenderPass();
-
     std::unique_ptr<RenderPassVulkan> pass =
         std::make_unique<RenderPassVulkan>();
     pass->m_context = this;
@@ -1406,7 +1417,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         assert(ca.view != nullptr);
         auto tex = lite_rtti_cast<TextureVulkan*>(ca.view->texture());
         key.colorFormats[i] = tex->format();
-        key.colorLoadOps[i] = ca.loadOp;
+        key.colorLoadOps[i] = firstUseLoadOp(ca.view, ca.loadOp);
         key.colorStoreOps[i] = ca.storeOp;
         key.colorHasResolve[i] = (ca.resolveTarget != nullptr);
         if (key.colorHasResolve[i])
@@ -1424,6 +1435,8 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
             {
                 resolve.image = resolveTex->m_vkImage;
                 resolve.texture = ref_rcp(resolveTex);
+                resolveTex->vkMarkWritten(resolveView->baseMipLevel(),
+                                          resolveView->baseLayer());
             }
             resolve.baseMip = resolveView->baseMipLevel();
             resolve.baseLayer = resolveView->baseLayer();
@@ -1445,7 +1458,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         pass->m_vkColorTextures[i] = ref_rcp(tex);
         // loadOp=load requires COLOR_ATTACHMENT_OPTIMAL before the pass;
         // other loadOps accept UNDEFINED so no pre-transition needed.
-        if (ca.loadOp == LoadOp::load)
+        if (key.colorLoadOps[i] == LoadOp::load)
         {
             vkQueueTransitionToLayout(tex,
                                       VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1472,7 +1485,8 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
             lite_rtti_cast<TextureVulkan*>(desc.depthStencil.view->texture());
         key.hasDepth = true;
         key.depthFormat = dsTex->format();
-        key.depthLoadOp = desc.depthStencil.depthLoadOp;
+        key.depthLoadOp = firstUseLoadOp(desc.depthStencil.view,
+                                         desc.depthStencil.depthLoadOp);
         key.depthStoreOp = desc.depthStencil.depthStoreOp;
         auto view = lite_rtti_cast<TextureViewVulkan*>(desc.depthStencil.view);
         attachViews[attachCount++] = view->m_vkImageView;
@@ -1482,7 +1496,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         pass->m_vkDepthLayerCount = view->layerCount();
         pass->m_vkDepthTexture = ref_rcp(dsTex);
         // Same loadOp=load pre-transition as colors.
-        if (desc.depthStencil.depthLoadOp == LoadOp::load)
+        if (key.depthLoadOp == LoadOp::load)
         {
             VkImageAspectFlags aspect =
                 VK_IMAGE_ASPECT_DEPTH_BIT |
@@ -1650,6 +1664,11 @@ rcp<TextureView> ContextVulkan::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     // Mark as not VMA-owned so the destructor skips the VMA free.
     texture->m_vmaAllocation = VK_NULL_HANDLE;
     texture->m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // Rive's tracker still says undefined until something draws the canvas
+    if (vkTarget->targetLastAccess().layout != VK_IMAGE_LAYOUT_UNDEFINED)
+    {
+        texture->vkMarkWritten(0, 0);
+    }
     // No destroy pointers needed — caller (canvas) owns the image lifetime.
 
     TextureViewDesc viewDesc{};
@@ -1709,6 +1728,7 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
     texture->m_vk = m_vk;
     texture->m_vmaAllocation = VK_NULL_HANDLE; // Borrowed, not VMA-owned.
     texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    texture->vkMarkWritten(0, 0);
 
     TextureViewDesc viewDesc{};
     viewDesc.texture = texture.get();

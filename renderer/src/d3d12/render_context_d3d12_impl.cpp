@@ -19,7 +19,7 @@
 #include <D3DCompiler.h>
 
 // this is defined here instead of root_sig becaise the gpu does not care about
-// the number of rtvs this is gradient, tess, atlas and color
+// the number of rtvs. This is gradient, tess, feather atlas, and color
 static constexpr UINT NUM_RTV_HEAP_DESCRIPTORS = 4;
 namespace rive::gpu
 {
@@ -632,7 +632,6 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_pipelineManager(device, capabilities, shaderCompilationMode),
     m_resourceManager(make_rcp<D3D12ResourceManager>(device)),
     m_flushUniformBufferPool(m_resourceManager, sizeof(FlushUniforms)),
-    m_imageDrawUniformBufferPool(m_resourceManager, sizeof(ImageDrawUniforms)),
     m_pathBufferPool(m_resourceManager),
     m_paintBufferPool(m_resourceManager),
     m_paintAuxBufferPool(m_resourceManager),
@@ -640,6 +639,8 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_gradSpanBufferPool(m_resourceManager),
     m_tessSpanBufferPool(m_resourceManager),
     m_triangleBufferPool(m_resourceManager),
+    m_imageRectInstanceBufferPool(m_resourceManager, sizeof(ImageRectInstance)),
+    m_imageMeshInstanceBufferPool(m_resourceManager, sizeof(ImageMeshInstance)),
     // this is 64kb which is the smallest heap that can be sent to gpu
     m_srvUavCbvHeapPool(m_resourceManager,
                         MAX_DESCRIPTOR_HEAPS_PER_FLUSH,
@@ -673,7 +674,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
 
     m_pipelineManager.compileGradientPipeline();
     m_pipelineManager.compileTesselationPipeline();
-    m_pipelineManager.compileAtlasPipeline();
+    m_pipelineManager.compileFeatherAtlasPipeline();
 
     m_linearSampler.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
     m_linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -731,14 +732,14 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
         m_resourceManager->makeImmutableBuffer<>(copyCommandList,
                                                  kImageRectIndices);
     NAME_D3D12_OBJECT(m_imageRectIndexBuffer);
-    m_featherTexture =
-        m_resourceManager->make1DTextureArray(GAUSSIAN_TABLE_SIZE,
-                                              FEATHER_TEXTURE_1D_ARRAY_LENGTH,
-                                              1,
-                                              DXGI_FORMAT_R16_FLOAT,
-                                              D3D12_RESOURCE_FLAG_NONE,
-                                              D3D12_RESOURCE_STATE_COMMON);
-    NAME_D3D12_OBJECT(m_featherTexture);
+    m_gaussianIntegralTexture = m_resourceManager->make1DTextureArray(
+        GAUSSIAN_TABLE_SIZE,
+        GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH,
+        1,
+        DXGI_FORMAT_R16_FLOAT,
+        D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_COMMON);
+    NAME_D3D12_OBJECT(m_gaussianIntegralTexture);
     auto featherUploadBuffer = m_resourceManager->makeUploadBuffer(
         sizeof(gpu::g_inverseGaussianIntegralTableF16) * 2);
 
@@ -748,7 +749,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     updateData.SlicePitch = updateData.RowPitch;
 
     UpdateSubresources(copyCommandList,
-                       m_featherTexture->resource(),
+                       m_gaussianIntegralTexture->resource(),
                        featherUploadBuffer->resource(),
                        0,
                        0,
@@ -761,7 +762,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     updateData2.SlicePitch = updateData.RowPitch;
 
     UpdateSubresources(copyCommandList,
-                       m_featherTexture->resource(),
+                       m_gaussianIntegralTexture->resource(),
                        featherUploadBuffer->resource(),
                        sizeof(gpu::g_gaussianIntegralTableF16),
                        1,
@@ -827,9 +828,14 @@ rcp<Texture> RenderContextD3D12Impl::adoptImageTexture(ID3D12Resource* resource,
 }
 
 #ifdef RIVE_CANVAS
-rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
-                                                           uint32_t height)
+void RenderContextD3D12Impl::ensureCanvasBacking(gpu::RenderCanvas* canvas)
 {
+    if (canvas->isBacked())
+    {
+        return;
+    }
+
+    uint32_t width = canvas->width(), height = canvas->height();
     auto texture =
         manager()->make2DTexture(width,
                                  height,
@@ -842,11 +848,8 @@ rcp<RenderCanvas> RenderContextD3D12Impl::makeRenderCanvas(uint32_t width,
     auto renderTarget = make_rcp<RenderTargetD3D12>(this, width, height);
     renderTarget->setTargetTexture(texture);
 
-    auto renderImage =
-        make_rcp<RiveRenderImage>(adoptImageTexture(std::move(texture)));
-
-    return make_rcp<RenderCanvas>(std::move(renderImage),
-                                  std::move(renderTarget));
+    canvas->setBacking(adoptImageTexture(std::move(texture)),
+                       std::move(renderTarget));
 }
 
 std::unique_ptr<rive::ore::Context> RenderContextD3D12Impl::makeOreContext()
@@ -903,19 +906,20 @@ void rive::gpu::RenderContextD3D12Impl::resizeTessellationTexture(
     }
 }
 
-void rive::gpu::RenderContextD3D12Impl::resizeAtlasTexture(uint32_t width,
-                                                           uint32_t height)
+void rive::gpu::RenderContextD3D12Impl::resizeFeatherAtlasTexture(
+    uint32_t width,
+    uint32_t height)
 {
     if (width == 0 || height == 0)
     {
-        m_atlasTexture = nullptr;
+        m_featherAtlasTexture = nullptr;
     }
     else
     {
 
         D3D12_CLEAR_VALUE clear{DXGI_FORMAT_R16_FLOAT, {}};
 
-        m_atlasTexture = m_resourceManager->make2DTexture(
+        m_featherAtlasTexture = m_resourceManager->make2DTexture(
             width,
             height,
             1,
@@ -926,9 +930,9 @@ void rive::gpu::RenderContextD3D12Impl::resizeAtlasTexture(uint32_t width,
             &clear);
         // these can be done here since they arent recycled every frame
         m_rtvHeap->markRtvToIndex(m_device.Get(),
-                                  m_atlasTexture.get(),
-                                  ATLAS_RTV_HEAP_OFFSET);
-        SNAME_D3D12_OBJECT(m_atlasTexture, "atlas");
+                                  m_featherAtlasTexture.get(),
+                                  FEATHER_ATLAS_RTV_HEAP_OFFSET);
+        SNAME_D3D12_OBJECT(m_featherAtlasTexture, "featherAtlas");
     }
 }
 
@@ -1004,7 +1008,6 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
 {
     // These should all have gotten recycled at the end of the last frame.
     assert(m_flushUniformBuffer == nullptr);
-    assert(m_imageDrawUniformBuffer == nullptr);
     assert(m_pathBuffer == nullptr);
     assert(m_paintBuffer == nullptr);
     assert(m_paintAuxBuffer == nullptr);
@@ -1012,6 +1015,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     assert(m_gradSpanBuffer == nullptr);
     assert(m_tessSpanBuffer == nullptr);
     assert(m_triangleBuffer == nullptr);
+    assert(m_imageRectInstanceBuffer == nullptr);
+    assert(m_imageMeshInstanceBuffer == nullptr);
 
     assert(m_srvUavCbvHeap == nullptr);
     assert(m_cpuSrvUavCbvHeap == nullptr);
@@ -1030,7 +1035,6 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
 
     // Acquire buffers for the flush.
     m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
-    m_imageDrawUniformBuffer = m_imageDrawUniformBufferPool.acquire();
     m_pathBuffer = m_pathBufferPool.acquire();
     m_paintBuffer = m_paintBufferPool.acquire();
     m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
@@ -1038,13 +1042,14 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
     m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
     m_triangleBuffer = m_triangleBufferPool.acquire();
+    m_imageRectInstanceBuffer = m_imageRectInstanceBufferPool.acquire();
+    m_imageMeshInstanceBuffer = m_imageMeshInstanceBufferPool.acquire();
 
     m_srvUavCbvHeap = m_srvUavCbvHeapPool.acquire();
     m_cpuSrvUavCbvHeap = m_cpuSrvUavCbvHeapPool.acquire();
     m_samplerHeap = m_samplerHeapPool.acquire();
 
     VNAME_D3D12_OBJECT(m_flushUniformBuffer);
-    VNAME_D3D12_OBJECT(m_imageDrawUniformBuffer);
     VNAME_D3D12_OBJECT(m_pathBuffer);
     VNAME_D3D12_OBJECT(m_paintBuffer);
     VNAME_D3D12_OBJECT(m_paintAuxBuffer);
@@ -1052,6 +1057,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     VNAME_D3D12_OBJECT(m_gradSpanBuffer);
     VNAME_D3D12_OBJECT(m_tessSpanBuffer);
     VNAME_D3D12_OBJECT(m_triangleBuffer);
+    VNAME_D3D12_OBJECT(m_imageRectInstanceBuffer);
+    VNAME_D3D12_OBJECT(m_imageMeshInstanceBuffer);
 
     m_isFirstFlushOfFrame = true;
 
@@ -1121,7 +1128,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         // sync everything first logical flush,
         // copies are slow, so do it all at once
         m_flushUniformBuffer->sync(copyCmdList, 0);
-        m_imageDrawUniformBuffer->sync(copyCmdList, 0);
         if (desc.pathCount > 0)
         {
             m_pathBuffer->sync(copyCmdList, 0);
@@ -1147,6 +1153,9 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         {
             m_triangleBuffer->sync(copyCmdList, 0);
         }
+
+        m_imageRectInstanceBuffer->sync(copyCmdList, 0);
+        m_imageMeshInstanceBuffer->sync(copyCmdList, 0);
 
         // mark all UAVS, thse only need to happen the fist time since they
         // won't change per logical flush
@@ -1190,23 +1199,23 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 TESS_IMAGE_HEAP_OFFSET,
                 DXGI_FORMAT_R32G32B32A32_UINT);
         }
-        if (m_atlasTexture)
+        if (m_featherAtlasTexture)
         {
             m_cpuSrvUavCbvHeap->markSrvToIndex(m_device.Get(),
-                                               m_atlasTexture.get(),
-                                               ATLAS_IMAGE_HEAP_OFFSET);
+                                               m_featherAtlasTexture.get(),
+                                               FEATHER_ATLAS_IMAGE_HEAP_OFFSET);
         }
         else
         {
             m_cpuSrvUavCbvHeap->markNullTexture2DSrvToIndex(
                 m_device.Get(),
-                ATLAS_IMAGE_HEAP_OFFSET,
+                FEATHER_ATLAS_IMAGE_HEAP_OFFSET,
                 DXGI_FORMAT_R16_FLOAT);
         }
-        assert(m_featherTexture);
+        assert(m_gaussianIntegralTexture);
         m_cpuSrvUavCbvHeap->markSrvToIndex(m_device.Get(),
-                                           m_featherTexture.get(),
-                                           FEATHER_IMAGE_HEAP_OFFSET);
+                                           m_gaussianIntegralTexture.get(),
+                                           GAUSSIAN_INTEGRAL_IMAGE_HEAP_OFFSET);
 
         // do this only once.
         m_pipelineManager.setRootSig(cmdList);
@@ -1237,12 +1246,13 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         m_samplerHeap->markSamplerToIndex(m_device.Get(),
                                           m_linearSampler,
                                           GRAD_SAMPLER_HEAP_OFFSET);
+        m_samplerHeap->markSamplerToIndex(
+            m_device.Get(),
+            m_linearSampler,
+            GAUSSIAN_INTEGRAL_SAMPLER_HEAP_OFFSET);
         m_samplerHeap->markSamplerToIndex(m_device.Get(),
                                           m_linearSampler,
-                                          FEATHER_SAMPLER_HEAP_OFFSET);
-        m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                          m_linearSampler,
-                                          ATLAS_SAMPLER_HEAP_OFFSET);
+                                          FEATHER_ATLAS_SAMPLER_HEAP_OFFSET);
 
         // this SHOULD be m_mipSampler but we don't currently generate mips
         m_samplerHeap->markSamplerToIndex(m_device.Get(),
@@ -1490,35 +1500,39 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     static_assert(IMAGE_RECT_VERTEX_DATA_SLOT == 2);
     cmdList->IASetVertexBuffers(0, 3, vertexBuffers);
 
-    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    if ((desc.featherAtlasFillBatchCount | desc.featherAtlasStrokeBatchCount) !=
+        0)
     {
-        RIVE_PROF_GPUNAME_L(1, "atlasRender");
+        RIVE_PROF_GPUNAME_L(1, "featherAtlasRender");
         m_resourceManager->transition(cmdList,
-                                      m_atlasTexture.get(),
+                                      m_featherAtlasTexture.get(),
                                       D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-        auto rtvHandle = m_rtvHeap->cpuHandleForIndex(ATLAS_RTV_HEAP_OFFSET);
+        auto rtvHandle =
+            m_rtvHeap->cpuHandleForIndex(FEATHER_ATLAS_RTV_HEAP_OFFSET);
         cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
         float clearZero[4]{};
         cmdList->ClearRenderTargetView(rtvHandle, clearZero, 0, nullptr);
 
-        CD3DX12_VIEWPORT viewport(0.0f,
-                                  0.0f,
-                                  static_cast<float>(desc.atlasContentWidth),
-                                  static_cast<float>(desc.atlasContentHeight));
+        CD3DX12_VIEWPORT viewport(
+            0.0f,
+            0.0f,
+            static_cast<float>(desc.featherAtlasContentWidth),
+            static_cast<float>(desc.featherAtlasContentHeight));
 
         cmdList->RSSetViewports(1, &viewport);
         cmdList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         auto IBV = m_pathPatchIndexBuffer->indexBufferView();
         cmdList->IASetIndexBuffer(&IBV);
-        if (desc.atlasFillBatchCount != 0)
+        if (desc.featherAtlasFillBatchCount != 0)
         {
-            m_pipelineManager.setAtlasFillPipeline(cmdList);
+            m_pipelineManager.setFeatherAtlasFillPipeline(cmdList);
 
-            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            for (size_t i = 0; i < desc.featherAtlasFillBatchCount; ++i)
             {
-                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                const gpu::AtlasDrawBatch& fillBatch =
+                    desc.featherAtlasFillBatches[i];
                 CD3DX12_RECT scissorRect(fillBatch.scissor.left,
                                          fillBatch.scissor.top,
                                          fillBatch.scissor.right,
@@ -1537,14 +1551,14 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             }
         }
 
-        if (desc.atlasStrokeBatchCount != 0)
+        if (desc.featherAtlasStrokeBatchCount != 0)
         {
-            m_pipelineManager.setAtlasStrokePipeline(cmdList);
+            m_pipelineManager.setFeatherAtlasStrokePipeline(cmdList);
 
-            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            for (size_t i = 0; i < desc.featherAtlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
-                    desc.atlasStrokeBatches[i];
+                    desc.featherAtlasStrokeBatches[i];
                 CD3DX12_RECT scissorRect(strokeBatch.scissor.left,
                                          strokeBatch.scissor.top,
                                          strokeBatch.scissor.right,
@@ -1563,7 +1577,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             }
         }
         m_resourceManager->transition(cmdList,
-                                      m_atlasTexture.get(),
+                                      m_featherAtlasTexture.get(),
                                       D3D12_RESOURCE_STATE_GENERIC_READ);
 
         cmdList->OMSetRenderTargets(0, nullptr, FALSE, nullptr);
@@ -1726,6 +1740,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
     auto currentScissorRect = AABBu16{0xffff, 0xffff, 0, 0};
 
     RIVE_PROF_GPUNAME_L(1, "DrawList");
+
+    auto boundVertexInstanceType = BoundVertexInstanceType::none;
     for (const DrawBatch& batch : *desc.drawList)
     {
         assert(batch.elementCount != 0);
@@ -1743,12 +1759,42 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
 
+        if (drawType == gpu::DrawType::imageRect &&
+            boundVertexInstanceType != BoundVertexInstanceType::imageRect)
+        {
+            // Bind the image-draw-attribute records as a per-instance vertex
+            // buffer once; each image draw selects its record via the draw
+            // call's base instance (batch.baseElement).
+            D3D12_VERTEX_BUFFER_VIEW imageRectInstanceVBV =
+                m_imageRectInstanceBuffer->resource()->vertexBufferView(
+                    sizeof(gpu::ImageRectInstance));
+            cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                        1,
+                                        &imageRectInstanceVBV);
+            boundVertexInstanceType = BoundVertexInstanceType::imageRect;
+        }
+        else if (drawType == gpu::DrawType::imageMesh &&
+                 boundVertexInstanceType != BoundVertexInstanceType::imageMesh)
+        {
+            // Bind the image-draw-attribute records as a per-instance vertex
+            // buffer once; each image draw selects its record via the draw
+            // call's base instance (batch.baseElement).
+            D3D12_VERTEX_BUFFER_VIEW imageMeshInstanceVBV =
+                m_imageMeshInstanceBuffer->resource()->vertexBufferView(
+                    sizeof(gpu::ImageMeshInstance));
+            cmdList->IASetVertexBuffers(IMAGE_DRAW_INSTANCE_DATA_SLOT,
+                                        1,
+                                        &imageMeshInstanceVBV);
+            boundVertexInstanceType = BoundVertexInstanceType::imageMesh;
+        }
+
         auto* pipeline = m_pipelineManager.tryGetPipeline(
             {
                 .drawType = drawType,
                 .shaderFeatures = shaderFeatures,
                 .interlockMode = desc.interlockMode,
                 .shaderMiscFlags = shaderMiscFlags,
+                .wireframe = desc.wireframe,
 #ifdef WITH_RIVE_TOOLS
                 .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
@@ -1859,11 +1905,11 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     m_samplerHeap->markSamplerToIndex(
                         m_device.Get(),
                         m_linearSampler,
-                        FEATHER_SAMPLER_HEAP_OFFSET);
+                        GAUSSIAN_INTEGRAL_SAMPLER_HEAP_OFFSET);
                     m_samplerHeap->markSamplerToIndex(
                         m_device.Get(),
                         m_linearSampler,
-                        ATLAS_SAMPLER_HEAP_OFFSET);
+                        FEATHER_ATLAS_SAMPLER_HEAP_OFFSET);
 
                     ID3D12DescriptorHeap* ppHeaps[] = {m_srvUavCbvHeap->heap(),
                                                        m_samplerHeap->heap()};
@@ -1927,17 +1973,18 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     VERTEX_DRAW_UNIFORM_SIG_INDEX,
                     batch.baseElement,
                     0);
-                cmdList->DrawIndexedInstanced(PatchIndexCount(drawType),
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
                                               batch.elementCount,
-                                              PatchBaseIndex(drawType),
+                                              batch.baseIndex,
                                               0,
                                               batch.baseElement);
                 break;
             }
             case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
+            case DrawType::featherAtlasBlit:
             {
-                RIVE_PROF_GPUNAME_L(2, "interiorTriangulation||atlasBlit");
+                RIVE_PROF_GPUNAME_L(2,
+                                    "interiorTriangulation||featherAtlasBlit");
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 cmdList->DrawInstanced(batch.elementCount,
@@ -1955,17 +2002,11 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 auto IBV = m_imageRectIndexBuffer->indexBufferView();
                 cmdList->IASetIndexBuffer(&IBV);
 
-                cmdList->SetGraphicsRootConstantBufferView(
-                    IMAGE_UNIFORM_BUFFFER_SIG_INDEX,
-                    m_imageDrawUniformBuffer->resource()
-                            ->getGPUVirtualAddress() +
-                        batch.imageDrawDataOffset);
-
-                cmdList->DrawIndexedInstanced(std::size(gpu::kImageRectIndices),
-                                              1,
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                              batch.elementCount,
+                                              batch.baseIndex,
                                               0,
-                                              0,
-                                              0);
+                                              batch.baseElement);
                 break;
             }
             case DrawType::imageMesh:
@@ -1999,17 +2040,11 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 auto IBV = iBuffer->indexBufferView();
                 cmdList->IASetIndexBuffer(&IBV);
 
-                cmdList->SetGraphicsRootConstantBufferView(
-                    IMAGE_UNIFORM_BUFFFER_SIG_INDEX,
-                    m_imageDrawUniformBuffer->resource()
-                            ->getGPUVirtualAddress() +
-                        batch.imageDrawDataOffset);
-
-                cmdList->DrawIndexedInstanced(batch.elementCount,
-                                              1,
-                                              batch.baseElement,
+                cmdList->DrawIndexedInstanced(batch.indexCountPerInstance,
+                                              batch.elementCount,
+                                              batch.baseIndex,
                                               0,
-                                              0);
+                                              batch.baseElement);
                 break;
             }
             case DrawType::renderPassResolve:
@@ -2023,13 +2058,19 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
@@ -2076,7 +2117,6 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
 {
     // Recycle buffers.
     m_flushUniformBufferPool.recycle(std::move(m_flushUniformBuffer));
-    m_imageDrawUniformBufferPool.recycle(std::move(m_imageDrawUniformBuffer));
     m_pathBufferPool.recycle(std::move(m_pathBuffer));
     m_paintBufferPool.recycle(std::move(m_paintBuffer));
     m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
@@ -2084,6 +2124,8 @@ void RenderContextD3D12Impl::postFlush(const RenderContext::FlushResources&)
     m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
     m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
     m_triangleBufferPool.recycle(std::move(m_triangleBuffer));
+    m_imageRectInstanceBufferPool.recycle(std::move(m_imageRectInstanceBuffer));
+    m_imageMeshInstanceBufferPool.recycle(std::move(m_imageMeshInstanceBuffer));
 
     m_srvUavCbvHeapPool.recycle(std::move(m_srvUavCbvHeap));
     m_cpuSrvUavCbvHeapPool.recycle(std::move(m_cpuSrvUavCbvHeap));

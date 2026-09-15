@@ -3,7 +3,7 @@
 #extension GL_EXT_samplerless_texture_functions : require
 #define ENABLE_INSTANCE_INDEX
 #define OPTIONALLY_FLAT flat
-#define ATLAS_BLIT
+#define FEATHER_ATLAS_BLIT
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
@@ -11,5 +11,6 @@
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "draw_path.minified.vert"
 #include "draw_mesh.minified.frag"

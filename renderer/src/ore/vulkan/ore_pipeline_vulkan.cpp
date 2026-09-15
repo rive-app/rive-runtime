@@ -279,13 +279,10 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     // --- Validate user-supplied layouts against shader binding map ---
     {
         std::string err;
-        if (!validateLayoutsAgainstBindingMap(pipeline->m_bindingMap,
-                                              desc.bindGroupLayouts,
-                                              desc.bindGroupLayoutCount,
-                                              &err) ||
-            !validateColorRequiresFragment(desc.colorCount,
-                                           desc.fragmentModule != nullptr,
-                                           &err))
+        if (!validatePipelineDesc(desc,
+                                  pipeline->m_bindingMap,
+                                  NativeSlotScope::perGroup,
+                                  &err))
         {
             if (outError)
                 *outError = err;
@@ -431,9 +428,12 @@ rcp<Pipeline> ContextVulkan::makePipeline(const PipelineDesc& desc,
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType =
         VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // Vulkan drops depth writes whenever the test is off, so a write with
+    // an always compare still needs the test enabled
     depthStencil.depthTestEnable =
         (hasDepthStencil &&
-         desc.depthStencil.depthCompare != CompareFunction::always)
+         (desc.depthStencil.depthCompare != CompareFunction::always ||
+          desc.depthStencil.depthWriteEnabled))
             ? VK_TRUE
             : VK_FALSE;
     depthStencil.depthWriteEnable =

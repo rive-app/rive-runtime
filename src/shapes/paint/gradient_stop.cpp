@@ -11,19 +11,29 @@ StatusCode GradientStop::onAddedDirty(CoreContext* context)
         return code;
     }
 
+#ifndef WITH_RIVE_EDITOR
+    // Runtime-only path; editor build registers via
+    // `editorParentChanged` (dispatcher Pass 4.5).
     if (!parent()->is<LinearGradient>())
     {
         return StatusCode::MissingObject;
     }
     parent()->as<LinearGradient>()->addStop(this);
+#endif
     return StatusCode::Ok;
 }
 
 void GradientStop::colorValueChanged()
 {
-    parent()->as<LinearGradient>()->markGradientDirty();
+    if (parent() != nullptr && parent()->is<LinearGradient>())
+    {
+        parent()->as<LinearGradient>()->markGradientDirty();
+    }
 }
 void GradientStop::positionChanged()
 {
-    parent()->as<LinearGradient>()->markStopsDirty();
+    if (parent() != nullptr && parent()->is<LinearGradient>())
+    {
+        parent()->as<LinearGradient>()->markStopsDirty();
+    }
 }

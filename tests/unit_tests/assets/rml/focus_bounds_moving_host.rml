@@ -1,0 +1,107 @@
+<!--
+  Source markup for assets/focus_bounds_moving_host.riv, kept alongside it so
+  the scene is readable without opening the binary. The .riv is exported from
+  the editor; this is the record of what it contains, not a build input.
+
+  A focusable layout lives inside a nested artboard whose host slides across
+  the root. The focus node's cached world bounds are written once per update
+  from the layout's own geometry, which does not change when an ancestor host
+  moves the instance -- so the cached value goes stale while the element is
+  visibly somewhere else. FocusData::worldBounds recomputes through the root
+  transform at call time; this scene is what makes the two disagree.
+
+  "Main" slides its NestedArtboard host 200pt right and 60pt down, ping-ponging
+  so the bracket keeps moving. "Panel" is the hosted content: one focusable
+  LayoutComponent. Panel sits at stage x=700 so the two artboards do not
+  overlap in the editor.
+
+  Note a LayoutComponent's position comes from yoga, not from the node's own
+  x/y -- setting x/y here is inert. To inset the target inside Panel, use
+  positionLeft/positionTop on its LayoutComponentStyle with the matching
+  *UnitsValue set to "points".
+
+  Panel carries its own state machine, and it has to: FocusActionTarget
+  resolves its target through stateMachineInstance->artboard()->resolve(), so a
+  listener in Main's state machine cannot see into the nested artboard. Panel's
+  entry state fires "focusTarget" at start, and Panel's own listener performs
+  the focus. NestedStateMachine on the host is what makes that inner machine
+  run at all.
+-->
+
+<Artboard defaultStateMachineId="0:7" width="500" height="500" name="Main" id="0:1" styleId="0:3">
+    <LayoutComponentStyle name="Artboard Layout Style" id="0:3"/>
+
+    <NestedArtboard artboardId="0:30" x="100" y="100" name="Host" id="0:2">
+        <NestedStateMachine animationId="0:40" name="Panel Machine"/>
+    </NestedArtboard>
+
+    <StateMachine name="State Machine 1" id="0:7">
+        <StateMachineLayer name="Layer 1" id="0:8">
+            <AnyState/>
+            <ExitState/>
+            <EntryState>
+                <StateTransition stateToId="0:12"/>
+            </EntryState>
+            <AnimationState animationId="0:6" id="0:12"/>
+        </StateMachineLayer>
+    </StateMachine>
+
+    <LinearAnimation loopValue="pingPong" duration="60" fps="60" name="Slide" id="0:6">
+        <KeyedObject objectId="0:2">
+            <KeyedProperty propertyKey="13">
+                <KeyFrameDouble value="100" interpolationType="linear"/>
+                <KeyFrameDouble value="300" interpolationType="linear" frame="60"/>
+            </KeyedProperty>
+            <KeyedProperty propertyKey="14">
+                <KeyFrameDouble value="100" interpolationType="linear"/>
+                <KeyFrameDouble value="160" interpolationType="linear" frame="60"/>
+            </KeyedProperty>
+        </KeyedObject>
+    </LinearAnimation>
+</Artboard>
+
+<Artboard isComponent="true" width="200" height="200" x="700" y="0" name="Panel" id="0:30" styleId="0:31" defaultStateMachineId="0:40">
+    <LayoutComponentStyle name="Artboard Layout Style" id="0:31"/>
+
+    <LayoutComponent width="120" height="80" name="Target" id="0:34" styleId="0:35">
+        <LayoutComponentStyle
+            layoutWidthScaleType="fixed"
+            layoutHeightScaleType="fixed"
+            positionTypeValue="absolute"
+            widthUnitsValue="points"
+            heightUnitsValue="points"
+            name="Layout Style"
+            id="0:35"/>
+        <FocusData name="Focus" id="0:36"/>
+        <Fill name="Fill">
+            <SolidColor colorValue="FF57A5E0" name="Color"/>
+        </Fill>
+    </LayoutComponent>
+
+    <Event name="focusTarget" id="0:44"/>
+
+    <LinearAnimation duration="1" fps="60" name="Idle" id="0:41"/>
+
+    <StateMachine name="Panel Machine" id="0:40">
+        <StateMachineListenerSingle
+            targetId="0:30"
+            listenerTypeValue="event"
+            eventId="0:44"
+            name="On Focus Event"
+            id="0:42">
+            <FocusActionTarget targetId="0:34"/>
+        </StateMachineListenerSingle>
+        <StateMachineLayer name="Layer 1" id="0:43">
+            <AnyState/>
+            <ExitState/>
+            <EntryState>
+                <StateTransition stateToId="0:45"/>
+            </EntryState>
+            <AnimationState animationId="0:41" id="0:45">
+                <StateMachineFireEvent eventId="0:44" occursValue="0"/>
+            </AnimationState>
+        </StateMachineLayer>
+    </StateMachine>
+</Artboard>
+
+<Backboard coreVersion="3" activeArtboardId="0:1" mainArtboardId="0:1"/>

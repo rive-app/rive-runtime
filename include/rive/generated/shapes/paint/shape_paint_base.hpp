@@ -3,6 +3,9 @@
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/editor_field_types.hpp"
+#endif
 namespace rive
 {
 class ShapePaintBase : public ContainerComponent
@@ -45,8 +48,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(isVisiblePropertyKey, &m_IsVisible, &value);
         m_IsVisible = value;
-        isVisibleChanged();
+        RIVE_EDITOR_CHANGED(isVisibleChanged());
         notifyPropertyChanged(isVisiblePropertyKey);
     }
 
@@ -57,8 +61,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(blendModeValuePropertyKey,
+                             &m_BlendModeValue,
+                             &value);
         m_BlendModeValue = value;
-        blendModeValueChanged();
+        RIVE_EDITOR_CHANGED(blendModeValueChanged());
         notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
@@ -66,6 +73,7 @@ public:
     {
         m_IsVisible = object.m_IsVisible;
         m_BlendModeValue = object.m_BlendModeValue;
+        RIVE_EDITOR_COPY(object);
         ContainerComponent::copy(object);
     }
 
@@ -80,12 +88,16 @@ public:
                 m_BlendModeValue = CoreUintType::deserialize(reader);
                 return true;
         }
+        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ContainerComponent::deserialize(propertyKey, reader);
     }
 
 protected:
     virtual void isVisibleChanged() {}
     virtual void blendModeValueChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/paint/shape_paint_ext.inl"
+#endif
 };
 } // namespace rive
 

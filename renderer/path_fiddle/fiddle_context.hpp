@@ -47,14 +47,8 @@ public:
     // Needed by dawn to submit and create the command buffers since they are
     // created each frame.
     virtual void* getCommandBuffer() { return nullptr; };
-    virtual void beginOreFrame(rive::ore::Context* oreContext)
-    {
-        oreContext->beginFrame({.externalCommandBuffer = getCommandBuffer()});
-    };
-    virtual void endOreFrame(rive::ore::Context* context)
-    {
-        context->endFrame();
-    };
+    virtual void beginOreFrame(rive::ore::Context* oreContext);
+    virtual void endOreFrame(rive::ore::Context* oreContext);
 
     virtual rive::gpu::RenderContext* renderContextOrNull() = 0;
     virtual rive::gpu::RenderContextD3DImpl* renderContextD3DImpl() const

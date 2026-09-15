@@ -23,6 +23,7 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 public:
 #ifdef WITH_RIVE_SCRIPTING
     void didHydrateScriptInputs() override;
+    void didReinit() override;
 #endif
     void draw(Renderer* renderer) override;
     void update(ComponentDirt value) override;
@@ -66,9 +67,16 @@ public:
                   bool isPressed,
                   bool isRepeat);
     bool textInput(const std::string& text);
+    // Re-arm the advance loop after an input event is dispatched to the
+    // script; the handler may have changed state (e.g. fired a trigger on a
+    // scripted artboard) that only the next scriptAdvance can consume.
+    void wakeAdvance();
 
 private:
     bool m_isAdvanceActive = true;
+    // One zero step after a reinit so advance driven content, like gpu
+    // canvas fills, re-records while paused.
+    bool m_forceAdvance = false;
 };
 
 class HitScriptedDrawable : public HitComponent
@@ -87,6 +95,7 @@ public:
     }
 
     bool hitTest(Vec2D position) const override { return true; }
+    bool hitTestBounded(Vec2D position) const override;
     void prepareEvent(Vec2D position,
                       ListenerType hitType,
                       int pointerId) override

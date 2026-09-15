@@ -3,7 +3,9 @@
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class TextModifierRangeBase : public ContainerComponent
@@ -54,7 +56,7 @@ protected:
     float m_FalloffFrom = 0.0f;
     float m_FalloffTo = 1.0f;
     float m_Offset = 0.0f;
-    uint32_t m_RunId = -1;
+    Id m_RunId = kEmptyId;
 
 public:
     inline float modifyFrom() const { return m_ModifyFrom; }
@@ -64,8 +66,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modifyFromPropertyKey, &m_ModifyFrom, &value);
         m_ModifyFrom = value;
-        modifyFromChanged();
+        RIVE_EDITOR_CHANGED(modifyFromChanged());
         notifyPropertyChanged(modifyFromPropertyKey);
     }
 
@@ -76,8 +79,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modifyToPropertyKey, &m_ModifyTo, &value);
         m_ModifyTo = value;
-        modifyToChanged();
+        RIVE_EDITOR_CHANGED(modifyToChanged());
         notifyPropertyChanged(modifyToPropertyKey);
     }
 
@@ -88,8 +92,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
         m_Strength = value;
-        strengthChanged();
+        RIVE_EDITOR_CHANGED(strengthChanged());
         notifyPropertyChanged(strengthPropertyKey);
     }
 
@@ -100,8 +105,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(unitsValuePropertyKey, &m_UnitsValue, &value);
         m_UnitsValue = value;
-        unitsValueChanged();
+        RIVE_EDITOR_CHANGED(unitsValueChanged());
         notifyPropertyChanged(unitsValuePropertyKey);
     }
 
@@ -112,8 +118,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(typeValuePropertyKey, &m_TypeValue, &value);
         m_TypeValue = value;
-        typeValueChanged();
+        RIVE_EDITOR_CHANGED(typeValueChanged());
         notifyPropertyChanged(typeValuePropertyKey);
     }
 
@@ -124,8 +131,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
         m_ModeValue = value;
-        modeValueChanged();
+        RIVE_EDITOR_CHANGED(modeValueChanged());
         notifyPropertyChanged(modeValuePropertyKey);
     }
 
@@ -136,8 +144,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(clampPropertyKey, &m_Clamp, &value);
         m_Clamp = value;
-        clampChanged();
+        RIVE_EDITOR_CHANGED(clampChanged());
         notifyPropertyChanged(clampPropertyKey);
     }
 
@@ -148,8 +157,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(falloffFromPropertyKey, &m_FalloffFrom, &value);
         m_FalloffFrom = value;
-        falloffFromChanged();
+        RIVE_EDITOR_CHANGED(falloffFromChanged());
         notifyPropertyChanged(falloffFromPropertyKey);
     }
 
@@ -160,8 +170,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(falloffToPropertyKey, &m_FalloffTo, &value);
         m_FalloffTo = value;
-        falloffToChanged();
+        RIVE_EDITOR_CHANGED(falloffToChanged());
         notifyPropertyChanged(falloffToPropertyKey);
     }
 
@@ -172,20 +183,22 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
         m_Offset = value;
-        offsetChanged();
+        RIVE_EDITOR_CHANGED(offsetChanged());
         notifyPropertyChanged(offsetPropertyKey);
     }
 
-    inline uint32_t runId() const { return m_RunId; }
-    void runId(uint32_t value)
+    inline Id runId() const { return m_RunId; }
+    void runId(Id value)
     {
         if (m_RunId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(runIdPropertyKey, &m_RunId, &value);
         m_RunId = value;
-        runIdChanged();
+        RIVE_EDITOR_CHANGED(runIdChanged());
         notifyPropertyChanged(runIdPropertyKey);
     }
 
@@ -241,7 +254,7 @@ public:
                 m_Offset = CoreDoubleType::deserialize(reader);
                 return true;
             case runIdPropertyKey:
-                m_RunId = CoreUintType::deserialize(reader);
+                m_RunId = CoreIdType::runtimeDeserialize(reader);
                 return true;
         }
         return ContainerComponent::deserialize(propertyKey, reader);
@@ -259,6 +272,9 @@ protected:
     virtual void falloffToChanged() {}
     virtual void offsetChanged() {}
     virtual void runIdChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/text/text_modifier_range_ext.inl"
+#endif
 };
 } // namespace rive
 

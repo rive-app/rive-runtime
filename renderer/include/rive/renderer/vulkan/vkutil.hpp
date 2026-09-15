@@ -36,26 +36,156 @@ constexpr static uint32_t Samsung = 0x144d;
 
 const char* string_from_vk_result(VkResult);
 
-inline static void vk_check(VkResult res, const char* file, int line)
+// Prints a diagnostic if 'res' is a failure; returns whether it succeeded.
+inline static bool vkReportError(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
         fprintf(stderr,
-                "Vulkan error %s (%i) at line: %i in file: %s\n",
+                "%s:%i: vulkan error: %s (%i)\n",
+                file,
+                line,
+                string_from_vk_result(res),
+                res);
+        return false;
+    }
+    return true;
+}
+
+// Same, but also names the resource.
+inline static bool vkReportAllocationError(VkResult res,
+                                           const char* what,
+                                           const char* file,
+                                           int line)
+{
+    if (res != VK_SUCCESS)
+    {
+        fprintf(stderr,
+                "%s:%i: vulkan error: %s (%i) allocating %s\n",
+                file,
+                line,
                 string_from_vk_result(res),
                 res,
-                line,
-                file);
+                what);
+        return false;
+    }
+    return true;
+}
+
+inline static void vkAbortOnError(VkResult res, const char* file, int line)
+{
+    if (!vkReportError(res, file, line))
+    {
         abort();
     }
 }
 
-#define VK_CHECK(x) ::rive::gpu::vkutil::vk_check(x, __FILE__, __LINE__)
+// For call sites that have no way to recover from a driver failure.
+#define VK_ABORT_ON_FAIL(x)                                                    \
+    ::rive::gpu::vkutil::vkAbortOnError(x, __FILE__, __LINE__)
+
+// For call sites in initialization paths, where a driver failure can be
+// reported back to the client instead of crashing.
+#define VK_RETURN_FALSE_ON_FAIL(x)                                             \
+    do                                                                         \
+    {                                                                          \
+        if (!::rive::gpu::vkutil::vkReportError(x, __FILE__, __LINE__))        \
+        {                                                                      \
+            return false;                                                      \
+        }                                                                      \
+    } while (false)
+
+// Prints a diagnostic if the allocation 'x' failed, naming the resource it was
+// for. Evaluates to whether it succeeded.
+#define VK_SUCCEEDED(x, what)                                                  \
+    ::rive::gpu::vkutil::vkReportAllocationError(x, what, __FILE__, __LINE__)
+
+// The handle a vkCreate*() command writes to its final out parameter.
+template <typename PFN_vkCreate> struct CreatedHandle;
+
+template <typename CreateInfo, typename Handle>
+struct CreatedHandle<VkResult(VKAPI_PTR*)(VkDevice,
+                                          const CreateInfo*,
+                                          const VkAllocationCallbacks*,
+                                          Handle*)>
+{
+    using type = Handle;
+};
+
+// Creates a Vulkan object. Prints a diagnostic, bumps
+// vk->allocationFailureCount() and returns VK_NULL_HANDLE if the driver fails.
+#define VK_CREATE_HANDLE(vk, createCommand, pCreateInfo)                       \
+    (vk)->createHandle(&::rive::gpu::VulkanContext::createCommand,             \
+                       pCreateInfo,                                            \
+                       __FILE__,                                               \
+                       __LINE__)
 
 constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
     VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+// gpu::PipelineState -> Vulkan conversions.
+inline VkStencilOp vkStencilOp(StencilOp op)
+{
+    switch (op)
+    {
+        case StencilOp::keep:
+            return VK_STENCIL_OP_KEEP;
+        case StencilOp::replace:
+            return VK_STENCIL_OP_REPLACE;
+        case StencilOp::zero:
+            return VK_STENCIL_OP_ZERO;
+        case StencilOp::decrClamp:
+            return VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+        case StencilOp::incrWrap:
+            return VK_STENCIL_OP_INCREMENT_AND_WRAP;
+        case StencilOp::decrWrap:
+            return VK_STENCIL_OP_DECREMENT_AND_WRAP;
+    }
+    RIVE_UNREACHABLE();
+}
+
+inline VkCompareOp vkCompareOp(StencilCompareOp op)
+{
+    switch (op)
+    {
+        case StencilCompareOp::less:
+            return VK_COMPARE_OP_LESS;
+        case StencilCompareOp::equal:
+            return VK_COMPARE_OP_EQUAL;
+        case StencilCompareOp::lessOrEqual:
+            return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case StencilCompareOp::notEqual:
+            return VK_COMPARE_OP_NOT_EQUAL;
+        case StencilCompareOp::always:
+            return VK_COMPARE_OP_ALWAYS;
+    }
+    RIVE_UNREACHABLE();
+}
+
+inline VkCullModeFlags vkCullMode(CullFace cullFace)
+{
+    switch (cullFace)
+    {
+        case CullFace::none:
+            return VK_CULL_MODE_NONE;
+        case CullFace::clockwise:
+            return VK_CULL_MODE_FRONT_BIT;
+        case CullFace::counterclockwise:
+            return VK_CULL_MODE_BACK_BIT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// Feeds the push-constant for ShaderMiscFlags::emulateDynamicColorWriteDisable:
+// One float by which the vertex shader multiplies its paint (1 writes, 0
+// suppresses).
+constexpr static VkPushConstantRange ColorWriteEnablePushConstant = {
+    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+    .offset = 0,
+    .size = sizeof(float),
+};
 
 enum class Mappability
 {
@@ -90,6 +220,10 @@ public:
     // synchronization. The caller is responsible to guarantee the underlying
     // VkBuffer is not queued up in any in-flight command buffers.
     void resizeImmediately(VkDeviceSize sizeInBytes);
+
+    // Whether contents() is safe to call. False if either the buffer or its
+    // memory map failed to allocate.
+    bool hasContents() const { return m_contents != nullptr; }
 
     void* contents()
     {
@@ -196,7 +330,7 @@ private:
 
     const rcp<Image> m_textureRefOrNull;
     VkImageViewCreateInfo m_info;
-    VkImageView m_vkImageView;
+    VkImageView m_vkImageView = VK_NULL_HANDLE;
 };
 
 // Tracks the current layout and access parameters of a VkImage.
@@ -233,6 +367,7 @@ public:
         return m_imageView->vkImageViewAddressOf();
     }
     ImageAccess& lastAccess() { return m_lastAccess; }
+    const ImageAccess& lastAccess() const { return m_lastAccess; }
     void* nativeHandle() const override { return (void*)vkImage(); }
 
     // Deferred mechanism for uploading image data without a command buffer.
@@ -366,7 +501,7 @@ private:
     Framebuffer(rcp<VulkanContext>, const VkFramebufferCreateInfo&);
 
     VkFramebufferCreateInfo m_info;
-    VkFramebuffer m_vkFramebuffer;
+    VkFramebuffer m_vkFramebuffer = VK_NULL_HANDLE;
 };
 
 // Utility to generate a simple 2D VkViewport from a VkRect2D.

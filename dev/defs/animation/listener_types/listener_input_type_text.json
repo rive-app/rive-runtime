@@ -1,8 +1,0 @@
-{
-  "name": "ListenerInputTypeText",
-  "key": {
-    "int": 666,
-    "string": "listenerinputtypetext"
-  },
-  "extends": "animation/listener_types/listener_input_type.json"
-}

@@ -15,6 +15,7 @@ public:
     float actualInstanceHeight(ArtboardInstance* artboardInstance);
     void markHostingLayoutDirty(ArtboardInstance* artboardInstance);
     bool isRow();
+    bool isStack();
 
 protected:
     void instanceWidthChanged() override;

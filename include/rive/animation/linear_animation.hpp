@@ -14,6 +14,21 @@ class LinearAnimation : public LinearAnimationBase
 {
 private:
     std::vector<std::unique_ptr<KeyedObject>> m_KeyedObjects;
+#ifdef WITH_RIVE_EDITOR
+    // Non-owning parallel list populated by `EditorFile::finalizeBatch`
+    // from coop-hydrated KeyedObjects whose `animationId` (an editor-
+    // only `runtime: false` Id property) resolves to this animation.
+    // Coop-delivered KeyedObjects live in the EditorFile arena and
+    // don't fit the `unique_ptr` ownership contract used by the `.riv`
+    // importer path — parallel storage keeps both loading modes
+    // coexistent within a single editor binary: a runtime `.riv`
+    // loaded side-by-side with a coop file uses `m_KeyedObjects`,
+    // the coop-loaded one uses `m_EditorKeyedObjects`. Iteration
+    // (apply / onAddedDirty / onAddedClean / reportKeyedCallbacks)
+    // walks whichever is populated — for any given `LinearAnimation`
+    // instance exactly one side is non-empty in practice.
+    std::vector<KeyedObject*> m_EditorKeyedObjects;
+#endif
 
     friend class Artboard;
 
@@ -32,6 +47,30 @@ public:
                float time,
                float mix = 1.0f,
                const LinearAnimationInstance* context = nullptr) const;
+#ifdef WITH_RIVE_EDITOR
+    // Editor-only: push a coop-hydrated KeyedObject onto
+    // `m_EditorKeyedObjects`. See field comment for lifetime.
+    void addKeyedObjectForEditor(KeyedObject* object);
+    // Editor-only: drop editor-only entries so `finalizeBatch` can
+    // rebuild idempotently on each coop batch.
+    void clearEditorKeyedObjects();
+    // Editor-only: how many coop-hydrated KeyedObjects this animation
+    // carries. Used by diagnostics to distinguish "empty" animations
+    // from real playback candidates.
+    size_t editorKeyedObjectCount() const
+    {
+        return m_EditorKeyedObjects.size();
+    }
+    /// Editor-only: read-only view of the coop-hydrated KeyedObjects.
+    /// Used by editor_native's timeline FFI to build the row tree.
+    /// Pointer lifetime matches the EditorFile arena — entries are
+    /// repopulated on every `finalizeBatch`, so iterate within the
+    /// drain that called it.
+    const std::vector<KeyedObject*>& editorKeyedObjects() const
+    {
+        return m_EditorKeyedObjects;
+    }
+#endif
 
     Loop loop() const { return (Loop)loopValue(); }
 

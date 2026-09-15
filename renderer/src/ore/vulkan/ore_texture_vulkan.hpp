@@ -1,4 +1,6 @@
 #pragma once
+
+#include <vector>
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
@@ -25,6 +27,11 @@ private:
     VkImage m_vkImage = VK_NULL_HANDLE;
     VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
     VkImageLayout m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // One flag per mip and layer, set once anything gives that subresource
+    // contents, pending uploads included.
+    std::vector<bool> m_vkWritten;
+    // Marks the subresource written and reports whether it already was.
+    bool vkMarkWritten(uint32_t mip, uint32_t layer);
     VkDevice m_vkDevice = VK_NULL_HANDLE; // Weak ref.
     rcp<rive::gpu::VulkanContext> m_vk;
     // Back-ref so upload() can route through ContextVulkan. Weak ref.

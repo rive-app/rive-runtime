@@ -19,13 +19,18 @@ StatusCode TargetEffect::onAddedClean(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
+#ifdef WITH_RIVE_EDITOR
+    setGroupEffectForEditor(groupTarget->as<GroupEffect>());
+#else
     m_groupEffect = groupTarget->as<GroupEffect>();
-    m_groupEffect->addTargetEffect(this);
+#endif
+    auto* g = groupEffect();
+    g->addTargetEffect(this);
     for (auto& effectPath : m_effectPaths)
     {
         auto targetEffectPath =
             static_cast<TargetEffectPath*>(effectPath.second);
-        m_groupEffect->addPathProvider(targetEffectPath->pathProviderProxy());
+        g->addPathProvider(targetEffectPath->pathProviderProxy());
     }
 
     return StatusCode::Ok;
@@ -35,7 +40,8 @@ void TargetEffect::updateEffect(PathProvider* pathProvider,
                                 const ShapePaintPath* source,
                                 const ShapePaint* shapePaint)
 {
-    if (!m_groupEffect)
+    auto* g = groupEffect();
+    if (!g)
     {
         return;
     }
@@ -44,15 +50,16 @@ void TargetEffect::updateEffect(PathProvider* pathProvider,
     {
         auto targetEffectPath =
             static_cast<TargetEffectPath*>(effectPathIt->second);
-        m_groupEffect->updateEffect(targetEffectPath->pathProviderProxy(),
-                                    source,
-                                    shapePaint);
+        g->updateEffect(targetEffectPath->pathProviderProxy(),
+                        source,
+                        shapePaint);
     }
 }
 
 ShapePaintPath* TargetEffect::effectPath(PathProvider* pathProvider)
 {
-    if (!m_groupEffect)
+    auto* g = groupEffect();
+    if (!g)
     {
         return nullptr;
     }
@@ -61,8 +68,7 @@ ShapePaintPath* TargetEffect::effectPath(PathProvider* pathProvider)
     {
         auto targetEffectPath =
             static_cast<TargetEffectPath*>(effectPathIt->second);
-        return m_groupEffect->lastEffectPath(
-            targetEffectPath->pathProviderProxy());
+        return g->lastEffectPath(targetEffectPath->pathProviderProxy());
     }
     return nullptr;
 }
@@ -76,10 +82,9 @@ void TargetEffect::addPathProvider(PathProvider* component)
     {
         auto targetEffectPath =
             static_cast<TargetEffectPath*>(effectPathIt->second);
-        if (m_groupEffect)
+        if (auto* g = groupEffect())
         {
-            m_groupEffect->addPathProvider(
-                targetEffectPath->pathProviderProxy());
+            g->addPathProvider(targetEffectPath->pathProviderProxy());
         }
     }
 }
@@ -93,7 +98,8 @@ EffectPath* TargetEffect::createEffectPath() { return new TargetEffectPath(); }
 
 void TargetEffect::invalidateEffect(PathProvider* pathProvider)
 {
-    if (!m_groupEffect)
+    auto* g = groupEffect();
+    if (!g)
     {
         return;
     }
@@ -104,8 +110,7 @@ void TargetEffect::invalidateEffect(PathProvider* pathProvider)
         {
             auto targetEffectPath =
                 static_cast<TargetEffectPath*>(effectPathIt->second);
-            m_groupEffect->invalidateEffect(
-                targetEffectPath->pathProviderProxy());
+            g->invalidateEffect(targetEffectPath->pathProviderProxy());
         }
     }
     else
@@ -114,8 +119,7 @@ void TargetEffect::invalidateEffect(PathProvider* pathProvider)
         {
             auto targetEffectPath =
                 static_cast<TargetEffectPath*>(effectPath.second);
-            m_groupEffect->invalidateEffect(
-                targetEffectPath->pathProviderProxy());
+            g->invalidateEffect(targetEffectPath->pathProviderProxy());
         }
     }
 }

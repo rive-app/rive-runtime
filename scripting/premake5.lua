@@ -1,5 +1,5 @@
 local dependency = require('dependency')
-local luau = dependency.github('luigi-rosso/luau', 'rive_0_728')
+local luau = dependency.github('luigi-rosso/luau', 'rive_0_734')
 local libhydrogen = dependency.github('luigi-rosso/libhydrogen', 'rive_0_2')
 
 dofile('rive_build_config.lua')
@@ -23,10 +23,24 @@ do
     })
     defines({ 'LUA_USE_LONGJMP', 'RIVE_LUAU' })
     optimize('Size')
+
+    filter({ 'system:linux', 'options:for_unreal' })
+    do
+        -- Unreal loads each plugin module .so with RTLD_GLOBAL (flat namespace). Luau's
+        -- fast-flag registry (Luau::FValue<T>::list) is a process-global intrusive linked
+        -- list built by static initializers. When luau_vm is statically linked into more
+        -- than one Rive module, these weak symbols get interposed across modules and the
+        -- list is cross-linked into a cycle, so FValueVersionSetter's strcmp walk spins
+        -- forever during dlopen
+        buildoptions({ '-fvisibility=hidden', '-fvisibility-inlines-hidden' })
+    end
+    filter({})
     if TESTING == true then
         filter({ 'system:windows' })
         do
-            buildoptions({ '/fp:precise' })
+            -- Visual Studio compiles through clang-cl and takes MSVC flag syntax; ninja drives
+            -- clang++ directly, which only understands the GNU spelling.
+            buildoptions({ _ACTION == 'ninja' and '-ffp-model=precise' or '/fp:precise' })
         end
     end
 

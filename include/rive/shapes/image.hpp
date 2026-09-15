@@ -4,9 +4,12 @@
 #include "rive/hit_info.hpp"
 #include "rive/generated/shapes/image_base.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 
 namespace rive
 {
+class LayoutNodeStyle;
+class LayoutParticipant;
 
 enum class ImageFit : unsigned char
 {
@@ -50,7 +53,25 @@ private:
 
 public:
     void setMesh(MeshDrawable* mesh);
+#ifdef WITH_RIVE_EDITOR
+    /// Mesh / NSlicer call this from `editorParentChanged(_, this)`
+    /// to register on transition to. Both share `m_Mesh` — the
+    /// runtime invariant is one Mesh OR one NSlicer per Image, so
+    /// the second one overrides.
+    void setMeshForEditor(MeshDrawable* mesh) { m_Mesh = mesh; }
+    /// Clear `m_Mesh` only if it currently points at `expected`.
+    /// Called from `editorParentChanged(this, _)` to safely detach
+    /// without clobbering a sibling's setter that ran more recently.
+    void clearMeshIfForEditor(MeshDrawable* expected)
+    {
+        if (m_Mesh == expected)
+        {
+            m_Mesh = nullptr;
+        }
+    }
+#endif
     ImageAsset* imageAsset() const;
+    ImageSampler imageSampler() const;
     void draw(Renderer* renderer) override;
     bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
@@ -66,12 +87,28 @@ public:
                      LayoutScaleType widthScaleType,
                      LayoutScaleType heightScaleType,
                      LayoutDirection direction) override;
+
+    // Participation via an optional LayoutParticipant child. Origin
+    // is 0 (unlike Text): the image composes its origin + fit into the render
+    // separately, so the slot base is just the slot top-left.
+    void composeWorldTransform() override;
+
+protected:
+    void updateConstraints() override;
+
+public:
+    Vec2D layoutBaseTranslation(LayoutParticipant* participant) const;
+    LayoutParticipant* layoutParticipant() const;
+    bool isParticipatingInLayout() const;
+
     float width() const;
     float height() const;
     // Effective render scale: the user-facing scaleX/scaleY composed with the
     // layout fit scale. Equals the user scale when not in a layout.
     float renderScaleX() const { return scaleX() * m_layoutScaleX; }
     float renderScaleY() const { return scaleY() * m_layoutScaleY; }
+    float computedWidth() override { return width() * renderScaleX(); }
+    float computedHeight() override { return height() * renderScaleY(); }
     void assetUpdated() override;
     AABB localBounds() const override;
     void updateTransform() override;

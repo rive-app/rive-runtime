@@ -5,19 +5,26 @@
 #define TESS_TEXTURE_WIDTH float(2048)
 #define TESS_TEXTURE_WIDTH_LOG2 11
 
+// # of tessellation segments spanned by each patch type. Kept in sync with
+// gpu::kMidpointFanPatchSegmentSpan and gpu::OuterCubicPatchSegmentSpan (see
+// the static_asserts in gpu.cpp).
+#define MIDPOINT_FAN_PATCH_SEGMENT_SPAN 8u
+#define OUTER_CUBIC_PATCH_SEGMENT_SPAN 16u
+
 #define GRAD_TEXTURE_WIDTH float(512)
 #define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
 
 // Number of standard deviations on either side of the middle of the feather
-// texture. The feather texture integrates the normal distribution from
-// -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS in the domain x=0..1.
-#define FEATHER_TEXTURE_STDDEVS float(3)
+// texture. The gaussian integral texture integrates the normal distribution
+// from -GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS to +GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS
+// in the domain x=0..1.
+#define GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS float(3)
 
-// Indices of function tables in the feather texture1d array.
+// Indices of function tables in the gaussian integral texture1d array.
 // NOTE: This will be a texture2d if texture1d isn't supported.
 #define FEATHER_FUNCTION_ARRAY_INDEX 0
 #define FEATHER_INVERSE_FUNCTION_ARRAY_INDEX 1
-#define FEATHER_TEXTURE_1D_ARRAY_LENGTH 2
+#define GAUSSIAN_INTEGRAL_TEXTURE_1D_ARRAY_LENGTH 2
 
 // Number of additional tessellation "helper" vertices that need to be allocated
 // for a feather join.
@@ -38,12 +45,13 @@
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
-// resource buffer. Since these only serve paths and contours, both of those are
-// limited to 16-bit indices, 2048 is the min specified texture size in ES3, and
-// no path buffer uses more than 4 texels, we can safely use a width of 128.
-#define STORAGE_TEXTURE_WIDTH 128
-#define STORAGE_TEXTURE_SHIFT_Y 7
-#define STORAGE_TEXTURE_MASK_X 0x7fu
+// resource buffer. The paintAuxBuffer is the bottleneck here, it is large
+// enough that we need a width of 256 for all of the values to sit within the
+// minimum-required texture height of 2048. If not for that, a width of 128
+// would be sufficient (as paths and contours just store 16-bit indices).
+#define STORAGE_TEXTURE_WIDTH 256
+#define STORAGE_TEXTURE_SHIFT_Y 8
+#define STORAGE_TEXTURE_MASK_X 0xffu
 
 // Flags that state whether/how we need to render solid-color borders to the
 // left and/or right side of a GradientSpan. (Borders of complex gradients
@@ -57,11 +65,11 @@
     (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                \
      GRAD_SPAN_FLAG_COMPLEX_BORDER)
 
-// Tells shaders that a cubic should actually be drawn as the single, non-AA
-// triangle: [p0, p1, p3]. This is used to squeeze in more rare triangles, like
-// "grout" triangles from self intersections on interior triangulation, where it
-// wouldn't be worth it to put them in their own dedicated draw call.
-#define RETROFITTED_TRIANGLE_CONTOUR_FLAG (1u << 31u)
+// Tells shaders that a cubic should actually be drawn as a non-AA triangle
+// strip of up to 5 points: [p0, p1, p3, p2, joinTangent]. This is used to
+// reduce draws and pipeline transitions by squeezing in triangles that don't
+// otherwise need special state or shading logic.
+#define RETROFIT_TRI_STRIP_CONTOUR_FLAG (1u << 31u)
 
 // Skip bit 30 in the contour flags so that it's always 0. This ensures we never
 // generate special NaN/Inf floating point values in contourIDWithFlags, which
@@ -120,12 +128,12 @@
 #define SOLID_COLOR_PAINT_TYPE 1u
 #define LINEAR_GRADIENT_PAINT_TYPE 2u
 #define RADIAL_GRADIENT_PAINT_TYPE 3u
-#define IMAGE_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
 #define PAINT_FLAG_NON_ZERO_FILL 0x100u
 #define PAINT_FLAG_EVEN_ODD_FILL 0x200u
 #define PAINT_FLAG_HAS_CLIP_RECT 0x400u
+#define PAINT_FLAG_HAS_IMAGE 0x800u
 
 // PLS draw resources are either updated per flush or per draw. They go into set
 // 0 or set 1, depending on how often they are updated.
@@ -137,27 +145,28 @@
 // bindings as low as 7.)
 #define FLUSH_UNIFORM_BUFFER_IDX 0
 #define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 1
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 2
-#define PATH_BUFFER_IDX 3
-#define PAINT_BUFFER_IDX 4
-#define PAINT_AUX_BUFFER_IDX 5
-#define CONTOUR_BUFFER_IDX 6
+#define PATH_BUFFER_IDX 2
+#define PAINT_BUFFER_IDX 3
+#define PAINT_AUX_BUFFER_IDX 4
+#define CONTOUR_BUFFER_IDX 5
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX 7
-#define TESS_VERTEX_TEXTURE_IDX 8
-#define GRAD_TEXTURE_IDX 9
-#define FEATHER_TEXTURE_IDX 10
-#define ATLAS_TEXTURE_IDX 11
-#define IMAGE_TEXTURE_IDX 12
-#define DST_COLOR_TEXTURE_IDX 13
-#define DEFAULT_BINDINGS_SET_SIZE 14
+#define COVERAGE_BUFFER_IDX 6
+#define TESS_VERTEX_TEXTURE_IDX 7
+#define GRAD_TEXTURE_IDX 8
+#define GAUSSIAN_INTEGRAL_TEXTURE_IDX 9
+#define FEATHER_ATLAS_TEXTURE_IDX 10
+#define IMAGE_TEXTURE_IDX 11
+#define DST_COLOR_TEXTURE_IDX 12
+#define DEFAULT_BINDINGS_SET_SIZE 13
 
 // WebGPU needs image sampler index as a separate value.
-#define WEBGPU_IMAGE_SAMPLER_IDX 14
-#define WEBGPU_BINDINGS_SET_SIZE 15
+#define WEBGPU_IMAGE_SAMPLER_IDX 13
+#define WEBGPU_BINDINGS_SET_SIZE 14
 
-// Metal doesn't allow us to bind buffers index 0 or 1. Offset them by 2.
-#define METAL_BUFFER_IDX(IDX) (2 + IDX)
+// In Metal, vertex attributes just come in as buffers. Since we use up to 3
+// vertex attrib buffers, offset the Rive resources by 3 so they don't alias
+// with vertex attribs.
+#define METAL_BUFFER_IDX(IDX) (3 + IDX)
 
 // PLS textures are accessed at the same index as their PLS planes, so we put
 // them in a separate binding set.
@@ -186,9 +195,37 @@
 // to alias this one.
 #define COALESCED_ATOMIC_RESOLVE_IDX SCRATCH_COLOR_PLANE_IDX
 
-// MSAA attaches different resources to the framebuffer instead of PLS planes.
-#define MSAA_DEPTH_STENCIL_IDX 1u
-#define MSAA_RESOLVE_IDX 2u
+// Index of each instanced attribute for image draws.
+// First, the common attributes:
+#define IMAGE_FIRST_ATTRIB_IDX 2
+#define IMAGE_VIEW_MATRIX_ATTRIB_IDX 2
+#define IMAGE_CLIP_RECT_INVERSE_MATRIX_ATTRIB_IDX 3
+#define IMAGE_TRANSLATES_ATTRIB_IDX 4
+#define IMAGE_MODULATED_COLOR_ATTRIB_IDX 5
+#define IMAGE_CLIP_ID_ATTRIB_IDX 6
+#define IMAGE_BLEND_MODE_ATTRIB_IDX 7
+#define IMAGE_ZINDEX_ATTRIB_IDX 8
+
+#define IMAGE_COMMON_LAST_ATTRIB_IDX 8
+#define IMAGE_COMMON_ATTRIB_COUNT                                              \
+    (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+#define IMAGE_RECT_IMAGE_MATRIX_ATTRIB_IDX 9
+#define IMAGE_RECT_GRADIENT_MATRIX_ATTRIB_IDX 10
+#define IMAGE_RECT_IMAGE_AND_GRADIENT_TRANSLATES_ATTRIB_IDX 11
+#define IMAGE_RECT_PACKED_GRADIENT_DATA 12
+#define IMAGE_RECT_LAST_ATTRIB_IDX IMAGE_RECT_PACKED_GRADIENT_DATA
+#define IMAGE_RECT_ATTRIB_COUNT                                                \
+    (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+#define IMAGE_MESH_LAST_ATTRIB_IDX IMAGE_COMMON_LAST_ATTRIB_IDX
+#define IMAGE_MESH_ATTRIB_COUNT                                                \
+    (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+
+// depthStencil mode attaches different resources to the framebuffer than PLS
+// planes.
+#define DEPTH_STENCIL_BUFFER_IDX 1u
+#define DEPTH_STENCIL_FINAL_COLOR_IDX 2u
 #define MSAA_COLOR_SEED_IDX 3u
 
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.
@@ -273,13 +310,15 @@
 #define NESTED_CLIPPING_SPECIALIZATION_IDX 5
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 6
 #define DITHER_SPECIALIZATION_IDX 7
-#define CLOCKWISE_FILL_SPECIALIZATION_IDX 8
-#define NESTED_CLIP_UPDATE_ONLY_IDX 9
-#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 10
-#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 11
-#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 12
-#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 13
-#define SPECIALIZATION_COUNT 14
+#define MODULATED_IMAGE_SPECIALIZATION_IDX 8
+#define CLOCKWISE_FILL_SPECIALIZATION_IDX 9
+#define NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX 10
+#define BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX 11
+#define EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX 12
+#define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 13
+#define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 14
+#define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 15
+#define SPECIALIZATION_COUNT 16
 
 // When rendering to an r32i feather atlas, use 16:16 fixed point.
 #define ATLAS_R32I_FIXED_POINT_FACTOR 65536.
@@ -296,6 +335,10 @@
 // both width and height.
 #define BUFFER_IMAGE_TILE_SIZE 32u
 #define BUFFER_IMAGE_TILE_SIZE_LOG2 5u
+
+// The paint aux data has a specific number of float32x4 elements in it
+#define PAINT_AUX_ENTRY_ELEMENT_COUNT 8u
+
 #ifdef __cplusplus
 #if __cplusplus >= 201703
 static_assert(BUFFER_IMAGE_TILE_SIZE == 1u << BUFFER_IMAGE_TILE_SIZE_LOG2);

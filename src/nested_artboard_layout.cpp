@@ -3,6 +3,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/world_transform_component.hpp"
 
 using namespace rive;
 
@@ -59,41 +60,56 @@ void NestedArtboardLayout::markLayoutNodeDirty(
     updateHeightOverride();
 }
 
-void NestedArtboardLayout::update(ComponentDirt value)
+// Where the layout put us, less the mounted artboard's own origin, applied in
+// the parent's frame:
+//
+//   parentWorld * translate(slot - origin) * m_Transform
+//
+// Applied after constraints rather than composed before them. A constraint that
+// copies a position (follow path, translation) composes the world transform
+// from its target and replaces our translation outright, so a placement folded
+// into composeWorldTransform is discarded and the artboard renders off by its
+// origin. With no constraint the two orders are the same matrix, so files that
+// do not constrain a nested artboard are unaffected.
+void NestedArtboardLayout::applyLayoutPlacement()
 {
-    Super::update(value);
     auto artboard = artboardInstance();
-    if (hasDirt(value, ComponentDirt::WorldTransform) && artboard != nullptr)
+    if (artboard == nullptr)
     {
-        auto layoutPosition = Vec2D(artboard->layoutX(), artboard->layoutY());
-
-        if (parent()->is<Artboard>())
-        {
-            auto parentArtboard = parent()->as<Artboard>();
-            auto correctedArtboardSpace = Mat2D::fromTranslation(
-                parentArtboard->origin() + layoutPosition);
-            m_WorldTransform = correctedArtboardSpace * m_WorldTransform;
-        }
-        else
-        {
-            m_WorldTransform =
-                Mat2D::fromTranslation(layoutPosition) * m_WorldTransform;
-        }
-        auto back = Mat2D::fromTranslation(-artboard->origin());
-        m_WorldTransform = back * m_WorldTransform;
+        return;
+    }
+    auto base =
+        Vec2D(artboard->layoutX(), artboard->layoutY()) - artboard->origin();
+    auto* parentComponent = parent();
+    if (parentComponent != nullptr && parentComponent->is<Artboard>())
+    {
+        base += parentComponent->as<Artboard>()->origin();
+    }
+    if (m_ParentTransformComponent != nullptr)
+    {
+        // Rotate/scale into the parent's frame; its translation cancels.
+        const Mat2D& p = m_ParentTransformComponent->worldTransform();
+        m_WorldTransform[4] += p[0] * base.x + p[2] * base.y;
+        m_WorldTransform[5] += p[1] * base.x + p[3] * base.y;
+    }
+    else
+    {
+        m_WorldTransform[4] += base.x;
+        m_WorldTransform[5] += base.y;
     }
 }
 
 void NestedArtboardLayout::updateConstraints()
 {
-    if (m_layoutConstraints.size() > 0)
+    if (layoutConstraints().size() > 0)
     {
-        for (auto parentConstraint : m_layoutConstraints)
+        for (auto parentConstraint : layoutConstraints())
         {
             parentConstraint->constrainChild(this);
         }
     }
     Super::updateConstraints();
+    applyLayoutPlacement();
 }
 
 StatusCode NestedArtboardLayout::onAddedClean(CoreContext* context)
@@ -157,11 +173,18 @@ void NestedArtboardLayout::updateHeightOverride()
     m_styleOverrider.updateHeightOverride(artboardInstance());
 }
 
+// The layout that collected us, which may sit above a container. Asking
+// parent() reported row/not-stack for a Solo and sized the wrong axis.
 bool NestedArtboardLayout::isRow()
 {
-    return parent()->is<LayoutComponent>()
-               ? parent()->as<LayoutComponent>()->mainAxisIsRow()
-               : true;
+    auto* layout = owningLayout(parent());
+    return layout != nullptr ? layout->mainAxisIsRow() : true;
+}
+
+bool NestedArtboardLayout::isStack()
+{
+    auto* layout = owningLayout(parent());
+    return layout != nullptr && layout->isStackContainer();
 }
 
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
@@ -201,18 +224,21 @@ void NestedArtboardLayout::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (parent()->is<LayoutComponent>())
+    // Re-collect on the layout that owns our node, not on parent(), or a
+    // container between the two leaves the swap unsynced.
+    auto* layout = owningLayout(parent());
+    if (layout != nullptr)
     {
-        parent()->as<LayoutComponent>()->clearLayoutChildren();
+        layout->clearLayoutChildren();
     }
 #endif
     NestedArtboard::updateArtboard(viewModelInstanceArtboard);
     updateWidthOverride();
     updateHeightOverride();
 #ifdef WITH_RIVE_LAYOUT
-    if (parent()->is<LayoutComponent>())
+    if (layout != nullptr)
     {
-        parent()->as<LayoutComponent>()->syncLayoutChildren();
+        layout->syncLayoutChildren();
     }
 #endif
 }

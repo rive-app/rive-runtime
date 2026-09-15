@@ -10,7 +10,7 @@ namespace rive
 class DataConverterRangeMapper : public DataConverterRangeMapperBase
 {
 protected:
-    KeyFrameInterpolator* m_interpolator;
+    KeyFrameInterpolator* m_interpolator = nullptr;
     DataValueNumber* calculateRange(DataValue* input,
                                     float minInput,
                                     float maxInput,

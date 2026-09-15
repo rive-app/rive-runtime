@@ -16,7 +16,25 @@ class LinearGradient : public LinearGradientBase, public ShapePaintMutator
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
+#ifdef WITH_RIVE_EDITOR
+    // Editor: same parent-attachment pattern as `SolidColor`. Body
+    // in `component_parent_editor.cpp`.
+    void editorParentChanged(ContainerComponent* from,
+                             ContainerComponent* to) override;
+#endif
     void addStop(GradientStop* stop);
+#ifdef WITH_RIVE_EDITOR
+    // Idempotent variant for `EditorFile::finalizeBatch` retry. The
+    // runtime `addStop` is called from `GradientStop::onAddedDirty`
+    // exactly once per stop; coop's intra-batch out-of-order means
+    // the stop's `parent()` may be null when its onAddedDirty fires
+    // (so it skips addStop). finalizeBatch walks every stop later
+    // and calls this — which checks for an existing entry first so
+    // a `.riv`-loaded file's importer-added stops don't get
+    // double-listed when coop overlays edits on top.
+    void addStopForEditor(GradientStop* stop);
+    void removeStopForEditor(GradientStop* stop);
+#endif
     void update(ComponentDirt value) override;
     void markGradientDirty();
     void markStopsDirty();

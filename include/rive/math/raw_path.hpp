@@ -25,6 +25,15 @@ class CommandPath;
 class RawPath
 {
 public:
+    RawPath() = default;
+
+    // Bulk copy for deserialization, arrays trusted self-consistent. Contour
+    // bookkeeping stays default since the path is consumed, not built.
+    RawPath(Span<const PathVerb> verbs, Span<const Vec2D> points) :
+        m_Points(points.data(), points.data() + points.size()),
+        m_Verbs(verbs.data(), verbs.data() + verbs.size())
+    {}
+
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }
 

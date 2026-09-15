@@ -1,8 +1,0 @@
-{
-  "name": "NSlicer",
-  "key": {
-    "int": 493,
-    "string": "nslicer"
-  },
-  "extends": "container_component.json"
-}

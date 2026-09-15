@@ -45,7 +45,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
         });
     }
 
-    if (interlockMode != gpu::InterlockMode::msaa)
+    if (interlockMode != gpu::InterlockMode::depthStencil)
     {
         plsLayoutBindings.push_back({
             .binding = CLIP_PLANE_IDX,
@@ -84,11 +84,15 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         });
     }
-    else if (interlockMode == gpu::InterlockMode::msaa)
+    else if (enums::is_flag_set(renderPassOptions,
+                                RenderPassOptionsVulkan::msaa))
     {
+        // Configure an input attachment to seed the transient MSAA color
+        // attachment.
         // TODO: pipeline layouts aren't currently keyed by loadAction, but if
         // they were, we could only include this binding with
         // preserveRenderTarget.
+        assert(interlockMode == gpu::InterlockMode::depthStencil);
         plsLayoutBindings.push_back({
             .binding = MSAA_COLOR_SEED_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
@@ -105,7 +109,7 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
             .pBindings = plsLayoutBindings.data(),
         };
 
-        VK_CHECK(
+        VK_ABORT_ON_FAIL(
             m_vk->CreateDescriptorSetLayout(m_vk->device,
                                             &plsLayoutInfo,
                                             nullptr,
@@ -130,11 +134,17 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
                               : VULKAN_BINDINGS_SET_COUNT - 1u,
         .pSetLayouts = pipelineDescriptorSetLayouts,
     };
+    if (hasColorWriteDisablePushConstant())
+    {
+        pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+        pipelineLayoutCreateInfo.pPushConstantRanges =
+            &vkutil::ColorWriteEnablePushConstant;
+    }
 
-    VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
-                                        &pipelineLayoutCreateInfo,
-                                        nullptr,
-                                        &m_pipelineLayout));
+    VK_ABORT_ON_FAIL(m_vk->CreatePipelineLayout(m_vk->device,
+                                                &pipelineLayoutCreateInfo,
+                                                nullptr,
+                                                &m_pipelineLayout));
 }
 
 DrawPipelineLayoutVulkan::~DrawPipelineLayoutVulkan()
@@ -167,7 +177,7 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
         case gpu::InterlockMode::clockwiseAtomic:
             assert(subpassIndex == 0 || subpassIndex == 1);
             return 2; // color & clip.
-        case gpu::InterlockMode::msaa:
+        case gpu::InterlockMode::depthStencil:
             assert(0 <= subpassIndex && subpassIndex <= 2);
             return 1u;
     }

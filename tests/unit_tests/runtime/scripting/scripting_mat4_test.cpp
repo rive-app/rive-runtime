@@ -58,6 +58,66 @@ TEST_CASE("Mat4 translation transforms a point", "[scripting]")
     CHECK(lua_tonumber(t.state(), -1) == 33.0);
 }
 
+TEST_CASE("Mat4.lookAt builds a view matrix", "[scripting]")
+{
+    // Eye at (0,0,5) looking at the origin: pure -5 z translation.
+    const char* src =
+        "local view = Mat4.lookAt(Vector.xyz(0, 0, 5), Vector.origin(),\n"
+        "    Vector.xyz(0, 1, 0))\n"
+        "local v = view:transformPoint(0, 0, 0)\n"
+        "return v.x, v.y, v.z, view.m11, view.m22, view.m33\n";
+    auto t = ScriptingTest(src, 6);
+    CHECK(lua_tonumber(t.state(), -6) == 0.0);
+    CHECK(lua_tonumber(t.state(), -5) == 0.0);
+    CHECK(lua_tonumber(t.state(), -4) == -5.0);
+    CHECK(lua_tonumber(t.state(), -3) == 1.0);
+    CHECK(lua_tonumber(t.state(), -2) == 1.0);
+    CHECK(lua_tonumber(t.state(), -1) == 1.0);
+
+    // Eye on +x looking at the origin: world +x maps to view -z.
+    const char* sideSrc =
+        "local view = Mat4.lookAt(Vector.xyz(5, 0, 0), Vector.origin(),\n"
+        "    Vector.xyz(0, 1, 0))\n"
+        "local v = view:transformPoint(1, 0, 0)\n"
+        "return v.x, v.y, v.z\n";
+    auto side = ScriptingTest(sideSrc, 3);
+    CHECK(lua_tonumber(side.state(), -3) == Approx(0.0).margin(1e-6));
+    CHECK(lua_tonumber(side.state(), -2) == Approx(0.0).margin(1e-6));
+    CHECK(lua_tonumber(side.state(), -1) == Approx(-4.0));
+}
+
+TEST_CASE("Mat4.ortho maps depth to [0, 1]", "[scripting]")
+{
+    const char* src = "local proj = Mat4.ortho(-2, 2, -1, 1, 0, 10)\n"
+                      "local near = proj:transformPoint(2, 1, 0)\n"
+                      "local far = proj:transformPoint(-2, -1, -10)\n"
+                      "return near.x, near.y, near.z, far.x, far.y, far.z\n";
+    auto t = ScriptingTest(src, 6);
+    CHECK(lua_tonumber(t.state(), -6) == 1.0);  // right -> +1
+    CHECK(lua_tonumber(t.state(), -5) == 1.0);  // top -> +1
+    CHECK(lua_tonumber(t.state(), -4) == 0.0);  // near -> 0
+    CHECK(lua_tonumber(t.state(), -3) == -1.0); // left -> -1
+    CHECK(lua_tonumber(t.state(), -2) == -1.0); // bottom -> -1
+    CHECK(lua_tonumber(t.state(), -1) == 1.0);  // far -> 1
+}
+
+TEST_CASE("Mat4 ortho * lookAt round-trips a point", "[scripting]")
+{
+    // Camera at +z looking at the origin; a point at world z=-5 sits 10 in
+    // front of the eye, the middle of the [5, 15] depth range.
+    const char* src =
+        "local view = Mat4.lookAt(Vector.xyz(0, 0, 5), Vector.origin(),\n"
+        "    Vector.xyz(0, 1, 0))\n"
+        "local proj = Mat4.ortho(-4, 4, -4, 4, 5, 15)\n"
+        "local vp = Mat4.multiply(Mat4.identity(), proj, view)\n"
+        "local v = vp:transformPoint(2, -2, -5)\n"
+        "return v.x, v.y, v.z\n";
+    auto t = ScriptingTest(src, 3);
+    CHECK(lua_tonumber(t.state(), -3) == Approx(0.5));
+    CHECK(lua_tonumber(t.state(), -2) == Approx(-0.5));
+    CHECK(lua_tonumber(t.state(), -1) == Approx(0.5));
+}
+
 TEST_CASE("Mat4 transformVec4 returns homogeneous components", "[scripting]")
 {
     // No perspective divide: w is preserved as the final return value.

@@ -49,6 +49,11 @@ public:
     void* layoutNode(int index) override;
 #endif
     size_t artboardCount() override { return m_listItems.size(); }
+#ifdef WITH_RIVE_TOOLS
+    /// A mounted item's offset from the list: its layout bounds less the item
+    /// artboard's origin.
+    Vec2D itemPosition(int index);
+#endif
     rcp<ViewModelInstanceListItem> listItem(int index);
     ArtboardInstance* artboardInstance(int index = 0) override;
     /// Logical index of the given instance in the list, or -1 if not found.
@@ -115,6 +120,11 @@ public:
     {
         m_visibleStartIndex = start;
         m_visibleEndIndex = end;
+    }
+    void setRealizedIndices(int start, int end) override
+    {
+        m_realizedStartIndex = start;
+        m_realizedEndIndex = end;
         invalidateOrderedListIndicesCache();
     }
     void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
@@ -135,11 +145,16 @@ public:
     float gap();
     void syncLayoutChildren();
     bool mainAxisIsRow();
+    bool isStack();
     LayoutComponent* layoutParent();
     const Mat2D& listTransform() override;
     void listItemTransforms(std::vector<Mat2D*>& transforms) override;
     void addMapRule(ArtboardListMapRule*);
     int type() const override { return coreType(); }
+#ifdef WITH_RIVE_EDITOR
+    void addMapRuleForEditor(ArtboardListMapRule* rule);
+    void removeMapRuleForEditor(ArtboardListMapRule* rule);
+#endif
 
     /// Create/parent a synthetic list scope FocusNode (structural, no
     /// Focusable) so list item focus trees group under it. Idempotent.
@@ -172,6 +187,7 @@ private:
     void linkStateMachineToArtboard(StateMachineInstance* stateMachineInstance,
                                     ArtboardInstance* artboard);
     void computeLayoutBounds();
+    bool isWithinVisibleWindow(int index) const;
     void createArtboardRecorders(const Artboard*);
     void applyRecorders(Artboard* artboard, const Artboard* sourceArtboard);
     void applyRecorders(StateMachineInstance* stateMachineInstance,
@@ -203,6 +219,8 @@ private:
     Vec2D m_layoutSize;
     int m_visibleStartIndex = -1;
     int m_visibleEndIndex = -1;
+    int m_realizedStartIndex = -1;
+    int m_realizedEndIndex = -1;
     std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
         m_artboardOverridesMap;
     std::unordered_map<int, int> m_artboardMapRules;

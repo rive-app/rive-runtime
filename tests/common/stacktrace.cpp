@@ -265,7 +265,9 @@ static void handle_signal(int sigNum, siginfo_t* signalInfo, void* userContext)
         std::stringstream f;
     };
 
-    State st{};
+    // Not "State st{}": that copy-initializes the stringstream from {}, which
+    // picks its explicit constructor and fails on older libc++.
+    State st;
     _Unwind_Backtrace(
         [](struct _Unwind_Context* context, void* stateVoid) {
             auto state = static_cast<State*>(stateVoid);
@@ -323,7 +325,11 @@ static void handle_signal(int sigNum, siginfo_t* signalInfo, void* userContext)
     // send stack to server
     signalFunc(f.str().c_str());
 
-    exit(sigNum);
+    // Terminate like the other platforms: no static teardown, which would
+    // release GPU state against half destroyed globals mid signal.
+    fflush(nullptr);
+    signal(sigNum, SIG_DFL);
+    raise(sigNum);
 }
 #endif
 void replace_signal_handlers(SignalFunc inSignalFunc,

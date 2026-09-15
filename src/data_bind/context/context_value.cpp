@@ -11,6 +11,8 @@
 #include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
+#include "rive/data_bind/data_values/data_value_asset_font.hpp"
+#include "rive/data_bind/data_values/data_value_asset_blob.hpp"
 #include "rive/data_bind/data_values/data_value_artboard.hpp"
 #include "rive/data_bind/data_values/data_value_viewmodel.hpp"
 #include "rive/generated/core_registry.hpp"
@@ -81,6 +83,14 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind)
                 m_dataValue = new DataValueAssetImage(
                     source->as<ViewModelInstanceAssetImage>()->propertyValue());
                 break;
+            case ViewModelInstanceAssetFontBase::typeKey:
+                m_dataValue = new DataValueAssetFont(
+                    source->as<ViewModelInstanceAssetFont>()->propertyValue());
+                break;
+            case ViewModelInstanceAssetBlobBase::typeKey:
+                m_dataValue = new DataValueAssetBlob(
+                    source->as<ViewModelInstanceAssetBlob>()->propertyValue());
+                break;
             case ViewModelInstanceArtboardBase::typeKey:
                 m_dataValue = new DataValueArtboard(
                     source->as<ViewModelInstanceArtboard>()->propertyValue());
@@ -144,6 +154,14 @@ void DataBindContextValue::syncSourceValue(DataBind* dataBind)
             case ViewModelInstanceAssetImageBase::typeKey:
                 m_dataValue->as<DataValueAssetImage>()->value(
                     source->as<ViewModelInstanceAssetImage>()->propertyValue());
+                break;
+            case ViewModelInstanceAssetFontBase::typeKey:
+                m_dataValue->as<DataValueAssetFont>()->value(
+                    source->as<ViewModelInstanceAssetFont>()->propertyValue());
+                break;
+            case ViewModelInstanceAssetBlobBase::typeKey:
+                m_dataValue->as<DataValueAssetBlob>()->value(
+                    source->as<ViewModelInstanceAssetBlob>()->propertyValue());
                 break;
             case ViewModelInstanceArtboardBase::typeKey:
                 m_dataValue->as<DataValueArtboard>()->value(
@@ -230,6 +248,22 @@ void DataBindContextValue::applyToSource(Core* component,
                                    uint32_t,
                                    ViewModelInstanceAssetImage>(isMainDirection,
                                                                 dataBind);
+        }
+        break;
+        case ViewModelInstanceAssetFontBase::typeKey:
+        {
+            calculateValueAndApply<DataValueInteger,
+                                   uint32_t,
+                                   ViewModelInstanceAssetFont>(isMainDirection,
+                                                               dataBind);
+        }
+        break;
+        case ViewModelInstanceAssetBlobBase::typeKey:
+        {
+            calculateValueAndApply<DataValueInteger,
+                                   uint32_t,
+                                   ViewModelInstanceAssetBlob>(isMainDirection,
+                                                               dataBind);
         }
         break;
         case ViewModelInstanceArtboardBase::typeKey:

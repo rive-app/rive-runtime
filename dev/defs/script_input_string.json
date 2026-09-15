@@ -1,8 +1,0 @@
-{
-  "name": "ScriptInputString",
-  "key": {
-    "int": 627,
-    "string": "scriptinputstring"
-  },
-  "extends": "custom_property_string.json"
-}

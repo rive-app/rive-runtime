@@ -43,8 +43,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(propertyTypePropertyKey, &m_PropertyType, &value);
         m_PropertyType = value;
-        propertyTypeChanged();
+        RIVE_EDITOR_CHANGED(propertyTypeChanged());
         notifyPropertyChanged(propertyTypePropertyKey);
     }
 
@@ -68,6 +69,9 @@ public:
 
 protected:
     virtual void propertyTypeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/animation/transition_property_artboard_comparator_ext.inl"
+#endif
 };
 } // namespace rive
 

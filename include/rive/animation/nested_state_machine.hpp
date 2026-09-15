@@ -34,6 +34,7 @@ public:
     HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
+    bool hitTestBounded(Vec2D position) const;
 
     void addNestedInput(NestedInput* input);
     size_t inputCount() { return m_nestedInputs.size(); }

@@ -214,26 +214,6 @@ void TextureD3D12::upload(const TextureDataDesc& data)
     }
     m_uploadBuffer->m_d3dBuffer->Unmap(0, nullptr);
 
-    // If the texture is not in COPY_DEST state, transition it.
-    if (m_d3dCurrentState != D3D12_RESOURCE_STATE_COPY_DEST)
-    {
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = m_d3dTexture.Get();
-        barrier.Transition.StateBefore = m_d3dCurrentState;
-        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
-        barrier.Transition.Subresource =
-            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        ctx->m_d3dCmdList->ResourceBarrier(1, &barrier);
-        m_d3dCurrentState = D3D12_RESOURCE_STATE_COPY_DEST;
-    }
-
-    // Copy the whole staged region to (x, y, z). No src box needed.
-    D3D12_TEXTURE_COPY_LOCATION dst_loc = {};
-    dst_loc.pResource = m_d3dTexture.Get();
-    dst_loc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    dst_loc.SubresourceIndex = subresource;
-
     D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
     footprint.Offset = 0;
     footprint.Footprint.Format = texDesc.Format;
@@ -242,32 +222,17 @@ void TextureD3D12::upload(const TextureDataDesc& data)
     footprint.Footprint.Depth = depth;
     footprint.Footprint.RowPitch = static_cast<UINT>(dstRowPitch);
 
-    D3D12_TEXTURE_COPY_LOCATION src_loc = {};
-    src_loc.pResource = m_uploadBuffer->m_d3dBuffer.Get();
-    src_loc.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-    src_loc.PlacedFootprint = footprint;
-
-    ctx->m_d3dCmdList->CopyTextureRegion(&dst_loc,
-                                         data.x,
-                                         data.y,
-                                         data.z,
-                                         &src_loc,
-                                         nullptr);
-
-    // Transition to PIXEL_SHADER_RESOURCE so it's ready to sample without
-    // an explicit barrier in the render pass.
-    {
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = m_d3dTexture.Get();
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        barrier.Transition.StateAfter =
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-        barrier.Transition.Subresource =
-            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        ctx->m_d3dCmdList->ResourceBarrier(1, &barrier);
-        m_d3dCurrentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    }
+    // Callers stage uploads before an Ore frame, when the host command list is
+    // closed, so queue the copy to record onto a live list once one opens.
+    ctx->d3d12QueuePendingTextureUpload({
+        ref_rcp(this),
+        m_uploadBuffer,
+        footprint,
+        subresource,
+        data.x,
+        data.y,
+        data.z,
+    });
 #else
     (void)data;
 #endif

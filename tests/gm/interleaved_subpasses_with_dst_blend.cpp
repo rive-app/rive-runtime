@@ -47,11 +47,29 @@ constexpr static uint32_t WINDOW_SIZE = 1600;
 //
 //
 // (This also leads to fewer barriers overall.)
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend,
-                               0xff000000,
-                               WINDOW_SIZE,
-                               WINDOW_SIZE,
-                               renderer)
+class InterleavedSubpassesGM : public rivegm::GM
+{
+public:
+    InterleavedSubpassesGM() : GM(WINDOW_SIZE, WINDOW_SIZE) {}
+    ColorInt clearColor() const override { return 0xff000000; }
+    void updateFrameOptions(TestingWindow::FrameOptions* options) const override
+    {
+        // Both GMs here draw text paths complex enough to exceed the default
+        // 256-verb triangulation guard. They exist to exercise interleaved
+        // subpasses against interior triangulation, so lift the cap and keep
+        // them on that path.
+        options->triangulationThresholds.maxVerbs = SIZE_MAX;
+    }
+};
+
+class interleaved_subpasses_with_dst_blend_GM : public InterleavedSubpassesGM
+{
+public:
+    void onDraw(rive::Renderer*) override;
+};
+GMREGISTER(interleaved_subpasses_with_dst_blend,
+           return new interleaved_subpasses_with_dst_blend_GM)
+void interleaved_subpasses_with_dst_blend_GM::onDraw(rive::Renderer* renderer)
 {
     gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
     gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
@@ -139,11 +157,14 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend,
     }
 }
 
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(interleaved_subpasses_with_dst_blend2,
-                               0xff000000,
-                               WINDOW_SIZE,
-                               WINDOW_SIZE,
-                               renderer)
+class interleaved_subpasses_with_dst_blend2_GM : public InterleavedSubpassesGM
+{
+public:
+    void onDraw(rive::Renderer*) override;
+};
+GMREGISTER(interleaved_subpasses_with_dst_blend2,
+           return new interleaved_subpasses_with_dst_blend2_GM)
+void interleaved_subpasses_with_dst_blend2_GM::onDraw(rive::Renderer* renderer)
 {
     gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
     gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;

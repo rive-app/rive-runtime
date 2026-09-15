@@ -681,8 +681,8 @@ D3D12VolatileBufferPool::D3D12VolatileBufferPool(
     UINT alignment,
     UINT size) :
     GPUResourcePool(std::move(manager), MAX_POOL_SIZE),
-    m_targetSize(std::max<UINT>(size, m_alignment)),
-    m_alignment(alignment)
+    m_alignment(alignment),
+    m_targetSize(std::max<UINT>(size, m_alignment))
 {}
 
 inline D3D12ResourceManager* D3D12VolatileBufferPool::d3d() const

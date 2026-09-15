@@ -78,7 +78,6 @@ void PathComposer::update(ComponentDirt value)
                 }
                 const auto localTransform =
                     inverseWorld * path->pathTransform();
-
                 bool isNotClockwise =
                     path->is<PointsPath>() &&
                     (localTransform.determinant() *

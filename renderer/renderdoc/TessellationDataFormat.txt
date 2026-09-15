@@ -27,7 +27,7 @@ struct row
    EnumJoinType JoinType:3;
    uint CullExcessTessSegments:1;
    uint :1; //NEVER_USED_CONTOUR_FLAG
-   uint RetroFitTriangle:1;
+   uint RetrofitTriStrip:1;
 };
 
 row r[];

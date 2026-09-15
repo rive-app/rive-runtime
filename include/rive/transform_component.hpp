@@ -34,6 +34,12 @@ public:
     void buildDependencies() override;
     void update(ComponentDirt value) override;
     virtual void updateTransform();
+    /// Builds m_WorldTransform from the parent world and our local transform.
+    /// Split out of updateWorldTransform so a subclass can substitute its own
+    /// composition (a layout participant inserts its slot) without the base
+    /// first composing and constraining a value that is then thrown away.
+    /// Constraints are applied by updateWorldTransform, once, afterwards.
+    virtual void composeWorldTransform();
     virtual void updateWorldTransform();
     void markTransformDirty();
 
@@ -51,6 +57,15 @@ public:
     virtual float x() const = 0;
     virtual float y() const = 0;
 
+    /// Our translation in the parent's frame — what a constraint's offset
+    /// preserves. x/y, plus where the layout engine placed anything laid out.
+    virtual Vec2D composedTranslation() const { return Vec2D(x(), y()); }
+
+    /// Where our anchor sits in our own local space. Zero for anything drawn
+    /// about its origin; a layout's box starts at local zero, so its origin
+    /// is this far in.
+    virtual Vec2D localAnchor() const { return Vec2D(); }
+
     void rotationChanged() override;
     void scaleXChanged() override;
     void scaleYChanged() override;
@@ -59,6 +74,15 @@ public:
     virtual AABB constraintBounds() const { return AABB(); }
     virtual AABB localBounds() const;
     void markDirtyIfConstrained();
+
+#ifdef WITH_RIVE_EDITOR
+    /// Idempotent add — `Constraint::editorParentChanged` calls this
+    /// when transitioning into us as the parent.
+    void addConstraintForEditor(Constraint* constraint);
+    /// Remove if present — `Constraint::editorParentChanged` calls
+    /// this when transitioning away (re-parent or unregister).
+    void removeConstraintForEditor(Constraint* constraint);
+#endif
 };
 } // namespace rive
 

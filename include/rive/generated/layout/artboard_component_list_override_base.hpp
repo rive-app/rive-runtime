@@ -2,7 +2,9 @@
 #define _RIVE_ARTBOARD_COMPONENT_LIST_OVERRIDE_BASE_HPP_
 #include "rive/component.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/core/id.hpp"
 namespace rive
 {
 class ArtboardComponentListOverrideBase : public Component
@@ -38,7 +40,7 @@ public:
     static const uint16_t instanceHeightScaleTypePropertyKey = 863;
 
 protected:
-    uint32_t m_ArtboardId = -1;
+    Id m_ArtboardId = kEmptyId;
     float m_InstanceWidth = -1.0f;
     float m_InstanceHeight = -1.0f;
     uint32_t m_InstanceWidthUnitsValue = 1;
@@ -47,15 +49,16 @@ protected:
     uint32_t m_InstanceHeightScaleType = 0;
 
 public:
-    inline uint32_t artboardId() const { return m_ArtboardId; }
-    void artboardId(uint32_t value)
+    inline Id artboardId() const { return m_ArtboardId; }
+    void artboardId(Id value)
     {
         if (m_ArtboardId == value)
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(artboardIdPropertyKey, &m_ArtboardId, &value);
         m_ArtboardId = value;
-        artboardIdChanged();
+        RIVE_EDITOR_CHANGED(artboardIdChanged());
         notifyPropertyChanged(artboardIdPropertyKey);
     }
 
@@ -66,8 +69,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceWidthPropertyKey,
+                             &m_InstanceWidth,
+                             &value);
         m_InstanceWidth = value;
-        instanceWidthChanged();
+        RIVE_EDITOR_CHANGED(instanceWidthChanged());
         notifyPropertyChanged(instanceWidthPropertyKey);
     }
 
@@ -78,8 +84,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceHeightPropertyKey,
+                             &m_InstanceHeight,
+                             &value);
         m_InstanceHeight = value;
-        instanceHeightChanged();
+        RIVE_EDITOR_CHANGED(instanceHeightChanged());
         notifyPropertyChanged(instanceHeightPropertyKey);
     }
 
@@ -93,8 +102,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceWidthUnitsValuePropertyKey,
+                             &m_InstanceWidthUnitsValue,
+                             &value);
         m_InstanceWidthUnitsValue = value;
-        instanceWidthUnitsValueChanged();
+        RIVE_EDITOR_CHANGED(instanceWidthUnitsValueChanged());
         notifyPropertyChanged(instanceWidthUnitsValuePropertyKey);
     }
 
@@ -108,8 +120,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceHeightUnitsValuePropertyKey,
+                             &m_InstanceHeightUnitsValue,
+                             &value);
         m_InstanceHeightUnitsValue = value;
-        instanceHeightUnitsValueChanged();
+        RIVE_EDITOR_CHANGED(instanceHeightUnitsValueChanged());
         notifyPropertyChanged(instanceHeightUnitsValuePropertyKey);
     }
 
@@ -123,8 +138,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceWidthScaleTypePropertyKey,
+                             &m_InstanceWidthScaleType,
+                             &value);
         m_InstanceWidthScaleType = value;
-        instanceWidthScaleTypeChanged();
+        RIVE_EDITOR_CHANGED(instanceWidthScaleTypeChanged());
         notifyPropertyChanged(instanceWidthScaleTypePropertyKey);
     }
 
@@ -138,8 +156,11 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(instanceHeightScaleTypePropertyKey,
+                             &m_InstanceHeightScaleType,
+                             &value);
         m_InstanceHeightScaleType = value;
-        instanceHeightScaleTypeChanged();
+        RIVE_EDITOR_CHANGED(instanceHeightScaleTypeChanged());
         notifyPropertyChanged(instanceHeightScaleTypePropertyKey);
     }
 
@@ -161,7 +182,7 @@ public:
         switch (propertyKey)
         {
             case artboardIdPropertyKey:
-                m_ArtboardId = CoreUintType::deserialize(reader);
+                m_ArtboardId = CoreIdType::runtimeDeserialize(reader);
                 return true;
             case instanceWidthPropertyKey:
                 m_InstanceWidth = CoreDoubleType::deserialize(reader);
@@ -193,6 +214,9 @@ protected:
     virtual void instanceHeightUnitsValueChanged() {}
     virtual void instanceWidthScaleTypeChanged() {}
     virtual void instanceHeightScaleTypeChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/layout/artboard_component_list_override_ext.inl"
+#endif
 };
 } // namespace rive
 

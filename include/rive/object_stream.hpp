@@ -46,7 +46,7 @@ public:
 
     template <typename T> PODStream& operator<<(T obj)
     {
-        static_assert(std::is_pod<T>(),
+        static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
                       "PODStream only accepts plain-old-data types");
         const char* data = reinterpret_cast<const char*>(&obj);
         m_byteStream.insert(m_byteStream.end(), data, data + sizeof(T));
@@ -55,7 +55,7 @@ public:
 
     template <typename T> PODStream& operator>>(T& dst)
     {
-        static_assert(std::is_pod<T>(),
+        static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
                       "PODStream only accepts plain-old-data types");
         assert(m_byteStream.size() >= sizeof(T));
         char* data = reinterpret_cast<char*>(&dst);

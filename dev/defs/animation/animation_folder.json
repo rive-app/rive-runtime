@@ -1,9 +1,0 @@
-{
-  "name": "AnimationFolder",
-  "key": {
-    "int": 143,
-    "string": "animationfolder"
-  },
-  "extends": "animation/animation.json",
-  "runtime": false
-}

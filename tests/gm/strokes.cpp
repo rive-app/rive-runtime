@@ -42,7 +42,7 @@ static void rnd_rect(AABB* r, RenderPaint* paint, Rand& rand)
     r->minY = y;
     r->maxX = x + w;
     r->maxY = y + h;
-    r->offset(-w / 2 + woffset, -h / 2 + hoffset);
+    *r = r->offset(-w / 2 + woffset, -h / 2 + hoffset);
 
     paint->color(rand.u32());
     // paint->setAlphaf(1.0f);
@@ -361,11 +361,7 @@ protected:
 
 //////////////////////////////////////////////////////////////////////////////
 
-static AABB inset(AABB r)
-{
-    r.inset(r.width() / 10, r.height() / 10);
-    return r;
-}
+static AABB inset(AABB r) { return r.inset(r.width() / 10, r.height() / 10); }
 
 class Strokes3GM : public GM
 {
@@ -396,16 +392,14 @@ class Strokes3GM : public GM
     static void make4(PathBuilder* path, const AABB& bounds)
     {
         path->addRect(bounds, rivegm::PathDirection::cw);
-        AABB r = bounds;
-        r.inset(bounds.width() / 10, -bounds.height() / 10);
+        AABB r = bounds.inset(bounds.width() / 10, -bounds.height() / 10);
         path->addOval(r, rivegm::PathDirection::cw);
     }
 
     static void make5(PathBuilder* path, const AABB& bounds)
     {
         path->addRect(bounds, rivegm::PathDirection::cw);
-        AABB r = bounds;
-        r.inset(bounds.width() / 10, -bounds.height() / 10);
+        AABB r = bounds.inset(bounds.width() / 10, -bounds.height() / 10);
         path->addOval(r, rivegm::PathDirection::ccw);
     }
 

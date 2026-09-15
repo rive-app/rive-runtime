@@ -1,5 +1,6 @@
 #pragma once
 #include "rive/renderer/ore/ore_texture.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 
 namespace rive::ore
 {

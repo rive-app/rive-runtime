@@ -3,12 +3,14 @@
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/layout/layout_participant.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
 #include "rive/scripted/scripted_data_converter.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
 #include "rive/scripted/scripted_layout.hpp"
+#include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/text/text_input.hpp"
 
@@ -24,6 +26,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<NestedArtboard>();
         case LayoutComponent::typeKey:
             return component->as<LayoutComponent>();
+        case LayoutParticipantBase::typeKey:
+            return component->as<LayoutParticipant>();
         case Artboard::typeKey:
             return component->as<Artboard>();
         case ArtboardComponentListBase::typeKey:
@@ -38,6 +42,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<ScriptedDrawable>();
         case ScriptedLayout::typeKey:
             return component->as<ScriptedLayout>();
+        case ScriptedTransition::typeKey:
+            return component->as<ScriptedTransition>();
         case ScriptedPathEffect::typeKey:
             return component->as<ScriptedPathEffect>();
     }

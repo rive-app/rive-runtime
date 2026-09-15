@@ -17,7 +17,11 @@ StatusCode DrawTarget::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
+#ifdef WITH_RIVE_EDITOR
+    setDrawableForEditor(static_cast<Drawable*>(coreObject));
+#else
     m_Drawable = static_cast<Drawable*>(coreObject);
+#endif
     return StatusCode::Ok;
 }
 

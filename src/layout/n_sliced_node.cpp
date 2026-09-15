@@ -71,7 +71,7 @@ void NSlicedNode::updateMapWorldPoint()
     ScaleInfo xScaleInfo =
         NSlicerHelpers::analyzeUVStops(xUVStops, size.x, std::abs(scale.x));
     ScaleInfo yScaleInfo =
-        NSlicerHelpers::analyzeUVStops(yUVStops, size.x, std::abs(scale.y));
+        NSlicerHelpers::analyzeUVStops(yUVStops, size.y, std::abs(scale.y));
 
     mapWorldPoint = [this,
                      world,

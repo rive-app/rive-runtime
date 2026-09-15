@@ -44,8 +44,9 @@ public:
         {
             return;
         }
+        RIVE_EDITOR_CHANGING(radiusPropertyKey, &m_Radius, &value);
         m_Radius = value;
-        radiusChanged();
+        RIVE_EDITOR_CHANGED(radiusChanged());
         notifyPropertyChanged(radiusPropertyKey);
     }
 
@@ -69,6 +70,9 @@ public:
 
 protected:
     virtual void radiusChanged() {}
+#ifdef WITH_RIVE_EDITOR
+#include "editor_native/generated/shapes/straight_vertex_ext.inl"
+#endif
 };
 } // namespace rive
 

@@ -47,11 +47,11 @@ VARYING_BLOCK_END
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
-                      FEATHER_TEXTURE_IDX,
-                      @featherTexture);
+                      GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+                      @gaussianIntegralTexture);
 VERTEX_TEXTURE_BLOCK_END
 
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+SAMPLER_LINEAR(GAUSSIAN_INTEGRAL_TEXTURE_IDX, gaussianIntegralSampler)
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
@@ -153,7 +153,8 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         float height = find_cubic_max_height(p0, p1, p2, p3, maxHeightT);
 
         // Measure curvature across one standard deviation of the feather.
-        float oneStddev = featherRadius * (1. / FEATHER_TEXTURE_STDDEVS);
+        float oneStddev =
+            featherRadius * (1. / GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS);
         float curvature = measure_cubic_local_curvature(p0,
                                                         p1,
                                                         p2,
@@ -236,6 +237,10 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
                     float(totalVertexCount), // totalVertexCount
                     (joinSegmentCount << 10) | parametricSegmentCount,
                     radsPerPolarSegment);
+    // Always forward the joinTangent slot. A real join (joinSegmentCount > 1)
+    // also needs to take the branch below and get radsPerJoinSegment in .z, but
+    // retrofitted triangle strips reuse .xy, and do not take the branch.
+    v_joinArgs.xy = @a_joinTan_and_ys.xy;
     if (joinSegmentCount > 1u)
     {
         float2x2 joinTangents = float2x2(tangents[1], @a_joinTan_and_ys.xy);
@@ -256,7 +261,6 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         float radsPerJoinSegment = joinTheta / joinSpan;
         if (determinant(joinTangents) < .0)
             radsPerJoinSegment = -radsPerJoinSegment;
-        v_joinArgs.xy = @a_joinTan_and_ys.xy;
         v_joinArgs.z = radsPerJoinSegment;
     }
 
@@ -375,14 +379,19 @@ FRAG_DATA_MAIN(TESSDATA4, @tessellateFragmentMain)
         tessCoord = isTan0 ? p0 : p3;
         theta = atan2(isTan0 ? tangents[0] : tangents[1]);
     }
-    else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u)
+    else if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u)
     {
-        // This cubic should actually be drawn as the single, non-AA triangle:
-        // [p0, p1, p3]. This is used to squeeze in more rare triangles, like
-        // "grout" triangles from self intersections on interior triangulation,
-        // where it wouldn't be worth it to put them in their own dedicated draw
-        // call.
-        tessCoord = p1;
+        // This cubic should actually be drawn as a (non-AA) 5-point triangle
+        // strip: [p0, p1, p3, p2, joinTangent]. This is used to reduce draws
+        // and pipeline transitions by squeezing in triangles that don't
+        // otherwise need special state or shading logic.
+        tessCoord = p0;
+        if (mergedVertexID >= float(OUTER_CUBIC_PATCH_SEGMENT_SPAN / 2u))
+            tessCoord = p1;
+        if (mergedVertexID >= float(OUTER_CUBIC_PATCH_SEGMENT_SPAN * 3u / 4u))
+            tessCoord = p2;
+        if (mergedVertexID >= float(OUTER_CUBIC_PATCH_SEGMENT_SPAN * 7u / 8u))
+            tessCoord = v_joinArgs.xy; // joinTangent
     }
     else
     {

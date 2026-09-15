@@ -2,18 +2,45 @@
  * Copyright 2025 Rive
  */
 #pragma once
+#include "rive/math/bitwise.hpp"
 #include "rive/renderer/d3d12/d3d12.hpp"
 #include "rive/renderer/d3d/pipeline_manager.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/stack_vector.hpp"
 
 namespace rive::gpu
 {
+// D3D12 bakes the rasterizer fill mode into the pipeline state object, so
+// (unlike D3D11, which swaps rasterizer state at draw time) wireframe has to be
+// part of the pipeline key. Extend the standard props with a wireframe bit.
+struct D3D12PipelineProps
+{
+    DrawType drawType;
+    ShaderFeatures shaderFeatures;
+    InterlockMode interlockMode;
+    ShaderMiscFlags shaderMiscFlags;
+    bool wireframe;
+#ifdef WITH_RIVE_TOOLS
+    SynthesizedFailureType synthesizedFailureType =
+        SynthesizedFailureType::none;
+#endif
+
+    uint32_t createKey(const PlatformFeatures&) const
+    {
+        uint32_t key = gpu::ShaderUniqueKey(drawType,
+                                            shaderFeatures,
+                                            interlockMode,
+                                            shaderMiscFlags);
+        return math::add_bits_to_key(key, uint32_t(wireframe), 1);
+    }
+};
+
 // holds all shader stuff including inputlayouts, source blobs and pipeline
 // states
 struct D3D12DrawVertexShader
 {
-    D3D12_INPUT_ELEMENT_DESC m_layoutDesc[2];
-    uint32_t m_vertexAttribCount;
+    StackVector<D3D12_INPUT_ELEMENT_DESC, gpu::MaxVertexAttributeCount>
+        m_layoutDesc;
     ComPtr<ID3DBlob> m_shader;
 };
 
@@ -26,7 +53,7 @@ struct D3D12Pipeline
 {
     using VertexShaderType = D3D12DrawVertexShader;
     using FragmentShaderType = D3D12DrawPixelShader;
-    using PipelineProps = gpu::StandardPipelineProps;
+    using PipelineProps = D3D12PipelineProps;
 
     ComPtr<ID3D12PipelineState> m_d3dPipelineState;
 
@@ -47,7 +74,7 @@ public:
 
     void compileTesselationPipeline();
     void compileGradientPipeline();
-    void compileAtlasPipeline();
+    void compileFeatherAtlasPipeline();
 
     void setRootSig(ID3D12GraphicsCommandList* cmdList) const
     {
@@ -61,16 +88,16 @@ public:
         cmdList->SetPipelineState(m_tesselationPipeline.Get());
     }
 
-    void setAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
+    void setFeatherAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
     {
-        assert(m_atlasFillPipeline);
-        cmdList->SetPipelineState(m_atlasFillPipeline.Get());
+        assert(m_featherAtlasFillPipeline);
+        cmdList->SetPipelineState(m_featherAtlasFillPipeline.Get());
     }
 
-    void setAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
+    void setFeatherAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
     {
-        assert(m_atlasStrokePipeline);
-        cmdList->SetPipelineState(m_atlasStrokePipeline.Get());
+        assert(m_featherAtlasStrokePipeline);
+        cmdList->SetPipelineState(m_featherAtlasStrokePipeline.Get());
     }
 
     void setGradientPipeline(ID3D12GraphicsCommandList* cmdList) const
@@ -95,8 +122,8 @@ private:
     // maybe these could be moved to D3DPipelineState but to do so
     // required a lot of extra complexity that didnt seem worth it
     ComPtr<ID3D12PipelineState> m_tesselationPipeline;
-    ComPtr<ID3D12PipelineState> m_atlasStrokePipeline;
-    ComPtr<ID3D12PipelineState> m_atlasFillPipeline;
+    ComPtr<ID3D12PipelineState> m_featherAtlasStrokePipeline;
+    ComPtr<ID3D12PipelineState> m_featherAtlasFillPipeline;
     ComPtr<ID3D12PipelineState> m_gradientPipeline;
 
     ComPtr<ID3D12RootSignature> m_rootSignature;

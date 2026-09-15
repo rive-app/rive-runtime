@@ -12,15 +12,16 @@ using namespace rive;
 // Path -> this -> text
 void TextFollowPathModifier::buildDependencies()
 {
-    if (m_Target != nullptr && m_Target->is<Shape>())
+    auto* tgt = target();
+    if (tgt != nullptr && tgt->is<Shape>())
     {
-        Shape* shape = static_cast<Shape*>(m_Target);
+        Shape* shape = static_cast<Shape*>(tgt);
         shape->pathComposer()->addDependent(this);
     }
 
-    else if (m_Target != nullptr && m_Target->is<Path>())
+    else if (tgt != nullptr && tgt->is<Path>())
     {
-        Path* path = static_cast<Path*>(m_Target);
+        Path* path = static_cast<Path*>(tgt);
         path->addDependent(this);
     }
 
@@ -33,16 +34,16 @@ void TextFollowPathModifier::buildDependencies()
 
 StatusCode TextFollowPathModifier::onAddedClean(CoreContext* context)
 {
-    if (m_Target != nullptr)
+    if (auto* tgt = target())
     {
-        if (m_Target->is<Shape>())
+        if (tgt->is<Shape>())
         {
-            Shape* shape = static_cast<Shape*>(m_Target);
+            Shape* shape = static_cast<Shape*>(tgt);
             shape->addFlags(PathFlags::followPath);
         }
-        else if (m_Target->is<Path>())
+        else if (tgt->is<Path>())
         {
-            Path* path = static_cast<Path*>(m_Target);
+            Path* path = static_cast<Path*>(tgt);
             path->addFlags(PathFlags::followPath);
         }
     }
@@ -51,18 +52,19 @@ StatusCode TextFollowPathModifier::onAddedClean(CoreContext* context)
 
 void TextFollowPathModifier::update(ComponentDirt value)
 {
+    auto* tgt = target();
     std::vector<Path*> paths;
-    if (m_Target != nullptr && m_Target->is<Shape>())
+    if (tgt != nullptr && tgt->is<Shape>())
     {
-        auto shape = m_Target->as<Shape>();
+        auto shape = tgt->as<Shape>();
         for (auto path : shape->paths())
         {
             paths.push_back(path);
         }
     }
-    else if (m_Target != nullptr && m_Target->is<Path>())
+    else if (tgt != nullptr && tgt->is<Path>())
     {
-        paths.push_back(m_Target->as<Path>());
+        paths.push_back(tgt->as<Path>());
     }
 
     m_worldPath.rewind();
@@ -89,7 +91,7 @@ void TextFollowPathModifier::modifierShapeDirty()
 
 void TextFollowPathModifier::reset(const Mat2D* inverseText)
 {
-    if (m_Target == nullptr)
+    if (target() == nullptr)
     {
         m_pathMeasure = PathMeasure();
         return;

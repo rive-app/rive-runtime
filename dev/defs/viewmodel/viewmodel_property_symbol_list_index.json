@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelPropertySymbolListIndex",
-  "key": {
-    "int": 564,
-    "string": "viewmodelpropertysymbollistindex"
-  },
-  "extends": "viewmodel/viewmodel_property_symbol.json"
-}

@@ -29,10 +29,13 @@ void resetCounters();
 #endif
 
 // Helper for constructing and destructing arrays of objects.
-template <typename T, bool IsPOD = std::is_pod<T>()> class SimpleArrayHelper
+template <typename T,
+          bool IsPOD = std::is_trivial<T>() && std::is_standard_layout<T>()>
+class SimpleArrayHelper
 {
 public:
-    static_assert(!std::is_pod<T>(), "This helper is for non-POD types.");
+    static_assert(!std::is_trivial<T>() || !std::is_standard_layout<T>(),
+                  "This helper is for non-POD types.");
     static void DefaultConstructArray(T* ptr, T* end)
     {
         for (; ptr < end; ++ptr)
@@ -54,7 +57,8 @@ public:
 template <typename T> class SimpleArrayHelper<T, true>
 {
 public:
-    static_assert(std::is_pod<T>(), "This helper is only for POD types.");
+    static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
+                  "This helper is only for trivial types.");
     static void DefaultConstructArray(T* ptr, T* end) {}
     static void CopyConstructArray(const T* first, const T* end, T* ptr)
     {

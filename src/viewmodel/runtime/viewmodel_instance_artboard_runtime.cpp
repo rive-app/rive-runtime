@@ -23,6 +23,17 @@ void ViewModelInstanceArtboardRuntime::viewModelInstance(
         ->boundViewModelInstance(viewModelInstance);
 }
 
+std::string ViewModelInstanceArtboardRuntime::artboardName() const
+{
+    auto bindableArtboard =
+        m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()->asset();
+    if (bindableArtboard == nullptr || bindableArtboard->artboard() == nullptr)
+    {
+        return "";
+    }
+    return bindableArtboard->artboard()->name();
+}
+
 #ifdef TESTING
 rcp<BindableArtboard> ViewModelInstanceArtboardRuntime::testing_value()
 {

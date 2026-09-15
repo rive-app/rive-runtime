@@ -11,10 +11,6 @@
 #include <memory>
 #include <webgpu/webgpu_cpp.h>
 
-#ifdef RIVE_WAGYU
-#include "rive/renderer/gl/load_store_actions_ext.hpp"
-#endif
-
 namespace rive::gpu
 {
 class RenderTargetWebGPU;
@@ -28,7 +24,12 @@ class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
-    {};
+    {
+        // True when the adapter/device were created in WebGPU compatibility
+        // mode. The embedder knows this (it requests the feature level at
+        // adapter creation); the renderer can't query it back.
+        bool compatibilityMode = false;
+    };
 
     enum class PixelLocalStorageType
     {
@@ -51,6 +52,13 @@ public:
     struct Capabilities
     {
         wgpu::BackendType backendType = wgpu::BackendType::Undefined;
+
+        // Rive uses storage buffers in the vertex shader. We polyfill them via
+        // textures if the device doesn't support a sufficient number of
+        // vertex-stage storage buffers (specifically in WebGPU compatibility
+        // mode).
+        bool polyfillVertexStorageBuffers = false;
+
 #ifdef RIVE_WAGYU
         // Driver extensions.
         bool VK_EXT_rasterization_order_attachment_access = false;
@@ -58,10 +66,6 @@ public:
         bool GL_EXT_shader_pixel_local_storage2 = false;
 
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
-
-        // Rive requires 4 storage buffers in the vertex shader. We polyfill
-        // them if the hardware doesn't support this.
-        bool polyfillVertexStorageBuffers = false;
 #endif
     };
 
@@ -99,8 +103,7 @@ public:
                                   bool generateRemainingMips = false) override;
 
 #ifdef RIVE_CANVAS
-    rcp<RenderCanvas> makeRenderCanvas(uint32_t width,
-                                       uint32_t height) override;
+    void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
 
     std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
@@ -127,11 +130,12 @@ private:
         wgpu::ShaderModule fragmentShaderModule,
         const wgsl::Shader* vertexShader,
         const wgsl::Shader* fragmentShader,
-        const gpu::PipelineState&);
+        const gpu::PipelineState&,
+        bool msaa);
 
     // Specifies how to store MSAA color/depth/stencil attachments when ending
     // an MSAA render pass.
-    enum class MSAAEndType : bool
+    enum class DepthStencilEndType : bool
     {
         finish,
         breakForDstCopy,
@@ -144,7 +148,7 @@ private:
     class DrawRenderPass;
     class PLSDrawRenderPass;
     class AtomicDrawRenderPass;
-    class MSAADrawRenderPass;
+    class DepthStencilDrawRenderPass;
 
     // Construct the DrawRenderPass for the flush's InterlockMode and begin it
     // (the MSAA pass may defer its begin until the first barrier).
@@ -172,7 +176,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
+    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeAtomicCoverageBacking(uint32_t width, uint32_t height) override;
 
     // Lazy allocators for PLS backing buffers in atomic mode.
@@ -189,8 +193,8 @@ private:
 
     constexpr static int COLOR_RAMP_BINDINGS_COUNT = 1;
     constexpr static int TESS_BINDINGS_COUNT = 6;
-    constexpr static int ATLAS_BINDINGS_COUNT = 7;
-    constexpr static int DRAW_BINDINGS_COUNT = 11;
+    constexpr static int FEATHER_ATLAS_BINDINGS_COUNT = 7;
+    constexpr static int DRAW_BINDINGS_COUNT = 10;
     std::array<std::unique_ptr<DrawPipelineLayout>, gpu::INTERLOCK_MODE_COUNT>
         m_drawPipelineLayouts;
 
@@ -223,10 +227,10 @@ private:
     wgpu::TextureView m_tessVertexTextureView;
 
     // Renders feathers to the atlas.
-    class AtlasPipeline;
-    std::unique_ptr<AtlasPipeline> m_atlasPipeline;
-    wgpu::Texture m_atlasTexture;
-    wgpu::TextureView m_atlasTextureView;
+    class FeatherAtlasPipeline;
+    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasPipeline;
+    wgpu::Texture m_featherAtlasTexture;
+    wgpu::TextureView m_featherAtlasTextureView;
 
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
@@ -241,8 +245,8 @@ private:
     wgpu::Buffer m_imageRectIndexBuffer;
 
     // Gaussian integral table for feathering.
-    wgpu::Texture m_featherTexture;
-    wgpu::TextureView m_featherTextureView;
+    wgpu::Texture m_gaussianIntegralTexture;
+    wgpu::TextureView m_gaussianIntegralTextureView;
 
     // PLS backing buffers for atomic mode.
     uint64_t m_atomicPLSBackingBufferSize = 0;
@@ -270,6 +274,7 @@ public:
 
 protected:
     RenderTargetWebGPU(wgpu::Device device,
+                       const gpu::PlatformFeatures&,
                        const RenderContextWebGPUImpl::Capabilities&,
                        wgpu::TextureFormat framebufferFormat,
                        uint32_t width,
@@ -280,7 +285,7 @@ protected:
     wgpu::TextureView clipTextureView();
     wgpu::TextureView scratchColorTextureView();
     wgpu::TextureView msaaColorTextureView();
-    wgpu::TextureView msaaDepthStencilTextureView();
+    wgpu::TextureView depthStencilTextureView(bool msaa);
     wgpu::Texture dstColorTexture();
     wgpu::TextureView dstColorTextureView();
 
@@ -295,12 +300,15 @@ private:
     const wgpu::Device m_device;
     const wgpu::TextureFormat m_framebufferFormat;
     wgpu::TextureUsage m_transientPLSUsage;
+    wgpu::TextureUsage m_transientMSAAColorUsage;
+    wgpu::TextureUsage m_transientDepthStencilUsage;
 
     wgpu::Texture m_targetTexture;
     wgpu::Texture m_coverageTexture;
     wgpu::Texture m_clipTexture;
     wgpu::Texture m_scratchColorTexture;
     wgpu::Texture m_msaaColorTexture;
+    wgpu::Texture m_depthStencilTexture;
     wgpu::Texture m_msaaDepthStencilTexture;
     wgpu::Texture m_dstColorTexture;
 
@@ -309,6 +317,7 @@ private:
     wgpu::TextureView m_clipTextureView;
     wgpu::TextureView m_scratchColorTextureView;
     wgpu::TextureView m_msaaColorTextureView;
+    wgpu::TextureView m_depthStencilTextureView;
     wgpu::TextureView m_msaaDepthStencilTextureView;
     wgpu::TextureView m_dstColorTextureView;
 };

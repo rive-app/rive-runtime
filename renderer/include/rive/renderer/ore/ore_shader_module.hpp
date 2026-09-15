@@ -63,6 +63,12 @@ public:
         assert(ok && "binding-map sidecar failed to parse");
         (void)ok;
         applyGLFixupFromDesc(desc);
+        m_textureSamplerPairs.clear();
+        for (uint32_t i = 0; i + 4 <= desc.texSamplerPairSize; i += 4)
+        {
+            const uint8_t* p = desc.texSamplerPairBytes + i;
+            m_textureSamplerPairs.push_back({p[0], p[1], p[2], p[3]});
+        }
 #ifdef TRACK_RIVE_SHADER_ID
         m_shaderAssetId = desc.shaderAssetId;
 #endif

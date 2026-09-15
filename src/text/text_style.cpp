@@ -139,9 +139,17 @@ uint32_t TextStyle::assetId() { return this->fontAssetId(); }
 
 void TextStyle::setAsset(rcp<FileAsset> asset)
 {
-    if (asset->is<FontAsset>())
+    if (asset != nullptr && asset->is<FontAsset>())
     {
         FileAssetReferencer::setAsset(asset);
+        // Changing the referenced font at runtime (e.g. via data binding) must
+        // reshape the text. Mirror FontAsset::font()'s dirtying so onDirty
+        // marks the text shape dirty and rebuilds any variable font. Guard for
+        // the clone/import case where the style isn't wired to its Text yet.
+        if (m_text != nullptr)
+        {
+            addDirt(ComponentDirt::TextShape);
+        }
     }
 }
 

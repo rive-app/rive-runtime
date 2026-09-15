@@ -17,8 +17,17 @@ inline int64_t MicroProfileTicksPerSecondCpu() { return 1000000000ll; }
 
 inline int64_t MicroProfileGetTick()
 {
+    // Use a MONOTONIC clock, not CLOCK_REALTIME. MicroProfile treats ticks as a
+    // monotonic relative counter (native builds use rdtsc / mach_absolute_time)
+    // and derives frame durations from tick deltas. CLOCK_REALTIME is the
+    // absolute wall clock (emscripten maps it to Date.now()): it can jump
+    // (NTP, sleep/wake, background-tab throttling pausing the render loop) and
+    // its epoch-scale magnitude turns any stale frame-start slot into an
+    // astronomically large duration. CLOCK_MONOTONIC maps to performance.now(),
+    // which is monotonic, high-resolution under cross-origin isolation, and
+    // relative to page load.
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
+    clock_gettime(CLOCK_MONOTONIC, &ts);
     return 1000000000ll * ts.tv_sec + ts.tv_nsec;
 }
 

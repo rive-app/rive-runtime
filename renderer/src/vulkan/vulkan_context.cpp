@@ -9,55 +9,129 @@
 
 namespace rive::gpu
 {
+// Returns null if the driver can't give us an allocator, leaving it to the
+// caller to decide whether that is recoverable.
 static VmaAllocator make_vma_allocator(
-    const VulkanContext* vk,
+    VkInstance instance,
+    VkPhysicalDevice physicalDevice,
+    VkDevice device,
+    uint32_t apiVersion,
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
 {
-    VmaAllocator vmaAllocator;
     VmaVulkanFunctions vmaVulkanFunctions = {
         .vkGetInstanceProcAddr = pfnvkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = vk->GetDeviceProcAddr,
-        .vkGetPhysicalDeviceProperties = vk->GetPhysicalDeviceProperties,
+        .vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+            pfnvkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr")),
+        .vkGetPhysicalDeviceProperties =
+            reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
+                pfnvkGetInstanceProcAddr(instance,
+                                         "vkGetPhysicalDeviceProperties")),
     };
 
     VmaAllocatorCreateInfo vmaCreateInfo = {
         // We are single-threaded.
         .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-        .physicalDevice = vk->physicalDevice,
-        .device = vk->device,
+        .physicalDevice = physicalDevice,
+        .device = device,
         .pVulkanFunctions = &vmaVulkanFunctions,
-        .instance = vk->instance,
-        .vulkanApiVersion = vk->features.apiVersion,
+        .instance = instance,
+        .vulkanApiVersion = apiVersion,
     };
-    VK_CHECK(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator));
+
+    VmaAllocator vmaAllocator;
+    if (!VK_SUCCEEDED(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator),
+                      "the VMA allocator"))
+    {
+        return VK_NULL_HANDLE;
+    }
     return vmaAllocator;
 }
 
-VulkanContext::VulkanContext(
+rcp<VulkanContext> VulkanContext::make(
     VkInstance instance,
-    VkPhysicalDevice physicalDevice_,
-    VkDevice device_,
-    const VulkanFeatures& features_,
-    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr) :
+    VkPhysicalDevice physicalDevice,
+    VkDevice device,
+    const VulkanFeatures& features,
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
+    bool enableDebugNames)
+{
+    // Building the allocator first means a failure never constructs a context
+    // at all.
+    VmaAllocator vmaAllocator = make_vma_allocator(instance,
+                                                   physicalDevice,
+                                                   device,
+                                                   features.apiVersion,
+                                                   pfnvkGetInstanceProcAddr);
+    if (vmaAllocator == VK_NULL_HANDLE)
+    {
+        return nullptr;
+    }
+    return rcp<VulkanContext>(new VulkanContext(instance,
+                                                physicalDevice,
+                                                device,
+                                                features,
+                                                pfnvkGetInstanceProcAddr,
+                                                vmaAllocator,
+                                                enableDebugNames));
+}
+
+VulkanContext::VulkanContext(VkInstance instance,
+                             VkPhysicalDevice physicalDevice_,
+                             VkDevice device_,
+                             const VulkanFeatures& features_,
+                             PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
+                             VmaAllocator vmaAllocator,
+                             bool enableDebugNames) :
     instance(instance),
     physicalDevice(physicalDevice_),
     device(device_),
-    features(features_),
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                      \
     CMD(reinterpret_cast<PFN_vk##CMD>(                                         \
         pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
     RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
 #undef LOAD_VULKAN_INSTANCE_COMMAND
+        SetDebugUtilsObjectNameEXT(
+            enableDebugNames
+                ? reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+                      pfnvkGetInstanceProcAddr(instance,
+                                               "vkSetDebugUtilsObjectNameEXT"))
+                : nullptr),
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                        \
     CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
-        RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
+    RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
-            m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
+        physicalDeviceProperties([this]() {
+            VkPhysicalDeviceProperties props;
+            GetPhysicalDeviceProperties(physicalDevice, &props);
+            return props;
+        }()),
+    features([this, mutableFeatures = features_]() mutable {
+        if (physicalDeviceProperties.vendorID == vkutil::vendors::Qualcomm ||
+            physicalDeviceProperties.vendorID == vkutil::vendors::Imagination)
+        {
+            // We have observed rendering issues on both Adreno and PowerVR when
+            // using VK_EXT_color_write_enable.
+            mutableFeatures.colorWriteEnable = false;
+        }
+        return mutableFeatures;
+    }()),
+    m_vmaAllocator(vmaAllocator != VK_NULL_HANDLE
+                       ? vmaAllocator
+                       : make_vma_allocator(instance,
+                                            physicalDevice_,
+                                            device_,
+                                            features_.apiVersion,
+                                            pfnvkGetInstanceProcAddr))
 {
-    GetPhysicalDeviceProperties(physicalDevice, &m_physicalDeviceProperties);
+    // A constructor has nowhere to report this; make() is the path that can
+    // recover. make_vma_allocator() already printed why.
+    if (m_vmaAllocator == VK_NULL_HANDLE)
+    {
+        abort();
+    }
 
     // Check that we weren't told the device was more capable than it is
-    assert(m_physicalDeviceProperties.apiVersion >= features.apiVersion &&
+    assert(physicalDeviceProperties.apiVersion >= features.apiVersion &&
            "Supplied API version should not be newer than the physical device");
 
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
@@ -402,7 +476,8 @@ void VulkanContext::setDebugNameIfEnabled(uint64_t handle,
                                           VkObjectType objectType,
                                           const char* name)
 {
-    if (SetDebugUtilsObjectNameEXT != nullptr && name != nullptr)
+    // A null handle means creation failed; naming it would be invalid usage.
+    if (SetDebugUtilsObjectNameEXT != nullptr && name != nullptr && handle != 0)
     {
         VkDebugUtilsObjectNameInfoEXT nameInfo = {
             .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,

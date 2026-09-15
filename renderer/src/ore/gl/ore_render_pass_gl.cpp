@@ -211,6 +211,7 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
     if (!checkPipelineCompat(pipeline))
         return;
     m_currentPipeline = ref_rcp(pipeline);
+    m_samplerBindingsDirty = true;
 
     auto* glPipeline = lite_rtti_cast<PipelineGL*>(pipeline);
     assert(glPipeline);
@@ -429,13 +430,63 @@ void RenderPassGL::setBindGroup(uint32_t groupIndex,
         m_usedSamplers = true;
     }
 
-    for (const auto& samp : glBg->m_glSamplers)
-    {
-        glBindSampler(samp.slot, samp.sampler);
+    // Samplers wait for the pipeline: it carries the pairing.
+    m_samplerBindingsDirty = true;
+}
 
-        if (!m_usedSamplers || samp.slot > m_maxSamplerSlot)
-            m_maxSamplerSlot = samp.slot;
+// GLSL folds a texture and its sampler into one uniform at the texture's unit,
+// so a sampler binds to every unit whose texture it serves.
+void RenderPassGL::applySamplerBindings()
+{
+    if (!m_samplerBindingsDirty)
+        return;
+    m_samplerBindingsDirty = false;
+
+    const std::vector<ShaderModule::TextureSamplerPair>* pairs =
+        m_currentPipeline != nullptr ? &m_currentPipeline->m_textureSamplerPairs
+                                     : nullptr;
+
+    auto bindTo = [this](uint32_t slot, unsigned int sampler) {
+        glBindSampler(slot, sampler);
+        if (!m_usedSamplers || slot > m_maxSamplerSlot)
+            m_maxSamplerSlot = slot;
         m_usedSamplers = true;
+    };
+
+    for (uint32_t group = 0; group < kMaxBindGroups; ++group)
+    {
+        auto* glBg = lite_rtti_cast<BindGroupGL*>(m_boundGroups[group].get());
+        if (glBg == nullptr)
+            continue;
+
+        for (const auto& samp : glBg->m_glSamplers)
+        {
+            bool paired = false;
+            if (pairs != nullptr)
+            {
+                for (const auto& pair : *pairs)
+                {
+                    if (pair.samplerGroup != group ||
+                        pair.samplerBinding != samp.binding)
+                        continue;
+                    auto* texBg = lite_rtti_cast<BindGroupGL*>(
+                        m_boundGroups[pair.textureGroup].get());
+                    if (texBg == nullptr)
+                        continue;
+                    for (const auto& tex : texBg->m_glTextures)
+                    {
+                        if (tex.binding != pair.textureBinding)
+                            continue;
+                        bindTo(tex.slot, samp.sampler);
+                        paired = true;
+                    }
+                }
+            }
+            if (!paired)
+            {
+                bindTo(samp.slot, samp.sampler);
+            }
+        }
     }
 }
 
@@ -497,6 +548,7 @@ void RenderPassGL::draw(uint32_t vertexCount,
 {
     validate();
     assert(m_currentPipeline != nullptr);
+    applySamplerBindings();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
     // drawBaseInstance=false on GL, so the Lua guard rejects firstInstance>0.
@@ -517,6 +569,7 @@ void RenderPassGL::drawIndexed(uint32_t indexCount,
 {
     validate();
     assert(m_currentPipeline != nullptr);
+    applySamplerBindings();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
     GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
                            ? GL_UNSIGNED_INT
@@ -575,23 +628,44 @@ void RenderPassGL::finish()
 
     if (m_usedAttribs)
     {
+        // Disabling an array leaves its buffer binding on the VAO until the
+        // next borrower overwrites the slot: bounded by m_maxAttribSlot and
+        // deliberate, since a disabled array cannot source from it.
         for (uint32_t i = 0; i <= m_maxAttribSlot; ++i)
             glDisableVertexAttribArray(i);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    // The context lends this pass its FBO and VAO unless another pass already
+    // had them, so most passes hand them back here rather than deleting: GL
+    // names are never recycled on WebGL, and a per pass pair ratchets the
+    // browser's tables for the life of the page.
+    auto* ctx = static_cast<ContextGL*>(m_context);
+
     if (m_ownsVAO && m_glVAO != 0)
     {
         glDeleteVertexArrays(1, &m_glVAO);
+        m_glVAO = 0;
+    }
+    else if (m_glVAO != 0 && ctx != nullptr)
+    {
+        // Element buffer bindings are VAO state and outlive the buffer they
+        // name, so a borrowed VAO must not carry one past its owner.
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        ctx->releaseScratchVAO();
         m_glVAO = 0;
     }
     glBindVertexArray(m_prevVAO);
 
     if (m_glResolveCount > 0)
     {
-        GLuint resolveFBO;
-        glGenFramebuffers(1, &resolveFBO);
+        GLuint resolveFBO = ctx != nullptr ? ctx->scratchResolveFBO() : 0;
+        const bool ownsResolveFBO = resolveFBO == 0;
+        if (ownsResolveFBO)
+        {
+            glGenFramebuffers(1, &resolveFBO);
+        }
         for (uint32_t i = 0; i < m_glResolveCount; ++i)
         {
             const auto& r = m_glResolves[i];
@@ -616,11 +690,32 @@ void RenderPassGL::finish()
                               GL_COLOR_BUFFER_BIT,
                               GL_NEAREST);
         }
-        glDeleteFramebuffers(1, &resolveFBO);
+        if (ownsResolveFBO)
+        {
+            glDeleteFramebuffers(1, &resolveFBO);
+        }
+        else
+        {
+            // A kept resolve FBO would otherwise name this frame's resolve
+            // texture until the next resolve overwrites it.
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D,
+                                   0,
+                                   0);
+        }
     }
 
     if (m_ownsFBO && m_glFBO != 0)
+    {
         glDeleteFramebuffers(1, &m_glFBO);
+        m_glFBO = 0;
+    }
+    else if (m_glFBO != 0 && ctx != nullptr)
+    {
+        ctx->releaseScratchFBO(m_colorCount, m_glDepthAttachment);
+        m_glFBO = 0;
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, m_prevFBO);
 
     m_context = nullptr;

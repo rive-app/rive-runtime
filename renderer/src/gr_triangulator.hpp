@@ -6,6 +6,8 @@
  *
  * Initial import from
  * skia:c2a399a74da523ec445f1202367764d04b5df2ec@src/gpu/ganesh/geometry/GrTriangulator.h
+ * Last synced to
+ * skia:fee7272f5bc258d2b4199c7ed133a72d996c0fb0@src/gpu/ganesh/geometry/GrTriangulator.h
  *
  * Copyright 2023 Rive
  */
@@ -21,6 +23,8 @@
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 
+#include <functional>
+
 namespace rive
 {
 #define TRIANGULATOR_LOGGING 0
@@ -35,11 +39,11 @@ public:
     constexpr static int kArenaDefaultChunkSize = 16 * 1024;
 
     // Enums used by GrTriangulator internals.
-    typedef enum
+    enum class Side
     {
-        kLeft_Side,
-        kRight_Side
-    } Side;
+        kLeft,
+        kRight
+    };
 
     enum class EdgeType
     {
@@ -71,9 +75,8 @@ public:
 
 protected:
     GrTriangulator(Comparator::Direction direction,
-                   FillRule fillRule,
                    TrivialBlockAllocator* alloc) :
-        fDirection(direction), fFillRule(fillRule), fAlloc(alloc)
+        fDirection(direction), fAlloc(alloc)
     {}
 
     // There are six stages to the basic algorithm:
@@ -119,15 +122,16 @@ protected:
     virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices,
                                                const Comparator&);
 
-    // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    size_t polysToTriangles(
-        Poly* polys,
-        FillRule overrideFillRule,
-        uint16_t pathID,
-        bool reverseTriangles,
-        bool negateWinding,
-        gpu::WindingFaces,
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    // 6) Triangulate the monotone polygons directly into a vertex buffer.
+    //
+    // Templated on the triangle "Sink", which receives each triangle via
+    // sink->emitTriangle(v0, v1, v2, riveWeight).
+    template <typename Sink>
+    size_t polysToTriangles(Poly* polys,
+                            FillRule overrideFillRule,
+                            bool negateWinding,
+                            gpu::WindingFaces,
+                            Sink*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with
     // the linked list of vertices (and the necessity of inserting new vertices
@@ -183,26 +187,22 @@ protected:
     // counterclockwise, rather that transposing.
 
     // Additional helpers and driver functions.
-    size_t emitMonotonePoly(
-        const MonotonePoly*,
-        uint16_t pathID,
-        bool reverseTriangles,
-        bool negateWinding,
-        gpu::WindingFaces,
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    template <typename Sink>
+    size_t emitMonotonePoly(const MonotonePoly*,
+                            bool negateWinding,
+                            gpu::WindingFaces,
+                            Sink*) const;
+    template <typename Sink>
     size_t emitTriangle(Vertex* prev,
                         Vertex* curr,
                         Vertex* next,
                         int16_t riveWeight,
-                        uint16_t pathID,
-                        bool reverseTriangles,
-                        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+                        Sink*) const;
+    template <typename Sink>
     size_t emitPoly(const Poly*,
-                    uint16_t pathID,
-                    bool reverseTriangles,
                     bool negateWinding,
                     gpu::WindingFaces,
-                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+                    Sink*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -216,7 +216,6 @@ protected:
                              float tolSqd,
                              VertexList* contour,
                              int pointsLeft) const;
-    bool applyFillType(int winding) const;
     MonotonePoly* allocateMonotonePoly(Edge* edge, Side side, int winding);
     Edge* allocateEdge(Vertex* top, Vertex* bottom, int winding, EdgeType type);
     Edge* makeEdge(Vertex* prev,
@@ -295,22 +294,41 @@ protected:
                                         const AABB& clipBounds,
                                         bool* isLinear);
     static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
-    size_t countMaxTriangleVertices(Poly*) const;
+    size_t countMaxTriangleVertices(Poly*, FillRule) const;
 
     size_t polysToTriangles(
         Poly*,
         uint64_t maxVertexCount,
+        FillRule,
         uint16_t pathID,
         bool reverseTriangles,
         bool negateWinding,
         gpu::WindingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
+    // Emits the interior triangulation in strips of up to 3-triangles.
+    // Edge-adjacent triangles of equal winding are merged together, roughly
+    // halving the patch count.
+    //
+    // To handle winding-numbers, all triangles are wound clockwise
+    // for positive weights and counterclockwise for negative, and duplicated
+    // abs(winding) times so that it stencils the correct winding number.
+    //
+    // Returns the number of patches emitted.
+    using RetrofitCubicPatchEmitter =
+        std::function<void(const Vec2D* strip, size_t vertexCount)>;
+    size_t polysToRetrofitCubicPatches(
+        Poly*,
+        FillRule,
+        gpu::WindingFaces,
+        const RetrofitCubicPatchEmitter& emitPatch) const;
+
     Comparator::Direction fDirection;
-    FillRule fFillRule;
     TrivialBlockAllocator* const fAlloc;
     int fNumMonotonePolys = 0;
     int fNumEdges = 0;
+    // Track how deep of a stack we get from mergeCollinearEdges().
+    mutable int fMergeCollinearStackCount = 0;
 
     // Internal control knobs.
 #if 0
@@ -606,8 +624,11 @@ struct GrTriangulator::Edge
         // Coerce points coincident with the vertices to have dist = 0, since
         // converting from a double intersection point back to float storage
         // might construct a point that's no longer on the ideal line.
-        return (p == fTop->fPoint || p == fBottom->fPoint) ? 0.0
-                                                           : fLine.dist(p);
+        if ((fTop && p == fTop->fPoint) || (fBottom && p == fBottom->fPoint))
+        {
+            return 0.0;
+        }
+        return fLine.dist(p);
     }
     bool isRightOf(const Vertex& v) const { return this->dist(v.fPoint) < 0.0; }
     bool isLeftOf(const Vertex& v) const { return this->dist(v.fPoint) > 0.0; }
@@ -616,6 +637,10 @@ struct GrTriangulator::Edge
     void insertBelow(Vertex*, const Comparator&);
     void disconnect();
     bool intersect(const Edge& other, Vec2D* p, uint8_t* alpha = nullptr) const;
+    bool hasTopAndBottom() const
+    {
+        return fTop != nullptr && fBottom != nullptr;
+    }
 };
 
 struct GrTriangulator::EdgeList
