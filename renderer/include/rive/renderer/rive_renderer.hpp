@@ -38,6 +38,11 @@ public:
                    ImageSampler,
                    BlendMode,
                    float opacity) override;
+    void drawImage(const RenderImage*,
+                   ImageSampler,
+                   BlendMode,
+                   float opacity,
+                   float additiveness) override;
     void clipStroke(RenderPath*, const StrokeParams&) override;
     void drawImageMesh(const RenderImage*,
                        ImageSampler,
@@ -48,6 +53,16 @@ public:
                        uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
+    void drawImageMesh(const RenderImage*,
+                       ImageSampler,
+                       rcp<RenderBuffer> vertices_f32,
+                       rcp<RenderBuffer> uvCoords_f32,
+                       rcp<RenderBuffer> indices_u16,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
+                       BlendMode,
+                       float opacity,
+                       float additiveness) override;
     void modulateOpacity(float opacity) override;
 
     bool currentTransform(Mat2D* out) const override

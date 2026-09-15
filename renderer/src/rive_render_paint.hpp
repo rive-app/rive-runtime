@@ -31,6 +31,10 @@ public:
     void join(StrokeJoin join) override { m_join = join; }
     void cap(StrokeCap cap) override { m_cap = cap; }
     void feather(float feather) override { m_feather = fabsf(feather); }
+    void additiveness(float additiveness) override
+    {
+        m_additiveness = additiveness;
+    }
     void blendMode(BlendMode mode) override { m_blendMode = mode; }
     void shader(rcp<RenderShader> shader) override;
 
@@ -66,6 +70,7 @@ public:
         return m_feather != .0 ? StrokeCap::round : m_cap;
     }
     float getFeather() const { return m_feather; }
+    float getAdditiveness() const { return m_additiveness; }
     BlendMode getBlendMode() const { return m_blendMode; }
     gpu::SimplePaintValue getSimpleValue() const { return m_simpleValue; }
     bool getIsOpaque() const;
@@ -80,6 +85,7 @@ private:
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
     float m_feather = 0;
+    float m_additiveness = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
     bool m_stroked = false;
     Mat2D m_imageTransform;

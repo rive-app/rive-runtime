@@ -81,6 +81,10 @@ bool RiveRenderPaint::getIsOpaque() const
     {
         return false;
     }
+    if (m_additiveness != 0)
+    {
+        return false;
+    }
     if (m_imageTexture != nullptr)
     {
         // We can't assume opacity with an image (as it might have non-1.0

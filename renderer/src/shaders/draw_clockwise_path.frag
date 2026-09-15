@@ -238,10 +238,10 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
 #ifndef @FIXED_FUNCTION_COLOR_OUTPUT
-        PLS_STORE4F_OPTIONAL_IF(paintColor.a == .0,
-                                colorBuffer,
-                                dstColorPremul * (1. - paintColor.a) +
-                                    paintColor);
+        PLS_STORE4F_OPTIONAL_IF(
+            paintColor.r + paintColor.g + paintColor.b + paintColor.a == .0,
+            colorBuffer,
+            dstColorPremul * (1. - paintColor.a) + paintColor);
 #endif
     }
 

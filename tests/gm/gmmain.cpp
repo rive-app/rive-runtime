@@ -214,6 +214,8 @@ extern "C" void gms_build_registry()
     MAKE_GM(emptystroke)
     MAKE_GM(trickycubicstrokes)
     MAKE_GM(preserverendertarget_blendmode)
+    MAKE_GM(additive_blend)
+    MAKE_GM(additive_advanced_blend)
     MAKE_GM(trickycubicstrokes_feather)
 #ifdef RIVE_CANVAS
     MAKE_GM(render_canvas_basic)

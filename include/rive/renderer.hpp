@@ -130,7 +130,8 @@ public:
     virtual void thickness(float value) = 0;
     virtual void join(StrokeJoin value) = 0;
     virtual void cap(StrokeCap value) = 0;
-    virtual void feather(float value) {} // Not supported on all renderers.
+    virtual void feather(float value) {}      // Not supported on all renderers.
+    virtual void additiveness(float value) {} // Only used for srcOver
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;
@@ -250,6 +251,39 @@ public:
                                uint32_t indexCount,
                                BlendMode,
                                float opacity) = 0;
+
+    // Variants with additiveness (0 = normal srcOver, 1 = fully additive).
+    // Renderers that don't support it fall back on the plain overloads and
+    // render normal srcOver.
+    virtual void drawImage(const RenderImage* image,
+                           ImageSampler sampler,
+                           BlendMode blendMode,
+                           float opacity,
+                           float additiveness)
+    {
+        drawImage(image, sampler, blendMode, opacity);
+    }
+    virtual void drawImageMesh(const RenderImage* image,
+                               ImageSampler sampler,
+                               rcp<RenderBuffer> vertices_f32,
+                               rcp<RenderBuffer> uvCoords_f32,
+                               rcp<RenderBuffer> indices_u16,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
+                               BlendMode blendMode,
+                               float opacity,
+                               float additiveness)
+    {
+        drawImageMesh(image,
+                      sampler,
+                      std::move(vertices_f32),
+                      std::move(uvCoords_f32),
+                      std::move(indices_u16),
+                      vertexCount,
+                      indexCount,
+                      blendMode,
+                      opacity);
+    }
 
     // Modulate the opacity of subsequent draw calls. The opacity is stacked
     // multiplicatively (e.g., modulateOpacity(0.5) followed by

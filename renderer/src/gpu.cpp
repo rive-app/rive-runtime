@@ -871,6 +871,21 @@ uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor)
     return simd::reduce_or(premul << uint4{0, 8, 16, 24});
 }
 
+// Swizzles the byte order of ColorInt to little-endian RGBA, premultiplies
+// rgb by alpha, and scales only the A channel by
+// complementAdditiveness (1.0 - additiveness)
+static uint32_t swizzleRiveColorToRGBAPremulAdditive(
+    ColorInt riveColor,
+    float complementAdditiveness)
+{
+    uint4 rgba = (rive::uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
+    uint32_t alpha = rgba.w;
+    uint4 premul = (rgba * alpha + 127) / 255;
+    premul.w = static_cast<uint32_t>(
+        static_cast<float>(alpha) * complementAdditiveness + .5f);
+    return simd::reduce_or(premul << uint4{0, 8, 16, 24});
+}
+
 FlushUniforms::InverseViewports::InverseViewports(
     const FlushDescriptor& flushDesc,
     const PlatformFeatures& platformFeatures)
@@ -937,7 +952,11 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
                                   ? 0.0f
                                   : (-1.0f / 1024.0f) / m_ditherScale),
     m_wireframeEnabled(flushDesc.wireframe),
-    m_renderTargetBottomUp(flushDesc.renderTarget->bottomUp(platformFeatures))
+    m_renderTargetBottomUp(flushDesc.renderTarget->bottomUp(platformFeatures)),
+    m_gradTextureYScale(1.f / flushDesc.gradTextureHeight),
+    // Use a bias of -0.5 here as we encode the row+1 so we can negate it
+    // robustly
+    m_gradTextureYBias(-0.5f / flushDesc.gradTextureHeight)
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
@@ -987,8 +1006,9 @@ void PathData::set(const Mat2D& m,
     m_coverageBufferRange.offsetY = coverageBufferRange.offsetY;
 }
 
-float getGradientY(ColorRampLocation rampLocation,
-                   GradTextureLayout gradTextureLayout)
+// Returns integral row number
+uint32_t getGradientRow(ColorRampLocation rampLocation,
+                        GradTextureLayout gradTextureLayout)
 {
     uint32_t row = rampLocation.row;
     if (rampLocation.isComplex())
@@ -997,6 +1017,14 @@ float getGradientY(ColorRampLocation rampLocation,
         row += gradTextureLayout.complexOffsetY;
     }
 
+    return row;
+}
+
+// Returns Normalized value for row in the texture
+float getGradientY(ColorRampLocation rampLocation,
+                   GradTextureLayout gradTextureLayout)
+{
+    uint32_t row = getGradientRow(rampLocation, gradTextureLayout);
     return (static_cast<float>(row) + .5f) * gradTextureLayout.inverseHeight;
 }
 
@@ -1008,30 +1036,52 @@ void PaintData::set(DrawContents singleDrawContents,
                     bool hasClipRect,
                     bool hasImage,
                     BlendMode blendMode,
-                    bool solidUnmultiplied)
+                    bool solidUnmultiplied,
+                    float additiveness)
 {
     uint32_t shiftedClipID = clipID << 16;
     uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
     uint32_t localParams = paint_type_to_glsl_id(paintType);
+
+    assert(additiveness >= 0.f && additiveness <= 1.f); // Draw clamps it.
+    // GPU wants 1.0 - additiveness as this is used to scale the final alpha
+    // Input of 0.0 leads to GPU using 1.0 which is no scale.
+    // Input of 1.0 leads to GPU using 0.0 which is full scale
+    float complementAdditiveness =
+        blendMode != BlendMode::srcOver ? 1.f : 1.f - additiveness;
     switch (paintType)
     {
         case PaintType::solidColor:
         {
             // Swizzle the riveColor to little-endian RGBA (the order expected
-            // by GLSL). Advanced blend draws take unmultiplied color, srcOver
-            // draws and KHR fixed-function blend path are premult
-            m_color =
-                solidUnmultiplied
-                    ? SwizzleRiveColorToRGBA(simplePaintValue.color)
-                    : SwizzleRiveColorToRGBAPremul(simplePaintValue.color);
+            // by GLSL).
+            // Advanced-blend draws take unmultiplied color and ignore
+            // additiveness. srcOver draws are premultiplied with additiveness
+            // baked into alpha. The KHR fixed-function blend path is
+            // premultiplied with no additiveness.
+            m_color = solidUnmultiplied
+                          ? SwizzleRiveColorToRGBA(simplePaintValue.color)
+                          : swizzleRiveColorToRGBAPremulAdditive(
+                                simplePaintValue.color,
+                                complementAdditiveness);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }
         case PaintType::linearGradient:
         case PaintType::radialGradient:
         {
-            m_gradTextureY = getGradientY(simplePaintValue.colorRampLocation,
-                                          gradTextureLayout);
+            // Pack the gradient texture row in the integer part and
+            // Additiveness in range 0/256 to 255/256, in the fraction.
+            // The row is biased +1 so we can always negate a non zero value
+            uint32_t gradTextureRow =
+                getGradientRow(simplePaintValue.colorRampLocation,
+                               gradTextureLayout);
+            assert(gradTextureRow <= 0xffffu);
+            m_gradTextureRowAndAdditiveness =
+                static_cast<float>(gradTextureRow + 1) +
+                static_cast<float>(static_cast<uint32_t>(
+                    complementAdditiveness * 255.f + .5f)) *
+                    (1.f / 256.f);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }
@@ -1225,7 +1275,8 @@ ImageDrawInstanceBase::ImageDrawInstanceBase(
     const ClipRectInverseMatrix* clipRectInverseMatrix,
     uint32_t clipID,
     BlendMode blendMode,
-    uint32_t zIndex)
+    uint32_t zIndex,
+    float additiveness)
 {
     static_assert(FirstAttribIdx == IMAGE_FIRST_ATTRIB_IDX);
     static_assert(LastAttribIdx == IMAGE_COMMON_LAST_ATTRIB_IDX);
@@ -1267,7 +1318,18 @@ ImageDrawInstanceBase::ImageDrawInstanceBase(
     write2x2(m_clipRectInverseMatrix, clipRectInverseMatrixToWrite);
     writeTranslate(m_translate, matrix);
     writeTranslate(m_clipRectInverseTranslate, clipRectInverseMatrixToWrite);
-    m_modulatedColor = SwizzleRiveColorToRGBAPremul(color);
+    // The shaders multiply the (premultiplied) image color by this modulated
+    // color component-wise, so scaling only its alpha implements additiveness
+    // for every image draw with no shader changes.
+    assert(additiveness >= 0.f && additiveness <= 1.f); // Draw clamps it.
+    // GPU wants 1.0 - additiveness as this is used to scale the final alpha
+    // Input of 0.0 leads to GPU using 1.0 which is no scale.
+    // Input of 1.0 leads to GPU using 0.0 which is full scale
+    float complementAdditiveness =
+        blendMode != BlendMode::srcOver ? 1.f : 1.f - additiveness;
+
+    m_modulatedColor =
+        swizzleRiveColorToRGBAPremulAdditive(color, complementAdditiveness);
     m_clipID = clipID;
     m_blendMode = ConvertBlendModeToPLSBlendMode(blendMode);
     m_zIndex = zIndex;
@@ -1290,8 +1352,15 @@ ImageRectInstance::ImageRectInstance(
     const Mat2D& gradientMatrix,
     uint32_t gradientType,
     const float (&gradTextureHorizontalSpan)[2],
-    float gradTextureY) :
-    m_commons{matrix, color, clipRectInverseMatrix, clipID, blendMode, zIndex}
+    float gradTextureY,
+    float additiveness) :
+    m_commons{matrix,
+              color,
+              clipRectInverseMatrix,
+              clipID,
+              blendMode,
+              zIndex,
+              additiveness}
 {
     static_assert(offsetof(ImageRectInstance, m_commons) == 0);
     STATIC_ASSERT_ATTRIB(ImageRectInstance,
@@ -1344,13 +1413,15 @@ ImageMeshInstance::ImageMeshInstance(
     const ClipRectInverseMatrix* clipRectInverseMatrix,
     uint32_t clipID,
     BlendMode blendMode,
-    uint32_t zIndex) :
+    uint32_t zIndex,
+    float additiveness) :
     m_commons{matrix,
               colorModulateOpacity(0xFFFFFFFF, opacity),
               clipRectInverseMatrix,
               clipID,
               blendMode,
-              zIndex}
+              zIndex,
+              additiveness}
 {
     static_assert(offsetof(ImageMeshInstance, m_commons) == 0);
 }

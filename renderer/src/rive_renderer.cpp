@@ -231,6 +231,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                     m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
                     m,
                     paint->getBlendMode(),
+                    paint->getAdditiveness(),
                     ref_rcp(paint->getImageTexture()),
                     ref_rcp(paint->getGradient()),
                     paint->getImageSampler(),
@@ -495,6 +496,15 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                              BlendMode blendMode,
                              float opacity)
 {
+    drawImage(renderImage, imageSampler, blendMode, opacity, 0);
+}
+
+void RiveRenderer::drawImage(const RenderImage* renderImage,
+                             ImageSampler imageSampler,
+                             BlendMode blendMode,
+                             float opacity,
+                             float additiveness)
+{
     RIVE_PROF_SCOPE_L(2)
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
@@ -528,6 +538,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
                     m,
                     blendMode,
+                    additiveness,
                     std::move(imageTexture),
                     nullptr, // gradient
                     imageSampler,
@@ -551,6 +562,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         RiveRenderPaint paint;
         paint.image(std::move(imageTexture), finalOpacity);
         paint.blendMode(blendMode);
+        paint.additiveness(additiveness);
         paint.imageSampler(imageSampler);
         drawPath(m_unitRectPath.get(), &paint);
     }
@@ -567,6 +579,29 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  uint32_t indexCount,
                                  BlendMode blendMode,
                                  float opacity)
+{
+    drawImageMesh(renderImage,
+                  imageSampler,
+                  std::move(vertices_f32),
+                  std::move(uvCoords_f32),
+                  std::move(indices_u16),
+                  vertexCount,
+                  indexCount,
+                  blendMode,
+                  opacity,
+                  0);
+}
+
+void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
+                                 ImageSampler imageSampler,
+                                 rcp<RenderBuffer> vertices_f32,
+                                 rcp<RenderBuffer> uvCoords_f32,
+                                 rcp<RenderBuffer> indices_u16,
+                                 uint32_t vertexCount,
+                                 uint32_t indexCount,
+                                 BlendMode blendMode,
+                                 float opacity,
+                                 float additiveness)
 {
     RIVE_PROF_SCOPE_L(2)
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
@@ -597,6 +632,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
         m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
                                             m_renderStateStack.back().matrix,
                                             blendMode,
+                                            additiveness,
                                             std::move(imageTexture),
                                             imageSampler,
                                             std::move(vertices_f32),

@@ -1453,6 +1453,8 @@ void RenderContext::LogicalFlush::writeResources()
             m_ctx->m_currentResourceAllocations.featherAtlasTextureHeight);
     m_gradTextureLayout.inverseHeight =
         1.f / m_ctx->m_currentResourceAllocations.gradTextureHeight;
+    m_flushDesc.gradTextureHeight = math::lossless_numeric_cast<uint32_t>(
+        m_ctx->m_currentResourceAllocations.gradTextureHeight);
 
     // Exact tessSpan/triangleVertex counts aren't known until after their data
     // is written out.
@@ -1557,7 +1559,8 @@ void RenderContext::LogicalFlush::writeResources()
                                 /*hasClipRect =*/false,
                                 /*hasImage =*/false,
                                 BlendMode::srcOver,
-                                /*solidUnmultiplied =*/false);
+                                /*solidUnmultiplied =*/false,
+                                /*additiveness =*/0);
     m_ctx->m_paintAuxData.skip_back();
 
     // Render padding vertices in the tessellation texture.
@@ -3108,7 +3111,8 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
         // when depthStencil uses KHR_blend_equation_advanced
         draw->blendMode() != BlendMode::srcOver &&
             !(m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
-              m_ctx->platformFeatures().supportsBlendAdvancedKHR));
+              m_ctx->platformFeatures().supportsBlendAdvancedKHR),
+        draw->additiveness());
     m_ctx->m_paintAuxData.set_back(draw->paintMatrix(),
                                    draw->imageMatrix(),
                                    draw->paintType(),
@@ -3631,7 +3635,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
                                                 gradientMatrix,
                                                 gradientType,
                                                 gradientHorizontalSpan,
-                                                gradientY);
+                                                gradientY,
+                                                draw->additiveness());
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,
@@ -3656,7 +3661,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
                                                 draw->blendMode(),
-                                                m_currentZIndex);
+                                                m_currentZIndex,
+                                                draw->additiveness());
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,

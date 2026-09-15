@@ -57,4 +57,7 @@ DECLARE_UNIFORM_FLOAT(ditherConversionToRGB10)
 DECLARE_UNIFORM_UINT(wireframeEnabled)
 // Whether _fragCoord.y counts from the visual bottom of the render target.
 DECLARE_UNIFORM_UINT(renderTargetBottomUp)
+// Scale and Bias computes gradient V coord from integral row
+DECLARE_UNIFORM_FLOAT(gradTextureYScale)
+DECLARE_UNIFORM_FLOAT(gradTextureYBias)
 UNIFORM_BLOCK_END(uniforms)
