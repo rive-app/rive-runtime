@@ -368,6 +368,8 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                              mirroredContourFlag;
     }
 
+    bool discardVertex = false;
+
     // Find the tangent angle of the curve at our vertex.
     float theta;
 #ifdef @ENABLE_FEATHER
@@ -649,7 +651,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
         // Throw away the fan triangles since we're a stroke.
         if (vertexType != STROKE_VERTEX)
-            return false;
+            discardVertex = true;
     }
     else // This is a fill.
     {
@@ -768,7 +770,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if ((contourIDWithFlags & RETROFIT_TRI_STRIP_CONTOUR_FLAG) != 0u &&
             vertexType != FAN_VERTEX)
         {
-            return false;
+            discardVertex = true;
         }
     }
 
@@ -785,7 +787,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                           make_bool2(uniforms.wireframeEnabled != 0u));
 #endif
 
-    return true;
+    return !discardVertex;
 }
 #endif // @VERTEX && @DRAW_PATH
 
