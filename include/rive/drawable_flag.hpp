@@ -34,6 +34,10 @@ enum class DrawableFlag : unsigned short
     /// Bit index matches ComponentFlags.participatesInLayout, which is where
     /// the editor authors it.
     ParticipatesInLayout = 1 << 8,
+
+    /// Opts any drawable into its host's selection context. Matches
+    /// ComponentFlags.selectable; selection adapters determine supported types.
+    Selectable = 1 << 10,
 };
 } // namespace rive
 #endif

@@ -28,6 +28,7 @@ class Renderer;
 class TextModifierGroup;
 class TextStylePaint;
 class LayoutParticipant;
+class TextSelectionController;
 
 // A draw command for interleaving monochrome style paths and color glyphs.
 struct TextDrawCommand
@@ -358,6 +359,8 @@ protected:
 
 private:
 #ifdef WITH_RIVE_TEXT
+    friend class TextSelectionController;
+    TextSelectionController* m_selectionController = nullptr;
     void updateOriginWorldTransform();
     std::vector<TextValueRun*> m_runs;
     std::vector<TextValueRun*> m_allRuns;

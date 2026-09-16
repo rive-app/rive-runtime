@@ -5,6 +5,7 @@
 #include "rive/text/utf.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/text/glyph_lookup.hpp"
+#include "rive/text/text_layout_view.hpp"
 
 namespace rive
 {
@@ -36,6 +37,16 @@ public:
     bool hasValidBounds() const { return !m_bounds.isEmptyOrNaN(); }
 
     uint32_t lineCount() const { return (uint32_t)m_orderedLines.size(); }
+
+    operator TextLayoutView() const
+    {
+        auto end = m_glyphLookup.lastCodePointIndex();
+        return TextLayoutView(m_paragraphs,
+                              m_paragraphLines,
+                              m_orderedLines,
+                              m_glyphLookup,
+                              end == 0 ? 0 : end - 1);
+    }
 
     /// How far every line was pushed down to align the text within
     /// alignHeight. Already baked into the ordered lines' y and into the

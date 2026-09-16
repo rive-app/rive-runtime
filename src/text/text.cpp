@@ -11,6 +11,7 @@ using namespace rive;
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_selection_controller.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -140,6 +141,10 @@ void TextValueRunListener::createPropertyListener(SymbolType symbolType)
 
 Text::~Text()
 {
+    if (m_selectionController != nullptr)
+    {
+        m_selectionController->remove(this);
+    }
     for (auto& textValueRun : m_valueRunListeners)
     {
         delete textValueRun;
@@ -937,6 +942,10 @@ void Text::draw(Renderer* renderer)
             background->draw(renderer, worldTransform);
         }
     }
+    if (m_selectionController != nullptr)
+    {
+        m_selectionController->draw(this, renderer);
+    }
     for (auto& cmd : m_drawCommands)
     {
         if (cmd.type == TextDrawCommand::kStylePath)
@@ -1373,6 +1382,12 @@ void Text::update(ComponentDirt value)
         m_clipPath.rewind();
         m_shapeWorldTransform = m_WorldTransform * m_transform;
         m_clipPath.addPath(m_clipRect, &m_shapeWorldTransform);
+    }
+    if (m_selectionController != nullptr &&
+        hasDirt(value, ComponentDirt::Path | ComponentDirt::Paint))
+    {
+        m_selectionController->textUpdated(this,
+                                           hasDirt(value, ComponentDirt::Path));
     }
 }
 

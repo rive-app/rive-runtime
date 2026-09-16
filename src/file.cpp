@@ -449,6 +449,10 @@ ImportResult File::readObjects(BinaryReader& reader,
                 case Backboard::typeKey:
                     m_backboard = object->as<Backboard>();
                     break;
+                case SelectionStyle::typeKey:
+                    m_selectionStyles.emplace_back(
+                        object->as<SelectionStyle>());
+                    break;
                 case Artboard::typeKey:
                 {
                     Artboard* ab = object->as<Artboard>();

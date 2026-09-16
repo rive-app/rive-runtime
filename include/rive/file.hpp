@@ -4,6 +4,7 @@
 #include "rive/artboard.hpp"
 #include "rive/runtime_header.hpp"
 #include "rive/backboard.hpp"
+#include "rive/selection_style.hpp"
 #include "rive/scripting_slots.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
@@ -136,6 +137,14 @@ public:
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
+
+    // File resources; the first is currently the default selection style.
+    size_t selectionStyleCount() const { return m_selectionStyles.size(); }
+    const SelectionStyle* selectionStyle(size_t index = 0) const
+    {
+        return index < m_selectionStyles.size() ? m_selectionStyles[index].get()
+                                                : nullptr;
+    }
 
     /// @returns the number of artboards in the file.
     size_t artboardCount() const { return m_artboards.size(); }
@@ -341,6 +350,7 @@ private:
     /// is destroyed after a failed/partial import (before a Backboard object
     /// has been read) does not `delete` an uninitialized pointer.
     Backboard* m_backboard = nullptr;
+    std::vector<std::unique_ptr<SelectionStyle>> m_selectionStyles;
 
     /// We just keep these alive for the life of this File
     std::vector<rcp<FileAsset>> m_fileAssets;
