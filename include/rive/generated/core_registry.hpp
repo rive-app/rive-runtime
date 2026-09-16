@@ -1887,6 +1887,9 @@ public:
             case TextBase::wrapValuePropertyKey:
                 object->as<TextBase>()->wrapValue(value);
                 break;
+            case TextBase::wordBreakValuePropertyKey:
+                object->as<TextBase>()->wordBreakValue(value);
+                break;
             case TextBase::verticalAlignValuePropertyKey:
                 object->as<TextBase>()->verticalAlignValue(value);
                 break;
@@ -3925,6 +3928,8 @@ public:
                 return object->as<TextBase>()->originValue();
             case TextBase::wrapValuePropertyKey:
                 return object->as<TextBase>()->wrapValue();
+            case TextBase::wordBreakValuePropertyKey:
+                return object->as<TextBase>()->wordBreakValue();
             case TextBase::verticalAlignValuePropertyKey:
                 return object->as<TextBase>()->verticalAlignValue();
             case TextBase::verticalTrimValuePropertyKey:
@@ -5156,6 +5161,7 @@ public:
             case TextBase::overflowValuePropertyKey:
             case TextBase::originValuePropertyKey:
             case TextBase::wrapValuePropertyKey:
+            case TextBase::wordBreakValuePropertyKey:
             case TextBase::verticalAlignValuePropertyKey:
             case TextBase::verticalTrimValuePropertyKey:
             case TextBase::verticalTrimTopValuePropertyKey:
@@ -6129,6 +6135,8 @@ public:
             case TextBase::originValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::wrapValuePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::wordBreakValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::verticalAlignValuePropertyKey:
                 return object->is<TextBase>();

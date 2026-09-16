@@ -29,6 +29,7 @@ void FullyShapedText::shape(Span<Unichar> text,
                          sizing == TextSizing::autoWidth ? -1.0f : maxWidth,
                          alignment,
                          wrap,
+                         TextWordBreak::breakWord,
                          alignWidth);
     m_orderedLines.clear();
     m_ellipsisRun = {};

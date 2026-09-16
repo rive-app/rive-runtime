@@ -225,6 +225,7 @@ public:
         return textTrimBottom(verticalTrimValue());
     }
     TextWrap wrap() const { return (TextWrap)wrapValue(); }
+    TextWordBreak wordBreak() const { return (TextWordBreak)wordBreakValue(); }
     VerticalTextAlign verticalAlign() const
     {
         return (VerticalTextAlign)verticalAlignValue();
@@ -308,6 +309,7 @@ public:
         float width,
         TextAlign align,
         TextWrap wrap,
+        TextWordBreak wordBreak = TextWordBreak::breakWord,
         float minAlignWidth = 0.0f);
     const std::vector<TextStylePaint*>& textStylePaints()
     {
@@ -343,6 +345,7 @@ protected:
     void alignValueChanged() override;
     void sizingValueChanged() override;
     void overflowValueChanged() override;
+    void wordBreakValueChanged() override;
     void widthChanged() override;
     void heightChanged() override;
     void paragraphSpacingChanged() override;

@@ -342,7 +342,8 @@ public:
 };
 
 SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs,
-                                             float width)
+                                             float width,
+                                             TextWordBreak wordBreak)
 {
     float maxLineWidth =
         autowidth(width) ? std::numeric_limits<float>::max() : width;
@@ -410,14 +411,43 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs,
         bool isForcedBreak =
             breakRun == startBreakRun && breakIndex == startBreakIndex;
 
-        if (!isForcedBreak && x > limit)
-        {
-            uint32_t startRunIndex = (uint32_t)(start.run - runs.begin());
+        uint32_t startRunIndex = (uint32_t)(start.run - runs.begin());
+        // Nothing has been placed on this line yet and it begins exactly at
+        // this word, so the word is alone on its line and can't be knocked
+        // any further down.
+        bool wordStartsLine = line.startGlyphIndex == startBreakIndex &&
+                              line.startRunIndex == startRunIndex;
 
+        // TextWordBreak::normal never cuts a word: one that doesn't fit even
+        // when alone on its line overflows the box instead, so treat it as if
+        // it fit. Falling into the knock-to-a-new-line branch below would
+        // spin forever -- it would rebuild an identical (empty) line and
+        // never set advanceWord.
+        bool overflows =
+            !isForcedBreak && x > limit &&
+            !(wordBreak == TextWordBreak::normal && wordStartsLine);
+
+        if (overflows)
+        {
             // A whole word overflowed, break until we can no longer break
-            // (or it fits).
-            if (line.startRunIndex == startRunIndex &&
-                line.startGlyphIndex == startBreakIndex)
+            // (or it fits). breakAll also cuts inside a word that isn't
+            // alone on its line, but only once at least one cluster of it
+            // still fits here. Without that bound the walk-back below -- which
+            // has no lower bound, since the lineStart == lineEnd test is an
+            // exact match -- could land in the whitespace *before* the word,
+            // leaving the space on the end of this line (inflating the width
+            // ComputeMaxWidth/ComputeLineSpacing derive from it) or at the
+            // start of the next one. When not even one cluster fits we fall
+            // through to knocking the whole word down, where wordStartsLine
+            // becomes true and it gets cut normally.
+            bool splitInsideWord = wordStartsLine;
+            if (!splitInsideWord && wordBreak == TextWordBreak::breakAll)
+            {
+                RunIterator firstCluster(runs, start.run, startBreakIndex);
+                splitInsideWord =
+                    firstCluster.forward() && firstCluster.x() <= limit;
+            }
+            if (splitInsideWord)
             {
                 bool canBreakMore = true;
                 while (canBreakMore && x > limit)

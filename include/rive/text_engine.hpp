@@ -110,6 +110,23 @@ enum class TextWrap : uint8_t
     noWrap = 1
 };
 
+// How a word that doesn't fit the line may be split. Mirrors the useful half
+// of CSS overflow-wrap + word-break. breakWord is 0 so it stays the default
+// for content authored before the property existed, and so an out of range
+// value falls back to the historical behavior.
+enum class TextWordBreak : uint8_t
+{
+    // overflow-wrap: break-word. Move the word to its own line and only cut
+    // it when it still doesn't fit there.
+    breakWord = 0,
+    // overflow-wrap: normal. Never cut a word; one that doesn't fit even on a
+    // line of its own overflows the box.
+    normal = 1,
+    // word-break: break-all. Cut at any cluster boundary so every line is
+    // packed to the edge.
+    breakAll = 2
+};
+
 // The alignment of each word wrapped line in a paragraph.
 enum class VerticalTextAlign : uint8_t
 {
@@ -155,8 +172,10 @@ struct GlyphLine
         return startRunIndex == endRunIndex && startGlyphIndex == endGlyphIndex;
     }
 
-    static SimpleArray<GlyphLine> BreakLines(Span<const GlyphRun> runs,
-                                             float width);
+    static SimpleArray<GlyphLine> BreakLines(
+        Span<const GlyphRun> runs,
+        float width,
+        TextWordBreak wordBreak = TextWordBreak::breakWord);
 
     // Compute values for top/baseline/bottom per line
     static void ComputeLineSpacing(bool isFirstLine,

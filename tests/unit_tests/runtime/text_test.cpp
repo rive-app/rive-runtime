@@ -1196,3 +1196,44 @@ TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
 
     CHECK(silver.matches("fit_font_size_hug_test"));
 }
+TEST_CASE("wordBreak reaches the line breaker from the Text object", "[text]")
+{
+    // Squeeze ellipsis.riv's copy into a box narrow enough that a word has to
+    // overflow it, which is the only situation the three modes disagree in.
+    // Overflow has to be visible or the extra lines get clipped away before
+    // orderedLines sees them.
+    auto file = ReadRiveFile("assets/ellipsis.riv");
+    auto artboard = file->artboard();
+
+    auto textObjects = artboard->find<rive::Text>();
+    REQUIRE(textObjects.size() == 1);
+    auto text = textObjects[0];
+    text->overflow(rive::TextOverflow::visible);
+    text->sizingValue((uint8_t)rive::TextSizing::fixed);
+    text->width(30.0f);
+
+    // Nothing in the file sets the property, so it lands on the historical
+    // behavior.
+    REQUIRE(text->wordBreak() == rive::TextWordBreak::breakWord);
+    artboard->advance(0.0f);
+    size_t breakWordLines = text->orderedLines().size();
+
+    text->wordBreakValue((uint8_t)rive::TextWordBreak::normal);
+    artboard->advance(0.0f);
+    size_t normalLines = text->orderedLines().size();
+
+    text->wordBreakValue((uint8_t)rive::TextWordBreak::breakAll);
+    artboard->advance(0.0f);
+    size_t breakAllLines = text->orderedLines().size();
+
+    // normal never cuts a word, so it needs the fewest lines. breakAll packs
+    // each line to the edge, so it needs fewer than breakWord, which starts a
+    // fresh line for a word before it starts cutting it.
+    REQUIRE(normalLines < breakAllLines);
+    REQUIRE(breakAllLines < breakWordLines);
+
+    // Setting it back restores the original layout.
+    text->wordBreakValue((uint8_t)rive::TextWordBreak::breakWord);
+    artboard->advance(0.0f);
+    REQUIRE(text->orderedLines().size() == breakWordLines);
+}

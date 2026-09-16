@@ -460,7 +460,7 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
         }
         auto runs = styledText.runs();
         auto shape = runs[0].font->shapeText(styledText.unichars(), runs);
-        auto lines = BreakLines(shape, boxWidth, align(), wrap());
+        auto lines = BreakLines(shape, boxWidth, align(), wrap(), wordBreak());
 
         float maxWidth = 0.0f;
         float y = 0.0f;
@@ -1069,6 +1069,8 @@ void Text::alignValueChanged() { markShapeDirty(); }
 
 void Text::sizingValueChanged() { markShapeDirty(); }
 
+void Text::wordBreakValueChanged() { markShapeDirty(); }
+
 void Text::fitFontSizeResizesBoxChanged()
 {
     // Only fitFontSize consults the flag, and only to decide what measure()
@@ -1189,6 +1191,7 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     float width,
     TextAlign align,
     TextWrap wrap,
+    TextWordBreak wordBreak,
     float minAlignWidth)
 {
     bool autoWidth = width == -1.0f;
@@ -1201,7 +1204,8 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     {
         lines[paragraphIndex] = GlyphLine::BreakLines(
             para.runs,
-            (autoWidth || wrap == TextWrap::noWrap) ? -1.0f : width);
+            (autoWidth || wrap == TextWrap::noWrap) ? -1.0f : width,
+            wordBreak);
         if (autoWidth)
         {
             paragraphWidth = std::max(
@@ -1286,7 +1290,8 @@ void Text::update(ComponentDirt value)
                                ? -1.0f
                                : effectiveWidth(),
                            align(),
-                           wrap());
+                           wrap(),
+                           wordBreak());
             m_glyphLookup.compute(m_modifierStyledText.unichars(),
                                   m_modifierShape);
             uint32_t textSize =
@@ -1311,7 +1316,8 @@ void Text::update(ComponentDirt value)
                                      ? -1.0f
                                      : effectiveWidth(),
                                  align(),
-                                 wrap());
+                                 wrap(),
+                                 wordBreak());
             if (!precomputeModifierCoverage && haveModifiers())
             {
                 m_glyphLookup.compute(m_styledText.unichars(), m_shape);
@@ -1418,7 +1424,8 @@ Vec2D Text::measure(Vec2D maxSize)
                                      effectiveSizing() != TextSizing::autoHeight
                                  ? TextWrap::noWrap
                                  : wrap();
-        auto lines = BreakLines(shape, fitWidth, align(), measuringWrap);
+        auto lines =
+            BreakLines(shape, fitWidth, align(), measuringWrap, wordBreak());
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
@@ -1557,6 +1564,7 @@ void Text::update(ComponentDirt value) {}
 void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
 void Text::sizingValueChanged() {}
+void Text::wordBreakValueChanged() {}
 void Text::overflowValueChanged() {}
 void Text::fitFontSizeResizesBoxChanged() {}
 void Text::widthChanged() {}

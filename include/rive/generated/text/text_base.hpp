@@ -50,6 +50,7 @@ public:
     static const uint16_t paragraphSpacingPropertyKey = 371;
     static const uint16_t originValuePropertyKey = 377;
     static const uint16_t wrapValuePropertyKey = 683;
+    static const uint16_t wordBreakValuePropertyKey = 446;
     static const uint16_t verticalAlignValuePropertyKey = 685;
     static const uint16_t fitFromBaselinePropertyKey = 703;
     static const uint16_t fitFontSizeResizesBoxPropertyKey = 315;
@@ -73,6 +74,7 @@ protected:
     float m_ParagraphSpacing = 0.0f;
     uint8_t m_OriginValue = 0;
     uint8_t m_WrapValue = 0;
+    uint8_t m_WordBreakValue = 0;
     uint8_t m_VerticalAlignValue = 0;
     bool m_FitFromBaseline = true;
     bool m_FitFontSizeResizesBox = true;
@@ -214,6 +216,21 @@ public:
         notifyPropertyChanged(wrapValuePropertyKey);
     }
 
+    inline uint8_t wordBreakValue() const { return m_WordBreakValue; }
+    void wordBreakValue(uint8_t value)
+    {
+        if (m_WordBreakValue == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(wordBreakValuePropertyKey,
+                             &m_WordBreakValue,
+                             &value);
+        m_WordBreakValue = value;
+        RIVE_EDITOR_CHANGED(wordBreakValueChanged());
+        notifyPropertyChanged(wordBreakValuePropertyKey);
+    }
+
     inline uint8_t verticalAlignValue() const { return m_VerticalAlignValue; }
     void verticalAlignValue(uint8_t value)
     {
@@ -349,6 +366,7 @@ public:
         m_ParagraphSpacing = object.m_ParagraphSpacing;
         m_OriginValue = object.m_OriginValue;
         m_WrapValue = object.m_WrapValue;
+        m_WordBreakValue = object.m_WordBreakValue;
         m_VerticalAlignValue = object.m_VerticalAlignValue;
         m_FitFromBaseline = object.m_FitFromBaseline;
         m_FitFontSizeResizesBox = object.m_FitFontSizeResizesBox;
@@ -392,6 +410,9 @@ public:
             case wrapValuePropertyKey:
                 m_WrapValue = CoreUintType::deserialize(reader);
                 return true;
+            case wordBreakValuePropertyKey:
+                m_WordBreakValue = CoreUintType::deserialize(reader);
+                return true;
             case verticalAlignValuePropertyKey:
                 m_VerticalAlignValue = CoreUintType::deserialize(reader);
                 return true;
@@ -423,6 +444,7 @@ protected:
     virtual void paragraphSpacingChanged() {}
     virtual void originValueChanged() {}
     virtual void wrapValueChanged() {}
+    virtual void wordBreakValueChanged() {}
     virtual void verticalAlignValueChanged() {}
     virtual void fitFromBaselineChanged() {}
     virtual void fitFontSizeResizesBoxChanged() {}
