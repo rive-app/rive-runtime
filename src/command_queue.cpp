@@ -466,6 +466,20 @@ void CommandQueue::setViewModelInstanceImage(ViewModelInstanceHandle handle,
     m_names << path;
 }
 
+void CommandQueue::setViewModelInstanceFont(ViewModelInstanceHandle handle,
+                                            std::string path,
+                                            FontHandle value,
+                                            uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::assetFont;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
 void CommandQueue::setViewModelInstanceBlob(ViewModelInstanceHandle handle,
                                             std::string path,
                                             BlobAssetHandle value,
@@ -1788,6 +1802,7 @@ void CommandQueue::processMessages()
                 switch (value.metaData.type)
                 {
                     case DataType::assetImage:
+                    case DataType::assetFont:
                     case DataType::assetBlob:
                     case DataType::list:
                     case DataType::trigger:
