@@ -90,6 +90,7 @@
 #endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -1437,6 +1438,7 @@ struct HostGpuCanvas
 struct HostGpuPass
 {
     std::unique_ptr<ore::RenderPass> pass;
+    bool pipelineSet = false;
 };
 
 struct HostGpuBuffer
@@ -1781,31 +1783,91 @@ uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
                               new HostGpuTextureView{std::move(view)});
 }
 
-ore::RenderPass* resolvePass(WasmScriptingVM* vm, uint32_t handle)
+HostGpuPass* resolveHostPass(WasmScriptingVM* vm, uint32_t handle)
 {
     if (vm == nullptr)
     {
         return nullptr;
     }
-    auto host = static_cast<HostGpuPass*>(
+    return static_cast<HostGpuPass*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuPass));
+}
+
+ore::RenderPass* resolvePass(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveHostPass(vm, handle);
     return host != nullptr ? host->pass.get() : nullptr;
+}
+
+// The draw guards the Luau binding raises, with the same text so both lanes
+// read the same cause. Returns false after raising.
+bool gpuPassDrawAllowed(WasmScriptingVM* vm,
+                        HostGpuPass* host,
+                        const char* what,
+                        int32_t baseVertex,
+                        uint32_t firstInstance)
+{
+    if (!host->pipelineSet)
+    {
+        vm->raiseModuleError(ore::kGuardSetPipelineBeforeDraw);
+        return false;
+    }
+    ore::Context* oreContext = gpuOreContext(vm);
+    bool featuresKnown = oreContext != nullptr && oreContext->featuresKnown();
+    if (featuresKnown && !oreContext->features().drawBaseInstance)
+    {
+        char message[160];
+        if (baseVertex != 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     ore::kGuardBaseVertexFormat,
+                     what,
+                     baseVertex);
+            vm->raiseModuleError(message);
+            return false;
+        }
+        if (firstInstance > 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     ore::kGuardFirstInstanceFormat,
+                     what,
+                     firstInstance);
+            vm->raiseModuleError(message);
+            return false;
+        }
+    }
+    return true;
 }
 
 void gpuPassSetPipelineImpl(WasmScriptingVM* vm,
                             uint32_t passHandle,
                             uint32_t pipelineHandle)
 {
-    auto* pass = resolvePass(vm, passHandle);
+    auto* host = resolveHostPass(vm, passHandle);
     auto pipeline = static_cast<HostGpuPipeline*>(
         vm->handles().resolve(pipelineHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuPipeline));
-    if (pass == nullptr || pipeline == nullptr)
+    if (host == nullptr || pipeline == nullptr)
     {
         return;
     }
-    pass->setPipeline(pipeline->pipeline.get());
+    // An attachment compat failure no-ops the backend and later draws crash
+    // in the driver, so it surfaces here the way the Luau binding raises it.
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (oreContext != nullptr)
+    {
+        oreContext->clearLastError();
+    }
+    host->pass->setPipeline(pipeline->pipeline.get());
+    if (oreContext != nullptr && !oreContext->lastError().empty())
+    {
+        gpuRejected(vm, oreContext, "setPipeline");
+        return;
+    }
+    host->pipelineSet = true;
 }
 
 void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm,
@@ -1820,6 +1882,17 @@ void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm,
                               WasmScriptingVM::HandleTable::Tag::gpuBuffer));
     if (pass == nullptr || buffer == nullptr)
     {
+        return;
+    }
+    if (slot >= ore::kMaxVertexBufferSlots)
+    {
+        char message[96];
+        snprintf(message,
+                 sizeof(message),
+                 ore::kGuardVertexSlotRangeFormat,
+                 ore::kMaxVertexBufferSlots - 1,
+                 slot);
+        vm->raiseModuleError(message);
         return;
     }
     pass->setVertexBuffer(slot, buffer->buffer.get(), offset);
@@ -1925,10 +1998,13 @@ void gpuPassDrawImpl(WasmScriptingVM* vm,
                      uint32_t firstVertex,
                      uint32_t firstInstance)
 {
-    if (auto* pass = resolvePass(vm, passHandle))
+    auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr ||
+        !gpuPassDrawAllowed(vm, host, "draw", 0, firstInstance))
     {
-        pass->draw(vertexCount, instanceCount, firstVertex, firstInstance);
+        return;
     }
+    host->pass->draw(vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
 void gpuPassDrawIndexedImpl(WasmScriptingVM* vm,
@@ -1939,14 +2015,17 @@ void gpuPassDrawIndexedImpl(WasmScriptingVM* vm,
                             int32_t baseVertex,
                             uint32_t firstInstance)
 {
-    if (auto* pass = resolvePass(vm, passHandle))
+    auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr ||
+        !gpuPassDrawAllowed(vm, host, "drawIndexed", baseVertex, firstInstance))
     {
-        pass->drawIndexed(indexCount,
-                          instanceCount,
-                          firstIndex,
-                          baseVertex,
-                          firstInstance);
+        return;
     }
+    host->pass->drawIndexed(indexCount,
+                            instanceCount,
+                            firstIndex,
+                            baseVertex,
+                            firstInstance);
 }
 
 void gpuPassFinishImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -7337,9 +7416,8 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
     if (!wasm_runtime_call_wasm(m_state->execEnv, f, 3, buf))
     {
         const char* exception = wasm_runtime_get_exception(m_state->instance);
-        fprintf(stderr,
-                "script init trapped: %s\n",
-                exception != nullptr ? exception : "unknown");
+        m_lastError = exception != nullptr ? exception : "script init trapped";
+        fprintf(stderr, "script init trapped: %s\n", m_lastError.c_str());
 #if WASM_ENABLE_DUMP_CALL_STACK
         wasm_runtime_dump_call_stack(m_state->execEnv);
 #endif

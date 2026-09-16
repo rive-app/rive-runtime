@@ -1157,13 +1157,7 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width,
         glGenTextures(1, &m_tessVertexTexture);
         glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
         glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
-        glTexStorage2D(GL_TEXTURE_2D,
-                       1,
-                       m_capabilities.needsFloatingPointTessellationTexture
-                           ? GL_RGBA32F
-                           : GL_RGBA32UI,
-                       width,
-                       height);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
         glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
     }
 
@@ -3708,16 +3702,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     // not load.
     LoadAndValidateGLESExtensions(&capabilities);
 #endif
-
-    if (strstr(rendererString, "ANGLE Metal Renderer") != nullptr &&
-        capabilities.EXT_color_buffer_float)
-    {
-        capabilities.needsFloatingPointTessellationTexture = true;
-    }
-    else
-    {
-        capabilities.needsFloatingPointTessellationTexture = false;
-    }
 
     if (capabilities.EXT_shader_pixel_local_storage2)
     {

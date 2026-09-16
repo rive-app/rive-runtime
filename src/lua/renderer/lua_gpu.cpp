@@ -6,6 +6,7 @@
 #include "rive/wasm/module_render.hpp"
 #endif
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
@@ -2253,9 +2254,7 @@ static void validate_pipeline_set(lua_State* L, ScriptedGPURenderPass* self)
 {
     if (!self->m_pipelineSet)
     {
-        luaL_error(L,
-                   "setPipeline must be called before draw/setVertexBuffer/"
-                   "setBindGroup");
+        luaL_error(L, ore::kGuardSetPipelineBeforeDraw);
     }
 }
 
@@ -2296,9 +2295,12 @@ static int gpurenderpass_setvertexbuffer(lua_State* L)
     // before `setPipeline` — vertex-buffer state is layered onto whatever
     // pipeline is current at draw time. Don't gate on `m_pipelineSet`.
     uint32_t slot = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
-    if (slot > 7)
+    if (slot >= ore::kMaxVertexBufferSlots)
     {
-        luaL_error(L, "setVertexBuffer: slot must be 0-7 (got %u)", slot);
+        luaL_error(L,
+                   ore::kGuardVertexSlotRangeFormat,
+                   ore::kMaxVertexBufferSlots - 1,
+                   slot);
     }
     auto* buffer = lua_torive<ScriptedGPUBuffer>(L, 3);
     self->pass->setVertexBuffer(slot, buffer->buffer.get());
@@ -2456,10 +2458,7 @@ static int gpurenderpass_draw(lua_State* L)
     if (firstInstance > 0 && features_are_known(getOreContext(L)) &&
         !getOreContext(L)->features().drawBaseInstance)
     {
-        luaL_error(L,
-                   "draw: firstInstance=%u requires the drawBaseInstance "
-                   "feature, which the active backend does not support",
-                   firstInstance);
+        luaL_error(L, ore::kGuardFirstInstanceFormat, "draw", firstInstance);
     }
     self->pass->draw(vertexCount, instanceCount, firstVertex, firstInstance);
     self->drawCallCount++;
@@ -2485,19 +2484,14 @@ static int gpurenderpass_drawindexed(lua_State* L)
     if (baseVertex != 0 && features_are_known(getOreContext(L)) &&
         !getOreContext(L)->features().drawBaseInstance)
     {
-        luaL_error(L,
-                   "drawIndexed: baseVertex=%d requires the "
-                   "drawBaseInstance feature, which the active backend "
-                   "does not support",
-                   baseVertex);
+        luaL_error(L, ore::kGuardBaseVertexFormat, "drawIndexed", baseVertex);
     }
     if (firstInstance > 0 && features_are_known(getOreContext(L)) &&
         !getOreContext(L)->features().drawBaseInstance)
     {
         luaL_error(L,
-                   "drawIndexed: firstInstance=%u requires the "
-                   "drawBaseInstance feature, which the active backend "
-                   "does not support",
+                   ore::kGuardFirstInstanceFormat,
+                   "drawIndexed",
                    firstInstance);
     }
     self->pass->drawIndexed(indexCount,

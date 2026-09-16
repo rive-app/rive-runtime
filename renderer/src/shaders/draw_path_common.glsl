@@ -26,9 +26,9 @@
 
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN
-TEXTURE_TESSDATA4(PER_FLUSH_BINDINGS_SET,
-                  TESS_VERTEX_TEXTURE_IDX,
-                  @tessVertexTexture);
+TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET,
+                 TESS_VERTEX_TEXTURE_IDX,
+                 @tessVertexTexture);
 #ifdef @ENABLE_FEATHER
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       GAUSSIAN_INTEGRAL_TEXTURE_IDX,
@@ -296,9 +296,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     // Fetch a vertex that definitely belongs to the contour we're drawing.
     int vertexIDOnContour = min(localVertexID, patchSegmentSpan - 1);
     int tessVertexIdx = _instanceID * patchSegmentSpan + vertexIDOnContour;
-    TESSDATA4 tessVertexData =
+    uint4 tessVertexData =
         TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(tessVertexIdx));
-    uint contourIDWithFlags = TESSDATA_AS_UINT(tessVertexData.w);
+    uint contourIDWithFlags = tessVertexData.w;
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
     // NOTE: The contourID is guaranteed to be >= 1 at this point, but clamp it
@@ -336,10 +336,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // the beginning and end of the data.
         int replacementTessVertexIdx =
             tessVertexIdx + localVertexID - vertexIDOnContour;
-        TESSDATA4 replacementTessVertexData =
+        uint4 replacementTessVertexData =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(replacementTessVertexIdx));
-        if ((TESSDATA_AS_UINT(replacementTessVertexData.w) &
+        if ((replacementTessVertexData.w &
              (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
             (contourIDWithFlags & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
         {
@@ -363,9 +363,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0.
         // Preserve it here. By not preserving this flag, the normal and
         // mirrored contour can both share the same contour record.
-        contourIDWithFlags = (TESSDATA_AS_UINT(tessVertexData.w) &
-                              ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
-                             mirroredContourFlag;
+        contourIDWithFlags =
+            (tessVertexData.w & ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
+            mirroredContourFlag;
     }
 
     bool discardVertex = false;
@@ -381,7 +381,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Feather joins work out their stepping here in the vertex shader.
         // Instead of emitting just the tangent angle, the tessellation shader
         // gave us the original tessellation parameters.
-        uint joinDataPacked = TESSDATA_AS_UINT(tessVertexData.z);
+        uint joinDataPacked = tessVertexData.z;
         float joinVertexID = float(joinDataPacked & 0xffffu);
         float joinSegmentCount = float(joinDataPacked >> 16);
 
@@ -391,16 +391,14 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             int2(-joinVertexID - 1., joinSegmentCount - joinVertexID + 1.);
         if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             edgeVertexOffsets = -edgeVertexOffsets;
-        TESSDATA4 tessDataBeforeJoin =
+        uint4 tessDataBeforeJoin =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(tessVertexIdx + edgeVertexOffsets.x));
-        TESSDATA4 tessDataAfterJoin =
+        uint4 tessDataAfterJoin =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(tessVertexIdx + edgeVertexOffsets.y));
-        if ((TESSDATA_AS_UINT(tessDataAfterJoin.w) &
-             (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
-            (TESSDATA_AS_UINT(tessDataBeforeJoin.w) &
-             (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
+        if ((tessDataAfterJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
+            (tessDataBeforeJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
         {
             // We reached over into a new contour. The edge immediately after
             // this feather join is actually the first vertex in the countour.
@@ -409,8 +407,8 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                             tess_texel_coord(int(vertexIndex0)));
         }
 
-        featherJoinEdge0Theta = TESSDATA_AS_FLOAT(tessDataBeforeJoin.z);
-        float featherJoinEdge1Theta = TESSDATA_AS_FLOAT(tessDataAfterJoin.z);
+        featherJoinEdge0Theta = uintBitsToFloat(tessDataBeforeJoin.z);
+        float featherJoinEdge1Theta = uintBitsToFloat(tessDataAfterJoin.z);
         featherJoinCornerTheta = featherJoinEdge1Theta - featherJoinEdge0Theta;
         if (abs(featherJoinCornerTheta) > PI)
             featherJoinCornerTheta -= _2PI * sign(featherJoinCornerTheta);
@@ -471,10 +469,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     else
 #endif // @ENABLE_FEATHER
     {
-        theta = TESSDATA_AS_FLOAT(tessVertexData.z);
+        theta = uintBitsToFloat(tessVertexData.z);
     }
     float2 norm = float2(sin(theta), -cos(theta));
-    float2 origin = TESSDATA_AS_FLOAT(tessVertexData.xy);
+    float2 origin = uintBitsToFloat(tessVertexData.xy);
     float2 postTransformVertexOffset = float2(0, 0);
 
     if (featherRadius != .0)
@@ -539,9 +537,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                 peekDir = -peekDir;
             int2 otherJoinTexelCoord =
                 tess_texel_coord(tessVertexIdx + peekDir);
-            TESSDATA4 otherJoinData =
+            uint4 otherJoinData =
                 TEXEL_FETCH(@tessVertexTexture, otherJoinTexelCoord);
-            float otherJoinTheta = TESSDATA_AS_FLOAT(otherJoinData.z);
+            float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
             float joinAngle = abs(otherJoinTheta - theta);
             if (joinAngle > PI)
                 joinAngle = _2PI - joinAngle;

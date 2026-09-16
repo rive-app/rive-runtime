@@ -209,6 +209,7 @@ void RenderPassVulkan::finish()
     if (m_finished)
         return;
     m_finished = true;
+    releaseBoundResources();
 
     m_vkContext->m_vk->CmdEndRenderPass(m_vkCmdBuf);
 

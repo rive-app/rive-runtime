@@ -76,6 +76,9 @@ private:
 
     ContextGL() : Context(nullptr) {}
 
+    // An incomplete framebuffer repeats every frame; print each message once.
+    std::string m_lastReportedError;
+
     // ── Scratch pass objects ───────────────────────────────────────────
     //
     // A pass's FBO and VAO carry nothing between passes: the FBO is

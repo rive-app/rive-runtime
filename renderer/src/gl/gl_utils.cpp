@@ -259,10 +259,6 @@ GLuint CompileShader(GLuint type,
         shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
                      << BASE_INSTANCE_UNIFORM_NAME << '\n';
     }
-    if (capabilities.needsFloatingPointTessellationTexture)
-    {
-        shaderSource << "#define " << GLSL_TESS_TEXTURE_FLOATING_POINT << '\n';
-    }
     if (capabilities.isMali)
     {
         shaderSource << "#define " << GLSL_GL_RENDERER_MALI << '\n';

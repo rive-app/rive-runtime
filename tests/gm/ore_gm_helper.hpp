@@ -597,9 +597,10 @@ struct TrianglePipeline
 {
     TrianglePipeline(const OreGMShaderResult& shader,
                      rive::ore::TextureFormat targetFormat,
-                     const char* label)
+                     const char* label,
+                     uint32_t stride = sizeof(TriVertex))
     {
-        layout.stride = sizeof(TriVertex);
+        layout.stride = stride;
         layout.stepMode = rive::ore::VertexStepMode::vertex;
         layout.attributes = attrs;
         layout.attributeCount = 2;

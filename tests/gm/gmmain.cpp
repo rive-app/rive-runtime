@@ -253,6 +253,9 @@ extern "C" void gms_build_registry()
     MAKE_GM(ore_layout_reuse)
     MAKE_GM(ore_layout_mismatch)
     MAKE_GM(ore_depth_only_pipeline)
+    MAKE_GM(ore_vertex_buffer_before_pipeline)
+    MAKE_GM(ore_pipeline_switch)
+    MAKE_GM(ore_buffer_offsets)
     MAKE_PARITY_GM3(ore_deferred_replay,
                     ore_deferred_replay_immediate,
                     ore_deferred_replay,

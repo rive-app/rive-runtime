@@ -216,6 +216,7 @@ void RenderPassWGPU::finish()
 
     m_wgpuContext = nullptr;
     m_currentPipeline = nullptr;
+    releaseBoundResources();
 }
 
 } // namespace rive::ore

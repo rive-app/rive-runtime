@@ -314,8 +314,7 @@ void RenderPassMetal::finish()
         [m_mtlEncoder endEncoding];
         m_mtlEncoder = nil;
     }
-    for (auto& bg : m_boundGroups)
-        bg.reset();
+    releaseBoundResources();
     m_currentPipeline.reset();
 }
 
