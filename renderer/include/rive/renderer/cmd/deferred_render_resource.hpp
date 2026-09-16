@@ -191,6 +191,15 @@ public:
         }
         emitU8(RenderCmd::paintCap, m_state.cap);
     }
+    void strokePosition(StrokePosition v) override
+    {
+        if (absorbed(m_state.strokePosition, static_cast<uint8_t>(v)))
+        {
+            return;
+        }
+        emitU8(RenderCmd::paintStrokePosition, m_state.strokePosition);
+    }
+
     void feather(float v) override
     {
         if (absorbed(m_state.feather, v))
@@ -241,10 +250,11 @@ private:
         ColorInt color = 0xFF000000;
         float thickness = 1;
         float feather = 0;
-        uint8_t style = 1;     // fill; a fresh paint is unstroked until told
-        uint8_t join = 0;      // miter
-        uint8_t cap = 0;       // butt
-        uint8_t blendMode = 3; // srcOver
+        uint8_t style = 1; // fill; a fresh paint is unstroked until told
+        uint8_t join = 0;  // miter
+        uint8_t cap = 0;   // butt
+        uint8_t strokePosition = 1; // center
+        uint8_t blendMode = 3;      // srcOver
     };
 
     static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }

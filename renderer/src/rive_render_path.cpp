@@ -487,6 +487,16 @@ IAABB RiveRenderPath::calculatePixelBounds(
     assert(mappedBounds.height() >= 0);
     if (stroke.has_value() || feather != 0.0f)
     {
+#ifndef NDEBUG
+        if (stroke.has_value())
+        {
+            // Rive renderer only actually submits centered stroke draws -
+            // inner/outer strokes are converted to clips (using centered
+            // strokes) so we should never get here for anything other than
+            // 'center'
+            assert(stroke->position == StrokePosition::center);
+        }
+#endif
         // Outset the path's bounding box to account for stroking &
         // feathering.
         float outset = calculateBoundsOutset(stroke, feather);

@@ -341,6 +341,8 @@ void replayRenderCommands(Factory* factory,
                             fresh->thickness(sh.thickness);
                             fresh->join(static_cast<StrokeJoin>(sh.join));
                             fresh->cap(static_cast<StrokeCap>(sh.cap));
+                            fresh->strokePosition(
+                                static_cast<StrokePosition>(sh.strokePosition));
                             fresh->feather(sh.feather);
                             fresh->blendMode(
                                 static_cast<BlendMode>(sh.blendMode));
@@ -516,6 +518,16 @@ void replayRenderCommands(Factory* factory,
                 }
                 break;
             }
+            case RenderCmd::paintStrokePosition:
+            {
+                auto c = reader.read<PaintU8POD>();
+                if (auto* pt = paint(c.paint))
+                {
+                    pt->strokePosition(static_cast<StrokePosition>(c.value));
+                    table.paintShadows[c.paint].strokePosition = c.value;
+                }
+                break;
+            }
             case RenderCmd::paintFeather:
             {
                 auto c = reader.read<PaintFloatPOD>();
@@ -640,12 +652,14 @@ void replayRenderCommands(Factory* factory,
                 if (cur)
                 {
                     if (auto* p = paths.get(c.path, c.version))
-                        cur->clipStroke(p,
-                                        {
-                                            .thickness = c.thickness,
-                                            .join = StrokeJoin(c.join),
-                                            .cap = StrokeCap(c.cap),
-                                        });
+                        cur->clipStroke(
+                            p,
+                            {
+                                .thickness = c.thickness,
+                                .join = StrokeJoin(c.join),
+                                .cap = StrokeCap(c.cap),
+                                .position = StrokePosition(c.position),
+                            });
                 }
                 break;
             }

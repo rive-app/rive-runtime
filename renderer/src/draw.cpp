@@ -449,11 +449,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         std::optional<StrokeParams> stroke;
         if (paint->getIsStroked())
         {
-            stroke = {
-                .thickness = paint->getThickness(),
-                .join = paint->getJoin(),
-                .cap = paint->getCap(),
-            };
+            stroke = paint->getStrokeParams();
         }
         pixelBounds = path->calculatePixelBounds(paintMatrix,
                                                  stroke,
@@ -875,7 +871,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     // Original number of lines and curves, before chopping.
     int preChopVerbCount = 0;
     Vec2D endpointsSum{};
-    bool closed = !isStroke();
+    bool closed = !isStroke() || paint->getForceClosed();
     Vec2D lastTangent = {0, 1};
     Vec2D firstTangent = {0, 1};
     size_t roundJoinCount = 0;
@@ -959,7 +955,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                 }
                 preChopVerbCount = 0;
                 endpointsSum = {0, 0};
-                closed = !isStroke();
+                closed = !isStroke() || paint->getForceClosed();
                 lastTangent = {0, 1};
                 firstTangent = {0, 1};
                 roundJoinCount = 0;

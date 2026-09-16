@@ -101,10 +101,18 @@ public:
 #endif
 
 private:
+    enum class ForceClosed : bool
+    {
+        no,
+        yes,
+    };
+
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
     void clipPathImpl(const RiveRenderPath*,
                       std::optional<StrokeParams> = {},
-                      float feather = 0.0f);
+                      float feather = 0.0f,
+                      ForceClosed forceClosed = ForceClosed::no,
+                      IAABB* boundsOut = nullptr);
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too
     // complex to be supported by the GPU buffers, even after a logical flush,
@@ -147,7 +155,8 @@ private:
                     FillRule,
                     IAABB pixelBounds,
                     std::optional<StrokeParams>,
-                    float feather);
+                    float feather,
+                    bool forceClosed);
         ~ClipElement();
 
         void reset(const Mat2D&,
@@ -155,8 +164,13 @@ private:
                    FillRule,
                    IAABB pixelBounds,
                    std::optional<StrokeParams>,
-                   float feather);
-        bool isEquivalent(const Mat2D&, const RiveRenderPath*) const;
+                   float feather,
+                   bool forceClosed);
+        bool isEquivalent(const Mat2D&,
+                          const RiveRenderPath*,
+                          std::optional<StrokeParams>,
+                          float feather,
+                          bool forceClosed) const;
 
         Mat2D matrix;
         uint64_t rawPathMutationID;
@@ -169,6 +183,7 @@ private:
 
         std::optional<StrokeParams> stroke;
         float feather;
+        bool forceClosed;
     };
     std::vector<ClipElement> m_clipStack;
 
