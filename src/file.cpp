@@ -323,6 +323,20 @@ rcp<File> File::import(Span<const uint8_t> bytes,
                        rcp<FileAssetLoader> assetLoader,
                        ScriptingVM* vm)
 {
+    if (factory == nullptr)
+    {
+        // Every artboard stores this factory and the first ShapePaint to
+        // initialize calls through it (`ShapePaint::initRenderPaint` ->
+        // `factory->makeRenderPaint()`), so a null factory here does not fault
+        // until deep inside `Artboard::initialize` with no trace of the caller
+        // that supplied it. Fail the import where the mistake was made.
+        fprintf(stderr, "File::import requires a non-null Factory.\n");
+        if (result)
+        {
+            *result = ImportResult::malformed;
+        }
+        return nullptr;
+    }
     BinaryReader reader(bytes);
     RuntimeHeader header;
     if (!RuntimeHeader::read(reader, header))
@@ -1420,41 +1434,42 @@ void File::completeViewModelInstance(
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
         instancesMap) const
 {
-    auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
+    // Every id below is read straight from the file. One past the end of
+    // m_ViewModels -- a reference to a view model that was not exported, or an
+    // index mapping that has gone stale -- would otherwise read the vector out
+    // of bounds and dereference whatever garbage came back, so each lookup goes
+    // through the bounds-checked accessor and a miss skips the value.
+    auto viewModel = this->viewModel(viewModelInstance->viewModelId());
+    if (viewModel == nullptr)
+    {
+        return;
+    }
     auto propertyValues = viewModelInstance->propertyValues();
     for (auto& value : propertyValues)
     {
         if (value->is<ViewModelInstanceViewModel>())
         {
             auto property = viewModel->property(value->viewModelPropertyId());
-            if (property->is<ViewModelPropertyViewModel>())
+            if (property != nullptr &&
+                property->is<ViewModelPropertyViewModel>())
             {
                 auto valueViewModel = value->as<ViewModelInstanceViewModel>();
                 auto propertViewModel =
                     property->as<ViewModelPropertyViewModel>();
                 auto viewModelReference =
-                    m_ViewModels[propertViewModel->viewModelReferenceId()];
-                auto viewModelReferenceInstance = viewModelReference->instance(
-                    valueViewModel->propertyValue());
+                    this->viewModel(propertViewModel->viewModelReferenceId());
                 valueViewModel->parentViewModelInstance(
                     viewModelInstance.get());
-                if (viewModelReferenceInstance != nullptr)
+                if (viewModelReference != nullptr)
                 {
-                    auto itr = instancesMap.find(viewModelReferenceInstance);
-
-                    if (itr == instancesMap.end())
+                    auto viewModelReferenceInstance =
+                        viewModelReference->instance(
+                            valueViewModel->propertyValue());
+                    if (viewModelReferenceInstance != nullptr)
                     {
-                        auto viewModelReferenceInstanceCopy =
-                            copyViewModelInstance(viewModelReferenceInstance,
-                                                  instancesMap);
-                        instancesMap[viewModelReferenceInstance] =
-                            viewModelReferenceInstanceCopy;
                         valueViewModel->referenceViewModelInstance(
-                            viewModelReferenceInstanceCopy);
-                    }
-                    else
-                    {
-                        valueViewModel->referenceViewModelInstance(itr->second);
+                            copyViewModelInstance(viewModelReferenceInstance,
+                                                  instancesMap));
                     }
                 }
             }
@@ -1465,28 +1480,18 @@ void File::completeViewModelInstance(
             viewModelList->parentViewModelInstance(viewModelInstance.get());
             for (auto& listItem : viewModelList->listItems())
             {
-                auto viewModel = m_ViewModels[listItem->viewModelId()];
+                auto itemViewModel = this->viewModel(listItem->viewModelId());
+                if (itemViewModel == nullptr)
+                {
+                    continue;
+                }
                 auto viewModelListItemInstance =
-                    viewModel->instance(listItem->viewModelInstanceId());
+                    itemViewModel->instance(listItem->viewModelInstanceId());
                 if (viewModelListItemInstance != nullptr)
                 {
-
-                    auto itr = instancesMap.find(viewModelListItemInstance);
-
-                    if (itr == instancesMap.end())
-                    {
-                        auto viewModelInstanceListItemCopy =
-                            copyViewModelInstance(viewModelListItemInstance,
-                                                  instancesMap);
-                        instancesMap[viewModelListItemInstance] =
-                            viewModelInstanceListItemCopy;
-                        listItem->viewModelInstance(
-                            viewModelInstanceListItemCopy);
-                    }
-                    else
-                    {
-                        listItem->viewModelInstance(itr->second);
-                    }
+                    listItem->viewModelInstance(
+                        copyViewModelInstance(viewModelListItemInstance,
+                                              instancesMap));
                 }
             }
         }
@@ -1497,25 +1502,47 @@ void File::completeViewModelInstance(
 
 void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
 {
-    auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
+    std::unordered_set<ViewModelInstance*> visited;
+    completeViewModelProperties(viewModelInstance, visited);
+}
+
+void File::completeViewModelProperties(
+    ViewModelInstance* viewModelInstance,
+    std::unordered_set<ViewModelInstance*>& visited)
+{
+    // This walks the file's own instances, so a cycle -- or merely a diamond,
+    // which costs exponential time -- would recurse without end. Visiting each
+    // instance once is enough: the work is idempotent.
+    if (viewModelInstance == nullptr ||
+        !visited.insert(viewModelInstance).second)
+    {
+        return;
+    }
+    auto viewModel = this->viewModel(viewModelInstance->viewModelId());
+    if (viewModel == nullptr)
+    {
+        return;
+    }
     auto propertyValues = viewModelInstance->propertyValues();
     for (auto& value : propertyValues)
     {
         if (value->is<ViewModelInstanceViewModel>())
         {
             auto property = viewModel->property(value->viewModelPropertyId());
-            if (property->is<ViewModelPropertyViewModel>())
+            if (property != nullptr &&
+                property->is<ViewModelPropertyViewModel>())
             {
                 auto valueViewModel = value->as<ViewModelInstanceViewModel>();
                 auto propertViewModel =
                     property->as<ViewModelPropertyViewModel>();
                 auto viewModelReference =
-                    m_ViewModels[propertViewModel->viewModelReferenceId()];
-                auto viewModelReferenceInstance = viewModelReference->instance(
-                    valueViewModel->propertyValue());
-                if (viewModelReferenceInstance != nullptr)
+                    this->viewModel(propertViewModel->viewModelReferenceId());
+                if (viewModelReference != nullptr)
                 {
-                    completeViewModelProperties(viewModelReferenceInstance);
+                    completeViewModelProperties(
+                        viewModelReference->instance(
+                            valueViewModel->propertyValue()),
+                        visited);
                 }
             }
         }
@@ -1524,13 +1551,14 @@ void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
             auto viewModelList = value->as<ViewModelInstanceList>();
             for (auto& listItem : viewModelList->listItems())
             {
-                auto viewModel = m_ViewModels[listItem->viewModelId()];
-                auto viewModelListItemInstance =
-                    viewModel->instance(listItem->viewModelInstanceId());
-                if (viewModelListItemInstance != nullptr)
+                auto itemViewModel = this->viewModel(listItem->viewModelId());
+                if (itemViewModel == nullptr)
                 {
-                    completeViewModelProperties(viewModelListItemInstance);
+                    continue;
                 }
+                completeViewModelProperties(
+                    itemViewModel->instance(listItem->viewModelInstanceId()),
+                    visited);
             }
         }
         value->viewModelProperty(
@@ -1539,19 +1567,48 @@ void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
 }
 
 rcp<ViewModelInstance> File::copyViewModelInstance(
+    ViewModelInstance* viewModelInstance) const
+{
+    if (viewModelInstance == nullptr)
+    {
+        return nullptr;
+    }
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
+    return copyViewModelInstance(viewModelInstance, instancesMap);
+}
+
+rcp<ViewModelInstance> File::copyViewModelInstance(
     ViewModelInstance* viewModelInstance,
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
         instancesMap) const
 {
+    // The map is keyed on the *source* instances, so one copy is shared by
+    // every reference to the same source. The entry has to go in before the
+    // copy is completed, not after: a cycle in the instance graph -- a list
+    // item pointing back at an ancestor, say, which the definitions alone do
+    // not rule out -- re-enters here for an instance still being completed,
+    // and only an up-front entry stops it recursing forever.
+    //
+    // That entry is null while the copy is in progress, so an active back-edge
+    // is dropped rather than wired up. Memoising the copy itself here would
+    // close the loop with a strong reference instead, and nothing in the graph
+    // would ever release it: rcp has no weak form, so a cyclic instance would
+    // be retained for the life of the process. References to an instance that
+    // has already been completed still share its copy, so diamonds -- the
+    // common case this map exists for -- are unaffected.
+    auto itr = instancesMap.find(viewModelInstance);
+    if (itr != instancesMap.end())
+    {
+        return itr->second;
+    }
     auto copy = rcp<ViewModelInstance>(
         viewModelInstance->clone()->as<ViewModelInstance>());
-    completeViewModelInstance(copy, instancesMap);
+    instancesMap[viewModelInstance] = nullptr;
 #ifdef WITH_RIVE_TOOLS
-    if (copy)
-    {
-        registerViewModelInstance(copy.get(), copy);
-    }
+    registerViewModelInstance(copy.get(), copy);
 #endif
+    completeViewModelInstance(copy, instancesMap);
+    instancesMap[viewModelInstance] = copy;
     return copy;
 }
 
@@ -1697,8 +1754,8 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                     viewModelInstanceValue = new ViewModelInstanceViewModel();
                     auto propertViewModel =
                         property->as<ViewModelPropertyViewModel>();
-                    auto viewModelReference =
-                        m_ViewModels[propertViewModel->viewModelReferenceId()];
+                    auto viewModelReference = this->viewModel(
+                        propertViewModel->viewModelReferenceId());
                     auto viewModelInstanceViewModel =
                         viewModelInstanceValue
                             ->as<ViewModelInstanceViewModel>();
@@ -1787,16 +1844,7 @@ rcp<ViewModelInstance> File::createDefaultViewModelInstance(
     auto viewModelInstance = viewModel->instance(0);
     if (viewModelInstance != nullptr)
     {
-        auto copy = rcp<ViewModelInstance>(
-            viewModelInstance->clone()->as<ViewModelInstance>());
-        completeViewModelInstance(copy);
-#ifdef WITH_RIVE_TOOLS
-        if (copy)
-        {
-            registerViewModelInstance(copy.get(), copy);
-        }
-#endif
-        return copy;
+        return copyViewModelInstance(viewModelInstance);
     }
     return createViewModelInstance(viewModel);
 }

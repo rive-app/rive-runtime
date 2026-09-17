@@ -22,6 +22,7 @@
 #include <vector>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 #ifdef WITH_RIVE_SCRIPTING
 struct lua_State;
@@ -260,6 +261,12 @@ public:
             instancesMap) const;
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
+    /// Clones [viewModelInstance] and completes the clone, sharing one copy per
+    /// source instance across the whole graph. Prefer this over cloning and
+    /// calling completeViewModelInstance separately: only this path registers
+    /// the root, which is what stops a cyclic graph recursing forever.
+    rcp<ViewModelInstance> copyViewModelInstance(
+        ViewModelInstance* viewModelInstance) const;
     void completeViewModelProperties(ViewModelInstance* viewModelInstance);
     const std::vector<DataEnum*>& enums() const;
     rcp<FileAsset> asset(size_t index);
@@ -437,6 +444,10 @@ private:
         ViewModelInstance* viewModelInstance,
         std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
             instancesMap) const;
+
+    void completeViewModelProperties(
+        ViewModelInstance* viewModelInstance,
+        std::unordered_set<ViewModelInstance*>& visited);
 
     rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 

@@ -52,6 +52,19 @@ TEST_CASE("file with bad blend mode fails to load", "[file]")
     CHECK(result == rive::ImportResult::malformed);
 }
 
+TEST_CASE("importing with a null factory fails instead of crashing", "[file]")
+{
+    // Every artboard stores the factory, and the first ShapePaint to
+    // initialize calls through it. A null one used to survive import and fault
+    // inside Artboard::initialize with nothing pointing back at the caller.
+    std::vector<uint8_t> bytes = ReadFile("assets/juice.riv");
+
+    rive::ImportResult result = rive::ImportResult::success;
+    auto file = rive::File::import(bytes, nullptr, &result, nullptr);
+    CHECK(file == nullptr);
+    CHECK(result == rive::ImportResult::malformed);
+}
+
 TEST_CASE("file with animation can be read", "[file]")
 {
     auto file = ReadRiveFile("assets/juice.riv");

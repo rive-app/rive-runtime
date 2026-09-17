@@ -131,10 +131,8 @@ rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromIndex(
     auto viewModelInstance = m_viewModel->instance(index);
     if (viewModelInstance != nullptr)
     {
-        auto copy = rcp<ViewModelInstance>(
-            viewModelInstance->clone()->as<ViewModelInstance>());
-        m_file->completeViewModelInstance(copy);
-        return createRuntimeInstance(copy);
+        return createRuntimeInstance(
+            m_file->copyViewModelInstance(viewModelInstance));
     }
     else
     {
@@ -152,10 +150,8 @@ rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromName(
     auto viewModelInstance = m_viewModel->instance(name);
     if (viewModelInstance != nullptr)
     {
-        auto copy = rcp<ViewModelInstance>(
-            viewModelInstance->clone()->as<ViewModelInstance>());
-        m_file->completeViewModelInstance(copy);
-        return createRuntimeInstance(copy);
+        return createRuntimeInstance(
+            m_file->copyViewModelInstance(viewModelInstance));
     }
     else
     {
