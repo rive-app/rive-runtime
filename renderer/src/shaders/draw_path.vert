@@ -263,6 +263,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
 
+        // paintData.y (gradient texture row + 1) in the integer part
+        // additiveness in range 0/256 to 255/256 in the fraction.
         v_paint = packGradientData(fragCoord,
                                    paintMatrix,
                                    paintTranslate.xy,
@@ -401,6 +403,11 @@ INLINE half4 find_paint_color(
         // Flip this back to positive (it was only negative to signal that this
         // is a gradient)
         paint.a = -paint.a;
+        // paint.a stores (gradient texture row + 1) in the integer part and
+        // additiveness, in range 0/256 to 255/256 in the fraction.
+        half additiveness = cast_float_to_half(fract(paint.a) * (256. / 255.));
+        paint.a = floor(paint.a) * uniforms.gradTextureYScale +
+                  uniforms.gradTextureYBias;
         float2 gradientTexCoord = getGradientCoord(paint);
         color =
             TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradientTexCoord, .0);
@@ -408,7 +415,10 @@ INLINE half4 find_paint_color(
         // Gradients are always unmultiplied so we don't lose color data while
         // doing the hardware filter.
         if (!paintHasAdvancedBlend)
+        {
             color.rgb *= color.a;
+            color.a *= additiveness;
+        }
     }
 
 #if defined(@ENABLE_MODULATED_IMAGE)

@@ -66,6 +66,8 @@ public:
     ~RenderPassD3D12() override;
 
 private:
+    void applyVertexBuffer(uint32_t slot);
+
     // D3D12 setBindGroup body — shared between the D3D12-only translation
     // unit (ore_render_pass_d3d12.cpp) and the combined D3D11+D3D12 one
     // (ore_render_pass_d3d11_d3d12.cpp). Defined inline in

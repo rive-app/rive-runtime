@@ -213,6 +213,12 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "debug_line")
 uint32_t rive_rt_debug_line(uint32_t line);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_leave")
 void rive_rt_debug_leave(void);
+RIVE_BINDING_IMPORT("rive_rt_v1", "utc_offset")
+uint32_t rive_rt_utc_offset(double epochSeconds);
+RIVE_BINDING_IMPORT("rive_rt_v1", "is_dst")
+uint32_t rive_rt_is_dst(double epochSeconds);
+RIVE_BINDING_IMPORT("rive_rt_v1", "zone_name")
+uint32_t rive_rt_zone_name(double epochSeconds, char* buffer, uint32_t capacity);
 
 // rive_data_v1
 RIVE_BINDING_IMPORT("rive_data_v1", "view_model")

@@ -480,6 +480,9 @@ std::ostream& operator<<(std::ostream& os, DataType t)
         case DataType::assetImage:
             os << "Asset Image";
             break;
+        case DataType::assetFont:
+            os << "Asset Font";
+            break;
         case DataType::assetBlob:
             os << "Asset Blob";
             break;
@@ -787,6 +790,7 @@ void CommandServer::checkPropertySubscriptions()
                         // These don't have values but are still valid
                         // subscriptions.
                         case DataType::assetImage:
+                        case DataType::assetFont:
                         case DataType::assetBlob:
                         case DataType::trigger:
                         case DataType::list:
@@ -855,6 +859,7 @@ void CommandServer::checkPropertySubscriptions()
                     switch (data.metaData.type)
                     {
                         case DataType::assetImage:
+                        case DataType::assetFont:
                         case DataType::assetBlob:
                         case DataType::trigger:
                         case DataType::list:
@@ -3489,6 +3494,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
+                FontHandle fontHandle = RIVE_NULL_HANDLE;
                 BlobAssetHandle blobHandle = RIVE_NULL_HANDLE;
                 ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
@@ -3522,6 +3528,9 @@ bool CommandServer::processCommands()
                         break;
                     case DataType::assetImage:
                         commandStream >> imageHandle;
+                        break;
+                    case DataType::assetFont:
+                        commandStream >> fontHandle;
                         break;
                     case DataType::assetBlob:
                         commandStream >> blobHandle;
@@ -3772,7 +3781,49 @@ bool CommandServer::processCommands()
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find "
                                        "image property at path "
-                                    << value.metaData.name;
+                                    << value.metaData.name
+                                    << " for view model instance " << handle;
+                            }
+                            break;
+                        }
+                        case DataType::assetFont:
+                        {
+                            if (auto fontProperty =
+                                    viewModelInstance->propertyFont(
+                                        value.metaData.name))
+                            {
+                                if (fontHandle == RIVE_NULL_HANDLE)
+                                {
+                                    fontProperty->value(nullptr);
+                                }
+                                else if (auto font = getFont(fontHandle))
+                                {
+                                    fontProperty->value(font);
+                                }
+                                else
+                                {
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        requestId,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Could not find font " << fontHandle
+                                        << " to set for view model instance "
+                                           "when setting property with path "
+                                        << value.metaData.name;
+                                }
+                            }
+                            else
+                            {
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    requestId,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find "
+                                       "font property at path "
+                                    << value.metaData.name
+                                    << " for view model instance " << handle;
                             }
                             break;
                         }
@@ -3812,7 +3863,8 @@ bool CommandServer::processCommands()
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find "
                                        "blob property at path "
-                                    << value.metaData.name;
+                                    << value.metaData.name
+                                    << " for view model instance " << handle;
                             }
                             break;
                         }
@@ -3855,7 +3907,8 @@ bool CommandServer::processCommands()
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find "
                                        "artboard property at path "
-                                    << value.metaData.name;
+                                    << value.metaData.name
+                                    << " for view model instance " << handle;
                             }
                             break;
                         }

@@ -276,10 +276,11 @@
     }
 
 #define FRAGMENT_CONTEXT_DECL                                                  \
-    , float2 _fragCoord, FragmentTextures _textures,                           \
-        FragmentStorageBuffers _buffers, DynamicSamplers _dynamicSampler
+    , $constant @FlushUniforms &uniforms, float2 _fragCoord,                   \
+        FragmentTextures _textures, FragmentStorageBuffers _buffers,           \
+        DynamicSamplers _dynamicSampler
 #define FRAGMENT_CONTEXT_UNPACK                                                \
-    , _fragCoord, _textures, _buffers, _dynamicSampler
+    , uniforms, _fragCoord, _textures, _buffers, _dynamicSampler
 
 #define TEXTURE_CONTEXT_DECL , FragmentTextures _textures
 #define TEXTURE_CONTEXT_FORWARD , _textures
@@ -505,6 +506,7 @@ INLINE half2 unpackHalf2x16(uint x) { return $as_type<half2>(x); }
 INLINE uint packHalf2x16(half2 x) { return $as_type<uint>(x); }
 INLINE half4 unpackUnorm4x8(uint x) { return $unpack_unorm4x8_to_half(x); }
 INLINE uint packUnorm4x8(half4 x) { return $pack_half_to_unorm4x8(x); }
+INLINE float2 unpackUnorm2x16(uint x) { return $unpack_unorm2x16_to_float(x); }
 
 INLINE float2x2 inverse(float2x2 m)
 {

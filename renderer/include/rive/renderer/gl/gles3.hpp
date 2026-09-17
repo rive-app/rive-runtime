@@ -232,12 +232,6 @@ struct GLCapabilities
     // Many devices crash on draw commands with a large instancecount, or when
     // drawing many instances without a glFlush to break them up.
     uint32_t maxSupportedInstancesPerFlush;
-    // Chrome 136 crashes when trying to run Rive because it attempts to enable
-    // blending on the tessellation texture, which is invalid for an integer
-    // render target. The workaround is to use a floating-point tessellation
-    // texture.
-    // https://issues.chromium.org/issues/416294709
-    bool needsFloatingPointTessellationTexture;
     // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe pixel
     // local storage corruption issues with our renderer. Using some of the
     // EXT_shader_pixel_local_storage2 API is an apparent workaround that comes

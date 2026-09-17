@@ -402,11 +402,13 @@ public:
         route();
         m_buffer->append(
             static_cast<uint8_t>(RenderCmd::clipStroke),
-            ClipStrokePOD{DeferredRenderPath::idOfPath(path),
-                          dp != nullptr ? dp->version() : 0,
-                          params.thickness,
-                          math::lossless_numeric_cast<uint8_t>(params.join),
-                          math::lossless_numeric_cast<uint8_t>(params.cap)});
+            ClipStrokePOD{
+                DeferredRenderPath::idOfPath(path),
+                dp != nullptr ? dp->version() : 0,
+                params.thickness,
+                math::lossless_numeric_cast<uint8_t>(params.join),
+                math::lossless_numeric_cast<uint8_t>(params.cap),
+                math::lossless_numeric_cast<uint8_t>(params.position)});
     }
     void modulateOpacity(float opacity) override
     {

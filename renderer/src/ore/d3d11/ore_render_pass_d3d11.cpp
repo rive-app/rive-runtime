@@ -144,6 +144,8 @@ void RenderPassD3D11::setPipeline(Pipeline* inPipeline)
     m_d3d11Context->VSSetShader(pipeline->m_d3dVS, nullptr, 0);
     m_d3d11Context->PSSetShader(pipeline->m_d3dPS, nullptr, 0);
     m_d3d11Context->IASetInputLayout(pipeline->m_d3dInputLayout.Get());
+    // Strides come from this pipeline, so bound buffers rebind at the draw.
+    m_dirtyVertexSlots = kAllVertexSlotsDirty;
 
     m_d3d11Topology = oreTopologyToD3D(desc.topology);
     m_d3d11Context->IASetPrimitiveTopology(m_d3d11Topology);
@@ -161,15 +163,21 @@ void RenderPassD3D11::setVertexBuffer(uint32_t slot,
                                       uint32_t offset)
 {
     validate();
-    auto buffer = static_cast<BufferD3D11*>(inBuffer);
-    if (buffer == nullptr) // destroyed under a straddling deferred frame
+    // A null buffer was destroyed under a straddling deferred frame; the
+    // empty slot makes the draw skip it.
+    setVertexBufferSlot(slot, inBuffer, offset);
+}
+
+void RenderPassD3D11::applyVertexBuffer(uint32_t slot)
+{
+    const auto& slotState = m_vertexBufferSlots[slot];
+    if (slotState.buffer == nullptr ||
+        slot >= m_currentPipeline->desc().vertexBufferCount)
         return;
-    UINT stride = (m_currentPipeline &&
-                   slot < m_currentPipeline->desc().vertexBufferCount)
-                      ? m_currentPipeline->desc().vertexBuffers[slot].stride
-                      : 0;
+    auto buffer = static_cast<BufferD3D11*>(slotState.buffer.get());
+    UINT stride = m_currentPipeline->desc().vertexBuffers[slot].stride;
     ID3D11Buffer* buf = buffer->m_d3d11Buffer.Get();
-    UINT off = offset;
+    UINT off = slotState.offset;
     m_d3d11Context->IASetVertexBuffers(slot, 1, &buf, &stride, &off);
 }
 
@@ -377,6 +385,7 @@ void RenderPassD3D11::draw(uint32_t vertexCount,
     validate();
     if (m_currentPipeline == nullptr) // dropped under a straddling frame
         return;
+    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
     if (instanceCount > 1 || firstInstance != 0)
     {
         m_d3d11Context->DrawInstanced(vertexCount,
@@ -399,6 +408,7 @@ void RenderPassD3D11::drawIndexed(uint32_t indexCount,
     validate();
     if (m_currentPipeline == nullptr) // dropped under a straddling frame
         return;
+    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
     if (instanceCount > 1 || firstInstance != 0 || baseVertex != 0)
     {
         m_d3d11Context->DrawIndexedInstanced(indexCount,
@@ -418,6 +428,7 @@ void RenderPassD3D11::finish()
     if (m_finished)
         return;
     m_finished = true;
+    releaseBoundResources();
     if (m_d3d11Context != nullptr)
     {
         // Unbind render targets so attached textures can be used as SRVs.

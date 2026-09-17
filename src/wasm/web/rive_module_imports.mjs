@@ -44,6 +44,15 @@ export function createRiveModuleImports(host, moduleMemory) {
             debug_enter: calls.rive_rt_debug_enter,
             debug_line: calls.rive_rt_debug_line,
             debug_leave: calls.rive_rt_debug_leave,
+            utc_offset: calls.rive_rt_utc_offset,
+            is_dst: calls.rive_rt_is_dst,
+            zone_name: (epochSeconds, buffer, capacity) => {
+                stackReset();
+                const buffer_p = stageIn(buffer, capacity);
+                const ret = calls.rive_rt_zone_name(epochSeconds, buffer_p, capacity);
+                copyOut(buffer_p, buffer, capacity);
+                return ret;
+            },
         },
         rive_data_v1: {
             view_model: calls.rive_data_view_model,

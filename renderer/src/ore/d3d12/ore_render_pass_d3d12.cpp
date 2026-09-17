@@ -140,6 +140,8 @@ void RenderPassD3D12::setPipeline(Pipeline* inPipeline)
 
     m_d3dCmdList->SetPipelineState(pipeline->m_d3dPSO.Get());
     m_d3dCmdList->IASetPrimitiveTopology(pipeline->m_d3dTopology);
+    // Strides come from this pipeline, so bound buffers rebind at the draw.
+    m_dirtyVertexSlots = kAllVertexSlotsDirty;
     // Each pipeline owns its own root sig (RFC v5 §3.2.2). Rebind on
     // change; D3D12 resets all root-parameter state when the sig
     // changes, so callers must rebind bind groups after any pipeline
@@ -168,24 +170,32 @@ void RenderPassD3D12::setVertexBuffer(uint32_t slot,
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
-    auto buffer = lite_rtti_cast<BufferD3D12*>(inBuffer);
-    assert(buffer->m_d3dBuffer != nullptr);
+    setVertexBufferSlot(slot, inBuffer, offset);
+#else
+    (void)slot;
+    (void)inBuffer;
+    (void)offset;
+#endif
+}
 
-    UINT stride = (m_d3dCurrentPipeline &&
-                   slot < m_d3dCurrentPipeline->desc().vertexBufferCount)
-                      ? m_d3dCurrentPipeline->m_d3dVertexStrides[slot]
-                      : 0;
+void RenderPassD3D12::applyVertexBuffer(uint32_t slot)
+{
+#if defined(ORE_BACKEND_D3D12)
+    const auto& slotState = m_vertexBufferSlots[slot];
+    if (slotState.buffer == nullptr ||
+        slot >= m_d3dCurrentPipeline->desc().vertexBufferCount)
+        return;
+    auto buffer = lite_rtti_cast<BufferD3D12*>(slotState.buffer.get());
+    assert(buffer->m_d3dBuffer != nullptr);
 
     buffer->markBound();
     D3D12_VERTEX_BUFFER_VIEW vbv = {};
-    vbv.BufferLocation = buffer->currentGpuVA() + offset;
-    vbv.SizeInBytes = buffer->m_size - offset;
-    vbv.StrideInBytes = stride;
+    vbv.BufferLocation = buffer->currentGpuVA() + slotState.offset;
+    vbv.SizeInBytes = buffer->m_size - slotState.offset;
+    vbv.StrideInBytes = m_d3dCurrentPipeline->m_d3dVertexStrides[slot];
     m_d3dCmdList->IASetVertexBuffers(slot, 1, &vbv);
 #else
     (void)slot;
-    (void)buffer;
-    (void)offset;
 #endif
 }
 
@@ -331,6 +341,7 @@ void RenderPassD3D12::draw(uint32_t vertexCount,
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
     m_d3dCmdList->DrawInstanced(vertexCount,
                                 instanceCount,
                                 firstVertex,
@@ -351,6 +362,7 @@ void RenderPassD3D12::drawIndexed(uint32_t indexCount,
 {
 #if defined(ORE_BACKEND_D3D12)
     validate();
+    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
     m_d3dCmdList->DrawIndexedInstanced(indexCount,
                                        instanceCount,
                                        firstIndex,
@@ -374,6 +386,7 @@ void RenderPassD3D12::finish()
     if (m_finished)
         return;
     m_finished = true;
+    releaseBoundResources();
 
 #if defined(ORE_BACKEND_D3D12)
     if (m_d3dCmdList == nullptr)

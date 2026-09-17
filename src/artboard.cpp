@@ -53,6 +53,9 @@
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/shapes/path_composer.hpp"
+#include "rive/text/text_style.hpp"
+#include "rive/text/text_variation_helper.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
@@ -678,6 +681,7 @@ StatusCode Artboard::initialize()
             m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
         }
     }
+
     initScriptedObjects();
     return StatusCode::Ok;
 }
@@ -966,15 +970,168 @@ void Artboard::initLayoutForEditor()
 }
 #endif
 
+Component* Artboard::componentForOrderEntry(
+    const DependencyOrderEntry& entry) const
+{
+    if (entry.objectIndex >= m_Objects.size())
+    {
+        return nullptr;
+    }
+    Core* object = m_Objects[entry.objectIndex];
+    if (object == nullptr)
+    {
+        return nullptr;
+    }
+    if (entry.helperSlot == 0)
+    {
+        return object->is<Component>() ? object->as<Component>() : nullptr;
+    }
+    // Slot 1 is the single owned helper for the types that have one. Add
+    // further slots here if another Component gains an owned graph node.
+    if (entry.helperSlot == 1)
+    {
+        if (object->is<Shape>())
+        {
+            return object->as<Shape>()->pathComposer();
+        }
+        if (object->is<TextStyle>())
+        {
+            return object->as<TextStyle>()->variationHelper();
+        }
+    }
+    return nullptr;
+}
+
+const std::vector<Artboard::DependencyOrderEntry>* Artboard::
+    dependencyOrderRecipe() const
+{
+    switch (m_RecipeState)
+    {
+        case RecipeState::valid:
+            return &m_DependencyOrderRecipe;
+        case RecipeState::unusable:
+            return nullptr;
+        case RecipeState::unbuilt:
+            break;
+    }
+
+    // No reverse Component* -> index map is needed: sortDependencies() has
+    // already stamped every component in m_DependencyOrder with its position
+    // via m_GraphOrder, so one walk of m_Objects can scatter each entry
+    // straight into its slot. That keeps recipe construction allocation-free
+    // beyond the result vector, which matters because the source artboard is
+    // re-decoded (and so re-builds this) on every editor regeneration.
+    const size_t count = m_DependencyOrder.size();
+    constexpr uint32_t unset = ~(uint32_t)0;
+    m_DependencyOrderRecipe.assign(count, {unset, 0});
+    size_t filled = 0;
+
+    auto stamp = [&](const Component* component, uint32_t index, uint8_t slot) {
+        if (component == nullptr)
+        {
+            return;
+        }
+        const unsigned int position = component->graphOrder();
+        // A component the sort never placed keeps Component's sentinel, which
+        // no order can hand out. One that a *previous, longer* order placed
+        // keeps that order's position, which this one may well have handed to
+        // somebody else -- so the stamp alone is not proof. Confirm the order
+        // really holds this component where it claims to be, which is an exact
+        // membership test no stale stamp can pass.
+        if (position >= count || m_DependencyOrder[position] != component)
+        {
+            return;
+        }
+        DependencyOrderEntry& entry = m_DependencyOrderRecipe[position];
+        if (entry.objectIndex != unset)
+        {
+            // One component reachable through two slots. Leave the first.
+            return;
+        }
+        entry = {index, slot};
+        filled++;
+    };
+
+    for (size_t i = 0; i < m_Objects.size(); i++)
+    {
+        Core* object = m_Objects[i];
+        if (object == nullptr || !object->is<Component>())
+        {
+            continue;
+        }
+        const uint32_t index = (uint32_t)i;
+        stamp(object->as<Component>(), index, 0);
+        if (object->is<Shape>())
+        {
+            stamp(object->as<Shape>()->pathComposer(), index, 1);
+        }
+        else if (object->is<TextStyle>())
+        {
+            stamp(object->as<TextStyle>()->variationHelper(), index, 1);
+        }
+    }
+
+    if (filled != count)
+    {
+        // Something in the order isn't addressable as index/slot (or the
+        // graph-order stamps disagree). Don't emit a partial order.
+        m_DependencyOrderRecipe.clear();
+        m_RecipeState = RecipeState::unusable;
+        return nullptr;
+    }
+    m_RecipeState = RecipeState::valid;
+    return &m_DependencyOrderRecipe;
+}
+
+bool Artboard::replaySourceDependencyOrder(const Artboard* source)
+{
+    if (source == nullptr || source == this ||
+        source->m_Objects.size() != m_Objects.size())
+    {
+        return false;
+    }
+    const std::vector<DependencyOrderEntry>* recipe =
+        source->dependencyOrderRecipe();
+    if (recipe == nullptr)
+    {
+        return false;
+    }
+    std::vector<Component*> order;
+    order.reserve(recipe->size());
+    for (const DependencyOrderEntry& entry : *recipe)
+    {
+        Component* component = componentForOrderEntry(entry);
+        if (component == nullptr)
+        {
+            // A helper the source had but this instance doesn't (they are
+            // lazily created). Fall back rather than emit a short order.
+            return false;
+        }
+        order.push_back(component);
+    }
+    m_DependencyOrder = std::move(order);
+    return true;
+}
+
 void Artboard::sortDependencies()
 {
-    DependencySorter sorter;
-    sorter.sort(this, m_DependencyOrder);
+    // An instance replays its source's order instead of re-walking the graph;
+    // see DependencyOrderEntry. Falls back to sorting whenever anything about
+    // the instance doesn't line up.
+    bool replayed = replaySourceDependencyOrder(m_artboardSource);
+
+    if (!replayed)
+    {
+        DependencySorter sorter;
+        sorter.sort(this, m_DependencyOrder);
+    }
     unsigned int graphOrder = 0;
     for (auto component : m_DependencyOrder)
     {
         component->m_GraphOrder = graphOrder++;
     }
+    m_DependencyOrderRecipe.clear();
+    m_RecipeState = RecipeState::unbuilt;
     m_Dirt |= ComponentDirt::Components;
 }
 

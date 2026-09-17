@@ -13,6 +13,37 @@ using namespace rive;
 
 namespace
 {
+
+static void drawStripedBackground(rive::Renderer* renderer, int32_t dim)
+{
+    {
+        Paint p;
+        p->color(0xff000000);
+        renderer->drawPath(
+            PathBuilder::Rect({0.0f, 0.0f, float(dim), float(dim)}),
+            p);
+    }
+    {
+        Paint p;
+        p->color(0xff2c1642);
+        p->feather(10.0f);
+        auto yStep = 40.0f;
+        for (auto y = 20.0f; y < float(dim); y++)
+        {
+            auto path = PathBuilder::Rect({
+                -100.0f,
+                y,
+                float(dim) + 100.0f,
+                y + yStep * 0.3f,
+            });
+            path->fillRule(FillRule::clockwise);
+            renderer->drawPath(path, p);
+            y += yStep;
+            yStep *= 1.12f;
+        }
+    }
+}
+
 class ClipStrokeGM : public GM
 {
 public:
@@ -26,33 +57,8 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        {
-            Paint p;
-            p->color(0xff000000);
-            renderer->drawPath(
-                PathBuilder::Rect(
-                    {0.0f, 0.0f, float(ImageDim), float(ImageDim)}),
-                p);
-        }
-        {
-            Paint p;
-            p->color(0xff2c1642);
-            p->feather(10.0f);
-            auto yStep = 40.0f;
-            for (auto y = 20.0f; y < float(SectionCount * SectionSize); y++)
-            {
-                auto path = PathBuilder::Rect({
-                    -100.0f,
-                    y,
-                    float(ImageDim) + 100.0f,
-                    y + yStep * 0.3f,
-                });
-                path->fillRule(FillRule::clockwise);
-                renderer->drawPath(path, p);
-                y += yStep;
-                yStep *= 1.12f;
-            }
-        }
+        drawStripedBackground(renderer, ImageDim);
+
         constexpr uint32_t Colors[SectionCount][SectionCount] = {
             {
                 0xff881177,
@@ -259,34 +265,8 @@ public:
                     false)
                 .detach();
 
-        {
-            Paint p;
-            p->color(0xff000000);
-            renderer->drawPath(
-                PathBuilder::Rect(
-                    {0.0f, 0.0f, float(ImageDim), float(ImageDim)}),
-                p);
-        }
+        drawStripedBackground(renderer, ImageDim);
 
-        {
-            Paint p;
-            p->color(0xff2c1642);
-            p->feather(10.0f);
-            auto yStep = 40.0f;
-            for (auto y = 20.0f; y < float(SectionCount * SectionSize); y++)
-            {
-                auto path = PathBuilder::Rect({
-                    -100.0f,
-                    y,
-                    float(ImageDim) + 100.0f,
-                    y + yStep * 0.3f,
-                });
-                path->fillRule(FillRule::clockwise);
-                renderer->drawPath(path, p);
-                y += yStep;
-                yStep *= 1.12f;
-            }
-        }
         constexpr uint32_t Colors[SectionCount][SectionCount] = {
             {
                 0xff881177,
@@ -345,3 +325,64 @@ GMREGISTER(clip_stroke_nested_b,
 GMREGISTER(clip_stroke_nested_c,
            return (new ClipStrokeNestedGM<NestType::strokeInStroke>()))
 GMREGISTER(clip_stroke_open, return (new ClipStrokeOpenGM()))
+
+DEF_SIMPLE_GM(clip_stroke_position, 768, 768, renderer)
+{
+    drawStripedBackground(renderer, 768);
+
+    Path path = PathBuilder::Circle(128.0f, 128.0f, 100.0f);
+    path->fillRule(FillRule::clockwise);
+
+    Path otherClip = PathBuilder::Polygon({Vec2D{-30.0f, 226.0f},
+                                           Vec2D{226.0f, -30.0f},
+                                           Vec2D{286.0f, 30.0f},
+                                           Vec2D{30.0f, 286.0f}},
+                                          true,
+                                          FillRule::clockwise);
+
+    Path fillA =
+        PathBuilder::RRect({30.0f, 30.0f, 226.0f, 226.0f}, 50.0f, 50.0f);
+    Path fillB =
+        PathBuilder::RRect({40.0f, 40.0f, 216.0f, 216.0f}, 50.0f, 50.0f);
+
+    for (auto nestIndex = 0; nestIndex < 3; nestIndex++)
+    {
+        renderer->save();
+
+        renderer->translate(0.0f, nestIndex * 256.0f);
+
+        for (auto i = 0; i < 3; i++)
+        {
+            renderer->save();
+            {
+                if (nestIndex == 1)
+                {
+                    // nest 1 is "positioned clip stroke inside of fill"
+                    renderer->clipPath(otherClip);
+                }
+
+                renderer->clipStroke(
+                    path,
+                    {.thickness = 20.0f, .position = StrokePosition(i)});
+
+                if (nestIndex == 2)
+                {
+                    // nest 1 is "fill inside of positioned clip stroke"
+                    renderer->clipPath(otherClip);
+                }
+
+                Paint p;
+                p->color(0xffaa3355);
+                p->style(RenderPaintStyle::fill);
+                renderer->drawPath(fillA, p);
+                p->color(0xff00bbcc);
+                renderer->drawPath(fillB, p);
+            }
+            renderer->restore();
+
+            renderer->translate(256.0f, 0.0f);
+        }
+
+        renderer->restore();
+    }
+}

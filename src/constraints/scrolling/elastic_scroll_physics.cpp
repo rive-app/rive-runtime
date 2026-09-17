@@ -183,7 +183,13 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     m_isRunning = true;
     m_runRangeMin = rangeMin;
     m_runRangeMax = rangeMax;
-    if (abs(acceleration) > 100)
+    // An axis whose content fits its viewport has nowhere to fling to: every
+    // reachable target is the origin. Skip the velocity phase there so a
+    // release eases the overscroll back from wherever the pointer actually
+    // left it, rather than throwing it further out first. The elastic
+    // overscroll itself is untouched, so a short list still bounces.
+    bool canScroll = rangeMin < rangeMax;
+    if (canScroll && abs(acceleration) > 100)
     {
         m_speed = acceleration * 0.16f * 0.16f * 0.1f * m_speedMultiplier;
     }
@@ -205,7 +211,7 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     }
     m_current = value;
 
-    if (!snappingPoints.empty())
+    if (canScroll && !snappingPoints.empty())
     {
         float endTarget = -(m_current + m_speed / m_friction);
         float sectionSize = contentSize != 0 ? contentSize : 1;

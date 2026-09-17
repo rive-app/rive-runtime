@@ -547,9 +547,16 @@ INLINE half4 unpackUnorm4x8(uint u)
     return half4(vals) * (1. / 255.);
 }
 
+INLINE float2 unpackUnorm2x16(uint u)
+{
+    uint2 vals = uint2(u & 0xffffu, u >> 16);
+    return float2(vals) * (1. / 65535.);
+}
+
 INLINE uint packUnorm4x8(half4 color)
 {
-    uint4 vals = (uint4(color * 255.) & 0xff) << uint4(0, 8, 16, 24);
+    // Clamp before quantizing: additive blending produces channel values > 1,
+    uint4 vals = (uint4($saturate(color) * 255.) & 0xff) << uint4(0, 8, 16, 24);
     vals.rg |= vals.ba;
     vals.r |= vals.g;
     return vals.r;

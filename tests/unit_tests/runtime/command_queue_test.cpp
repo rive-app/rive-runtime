@@ -2367,6 +2367,253 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     serverThread.join();
 }
 
+#if WITH_RIVE_TEXT
+class FontDataBindingListener : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                  uint64_t requestId,
+                                  std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
+    {
+        CHECK(handle == m_handle);
+        m_receivedRequestIds.push_back(requestId);
+        m_receivedData.push_back(std::move(data));
+    }
+
+    ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+    uint64_t m_subscriptionRequestId = 42;
+    size_t m_receivedErrors = 0;
+    std::vector<uint64_t> m_receivedRequestIds;
+    std::vector<CommandQueue::ViewModelInstanceData> m_receivedData;
+};
+
+class FontPropertyDefinitionListener : public CommandQueue::FileListener
+{
+public:
+    void onViewModelsListed(const FileHandle handle,
+                            uint64_t requestId,
+                            std::vector<std::string> viewModelNames) override
+    {
+        CHECK(handle == m_handle);
+        m_viewModelNames = std::move(viewModelNames);
+    }
+
+    void onViewModelPropertiesListed(
+        const FileHandle handle,
+        uint64_t requestId,
+        std::string viewModelName,
+        std::vector<ViewModelPropertyData> properties) override
+    {
+        CHECK(handle == m_handle);
+        auto result = m_properties.emplace(std::move(viewModelName),
+                                           std::move(properties));
+        CHECK(result.second);
+    }
+
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    std::vector<std::string> m_viewModelNames;
+    std::unordered_map<std::string, std::vector<ViewModelPropertyData>>
+        m_properties;
+};
+
+struct FontDataBindingFixture
+{
+    rcp<CommandQueue> commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    std::unique_ptr<CommandServer> server =
+        std::make_unique<CommandServer>(commandQueue, nullContext.get());
+    FontDataBindingListener listener;
+    FontHandle fontHandle = RIVE_NULL_HANDLE;
+    FontHandle alternateFontHandle = RIVE_NULL_HANDLE;
+
+    FontDataBindingFixture()
+    {
+        std::ifstream riveStream("assets/data_bind_font_test.riv",
+                                 std::ios::binary);
+        auto fileHandle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(riveStream),
+                                 {}));
+        auto artboardHandle =
+            commandQueue->instantiateDefaultArtboard(fileHandle);
+        listener.m_handle =
+            commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                              artboardHandle,
+                                                              &listener);
+
+        std::ifstream fontStream("assets/kablammo.ttf", std::ios::binary);
+        fontHandle = commandQueue->decodeFont(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream),
+                                 {}));
+        std::ifstream alternateFontStream("assets/nabla.ttf", std::ios::binary);
+        alternateFontHandle = commandQueue->decodeFont(std::vector<uint8_t>(
+            std::istreambuf_iterator<char>(alternateFontStream),
+            {}));
+        pump();
+    }
+
+    ViewModelInstanceAssetFontRuntime* property()
+    {
+        auto viewModel = server->getViewModelInstance(listener.m_handle);
+        return viewModel == nullptr ? nullptr
+                                    : viewModel->propertyFont("fontProperty");
+    }
+
+    void pump()
+    {
+        server->processCommands();
+        commandQueue->processMessages();
+    }
+};
+
+TEST_CASE(
+    "Setting, replacing, and clearing a view model font property handles valid values",
+    "[CommandQueue][font data binding]")
+{
+    FontDataBindingFixture fixture;
+    auto property = fixture.property();
+    REQUIRE(property != nullptr);
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   fixture.fontHandle);
+    fixture.pump();
+    REQUIRE(property->testing_value() ==
+            fixture.server->getFont(fixture.fontHandle));
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   fixture.alternateFontHandle);
+    fixture.pump();
+
+    CHECK(property->testing_value() ==
+          fixture.server->getFont(fixture.alternateFontHandle));
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   RIVE_NULL_HANDLE);
+    fixture.pump();
+
+    CHECK(property->testing_value() == nullptr);
+}
+
+TEST_CASE(
+    "An invalid FontHandle preserves the font property and reports an error",
+    "[CommandQueue][font data binding]")
+{
+    FontDataBindingFixture fixture;
+    auto property = fixture.property();
+    REQUIRE(property != nullptr);
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   fixture.fontHandle);
+    fixture.pump();
+    auto boundFont = property->testing_value();
+    REQUIRE(boundFont != nullptr);
+
+    fixture.commandQueue->deleteFont(fixture.alternateFontHandle);
+    fixture.pump();
+    REQUIRE(fixture.server->getFont(fixture.alternateFontHandle) == nullptr);
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   fixture.alternateFontHandle);
+    fixture.pump();
+
+    CHECK(property->testing_value() == boundFont);
+    CHECK(fixture.listener.m_receivedErrors == 1);
+}
+
+TEST_CASE("Setting a missing view model font property reports an error",
+          "[CommandQueue][font data binding]")
+{
+    FontDataBindingFixture fixture;
+
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "missingFontProperty",
+                                                   fixture.fontHandle);
+    fixture.pump();
+
+    CHECK(fixture.listener.m_receivedErrors == 1);
+}
+
+TEST_CASE("View model font subscriptions report assetFont metadata",
+          "[CommandQueue][font data binding]")
+{
+    FontDataBindingFixture fixture;
+
+    fixture.commandQueue->subscribeToViewModelProperty(
+        fixture.listener.m_handle,
+        "fontProperty",
+        DataType::assetFont,
+        fixture.listener.m_subscriptionRequestId);
+    fixture.commandQueue->setViewModelInstanceFont(fixture.listener.m_handle,
+                                                   "fontProperty",
+                                                   fixture.fontHandle);
+    fixture.pump();
+
+    REQUIRE(fixture.listener.m_receivedData.size() == 1);
+    REQUIRE(fixture.listener.m_receivedRequestIds.size() == 1);
+    CHECK(fixture.listener.m_receivedRequestIds[0] ==
+          fixture.listener.m_subscriptionRequestId);
+    CHECK(fixture.listener.m_receivedData[0].metaData.type ==
+          DataType::assetFont);
+    CHECK(fixture.listener.m_receivedData[0].metaData.name == "fontProperty");
+}
+
+TEST_CASE("View model property definitions report font properties as assetFont",
+          "[CommandQueue][font data binding]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    auto nullContext = RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+    FontPropertyDefinitionListener listener;
+
+    std::ifstream riveStream("assets/data_bind_font_test.riv",
+                             std::ios::binary);
+    listener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(riveStream), {}),
+        &listener);
+    commandQueue->requestViewModelNames(listener.m_handle);
+    server.processCommands();
+    commandQueue->processMessages();
+
+    REQUIRE(!listener.m_viewModelNames.empty());
+    for (const auto& viewModelName : listener.m_viewModelNames)
+    {
+        commandQueue->requestViewModelPropertyDefinitions(listener.m_handle,
+                                                          viewModelName);
+    }
+    server.processCommands();
+    commandQueue->processMessages();
+
+    size_t fontPropertyCount = 0;
+    for (const auto& entry : listener.m_properties)
+    {
+        for (const auto& property : entry.second)
+        {
+            if (property.name == "fontProperty")
+            {
+                ++fontPropertyCount;
+                CHECK(property.type == DataType::assetFont);
+            }
+        }
+    }
+    CHECK(fontPropertyCount == 1);
+}
+#endif
+
 class ViewModelPropertySubscriptionListener
     : public CommandQueue::ViewModelInstanceListener
 {

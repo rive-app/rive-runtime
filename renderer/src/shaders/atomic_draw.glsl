@@ -674,11 +674,21 @@ INLINE void resolve_paint(uint pathID,
                       : /*radial*/ length(paintCoord);
         t = clamp(t, .0, 1.);
         float x = t * translate.z + translate.w;
-        float y = uintBitsToFloat(paintData.y);
+        // paintData.y has (gradient Y row + 1) in the integer part,
+        // additiveness in range 0/256 to 255/256 in the fraction
+        float gradRowAndAdditiveness = uintBitsToFloat(paintData.y);
+        float gradY =
+            floor(gradRowAndAdditiveness) * uniforms.gradTextureYScale +
+            uniforms.gradTextureYBias;
         fragColorOut =
-            TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0);
+            TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, gradY), .0);
         if (!paintHasAdvancedBlend) // If not advanced blend then premultiply.
+        {
             fragColorOut.rgb *= fragColorOut.a;
+            half additiveness = cast_float_to_half(
+                fract(gradRowAndAdditiveness) * (256. / 255.));
+            fragColorOut.a *= additiveness;
+        }
     }
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@ENABLE_ADVANCED_BLEND)
     // NOTE: fixedFunctionColorOutput is never selected for a flush that
@@ -716,7 +726,7 @@ INLINE void resolve_paint(uint pathID,
 INLINE void blend_pls_color_src_over(half4 fragColorOut PLS_CONTEXT_DECL)
 {
 #ifndef @PLS_BLEND_SRC_OVER
-    if (fragColorOut.a == .0)
+    if (fragColorOut.r + fragColorOut.g + fragColorOut.b + fragColorOut.a == .0)
         return;
     float oneMinusSrcAlpha = 1. - fragColorOut.a;
     if (oneMinusSrcAlpha != .0)

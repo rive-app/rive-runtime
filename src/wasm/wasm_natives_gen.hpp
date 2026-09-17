@@ -194,6 +194,9 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
+uint32_t rtUtcOffsetImpl(WasmScriptingVM* vm, double epochSeconds);
+uint32_t rtIsDstImpl(WasmScriptingVM* vm, double epochSeconds);
+uint32_t rtZoneNameImpl(WasmScriptingVM* vm, double epochSeconds, char* buffer, uint32_t capacity);
 uint32_t dataViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataRootViewModelImpl(WasmScriptingVM* vm, uint32_t object);
 uint32_t dataGlobalViewModelImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
@@ -432,6 +435,18 @@ uint32_t rtDebugLine(wasm_exec_env_t env, uint32_t line)
 void rtDebugLeave(wasm_exec_env_t env)
 {
     rtDebugLeaveImpl(vmFromEnv(env));
+}
+uint32_t rtUtcOffset(wasm_exec_env_t env, double epochSeconds)
+{
+    return rtUtcOffsetImpl(vmFromEnv(env), epochSeconds);
+}
+uint32_t rtIsDst(wasm_exec_env_t env, double epochSeconds)
+{
+    return rtIsDstImpl(vmFromEnv(env), epochSeconds);
+}
+uint32_t rtZoneName(wasm_exec_env_t env, double epochSeconds, char* buffer, uint32_t capacity)
+{
+    return rtZoneNameImpl(vmFromEnv(env), epochSeconds, buffer, capacity);
 }
 uint32_t dataViewModel(wasm_exec_env_t env, uint32_t object)
 {
@@ -1297,6 +1312,9 @@ NativeSymbol kRtNatives[] = {
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},
+    {"utc_offset", (void*)rtUtcOffset, "(F)i", nullptr},
+    {"is_dst", (void*)rtIsDst, "(F)i", nullptr},
+    {"zone_name", (void*)rtZoneName, "(F*~)i", nullptr},
 };
 
 NativeSymbol kDataNatives[] = {

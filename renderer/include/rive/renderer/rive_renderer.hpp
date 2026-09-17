@@ -38,6 +38,11 @@ public:
                    ImageSampler,
                    BlendMode,
                    float opacity) override;
+    void drawImage(const RenderImage*,
+                   ImageSampler,
+                   BlendMode,
+                   float opacity,
+                   float additiveness) override;
     void clipStroke(RenderPath*, const StrokeParams&) override;
     void drawImageMesh(const RenderImage*,
                        ImageSampler,
@@ -48,6 +53,16 @@ public:
                        uint32_t indexCount,
                        BlendMode,
                        float opacity) override;
+    void drawImageMesh(const RenderImage*,
+                       ImageSampler,
+                       rcp<RenderBuffer> vertices_f32,
+                       rcp<RenderBuffer> uvCoords_f32,
+                       rcp<RenderBuffer> indices_u16,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
+                       BlendMode,
+                       float opacity,
+                       float additiveness) override;
     void modulateOpacity(float opacity) override;
 
     bool currentTransform(Mat2D* out) const override
@@ -86,10 +101,18 @@ public:
 #endif
 
 protected:
+    enum class ForceClosed : bool
+    {
+        no,
+        yes,
+    };
+
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
     void clipPathImpl(const RiveRenderPath*,
                       std::optional<StrokeParams> = {},
-                      float feather = 0.0f);
+                      float feather = 0.0f,
+                      ForceClosed forceClosed = ForceClosed::no,
+                      IAABB* boundsOut = nullptr);
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too
     // complex to be supported by the GPU buffers, even after a logical flush,
@@ -132,7 +155,8 @@ protected:
                     FillRule,
                     IAABB pixelBounds,
                     std::optional<StrokeParams>,
-                    float feather);
+                    float feather,
+                    bool forceClosed);
         ~ClipElement();
 
         void reset(const Mat2D&,
@@ -140,8 +164,13 @@ protected:
                    FillRule,
                    IAABB pixelBounds,
                    std::optional<StrokeParams>,
-                   float feather);
-        bool isEquivalent(const Mat2D&, const RiveRenderPath*) const;
+                   float feather,
+                   bool forceClosed);
+        bool isEquivalent(const Mat2D&,
+                          const RiveRenderPath*,
+                          std::optional<StrokeParams>,
+                          float feather,
+                          bool forceClosed) const;
 
         Mat2D matrix;
         uint64_t rawPathMutationID;
@@ -154,6 +183,7 @@ protected:
 
         std::optional<StrokeParams> stroke;
         float feather;
+        bool forceClosed;
     };
     std::vector<ClipElement> m_clipStack;
 

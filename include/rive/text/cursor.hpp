@@ -78,28 +78,28 @@ public:
     bool hasLineIndex() const { return m_lineIndex != -1; }
 
     // Find the closest lineIndex() for the codePointIndex().
-    void resolveLine(const FullyShapedText& shape);
+    void resolveLine(const TextLayoutView& shape);
 
-    CursorVisualPosition visualPosition(const FullyShapedText& shape) const;
+    CursorVisualPosition visualPosition(const TextLayoutView& shape) const;
 
     // Move this cursor to the given translation and return the visual position.
     static CursorPosition fromTranslation(const Vec2D translation,
-                                          const FullyShapedText& shape);
+                                          const TextLayoutView& shape);
 
     static CursorPosition fromLineX(uint32_t lineIndex,
                                     float x,
-                                    const FullyShapedText& shape);
+                                    const TextLayoutView& shape);
 
     static CursorPosition atIndex(uint32_t codePointIndex,
-                                  const FullyShapedText& shape);
+                                  const TextLayoutView& shape);
 
-    CursorPosition clamped(const FullyShapedText& shape) const;
+    CursorPosition clamped(const TextLayoutView& shape) const;
 
 private:
     static CursorPosition fromOrderedLine(const OrderedLine& orderedLine,
                                           uint32_t lineIndex,
                                           float translationX,
-                                          const FullyShapedText& shape);
+                                          const TextLayoutView& shape);
     uint32_t m_lineIndex;
     uint32_t m_codePointIndex;
 };
@@ -179,13 +179,13 @@ public:
     bool hasSelection() const { return m_start != m_end; }
 
     void selectionRects(std::vector<AABB>& rects,
-                        const FullyShapedText& shape) const;
+                        const TextLayoutView& shape) const;
 
     void updateSelectionPath(ShapePaintPath& path,
                              const std::vector<AABB>& rects,
-                             const FullyShapedText& shape) const;
+                             const TextLayoutView& shape) const;
 
-    bool resolveLinePositions(const FullyShapedText& shape);
+    bool resolveLinePositions(const TextLayoutView& shape);
 
     bool contains(uint32_t codePointIndex) const;
 

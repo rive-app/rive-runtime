@@ -291,7 +291,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_TEXTURE_BLOCK_BEGIN
 FRAG_TEXTURE_BLOCK_END
 
-FRAG_DATA_MAIN(TESSDATA4, @tessellateFragmentMain)
+FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
 {
     VARYING_UNPACK(v_p0p1, float4);
     VARYING_UNPACK(v_p2p3, float4);
@@ -546,8 +546,8 @@ FRAG_DATA_MAIN(TESSDATA4, @tessellateFragmentMain)
             theta = atan2(bcd - abc);
     }
 
-    TESSDATA4 tessData;
-    tessData.xy = FLOAT_AS_TESSDATA(tessCoord);
+    uint4 tessData;
+    tessData.xy = floatBitsToUint(tessCoord);
     if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
     {
         // Feather joins work out their stepping in the vertex shader, so we
@@ -555,14 +555,13 @@ FRAG_DATA_MAIN(TESSDATA4, @tessellateFragmentMain)
         // angle and let the vertex shader work it all out.
         // Pack these as integers instead of using packHalf2x16() because the
         // latter does not work on ARM Mali.
-        tessData.z = UINT_AS_TESSDATA((uint(mergedSegmentCount) << 16) |
-                                      uint(mergedVertexID));
+        tessData.z = (uint(mergedSegmentCount) << 16) | uint(mergedVertexID);
     }
     else
     {
-        tessData.z = FLOAT_AS_TESSDATA(mod(theta, _2PI));
+        tessData.z = floatBitsToUint(mod(theta, _2PI));
     }
-    tessData.w = UINT_AS_TESSDATA(contourIDWithFlags);
+    tessData.w = contourIDWithFlags;
     EMIT_FRAG_DATA(tessData);
 }
 #endif

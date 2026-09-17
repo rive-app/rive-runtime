@@ -338,6 +338,7 @@ Draw::Draw(IAABB pixelBounds,
            const Mat2D& paintMatrix,
            const Mat2D* imageMatrix,
            BlendMode blendMode,
+           float additiveness,
            rcp<Texture> imageTexture,
            ImageSampler imageSampler,
            Type type) :
@@ -347,6 +348,7 @@ Draw::Draw(IAABB pixelBounds,
     m_paintMatrix(paintMatrix),
     m_imageMatrix((imageMatrix != nullptr) ? *imageMatrix : paintMatrix),
     m_blendMode(blendMode),
+    m_additiveness(math::clamp(additiveness, 0.f, 1.f)),
     m_type(type),
     m_clippedPixelBounds(pixelBounds)
 {
@@ -447,11 +449,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         std::optional<StrokeParams> stroke;
         if (paint->getIsStroked())
         {
-            stroke = {
-                .thickness = paint->getThickness(),
-                .join = paint->getJoin(),
-                .cap = paint->getCap(),
-            };
+            stroke = paint->getStrokeParams();
         }
         pixelBounds = path->calculatePixelBounds(paintMatrix,
                                                  stroke,
@@ -536,6 +534,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
          paintMatrix,
          imageMatrix,
          paint->getBlendMode(),
+         paint->getAdditiveness(),
          ref_rcp(paint->getImageTexture()),
          paint->getImageSampler(),
          Type::path),
@@ -872,7 +871,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     // Original number of lines and curves, before chopping.
     int preChopVerbCount = 0;
     Vec2D endpointsSum{};
-    bool closed = !isStroke();
+    bool closed = !isStroke() || paint->getForceClosed();
     Vec2D lastTangent = {0, 1};
     Vec2D firstTangent = {0, 1};
     size_t roundJoinCount = 0;
@@ -956,7 +955,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                 }
                 preChopVerbCount = 0;
                 endpointsSum = {0, 0};
-                closed = !isStroke();
+                closed = !isStroke() || paint->getForceClosed();
                 lastTangent = {0, 1};
                 firstTangent = {0, 1};
                 roundJoinCount = 0;
@@ -2631,6 +2630,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
                              IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
+                             float additiveness,
                              rcp<Texture> imageTexture,
                              rcp<const Gradient> gradient,
                              const ImageSampler imageSampler,
@@ -2641,6 +2641,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
          matrix,
          &imageMatrix,
          blendMode,
+         additiveness,
          std::move(imageTexture),
          imageSampler,
          Type::imageRect),
@@ -2689,6 +2690,7 @@ gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
+                             float additiveness,
                              rcp<Texture> imageTexture,
                              const ImageSampler imageSampler,
                              rcp<RenderBuffer> vertexBuffer,
@@ -2696,12 +2698,13 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              rcp<RenderBuffer> indexBuffer,
                              uint32_t indexCount,
                              float opacity) :
+
     Draw(pixelBounds,
          matrix,
          nullptr,
          blendMode,
+         additiveness,
          std::move(imageTexture),
-
          imageSampler,
          Type::imageMesh),
     m_vertexBufferRef(vertexBuffer.release()),
@@ -2740,6 +2743,7 @@ ClipReset::ClipReset(RenderContext* context,
          Mat2D{},
          nullptr,
          BlendMode::srcOver,
+         /*additiveness =*/0,
          nullptr,
          ImageSampler::LinearClamp(),
          Type::stencilClipReset),

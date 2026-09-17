@@ -1234,10 +1234,22 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     // borrower can strip it. The color count is already on the pass.
     pass->m_glDepthAttachment = depthAttachment;
 
-    // Verify completeness (debug only).
-    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) ==
-               GL_FRAMEBUFFER_COMPLETE &&
-           "Ore GL FBO incomplete");
+    // An incomplete FBO drops every draw of the pass with no other signal
+    // (WebGL2, unlike Metal, also rejects attachments of differing sizes),
+    // so report it instead of silently rendering nothing.
+    GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+    {
+        setLastError("beginRenderPass: GL framebuffer incomplete (0x%x); "
+                     "color/depth attachments must share size and "
+                     "sampleCount",
+                     static_cast<unsigned>(fboStatus));
+        if (lastError() != m_lastReportedError)
+        {
+            m_lastReportedError = lastError();
+            fprintf(stderr, "rive ore: %s\n", lastError().c_str());
+        }
+    }
     // Handle clear ops.
     for (uint32_t i = 0; i < desc.colorCount; ++i)
     {

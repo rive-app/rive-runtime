@@ -614,3 +614,93 @@ DEF_SIMPLE_GM(skbug12244, 150, 150, canvas)
     canvas->translate(20.f, 20.f);
     canvas->drawPath(path, p);
 }
+
+DEF_SIMPLE_GM(stroke_position, 768, 768, renderer)
+{
+    // Draw a black background
+    {
+        Paint p;
+        p->color(0xff000000);
+        renderer->drawPath(
+            PathBuilder::Rect({0.0f, 0.0f, float(width()), float(height())}),
+            p);
+    }
+
+    Path path = PathBuilder::Circle(128.0f, 128.0f, 100.0f);
+    path->fillRule(FillRule::clockwise);
+
+    float featherSizes[] = {0.0f, 20.0f, 150.0f};
+    for (auto feather = 0; feather < 3; feather++)
+    {
+        renderer->save();
+
+        renderer->translate(0.0f, feather * 256.0f);
+
+        for (auto i = 0; i < 3; i++)
+        {
+            Paint p;
+            p->color(0xFFEFEFEF);
+            p->stroke({
+                .thickness = 20.0f,
+                .position = StrokePosition(i),
+            });
+            p->feather(featherSizes[feather]);
+            renderer->drawPath(path, p);
+
+            p->color(0x5f881177);
+            p->style(RenderPaintStyle::fill);
+            p->feather(0.0f);
+            renderer->drawPath(path, p);
+            renderer->translate(256.0f, 0.0f);
+        }
+
+        renderer->restore();
+    }
+}
+
+DEF_SIMPLE_GM(stroke_position_clipped, 768, 768, renderer)
+{
+    // Draw a black background
+    {
+        Paint p;
+        p->color(0xff000000);
+        renderer->drawPath(
+            PathBuilder::Rect({0.0f, 0.0f, float(width()), float(height())}),
+            p);
+    }
+
+    Path clip = PathBuilder::RRect({0.0f, 64.0f, 256.0f, 192.0f}, 20.0f, 20.0f);
+
+    Path path = PathBuilder::Circle(128.0f, 128.0f, 100.0f);
+    path->fillRule(FillRule::clockwise);
+
+    float featherSizes[] = {0.0f, 20.0f, 150.0f};
+    for (auto feather = 0; feather < 3; feather++)
+    {
+        renderer->save();
+
+        renderer->translate(0.0f, feather * 256.0f);
+        for (auto i = 0; i < 3; i++)
+        {
+            renderer->save();
+            renderer->clipPath(clip);
+            Paint p;
+            p->color(0xFFEFEFEF);
+            p->stroke({
+                .thickness = 20.0f,
+                .position = StrokePosition(i),
+            });
+            p->feather(featherSizes[feather]);
+            renderer->drawPath(path, p);
+
+            p->color(0x5f881177);
+            p->style(RenderPaintStyle::fill);
+            p->feather(0.0f);
+            renderer->drawPath(path, p);
+            renderer->restore();
+            renderer->translate(256.0f, 0.0f);
+        }
+
+        renderer->restore();
+    }
+}

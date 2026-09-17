@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
+#include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
 namespace rive::ore
@@ -100,6 +101,49 @@ protected:
     // Lifecycle: strong refs to bound BindGroups prevent GC from freeing
     // them between setBindGroup() and finish(). Released in finish().
     rcp<BindGroup> m_boundGroups[kMaxBindGroups];
+
+    // Vertex buffers may bind before the pipeline whose layout they need, so
+    // the backends that read that layout at bind time keep the slots here
+    // and apply the dirty ones at the next draw.
+    struct VertexBufferSlot
+    {
+        rcp<Buffer> buffer;
+        uint32_t offset = 0;
+    };
+    VertexBufferSlot m_vertexBufferSlots[kMaxVertexBufferSlots];
+    static_assert(kMaxVertexBufferSlots <= 8, "the dirty mask is one byte");
+    uint8_t m_dirtyVertexSlots = 0;
+    static constexpr uint8_t kAllVertexSlotsDirty = 0xff;
+
+    void setVertexBufferSlot(uint32_t slot, Buffer* buffer, uint32_t offset)
+    {
+        if (slot >= kMaxVertexBufferSlots)
+            return;
+        m_vertexBufferSlots[slot] = {ref_rcp(buffer), offset};
+        m_dirtyVertexSlots |= static_cast<uint8_t>(1u << slot);
+    }
+
+    template <typename Apply> void flushVertexBufferSlots(Apply&& apply)
+    {
+        for (uint32_t slot = 0; m_dirtyVertexSlots != 0; ++slot)
+        {
+            if (m_dirtyVertexSlots & (1u << slot))
+            {
+                m_dirtyVertexSlots &= static_cast<uint8_t>(~(1u << slot));
+                apply(slot);
+            }
+        }
+    }
+
+    // Every backend's finish() drops the strong refs the pass held.
+    void releaseBoundResources()
+    {
+        for (auto& bg : m_boundGroups)
+            bg.reset();
+        for (auto& slot : m_vertexBufferSlots)
+            slot.buffer.reset();
+        m_dirtyVertexSlots = 0;
+    }
 
     // WebGPU-spec pipeline/attachment compatibility check, invoked from
     // every backend's setPipeline().

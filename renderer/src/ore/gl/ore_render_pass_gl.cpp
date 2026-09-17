@@ -205,6 +205,15 @@ void RenderPassGL::validate() const
     assert(m_context != nullptr);
 }
 
+static void disableGLAttribs(uint32_t mask)
+{
+    for (uint32_t location = 0; mask != 0; ++location, mask >>= 1)
+    {
+        if (mask & 1)
+            glDisableVertexAttribArray(location);
+    }
+}
+
 void RenderPassGL::setPipeline(Pipeline* pipeline)
 {
     validate();
@@ -218,6 +227,9 @@ void RenderPassGL::setPipeline(Pipeline* pipeline)
     const auto& desc = pipeline->desc();
 
     glUseProgram(glPipeline->m_glProgram);
+
+    // Every bound vertex buffer takes this pipeline's layout at the next draw.
+    m_dirtyVertexSlots = kAllVertexSlotsDirty;
 
     if (desc.cullMode == CullMode::none)
     {
@@ -324,11 +336,34 @@ void RenderPassGL::setVertexBuffer(uint32_t slot,
                                    uint32_t offset)
 {
     validate();
-    assert(m_currentPipeline != nullptr && "setPipeline must be called first");
-    assert(slot < m_currentPipeline->desc().vertexBufferCount);
+    setVertexBufferSlot(slot, buffer, offset);
+}
+
+// A pipeline change dirties every slot, so the enabled set is rebuilt and
+// arrays the new layout no longer covers are disabled: they would keep
+// sourcing the old buffer, which WebGL rejects at draw time.
+void RenderPassGL::flushVertexBuffers()
+{
+    uint32_t previousAttribs = m_enabledAttribs;
+    if (m_dirtyVertexSlots == kAllVertexSlotsDirty)
+        m_enabledAttribs = 0;
+    flushVertexBufferSlots([this](uint32_t slot) { applyVertexBuffer(slot); });
+    disableGLAttribs(previousAttribs & ~m_enabledAttribs);
+}
+
+void RenderPassGL::applyVertexBuffer(uint32_t slot)
+{
+    assert(m_currentPipeline != nullptr);
+    const auto& slotState = m_vertexBufferSlots[slot];
+    if (slotState.buffer == nullptr ||
+        slot >= m_currentPipeline->desc().vertexBufferCount)
+    {
+        return;
+    }
+    const uint32_t offset = slotState.offset;
 
     const auto& layout = m_currentPipeline->desc().vertexBuffers[slot];
-    auto* glBuffer = lite_rtti_cast<BufferGL*>(buffer);
+    auto* glBuffer = lite_rtti_cast<BufferGL*>(slotState.buffer.get());
     assert(glBuffer);
 
     glBindBuffer(GL_ARRAY_BUFFER, glBuffer->m_glBuffer);
@@ -373,9 +408,8 @@ void RenderPassGL::setVertexBuffer(uint32_t slot,
         else
             glVertexAttribDivisor(attr.shaderSlot, 0);
 
-        if (!m_usedAttribs || attr.shaderSlot > m_maxAttribSlot)
-            m_maxAttribSlot = attr.shaderSlot;
-        m_usedAttribs = true;
+        assert(attr.shaderSlot < 32);
+        m_enabledAttribs |= 1u << attr.shaderSlot;
     }
 }
 
@@ -388,7 +422,7 @@ void RenderPassGL::setIndexBuffer(Buffer* buffer,
     assert(glBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, glBuffer->m_glBuffer);
     m_glIndexFormat = format;
-    (void)offset;
+    m_glIndexOffset = offset;
 }
 
 void RenderPassGL::setBindGroup(uint32_t groupIndex,
@@ -549,10 +583,11 @@ void RenderPassGL::draw(uint32_t vertexCount,
     validate();
     assert(m_currentPipeline != nullptr);
     applySamplerBindings();
+    flushVertexBuffers();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
 
-    // drawBaseInstance=false on GL, so the Lua guard rejects firstInstance>0.
-    // Wiring needs glDrawArraysInstancedBaseInstance (ANGLE).
+    // drawBaseInstance=false on GL, so the script guards reject
+    // firstInstance>0. Wiring needs glDrawArraysInstancedBaseInstance (ANGLE).
     (void)firstInstance;
 
     if (instanceCount > 1)
@@ -570,6 +605,7 @@ void RenderPassGL::drawIndexed(uint32_t indexCount,
     validate();
     assert(m_currentPipeline != nullptr);
     applySamplerBindings();
+    flushVertexBuffers();
     GLenum mode = oreTopologyToGL(m_currentPipeline->desc().topology);
     GLenum indexType = (m_glIndexFormat == IndexFormat::uint32)
                            ? GL_UNSIGNED_INT
@@ -577,10 +613,10 @@ void RenderPassGL::drawIndexed(uint32_t indexCount,
     uint32_t indexSize =
         (indexType == GL_UNSIGNED_INT) ? sizeof(uint32_t) : sizeof(uint16_t);
     const void* offset = reinterpret_cast<const void*>(
-        static_cast<uintptr_t>(firstIndex * indexSize));
+        static_cast<uintptr_t>(m_glIndexOffset + firstIndex * indexSize));
 
-    // drawBaseInstance=false on GL, so the Lua guard rejects baseVertex!=0 and
-    // firstInstance>0. Wiring needs
+    // drawBaseInstance=false on GL, so the script guards reject baseVertex!=0
+    // and firstInstance>0. Wiring needs
     // glDrawElementsInstancedBaseVertexBaseInstance (ANGLE).
     (void)baseVertex;
     (void)firstInstance;
@@ -602,8 +638,7 @@ void RenderPassGL::finish()
     m_finished = true;
 
     m_currentPipeline = nullptr;
-    for (auto& bg : m_boundGroups)
-        bg.reset();
+    releaseBoundResources();
 
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_BLEND);
@@ -626,14 +661,11 @@ void RenderPassGL::finish()
         glActiveTexture(GL_TEXTURE0);
     }
 
-    if (m_usedAttribs)
-    {
-        // Disabling an array leaves its buffer binding on the VAO until the
-        // next borrower overwrites the slot: bounded by m_maxAttribSlot and
-        // deliberate, since a disabled array cannot source from it.
-        for (uint32_t i = 0; i <= m_maxAttribSlot; ++i)
-            glDisableVertexAttribArray(i);
-    }
+    // Disabling an array leaves its buffer binding on the VAO until the next
+    // borrower overwrites the slot: deliberate, since a disabled array cannot
+    // source from it.
+    disableGLAttribs(m_enabledAttribs);
+    m_enabledAttribs = 0;
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 

@@ -13,11 +13,15 @@ static uint32_t subtractUint32(uint32_t a, uint32_t b)
 }
 
 CursorVisualPosition CursorPosition::visualPosition(
-    const FullyShapedText& shape) const
+    const TextLayoutView& shape) const
 {
     const GlyphLookup& glyphLookup = shape.glyphLookup();
     const std::vector<OrderedLine>& orderedLines = shape.orderedLines();
 
+    if (glyphLookup.empty() || m_codePointIndex > shape.textLength())
+    {
+        return CursorVisualPosition::missing();
+    }
     uint32_t targetIndex = glyphLookup[m_codePointIndex];
     if (m_lineIndex < 0 || m_lineIndex >= orderedLines.size())
     {
@@ -79,7 +83,7 @@ CursorVisualPosition CursorPosition::visualPosition(
 }
 
 CursorPosition CursorPosition::fromTranslation(const Vec2D translation,
-                                               const FullyShapedText& shape)
+                                               const TextLayoutView& shape)
 {
     const std::vector<OrderedLine>& orderedLines = shape.orderedLines();
     if (orderedLines.empty())
@@ -105,7 +109,7 @@ CursorPosition CursorPosition::fromTranslation(const Vec2D translation,
 CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
                                                uint32_t lineIndex,
                                                float translationX,
-                                               const FullyShapedText& shape)
+                                               const TextLayoutView& shape)
 {
     const GlyphLookup& glyphLookup = shape.glyphLookup();
 
@@ -172,7 +176,7 @@ CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
 
 CursorPosition CursorPosition::fromLineX(uint32_t lineIndex,
                                          float x,
-                                         const FullyShapedText& shape)
+                                         const TextLayoutView& shape)
 {
     const std::vector<OrderedLine>& orderedLines = shape.orderedLines();
     if (lineIndex >= orderedLines.size())
@@ -201,27 +205,23 @@ uint32_t CursorPosition::codePointIndex(int32_t inc) const
     return m_codePointIndex + inc;
 }
 
-CursorPosition CursorPosition::clamped(const FullyShapedText& shape) const
+CursorPosition CursorPosition::clamped(const TextLayoutView& shape) const
 {
     return CursorPosition(
         std::min(m_lineIndex,
                  subtractUint32((uint32_t)shape.orderedLines().size(), 1)),
-        std::min(m_codePointIndex,
-                 subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1)));
+        std::min(m_codePointIndex, shape.textLength()));
 }
 
 CursorPosition CursorPosition::atIndex(uint32_t codePointIndex,
-                                       const FullyShapedText& shape)
+                                       const TextLayoutView& shape)
 {
-    // Don't go to actual last codepoint index as we always insert a zero width
-    // space.
-    // https://en.wikipedia.org/wiki/Zero-width_space
-    if (codePointIndex >=
-        subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1))
+    // The layout owner defines its last selectable source offset.
+    if (codePointIndex >= shape.textLength())
     {
         return CursorPosition(
             subtractUint32((uint32_t)shape.orderedLines().size(), 1),
-            subtractUint32(shape.glyphLookup().lastCodePointIndex(), 1));
+            shape.textLength());
     }
 
     const SimpleArray<Paragraph>& paragraphs = shape.paragraphs();
@@ -252,8 +252,12 @@ CursorPosition CursorPosition::atIndex(uint32_t codePointIndex,
 }
 
 void Cursor::selectionRects(std::vector<AABB>& rects,
-                            const FullyShapedText& shape) const
+                            const TextLayoutView& shape) const
 {
+    if (shape.orderedLines().empty() || shape.glyphLookup().empty())
+    {
+        return;
+    }
     auto firstPosition = first().clamped(shape);
     auto lastPosition = last().clamped(shape);
 
@@ -316,10 +320,10 @@ void Cursor::selectionRects(std::vector<AABB>& rects,
 
 void Cursor::updateSelectionPath(ShapePaintPath& path,
                                  const std::vector<AABB>& rects,
-                                 const FullyShapedText& shape) const
+                                 const TextLayoutView& shape) const
 {}
 
-bool Cursor::resolveLinePositions(const FullyShapedText& shape)
+bool Cursor::resolveLinePositions(const TextLayoutView& shape)
 {
     bool resolved = false;
     if (!m_start.hasLineIndex())
@@ -335,7 +339,7 @@ bool Cursor::resolveLinePositions(const FullyShapedText& shape)
     return resolved;
 }
 
-void CursorPosition::resolveLine(const FullyShapedText& shape)
+void CursorPosition::resolveLine(const TextLayoutView& shape)
 {
     const GlyphLookup& glyphLookup = shape.glyphLookup();
     const std::vector<OrderedLine>& orderedLines = shape.orderedLines();

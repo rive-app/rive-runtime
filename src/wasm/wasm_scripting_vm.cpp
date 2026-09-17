@@ -90,6 +90,7 @@
 #endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
@@ -493,32 +494,181 @@ uint32_t resizeHeap(wasm_exec_env_t env, uint32_t size)
     return wasm_runtime_enlarge_memory(inst, wantPages - curPages) ? 1 : 0;
 }
 
-uint32_t strftimeNative(wasm_exec_env_t env,
-                        uint32_t a,
-                        uint32_t b,
-                        uint32_t c,
-                        uint32_t d)
+static bool localTime(double epochSeconds, time_t& at, struct tm& local)
 {
-    return 0;
+    at = (time_t)epochSeconds;
+#ifdef _WIN32
+    return localtime_s(&local, &at) == 0;
+#else
+    return localtime_r(&at, &local) != nullptr;
+#endif
 }
+
+// Seconds the local rendering sits ahead of UTC.
+static int32_t utcOffsetOf(struct tm local, time_t at)
+{
+#ifdef _WIN32
+    return (int32_t)(_mkgmtime(&local) - at);
+#else
+    return (int32_t)(timegm(&local) - at);
+#endif
+}
+
+// --- emscripten time imports: the Luau VM blob's os.date and os.time walk
+// through these, so they serve the host's real calendar. Without WASM_BIGINT
+// the module passes time_t as two i32 halves. struct tm is musl's wasm32
+// layout: nine ints, the gmtoff long, then tm_zone, which the module's own
+// libc fills.
+
+static time_t moduleTime(uint32_t low, uint32_t high)
+{
+    return (time_t)(((uint64_t)high << 32) | low);
+}
+
+static void writeTm(wasm_exec_env_t env,
+                    uint32_t tmPtr,
+                    const struct tm& time,
+                    int32_t gmtoff)
+{
+    int32_t* fields = (int32_t*)vmFromEnv(env)->resolveModulePtr(tmPtr, 44);
+    if (fields == nullptr)
+    {
+        return;
+    }
+    fields[0] = time.tm_sec;
+    fields[1] = time.tm_min;
+    fields[2] = time.tm_hour;
+    fields[3] = time.tm_mday;
+    fields[4] = time.tm_mon;
+    fields[5] = time.tm_year;
+    fields[6] = time.tm_wday;
+    fields[7] = time.tm_yday;
+    fields[8] = time.tm_isdst;
+    fields[9] = gmtoff;
+}
+
+void gmtimeJs(wasm_exec_env_t env, uint32_t low, uint32_t high, uint32_t tmPtr)
+{
+    time_t at = moduleTime(low, high);
+    struct tm utc;
+#ifdef _WIN32
+    if (gmtime_s(&utc, &at) != 0)
+#else
+    if (gmtime_r(&at, &utc) == nullptr)
+#endif
+    {
+        return;
+    }
+    writeTm(env, tmPtr, utc, 0);
+}
+
+void localtimeJs(wasm_exec_env_t env,
+                 uint32_t low,
+                 uint32_t high,
+                 uint32_t tmPtr)
+{
+    time_t at;
+    struct tm local;
+    if (!localTime((double)moduleTime(low, high), at, local))
+    {
+        return;
+    }
+    writeTm(env, tmPtr, local, utcOffsetOf(local, at));
+}
+
+// The module's tzset: seconds west of UTC, whether the zone observes
+// daylight saving, and the two zone names into its 17 byte buffers.
+void tzsetJs(wasm_exec_env_t env,
+             uint32_t timezonePtr,
+             uint32_t daylightPtr,
+             uint32_t stdNamePtr,
+             uint32_t dstNamePtr)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+#ifdef _WIN32
+    _tzset();
+    long west = 0;
+    int observesDst = 0;
+    _get_timezone(&west);
+    _get_daylight(&observesDst);
+    const char* names[2] = {_tzname[0], _tzname[1]};
+#else
+    tzset();
+    long west = timezone;
+    int observesDst = daylight;
+    const char* names[2] = {tzname[0], tzname[1]};
+#endif
+    if (int32_t* out = (int32_t*)vm->resolveModulePtr(timezonePtr, 4))
+    {
+        *out = (int32_t)west;
+    }
+    if (int32_t* out = (int32_t*)vm->resolveModulePtr(daylightPtr, 4))
+    {
+        *out = observesDst;
+    }
+    uint32_t namePtrs[2] = {stdNamePtr, dstNamePtr};
+    for (int i = 0; i < 2; i++)
+    {
+        if (char* out = (char*)vm->resolveModulePtr(namePtrs[i], 17))
+        {
+            strncpy(out, names[i] != nullptr ? names[i] : "", 16);
+            out[16] = '\0';
+        }
+    }
+}
+
+uint32_t strftimeNative(wasm_exec_env_t env,
+                        uint32_t out,
+                        uint32_t capacity,
+                        uint32_t format,
+                        uint32_t tmPtr)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    char* outPtr = (char*)vm->resolveModulePtr(out, capacity);
+    const int32_t* fields = (const int32_t*)vm->resolveModulePtr(tmPtr, 44);
+    if (outPtr == nullptr || fields == nullptr ||
+        !wasm_runtime_validate_app_str_addr(inst, format))
+    {
+        return 0;
+    }
+    struct tm time = {};
+    time.tm_sec = fields[0];
+    time.tm_min = fields[1];
+    time.tm_hour = fields[2];
+    time.tm_mday = fields[3];
+    time.tm_mon = fields[4];
+    time.tm_year = fields[5];
+    time.tm_wday = fields[6];
+    time.tm_yday = fields[7];
+    time.tm_isdst = fields[8];
+#ifndef _WIN32
+    time.tm_gmtoff = fields[9];
+    // The zone name lives in module memory, so it must be translated before
+    // the host's %Z reads it.
+    uint32_t zone = (uint32_t)fields[10];
+    if (zone != 0 && wasm_runtime_validate_app_str_addr(inst, zone))
+    {
+        time.tm_zone = (char*)wasm_runtime_addr_app_to_native(inst, zone);
+    }
+#endif
+    return (uint32_t)strftime(
+        outPtr,
+        capacity,
+        (const char*)wasm_runtime_addr_app_to_native(inst, format),
+        &time);
+}
+
 // Older libc++ routes stream formatting through the locale variant.
 uint32_t strftimeLNative(wasm_exec_env_t env,
-                         uint32_t a,
-                         uint32_t b,
-                         uint32_t c,
-                         uint32_t d,
-                         uint32_t e)
+                         uint32_t out,
+                         uint32_t capacity,
+                         uint32_t format,
+                         uint32_t tmPtr,
+                         uint32_t locale)
 {
-    return 0;
+    return strftimeNative(env, out, capacity, format, tmPtr);
 }
-void tzsetJs(wasm_exec_env_t env,
-             uint32_t a,
-             uint32_t b,
-             uint32_t c,
-             uint32_t d)
-{}
-void localtimeJs(wasm_exec_env_t env, uint32_t a, uint32_t b, uint32_t c) {}
-void gmtimeJs(wasm_exec_env_t env, uint32_t a, uint32_t b, uint32_t c) {}
 
 // A module assert would otherwise trap with no message.
 void assertFail(wasm_exec_env_t env,
@@ -1288,6 +1438,7 @@ struct HostGpuCanvas
 struct HostGpuPass
 {
     std::unique_ptr<ore::RenderPass> pass;
+    bool pipelineSet = false;
 };
 
 struct HostGpuBuffer
@@ -1632,31 +1783,91 @@ uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
                               new HostGpuTextureView{std::move(view)});
 }
 
-ore::RenderPass* resolvePass(WasmScriptingVM* vm, uint32_t handle)
+HostGpuPass* resolveHostPass(WasmScriptingVM* vm, uint32_t handle)
 {
     if (vm == nullptr)
     {
         return nullptr;
     }
-    auto host = static_cast<HostGpuPass*>(
+    return static_cast<HostGpuPass*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::gpuPass));
+}
+
+ore::RenderPass* resolvePass(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveHostPass(vm, handle);
     return host != nullptr ? host->pass.get() : nullptr;
+}
+
+// The draw guards the Luau binding raises, with the same text so both lanes
+// read the same cause. Returns false after raising.
+bool gpuPassDrawAllowed(WasmScriptingVM* vm,
+                        HostGpuPass* host,
+                        const char* what,
+                        int32_t baseVertex,
+                        uint32_t firstInstance)
+{
+    if (!host->pipelineSet)
+    {
+        vm->raiseModuleError(ore::kGuardSetPipelineBeforeDraw);
+        return false;
+    }
+    ore::Context* oreContext = gpuOreContext(vm);
+    bool featuresKnown = oreContext != nullptr && oreContext->featuresKnown();
+    if (featuresKnown && !oreContext->features().drawBaseInstance)
+    {
+        char message[160];
+        if (baseVertex != 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     ore::kGuardBaseVertexFormat,
+                     what,
+                     baseVertex);
+            vm->raiseModuleError(message);
+            return false;
+        }
+        if (firstInstance > 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     ore::kGuardFirstInstanceFormat,
+                     what,
+                     firstInstance);
+            vm->raiseModuleError(message);
+            return false;
+        }
+    }
+    return true;
 }
 
 void gpuPassSetPipelineImpl(WasmScriptingVM* vm,
                             uint32_t passHandle,
                             uint32_t pipelineHandle)
 {
-    auto* pass = resolvePass(vm, passHandle);
+    auto* host = resolveHostPass(vm, passHandle);
     auto pipeline = static_cast<HostGpuPipeline*>(
         vm->handles().resolve(pipelineHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuPipeline));
-    if (pass == nullptr || pipeline == nullptr)
+    if (host == nullptr || pipeline == nullptr)
     {
         return;
     }
-    pass->setPipeline(pipeline->pipeline.get());
+    // An attachment compat failure no-ops the backend and later draws crash
+    // in the driver, so it surfaces here the way the Luau binding raises it.
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (oreContext != nullptr)
+    {
+        oreContext->clearLastError();
+    }
+    host->pass->setPipeline(pipeline->pipeline.get());
+    if (oreContext != nullptr && !oreContext->lastError().empty())
+    {
+        gpuRejected(vm, oreContext, "setPipeline");
+        return;
+    }
+    host->pipelineSet = true;
 }
 
 void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm,
@@ -1671,6 +1882,17 @@ void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm,
                               WasmScriptingVM::HandleTable::Tag::gpuBuffer));
     if (pass == nullptr || buffer == nullptr)
     {
+        return;
+    }
+    if (slot >= ore::kMaxVertexBufferSlots)
+    {
+        char message[96];
+        snprintf(message,
+                 sizeof(message),
+                 ore::kGuardVertexSlotRangeFormat,
+                 ore::kMaxVertexBufferSlots - 1,
+                 slot);
+        vm->raiseModuleError(message);
         return;
     }
     pass->setVertexBuffer(slot, buffer->buffer.get(), offset);
@@ -1776,10 +1998,13 @@ void gpuPassDrawImpl(WasmScriptingVM* vm,
                      uint32_t firstVertex,
                      uint32_t firstInstance)
 {
-    if (auto* pass = resolvePass(vm, passHandle))
+    auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr ||
+        !gpuPassDrawAllowed(vm, host, "draw", 0, firstInstance))
     {
-        pass->draw(vertexCount, instanceCount, firstVertex, firstInstance);
+        return;
     }
+    host->pass->draw(vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
 void gpuPassDrawIndexedImpl(WasmScriptingVM* vm,
@@ -1790,14 +2015,17 @@ void gpuPassDrawIndexedImpl(WasmScriptingVM* vm,
                             int32_t baseVertex,
                             uint32_t firstInstance)
 {
-    if (auto* pass = resolvePass(vm, passHandle))
+    auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr ||
+        !gpuPassDrawAllowed(vm, host, "drawIndexed", baseVertex, firstInstance))
     {
-        pass->drawIndexed(indexCount,
-                          instanceCount,
-                          firstIndex,
-                          baseVertex,
-                          firstInstance);
+        return;
     }
+    host->pass->drawIndexed(indexCount,
+                            instanceCount,
+                            firstIndex,
+                            baseVertex,
+                            firstInstance);
 }
 
 void gpuPassFinishImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -3223,6 +3451,38 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
     // Terminates like a trap when the native returns, so the caller's
     // failed-op handling engages.
     vm->raiseModuleError("execution exceeded timeout");
+}
+
+uint32_t rtUtcOffsetImpl(WasmScriptingVM* vm, double epochSeconds)
+{
+    time_t at;
+    struct tm local;
+    return localTime(epochSeconds, at, local) ? (uint32_t)utcOffsetOf(local, at)
+                                              : 0;
+}
+
+uint32_t rtIsDstImpl(WasmScriptingVM* vm, double epochSeconds)
+{
+    time_t at;
+    struct tm local;
+    return localTime(epochSeconds, at, local) && local.tm_isdst > 0 ? 1 : 0;
+}
+
+uint32_t rtZoneNameImpl(WasmScriptingVM* vm,
+                        double epochSeconds,
+                        char* buffer,
+                        uint32_t capacity)
+{
+    time_t at;
+    struct tm local;
+    if (!localTime(epochSeconds, at, local))
+    {
+        return 0;
+    }
+    char name[64];
+    size_t length = strftime(name, sizeof(name), "%Z", &local);
+    memcpy(buffer, name, length < capacity ? length : capacity);
+    return (uint32_t)length;
 }
 
 // Module start has no exec env to carry the vm; the probes its top level
@@ -7156,9 +7416,8 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
     if (!wasm_runtime_call_wasm(m_state->execEnv, f, 3, buf))
     {
         const char* exception = wasm_runtime_get_exception(m_state->instance);
-        fprintf(stderr,
-                "script init trapped: %s\n",
-                exception != nullptr ? exception : "unknown");
+        m_lastError = exception != nullptr ? exception : "script init trapped";
+        fprintf(stderr, "script init trapped: %s\n", m_lastError.c_str());
 #if WASM_ENABLE_DUMP_CALL_STACK
         wasm_runtime_dump_call_stack(m_state->execEnv);
 #endif

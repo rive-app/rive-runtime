@@ -66,6 +66,8 @@ public:
 private:
     friend class ContextD3D11;
 
+    void applyVertexBuffer(uint32_t slot);
+
     ID3D11DeviceContext* m_d3d11Context = nullptr; // weak ref
     rcp<PipelineD3D11> m_currentPipeline;
     D3D11_PRIMITIVE_TOPOLOGY m_d3d11Topology =

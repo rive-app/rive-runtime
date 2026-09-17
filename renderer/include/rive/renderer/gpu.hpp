@@ -1430,6 +1430,7 @@ struct FlushDescriptor
     uint32_t tessVertexSpanCount = 0;
     size_t firstTessVertexSpan = 0;
     uint32_t gradDataHeight = 0;
+    uint32_t gradTextureHeight = 0;
     uint32_t tessDataHeight = 0;
     // Override path fill rules with "clockwise".
     bool clockwiseFillOverride = false;
@@ -1569,8 +1570,11 @@ private:
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Whether _fragCoord.y counts from the visual bottom of the target.
     WRITEONLY uint32_t m_renderTargetBottomUp;
+    // Scale and bias to get V coord of gradient from integral row value
+    WRITEONLY float m_gradTextureYScale;
+    WRITEONLY float m_gradTextureYBias;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 108];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1676,15 +1680,20 @@ public:
              bool hasClipRect,
              bool hasImage,
              BlendMode,
-             bool solidUnmultiplied);
+             bool solidUnmultiplied,
+             float additiveness);
 
 private:
     WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
     union
     {
-        WRITEONLY uint32_t m_color;     // PaintType::solidColor
-        WRITEONLY float m_gradTextureY; // Paintype::linearGradient,
-                                        // Paintype::radialGradient
+        WRITEONLY uint32_t m_color; // PaintType::solidColor
+        WRITEONLY float
+            m_gradTextureRowAndAdditiveness; // Paintype::linearGradient,
+                                             // Paintype::radialGradient
+                                             // Int part: gradient texture row
+                                             // Fraction: additiveness,
+                                             // pre-quantized to 0/256..255/256
         WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
     };
 };
@@ -1838,7 +1847,8 @@ public:
                           const ClipRectInverseMatrix*,
                           uint32_t clipID,
                           BlendMode,
-                          uint32_t zIndex);
+                          uint32_t zIndex,
+                          float additiveness);
 
 private:
     WRITEONLY float m_viewMatrix[4];
@@ -1875,7 +1885,8 @@ public:
                       const Mat2D& gradientMatrix,
                       uint32_t gradientType,
                       const float (&gradTextureHorizontalSpan)[2],
-                      float gradTextureY);
+                      float gradTextureY,
+                      float additiveness);
 
 private:
     ImageDrawInstanceBase m_commons;
@@ -1905,7 +1916,8 @@ public:
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
                       BlendMode,
-                      uint32_t zIndex);
+                      uint32_t zIndex,
+                      float additiveness);
 
 private:
     ImageDrawInstanceBase m_commons;
@@ -2253,6 +2265,9 @@ extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
+
+// Get the integer row in the gradient texture.
+uint32_t getGradientRow(ColorRampLocation, GradTextureLayout);
 
 // Get the Y coordinate in the gradient texture.
 float getGradientY(ColorRampLocation, GradTextureLayout);

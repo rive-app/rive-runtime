@@ -46,6 +46,7 @@ enum class RenderCmd : uint8_t
     paintThickness,        // PaintFloatPOD
     paintJoin,             // PaintU8POD
     paintCap,              // PaintU8POD
+    paintStrokePosition,   // PaintU8POD
     paintFeather,          // PaintFloatPOD
     paintBlendMode,        // PaintU8POD
     paintShader,           // PaintShaderPOD
@@ -240,8 +241,9 @@ struct ClipStrokePOD
     RenderHandle path;
     uint32_t version;
     float thickness;
-    uint8_t join; // StrokeJoin
-    uint8_t cap;  // StrokeCap
+    uint8_t join;     // StrokeJoin
+    uint8_t cap;      // StrokeCap
+    uint8_t position; // StrokePosition
 };
 
 struct DecodeImagePOD
@@ -328,6 +330,7 @@ struct CanvasContentPOD
     X(paintThickness, PaintFloatPOD)                                           \
     X(paintJoin, PaintU8POD)                                                   \
     X(paintCap, PaintU8POD)                                                    \
+    X(paintStrokePosition, PaintU8POD)                                         \
     X(paintFeather, PaintFloatPOD)                                             \
     X(paintBlendMode, PaintU8POD)                                              \
     X(paintShader, PaintShaderPOD)                                             \

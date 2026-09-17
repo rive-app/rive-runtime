@@ -680,6 +680,10 @@ public:
                                    std::string path,
                                    RenderImageHandle value,
                                    uint64_t requestId = 0);
+    void setViewModelInstanceFont(ViewModelInstanceHandle,
+                                  std::string path,
+                                  FontHandle value,
+                                  uint64_t requestId = 0);
     void setViewModelInstanceBlob(ViewModelInstanceHandle,
                                   std::string path,
                                   BlobAssetHandle value,

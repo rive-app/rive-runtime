@@ -30,8 +30,22 @@ private:
 
 protected:
     bool m_needsSaveOperation = true;
+#ifdef WITH_RIVE_EDITOR
+    void flagsChanged() override
+    {
+        // Preserve runtime-only bits when authoring the shared component flag.
+        constexpr auto mask = static_cast<uint16_t>(DrawableFlag::Selectable);
+        drawableFlags((drawableFlags() & ~mask) | (flags() & mask));
+    }
+#endif
 
 public:
+    bool isSelectable() const
+    {
+        return (static_cast<DrawableFlag>(drawableFlags()) &
+                DrawableFlag::Selectable) != DrawableFlag::None;
+    }
+
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;

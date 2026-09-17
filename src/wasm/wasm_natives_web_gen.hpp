@@ -45,6 +45,21 @@ void rive_web_rt_debug_leave(uint32_t vmHandle)
     rtDebugLeaveImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_rt_utc_offset(uint32_t vmHandle, double epochSeconds)
+{
+    return rtUtcOffsetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_rt_is_dst(uint32_t vmHandle, double epochSeconds)
+{
+    return rtIsDstImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_rt_zone_name(uint32_t vmHandle, double epochSeconds, char* buffer, uint32_t capacity)
+{
+    return rtZoneNameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds, buffer, capacity);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_view_model(uint32_t vmHandle, uint32_t object)
 {
     return dataViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);

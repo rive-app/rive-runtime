@@ -192,6 +192,43 @@ private:
 #endif
 
     void sortDependencies();
+
+    // -- instancing fast path for the dependency order --
+    //
+    // An instance's object list is a 1:1 index-for-index clone of its
+    // source's, and its dependency graph is structurally identical, so the
+    // topological order it would compute is the same permutation the source
+    // already computed. Rather than re-running the graph walk per instance,
+    // the source records its order once as (object index, helper slot) pairs
+    // and instances replay it in O(n).
+    //
+    // `helperSlot` is 0 for the object itself, or 1+n for a Component the
+    // object owns that never appears in m_Objects (Shape's PathComposer,
+    // TextStyle's TextVariationHelper). Those are real nodes in the graph.
+    struct DependencyOrderEntry
+    {
+        uint32_t objectIndex;
+        uint8_t helperSlot;
+    };
+    enum class RecipeState : uint8_t
+    {
+        unbuilt,
+        valid,
+        unusable
+    };
+    /// Returns the Component at [helperSlot] of m_Objects[objectIndex], or
+    /// null if that slot is empty on this artboard.
+    Component* componentForOrderEntry(const DependencyOrderEntry& entry) const;
+    /// Builds (once) and returns this artboard's order recipe, or null if it
+    /// could not be expressed as index/slot pairs.
+    const std::vector<DependencyOrderEntry>* dependencyOrderRecipe() const;
+    /// Fills m_DependencyOrder from [source]'s recipe. False if unavailable or
+    /// if anything about this instance does not line up, in which case the
+    /// caller must fall back to sorting.
+    bool replaySourceDependencyOrder(const Artboard* source);
+
+    mutable std::vector<DependencyOrderEntry> m_DependencyOrderRecipe;
+    mutable RecipeState m_RecipeState = RecipeState::unbuilt;
     void sortDrawOrder();
     void clearRedundantOperations();
     void updateRenderPath() override;
@@ -409,16 +446,21 @@ public:
     // (driven by `initialize()`); editor_native's `finalizeBatch` needs
     // to invoke it after per-component `buildDependencies` calls.
     void sortDependenciesEditor() { sortDependencies(); }
-    const std::vector<Component*>& dependencyOrder() const
-    {
-        return m_DependencyOrder;
-    }
     // Initialize `m_layout` from the artboard's width/height so
     // `layoutWidth()` / `layoutHeight()` / `bounds()` report non-zero.
     // Mirrors the first lines of `Artboard::initialize()` at
     // artboard.cpp:261-266. Called once by `EditorFile::finalizeBatch`.
     void initLayoutForEditor();
 #endif
+    /// The order updates run in, as produced by [sortDependencies] -- either
+    /// sorted, or replayed from this artboard's source. Public because both
+    /// the editor's `finalizeBatch` and the tests that pin replay against a
+    /// real sort need to read it.
+    const std::vector<Component*>& dependencyOrder() const
+    {
+        return m_DependencyOrder;
+    }
+
 #ifdef WITH_RIVE_TOOLS
     void artboardId(uint16_t id) { m_artboardId = id; }
     uint16_t artboardId() const { return m_artboardId; }
@@ -753,6 +795,7 @@ public:
                                      artboardClone.get());
             }
         }
+
         // Only now that the clone's binds are all in place: setting the
         // context first would make addDataBind() eagerly bind and apply each
         // clone as it arrives, mid-construction. The clone still binds for

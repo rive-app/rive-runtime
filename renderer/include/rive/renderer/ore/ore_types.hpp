@@ -22,6 +22,7 @@ namespace rive::ore
 // range, and Lua-side validation in `gpubindgroup_construct` /
 // `setBindGroup`.
 constexpr uint32_t kMaxBindGroups = 4;
+constexpr uint32_t kMaxVertexBufferSlots = 8;
 
 // ============================================================================
 // Enums

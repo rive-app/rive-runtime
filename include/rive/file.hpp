@@ -2,7 +2,9 @@
 #define _RIVE_FILE_HPP_
 
 #include "rive/artboard.hpp"
+#include "rive/runtime_header.hpp"
 #include "rive/backboard.hpp"
+#include "rive/selection_style.hpp"
 #include "rive/scripting_slots.hpp"
 #include "rive/factory.hpp"
 #include "rive/file_asset_loader.hpp"
@@ -136,6 +138,14 @@ public:
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
 
+    // File resources; the first is currently the default selection style.
+    size_t selectionStyleCount() const { return m_selectionStyles.size(); }
+    const SelectionStyle* selectionStyle(size_t index = 0) const
+    {
+        return index < m_selectionStyles.size() ? m_selectionStyles[index].get()
+                                                : nullptr;
+    }
+
     /// @returns the number of artboards in the file.
     size_t artboardCount() const { return m_artboards.size(); }
     std::string artboardNameAt(size_t index) const;
@@ -148,6 +158,40 @@ public:
     rcp<BindableArtboard> bindableArtboardNamed(std::string name) const;
     rcp<BindableArtboard> bindableArtboardDefault() const;
     rcp<BindableArtboard> internalBindableArtboardFromArtboard(Artboard*) const;
+
+#ifdef WITH_RIVE_TOOLS
+    /// Byte extent of an artboard's run within the stream it was imported
+    /// from. An artboard is a contiguous run -- its Artboard object, then its
+    /// components, then its animations and state machines -- so a changed
+    /// artboard can in principle be re-imported on its own.
+    struct ArtboardByteRange
+    {
+        size_t start;
+        size_t end;
+    };
+
+    /// Re-imports the artboard at [index] from [bytes] -- the artboard's own
+    /// contiguous run, as delimited by artboardByteRange() -- resolving its
+    /// asset and nested-artboard references against what this file already
+    /// holds. The artboard keeps its index, so everything referring to it by
+    /// index stays correct.
+    ///
+    /// The caller must have released every ArtboardInstance of this artboard
+    /// first: instances share their source's animations and state machines by
+    /// pointer, so they do not survive it being replaced. Instances of *other*
+    /// artboards are unaffected.
+    ///
+    /// Returns malformed and leaves the file untouched if anything fails.
+    ImportResult replaceArtboard(size_t index, Span<const uint8_t> bytes);
+
+    /// Byte extent of the artboard at [index] within the stream it was
+    /// imported from, or {0, 0} if unknown.
+    ArtboardByteRange artboardByteRange(size_t index) const
+    {
+        return index < m_artboardByteRanges.size() ? m_artboardByteRanges[index]
+                                                   : ArtboardByteRange{0, 0};
+    }
+#endif
 
     Artboard* artboard() const;
 
@@ -290,6 +334,10 @@ public:
 
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
+    ImportResult readObjects(BinaryReader&,
+                             const RuntimeHeader&,
+                             ImportStack&,
+                             Artboard** capturedArtboard);
     std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
     /// Gives instance a watermark pre-roll when this file's manifest carries
     /// one and instance isn't itself the watermark. Only applied to the top
@@ -302,6 +350,7 @@ private:
     /// is destroyed after a failed/partial import (before a Backboard object
     /// has been read) does not `delete` an uninitialized pointer.
     Backboard* m_backboard = nullptr;
+    std::vector<std::unique_ptr<SelectionStyle>> m_selectionStyles;
 
     /// We just keep these alive for the life of this File
     std::vector<rcp<FileAsset>> m_fileAssets;
@@ -315,6 +364,13 @@ private:
     /// List of artboards in the file. Each artboard encapsulates a set of
     /// Rive components and animations.
     std::vector<Artboard*> m_artboards;
+
+#ifdef WITH_RIVE_TOOLS
+    /// Parallel to m_artboards; see artboardByteRange().
+    std::vector<ArtboardByteRange> m_artboardByteRanges;
+    /// Retained from read() so a single artboard can be decoded later.
+    RuntimeHeader m_header;
+#endif
 
     /// List of view models in the file. They may outlive the file if viewmodel
     /// instances are still needed after the file is destroyed

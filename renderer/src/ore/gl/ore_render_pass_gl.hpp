@@ -71,6 +71,9 @@ private:
     // be set after the bind groups.
     void applySamplerBindings();
 
+    void applyVertexBuffer(uint32_t slot);
+    void flushVertexBuffers();
+
     unsigned int m_glFBO = 0;   // GLuint
     unsigned int m_glVAO = 0;   // GLuint
     unsigned int m_prevVAO = 0; // GLuint saved before this pass
@@ -88,10 +91,11 @@ private:
     uint32_t m_viewportHeight = 0;
     uint32_t m_maxSamplerSlot = 0;
     bool m_samplerBindingsDirty = false;
-    uint32_t m_maxAttribSlot = 0;
     bool m_usedSamplers = false;
-    bool m_usedAttribs = false;
+    // Enabled attribute arrays, one bit per location.
+    uint32_t m_enabledAttribs = 0;
     IndexFormat m_glIndexFormat = IndexFormat::uint16;
+    uint32_t m_glIndexOffset = 0;
     uint32_t m_glStencilRef = 0;
     uint32_t m_glResolveCount = 0;
     GLResolveEntry m_glResolves[4];

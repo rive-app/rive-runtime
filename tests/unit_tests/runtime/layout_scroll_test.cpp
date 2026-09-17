@@ -12,6 +12,8 @@
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 TEST_CASE("ScrollConstraint vertical offset", "[layoutscroll]")
@@ -365,6 +367,59 @@ TEST_CASE("ElasticScrollPhysicsHelper snap respects trailing padding",
                    kContent,
                    kViewport);
         REQUIRE(settle(helper) == Approx(-100.0f).margin(0.5f));
+    }
+}
+
+// run() seeded a fling from the accumulated pointer acceleration whatever the
+// range was. With the content fitting its viewport the range is empty --
+// rangeMin == rangeMax == 0, so every reachable offset is the origin -- and the
+// fling could only throw the content out into the elastic overscroll and leave
+// the settle phase to haul it back: a visible lurch on what the user meant as
+// a click. The acceleration below is what a couple of pixels of hand jitter
+// produce when the first pointer sample lands a millisecond after the press;
+// before the gate it carried the content 111pt out.
+TEST_CASE("ElasticScrollPhysicsHelper only flings where there is range",
+          "[layoutscroll]")
+{
+    const float kFriction = 2.5f;
+    const float kSpeedMul = 1.2f;
+    const float kElastic = 0.66f;
+    const float kAcceleration = -1000000.0f;
+
+    // Furthest the content travels from the origin, and where it comes to rest.
+    auto release =
+        [&](float rangeMin, float value, float& outSettled) -> float {
+        rive::ElasticScrollPhysicsHelper helper(kFriction, kSpeedMul, kElastic);
+        helper.run(kAcceleration, rangeMin, 0.0f, value, {}, 0.0f, 0.0f);
+        float peak = std::abs(value);
+        outSettled = value;
+        for (int i = 0; i < 2000 && helper.isRunning(); i++)
+        {
+            outSettled = helper.advance(1.0f / 60.0f);
+            peak = std::max(peak, std::abs(outSettled));
+        }
+        return peak;
+    };
+
+    float settled = 0.0f;
+
+    SECTION("content that fits never moves past the drag itself")
+    {
+        REQUIRE(release(0.0f, -3.0f, settled) <= 3.0f + 0.001f);
+        // Still bounces home: the gate skips the velocity phase, not the
+        // overscroll.
+        REQUIRE(settled == Approx(0.0f).margin(0.001f));
+    }
+
+    SECTION("a longer bounce still returns from where the pointer left it")
+    {
+        REQUIRE(release(0.0f, -12.0f, settled) <= 12.0f + 0.001f);
+        REQUIRE(settled == Approx(0.0f).margin(0.001f));
+    }
+
+    SECTION("the same release on a scrollable axis still flings")
+    {
+        REQUIRE(release(-500.0f, -3.0f, settled) > 100.0f);
     }
 }
 

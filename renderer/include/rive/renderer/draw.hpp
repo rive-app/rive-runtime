@@ -46,6 +46,7 @@ public:
          const Mat2D& paintMatrix,
          const Mat2D* imageMatrix,
          BlendMode,
+         float additiveness,
          rcp<Texture> imageTexture,
          ImageSampler imageSampler,
          Type);
@@ -61,6 +62,7 @@ public:
     const Mat2D& paintMatrix() const { return m_paintMatrix; }
     const Mat2D& imageMatrix() const { return m_imageMatrix; }
     BlendMode blendMode() const { return m_blendMode; }
+    float additiveness() const { return m_additiveness; }
     Type type() const { return m_type; }
     gpu::DrawContents drawContents() const { return m_drawContents; }
     bool isOpaque() const
@@ -178,6 +180,7 @@ protected:
     const Mat2D m_paintMatrix;
     const Mat2D m_imageMatrix;
     const BlendMode m_blendMode;
+    const float m_additiveness;
     const Type m_type;
     IAABB m_clippedPixelBounds;
     std::optional<IAABB> m_clippingPixelBounds;
@@ -507,6 +510,7 @@ public:
                   IAABB pixelBounds,
                   const Mat2D& renderMatrix,
                   BlendMode,
+                  float additiveness,
                   rcp<Texture>,
                   rcp<const Gradient>,
                   const ImageSampler imageSampler,
@@ -541,6 +545,7 @@ public:
     ImageMeshDraw(IAABB pixelBounds,
                   const Mat2D&,
                   BlendMode,
+                  float additiveness,
                   rcp<Texture>,
                   const ImageSampler imageSampler,
                   rcp<RenderBuffer> vertexBuffer,

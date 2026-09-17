@@ -52,6 +52,7 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::paintStyle:
             case RenderCmd::paintJoin:
             case RenderCmd::paintCap:
+            case RenderCmd::paintStrokePosition:
             case RenderCmd::paintBlendMode:
                 paintSets[r.read<PaintU8POD>().paint]++;
                 break;
@@ -245,6 +246,7 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
             case RenderCmd::paintStyle:
             case RenderCmd::paintJoin:
             case RenderCmd::paintCap:
+            case RenderCmd::paintStrokePosition:
             case RenderCmd::paintBlendMode:
                 r.read<PaintU8POD>();
                 break;

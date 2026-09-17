@@ -125,6 +125,7 @@ static float scale = 1;
 
 static StrokeJoin join = StrokeJoin::round;
 static StrokeCap cap = StrokeCap::round;
+static StrokePosition strokePosition = StrokePosition::center;
 
 static bool doClose = false;
 static bool paused = false;
@@ -366,6 +367,10 @@ static void key_callback(GLFWwindow* window,
                 {
                     disableStroke = !disableStroke;
                 }
+                break;
+            case GLFW_KEY_T: // No good keys available for this
+                strokePosition =
+                    StrokePosition((uint32_t(strokePosition) + 1) % 3);
                 break;
             case GLFW_KEY_F:
                 disableFill = !disableFill;
@@ -1073,6 +1078,8 @@ void riveMainLoop()
 
             strokePaint->join(join);
             strokePaint->cap(cap);
+            strokePaint->strokePosition(strokePosition);
+
             renderer->drawPath(path.get(), strokePaint.get());
 
             // Draw the interactive points.

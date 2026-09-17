@@ -251,6 +251,7 @@
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
 #include "rive/scripted/scripted_transition.hpp"
+#include "rive/selection_style.hpp"
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/contour_mesh_vertex.hpp"
@@ -767,6 +768,8 @@ public:
                 return new Artboard();
             case JoystickBase::typeKey:
                 return new Joystick();
+            case SelectionStyleBase::typeKey:
+                return new SelectionStyle();
             case BackboardBase::typeKey:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
@@ -1887,6 +1890,9 @@ public:
             case TextBase::wrapValuePropertyKey:
                 object->as<TextBase>()->wrapValue(value);
                 break;
+            case TextBase::wordBreakValuePropertyKey:
+                object->as<TextBase>()->wordBreakValue(value);
+                break;
             case TextBase::verticalAlignValuePropertyKey:
                 object->as<TextBase>()->verticalAlignValue(value);
                 break;
@@ -2242,6 +2248,9 @@ public:
                 break;
             case GradientStopBase::colorValuePropertyKey:
                 object->as<GradientStopBase>()->colorValue(value);
+                break;
+            case SelectionStyleBase::highlightColorPropertyKey:
+                object->as<SelectionStyleBase>()->highlightColor(value);
                 break;
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 object->as<BindablePropertyColorBase>()->propertyValue(value);
@@ -3034,6 +3043,9 @@ public:
                 break;
             case JoystickBase::heightPropertyKey:
                 object->as<JoystickBase>()->height(value);
+                break;
+            case SelectionStyleBase::cornerRadiusPropertyKey:
+                object->as<SelectionStyleBase>()->cornerRadius(value);
                 break;
             case DataConverterOperationValueBase::operationValuePropertyKey:
                 object->as<DataConverterOperationValueBase>()->operationValue(
@@ -3925,6 +3937,8 @@ public:
                 return object->as<TextBase>()->originValue();
             case TextBase::wrapValuePropertyKey:
                 return object->as<TextBase>()->wrapValue();
+            case TextBase::wordBreakValuePropertyKey:
+                return object->as<TextBase>()->wordBreakValue();
             case TextBase::verticalAlignValuePropertyKey:
                 return object->as<TextBase>()->verticalAlignValue();
             case TextBase::verticalTrimValuePropertyKey:
@@ -4178,6 +4192,8 @@ public:
                 return object->as<SolidColorBase>()->colorValue();
             case GradientStopBase::colorValuePropertyKey:
                 return object->as<GradientStopBase>()->colorValue();
+            case SelectionStyleBase::highlightColorPropertyKey:
+                return object->as<SelectionStyleBase>()->highlightColor();
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyColorBase>()->propertyValue();
         }
@@ -4728,6 +4744,8 @@ public:
                 return object->as<JoystickBase>()->width();
             case JoystickBase::heightPropertyKey:
                 return object->as<JoystickBase>()->height();
+            case SelectionStyleBase::cornerRadiusPropertyKey:
+                return object->as<SelectionStyleBase>()->cornerRadius();
             case DataConverterOperationValueBase::operationValuePropertyKey:
                 return object->as<DataConverterOperationValueBase>()
                     ->operationValue();
@@ -5156,6 +5174,7 @@ public:
             case TextBase::overflowValuePropertyKey:
             case TextBase::originValuePropertyKey:
             case TextBase::wrapValuePropertyKey:
+            case TextBase::wordBreakValuePropertyKey:
             case TextBase::verticalAlignValuePropertyKey:
             case TextBase::verticalTrimValuePropertyKey:
             case TextBase::verticalTrimTopValuePropertyKey:
@@ -5183,6 +5202,7 @@ public:
             case TransitionValueColorComparatorBase::valuePropertyKey:
             case SolidColorBase::colorValuePropertyKey:
             case GradientStopBase::colorValuePropertyKey:
+            case SelectionStyleBase::highlightColorPropertyKey:
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return CoreColorType::id;
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
@@ -5442,6 +5462,7 @@ public:
             case JoystickBase::originYPropertyKey:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
+            case SelectionStyleBase::cornerRadiusPropertyKey:
             case DataConverterOperationValueBase::operationValuePropertyKey:
             case DataConverterRangeMapperBase::minInputPropertyKey:
             case DataConverterRangeMapperBase::maxInputPropertyKey:
@@ -6130,6 +6151,8 @@ public:
                 return object->is<TextBase>();
             case TextBase::wrapValuePropertyKey:
                 return object->is<TextBase>();
+            case TextBase::wordBreakValuePropertyKey:
+                return object->is<TextBase>();
             case TextBase::verticalAlignValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::verticalTrimValuePropertyKey:
@@ -6182,6 +6205,8 @@ public:
                 return object->is<SolidColorBase>();
             case GradientStopBase::colorValuePropertyKey:
                 return object->is<GradientStopBase>();
+            case SelectionStyleBase::highlightColorPropertyKey:
+                return object->is<SelectionStyleBase>();
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyColorBase>();
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
@@ -6694,6 +6719,8 @@ public:
                 return object->is<JoystickBase>();
             case JoystickBase::heightPropertyKey:
                 return object->is<JoystickBase>();
+            case SelectionStyleBase::cornerRadiusPropertyKey:
+                return object->is<SelectionStyleBase>();
             case DataConverterOperationValueBase::operationValuePropertyKey:
                 return object->is<DataConverterOperationValueBase>();
             case DataConverterRangeMapperBase::minInputPropertyKey:

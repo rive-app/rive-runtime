@@ -16,6 +16,7 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
+#include "rive/shapes/paint/stroke_position.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/math/raw_path.hpp"
 #include <stdio.h>
@@ -40,6 +41,17 @@ struct StrokeParams
     float thickness = 1.0f;
     StrokeJoin join = StrokeJoin::miter;
     StrokeCap cap = StrokeCap::butt;
+    StrokePosition position = StrokePosition::center;
+
+    bool operator==(const StrokeParams& other) const
+    {
+        return memcmp(this, &other, sizeof(StrokeParams)) == 0;
+    }
+
+    bool operator!=(const StrokeParams& other) const
+    {
+        return !(*this == other);
+    }
 };
 
 enum class RenderBufferType
@@ -130,12 +142,15 @@ public:
     virtual void thickness(float value) = 0;
     virtual void join(StrokeJoin value) = 0;
     virtual void cap(StrokeCap value) = 0;
-    virtual void feather(float value) {} // Not supported on all renderers.
+    // TODO: implement on other backends besides Rive Renderer
+    virtual void strokePosition(StrokePosition value) {}
+    virtual void feather(float value) {}      // Not supported on all renderers.
+    virtual void additiveness(float value) {} // Only used for srcOver
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;
     virtual void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&)
-    {} // TODO: Implement on others
+    {} // TODO: Implement on other backends besides Rive Renderer
 
     // Set the style to stroke and update all of the stroke parameters with a
     // single update.
@@ -145,6 +160,7 @@ public:
         thickness(params.thickness);
         join(params.join);
         cap(params.cap);
+        strokePosition(params.position);
     }
 };
 
@@ -250,6 +266,39 @@ public:
                                uint32_t indexCount,
                                BlendMode,
                                float opacity) = 0;
+
+    // Variants with additiveness (0 = normal srcOver, 1 = fully additive).
+    // Renderers that don't support it fall back on the plain overloads and
+    // render normal srcOver.
+    virtual void drawImage(const RenderImage* image,
+                           ImageSampler sampler,
+                           BlendMode blendMode,
+                           float opacity,
+                           float additiveness)
+    {
+        drawImage(image, sampler, blendMode, opacity);
+    }
+    virtual void drawImageMesh(const RenderImage* image,
+                               ImageSampler sampler,
+                               rcp<RenderBuffer> vertices_f32,
+                               rcp<RenderBuffer> uvCoords_f32,
+                               rcp<RenderBuffer> indices_u16,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
+                               BlendMode blendMode,
+                               float opacity,
+                               float additiveness)
+    {
+        drawImageMesh(image,
+                      sampler,
+                      std::move(vertices_f32),
+                      std::move(uvCoords_f32),
+                      std::move(indices_u16),
+                      vertexCount,
+                      indexCount,
+                      blendMode,
+                      opacity);
+    }
 
     // Modulate the opacity of subsequent draw calls. The opacity is stacked
     // multiplicatively (e.g., modulateOpacity(0.5) followed by

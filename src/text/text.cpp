@@ -11,6 +11,7 @@ using namespace rive;
 #include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_selection_controller.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -140,6 +141,10 @@ void TextValueRunListener::createPropertyListener(SymbolType symbolType)
 
 Text::~Text()
 {
+    if (m_selectionController != nullptr)
+    {
+        m_selectionController->remove(this);
+    }
     for (auto& textValueRun : m_valueRunListeners)
     {
         delete textValueRun;
@@ -460,7 +465,7 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
         }
         auto runs = styledText.runs();
         auto shape = runs[0].font->shapeText(styledText.unichars(), runs);
-        auto lines = BreakLines(shape, boxWidth, align(), wrap());
+        auto lines = BreakLines(shape, boxWidth, align(), wrap(), wordBreak());
 
         float maxWidth = 0.0f;
         float y = 0.0f;
@@ -937,6 +942,10 @@ void Text::draw(Renderer* renderer)
             background->draw(renderer, worldTransform);
         }
     }
+    if (m_selectionController != nullptr)
+    {
+        m_selectionController->draw(this, renderer);
+    }
     for (auto& cmd : m_drawCommands)
     {
         if (cmd.type == TextDrawCommand::kStylePath)
@@ -1069,6 +1078,8 @@ void Text::alignValueChanged() { markShapeDirty(); }
 
 void Text::sizingValueChanged() { markShapeDirty(); }
 
+void Text::wordBreakValueChanged() { markShapeDirty(); }
+
 void Text::fitFontSizeResizesBoxChanged()
 {
     // Only fitFontSize consults the flag, and only to decide what measure()
@@ -1189,6 +1200,7 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     float width,
     TextAlign align,
     TextWrap wrap,
+    TextWordBreak wordBreak,
     float minAlignWidth)
 {
     bool autoWidth = width == -1.0f;
@@ -1201,7 +1213,8 @@ SimpleArray<SimpleArray<GlyphLine>> Text::BreakLines(
     {
         lines[paragraphIndex] = GlyphLine::BreakLines(
             para.runs,
-            (autoWidth || wrap == TextWrap::noWrap) ? -1.0f : width);
+            (autoWidth || wrap == TextWrap::noWrap) ? -1.0f : width,
+            wordBreak);
         if (autoWidth)
         {
             paragraphWidth = std::max(
@@ -1286,7 +1299,8 @@ void Text::update(ComponentDirt value)
                                ? -1.0f
                                : effectiveWidth(),
                            align(),
-                           wrap());
+                           wrap(),
+                           wordBreak());
             m_glyphLookup.compute(m_modifierStyledText.unichars(),
                                   m_modifierShape);
             uint32_t textSize =
@@ -1311,7 +1325,8 @@ void Text::update(ComponentDirt value)
                                      ? -1.0f
                                      : effectiveWidth(),
                                  align(),
-                                 wrap());
+                                 wrap(),
+                                 wordBreak());
             if (!precomputeModifierCoverage && haveModifiers())
             {
                 m_glyphLookup.compute(m_styledText.unichars(), m_shape);
@@ -1368,6 +1383,12 @@ void Text::update(ComponentDirt value)
         m_shapeWorldTransform = m_WorldTransform * m_transform;
         m_clipPath.addPath(m_clipRect, &m_shapeWorldTransform);
     }
+    if (m_selectionController != nullptr &&
+        hasDirt(value, ComponentDirt::Path | ComponentDirt::Paint))
+    {
+        m_selectionController->textUpdated(this,
+                                           hasDirt(value, ComponentDirt::Path));
+    }
 }
 
 Vec2D Text::measure(Vec2D maxSize)
@@ -1418,7 +1439,8 @@ Vec2D Text::measure(Vec2D maxSize)
                                      effectiveSizing() != TextSizing::autoHeight
                                  ? TextWrap::noWrap
                                  : wrap();
-        auto lines = BreakLines(shape, fitWidth, align(), measuringWrap);
+        auto lines =
+            BreakLines(shape, fitWidth, align(), measuringWrap, wordBreak());
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
@@ -1557,6 +1579,7 @@ void Text::update(ComponentDirt value) {}
 void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
 void Text::sizingValueChanged() {}
+void Text::wordBreakValueChanged() {}
 void Text::overflowValueChanged() {}
 void Text::fitFontSizeResizesBoxChanged() {}
 void Text::widthChanged() {}
