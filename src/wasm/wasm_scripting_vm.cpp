@@ -2166,16 +2166,9 @@ void gpuTextureUploadImpl(WasmScriptingVM* vm,
     {
         return;
     }
-    // The module validated the region against the texture; recheck the one
-    // invariant guest memory enforces nothing about.
-    if (uint64_t(region->bytesPerRow) * region->rowsPerImage *
-            std::max(1u, region->depth) >
-        dataCount)
-    {
-        return;
-    }
     ore::TextureDataDesc upload;
     upload.data = data;
+    upload.dataSize = dataCount;
     upload.bytesPerRow = region->bytesPerRow;
     upload.rowsPerImage = region->rowsPerImage;
     upload.mipLevel = region->mipLevel;
@@ -2186,7 +2179,11 @@ void gpuTextureUploadImpl(WasmScriptingVM* vm,
     upload.width = region->width;
     upload.height = region->height;
     upload.depth = region->depth;
-    host->texture->upload(upload);
+    std::string error;
+    if (!host->texture->upload(upload, &error))
+    {
+        vm->raiseModuleError(error.c_str());
+    }
 }
 
 void gpuTextureReleaseImpl(WasmScriptingVM* vm, uint32_t handle)

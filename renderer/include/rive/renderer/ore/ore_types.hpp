@@ -361,14 +361,17 @@ struct TextureViewDesc
     TextureViewDimension dimension = TextureViewDimension::texture2D;
     TextureAspect aspect = TextureAspect::all;
     uint32_t baseMipLevel = 0;
-    uint32_t mipCount = 1;
+    uint32_t mipCount = 1; // Zero spans the remaining levels.
     uint32_t baseLayer = 0;
-    uint32_t layerCount = 1;
+    uint32_t layerCount = 1; // Zero spans the remaining layers.
 };
 
+// Zero bytesPerRow, rowsPerImage, width, height and depth mean tight rows,
+// the region height and the rest of the mip level from the origin.
 struct TextureDataDesc
 {
     const void* data = nullptr;
+    uint32_t dataSize = 0; // Bytes at data; zero skips the size check.
     uint32_t bytesPerRow = 0;
     uint32_t rowsPerImage = 0;
     uint32_t mipLevel = 0;

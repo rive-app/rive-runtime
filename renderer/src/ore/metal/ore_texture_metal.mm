@@ -10,7 +10,7 @@
 namespace rive::ore
 {
 
-void TextureMetal::upload(const TextureDataDesc& data)
+void TextureMetal::uploadImpl(const TextureDataDesc& data)
 {
     assert(m_mtlTexture != nil);
     assert(data.data != nullptr);

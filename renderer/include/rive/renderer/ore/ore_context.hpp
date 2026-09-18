@@ -92,7 +92,60 @@ public:
     // Resource factories.
     virtual rcp<Buffer> makeBuffer(const BufferDesc& desc) = 0;
     virtual rcp<Texture> makeTexture(const TextureDesc& desc) = 0;
-    virtual rcp<TextureView> makeTextureView(const TextureViewDesc& desc) = 0;
+    // Zero counts span the rest of the texture. Ranges past the texture are
+    // rejected here so scripts get the error at record time on every backend.
+    rcp<TextureView> makeTextureView(TextureViewDesc desc)
+    {
+        Texture* tex = desc.texture;
+        if (tex == nullptr)
+        {
+            setLastError("makeTextureView: texture is null");
+            return nullptr;
+        }
+        uint32_t mips = tex->numMipmaps();
+        uint32_t layers = tex->arrayLayers();
+        if (desc.baseMipLevel >= mips)
+        {
+            setLastError("makeTextureView: baseMipLevel %u exceeds %u levels",
+                         desc.baseMipLevel,
+                         mips);
+            return nullptr;
+        }
+        if (desc.baseLayer >= layers)
+        {
+            setLastError("makeTextureView: baseLayer %u exceeds %u layers",
+                         desc.baseLayer,
+                         layers);
+            return nullptr;
+        }
+        if (desc.mipCount == 0)
+        {
+            desc.mipCount = mips - desc.baseMipLevel;
+        }
+        if (desc.layerCount == 0)
+        {
+            desc.layerCount = layers - desc.baseLayer;
+        }
+        if (desc.mipCount > mips - desc.baseMipLevel)
+        {
+            setLastError(
+                "makeTextureView: mip range [%u, %u) exceeds %u levels",
+                desc.baseMipLevel,
+                desc.baseMipLevel + desc.mipCount,
+                mips);
+            return nullptr;
+        }
+        if (desc.layerCount > layers - desc.baseLayer)
+        {
+            setLastError(
+                "makeTextureView: layer range [%u, %u) exceeds %u layers",
+                desc.baseLayer,
+                desc.baseLayer + desc.layerCount,
+                layers);
+            return nullptr;
+        }
+        return makeTextureViewImpl(desc);
+    }
     virtual rcp<Sampler> makeSampler(const SamplerDesc& desc) = 0;
     virtual rcp<ShaderModule> makeShaderModule(
         const ShaderModuleDesc& desc) = 0;
@@ -105,6 +158,10 @@ public:
     virtual std::unique_ptr<RenderPass> beginRenderPass(
         const RenderPassDesc& desc,
         std::string* outError = nullptr) = 0;
+
+    // Receives a desc whose ranges are already checked and non-zero.
+    virtual rcp<TextureView> makeTextureViewImpl(
+        const TextureViewDesc& desc) = 0;
 
     struct FrameDescriptor
     {

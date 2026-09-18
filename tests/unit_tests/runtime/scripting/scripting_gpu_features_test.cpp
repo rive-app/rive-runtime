@@ -45,7 +45,8 @@ public:
     {
         return nullptr;
     }
-    rcp<ore::TextureView> makeTextureView(const ore::TextureViewDesc&) override
+    rcp<ore::TextureView> makeTextureViewImpl(
+        const ore::TextureViewDesc&) override
     {
         return nullptr;
     }

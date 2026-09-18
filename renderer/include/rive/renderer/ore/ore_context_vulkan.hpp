@@ -90,7 +90,7 @@ public:
 
     rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
     rcp<Texture> makeTexture(const TextureDesc& desc) override;
-    rcp<TextureView> makeTextureView(const TextureViewDesc& desc) override;
+    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
     rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
     rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
     rcp<BindGroupLayout> makeBindGroupLayout(
@@ -190,8 +190,7 @@ private:
     struct VkPendingImageTransition
     {
         rcp<Texture> texture;
-        VkImageAspectFlags aspectMask;
-        VkImageLayout oldLayout;
+        VkImageSubresourceRange range;
         VkImageLayout newLayout;
     };
     std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
@@ -205,9 +204,11 @@ private:
     // `newLayout` (typically SHADER_READ_ONLY_OPTIMAL for sampled use).
     // No-op when the texture is already in the target layout.  Safe to
     // call outside any active render pass; the transition is emitted by
-    // the next vkFlushPendingInitialTransitions().
+    // the next vkFlushPendingInitialTransitions(). m_vkLayout is tracked
+    // per image, so a range narrower than the whole image is only for a
+    // pass attachment, which finish() moves back with the same range.
     void vkQueueTransitionToLayout(Texture* texture,
-                                   VkImageAspectFlags aspectMask,
+                                   const VkImageSubresourceRange& range,
                                    VkImageLayout newLayout);
 
     // Deferred texture uploads: upload() can be called with no recording

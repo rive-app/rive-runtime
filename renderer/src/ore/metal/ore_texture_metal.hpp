@@ -11,7 +11,7 @@ class TextureMetal : public LITE_RTTI_OVERRIDE(Texture, TextureMetal)
 public:
     TextureMetal(const TextureDesc& desc) : lite_rtti_override(desc) {}
     ~TextureMetal() override = default; // ARC releases m_mtlTexture
-    void upload(const TextureDataDesc& data) override;
+    void uploadImpl(const TextureDataDesc& data) override;
     id<MTLTexture> mtlTexture() const { return m_mtlTexture; }
 
 private:

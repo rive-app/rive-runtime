@@ -64,7 +64,7 @@ public:
         }
     }
     uint32_t handle() const { return m_handle; }
-    void upload(const ore::TextureDataDesc& data) override
+    void uploadImpl(const ore::TextureDataDesc& data) override
     {
         rive_gpu_texture_upload_v1 region;
         region.bytesPerRow = data.bytesPerRow;
@@ -387,7 +387,7 @@ public:
         return make_rcp<ModuleOreTexture>(handle, desc);
     }
 
-    rcp<ore::TextureView> makeTextureView(
+    rcp<ore::TextureView> makeTextureViewImpl(
         const ore::TextureViewDesc& desc) override
     {
         auto* texture = static_cast<ModuleOreTexture*>(desc.texture);

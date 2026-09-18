@@ -265,8 +265,7 @@ inline void recordTextureUpload(OreCommandBuffer& cb,
                                 ResourceHandle handle,
                                 const TextureDataDesc& desc)
 {
-    uint32_t rows = desc.rowsPerImage ? desc.rowsPerImage : desc.height;
-    uint32_t size = desc.bytesPerRow * rows;
+    uint32_t size = desc.bytesPerRow * desc.rowsPerImage * desc.depth;
     TextureUploadPOD pod{};
     pod.handle = handle;
     pod.bytesPerRow = desc.bytesPerRow;

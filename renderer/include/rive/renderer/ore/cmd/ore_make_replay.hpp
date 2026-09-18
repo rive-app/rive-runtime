@@ -473,6 +473,7 @@ inline bool replayOreLifecycle(Context& ctx,
             Span<const uint8_t> b = blob(pod.bytes);
             TextureDataDesc d{};
             d.data = b.empty() ? nullptr : b.data();
+            d.dataSize = static_cast<uint32_t>(b.size());
             d.bytesPerRow = pod.bytesPerRow;
             d.rowsPerImage = pod.rowsPerImage;
             d.mipLevel = pod.mipLevel;

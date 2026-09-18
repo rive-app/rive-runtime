@@ -12,7 +12,7 @@ class TextureD3D11 : public LITE_RTTI_OVERRIDE(Texture, TextureD3D11)
 public:
     TextureD3D11(const TextureDesc& desc) : lite_rtti_override(desc) {}
     ~TextureD3D11() override = default; // ComPtr released automatically
-    void upload(const TextureDataDesc& data) override;
+    void uploadImpl(const TextureDataDesc& data) override;
 
 private:
     friend class ContextD3D11;

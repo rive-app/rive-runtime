@@ -11,7 +11,7 @@ class TextureWGPU : public LITE_RTTI_OVERRIDE(Texture, TextureWGPU)
 public:
     TextureWGPU(const TextureDesc& desc) : lite_rtti_override(desc) {}
     ~TextureWGPU() override = default; // wgpu::Texture RAII destructor releases
-    void upload(const TextureDataDesc& data) override;
+    void uploadImpl(const TextureDataDesc& data) override;
 
 private:
     friend class ContextWGPU;

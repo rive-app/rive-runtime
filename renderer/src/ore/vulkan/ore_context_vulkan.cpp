@@ -394,9 +394,17 @@ LoadOp ContextVulkan::firstUseLoadOp(TextureView* view, LoadOp loadOp)
     return loadOp == LoadOp::load && !written ? LoadOp::clear : loadOp;
 }
 
-void ContextVulkan::vkQueueTransitionToLayout(Texture* texture,
-                                              VkImageAspectFlags aspectMask,
-                                              VkImageLayout newLayout)
+static bool sameRange(const VkImageSubresourceRange& a,
+                      const VkImageSubresourceRange& b)
+{
+    return a.baseMipLevel == b.baseMipLevel && a.levelCount == b.levelCount &&
+           a.baseArrayLayer == b.baseArrayLayer && a.layerCount == b.layerCount;
+}
+
+void ContextVulkan::vkQueueTransitionToLayout(
+    Texture* texture,
+    const VkImageSubresourceRange& range,
+    VkImageLayout newLayout)
 {
     if (texture == nullptr)
         return;
@@ -405,22 +413,19 @@ void ContextVulkan::vkQueueTransitionToLayout(Texture* texture,
         return;
     if (vkTex->m_vkLayout == newLayout)
         return;
-    // De-dup against an existing pending entry for the same texture.
+    // De-dup against an existing pending entry for the same subresources.
     for (auto& existing : m_vkPendingInitialTransitions)
     {
-        if (existing.texture.get() == texture)
+        if (existing.texture.get() == texture &&
+            sameRange(existing.range, range))
         {
-            existing.aspectMask |= aspectMask;
+            existing.range.aspectMask |= range.aspectMask;
             existing.newLayout = newLayout;
             return;
         }
     }
-    m_vkPendingInitialTransitions.push_back({
-        ref_rcp(texture),
-        aspectMask,
-        vkTex->m_vkLayout,
-        newLayout,
-    });
+    m_vkPendingInitialTransitions.push_back(
+        {ref_rcp(texture), range, newLayout});
 }
 
 // Stage flags + access masks compatible with `layout`. Mirrors Dawn's
@@ -477,13 +482,15 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
     barriers.reserve(m_vkPendingInitialTransitions.size());
     VkPipelineStageFlags srcStageAcc = 0;
     VkPipelineStageFlags dstStageAcc = 0;
+    // Every entry in a batch leaves the layout the texture had before it, so
+    // the tracker only moves after the loop.
     for (const auto& pt : m_vkPendingInitialTransitions)
     {
         auto* vkTex = lite_rtti_cast<TextureVulkan*>(pt.texture.get());
         if (vkTex == nullptr)
             continue;
-        // Re-check current layout; an earlier batch entry or same-frame
-        // upload may have moved the texture since this was queued.
+        // Re-check current layout; a same-frame upload may have moved the
+        // texture since this was queued.
         if (vkTex->m_vkLayout == pt.newLayout)
             continue;
 
@@ -505,13 +512,13 @@ void ContextVulkan::vkFlushPendingInitialTransitions()
         b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         b.image = vkTex->m_vkImage;
-        b.subresourceRange.aspectMask = pt.aspectMask;
-        b.subresourceRange.baseMipLevel = 0;
-        b.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
-        b.subresourceRange.baseArrayLayer = 0;
-        b.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+        b.subresourceRange = pt.range;
         barriers.push_back(b);
-        vkTex->m_vkLayout = pt.newLayout;
+    }
+    for (const auto& pt : m_vkPendingInitialTransitions)
+    {
+        if (auto* vkTex = lite_rtti_cast<TextureVulkan*>(pt.texture.get()))
+            vkTex->m_vkLayout = pt.newLayout;
     }
     if (!barriers.empty())
     {
@@ -993,12 +1000,11 @@ rcp<Texture> ContextVulkan::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextVulkan::makeTextureViewImpl(const TextureViewDesc& desc)
 {
     TextureVulkan* tex = lite_rtti_cast<TextureVulkan*>(desc.texture);
     if (!tex)
         return nullptr;
-
     auto view = rcp<TextureViewVulkan>(
         new TextureViewVulkan(m_manager, ref_rcp(tex), desc));
     view->m_vkDevice = m_vk->device;
@@ -1049,13 +1055,18 @@ rcp<TextureView> ContextVulkan::makeTextureView(const TextureViewDesc& desc)
     viewCI.format = vkFormatFor(tex->format());
     viewCI.subresourceRange.aspectMask = aspectMask;
     viewCI.subresourceRange.baseMipLevel = desc.baseMipLevel;
-    viewCI.subresourceRange.levelCount =
-        desc.mipCount > 0 ? desc.mipCount : VK_REMAINING_MIP_LEVELS;
+    viewCI.subresourceRange.levelCount = desc.mipCount;
     viewCI.subresourceRange.baseArrayLayer = desc.baseLayer;
-    viewCI.subresourceRange.layerCount =
-        desc.layerCount > 0 ? desc.layerCount : VK_REMAINING_ARRAY_LAYERS;
+    viewCI.subresourceRange.layerCount = desc.layerCount;
 
-    m_vk->CreateImageView(m_vk->device, &viewCI, nullptr, &view->m_vkImageView);
+    if (m_vk->CreateImageView(m_vk->device,
+                              &viewCI,
+                              nullptr,
+                              &view->m_vkImageView) != VK_SUCCESS)
+    {
+        setLastError("makeTextureView: vkCreateImageView failed");
+        return nullptr;
+    }
     view->m_vkDestroyImageView = m_vk->DestroyImageView;
 
     return view;
@@ -1335,9 +1346,10 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
                                                 ? VK_IMAGE_ASPECT_STENCIL_BIT
                                                 : 0))
                                         : VK_IMAGE_ASPECT_COLOR_BIT;
-        vkQueueTransitionToLayout(baseTex,
-                                  aspect,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        vkQueueTransitionToLayout(
+            baseTex,
+            {aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS},
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         auto view = lite_rtti_cast<TextureViewVulkan*>(tex.view);
         assert(view != nullptr);
@@ -1438,22 +1450,24 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
                 resolveTex->vkMarkWritten(resolveView->baseMipLevel(),
                                           resolveView->baseLayer());
             }
-            resolve.baseMip = resolveView->baseMipLevel();
-            resolve.baseLayer = resolveView->baseLayer();
-            resolve.layerCount = resolveView->layerCount();
+            resolve.range =
+                resolveView->vkAttachmentRange(VK_IMAGE_ASPECT_COLOR_BIT);
             resolve.renderTarget = resolveView->m_vkRenderTarget;
         }
         if (key.sampleCount == 1)
             key.sampleCount = tex->sampleCount();
-        passWidth = tex->width();
-        passHeight = tex->height();
         auto view = lite_rtti_cast<TextureViewVulkan*>(ca.view);
+        if (i == 0)
+        {
+            passWidth = view->width();
+            passHeight = view->height();
+        }
         attachViews[attachCount++] = view->m_vkImageView;
         // Store image handle, layer range, and render target back-ref for
         // finish().
         pass->m_vkColorImages[i] = tex->m_vkImage;
-        pass->m_vkColorBaseLayer[i] = view->baseLayer();
-        pass->m_vkColorLayerCount[i] = view->layerCount();
+        pass->m_vkColorRanges[i] =
+            view->vkAttachmentRange(VK_IMAGE_ASPECT_COLOR_BIT);
         pass->m_vkColorRenderTargets[i] = view->m_vkRenderTarget;
         pass->m_vkColorTextures[i] = ref_rcp(tex);
         // loadOp=load requires COLOR_ATTACHMENT_OPTIMAL before the pass;
@@ -1461,7 +1475,7 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         if (key.colorLoadOps[i] == LoadOp::load)
         {
             vkQueueTransitionToLayout(tex,
-                                      VK_IMAGE_ASPECT_COLOR_BIT,
+                                      pass->m_vkColorRanges[i],
                                       VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         }
     }
@@ -1492,26 +1506,25 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
         attachViews[attachCount++] = view->m_vkImageView;
         // Store depth image handle and layer range for finish() barrier.
         pass->m_vkDepthImage = dsTex->m_vkImage;
-        pass->m_vkDepthBaseLayer = view->baseLayer();
-        pass->m_vkDepthLayerCount = view->layerCount();
+        // Strict drivers fault on a barrier that omits a present stencil.
+        pass->m_vkDepthRange = view->vkAttachmentRange(
+            VK_IMAGE_ASPECT_DEPTH_BIT |
+            (hasStencilLocal(dsTex->format()) ? VK_IMAGE_ASPECT_STENCIL_BIT
+                                              : 0));
         pass->m_vkDepthTexture = ref_rcp(dsTex);
         // Same loadOp=load pre-transition as colors.
         if (key.depthLoadOp == LoadOp::load)
         {
-            VkImageAspectFlags aspect =
-                VK_IMAGE_ASPECT_DEPTH_BIT |
-                (hasStencilLocal(dsTex->format()) ? VK_IMAGE_ASPECT_STENCIL_BIT
-                                                  : 0);
             vkQueueTransitionToLayout(
                 dsTex,
-                aspect,
+                pass->m_vkDepthRange,
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
         }
         // Depth-only pass: no color attachments contributed dimensions.
         if (passWidth == 0)
         {
-            passWidth = dsTex->width();
-            passHeight = dsTex->height();
+            passWidth = view->width();
+            passHeight = view->height();
         }
     }
 

@@ -1286,13 +1286,13 @@ std::unique_ptr<RenderPass> ContextD3D11::d3d11BeginRenderPass(
         uint32_t w = 0, h = 0;
         if (desc.colorCount > 0 && desc.colorAttachments[0].view)
         {
-            w = desc.colorAttachments[0].view->texture()->width();
-            h = desc.colorAttachments[0].view->texture()->height();
+            w = desc.colorAttachments[0].view->width();
+            h = desc.colorAttachments[0].view->height();
         }
         else if (desc.depthStencil.view)
         {
-            w = desc.depthStencil.view->texture()->width();
-            h = desc.depthStencil.view->texture()->height();
+            w = desc.depthStencil.view->width();
+            h = desc.depthStencil.view->height();
         }
         if (w > 0 && h > 0)
         {
@@ -1562,7 +1562,7 @@ rcp<Texture> ContextD3D11::makeTexture(const TextureDesc& desc)
     return d3d11MakeTexture(desc);
 }
 
-rcp<TextureView> ContextD3D11::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextD3D11::makeTextureViewImpl(const TextureViewDesc& desc)
 {
     return d3d11MakeTextureView(desc);
 }

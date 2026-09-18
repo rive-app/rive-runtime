@@ -1470,7 +1470,7 @@ public:
     {
         return nullptr;
     }
-    rive::rcp<rive::ore::TextureView> makeTextureView(
+    rive::rcp<rive::ore::TextureView> makeTextureViewImpl(
         const rive::ore::TextureViewDesc&) override
     {
         return nullptr;

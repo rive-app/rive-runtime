@@ -65,127 +65,22 @@ bool TextureVulkan::vkMarkWritten(uint32_t mip, uint32_t layer)
     return wasWritten;
 }
 
-void TextureVulkan::upload(const TextureDataDesc& data)
+void TextureVulkan::uploadImpl(const TextureDataDesc& data)
 {
     // Stage CPU-side, queue for the next host CB. Callers may run with
     // no recording CB (verify hooks, scripted shader setup).
     assert(m_vkOreContext != nullptr);
     assert(m_vkImage != VK_NULL_HANDLE);
-    if (data.data == nullptr)
-    {
-        m_vkOreContext->setLastError("upload: data is null");
-        return;
-    }
-
     const uint32_t bptVK = textureFormatBytesPerTexel(m_format);
-    // mipLevel must index a declared level.
-    if (data.mipLevel >= m_numMipmaps)
-    {
-        m_vkOreContext->setLastError("upload: mipLevel (%u) >= numMipmaps (%u)",
-                                     data.mipLevel,
-                                     m_numMipmaps);
-        return;
-    }
-    // layer must index a declared slice (1 for non-array/non-cube).
-    if (data.layer >= m_depthOrArrayLayers)
-    {
-        m_vkOreContext->setLastError(
-            "upload: layer (%u) >= depthOrArrayLayers (%u)",
-            data.layer,
-            m_depthOrArrayLayers);
-        return;
-    }
-    // Mip-adjusted extents (Vulkan-spec floor(max(1, dim >> mipLevel))).
-    const uint32_t mipWidth =
-        (m_width >> data.mipLevel) > 0 ? (m_width >> data.mipLevel) : 1u;
-    const uint32_t mipHeight =
-        (m_height >> data.mipLevel) > 0 ? (m_height >> data.mipLevel) : 1u;
-    const uint32_t width = data.width > 0 ? data.width : mipWidth;
-    const uint32_t height = data.height > 0 ? data.height : mipHeight;
-    // imageExtent.depth is the copy's z-extent. The array slice is chosen via
-    // baseArrayLayer with layerCount 1, so only true 3D textures carry depth
-    // greater than 1. Defaulting to m_depthOrArrayLayers would set depth to the
-    // array count for array2D/cube and over-read the staging source.
-    const uint32_t maxDepth =
-        m_type == TextureType::texture3D ? m_depthOrArrayLayers : 1u;
-    const uint32_t depth = data.depth > 0 ? data.depth : maxDepth;
-    // Region must fit within the mip's extent. 64-bit so a large x/y offset
-    // can't wrap past the guard.
-    if (static_cast<uint64_t>(data.x) + width > mipWidth ||
-        static_cast<uint64_t>(data.y) + height > mipHeight)
-    {
-        m_vkOreContext->setLastError(
-            "upload: region (x=%u y=%u w=%u h=%u) out of bounds for "
-            "mip %u (%ux%u)",
-            data.x,
-            data.y,
-            width,
-            height,
-            data.mipLevel,
-            mipWidth,
-            mipHeight);
-        return;
-    }
-    // z-slice must fit the texture depth (1 for everything but 3D).
-    if (static_cast<uint64_t>(data.z) + depth > maxDepth)
-    {
-        m_vkOreContext->setLastError(
-            "upload: z-region (z=%u depth=%u) out of bounds (maxDepth=%u)",
-            data.z,
-            depth,
-            maxDepth);
-        return;
-    }
-    // bytesPerTexel == 0 means a block-compressed format. We don't have
-    // a block-size-aware path for bufferRowLength yet, so reject upfront.
+    // No block-size-aware path for bufferRowLength yet.
     if (bptVK == 0)
     {
         m_vkOreContext->setLastError(
             "upload: block-compressed formats not yet supported");
         return;
     }
-    // Uncompressed: bytesPerRow must be a whole number of texels and
-    // cover at least width texels so bufferRowLength can encode the
-    // caller pitch and the GPU read stays inside the staging buffer.
-    if (data.bytesPerRow != 0 && (data.bytesPerRow % bptVK) != 0)
-    {
-        m_vkOreContext->setLastError(
-            "upload: bytesPerRow (%u) must be a whole number of texels "
-            "(bytesPerTexel=%u)",
-            data.bytesPerRow,
-            bptVK);
-        return;
-    }
-    if (data.bytesPerRow != 0 &&
-        data.bytesPerRow < static_cast<uint64_t>(width) * bptVK)
-    {
-        m_vkOreContext->setLastError(
-            "upload: bytesPerRow (%u) < width * bytesPerTexel (%llu)",
-            data.bytesPerRow,
-            static_cast<unsigned long long>(static_cast<uint64_t>(width) *
-                                            bptVK));
-        return;
-    }
-    // rowsPerImage is the per-slice stride; 0 means "use height", otherwise
-    // it must cover at least height rows.
-    if (data.rowsPerImage > 0 && data.rowsPerImage < height)
-    {
-        m_vkOreContext->setLastError("upload: rowsPerImage (%u) < height (%u)",
-                                     data.rowsPerImage,
-                                     height);
-        return;
-    }
-    // Derive row/total sizes in 64-bit so the tightly-packed fallback
-    // (width * bptVK) and the total can't wrap before the uint32_t guard.
-    // bytesPerRow == 0 means tightly packed.
-    const uint64_t bytesPerRow64 = data.bytesPerRow != 0
-                                       ? static_cast<uint64_t>(data.bytesPerRow)
-                                       : static_cast<uint64_t>(width) * bptVK;
-    const uint32_t rowsPerImage =
-        data.rowsPerImage > 0 ? data.rowsPerImage : height;
-    const VkDeviceSize uploadSize = bytesPerRow64 *
-                                    static_cast<uint64_t>(rowsPerImage) *
-                                    static_cast<uint64_t>(depth);
+    const VkDeviceSize uploadSize = static_cast<uint64_t>(data.bytesPerRow) *
+                                    data.rowsPerImage * data.depth;
     // BufferVulkan size is uint32_t; refuse larger uploads rather than
     // silently truncating the staging copy.
     if (uploadSize > UINT32_MAX)
@@ -230,14 +125,10 @@ void TextureVulkan::upload(const TextureDataDesc& data)
 
     stagingBuffer->update(data.data, static_cast<uint32_t>(uploadSize), 0);
 
-    // bufferRowLength / bufferImageHeight are in texels; 0 means tightly
-    // packed at imageExtent. Honour caller pitch when present. Upstream
-    // guards make the div-by-bptVK safe. The `ore_array_upload` GM locks
-    // this — without it the GL backend silently strides wrong.
+    // bufferRowLength and bufferImageHeight are in texels.
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
-    region.bufferRowLength =
-        data.bytesPerRow != 0 ? data.bytesPerRow / bptVK : 0;
+    region.bufferRowLength = data.bytesPerRow / bptVK;
     region.bufferImageHeight = data.rowsPerImage;
     region.imageSubresource.aspectMask = aspectMask(m_format);
     region.imageSubresource.mipLevel = data.mipLevel;
@@ -246,7 +137,7 @@ void TextureVulkan::upload(const TextureDataDesc& data)
     region.imageOffset = {static_cast<int32_t>(data.x),
                           static_cast<int32_t>(data.y),
                           static_cast<int32_t>(data.z)};
-    region.imageExtent = {width, height, depth};
+    region.imageExtent = {data.width, data.height, data.depth};
 
     vkMarkWritten(data.mipLevel, data.layer);
     m_vkOreContext->vkQueuePendingTextureUpload({

@@ -88,7 +88,7 @@ public:
                                          desc);
     }
 
-    rcp<TextureView> makeTextureView(const TextureViewDesc& desc) override
+    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override
     {
         auto a = m_ids.alloc();
         recordMakeTextureView(m_render,

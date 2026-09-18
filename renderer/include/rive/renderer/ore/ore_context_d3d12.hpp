@@ -27,7 +27,7 @@ public:
 
     rcp<Buffer> makeBuffer(const BufferDesc& desc) override;
     rcp<Texture> makeTexture(const TextureDesc& desc) override;
-    rcp<TextureView> makeTextureView(const TextureViewDesc& desc) override;
+    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc& desc) override;
     rcp<Sampler> makeSampler(const SamplerDesc& desc) override;
     rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override;
     rcp<BindGroupLayout> makeBindGroupLayout(

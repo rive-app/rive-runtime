@@ -629,7 +629,7 @@ rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> ContextGL::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextGL::makeTextureViewImpl(const TextureViewDesc& desc)
 {
     Texture* tex = desc.texture;
     if (!tex)
@@ -1316,13 +1316,13 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     uint32_t defaultW = 0, defaultH = 0;
     if (desc.colorCount > 0 && desc.colorAttachments[0].view)
     {
-        defaultW = desc.colorAttachments[0].view->texture()->width();
-        defaultH = desc.colorAttachments[0].view->texture()->height();
+        defaultW = desc.colorAttachments[0].view->width();
+        defaultH = desc.colorAttachments[0].view->height();
     }
     else if (desc.depthStencil.view)
     {
-        defaultW = desc.depthStencil.view->texture()->width();
-        defaultH = desc.depthStencil.view->texture()->height();
+        defaultW = desc.depthStencil.view->width();
+        defaultH = desc.depthStencil.view->height();
     }
     if (defaultW > 0 && defaultH > 0)
     {

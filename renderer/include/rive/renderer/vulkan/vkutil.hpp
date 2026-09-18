@@ -39,7 +39,8 @@ const char* string_from_vk_result(VkResult);
 // Prints a diagnostic if 'res' is a failure; returns whether it succeeded.
 inline static bool vkReportError(VkResult res, const char* file, int line)
 {
-    if (res != VK_SUCCESS)
+    // Positive codes such as VK_SUBOPTIMAL_KHR are successes.
+    if (res < 0)
     {
         fprintf(stderr,
                 "%s:%i: vulkan error: %s (%i)\n",

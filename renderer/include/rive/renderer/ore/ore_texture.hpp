@@ -7,6 +7,10 @@
 #include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <string>
 
 namespace rive::ore
 {
@@ -22,14 +26,33 @@ public:
     TextureFormat format() const { return m_format; }
     TextureType type() const { return m_type; }
     uint32_t numMipmaps() const { return m_numMipmaps; }
+    // Layers a view can span: the six cube faces, the array count, else one.
+    uint32_t arrayLayers() const
+    {
+        switch (m_type)
+        {
+            case TextureType::cube:
+                return 6;
+            case TextureType::array2D:
+                return m_depthOrArrayLayers;
+            default:
+                return 1;
+        }
+    }
     uint32_t sampleCount() const { return m_sampleCount; }
     bool isRenderTarget() const { return m_renderTarget; }
 
-    virtual void upload(const TextureDataDesc& data) = 0;
+    // Fills the zero fields of `data`, rejects a region outside the mip level
+    // or a buffer too small for it, and hands the result to the backend.
+    // Returns false with the reason in `outError` and uploads nothing.
+    bool upload(TextureDataDesc data, std::string* outError = nullptr);
 
     virtual ~Texture() = default;
 
 protected:
+    // Receives a desc whose fields are all filled and checked.
+    virtual void uploadImpl(const TextureDataDesc& data) = 0;
+
     friend class Context;
     friend class TextureView;
     friend class RenderPass;
@@ -80,6 +103,16 @@ public:
     uint32_t mipCount() const { return m_mipCount; }
     uint32_t baseLayer() const { return m_baseLayer; }
     uint32_t layerCount() const { return m_layerCount; }
+    // Extent of the base mip level, which is what a pass over this view
+    // renders into.
+    uint32_t width() const
+    {
+        return std::max(1u, m_texture->width() >> m_baseMipLevel);
+    }
+    uint32_t height() const
+    {
+        return std::max(1u, m_texture->height() >> m_baseMipLevel);
+    }
 
     virtual ~TextureView() = default;
 
@@ -119,5 +152,140 @@ protected:
     uint32_t m_baseLayer;
     uint32_t m_layerCount;
 };
+
+inline bool uploadFail(std::string* outError, const char* fmt, ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+inline bool uploadFail(std::string* outError, const char* fmt, ...)
+{
+    if (outError != nullptr)
+    {
+        va_list args;
+        va_start(args, fmt);
+        char buf[256];
+        vsnprintf(buf, sizeof(buf), fmt, args);
+        va_end(args);
+        *outError = buf;
+    }
+    return false;
+}
+
+inline bool Texture::upload(TextureDataDesc data, std::string* outError)
+{
+    if (data.data == nullptr)
+    {
+        return uploadFail(outError, "upload: data is null");
+    }
+    if (data.mipLevel >= m_numMipmaps)
+    {
+        return uploadFail(outError,
+                          "upload: mipLevel %u exceeds %u levels",
+                          data.mipLevel,
+                          m_numMipmaps);
+    }
+    uint32_t layers = arrayLayers();
+    if (data.layer >= layers)
+    {
+        return uploadFail(outError,
+                          "upload: layer %u exceeds %u layers",
+                          data.layer,
+                          layers);
+    }
+    uint32_t mipW = std::max(1u, m_width >> data.mipLevel);
+    uint32_t mipH = std::max(1u, m_height >> data.mipLevel);
+    uint32_t mipD = m_type == TextureType::texture3D
+                        ? std::max(1u, m_depthOrArrayLayers >> data.mipLevel)
+                        : 1u;
+    if (data.x >= mipW || data.y >= mipH || data.z >= mipD)
+    {
+        return uploadFail(
+            outError,
+            "upload: origin (%u, %u, %u) outside mip %u (%ux%ux%u)",
+            data.x,
+            data.y,
+            data.z,
+            data.mipLevel,
+            mipW,
+            mipH,
+            mipD);
+    }
+    if (data.width == 0)
+    {
+        data.width = mipW - data.x;
+    }
+    if (data.height == 0)
+    {
+        data.height = mipH - data.y;
+    }
+    if (data.depth == 0)
+    {
+        data.depth = mipD - data.z;
+    }
+    if (data.width > mipW - data.x || data.height > mipH - data.y ||
+        data.depth > mipD - data.z)
+    {
+        return uploadFail(
+            outError,
+            "upload: region %ux%ux%u at (%u, %u, %u) exceeds mip %u "
+            "(%ux%ux%u)",
+            data.width,
+            data.height,
+            data.depth,
+            data.x,
+            data.y,
+            data.z,
+            data.mipLevel,
+            mipW,
+            mipH,
+            mipD);
+    }
+    uint32_t bpt = textureFormatBytesPerTexel(m_format);
+    if (data.bytesPerRow == 0)
+    {
+        if (bpt == 0)
+        {
+            return uploadFail(
+                outError,
+                "upload: bytesPerRow is required for block compressed "
+                "formats");
+        }
+        data.bytesPerRow = data.width * bpt;
+    }
+    else if (bpt != 0 && (data.bytesPerRow % bpt != 0 ||
+                          data.bytesPerRow < uint64_t(data.width) * bpt))
+    {
+        return uploadFail(
+            outError,
+            "upload: bytesPerRow %u does not cover %u texels of %u "
+            "bytes",
+            data.bytesPerRow,
+            data.width,
+            bpt);
+    }
+    if (data.rowsPerImage == 0)
+    {
+        data.rowsPerImage = data.height;
+    }
+    else if (data.rowsPerImage < data.height)
+    {
+        return uploadFail(outError,
+                          "upload: rowsPerImage %u is less than height %u",
+                          data.rowsPerImage,
+                          data.height);
+    }
+    uint64_t required =
+        uint64_t(data.bytesPerRow) * data.rowsPerImage * data.depth;
+    if (data.dataSize != 0 && data.dataSize < required)
+    {
+        return uploadFail(outError,
+                          "upload: data is %u bytes but the region needs %llu",
+                          data.dataSize,
+                          static_cast<unsigned long long>(required));
+    }
+    uploadImpl(data);
+    return true;
+}
 
 } // namespace rive::ore

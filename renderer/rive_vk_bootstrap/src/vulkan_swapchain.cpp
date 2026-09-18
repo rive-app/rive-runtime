@@ -240,6 +240,13 @@ std::optional<VkPresentModeKHR> VulkanSwapchain::tryFindBestPresentMode(
     return std::nullopt;
 }
 
+// Positive codes such as VK_SUBOPTIMAL_KHR still acquired or presented, so
+// only a failure stops the frame; the code itself is returned to the caller.
+static VkResult failureOnly(VkResult result)
+{
+    return result < 0 ? result : VK_SUCCESS;
+}
+
 bool VulkanSwapchain::isFrameStarted() const
 {
     return m_currentImageIndex < m_swapchainImages.size();
@@ -257,15 +264,16 @@ VkResult VulkanSwapchain::beginFrame()
 
     // Next, acquire the next image from the swap chain, and signal the
     static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
+    VkResult acquired = m_vkAcquireNextImageKHR(vkDevice(),
+                                                m_swapchain,
+                                                NO_TIMEOUT,
+                                                semaphoreToSignal,
+                                                VK_NULL_HANDLE,
+                                                &m_currentImageIndex);
     VK_RETURN_RESULT_ON_ERROR_MSG(
-        m_vkAcquireNextImageKHR(vkDevice(),
-                                m_swapchain,
-                                NO_TIMEOUT,
-                                semaphoreToSignal,
-                                VK_NULL_HANDLE,
-                                &m_currentImageIndex),
+        failureOnly(acquired),
         "Failed to acquire next Vulkan swapchain image");
-    return VK_SUCCESS;
+    return acquired;
 }
 
 void VulkanSwapchain::queueImageCopy(
@@ -315,13 +323,13 @@ VkResult VulkanSwapchain::endFrame(
         .pImageIndices = &m_currentImageIndex,
     };
 
-    VK_RETURN_RESULT_ON_ERROR_MSG(
-        m_vkQueuePresentKHR(graphicsQueue(), &presentInfo),
-        "Failed to queue Vulkan presentation");
+    VkResult presented = m_vkQueuePresentKHR(graphicsQueue(), &presentInfo);
+    VK_RETURN_RESULT_ON_ERROR_MSG(failureOnly(presented),
+                                  "Failed to queue Vulkan presentation");
 
     // This puts us in the !IsFrameStarted() state
     m_currentImageIndex = std::numeric_limits<uint32_t>::max();
-    return VK_SUCCESS;
+    return presented;
 }
 
 } // namespace rive_vkb

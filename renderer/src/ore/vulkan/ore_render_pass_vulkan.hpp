@@ -72,8 +72,7 @@ private:
     VkIndexType m_vkIndexType = VK_INDEX_TYPE_UINT16;
     uint32_t m_vkIndexOffset = 0;
     VkImage m_vkColorImages[4] = {};
-    uint32_t m_vkColorBaseLayer[4] = {};
-    uint32_t m_vkColorLayerCount[4] = {};
+    VkImageSubresourceRange m_vkColorRanges[4] = {};
     uint32_t m_vkColorCount = 0;
     gpu::RenderTargetVulkan* m_vkColorRenderTargets[4] = {}; // weak refs
     // Pin textures alive until finish() updates m_vkLayout post-pass.
@@ -83,17 +82,14 @@ private:
     struct ResolveTarget
     {
         VkImage image = VK_NULL_HANDLE;
-        uint32_t baseMip = 0;
-        uint32_t baseLayer = 0;
-        uint32_t layerCount = 1;
+        VkImageSubresourceRange range = {};
         gpu::RenderTargetVulkan* renderTarget = nullptr; // weak ref
         // Pins the texture alive until finish() updates m_vkLayout.
         rcp<Texture> texture;
     };
     ResolveTarget m_vkResolveTargets[4];
     VkImage m_vkDepthImage = VK_NULL_HANDLE;
-    uint32_t m_vkDepthBaseLayer = 0;
-    uint32_t m_vkDepthLayerCount = 1;
+    VkImageSubresourceRange m_vkDepthRange = {};
     rcp<Texture> m_vkDepthTexture;
     // Pass-state stencil ref; re-emitted on every setPipeline.
     uint32_t m_vkStencilRef = 0;

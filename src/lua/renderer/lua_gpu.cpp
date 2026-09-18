@@ -1112,8 +1112,8 @@ static int gputexture_view(lua_State* L)
 
     TextureViewDesc viewDesc;
     viewDesc.texture = self->texture.get();
-    viewDesc.mipCount = self->texture->numMipmaps();
-    viewDesc.layerCount = self->texture->depthOrArrayLayers();
+    viewDesc.mipCount = 0;
+    viewDesc.layerCount = 0;
 
     // Map TextureType -> TextureViewDimension
     switch (self->texture->type())
@@ -1149,14 +1149,11 @@ static int gputexture_view(lua_State* L)
         viewDesc.baseMipLevel = static_cast<uint32_t>(
             lua_getoptionalnumberfield(L, 2, "baseMipLevel", 0));
         viewDesc.mipCount = static_cast<uint32_t>(
-            lua_getoptionalnumberfield(L, 2, "mipCount", viewDesc.mipCount));
+            lua_getoptionalnumberfield(L, 2, "mipCount", 0));
         viewDesc.baseLayer = static_cast<uint32_t>(
             lua_getoptionalnumberfield(L, 2, "baseLayer", 0));
         viewDesc.layerCount = static_cast<uint32_t>(
-            lua_getoptionalnumberfield(L,
-                                       2,
-                                       "layerCount",
-                                       viewDesc.layerCount));
+            lua_getoptionalnumberfield(L, 2, "layerCount", 0));
     }
 
     auto* ctx = getOreContext(L);
@@ -1191,16 +1188,11 @@ static int gputexture_upload(lua_State* L)
 
     TextureDataDesc uploadDesc;
     uploadDesc.data = data;
+    uploadDesc.dataSize = static_cast<uint32_t>(len);
     uploadDesc.width = static_cast<uint32_t>(
-        lua_getoptionalnumberfield(L,
-                                   descIdx,
-                                   "width",
-                                   self->texture->width()));
+        lua_getoptionalnumberfield(L, descIdx, "width", 0));
     uploadDesc.height = static_cast<uint32_t>(
-        lua_getoptionalnumberfield(L,
-                                   descIdx,
-                                   "height",
-                                   self->texture->height()));
+        lua_getoptionalnumberfield(L, descIdx, "height", 0));
     uploadDesc.depth = static_cast<uint32_t>(
         lua_getoptionalnumberfield(L, descIdx, "depth", 1));
     uploadDesc.x =
@@ -1218,85 +1210,11 @@ static int gputexture_upload(lua_State* L)
     uploadDesc.rowsPerImage = static_cast<uint32_t>(
         lua_getoptionalnumberfield(L, descIdx, "rowsPerImage", 0));
 
-    // Validate region/level/layer against the texture's actual dimensions —
-    // out-of-range values trip backend asserts (Metal API Validation, D3D12
-    // GPU hangs, Vulkan validation). Per the
-    // `feedback_lua_gpu_misuse_validation` rule, surface as luaL_error.
-    if (uploadDesc.mipLevel >= self->texture->numMipmaps())
+    std::string error;
+    if (!self->texture->upload(uploadDesc, &error))
     {
-        luaL_error(L,
-                   "upload: mipLevel %u out of range [0, %u)",
-                   uploadDesc.mipLevel,
-                   self->texture->numMipmaps());
+        luaL_error(L, "%s", error.c_str());
     }
-    if (uploadDesc.layer >= self->texture->depthOrArrayLayers())
-    {
-        luaL_error(L,
-                   "upload: layer %u out of range [0, %u)",
-                   uploadDesc.layer,
-                   self->texture->depthOrArrayLayers());
-    }
-    // Mip-level dimensions: floor-div-by-2 per level, min 1.
-    uint32_t mipW = std::max(1u, self->texture->width() >> uploadDesc.mipLevel);
-    uint32_t mipH =
-        std::max(1u, self->texture->height() >> uploadDesc.mipLevel);
-    if (uploadDesc.x > mipW || uploadDesc.width > mipW - uploadDesc.x)
-    {
-        luaL_error(L,
-                   "upload: x+width (%u+%u) exceeds mip %u width %u",
-                   uploadDesc.x,
-                   uploadDesc.width,
-                   uploadDesc.mipLevel,
-                   mipW);
-    }
-    if (uploadDesc.y > mipH || uploadDesc.height > mipH - uploadDesc.y)
-    {
-        luaL_error(L,
-                   "upload: y+height (%u+%u) exceeds mip %u height %u",
-                   uploadDesc.y,
-                   uploadDesc.height,
-                   uploadDesc.mipLevel,
-                   mipH);
-    }
-
-    // Compute a tightly-packed bytesPerRow when the caller omits it.
-    if (uploadDesc.bytesPerRow == 0)
-    {
-        uint32_t bpt = textureFormatBytesPerTexel(self->texture->format());
-        if (bpt == 0)
-        {
-            luaL_error(L,
-                       "upload: bytesPerRow must be provided for "
-                       "block-compressed formats");
-        }
-        uploadDesc.bytesPerRow = uploadDesc.width * bpt;
-    }
-
-    // Default rowsPerImage to height so Metal's bytesPerImage is correct.
-    if (uploadDesc.rowsPerImage == 0)
-    {
-        uploadDesc.rowsPerImage = uploadDesc.height;
-    }
-
-    // Validate the data buffer is large enough to cover the region.
-    // GPUs read past the supplied bytes if we don't catch it here; on
-    // Metal the validation layer aborts, on others it's a silent OOB.
-    const uint64_t requiredBytes =
-        static_cast<uint64_t>(uploadDesc.bytesPerRow) *
-        uploadDesc.rowsPerImage * std::max(1u, uploadDesc.depth);
-    if (len < requiredBytes)
-    {
-        luaL_error(L,
-                   "upload: data buffer is %zu bytes but region requires "
-                   "%llu (bytesPerRow=%u * rowsPerImage=%u * depth=%u)",
-                   len,
-                   static_cast<unsigned long long>(requiredBytes),
-                   uploadDesc.bytesPerRow,
-                   uploadDesc.rowsPerImage,
-                   std::max(1u, uploadDesc.depth));
-    }
-
-    self->texture->upload(uploadDesc);
     return 0;
 }
 

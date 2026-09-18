@@ -221,7 +221,7 @@ public:
     {
         return nullptr;
     }
-    rive::rcp<TextureView> makeTextureView(const TextureViewDesc&) override
+    rive::rcp<TextureView> makeTextureViewImpl(const TextureViewDesc&) override
     {
         return nullptr;
     }

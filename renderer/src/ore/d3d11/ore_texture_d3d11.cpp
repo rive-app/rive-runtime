@@ -12,7 +12,7 @@ namespace rive::ore
 
 #if defined(ORE_BACKEND_D3D11)
 
-void TextureD3D11::upload(const TextureDataDesc& data)
+void TextureD3D11::uploadImpl(const TextureDataDesc& data)
 {
     assert(m_d3d11Context != nullptr);
     assert(m_d3d11Texture != nullptr);

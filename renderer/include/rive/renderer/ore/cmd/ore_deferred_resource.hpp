@@ -135,7 +135,7 @@ public:
     {}
 
     // Recorded, replayed on the real texture before the passes.
-    void upload(const TextureDataDesc& data) override
+    void uploadImpl(const TextureDataDesc& data) override
     {
         if (stream() != nullptr)
         {

@@ -30,7 +30,7 @@ public:
 
     rcp<Buffer> makeBuffer(const BufferDesc&) override { return nullptr; }
     rcp<Texture> makeTexture(const TextureDesc&) override { return nullptr; }
-    rcp<TextureView> makeTextureView(const TextureViewDesc&) override
+    rcp<TextureView> makeTextureViewImpl(const TextureViewDesc&) override
     {
         return nullptr;
     }

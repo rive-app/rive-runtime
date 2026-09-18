@@ -16,7 +16,7 @@ public:
         lite_rtti_override(std::move(manager), desc)
     {}
     ~TextureD3D12() override = default; // ComPtr released automatically
-    void upload(const TextureDataDesc& data) override;
+    void uploadImpl(const TextureDataDesc& data) override;
 
 private:
     friend class ContextD3D12;

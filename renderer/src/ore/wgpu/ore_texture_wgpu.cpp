@@ -19,7 +19,7 @@ using ShaderSourceWGSL = ShaderModuleWGSLDescriptor;
 namespace rive::ore
 {
 
-void TextureWGPU::upload(const TextureDataDesc& data)
+void TextureWGPU::uploadImpl(const TextureDataDesc& data)
 {
     assert(m_wgpuTexture != nullptr);
     assert(data.data != nullptr);
@@ -30,19 +30,10 @@ void TextureWGPU::upload(const TextureDataDesc& data)
     dst.origin = {data.x, data.y, data.layer};
     dst.aspect = wgpu::TextureAspect::All;
 
-    // Compute the actual row stride. If not provided, assume tightly packed.
-    // Block-compressed formats have no simple bytes-per-texel value, so callers
-    // must always supply bytesPerRow for them.
     constexpr uint32_t kDawnBytesPerRowAlignment = 256;
     uint32_t bpt = textureFormatBytesPerTexel(m_format);
-    assert((bpt != 0 || data.bytesPerRow != 0) &&
-           "bytesPerRow must be provided for block-compressed formats");
     uint32_t actualBytesPerRow = data.bytesPerRow;
-    if (actualBytesPerRow == 0)
-        actualBytesPerRow = data.width * bpt;
-
-    uint32_t rowsPerImage =
-        data.rowsPerImage > 0 ? data.rowsPerImage : data.height;
+    uint32_t rowsPerImage = data.rowsPerImage;
 
     // Dawn requires bytesPerRow to be a multiple of 256 when height > 1.
     // If the data is tightly packed and doesn't meet alignment, upload row by

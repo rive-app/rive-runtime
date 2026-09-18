@@ -1229,7 +1229,7 @@ rcp<Texture> ContextMetal::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> ContextMetal::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextMetal::makeTextureViewImpl(const TextureViewDesc& desc)
 {
     return mtlMakeTextureView(desc);
 }

@@ -585,7 +585,7 @@ rcp<Texture> ContextWGPU::makeTexture(const TextureDesc& desc)
 // makeTextureView
 // ============================================================================
 
-rcp<TextureView> ContextWGPU::makeTextureView(const TextureViewDesc& desc)
+rcp<TextureView> ContextWGPU::makeTextureViewImpl(const TextureViewDesc& desc)
 {
     auto tex = lite_rtti_cast<TextureWGPU*>(desc.texture);
     if (!tex)

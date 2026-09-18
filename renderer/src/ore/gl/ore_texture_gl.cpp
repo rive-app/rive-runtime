@@ -195,7 +195,7 @@ static bool isCompressedFormat(TextureFormat fmt)
 
 #if defined(ORE_BACKEND_GL)
 
-void TextureGL::upload(const TextureDataDesc& data)
+void TextureGL::uploadImpl(const TextureDataDesc& data)
 {
     assert(m_glTexture != 0);
     assert(data.data != nullptr);
@@ -212,9 +212,7 @@ void TextureGL::upload(const TextureDataDesc& data)
     if (isCompressedFormat(m_format))
     {
         const uint32_t imageSize =
-            data.bytesPerRow *
-            (data.rowsPerImage > 0 ? data.rowsPerImage : data.height) *
-            (data.depth > 0 ? data.depth : 1);
+            data.bytesPerRow * data.rowsPerImage * data.depth;
         if (m_glTarget == GL_TEXTURE_3D || m_glTarget == GL_TEXTURE_2D_ARRAY)
         {
             glCompressedTexSubImage3D(m_glTarget,

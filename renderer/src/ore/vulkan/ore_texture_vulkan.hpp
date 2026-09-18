@@ -19,7 +19,7 @@ public:
         lite_rtti_override(std::move(manager), desc)
     {}
     ~TextureVulkan() override;
-    void upload(const TextureDataDesc& data) override;
+    void uploadImpl(const TextureDataDesc& data) override;
 
 private:
     friend class ContextVulkan;
@@ -48,6 +48,12 @@ public:
         lite_rtti_override(std::move(manager), std::move(texture), desc)
     {}
     ~TextureViewVulkan() override;
+
+    // The level and layers a pass over this view renders into.
+    VkImageSubresourceRange vkAttachmentRange(VkImageAspectFlags aspect) const
+    {
+        return {aspect, baseMipLevel(), 1, baseLayer(), layerCount()};
+    }
 
 private:
     friend class ContextVulkan;
