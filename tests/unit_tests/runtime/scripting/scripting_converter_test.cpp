@@ -405,6 +405,58 @@ end
     }
 }
 
+// A converter script whose convert()/reverseConvert() returns something that
+// isn't a DataValue userdata (nil, a raw Lua number, a table, ...) must not
+// crash the runtime. lua_touserdata yields nullptr for those and the backend
+// used to call a virtual method straight through it.
+TEST_CASE("scripted converter returning a non DataValue does not crash",
+          "[scripting]")
+{
+    ScriptingTest vm(
+        R"(type BadConverter = {}
+
+function convert(self: BadConverter, input: any): any
+  -- Falls off the end: Luau returns nil.
+end
+
+function reverseConvert(self: BadConverter, input: any): any
+  -- Returns a plain Lua number rather than a DataValueNumber.
+  return 42
+end
+
+return function(): any
+  return {
+    convert = convert,
+    reverseConvert = reverseConvert,
+  }
+end
+)");
+
+    ScriptedDataConverter converter;
+    // Enable convert() (bit 10) and reverseConvert() (bit 11).
+    converter.implementedMethods((1 << 10) | (1 << 11));
+    REQUIRE(
+        converter.ensureScriptInitialized(vm.vm(), refTopFunction(vm.state())));
+
+    auto top = lua_gettop(vm.state());
+
+    DataValueNumber number(7);
+    auto forward = converter.convert(&number, nullptr);
+    REQUIRE(forward != nullptr);
+    // Nothing usable came back, so the converter yields an empty DataValue.
+    CHECK(!forward->is<DataValueNumber>());
+    CHECK(!forward->is<DataValueString>());
+
+    DataValueString text("9");
+    auto reverse = converter.reverseConvert(&text, nullptr);
+    REQUIRE(reverse != nullptr);
+    CHECK(!reverse->is<DataValueNumber>());
+    CHECK(!reverse->is<DataValueString>());
+
+    // The Lua stack must be left exactly as we found it.
+    CHECK(lua_gettop(vm.state()) == top);
+}
+
 TEST_CASE("scripted string converter", "[silver]")
 {
     rive::SerializingFactory silver;

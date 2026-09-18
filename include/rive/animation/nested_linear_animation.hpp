@@ -15,7 +15,9 @@ public:
     ~NestedLinearAnimation() override;
 
     void initializeAnimation(ArtboardInstance*) override;
-    void releaseDependencies() override {}
+    // Defined in the .cpp: LinearAnimationInstance is only forward declared
+    // here, so unique_ptr::reset cannot be instantiated inline.
+    void releaseDependencies() override;
     LinearAnimationInstance* animationInstance()
     {
         return m_AnimationInstance.get();

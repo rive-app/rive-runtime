@@ -333,3 +333,95 @@ TEST_CASE("Nested artboard needs advance", "[silver]")
 
     CHECK(silver.matches("nested_needs_advance"));
 }
+
+// Regression for the EXC_BAD_ACCESS in ~LinearAnimationInstance (Sentry
+// RIVE_NATIVE-11Q).
+//
+// ~NestedArtboard calls releaseDependencies() on every nested animation
+// precisely so their instances die before m_Instance — the mounted
+// ArtboardInstance — is freed at the end of that destructor. A
+// NestedLinearAnimation's LinearAnimationInstance is built against that mounted
+// instance, and ~LinearAnimationInstance dereferences it (removeDataBind for
+// the scripted-interpolator and data-bound-keyframe clones it parked on the
+// artboard). NestedLinearAnimation::releaseDependencies() used to be an empty
+// no-op, so the instance survived until the parent artboard deleted the
+// animation from its m_Objects — by which point the mounted artboard was freed
+// and the destructor read through a dangling pointer.
+TEST_CASE("nested linear animations release their animation instance",
+          "[nested]")
+{
+    auto file = ReadRiveFile("assets/joystick_nested_remap.riv");
+    auto artboard = file->artboardNamed("parent");
+    REQUIRE(artboard != nullptr);
+    artboard->advance(0.0f);
+
+    auto nestedArtboards = artboard->find<rive::NestedArtboard>();
+    REQUIRE(!nestedArtboards.empty());
+
+    size_t checked = 0;
+    for (auto* nested : nestedArtboards)
+    {
+        for (auto* animation : nested->nestedAnimations())
+        {
+            if (!animation->is<rive::NestedLinearAnimation>())
+            {
+                continue;
+            }
+            auto* linear = animation->as<rive::NestedLinearAnimation>();
+            // Built by NestedArtboard::nest() against the mounted instance.
+            REQUIRE(linear->animationInstance() != nullptr);
+
+            animation->releaseDependencies();
+
+            // Must be gone before ~NestedArtboard frees the artboard instance
+            // this LinearAnimationInstance points at.
+            CHECK(linear->animationInstance() == nullptr);
+            checked++;
+        }
+    }
+    // Guard the fixture itself: a file without nested linear animations would
+    // make the loop above vacuously pass.
+    REQUIRE(checked > 0);
+}
+
+// The same bug, reproduced rather than asserted: this fixture's mounted "child"
+// artboard has data-bound keyframe values, so applying its timeline through the
+// parent's remap animation makes the LinearAnimationInstance clone those binds
+// and park them on the mounted artboard. Those clones are exactly what
+// ~LinearAnimationInstance reaches back through m_artboardInstance to remove,
+// so destroying the parent exercises the ordering that used to read freed
+// memory. Before the fix this trips AddressSanitizer with a
+// heap-use-after-free.
+TEST_CASE("nested remap animation with data-bound keyframes tears down cleanly",
+          "[nested]")
+{
+    auto file = ReadRiveFile("assets/data_bound_keyframe_test.riv");
+    auto artboard = file->artboardNamed("parent");
+    REQUIRE(artboard != nullptr);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+
+    auto nestedArtboards = artboard->find<rive::NestedArtboard>();
+    REQUIRE(nestedArtboards.size() == 1);
+    auto* mounted = nestedArtboards[0]->artboardInstance();
+    REQUIRE(mounted != nullptr);
+    size_t bindsBeforeApply = mounted->dataBinds().size();
+
+    for (int i = 0; i < 4; i++)
+    {
+        stateMachine->advanceAndApply(0.1f);
+    }
+
+    // The keyframe value binds the destructor has to clean up are clones the
+    // instance appended to the mounted artboard. Without them the teardown
+    // below never dereferences m_artboardInstance and the test is vacuous.
+    REQUIRE(mounted->dataBinds().size() > bindsBeforeApply);
+
+    // ~NestedArtboard frees `mounted` here; the remap animation's
+    // LinearAnimationInstance must already be gone.
+    artboard.reset();
+}

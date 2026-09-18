@@ -483,6 +483,27 @@ public:
     static constexpr bool hasMetatable = true;
 };
 
+// Path and PathData carry separate tags but the same geometry, and scripts
+// legitimately return either, so both are accepted. Anything else is
+// nullptr, which callers handle as "no geometry" rather than dereference.
+inline ScriptedPathData* lua_topathdata(lua_State* L, int idx)
+{
+    void* data = lua_touserdata(L, idx);
+    if (data == nullptr)
+    {
+        return nullptr;
+    }
+    switch (lua_userdatatag(L, idx))
+    {
+        case ScriptedPath::luaTag:
+            return static_cast<ScriptedPath*>(data);
+        case ScriptedPathData::luaTag:
+            return static_cast<ScriptedPathData*>(data);
+        default:
+            return nullptr;
+    }
+}
+
 class ScriptedGradient
 {
 public:
@@ -1991,6 +2012,34 @@ public:
     static constexpr const char* luaName = "DataValueColor";
     bool isColor() override { return true; }
 };
+
+// ScriptedDataValue is an abstract base without a luaTag of its own, so it
+// can't go through lua_torive; match the tag against its concrete subclasses
+// instead. Anything that isn't one of them (nil, a raw Lua number, a table,
+// or some unrelated rive userdata) is nullptr, which callers must handle
+// rather than dereference. Script authors control the values this reads, so
+// a wrong type is expected input, not a programming error.
+inline ScriptedDataValue* lua_todatavalue(lua_State* L, int idx)
+{
+    void* data = lua_touserdata(L, idx);
+    if (data == nullptr)
+    {
+        return nullptr;
+    }
+    switch (lua_userdatatag(L, idx))
+    {
+        case ScriptedDataValueNumber::luaTag:
+            return static_cast<ScriptedDataValueNumber*>(data);
+        case ScriptedDataValueString::luaTag:
+            return static_cast<ScriptedDataValueString*>(data);
+        case ScriptedDataValueBoolean::luaTag:
+            return static_cast<ScriptedDataValueBoolean*>(data);
+        case ScriptedDataValueColor::luaTag:
+            return static_cast<ScriptedDataValueColor*>(data);
+        default:
+            return nullptr;
+    }
+}
 
 class ScriptedPointerEvent
 {

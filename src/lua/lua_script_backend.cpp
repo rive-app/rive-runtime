@@ -279,7 +279,14 @@ bool ScriptingVM::callPathEffectUpdate(ScriptedObject* object,
         return false;
     }
     // Stack: [self, outputPathData]
-    auto scriptedPath = (ScriptedPathData*)lua_touserdata(L, -1);
+    // update() is script-authored, so it can return anything; a non-PathData
+    // result means there's no geometry to contribute.
+    auto scriptedPath = lua_topathdata(L, -1);
+    if (scriptedPath == nullptr)
+    {
+        rive_lua_pop(L, 2);
+        return false;
+    }
     outPath->addPath(scriptedPath->rawPath);
     rive_lua_pop(L, 2);
     return true;
@@ -343,7 +350,17 @@ bool ScriptingVM::callDataConvert(ScriptedObject* object,
     if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 1)) ==
         LUA_OK)
     {
-        auto result = (ScriptedDataValue*)lua_touserdata(L, -1);
+        // The script decides what convert() hands back. Anything that isn't
+        // a DataValue (nil from a missing return, a raw Lua number, a table)
+        // leaves the result kind as none, so the caller sees an empty value
+        // instead of dereferencing null.
+        auto result = lua_todatavalue(L, -1);
+        if (result == nullptr)
+        {
+            // Stack: [self, result]
+            rive_lua_pop(L, 2);
+            return true;
+        }
         if (result->isNumber())
         {
             outResult->kind = ScriptDataResult::Kind::number;

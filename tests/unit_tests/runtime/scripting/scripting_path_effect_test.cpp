@@ -5,6 +5,7 @@
 #include "utils/serializing_factory.hpp"
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive_file_reader.hpp"
+#include "scripting_test_utilities.hpp"
 #include <cstdio>
 #include <catch.hpp>
 
@@ -56,4 +57,97 @@ TEST_CASE("A clip follows the path effect on its source's fill", "[silver]")
     }
 
     CHECK(silver.matches("scripted_path_effect_clip"));
+}
+
+// callPathEffectUpdate reads whatever update() returned off the Lua stack.
+// Scripts hand back either a Path or a PathData (separate tags, same
+// geometry), and anything else has to resolve to nullptr so the seam reports
+// "no geometry" instead of dereferencing a bad pointer.
+TEST_CASE("lua_topathdata accepts Path and PathData and rejects the rest",
+          "[scripting]")
+{
+    ScriptingTest vm("return function() return {} end");
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    RawPath source;
+    source.moveTo(0, 0);
+    source.lineTo(10, 0);
+
+    lua_newrive<ScriptedPathData>(L, &source);
+    CHECK(lua_topathdata(L, -1) != nullptr);
+    CHECK(lua_topathdata(L, -1)->rawPath.verbs().size() == 2);
+    lua_pop(L, 1);
+
+    lua_newrive<ScriptedPath>(L, &source);
+    CHECK(lua_topathdata(L, -1) != nullptr);
+    CHECK(lua_topathdata(L, -1)->rawPath.verbs().size() == 2);
+    lua_pop(L, 1);
+
+    // The shapes a script returns when it forgets to return geometry.
+    lua_pushnil(L);
+    CHECK(lua_topathdata(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 42);
+    CHECK(lua_topathdata(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    CHECK(lua_topathdata(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    // An unrelated rive userdata: non-null to lua_touserdata, but not a path.
+    lua_newrive<ScriptedDataValueNumber>(L, L, 1.0f);
+    CHECK(lua_touserdata(L, -1) != nullptr);
+    CHECK(lua_topathdata(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    CHECK(lua_gettop(L) == top);
+}
+
+// The mirror of the above for the data-converter seam.
+TEST_CASE("lua_todatavalue accepts the four DataValue kinds only",
+          "[scripting]")
+{
+    ScriptingTest vm("return function() return {} end");
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+
+    lua_newrive<ScriptedDataValueNumber>(L, L, 3.0f);
+    REQUIRE(lua_todatavalue(L, -1) != nullptr);
+    CHECK(lua_todatavalue(L, -1)->isNumber());
+    lua_pop(L, 1);
+
+    lua_newrive<ScriptedDataValueString>(L, L, "hi");
+    REQUIRE(lua_todatavalue(L, -1) != nullptr);
+    CHECK(lua_todatavalue(L, -1)->isString());
+    lua_pop(L, 1);
+
+    lua_newrive<ScriptedDataValueBoolean>(L, L, true);
+    REQUIRE(lua_todatavalue(L, -1) != nullptr);
+    CHECK(lua_todatavalue(L, -1)->isBoolean());
+    lua_pop(L, 1);
+
+    lua_newrive<ScriptedDataValueColor>(L, L, 0xFF00FF00);
+    REQUIRE(lua_todatavalue(L, -1) != nullptr);
+    CHECK(lua_todatavalue(L, -1)->isColor());
+    lua_pop(L, 1);
+
+    lua_pushnil(L);
+    CHECK(lua_todatavalue(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 42);
+    CHECK(lua_todatavalue(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    RawPath source;
+    source.moveTo(0, 0);
+    lua_newrive<ScriptedPathData>(L, &source);
+    CHECK(lua_touserdata(L, -1) != nullptr);
+    CHECK(lua_todatavalue(L, -1) == nullptr);
+    lua_pop(L, 1);
+
+    CHECK(lua_gettop(L) == top);
 }
