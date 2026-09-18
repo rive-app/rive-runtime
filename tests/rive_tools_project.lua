@@ -161,6 +161,11 @@ function rive_tools_project(name, project_kind)
         do
             links({ 'wamr' })
         end
+        -- wamr's Windows platform layer reaches past the CRT.
+        filter({ 'system:windows', 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with_rive_scripting' })
+        do
+            links({ 'ntdll', 'userenv', 'ws2_32', 'bcrypt' })
+        end
         -- Ladder and transplant tests speak the public wamr API directly.
         filter({ 'options:with_rive_scripting' })
         do

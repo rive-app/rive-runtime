@@ -251,6 +251,9 @@ ContextVulkan::~ContextVulkan()
 
     if (m_vkCommandPool != VK_NULL_HANDLE)
         m_vk->DestroyCommandPool(m_vk->device, m_vkCommandPool, nullptr);
+
+    for (TextureVulkan* tex : m_vkRiveWrapped)
+        tex->m_vkOreContext = nullptr;
 }
 
 // ============================================================================
@@ -334,25 +337,25 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     // Populate features from physical device properties.
     VkPhysicalDeviceProperties props{};
     ctx->m_vk->GetPhysicalDeviceProperties(ctx->m_vk->physicalDevice, &props);
-    VkPhysicalDeviceFeatures feat{};
-    ctx->m_vk->GetPhysicalDeviceFeatures(ctx->m_vk->physicalDevice, &feat);
+    // Only features the host enabled on the device, not what it supports.
+    const gpu::VulkanFeatures& enabled = ctx->m_vk->features;
 
     Features& f = ctx->m_features;
     f.colorBufferFloat = true; // All Vulkan 1.1+ support rgba16f attachments.
-    f.perTargetBlend = feat.independentBlend == VK_TRUE;
-    f.perTargetWriteMask = feat.independentBlend == VK_TRUE;
+    f.perTargetBlend = enabled.independentBlend;
+    f.perTargetWriteMask = enabled.independentBlend;
     f.textureViewSampling = true;
     f.drawBaseInstance = true;
-    f.depthBiasClamp = feat.depthBiasClamp == VK_TRUE;
-    f.anisotropicFiltering = feat.samplerAnisotropy == VK_TRUE;
+    f.depthBiasClamp = enabled.depthBiasClamp;
+    f.anisotropicFiltering = enabled.samplerAnisotropy;
     f.texture3D = true;
     f.textureArrays = true;
     f.computeShaders = true;
     f.storageBuffers = true;
     // Compressed format support via format properties.
-    f.bc = feat.textureCompressionBC == VK_TRUE;
-    f.etc2 = feat.textureCompressionETC2 == VK_TRUE;
-    f.astc = feat.textureCompressionASTC_LDR == VK_TRUE;
+    f.bc = enabled.textureCompressionBC;
+    f.etc2 = enabled.textureCompressionETC2;
+    f.astc = enabled.textureCompressionASTC_LDR;
     f.maxColorAttachments = props.limits.maxColorAttachments;
     f.maxTextureSize2D = props.limits.maxImageDimension2D;
     f.maxTextureSizeCube = props.limits.maxImageDimensionCube;
@@ -698,6 +701,16 @@ void ContextVulkan::beginFrame(const FrameDescriptor& desc)
     // Drain pre-frame deferred work onto the host's CB.
     vkFlushPendingTextureUploads();
     vkFlushPendingInitialTransitions();
+    vkSyncRiveTextures();
+}
+
+// Rive's own barrier helper no-ops once its tracker already says shader read.
+void ContextVulkan::vkSyncRiveTextures()
+{
+    for (TextureVulkan* tex : m_vkRiveWrapped)
+    {
+        tex->m_vkRiveTexture->prepareForFragmentShaderRead(m_vkCommandBuffer);
+    }
 }
 
 void ContextVulkan::waitForGPU() {}
@@ -1742,6 +1755,9 @@ rcp<TextureView> ContextVulkan::wrapRiveTexture(gpu::Texture* gpuTex,
     texture->m_vmaAllocation = VK_NULL_HANDLE; // Borrowed, not VMA-owned.
     texture->m_vkLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     texture->vkMarkWritten(0, 0);
+    texture->m_vkOreContext = this;
+    texture->m_vkRiveTexture = ref_rcp(vkTex);
+    m_vkRiveWrapped.push_back(texture.get());
 
     TextureViewDesc viewDesc{};
     viewDesc.texture = texture.get();

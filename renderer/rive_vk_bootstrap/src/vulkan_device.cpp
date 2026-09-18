@@ -119,8 +119,10 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
     VkPhysicalDeviceFeatures requestedFeatures = {
         .independentBlend =
             !opts.coreFeaturesOnly && supportedFeatures.independentBlend,
+        .depthBiasClamp = supportedFeatures.depthBiasClamp,
         // We use wireframe for debugging, so enable it even in core mode
         .fillModeNonSolid = supportedFeatures.fillModeNonSolid,
+        .samplerAnisotropy = supportedFeatures.samplerAnisotropy,
 
         // VkPhysicalDeviceFeatures field order: textureCompression* must
         // come before fragmentStoresAndAtomics (-Wreorder-init-list).
@@ -150,6 +152,8 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         .fragmentStoresAndAtomics =
             bool(requestedFeatures.fragmentStoresAndAtomics),
         .shaderClipDistance = bool(requestedFeatures.shaderClipDistance),
+        .samplerAnisotropy = bool(requestedFeatures.samplerAnisotropy),
+        .depthBiasClamp = bool(requestedFeatures.depthBiasClamp),
         .textureCompressionBC = bool(requestedFeatures.textureCompressionBC),
         .textureCompressionASTC_LDR =
             bool(requestedFeatures.textureCompressionASTC_LDR),

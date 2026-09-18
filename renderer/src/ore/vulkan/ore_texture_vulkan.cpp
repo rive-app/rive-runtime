@@ -3,6 +3,8 @@
  */
 
 #include "ore_texture_vulkan.hpp"
+
+#include <algorithm>
 #include "ore_buffer_vulkan.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 
@@ -150,6 +152,12 @@ void TextureVulkan::uploadImpl(const TextureDataDesc& data)
 
 TextureVulkan::~TextureVulkan()
 {
+    if (m_vkRiveTexture != nullptr && m_vkOreContext != nullptr)
+    {
+        auto& wrapped = m_vkOreContext->m_vkRiveWrapped;
+        wrapped.erase(std::remove(wrapped.begin(), wrapped.end(), this),
+                      wrapped.end());
+    }
     // Only destroy VMA-owned images (borrowed textures have
     // m_vmaAllocation==null).
     if (m_vkImage != VK_NULL_HANDLE && m_vmaAllocation != VK_NULL_HANDLE)

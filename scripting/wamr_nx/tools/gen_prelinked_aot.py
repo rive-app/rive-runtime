@@ -77,6 +77,16 @@ def extract_wasm_from_riv(data: bytes) -> bytes:
             break
         if section_id > 13 or j + size > len(data):
             break
+        # Trailing riv bytes can pass as a section; a custom section's
+        # name must fit and read as UTF-8, or the module ended already.
+        if section_id == 0:
+            try:
+                name_len, k = uleb(j)
+                data[k:k + name_len].decode("utf-8")
+            except (IndexError, UnicodeDecodeError):
+                break
+            if k + name_len > j + size:
+                break
         i = j + size
     return data[start:i]
 

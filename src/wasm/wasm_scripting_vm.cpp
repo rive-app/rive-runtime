@@ -87,6 +87,7 @@
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
@@ -592,6 +593,37 @@ void tzsetJs(wasm_exec_env_t env,
     _get_timezone(&west);
     _get_daylight(&observesDst);
     const char* names[2] = {_tzname[0], _tzname[1]};
+#elif defined(RIVE_NX)
+    // nnSdk's libc has no tz globals, so read the zone off January and July
+    // of this year, standard time being whichever sits further west.
+    long west = 0;
+    int observesDst = 0;
+    const char* names[2] = {"", ""};
+    time_t at;
+    struct tm probe[2];
+    if (localTime((double)time(nullptr), at, probe[0]))
+    {
+        int year = probe[0].tm_year;
+        int32_t offset[2];
+        bool ok = true;
+        for (int i = 0; i < 2 && ok; i++)
+        {
+            struct tm start{};
+            start.tm_year = year;
+            start.tm_mon = i * 6;
+            start.tm_mday = 1;
+            ok = localTime((double)timegm(&start), at, probe[i]);
+            offset[i] = utcOffsetOf(probe[i], at);
+        }
+        if (ok)
+        {
+            int std = offset[1] < offset[0] ? 1 : 0;
+            west = -offset[std];
+            observesDst = offset[0] != offset[1];
+            names[0] = probe[std].tm_zone;
+            names[1] = probe[observesDst ? 1 - std : std].tm_zone;
+        }
+    }
 #else
     tzset();
     long west = timezone;
@@ -1591,7 +1623,8 @@ uint32_t gpuCanvasImageImpl(WasmScriptingVM* vm, uint32_t canvasHandle)
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::image,
                               new HostImage{ref_rcp(static_cast<RenderImage*>(
-                                  host->canvas->renderImage()))});
+                                                host->canvas->renderImage())),
+                                            host->canvas});
 }
 
 uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm,
@@ -1759,11 +1792,25 @@ uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    // Same dispatch as Image:view() in the Luau binding: deferred images
-    // record by resource id, everything else wraps as a canvas image.
+    // Same dispatch as Image:view() in the Luau binding.
     rcp<ore::TextureView> view;
-    if (auto* deferredImage =
-            lite_rtti_cast<cmd::DeferredRenderImage*>(host->image.get()))
+    if (!oreContext->isRecording())
+    {
+        if (host->sourceCanvas != nullptr)
+        {
+            view = oreContext->wrapCanvasSampleView(host->sourceCanvas.get());
+        }
+        else if (auto* riveImage =
+                     lite_rtti_cast<RiveRenderImage*>(host->image.get());
+                 riveImage != nullptr && riveImage->getTexture() != nullptr)
+        {
+            view = oreContext->wrapRiveTexture(riveImage->getTexture(),
+                                               host->image->width(),
+                                               host->image->height());
+        }
+    }
+    else if (auto* deferredImage =
+                 lite_rtti_cast<cmd::DeferredRenderImage*>(host->image.get()))
     {
         view = oreContext->recordWrapImageView(deferredImage->id(),
                                                host->image->width(),

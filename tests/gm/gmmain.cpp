@@ -375,6 +375,25 @@ void GMRunner::runParityGM(
                     worst,
                     m_parityMaxChannelDiff);
         }
+        if (!match && TestHarness::Instance().initialized())
+        {
+            auto save = [&](const std::string& suffix,
+                            const std::vector<uint8_t>& px) {
+                // A short readback is one of the failures being reported.
+                if (px.size() != size_t(gm->width()) * gm->height() * 4)
+                {
+                    return;
+                }
+                TestHarness::Instance().savePNG({
+                    .name = name + suffix,
+                    .width = static_cast<uint32_t>(gm->width()),
+                    .height = static_cast<uint32_t>(gm->height()),
+                    .pixels = px,
+                });
+            };
+            save("_immediate", immediate);
+            save("_variant" + std::to_string(i), variant);
+        }
     }
 }
 

@@ -12,6 +12,7 @@
 
 namespace rive::ore
 {
+class TextureVulkan;
 
 // Refcounted VkDescriptorPool. Dies in one shot when its last ref
 // (ContextVulkan or any BindGroupVulkan) is released.
@@ -195,6 +196,9 @@ private:
     };
     std::vector<VkPendingImageTransition> m_vkPendingInitialTransitions;
     void vkFlushPendingInitialTransitions();
+    // Textures borrowed from Rive, weak; each unregisters on destruction.
+    std::vector<TextureVulkan*> m_vkRiveWrapped;
+    void vkSyncRiveTextures();
     // Loading a never written subresource reads undefined contents, and
     // some ICDs then reject every fragment of the pass, so clear instead.
     // Marks the view's range written either way.

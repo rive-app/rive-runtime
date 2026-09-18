@@ -36,6 +36,9 @@ private:
     rcp<rive::gpu::VulkanContext> m_vk;
     // Back-ref so upload() can route through ContextVulkan. Weak ref.
     ContextVulkan* m_vkOreContext = nullptr;
+    // Rive keeps drawing into a wrapped texture, so its layout lives in
+    // Rive's tracker and is re-synced every frame.
+    rcp<rive::gpu::vkutil::Texture2D> m_vkRiveTexture;
 };
 
 class TextureViewVulkan
