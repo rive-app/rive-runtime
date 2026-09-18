@@ -612,6 +612,185 @@ TEST_CASE("stopMesssages command", "[CommandQueue]")
     commandQueue->disconnect();
 }
 
+class RuntimeMessageTestListener : public CommandQueue::RuntimeMessageListener
+{
+public:
+    struct ReceivedMessage
+    {
+        uint32_t tag;
+        std::vector<uint8_t> payload;
+    };
+
+    explicit RuntimeMessageTestListener(CommandQueue* commandQueue = nullptr) :
+        m_commandQueue(commandQueue)
+    {}
+
+    void onRuntimeMessage(uint32_t tag, std::vector<uint8_t> payload) override
+    {
+        m_receivedMessages.push_back({tag, std::move(payload)});
+
+        if (m_postMessageWhileProcessing && m_receivedMessages.size() == 1)
+        {
+            std::mutex mutex;
+            std::condition_variable cv;
+            bool complete = false;
+            std::unique_lock<std::mutex> lock(mutex);
+            m_commandQueue->runOnce([&](CommandServer* server) {
+                server->postRuntimeMessage(m_followupTag, m_followupPayload);
+                std::unique_lock<std::mutex> serverLock(mutex);
+                complete = true;
+                cv.notify_one();
+            });
+            while (!complete)
+                cv.wait(lock);
+        }
+    }
+
+    std::vector<ReceivedMessage> m_receivedMessages;
+    bool m_postMessageWhileProcessing = false;
+    uint32_t m_followupTag = 0;
+    std::vector<uint8_t> m_followupPayload;
+
+private:
+    CommandQueue* m_commandQueue;
+};
+
+TEST_CASE("runtime messages are delivered in order", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    RuntimeMessageTestListener listener;
+    commandQueue->setGlobalRuntimeMessageListener(&listener);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        server->postRuntimeMessage(7, {1, 2, 3});
+        server->postRuntimeMessage(11, {});
+        server->postRuntimeMessage(13, {9});
+    });
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    std::vector<uint8_t> expectedFirstPayload = {1, 2, 3};
+    std::vector<uint8_t> expectedThirdPayload = {9};
+    REQUIRE(listener.m_receivedMessages.size() == 3);
+    CHECK(listener.m_receivedMessages[0].tag == 7);
+    CHECK(listener.m_receivedMessages[0].payload == expectedFirstPayload);
+    CHECK(listener.m_receivedMessages[1].tag == 11);
+    CHECK(listener.m_receivedMessages[1].payload.empty());
+    CHECK(listener.m_receivedMessages[2].tag == 13);
+    CHECK(listener.m_receivedMessages[2].payload == expectedThirdPayload);
+
+    commandQueue->disconnect();
+}
+
+TEST_CASE("runtime messages without a listener are discarded", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+    RuntimeMessageTestListener listener;
+
+    SECTION("no listener was registered") {}
+    SECTION("listener is cleared before delivery")
+    {
+        commandQueue->setGlobalRuntimeMessageListener(&listener);
+    }
+
+    commandQueue->runOnce([](CommandServer* server) {
+        server->postRuntimeMessage(1, {1, 2, 3});
+        server->postRuntimeMessage(2, {});
+    });
+    server.processCommands();
+    commandQueue->setGlobalRuntimeMessageListener(nullptr);
+    commandQueue->processMessages();
+    CHECK(listener.m_receivedMessages.empty());
+
+    commandQueue->setGlobalRuntimeMessageListener(&listener);
+    commandQueue->runOnce(
+        [](CommandServer* server) { server->postRuntimeMessage(3, {4, 5}); });
+    server.processCommands();
+    commandQueue->processMessages();
+
+    // Discarding messages must consume their payloads too, keeping the two
+    // streams aligned for subsequent delivery.
+    REQUIRE(listener.m_receivedMessages.size() == 1);
+    CHECK(listener.m_receivedMessages[0].tag == 3);
+    std::vector<uint8_t> expectedPayload = {4, 5};
+    CHECK(listener.m_receivedMessages[0].payload == expectedPayload);
+
+    commandQueue->setGlobalRuntimeMessageListener(nullptr);
+    commandQueue->disconnect();
+}
+
+TEST_CASE("runtime messages can be posted from draw callbacks",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+    RuntimeMessageTestListener listener;
+    commandQueue->setGlobalRuntimeMessageListener(&listener);
+
+    auto drawKey = commandQueue->createDrawKey();
+    commandQueue->draw(drawKey, [](DrawKey, CommandServer* server) {
+        server->postRuntimeMessage(7, {1, 2, 3});
+    });
+    server.processCommands();
+    CHECK(listener.m_receivedMessages.empty());
+    commandQueue->processMessages();
+
+    REQUIRE(listener.m_receivedMessages.size() == 1);
+    CHECK(listener.m_receivedMessages[0].tag == 7);
+    std::vector<uint8_t> expectedPayload = {1, 2, 3};
+    CHECK(listener.m_receivedMessages[0].payload == expectedPayload);
+
+    commandQueue->setGlobalRuntimeMessageListener(nullptr);
+    commandQueue->disconnect();
+}
+
+TEST_CASE("runtime messages posted while processing wait until the next pass",
+          "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    RuntimeMessageTestListener listener(commandQueue.get());
+    listener.m_postMessageWhileProcessing = true;
+    listener.m_followupTag = 2;
+    listener.m_followupPayload = {4, 5, 6};
+    commandQueue->setGlobalRuntimeMessageListener(&listener);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        server->postRuntimeMessage(1, {1, 2, 3});
+    });
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    // Capture the first pass, then stop the worker before any fatal assertions
+    // so a failed REQUIRE cannot destroy a joinable thread.
+    auto initialMessages = listener.m_receivedMessages;
+    commandQueue->processMessages();
+    commandQueue->disconnect();
+    serverThread.join();
+
+    std::vector<uint8_t> expectedInitialPayload = {1, 2, 3};
+    REQUIRE(initialMessages.size() == 1);
+    CHECK(initialMessages[0].tag == 1);
+    CHECK(initialMessages[0].payload == expectedInitialPayload);
+
+    std::vector<uint8_t> expectedFollowupPayload = {4, 5, 6};
+    REQUIRE(listener.m_receivedMessages.size() == 2);
+    CHECK(listener.m_receivedMessages[1].tag == 2);
+    CHECK(listener.m_receivedMessages[1].payload == expectedFollowupPayload);
+}
+
 TEST_CASE("draw happens once per poll", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -3015,7 +3194,7 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     ++tester.m_expectedErrors;
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.size() == 9);
     });
 
@@ -3164,7 +3343,7 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     // something invalid is ok to do, we just ignore it.
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.empty());
     });
 
@@ -3323,7 +3502,7 @@ TEST_CASE("View Model Blob Property Subscription", "[CommandQueue]")
     ++tester.m_expectedErrors;
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.size() == 1);
     });
 
@@ -3340,7 +3519,7 @@ TEST_CASE("View Model Blob Property Subscription", "[CommandQueue]")
                                                  DataType::assetBlob);
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.empty());
     });
 
@@ -3400,7 +3579,7 @@ TEST_CASE("View Model Property Async Subscriptions", "[CommandQueue]")
     commandQueue->setViewModelInstanceNumber(tester.m_handle, "Test Num", 10);
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.size() == 1);
     });
 
@@ -3417,7 +3596,7 @@ TEST_CASE("View Model Property Async Subscriptions", "[CommandQueue]")
                                                  DataType::number);
 
     commandQueue->runOnce([](CommandServer* server) {
-        auto subs = server->testing_getSubsciptions();
+        auto subs = server->testing_getSubscriptions();
         CHECK(subs.empty());
     });
 

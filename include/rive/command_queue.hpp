@@ -460,6 +460,25 @@ public:
         {}
     };
 
+    class RuntimeMessageListener
+    {
+    public:
+        virtual ~RuntimeMessageListener() = default;
+
+        /**
+         * Receives runtime-defined messages posted by the command server.
+         *
+         * Called on the thread running processMessages(), with the message
+         * mutex released. The callback owns the payload and may retain it.
+         *
+         * @param tag Runtime-owned message type identifier.
+         * @param payload Runtime-owned serialized message bytes.
+         */
+        virtual void onRuntimeMessage(uint32_t tag,
+                                      std::vector<uint8_t> payload)
+        {}
+    };
+
     CommandQueue();
     ~CommandQueue();
 
@@ -1117,6 +1136,26 @@ public:
     void clearFocus(StateMachineHandle, uint64_t requestId = 0);
     void requestFocusState(StateMachineHandle, uint64_t requestId = 0);
 
+    /**
+     * Sets the listener for runtime-defined command server messages.
+     *
+     * Registration is non-owning. The listener must remain alive until it is
+     * replaced or cleared and any callback in progress has completed. Calls to
+     * this setter must be serialized with processMessages(), typically by
+     * using the same thread.
+     *
+     * The listener registered when a message is processed receives it. Messages
+     * processed without a listener are discarded, not retained for a later
+     * registration.
+     *
+     * @param listener Listener to receive runtime messages, or nullptr to clear
+     * the listener.
+     */
+    void setGlobalRuntimeMessageListener(RuntimeMessageListener* listener)
+    {
+        m_globalRuntimeMessageListener = listener;
+    }
+
 private:
     void registerListener(FileHandle handle, FileListener* listener)
     {
@@ -1367,7 +1406,8 @@ private:
         stateMachineError,
         artboardVolumeReceived,
         hasFocusNodesReceived,
-        focusStateReceived
+        focusStateReceived,
+        runtimeMessage
     };
 
     friend class CommandServer;
@@ -1403,6 +1443,7 @@ private:
     std::mutex m_messageMutex;
     PODStream m_messageStream;
     ObjectStream<std::string> m_messageNames;
+    ObjectStream<std::vector<uint8_t>> m_messageByteVectors;
     ObjectStream<SemanticsDiff> m_messageSemanticsDiffs;
 
     // Listeners
@@ -1414,6 +1455,7 @@ private:
     ArtboardListener* m_globalArtboardListener = nullptr;
     ViewModelInstanceListener* m_globalViewModelListener = nullptr;
     StateMachineListener* m_globalStateMachineListener = nullptr;
+    RuntimeMessageListener* m_globalRuntimeMessageListener = nullptr;
 
     std::unordered_map<FileHandle, FileListener*> m_fileListeners;
     std::unordered_map<RenderImageHandle, RenderImageListener*>

@@ -1379,6 +1379,21 @@ void CommandQueue::processMessages()
             case Message::messageLoopBreak:
                 lock.unlock();
                 return;
+            case Message::runtimeMessage:
+            {
+                uint32_t tag;
+                std::vector<uint8_t> payload;
+                m_messageStream >> tag;
+                m_messageByteVectors >> payload;
+                lock.unlock();
+                if (m_globalRuntimeMessageListener)
+                {
+                    m_globalRuntimeMessageListener->onRuntimeMessage(
+                        tag,
+                        std::move(payload));
+                }
+                break;
+            }
             case Message::viewModelEnumsListed:
             {
                 size_t numEnums;

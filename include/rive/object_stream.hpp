@@ -6,8 +6,11 @@
 
 #include "rive/refcnt.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <deque>
+#include <type_traits>
 
 namespace rive
 {
@@ -48,7 +51,7 @@ public:
     {
         static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
                       "PODStream only accepts plain-old-data types");
-        const char* data = reinterpret_cast<const char*>(&obj);
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(&obj);
         m_byteStream.insert(m_byteStream.end(), data, data + sizeof(T));
         return *this;
     }
@@ -58,7 +61,7 @@ public:
         static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
                       "PODStream only accepts plain-old-data types");
         assert(m_byteStream.size() >= sizeof(T));
-        char* data = reinterpret_cast<char*>(&dst);
+        uint8_t* data = reinterpret_cast<uint8_t*>(&dst);
         std::copy(m_byteStream.begin(), m_byteStream.begin() + sizeof(T), data);
         m_byteStream.erase(m_byteStream.begin(),
                            m_byteStream.begin() + sizeof(T));
@@ -79,6 +82,6 @@ public:
     }
 
 private:
-    std::deque<char> m_byteStream;
+    std::deque<uint8_t> m_byteStream;
 };
 }; // namespace rive

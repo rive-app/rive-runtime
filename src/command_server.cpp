@@ -543,6 +543,15 @@ CommandServer::CommandServer(
 
 CommandServer::~CommandServer() {}
 
+void CommandServer::postRuntimeMessage(uint32_t tag,
+                                       std::vector<uint8_t> payload)
+{
+    std::unique_lock<std::mutex> lock(m_commandQueue->m_messageMutex);
+    m_commandQueue->m_messageStream << CommandQueue::Message::runtimeMessage;
+    m_commandQueue->m_messageStream << tag;
+    m_commandQueue->m_messageByteVectors << std::move(payload);
+}
+
 rive::HitResult CommandServer::pointerDownSynchronized(
     StateMachineHandle handle,
     const CommandQueue::PointerEvent& pointerEvent)

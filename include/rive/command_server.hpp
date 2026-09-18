@@ -64,19 +64,33 @@ public:
         ViewModelInstanceRuntime*) const;
     // Wait for queue to not be empty, then returns pollMessages.
     bool waitCommands();
-    // Returns imidiatly after checking messages. If there are none just returns
+    // Returns immediately after checking messages. If there are none just
     // returns !m_wasDisconnectReceived.
     bool processCommands();
     // Blocks and runs waitMessages until disconnect is received.
     void serveUntilDisconnect();
 
+    /**
+     * Posts a runtime-defined message to the command queue.
+     *
+     * This is intended for host runtime integrations that need to report
+     * information discovered while executing command server work, such as from
+     * runOnce or draw callbacks. The command queue forwards the message through
+     * its RuntimeMessageListener when processMessages() runs. Rive does not
+     * interpret the tag or payload.
+     *
+     * @param tag Runtime-owned message type identifier.
+     * @param payload Runtime-owned serialized message bytes.
+     */
+    void postRuntimeMessage(uint32_t tag, std::vector<uint8_t> payload);
+
     struct Subscription
     {
-        // The request Id for sbuscribing to this particular property.
+        // The request Id for subscribing to this particular property.
         uint64_t requestId;
-        // Information about the property we want to "subsribe" to.
+        // Information about the property we want to "subscribe" to.
         PropertyData data;
-        // The root view model of from the perspective of the path in data.name.
+        // The root view model from the perspective of the path in data.name.
         ViewModelInstanceHandle rootViewModel;
     };
 
@@ -88,7 +102,7 @@ public:
         return cursorPosForPointerEvent(instance, event);
     }
 
-    const std::vector<Subscription>& testing_getSubsciptions() const
+    const std::vector<Subscription>& testing_getSubscriptions() const
     {
         return m_propertySubscriptions;
     }
@@ -238,13 +252,13 @@ private:
     std::vector<Subscription> m_propertySubscriptions;
 
     // Dependencies
-    // When a file gets deleted artboards and statemachine become invalid. Here
-    // we hold a reference to the artboard only because that artboard has a
+    // When a file gets deleted artboards and state machines become invalid.
+    // Here we hold a reference to the artboard only because that artboard has a
     // dependency to the State Machine.
     std::unordered_map<FileHandle, std::vector<ArtboardHandle>>
         m_fileDependencies;
-    // When an artboard gets deleted the statemachine assosiated with it is also
-    // now invalid.
+    // When an artboard gets deleted the state machine associated with it is
+    // also now invalid.
     std::unordered_map<ArtboardHandle, std::vector<StateMachineHandle>>
         m_artboardDependencies;
 
