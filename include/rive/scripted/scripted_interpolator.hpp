@@ -21,6 +21,15 @@ public:
         return ScriptProtocol::interpolator;
     }
     Component* component() override { return nullptr; }
+
+    /// Not a Component, so Artboard::m_Objects never takes this object's
+    /// ScriptInputs and it has to free them itself -- the same rule
+    /// ScriptedDataConverter, ScriptedListenerAction and
+    /// ScriptedTransitionCondition already implement. Like them, the
+    /// destructor calls it: ~ScriptedObject cannot, because a virtual call
+    /// from a base destructor resolves to the base override.
+    ~ScriptedInterpolator();
+    void disposeScriptInputs() override;
     StatusCode import(ImportStack& importStack) override;
 
     // Cloning support so each (LinearAnimationInstance, InterpolatingKeyFrame)

@@ -101,6 +101,26 @@ Core* ScriptedInterpolator::clone() const
     return twin;
 }
 
+ScriptedInterpolator::~ScriptedInterpolator() { disposeScriptInputs(); }
+
+// Mirrors ScriptedDataConverter / ScriptedListenerAction /
+// ScriptedTransitionCondition: a ScriptedObject that is not a Component is not
+// an artboard child, so ScriptInput*::import never routes its inputs to the
+// ArtboardImporter and Artboard::m_Objects never frees them.
+void ScriptedInterpolator::disposeScriptInputs()
+{
+    auto props = m_customProperties;
+    ScriptedObject::disposeScriptInputs();
+    for (auto prop : props)
+    {
+        auto scriptInput = ScriptInput::from(prop);
+        if (scriptInput != nullptr)
+        {
+            delete scriptInput;
+        }
+    }
+}
+
 // Used by LinearAnimationInstance::statefulInterpolator() to vend a per-(LAI,
 // keyframe) Lua instance lazily. `dataBindContainer` is the
 // ArtboardInstance — it owns any cloned data binds.
