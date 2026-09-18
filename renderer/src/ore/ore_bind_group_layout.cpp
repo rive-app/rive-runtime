@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <sstream>
 #include <vector>
@@ -213,19 +214,106 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
                                           dynamicUBOCount);
 }
 
+// WebGPU rejects a filtering-typed sampler binding statically paired with a
+// depth texture. A sampler whose every pairing across the given modules
+// reads a depth texture declares non-filtering; mixed use keeps filtering
+// and surfaces as the WebGPU validation error the spec mandates.
+static bool samplerPairsDepthOnly(const BindingMap& bm,
+                                  const ShaderModule* vertexPairSource,
+                                  const ShaderModule* fragmentPairSource,
+                                  uint32_t groupIndex,
+                                  uint32_t binding)
+{
+    const ShaderModule* modules[2] = {
+        vertexPairSource,
+        fragmentPairSource != vertexPairSource ? fragmentPairSource : nullptr};
+    bool paired = false;
+    for (const ShaderModule* module : modules)
+    {
+        if (module == nullptr)
+            continue;
+        for (const auto& p : module->m_textureSamplerPairs)
+        {
+            if (p.samplerGroup != groupIndex || p.samplerBinding != binding)
+                continue;
+            const BindingMap::Entry* tex =
+                bm.lookupEntry(p.textureGroup, p.textureBinding);
+            if (tex == nullptr ||
+                tex->textureSampleType != TextureSampleType::Depth)
+                return false;
+            paired = true;
+        }
+    }
+    return paired;
+}
+
+// The group's non-filtering sampler bindings, gathered once for both the
+// intern id and the entry flags.
+static std::vector<uint32_t> collectDepthOnlySamplers(
+    const BindingMap& bm,
+    const ShaderModule* vertexPairSource,
+    const ShaderModule* fragmentPairSource,
+    uint32_t groupIndex)
+{
+    std::vector<uint32_t> bindings;
+    for (size_t i = 0; i < bm.size(); ++i)
+    {
+        const BindingMap::Entry& e = bm.at(i);
+        if (e.group == groupIndex && e.kind == ResourceKind::Sampler &&
+            samplerPairsDepthOnly(bm,
+                                  vertexPairSource,
+                                  fragmentPairSource,
+                                  groupIndex,
+                                  e.binding))
+            bindings.push_back(e.binding);
+    }
+    return bindings;
+}
+
+// Distinguishes a non-filtering-sampler layout from its twins in the intern
+// table; the pairing is module state the baked id cannot see. Folded per
+// flagged binding so two maps that flag different samplers intern apart.
+static constexpr uint64_t kNonFilteringLayoutIdSalt = 0x9e3779b97f4a7c15ull;
+
+static uint64_t saltLayoutId(uint64_t layoutId,
+                             const std::vector<uint32_t>& nonFiltering)
+{
+    for (uint32_t binding : nonFiltering)
+    {
+        layoutId = (layoutId ^ (kNonFilteringLayoutIdSalt + binding)) *
+                   0x100000001b3ull;
+    }
+    return layoutId;
+}
+
 rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     Context& ctx,
     const BindingMap& bindingMap,
     uint32_t groupIndex,
     const uint32_t* dynamicUBOBindings,
-    uint32_t dynamicUBOCount)
+    uint32_t dynamicUBOCount,
+    const ShaderModule* vertexPairSource,
+    const ShaderModule* fragmentPairSource)
 {
+    std::vector<uint32_t> nonFiltering;
+    if (vertexPairSource != nullptr || fragmentPairSource != nullptr)
+    {
+        nonFiltering = collectDepthOnlySamplers(bindingMap,
+                                                vertexPairSource,
+                                                fragmentPairSource,
+                                                groupIndex);
+    }
+
     // The baked id never covers dynamic offsets, so those skip interning.
     // A map merged across two modules carries no ids either, so split-stage
     // pipelines build their layouts fresh.
-    const uint64_t layoutId = dynamicUBOCount == 0
-                                  ? bindingMap.layoutIdForGroup(groupIndex)
-                                  : BindingMap::kNoLayoutId;
+    uint64_t layoutId = dynamicUBOCount == 0
+                            ? bindingMap.layoutIdForGroup(groupIndex)
+                            : BindingMap::kNoLayoutId;
+    if (layoutId != BindingMap::kNoLayoutId && !nonFiltering.empty())
+    {
+        layoutId = saltLayoutId(layoutId, nonFiltering);
+    }
     if (layoutId != BindingMap::kNoLayoutId)
     {
         if (rcp<BindGroupLayout> hit =
@@ -245,7 +333,7 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     // Wide groups spill to the heap. Layout creation is setup-time, so the
     // second walk is not worth a cap.
     std::vector<BindGroupLayoutEntry> spilled;
-    const BindGroupLayoutEntry* entries = inlineEntries;
+    BindGroupLayoutEntry* entries = inlineEntries;
     if (n > kInlineEntries)
     {
         spilled.resize(n);
@@ -256,6 +344,15 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
                                        dynamicUBOBindings,
                                        dynamicUBOCount);
         entries = spilled.data();
+    }
+
+    for (uint32_t i = 0; i < n && !nonFiltering.empty(); ++i)
+    {
+        BindGroupLayoutEntry& e = entries[i];
+        e.samplerNonFiltering =
+            e.kind == BindingKind::sampler &&
+            std::find(nonFiltering.begin(), nonFiltering.end(), e.binding) !=
+                nonFiltering.end();
     }
 
     BindGroupLayoutDesc desc;
@@ -281,7 +378,9 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
         shader != nullptr ? shader->m_bindingMap : kEmpty,
         groupIndex,
         dynamicUBOBindings,
-        dynamicUBOCount);
+        dynamicUBOCount,
+        shader,
+        nullptr);
 }
 
 // Map ore::BindingKind (public layout API) ↔ ore::ResourceKind (binding-map

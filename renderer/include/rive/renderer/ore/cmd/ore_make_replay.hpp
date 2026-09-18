@@ -12,6 +12,8 @@
 #include "rive/renderer/ore/ore_texture.hpp"
 #include <cassert>
 #include <functional>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 // Consumer half of the ordered ore stream: the resident table plus the
@@ -43,12 +45,28 @@ struct OreResident
     std::vector<rcp<rive::gpu::GPUResource>> objects;
     std::vector<uint32_t> generations;
     std::vector<OreKind> kinds;
+    // Why a slot is null — label plus reason captured when a make fails or
+    // is skipped — so pass replay names the resource, not a bare handle.
+    std::unordered_map<ResourceHandle, std::string> failureNotes;
+
+    void noteFailure(ResourceHandle id, std::string note)
+    {
+        failureNotes[id] = std::move(note);
+    }
+    const char* failureNote(ResourceHandle id) const
+    {
+        auto it = failureNotes.find(id);
+        return it != failureNotes.end() ? it->second.c_str() : nullptr;
+    }
 
     void set(ResourceHandle id,
              rcp<rive::gpu::GPUResource> obj,
              uint32_t generation,
              OreKind kind)
     {
+        // Ids recycle across generations; any new make supersedes the note,
+        // which the instrumented makes re-record after this set.
+        failureNotes.erase(id);
         if (id > objects.size())
         {
             // The producer mints ids sequentially, so a fresh id may only
@@ -72,6 +90,7 @@ struct OreResident
         if (id < objects.size() && generations[id] == generation)
         {
             objects[id] = nullptr;
+            failureNotes.erase(id);
         }
     }
     rive::gpu::GPUResource* get(ResourceHandle id) const
@@ -156,17 +175,47 @@ inline bool replayOreLifecycle(Context& ctx,
         }
         return r;
     };
+    auto describeMake = [](const char* what, const char* label) {
+        return std::string(what) + " '" + (label != nullptr ? label : "") + "'";
+    };
     // The null slot keeps the dense table aligned with minted ids; skipping
     // the set would discard every later make behind the hole.
-    auto skipUnresolvedMake =
-        [&](ResourceHandle id, uint32_t generation, const char* what) -> bool {
+    auto skipUnresolvedMake = [&](ResourceHandle id,
+                                  uint32_t generation,
+                                  const char* what,
+                                  const char* label) -> bool {
+        std::string desc = describeMake(what, label);
         RIVE_WARN_THROTTLED("rive ore replay: skip make %s id=%u gen=%u "
                             "(unresolved dep, churn)\n",
-                            what,
+                            desc.c_str(),
                             id,
                             generation);
         table.set(id, nullptr, generation, OreKind::none);
+        table.noteFailure(id, desc + " skipped, unresolved dependency");
         return true; // empty slot, downstream draws drop
+    };
+    // Lands the made object in the table; a null remembers why, so a later
+    // bind names the resource instead of a bare handle.
+    auto setMade = [&](ResourceHandle id,
+                       uint32_t generation,
+                       OreKind kind,
+                       rcp<rive::gpu::GPUResource> obj,
+                       const char* what,
+                       const char* label,
+                       const std::string& why) {
+        const bool failed = obj == nullptr;
+        table.set(id, std::move(obj), generation, kind);
+        if (failed)
+        {
+            std::string desc = describeMake(what, label);
+            RIVE_WARN_THROTTLED("rive ore replay: make %s id=%u gen=%u "
+                                "failed: %s\n",
+                                desc.c_str(),
+                                id,
+                                generation,
+                                why.c_str());
+            table.noteFailure(id, desc + " failed: " + why);
+        }
     };
 
     switch (type)
@@ -263,10 +312,17 @@ inline bool replayOreLifecycle(Context& ctx,
             d.glFixupSize =
                 static_cast<uint32_t>(blob(pod.glFixupBytes).size());
             d.shaderAssetId = pod.shaderAssetId;
-            table.set(m.id,
-                      ctx.makeShaderModule(d),
-                      m.generation,
-                      OreKind::shaderModule);
+            // The note carries full compiler output; deferred recording
+            // accepted this module, so replay is where the failure exists.
+            ctx.clearLastError();
+            auto module = ctx.makeShaderModule(d);
+            setMade(m.id,
+                    m.generation,
+                    OreKind::shaderModule,
+                    std::move(module),
+                    "shader module",
+                    d.label,
+                    ctx.lastError());
             return true;
         }
         case CommandType::makeBindGroupLayout:
@@ -307,7 +363,10 @@ inline bool replayOreLifecycle(Context& ctx,
             d.baseLayer = pod.baseLayer;
             d.layerCount = pod.layerCount;
             if (unresolvedDep)
-                return skipUnresolvedMake(m.id, m.generation, "textureView");
+                return skipUnresolvedMake(m.id,
+                                          m.generation,
+                                          "textureView",
+                                          nullptr);
             table.set(m.id,
                       ctx.makeTextureView(d),
                       m.generation,
@@ -372,21 +431,19 @@ inline bool replayOreLifecycle(Context& ctx,
             d.bindGroupLayoutCount = pod.bindGroupLayoutCount;
             d.label = cstr(pod.label);
             if (unresolvedDep)
-                return skipUnresolvedMake(m.id, m.generation, "pipeline");
+                return skipUnresolvedMake(m.id,
+                                          m.generation,
+                                          "pipeline",
+                                          d.label);
             std::string pipelineError;
-            auto realPipeline = ctx.makePipeline(d, &pipelineError);
-            if (realPipeline == nullptr)
-            {
-                RIVE_WARN_THROTTLED(
-                    "rive ore replay: makePipeline id=%u gen=%u failed: %s\n",
-                    m.id,
+            auto pipeline = ctx.makePipeline(d, &pipelineError);
+            setMade(m.id,
                     m.generation,
-                    pipelineError.c_str());
-            }
-            table.set(m.id,
-                      std::move(realPipeline),
-                      m.generation,
-                      OreKind::pipeline);
+                    OreKind::pipeline,
+                    std::move(pipeline),
+                    "pipeline",
+                    d.label,
+                    pipelineError);
             return true;
         }
         case CommandType::makeBindGroup:
@@ -439,20 +496,19 @@ inline bool replayOreLifecycle(Context& ctx,
             d.samplerCount = pod.samplerCount;
             d.label = cstr(pod.label);
             if (unresolvedDep)
-                return skipUnresolvedMake(m.id, m.generation, "bindGroup");
-            auto realBindGroup = ctx.makeBindGroup(d);
-            if (realBindGroup == nullptr)
-            {
-                RIVE_WARN_THROTTLED(
-                    "rive ore replay: makeBindGroup id=%u gen=%u returned "
-                    "null\n",
-                    m.id,
-                    m.generation);
-            }
-            table.set(m.id,
-                      std::move(realBindGroup),
-                      m.generation,
-                      OreKind::bindGroup);
+                return skipUnresolvedMake(m.id,
+                                          m.generation,
+                                          "bindGroup",
+                                          d.label);
+            ctx.clearLastError();
+            auto bindGroup = ctx.makeBindGroup(d);
+            setMade(m.id,
+                    m.generation,
+                    OreKind::bindGroup,
+                    std::move(bindGroup),
+                    "bind group",
+                    d.label,
+                    ctx.lastError());
             return true;
         }
         case CommandType::bufferUpdate:
@@ -519,7 +575,12 @@ inline bool replayOreLifecycle(Context& ctx,
                 }
                 else
                 {
-                    skipUnresolvedMake(pod.id, pod.generation, "wrapImageView");
+                    // Owns the slot and the note; the set below would erase
+                    // the note it just recorded.
+                    return skipUnresolvedMake(pod.id,
+                                              pod.generation,
+                                              "wrapImageView",
+                                              nullptr);
                 }
                 table.set(pod.id,
                           std::move(wrapped),

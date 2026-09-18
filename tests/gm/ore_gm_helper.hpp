@@ -305,6 +305,7 @@ enum OreGMShader : uint32_t
     kVSTextureWitness = 10,
     kDynamicUBOWitness = 11,
     kArray2DWitness = 12,
+    kDepthSampleWitness = 13,
 };
 
 struct OreGMShaderResult

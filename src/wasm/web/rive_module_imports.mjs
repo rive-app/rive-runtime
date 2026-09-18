@@ -570,7 +570,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             shader_module_release: calls.rive_gpu_shader_module_release,
             bind_group_layout_new: (groupIndex, entries, entryByteCount) => {
                 stackReset();
-                const entries_p = stageIn(entries, entryByteCount * 44);
+                const entries_p = stageIn(entries, entryByteCount * 48);
                 const ret = calls.rive_gpu_bind_group_layout_new(groupIndex, entries_p, entryByteCount);
                 return ret;
             },

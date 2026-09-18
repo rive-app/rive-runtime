@@ -312,12 +312,14 @@ public:
     // `at(i)` + `size()` above.
     const std::vector<Entry>& entries() const { return m_entries; }
 
-    // Slot-unaware lookup for tools that want the full entry.
+#endif
+
+    // Slot-unaware lookup for callers that want the full entry, e.g. the
+    // depth-only sampler pairing scan in the layout builder.
     const Entry* lookupEntry(uint32_t group, uint32_t binding) const
     {
         return findEntry(group, binding);
     }
-#endif
 
 private:
     // Internal binary search — not tooling-gated because lookup() uses it

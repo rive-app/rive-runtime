@@ -47,6 +47,7 @@ parser.add_argument("-r", "--recursive", action='store_true', help="recursively 
 parser.add_argument("-p", "--pack", action='store_true', help="copy candidates and goldens into output folder along with results")
 parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
 parser.add_argument("-t", "--threshold", default=0.06, type=float, help="if histogram_compare is set, then threshold used for histogram pass result otherwise the threshold for pixel diff pass result")
+parser.add_argument("--allow-new", action='store_true', help="candidates with no golden are listed but do not fail; missing candidates still do")
 
 clean_mode = parser.add_mutually_exclusive_group(required=False)
 clean_mode.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical, also dont add identical images to index.html")
@@ -363,7 +364,7 @@ def parse_status(candidates_path, golden_path, output_path, device_name, browser
             words = line.rstrip().split('\t')
             entry = TestEntry(words, candidates_path, golden_path, output_path, device_name, browserstack_details)
             test_entries.append(entry)
-            if not entry.success:
+            if not entry.success and not (args.allow_new and entry.type == 'missing_golden'):
                 success = False
 
     return (total_lines, test_entries, success)
@@ -420,7 +421,7 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
         print(f"Internal failure: Got {total_lines} status lines. Expected {len(all_filenames)}.")
         success = False
 
-    if candidate_filenames.symmetric_difference(golden_filenames):
+    if golden_filenames - candidate_filenames or (candidate_filenames - golden_filenames and not args.allow_new):
         print("golden and candidate directories do not have identical files.")
         success = False
 

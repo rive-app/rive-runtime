@@ -298,7 +298,8 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     {
         // A silent fold hides real traps; name them so a script that dies
         // mid-call is diagnosable instead of a mystery no-op.
-        const char* exception = wasm_runtime_get_exception(inst);
+        const char* exception =
+            fullTrapMessage(wasm_runtime_get_exception(inst));
         if (exception != nullptr)
         {
             fprintf(stderr, "wasm call trapped in %s: %s\n", name, exception);
@@ -368,7 +369,33 @@ void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 
 void WasmScriptingVM::raiseModuleError(const char* message)
 {
+    // The runtime's exception buffer truncates long messages (shader
+    // compiler output); keep the full text for trap reporting.
+    m_moduleErrorDetail = message;
     wasm_runtime_set_exception(m_state->instance, message);
+}
+
+const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
+{
+    if (exception == nullptr || m_moduleErrorDetail.empty())
+    {
+        return exception;
+    }
+    const char* text = exception;
+    constexpr char kPrefix[] = "Exception: ";
+    if (strncmp(text, kPrefix, sizeof(kPrefix) - 1) == 0)
+    {
+        text += sizeof(kPrefix) - 1;
+    }
+    // Substitute only when the exception is a truncation of the detail, so
+    // an unrelated later trap keeps its own message. An empty remainder
+    // matches every prefix and must not adopt stale detail.
+    if (*text != '\0' &&
+        m_moduleErrorDetail.compare(0, strlen(text), text) == 0)
+    {
+        return m_moduleErrorDetail.c_str();
+    }
+    return exception;
 }
 
 void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
@@ -2522,6 +2549,7 @@ uint32_t gpuBindGroupLayoutNewImpl(
         out.nativeSlotVS = in.nativeSlotVS;
         out.nativeSlotFS = in.nativeSlotFS;
         out.nativeSlotCS = in.nativeSlotCS;
+        out.samplerNonFiltering = in.samplerNonFiltering != 0;
     }
     ore::BindGroupLayoutDesc desc;
     desc.groupIndex = groupIndex;
@@ -7459,7 +7487,8 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
     ScriptCallScope callScope(this);
     if (!wasm_runtime_call_wasm(m_state->execEnv, f, 3, buf))
     {
-        const char* exception = wasm_runtime_get_exception(m_state->instance);
+        const char* exception =
+            fullTrapMessage(wasm_runtime_get_exception(m_state->instance));
         m_lastError = exception != nullptr ? exception : "script init trapped";
         fprintf(stderr, "script init trapped: %s\n", m_lastError.c_str());
 #if WASM_ENABLE_DUMP_CALL_STACK

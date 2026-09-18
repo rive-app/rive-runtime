@@ -185,6 +185,156 @@ void runScenario(TestingWindow* window)
     INFO("makeBindGroup: " << ctx.lastError());
     CHECK(bindGroup != nullptr);
 }
+
+// A sampler used only on depth textures must land in the layout as
+// non-filtering — WebGPU rejects the filtering default against a depth
+// texture. Covers the from-shader path, the merged-map shape the Luau lanes
+// build through, and the intern split between flagged and unflagged twins.
+void runDepthSamplerScenario(TestingWindow* window)
+{
+    auto* renderContext = window->renderContext();
+    ore_gm::OreGMContext oreGM;
+    REQUIRE(oreGM.ensureContext(renderContext));
+    auto& ctx = *renderContext->getOreContext();
+
+    auto depth = ore_gm::loadShader(ctx, ore_gm::kDepthSampleWitness);
+    REQUIRE(depth.psModule);
+    REQUIRE(!depth.psModule->m_textureSamplerPairs.empty());
+
+    auto findSampler =
+        [](const rcp<BindGroupLayout>& layout) -> const BindGroupLayoutEntry* {
+        for (const BindGroupLayoutEntry& e : layout->entries())
+        {
+            if (e.kind == BindingKind::sampler)
+                return &e;
+        }
+        return nullptr;
+    };
+
+    // From-shader path; group 1 holds the sampler + depth texture.
+    auto fromShader =
+        makeBindGroupLayoutFromShader(ctx, depth.psModule.get(), 1);
+    REQUIRE(fromShader != nullptr);
+    const BindGroupLayoutEntry* sampler = findSampler(fromShader);
+    REQUIRE(sampler != nullptr);
+    CHECK(sampler->samplerNonFiltering);
+
+    // The salted intern id still dedupes flagged twins.
+    CHECK(makeBindGroupLayoutFromShader(ctx, depth.psModule.get(), 1).get() ==
+          fromShader.get());
+
+    // Merged-map path with the pair sources the Luau lanes pass.
+    auto vertex = ore_gm::loadShader(ctx, ore_gm::kTriangle);
+    REQUIRE(vertex.vsModule);
+    const BindingMap merged =
+        bindingMapForStages(vertex.vsModule.get(), depth.psModule.get());
+    auto mergedLayout = makeBindGroupLayoutFromBindingMap(ctx,
+                                                          merged,
+                                                          1,
+                                                          nullptr,
+                                                          0,
+                                                          vertex.vsModule.get(),
+                                                          depth.psModule.get());
+    REQUIRE(mergedLayout != nullptr);
+    sampler = findSampler(mergedLayout);
+    REQUIRE(sampler != nullptr);
+    CHECK(sampler->samplerNonFiltering);
+
+    // The same map with no pair source interns an unflagged twin; the two
+    // must not collapse into one entry.
+    auto unflagged =
+        makeBindGroupLayoutFromBindingMap(ctx, depth.psModule->m_bindingMap, 1);
+    REQUIRE(unflagged != nullptr);
+    sampler = findSampler(unflagged);
+    REQUIRE(sampler != nullptr);
+    CHECK(!sampler->samplerNonFiltering);
+    CHECK(unflagged.get() != fromShader.get());
+}
+
+// Pairing is module state, so only the pair source tells two layouts of one
+// binding shape apart. Two samplers in one group, each shader pairing a
+// different one with the depth texture, must intern as different layouts.
+void runDepthSamplerSetScenario(TestingWindow* window)
+{
+    auto* renderContext = window->renderContext();
+    ore_gm::OreGMContext oreGM;
+    REQUIRE(oreGM.ensureContext(renderContext));
+    auto& ctx = *renderContext->getOreContext();
+
+    BindingMap bm;
+    auto push =
+        [&](uint8_t binding, ResourceKind kind, TextureSampleType sampleType) {
+            BindingMap::Entry e{};
+            e.group = 1;
+            e.binding = binding;
+            e.kind = kind;
+            e.stageMask = BindingMap::kStageFragment;
+            e.backendSpace = 1;
+            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)] = binding;
+            if (kind == ResourceKind::SampledTexture)
+            {
+                e.textureViewDim = TextureViewDim::D2;
+                e.textureSampleType = sampleType;
+            }
+            bm.push(e);
+        };
+    push(0, ResourceKind::Sampler, {});
+    push(1, ResourceKind::Sampler, {});
+    push(2, ResourceKind::SampledTexture, TextureSampleType::Depth);
+    push(3, ResourceKind::SampledTexture, TextureSampleType::Float);
+    bm.finalize();
+    bm.computeLayoutIds();
+    REQUIRE(bm.layoutIdForGroup(1) != BindingMap::kNoLayoutId);
+
+    struct PairSource : ShaderModule
+    {};
+    PairSource depthOnSampler0;
+    depthOnSampler0.m_textureSamplerPairs = {{1, 2, 1, 0}, {1, 3, 1, 1}};
+    PairSource depthOnSampler1;
+    depthOnSampler1.m_textureSamplerPairs = {{1, 2, 1, 1}, {1, 3, 1, 0}};
+
+    auto flagged = [](const rcp<BindGroupLayout>& layout, uint32_t binding) {
+        for (const BindGroupLayoutEntry& e : layout->entries())
+        {
+            if (e.kind == BindingKind::sampler && e.binding == binding)
+                return e.samplerNonFiltering;
+        }
+        return false;
+    };
+
+    auto first = makeBindGroupLayoutFromBindingMap(ctx,
+                                                   bm,
+                                                   1,
+                                                   nullptr,
+                                                   0,
+                                                   nullptr,
+                                                   &depthOnSampler0);
+    REQUIRE(first != nullptr);
+    CHECK(flagged(first, 0));
+    CHECK(!flagged(first, 1));
+
+    auto second = makeBindGroupLayoutFromBindingMap(ctx,
+                                                    bm,
+                                                    1,
+                                                    nullptr,
+                                                    0,
+                                                    nullptr,
+                                                    &depthOnSampler1);
+    REQUIRE(second != nullptr);
+    CHECK(second.get() != first.get());
+    CHECK(!flagged(second, 0));
+    CHECK(flagged(second, 1));
+
+    // Same pairing again still dedupes.
+    CHECK(makeBindGroupLayoutFromBindingMap(ctx,
+                                            bm,
+                                            1,
+                                            nullptr,
+                                            0,
+                                            nullptr,
+                                            &depthOnSampler0)
+              .get() == first.get());
+}
 } // namespace
 
 TEST_CASE("ore binds a fragment compiled apart from its vertex", "[ore]")
@@ -205,6 +355,33 @@ TEST_CASE("ore binds a fragment compiled apart from its vertex", "[ore]")
         }
         INFO("backend " << TestingWindow::BackendName(backend));
         runScenario(window);
+        ++ran;
+        TestingWindow::Destroy();
+    }
+    if (ran == 0)
+        WARN("no Ore backend available headless; skipping");
+}
+
+TEST_CASE("ore layouts declare non-filtering samplers for depth-only use",
+          "[ore]")
+{
+    int ran = 0;
+    for (auto backend : kOreBackends)
+    {
+        if (!backendCanStart(backend))
+            continue;
+        auto* window = TestingWindow::Init(backend,
+                                           {},
+                                           TestingWindow::Visibility::headless);
+        if (window == nullptr || window->renderContext() == nullptr ||
+            !ore_gm::isOreBackendActive())
+        {
+            TestingWindow::Destroy();
+            continue;
+        }
+        INFO("backend " << TestingWindow::BackendName(backend));
+        runDepthSamplerScenario(window);
+        runDepthSamplerSetScenario(window);
         ++ran;
         TestingWindow::Destroy();
     }

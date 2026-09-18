@@ -27,6 +27,10 @@ using ResourceRemap =
 // deferred objects recorded against can be discarded after recording.
 using HandleResolver = std::function<rive::gpu::GPUResource*(ResourceHandle)>;
 
+// Names the resource behind an unresolved handle (label + failure reason),
+// or null when nothing is known beyond the handle itself.
+using OreHandleDescribe = std::function<const char*(ResourceHandle)>;
+
 // Returns false for a lifecycle opcode. dropDraws poisons the open pass when
 // a handle fails to resolve: its pipeline never bound, so the state that
 // would reference it is skipped along with the draws.
@@ -35,14 +39,27 @@ inline bool replayPassCommand(Context& ctx,
                               bool& dropDraws,
                               CommandType type,
                               OreCommandReader& reader,
-                              const OreKindResolve& resolve)
+                              const OreKindResolve& resolve,
+                              const OreHandleDescribe& describe = nullptr)
 {
     auto churned = [&](const char* what, ResourceHandle h) {
         dropDraws = true;
-        RIVE_WARN_THROTTLED("rive ore replay: %s handle %u churned, dropping "
-                            "pass draws\n",
-                            what,
-                            h);
+        const char* note = describe ? describe(h) : nullptr;
+        if (note != nullptr)
+        {
+            RIVE_WARN_THROTTLED("rive ore replay: %s handle %u dropped pass "
+                                "draws: %s\n",
+                                what,
+                                h,
+                                note);
+        }
+        else
+        {
+            RIVE_WARN_THROTTLED("rive ore replay: %s handle %u churned, "
+                                "dropping pass draws\n",
+                                what,
+                                h);
+        }
     };
     switch (type)
     {
@@ -283,6 +300,9 @@ inline void replayOreStream(Context& ctx,
                        OreKind kind) -> rive::gpu::GPUResource* {
         return resolveOre(table, real, h, kind);
     };
+    auto describe = [&](ResourceHandle h) -> const char* {
+        return (h & kRealResourceFlag) ? nullptr : table.failureNote(h);
+    };
     OreCommandReader reader(commands, blobs);
     std::unique_ptr<RenderPass> pass;
     bool dropDraws = false;
@@ -296,7 +316,13 @@ inline void replayOreStream(Context& ctx,
                                 resolve,
                                 canvasAt,
                                 imageAt) &&
-            !replayPassCommand(ctx, pass, dropDraws, type, reader, resolve))
+            !replayPassCommand(ctx,
+                               pass,
+                               dropDraws,
+                               type,
+                               reader,
+                               resolve,
+                               describe))
         {
             // The payload was not consumed, so later reads would desync.
             assert(false);

@@ -100,13 +100,18 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
 
 // Derive the group's entries from a binding map and build the layout via
 // `Context::makeBindGroupLayout`. Pass the map from `bindingMapForStages`
-// for a pipeline whose stages live in different modules.
+// for a pipeline whose stages live in different modules. The pair-source
+// modules supply texture-sampler pairs so samplers used only on depth
+// textures declare non-filtering, which WebGPU requires; pass every module
+// the map was merged from.
 rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     Context& ctx,
     const BindingMap& bindingMap,
     uint32_t groupIndex,
     const uint32_t* dynamicUBOBindings = nullptr,
-    uint32_t dynamicUBOCount = 0);
+    uint32_t dynamicUBOCount = 0,
+    const ShaderModule* vertexPairSource = nullptr,
+    const ShaderModule* fragmentPairSource = nullptr);
 
 rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
     Context& ctx,

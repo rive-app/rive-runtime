@@ -495,6 +495,7 @@ public:
             pod.nativeSlotVS = entry.nativeSlotVS;
             pod.nativeSlotFS = entry.nativeSlotFS;
             pod.nativeSlotCS = entry.nativeSlotCS;
+            pod.samplerNonFiltering = entry.samplerNonFiltering ? 1 : 0;
         }
         uint32_t handle = rive_gpu_bind_group_layout_new(
             desc.groupIndex,

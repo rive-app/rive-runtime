@@ -130,6 +130,10 @@ while :; do
             DIFF_ARGS="$DIFF_ARGS -H"
             shift
         ;;
+        --allow-new)
+            DIFF_ARGS="$DIFF_ARGS --allow-new"
+            shift
+        ;;
         -t[0-9] | -t[0-9][0-9] )
             DIFF_ARGS="$DIFF_ARGS --threshold=${1: 2}"
             shift

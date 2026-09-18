@@ -395,6 +395,10 @@ public:
     /// Ends module execution like a trap once the current native returns.
     virtual void raiseModuleError(const char* message);
 
+    /// The full raiseModuleError text when `exception` is its truncation
+    /// (the runtime's exception buffer is small), otherwise `exception`.
+    const char* fullTrapMessage(const char* exception) const;
+
     /// Function imports the module declares that no host native resolves.
     /// They trap only when first called, so surface them at load instead.
     const std::vector<std::string>& unresolvedImports() const
@@ -441,6 +445,8 @@ protected:
     // Out of line so subclass TUs need no complete member types.
     WasmScriptingVM();
     std::string m_lastError;
+    // Full text of the last raiseModuleError; see fullTrapMessage().
+    std::string m_moduleErrorDetail;
     Factory* m_factory = nullptr;
     uint32_t m_L = 0;
 

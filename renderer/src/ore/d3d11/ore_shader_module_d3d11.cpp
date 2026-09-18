@@ -52,16 +52,17 @@ void ShaderModuleD3D11::ensureD3DShadersImpl(ID3D11Device* device,
             const char* errMsg =
                 errors ? static_cast<const char*>(errors->GetBufferPointer())
                        : "(no error log)";
-            char buf[1024];
-            snprintf(buf,
-                     sizeof(buf),
+            // Unbounded tail: the compiler log carries the line numbers the
+            // author needs and overflows any fixed buffer.
+            char prefix[128];
+            snprintf(prefix,
+                     sizeof(prefix),
                      "D3DCompile failed (entry=%s target=%s "
-                     "hr=0x%08x): %s",
+                     "hr=0x%08x): ",
                      entry,
                      target,
-                     static_cast<unsigned>(hr),
-                     errMsg);
-            *outError = buf;
+                     static_cast<unsigned>(hr));
+            *outError = std::string(prefix) + errMsg;
         }
         return;
     }

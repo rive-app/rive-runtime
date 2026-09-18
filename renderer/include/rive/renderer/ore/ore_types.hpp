@@ -575,8 +575,12 @@ struct BindGroupLayoutEntry
     };
     SampleType textureSampleType = SampleType::floatFilterable;
     bool textureMultisampled = false;
+    // Sampler-only: WebGPU forbids a filtering-typed sampler binding on a
+    // depth texture, so a sampler paired only with depth textures declares
+    // non-filtering. Other backends ignore it.
+    bool samplerNonFiltering = false;
     // Named so recording an entry array copies no indeterminate bytes.
-    uint8_t pad[2] = {};
+    uint8_t pad[1] = {};
 
     // UBO-only: smallest valid bind size for this entry. 0 = no minimum
     // (use the full buffer range). Matches WebGPU's

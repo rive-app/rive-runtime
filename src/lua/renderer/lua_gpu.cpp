@@ -1484,7 +1484,9 @@ static int gpubindgrouplayout_construct(lua_State* L)
                                           bindingMap,
                                           groupIndex,
                                           dynUBOs,
-                                          dynUBOCount);
+                                          dynUBOCount,
+                                          scripted->vertexMod(),
+                                          fragmentModule);
     if (!layout)
     {
         const std::string& err = oreCtx->lastError();
@@ -2047,7 +2049,13 @@ static int gpupipeline_construct(lua_State* L)
             if (!seen[g])
                 continue;
             autoLayouts[g] =
-                makeBindGroupLayoutFromBindingMap(*getOreContext(L), bm, g);
+                makeBindGroupLayoutFromBindingMap(*getOreContext(L),
+                                                  bm,
+                                                  g,
+                                                  nullptr,
+                                                  0,
+                                                  desc.vertexModule,
+                                                  desc.fragmentModule);
             layoutPtrs[g] = autoLayouts[g].get();
         }
         layoutCount = maxGroup;

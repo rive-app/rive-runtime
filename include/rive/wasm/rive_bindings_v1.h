@@ -94,6 +94,7 @@ typedef struct rive_gpu_bind_group_layout_entry_v1
     uint32_t nativeSlotVS;
     uint32_t nativeSlotFS;
     uint32_t nativeSlotCS;
+    uint32_t samplerNonFiltering;
 } rive_gpu_bind_group_layout_entry_v1;
 
 typedef struct rive_gpu_bind_group_ubo_v1

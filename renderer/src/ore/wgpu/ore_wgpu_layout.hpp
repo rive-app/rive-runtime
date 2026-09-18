@@ -243,7 +243,9 @@ inline wgpu::BindGroupLayoutEntry makeWGPUBGLEntryFromDesc(
             e.storageTexture.viewDimension = toViewDim(src.textureViewDim);
             break;
         case BindingKind::sampler:
-            e.sampler.type = wgpu::SamplerBindingType::Filtering;
+            e.sampler.type = src.samplerNonFiltering
+                                 ? wgpu::SamplerBindingType::NonFiltering
+                                 : wgpu::SamplerBindingType::Filtering;
             break;
         case BindingKind::comparisonSampler:
             e.sampler.type = wgpu::SamplerBindingType::Comparison;

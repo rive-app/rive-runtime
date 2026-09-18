@@ -573,6 +573,13 @@ void ContextD3D12::beginFrame(const FrameDescriptor& desc)
     m_safeFrameNumber = desc.safeFrameNumber;
     m_d3dCmdList =
         static_cast<ID3D12GraphicsCommandList*>(desc.externalCommandBuffer);
+    if (m_d3dCmdList == nullptr)
+    {
+        // A host that opened the frame without a command list; the frame's
+        // passes fail through lastError instead of dereferencing null.
+        setLastError("Ore D3D12: beginFrame needs an external command list");
+        return;
+    }
 
     // Reset frame-scoped GPU heap allocation offsets.
     m_d3dGpuSrvAllocated = 0;
@@ -592,7 +599,14 @@ void ContextD3D12::beginFrame(const FrameDescriptor& desc)
 
 void ContextD3D12::waitForGPU() {}
 
-void ContextD3D12::endFrame() {}
+void ContextD3D12::endFrame()
+{
+#if defined(ORE_BACKEND_D3D12)
+    // The list belongs to the host's frame; a pass begun after this frame
+    // must fail the beginRenderPass guard, not record onto a retired list.
+    m_d3dCmdList = nullptr;
+#endif
+}
 
 #if defined(ORE_BACKEND_D3D12)
 void ContextD3D12::d3d12QueuePendingTextureUpload(
@@ -1628,6 +1642,15 @@ std::unique_ptr<RenderPass> ContextD3D12::d3d12BeginRenderPass(
     std::string* outError)
 {
 #if defined(ORE_BACKEND_D3D12)
+    if (m_d3dCmdList == nullptr)
+    {
+        setLastError("Ore D3D12: beginRenderPass without an open frame");
+        if (outError != nullptr)
+        {
+            *outError = lastError();
+        }
+        return nullptr;
+    }
     // Drain uploads staged mid-frame before the pass reads the textures.
     d3d12FlushPendingTextureUploads();
 
@@ -1978,11 +2001,19 @@ rcp<TextureView> ContextD3D12::d3d12WrapRiveTexture(gpu::Texture* gpuTex,
     // do it when external-CL mode is active, because in owned-CL mode the Ore
     // CL is submitted before Rive's CL and a barrier recorded here would
     // reference a state the texture isn't actually in at submission time.
-    assert(m_d3dCmdList != nullptr);
     auto* manager = static_cast<gpu::D3D12ResourceManager*>(d3dTex->manager());
     if (manager != nullptr &&
         d3dTex->lastState() != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
     {
+        if (m_d3dCmdList == nullptr)
+        {
+            // No list to record the transition, and the wrap outlives this
+            // call via the resident table; a view over a wrong-state texture
+            // reads garbage silently, so refuse instead.
+            setLastError("Ore D3D12: wrapRiveTexture needs an open frame to "
+                         "transition the texture");
+            return nullptr;
+        }
         manager->transition(m_d3dCmdList,
                             d3dTex,
                             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

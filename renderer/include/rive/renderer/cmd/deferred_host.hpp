@@ -8,6 +8,7 @@
 
 #include "rive/renderer/cmd/deferred_replayer.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
+#include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include <functional>
 #include <memory>
@@ -50,12 +51,12 @@ public:
     uint64_t defaultScreenTarget() override { return m_target; }
     void beginOreFrame() override;
     void endOreFrame() override;
-    // The command buffer Ore records this frame's commands into. Ore is
-    // immediate mode, so it needs this at begin rather than end, and backends
-    // that record into one cannot open a frame without it: D3D12 dereferences
-    // it for SetDescriptorHeaps, Vulkan and WGPU assert on it. Null suits the
-    // backends that do not (D3D11, GL), which is why it is the default.
-    virtual void* oreCommandBuffer() { return nullptr; }
+    // What Ore records this frame into. Ore is immediate mode, so it needs
+    // this at begin rather than end, and backends that record into a command
+    // buffer cannot open a frame without it: D3D12 fails the frame, Vulkan
+    // and WGPU assert. The zero default suits the backends that do not (D3D11,
+    // GL, Metal), where zero serials also disable backing reuse.
+    virtual rive::ore::Context::FrameDescriptor oreFrame() { return {}; }
     void afterOreFrame() override;
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override;

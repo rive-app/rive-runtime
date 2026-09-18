@@ -129,6 +129,7 @@ PODS = [
         u32('nativeSlotVS'),
         u32('nativeSlotFS'),
         u32('nativeSlotCS'),
+        u32('samplerNonFiltering'),
     ]),
     pod('gpu_bind_group_ubo', [
         u32('slot'),

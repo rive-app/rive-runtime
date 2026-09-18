@@ -346,12 +346,24 @@ public:
         __attribute__((format(printf, 2, 3)))
 #endif
     {
+        // Sized to the message: shader compiler logs overflow any fixed
+        // buffer, and a truncated error is what the author reads.
         va_list args;
         va_start(args, fmt);
-        char buf[1024];
-        vsnprintf(buf, sizeof(buf), fmt, args);
+        va_list sizing;
+        va_copy(sizing, args);
+        int size = vsnprintf(nullptr, 0, fmt, sizing);
+        va_end(sizing);
+        if (size < 0)
+        {
+            va_end(args);
+            m_lastError = fmt;
+            return;
+        }
+        std::vector<char> buf(static_cast<size_t>(size) + 1);
+        vsnprintf(buf.data(), buf.size(), fmt, args);
         va_end(args);
-        m_lastError = buf;
+        m_lastError.assign(buf.data(), static_cast<size_t>(size));
     }
 
     // Shared by baked id, so one bind group does not cost two descriptor
