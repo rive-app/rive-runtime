@@ -427,6 +427,11 @@ ImportResult File::readObjects(BinaryReader& reader,
     // simple because Core doesn't have a typeKey, so it should be treated as
     // a special case. In any case, it's not that bad having it here for now.
     Core* lastBindableObject = nullptr;
+    // Hold the failures instead and free them once the stack has resolved.
+    // Artboard::validateObjects() parks its invalid objects for the same
+    // reason. This vector outlives the resolve() below and is unwound on
+    // every path out, early returns included.
+    std::vector<std::unique_ptr<Core>> discarded;
 #ifdef WITH_RIVE_TOOLS
     // Start of the object about to be read, so an Artboard's run can be
     // measured from its own first byte.
@@ -541,7 +546,7 @@ ImportResult File::readObjects(BinaryReader& reader,
             fprintf(stderr,
                     "Failed to import object of type %d\n",
                     object->coreType());
-            delete object;
+            discarded.emplace_back(object);
             continue;
         }
         std::unique_ptr<ImportStackObject> stackObject = nullptr;

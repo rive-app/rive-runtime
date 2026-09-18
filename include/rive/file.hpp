@@ -66,8 +66,8 @@ enum class ImportResult
 #ifdef WITH_RIVE_TOOLS
 ///
 /// Callback interface for registering view model instances (used by the
-/// editor). Implemented in rive_binding to store instances in a map keyed by
-/// File.
+/// editor). Implemented in rive_binding, which hands the file a registrar at
+/// import and takes it back to destroy when the file is deleted.
 ///
 class ViewModelInstanceRegistrar
 {
@@ -333,6 +333,12 @@ public:
 #endif
 #ifdef WITH_RIVE_TOOLS
     void setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar);
+    /// The registrar last handed to this file, so whoever installed it can
+    /// take it back and destroy it. Null once the file's destructor has run.
+    ViewModelInstanceRegistrar* viewModelInstanceRegistrar() const
+    {
+        return m_viewModelInstanceRegistrar;
+    }
     void registerViewModelInstance(ViewModelInstance* ptr,
                                    rcp<ViewModelInstance> ref) const;
     bool containsViewModelInstance(ViewModelInstance* ptr) const;

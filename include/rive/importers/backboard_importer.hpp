@@ -36,7 +36,7 @@ private:
     std::vector<KeyFrameInterpolator*> m_interpolators;
     std::vector<ScrollPhysics*> m_physics;
     int m_NextArtboardId;
-    File* m_file;
+    File* m_file = nullptr;
 
 public:
     BackboardImporter(Backboard* backboard);

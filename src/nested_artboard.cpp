@@ -592,9 +592,14 @@ StatusCode NestedArtboard::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
+    StatusCode code = Super::import(importStack);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+    // Registered last, and only once this object is certain to survive.
     backboardImporter->addArtboardReferencer(this);
-
-    return Super::import(importStack);
+    return StatusCode::Ok;
 }
 
 void NestedArtboard::addNestedAnimation(NestedAnimation* nestedAnimation)

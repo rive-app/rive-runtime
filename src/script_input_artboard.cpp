@@ -25,8 +25,6 @@ StatusCode ScriptInputArtboard::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    backboardImporter->addArtboardReferencer(this);
-
     auto importer =
         importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
     if (importer == nullptr)
@@ -40,8 +38,14 @@ StatusCode ScriptInputArtboard::import(ImportStack& importStack)
     {
         // If the ScriptedObject is a Component, we need the ArtboardImporter
         // to add it as a Component, otherwise, return Ok
-        return Super::import(importStack);
+        StatusCode code = Super::import(importStack);
+        if (code != StatusCode::Ok)
+        {
+            return code;
+        }
     }
+    // Registered last, and only once this object is certain to survive.
+    backboardImporter->addArtboardReferencer(this);
     return StatusCode::Ok;
 }
 
