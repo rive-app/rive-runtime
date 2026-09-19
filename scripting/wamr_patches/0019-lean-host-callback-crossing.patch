@@ -1,0 +1,205 @@
+From: rive
+Subject: [PATCH 0019] lean host callback crossing
+
+Two changes to what a call across the host boundary costs.
+
+AOT code reaches every import through aot_invoke_native, which always took
+the generic argument classifier. It now takes the quick dispatch from patch
+0008 when the signature allows, as the fast interpreter already did. The
+kind is worked out once, where the import is resolved, so the call path only
+reads it and instances sharing a module never write to it.
+
+wasm_runtime_call_wasm_nested is an entry for a native that calls back into
+the module on the exec env and thread of the call that invoked it, such as a
+listener fired from inside a script call. That outer call already validated
+the exec env, set its thread info and published it on the instance, so the
+nested entry skips all three. Builds with hardware bound checks, AOT stack
+frames or multi module keep the ordinary entry, because those need the per
+call setup.
+
+diff --git a/core/iwasm/aot/aot_runtime.c b/core/iwasm/aot/aot_runtime.c
+--- a/core/iwasm/aot/aot_runtime.c
++++ b/core/iwasm/aot/aot_runtime.c
+@@ -2529,6 +2529,32 @@
+                                       attachment, argv, argc, argv_ret);
+ }
+ #endif /* end of OS_ENABLE_HW_BOUND_CHECK */
++
++bool
++aot_call_function_nested(WASMExecEnv *exec_env, AOTFunctionInstance *function,
++                         unsigned argc, uint32 argv[])
++{
++#if WASM_ENABLE_QUICK_AOT_ENTRY != 0 && !defined(OS_ENABLE_HW_BOUND_CHECK) \
++    && WASM_ENABLE_AOT_STACK_FRAME == 0 && WASM_ENABLE_MULTI_MODULE == 0
++    if (!function->is_import_func) {
++        AOTFuncType *func_type = function->u.func.func_type;
++
++        /* the running call already validated the exec env, set its thread
++           info and published it on the instance */
++        if (func_type->quick_aot_entry && func_type->result_count <= 1
++            && argc >= func_type->param_cell_num) {
++            AOTModuleInstance *module_inst =
++                (AOTModuleInstance *)exec_env->module_inst;
++            void (*invoke)(void *func_ptr, void *exec_env, uint32 *argv,
++                           uint32 *argv_ret) = func_type->quick_aot_entry;
++
++            invoke(function->u.func.func_ptr, exec_env, argv, argv);
++            return !aot_copy_exception(module_inst, NULL);
++        }
++    }
++#endif
++    return aot_call_function(exec_env, function, argc, argv);
++}
+ 
+ #ifdef AOT_STACK_FRAME_DEBUG
+ typedef void (*stack_frame_callback_t)(struct WASMExecEnv *exec_env);
+@@ -3258,9 +3284,17 @@
+         }
+ #endif
+ #endif /* WASM_ENABLE_MULTI_MODULE != 0 */
+-        ret =
+-            wasm_runtime_invoke_native(exec_env, func_ptr, func_type, signature,
+-                                       attachment, argv, argc, argv);
++#if WASM_ENABLE_QUICK_NATIVE != 0
++        /* set when the import was resolved, so this path only reads */
++        if (import_func->quick_call_kind > WASM_QUICK_NATIVE_NO)
++            ret = wasm_runtime_invoke_native_quick(
++                exec_env, func_ptr, func_type, import_func->quick_call_kind,
++                attachment, argv, argv);
++        else
++#endif
++            ret = wasm_runtime_invoke_native(exec_env, func_ptr, func_type,
++                                             signature, attachment, argv, argc,
++                                             argv);
+ #if WASM_ENABLE_MULTI_MODULE != 0 && WASM_ENABLE_AOT_STACK_FRAME != 0
+         /* Free all frames allocated, note that some frames
+            may be allocated in AOT code and haven't been
+@@ -5634,6 +5668,12 @@
+             }
+         }
+     }
++#endif
++#if WASM_ENABLE_QUICK_NATIVE != 0
++    if (import_func->func_ptr_linked && !import_func->call_conv_raw)
++        import_func->quick_call_kind = wasm_runtime_compute_quick_native_kind(
++            import_func->func_type, import_func->signature);
+ #endif
++
+     return import_func->func_ptr_linked != NULL;
+ }
+diff --git a/core/iwasm/aot/aot_runtime.h b/core/iwasm/aot/aot_runtime.h
+--- a/core/iwasm/aot/aot_runtime.h
++++ b/core/iwasm/aot/aot_runtime.h
+@@ -632,6 +632,11 @@
+ aot_call_function(WASMExecEnv *exec_env, AOTFunctionInstance *function,
+                   unsigned argc, uint32 argv[]);
+ 
++/* rive: see wasm_runtime_call_wasm_nested */
++bool
++aot_call_function_nested(WASMExecEnv *exec_env, AOTFunctionInstance *function,
++                         unsigned argc, uint32 argv[]);
++
+ /**
+  * Set AOT module instance exception with exception string
+  *
+diff --git a/core/iwasm/common/wasm_runtime_common.c b/core/iwasm/common/wasm_runtime_common.c
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -2718,6 +2718,24 @@
+ #endif
+ 
+     return ret;
++}
++
++bool
++wasm_runtime_call_wasm_nested(WASMExecEnv *exec_env,
++                              WASMFunctionInstanceCommon *function,
++                              uint32 argc, uint32 argv[])
++{
++#if WASM_ENABLE_INTERP != 0
++    if (exec_env->module_inst->module_type == Wasm_Module_Bytecode)
++        return wasm_call_function_nested(
++            exec_env, (WASMFunctionInstance *)function, argc, argv);
++#endif
++#if WASM_ENABLE_AOT != 0
++    if (exec_env->module_inst->module_type == Wasm_Module_AoT)
++        return aot_call_function_nested(
++            exec_env, (AOTFunctionInstance *)function, argc, argv);
++#endif
++    return false;
+ }
+ 
+ static void
+diff --git a/core/iwasm/compilation/aot.h b/core/iwasm/compilation/aot.h
+--- a/core/iwasm/compilation/aot.h
++++ b/core/iwasm/compilation/aot.h
+@@ -199,6 +199,9 @@
+     bool call_conv_raw;
+     bool call_conv_wasm_c_api;
+     bool wasm_c_api_with_env;
++    /* rive: quick host-call kind, set when the import resolves, see
++       wasm_runtime_common.h */
++    uint8 quick_call_kind;
+ } AOTImportFunc;
+ 
+ /**
+diff --git a/core/iwasm/include/wasm_export.h b/core/iwasm/include/wasm_export.h
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -1165,6 +1165,16 @@
+ WASM_RUNTIME_API_EXTERN bool
+ wasm_runtime_call_wasm(wasm_exec_env_t exec_env, wasm_function_inst_t function,
+                        uint32_t argc, uint32_t argv[]);
++
++/**
++ * rive: wasm_runtime_call_wasm for a native re-entering the module on the
++ * exec env and thread of the call that invoked it, which already validated
++ * the exec env and set its thread info. No reference type arguments.
++ */
++WASM_RUNTIME_API_EXTERN bool
++wasm_runtime_call_wasm_nested(wasm_exec_env_t exec_env,
++                              wasm_function_inst_t function, uint32_t argc,
++                              uint32_t argv[]);
+ 
+ /**
+  * Call the given WASM function of a WASM module instance with
+diff --git a/core/iwasm/interpreter/wasm_runtime.c b/core/iwasm/interpreter/wasm_runtime.c
+--- a/core/iwasm/interpreter/wasm_runtime.c
++++ b/core/iwasm/interpreter/wasm_runtime.c
+@@ -3690,6 +3690,21 @@
+     return !wasm_copy_exception(module_inst, NULL);
+ }
+ 
++bool
++wasm_call_function_nested(WASMExecEnv *exec_env, WASMFunctionInstance *function,
++                          unsigned argc, uint32 argv[])
++{
++#ifndef OS_ENABLE_HW_BOUND_CHECK
++    WASMModuleInstance *module_inst =
++        (WASMModuleInstance *)exec_env->module_inst;
++
++    wasm_interp_call_wasm(module_inst, exec_env, function, argc, argv);
++    return !wasm_copy_exception(module_inst, NULL);
++#else
++    return wasm_call_function(exec_env, function, argc, argv);
++#endif
++}
++
+ #if WASM_ENABLE_PERF_PROFILING != 0 || WASM_ENABLE_DUMP_CALL_STACK != 0
+ /* look for the function name */
+ static char *
+diff --git a/core/iwasm/interpreter/wasm_runtime.h b/core/iwasm/interpreter/wasm_runtime.h
+--- a/core/iwasm/interpreter/wasm_runtime.h
++++ b/core/iwasm/interpreter/wasm_runtime.h
+@@ -599,6 +599,11 @@
+ wasm_call_function(WASMExecEnv *exec_env, WASMFunctionInstance *function,
+                    unsigned argc, uint32 argv[]);
+ 
++/* rive: see wasm_runtime_call_wasm_nested */
++bool
++wasm_call_function_nested(WASMExecEnv *exec_env, WASMFunctionInstance *function,
++                          unsigned argc, uint32 argv[]);
++
+ void
+ wasm_set_exception(WASMModuleInstance *module, const char *exception);
+ 

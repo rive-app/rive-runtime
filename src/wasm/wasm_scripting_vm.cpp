@@ -103,6 +103,7 @@
 #include "rive/renderer/cmd/deferred_render_resource.hpp"
 
 #include <algorithm>
+#include <cassert>
 #endif
 
 #include "wasm_export.h"
@@ -177,6 +178,36 @@ struct WasmScriptingVM::WamrState
     bool ownsModule = true;
     wasm_module_inst_t instance = nullptr;
     wasm_exec_env_t execEnv = nullptr;
+    uint32_t callDepth = 0;
+
+    // Export names reach callModule as literals, so the pointer is the key;
+    // the owned copy lets debug builds catch a caller that reuses a buffer.
+    struct ExportSlot
+    {
+        const char* key = nullptr;
+        std::string name;
+        wasm_function_inst_t function = nullptr;
+    };
+    ExportSlot exportCache[64];
+
+    wasm_function_inst_t lookupExport(const char* name)
+    {
+        ExportSlot& slot = exportCache[(reinterpret_cast<uintptr_t>(name) *
+                                        0x9E3779B97F4A7C15ull) >>
+                                       58];
+        if (slot.key != name)
+        {
+            wasm_function_inst_t function =
+                wasm_runtime_lookup_function(instance, name);
+            if (function == nullptr)
+            {
+                return nullptr;
+            }
+            slot = {name, name, function};
+        }
+        assert(slot.name == name);
+        return slot.function;
+    }
 
     ~WamrState()
     {
@@ -224,6 +255,11 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm) :
     {
         vm->m_debugHooks->onCallBegin(*vm);
     }
+    // The outermost scope sweeps what any nested call left open.
+    if (vm->m_state->callDepth++ != 0)
+    {
+        return;
+    }
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(vm);
     m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
@@ -235,30 +271,33 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm) :
 
 WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 {
-#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
-    ore::Context* oreContext = gpuOreContext(m_vm);
-    if (oreContext != nullptr &&
-        oreContext->finishOpenRenderPassesFrom(m_passToken) != 0)
+    if (--m_vm->m_state->callDepth == 0)
     {
-        fprintf(stderr,
-                "GPU render pass left open at script return. Call finish() "
-                "on render passes before returning.\n");
-    }
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+        ore::Context* oreContext = gpuOreContext(m_vm);
+        if (oreContext != nullptr &&
+            oreContext->finishOpenRenderPassesFrom(m_passToken) != 0)
+        {
+            fprintf(stderr,
+                    "GPU render pass left open at script return. Call finish() "
+                    "on render passes before returning.\n");
+        }
 #endif
 #ifdef RIVE_CANVAS
-    std::vector<uint32_t> openFrames =
-        m_vm->takeOpenCanvasFramesFrom(m_frameToken);
-    for (uint32_t canvas : openFrames)
-    {
-        canvasEndFrameImpl(m_vm, canvas);
-    }
-    if (!openFrames.empty())
-    {
-        fprintf(stderr,
-                "Canvas frame left open at script return. Call endFrame() "
-                "before returning.\n");
-    }
+        std::vector<uint32_t> openFrames =
+            m_vm->takeOpenCanvasFramesFrom(m_frameToken);
+        for (uint32_t canvas : openFrames)
+        {
+            canvasEndFrameImpl(m_vm, canvas);
+        }
+        if (!openFrames.empty())
+        {
+            fprintf(stderr,
+                    "Canvas frame left open at script return. Call endFrame() "
+                    "before returning.\n");
+        }
 #endif
+    }
     if (m_vm->m_debugHooks != nullptr)
     {
         // Still set here when the call trapped; the caller clears it.
@@ -277,7 +316,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     uint32_t* result)
 {
     wasm_module_inst_t inst = m_state->instance;
-    wasm_function_inst_t f = wasm_runtime_lookup_function(inst, name);
+    wasm_function_inst_t f = m_state->lookupExport(name);
     if (f == nullptr)
     {
         // Callers probing optional exports read the outcome; a plain
@@ -292,7 +331,9 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     bool ok;
     {
         ScriptCallScope callScope(this);
-        ok = wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
+        ok = m_state->callDepth > 1
+                 ? wasm_runtime_call_wasm_nested(m_state->execEnv, f, argc, buf)
+                 : wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
     }
     if (!ok)
     {
