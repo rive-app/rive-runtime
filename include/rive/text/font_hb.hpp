@@ -7,6 +7,12 @@
 #include <unordered_map>
 #include <vector>
 
+// Platforms where HBFont::DecodeFile can map a file. Declared here so callers
+// and tests branch on the same condition the implementation uses.
+#if defined(__APPLE__) || defined(__linux__) || defined(__ANDROID__)
+#define RIVE_HB_FILE_MAPPING 1
+#endif
+
 struct hb_font_t;
 struct hb_draw_funcs_t;
 struct hb_paint_funcs_t;
@@ -46,6 +52,21 @@ public:
     bool hasGlyph(const rive::Unichar) const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
+
+    /// Decodes the font at [path] by mapping the file rather than copying it.
+    ///
+    /// Only for trusted, stable local files -- system fonts are the intended
+    /// use. The mapping stays live for the font's lifetime, and a null return
+    /// covers ONLY failures detectable during this call (unsupported platform,
+    /// missing/unreadable/empty file, oversized file, a blob harfbuzz refuses).
+    /// It is not a guarantee about later access: if the file is truncated or
+    /// its backing storage disappears, faulting a page in raises SIGBUS and
+    /// terminates the process. Do not point this at user-supplied paths,
+    /// removable media or network volumes -- use Decode with your own bytes.
+    ///
+    /// Returns null where RIVE_HB_FILE_MAPPING is undefined, so callers must
+    /// always have a Decode fallback.
+    static rive::rcp<rive::Font> DecodeFile(const char* path);
     static rive::rcp<rive::Font> FromSystem(void* systemFont,
                                             bool useSystemShaper,
                                             uint16_t weight,

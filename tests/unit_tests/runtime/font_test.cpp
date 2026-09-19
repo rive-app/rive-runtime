@@ -222,3 +222,99 @@ TEST_CASE("font features load as expected", "[text]")
     REQUIRE(hasTag(featureStrings, "pnum"));
     REQUIRE(hasTag(featureStrings, "liga"));
 }
+
+// DecodeFile maps the file instead of copying it. The mapping is invisible to
+// callers, so these assert that it is equivalent to Decode and that every
+// failure path degrades to null rather than crashing (callers fall back).
+TEST_CASE("mapped font decodes equivalently to a copied one", "[text]")
+{
+    const char* path = "assets/fonts/Inter_18pt-Regular.ttf";
+#ifndef RIVE_HB_FILE_MAPPING
+    // No file mapping here (Windows): callers fall back to Decode.
+    REQUIRE(HBFont::DecodeFile(path) == nullptr);
+    return;
+#else
+    auto copied = loadFont(path);
+    auto mapped = HBFont::DecodeFile(path);
+    REQUIRE(copied != nullptr);
+    REQUIRE(mapped != nullptr);
+
+    // Same metrics.
+    REQUIRE(mapped->getWeight() == copied->getWeight());
+    REQUIRE(mapped->isItalic() == copied->isItalic());
+    REQUIRE(mapped->getAxisCount() == copied->getAxisCount());
+
+    // Same shaping: identical glyphs and advances for the same text.
+    std::vector<rive::Unichar> mappedText, copiedText;
+    std::vector<rive::TextRun> mappedRuns, copiedRuns;
+    copiedRuns.push_back(append(&copiedText, copied, 32.0f, "Shaping parity"));
+    mappedRuns.push_back(append(&mappedText, mapped, 32.0f, "Shaping parity"));
+
+    auto copiedShape = copied->shapeText(copiedText, copiedRuns);
+    auto mappedShape = mapped->shapeText(mappedText, mappedRuns);
+    REQUIRE(mappedShape.size() == copiedShape.size());
+    for (size_t p = 0; p < copiedShape.size(); p++)
+    {
+        const auto& a = copiedShape[p];
+        const auto& b = mappedShape[p];
+        REQUIRE(b.runs.size() == a.runs.size());
+        for (size_t r = 0; r < a.runs.size(); r++)
+        {
+            REQUIRE(b.runs[r].glyphs.size() == a.runs[r].glyphs.size());
+            for (size_t g = 0; g < a.runs[r].glyphs.size(); g++)
+            {
+                REQUIRE(b.runs[r].glyphs[g] == a.runs[r].glyphs[g]);
+                REQUIRE(b.runs[r].advances[g] == a.runs[r].advances[g]);
+            }
+        }
+    }
+#endif
+}
+
+TEST_CASE("mapped font outlives the call that created it", "[text]")
+{
+    const char* path = "assets/fonts/Inter_18pt-Regular.ttf";
+#ifndef RIVE_HB_FILE_MAPPING
+    REQUIRE(HBFont::DecodeFile(path) == nullptr);
+    return;
+#else
+    // The mapping is owned by harfbuzz's blob, not by any local: glyph data
+    // must still be readable once DecodeFile's scope is long gone.
+    rcp<Font> font;
+    {
+        font = HBFont::DecodeFile(path);
+    }
+    REQUIRE(font != nullptr);
+    REQUIRE(font->hasGlyph('A'));
+
+    // Shaping reads the mapped tables, so this would fault or return nothing
+    // if the mapping had been released with the local scope.
+    std::vector<rive::Unichar> text;
+    std::vector<rive::TextRun> runs;
+    runs.push_back(append(&text, font, 32.0f, "A"));
+    auto shape = font->shapeText(text, runs);
+    REQUIRE(shape.size() == 1);
+    REQUIRE(shape[0].runs.size() == 1);
+    REQUIRE(shape[0].runs[0].glyphs.size() == 1);
+    REQUIRE(font->getPath(shape[0].runs[0].glyphs[0]).verbs().size() > 0);
+#endif
+}
+
+TEST_CASE("DecodeFile returns null rather than failing hard", "[text]")
+{
+    // Callers treat null as "use Decode instead", so every failure this call
+    // can detect must return null rather than throw or crash. Note these are
+    // only the failures detectable here: arbitrary non-font data is NOT one of
+    // them, since hb_face_create_or_fail does not validate that a non-empty
+    // blob is a font -- the byte-based Decode has the same behaviour.
+    REQUIRE(HBFont::DecodeFile(nullptr) == nullptr);
+    REQUIRE(HBFont::DecodeFile("assets/does_not_exist.ttf") == nullptr);
+
+    // An empty file: rejected on size before anything is mapped.
+    const char* emptyPath = "assets/empty_font_test_file.tmp";
+    FILE* fp = fopen(emptyPath, "wb");
+    REQUIRE(fp != nullptr);
+    fclose(fp);
+    REQUIRE(HBFont::DecodeFile(emptyPath) == nullptr);
+    remove(emptyPath);
+}

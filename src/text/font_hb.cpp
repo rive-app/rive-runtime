@@ -15,6 +15,16 @@
 #include "hb-ot.h"
 #include <unordered_set>
 
+// harfbuzz's own file loader is compiled out (HB_NO_OPEN/HB_NO_MMAP keep it
+// out of the wasm builds), so map the file ourselves and hand harfbuzz a
+// borrowed pointer. RIVE_HB_FILE_MAPPING is defined in font_hb.hpp.
+#ifdef RIVE_HB_FILE_MAPPING
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 extern "C"
 {
 #include "SheenBidi.h"
@@ -47,6 +57,84 @@ rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
         }
     }
     return nullptr;
+}
+
+#ifdef RIVE_HB_FILE_MAPPING
+namespace
+{
+struct HBFileMapping
+{
+    void* data;
+    size_t size;
+};
+
+void destroyHBFileMapping(void* context)
+{
+    auto* mapping = static_cast<HBFileMapping*>(context);
+    munmap(mapping->data, mapping->size);
+    delete mapping;
+}
+} // namespace
+#endif
+
+rive::rcp<rive::Font> HBFont::DecodeFile(const char* path)
+{
+#ifdef RIVE_HB_FILE_MAPPING
+    if (path == nullptr)
+    {
+        return nullptr;
+    }
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+    {
+        return nullptr;
+    }
+    struct stat info;
+    // hb_blob_create_or_fail rejects >= 2GB, so bail before mapping.
+    if (fstat(fd, &info) == -1 || info.st_size <= 0 ||
+        static_cast<uint64_t>(info.st_size) >= (1ull << 31))
+    {
+        close(fd);
+        return nullptr;
+    }
+    size_t size = static_cast<size_t>(info.st_size);
+    void* data = mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    // The mapping holds its own reference to the file.
+    close(fd);
+    if (data == MAP_FAILED)
+    {
+        return nullptr;
+    }
+
+    // READONLY_MAY_MAKE_WRITABLE: harfbuzz reads our clean, evictable file
+    // pages and only copies if it ever needs to write.
+    auto blob =
+        hb_blob_create_or_fail(static_cast<const char*>(data),
+                               static_cast<unsigned>(size),
+                               HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE,
+                               new HBFileMapping{data, size},
+                               &destroyHBFileMapping);
+    // On failure harfbuzz has already invoked the destroy callback.
+    if (blob == nullptr)
+    {
+        return nullptr;
+    }
+    auto face = hb_face_create_or_fail(blob, 0);
+    hb_blob_destroy(blob);
+    if (face == nullptr)
+    {
+        return nullptr;
+    }
+    auto font = hb_font_create(face);
+    hb_face_destroy(face);
+    if (font == nullptr)
+    {
+        return nullptr;
+    }
+    return rive::rcp<rive::Font>(new HBFont(font));
+#else
+    return nullptr;
+#endif
 }
 
 #if defined(RIVE_NO_CORETEXT) || !defined(__APPLE__)
