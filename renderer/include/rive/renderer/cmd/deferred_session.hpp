@@ -40,6 +40,15 @@ struct DeferredSegment
     uint32_t end;
 };
 
+// A host that keeps a raw session pointer across frames. The session tells it
+// when it dies, so the pointer never outlives what it names.
+class DeferredSessionAttachment
+{
+public:
+    virtual ~DeferredSessionAttachment() = default;
+    virtual void deferredSessionDestroyed() = 0;
+};
+
 class DeferredSession : public DeferredFactory,
                         public DeferredCanvasHost,
                         public DeferredRouteHost
@@ -52,6 +61,38 @@ public:
     {
         wireOreCanvases();
     }
+    ~DeferredSession()
+    {
+        // Moved out so a host that detaches on the notice cannot edit the
+        // list under the walk.
+        auto attachments = std::move(m_attachments);
+        for (auto* attachment : attachments)
+        {
+            attachment->deferredSessionDestroyed();
+        }
+    }
+
+    // ---- Attachments ----
+    // A host registers so teardown reaches its raw pointer; one that dies
+    // first detaches.
+    void attach(DeferredSessionAttachment* attachment)
+    {
+        if (std::find(m_attachments.begin(), m_attachments.end(), attachment) ==
+            m_attachments.end())
+        {
+            m_attachments.push_back(attachment);
+        }
+    }
+    void detach(DeferredSessionAttachment* attachment)
+    {
+        auto it =
+            std::find(m_attachments.begin(), m_attachments.end(), attachment);
+        if (it != m_attachments.end())
+        {
+            m_attachments.erase(it);
+        }
+    }
+    size_t attachmentCount() const { return m_attachments.size(); }
 
     ore::cmd::DeferredOreContext& oreContext() { return m_ore; }
     void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
@@ -121,6 +162,7 @@ public:
     // frames, one per render target this session drives.
     Renderer* screenRenderer(uint64_t target = 0)
     {
+        commandBuffer().checkRecordingThread();
         auto& recorder = m_screenRenderers[target];
         if (recorder == nullptr)
         {
@@ -453,6 +495,7 @@ private:
     uint64_t m_nextScreenTarget = 0;
     std::vector<uint64_t> m_freeScreenTargets;
     std::vector<uint64_t> m_openTargets;
+    std::vector<DeferredSessionAttachment*> m_attachments;
 };
 
 } // namespace rive::cmd

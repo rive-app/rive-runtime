@@ -36,6 +36,7 @@ public:
     // A session's producer binds; a backend owned buffer leaves it unbound.
     // Debug only, see RecordingThread.
     void bindRecordingThread() { m_recordingThread.bind(); }
+    void checkRecordingThread() const { m_recordingThread.check(); }
 
     // Append [type byte][POD]. POD must be trivially copyable.
     template <typename POD> void append(uint8_t type, const POD& pod)
