@@ -193,6 +193,7 @@ public:
 
     // ScriptBackend.
     bool valid() const override;
+    bool utf16Strings() const { return m_utf16Strings; }
     void releaseRef(int ref) override;
     int instantiate(int generatorRef,
                     ScriptedObject* object,
@@ -513,6 +514,9 @@ private:
     };
     void deliverDecodeResult(const DecodeResult& result);
     bool m_advancedOnce = false;
+    /// Module exports __riveUtf16Strings: its string arguments arrive as
+    /// UTF-16. Modules baked before that, and the Luau one, pass UTF-8.
+    bool m_utf16Strings = false;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
     /// Module exports __riveHeapUsed; the leak watch reads bump bytes

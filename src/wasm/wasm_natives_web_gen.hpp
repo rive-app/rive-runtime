@@ -17,1117 +17,1368 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_log(uint32_t vmHandle, int32_t level, const char* message, uint32_t length)
 {
-    rtLogImpl((WasmScriptingVM*)(uintptr_t)vmHandle, level, message, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg messageUtf8(vm, message, length);
+    rtLogImpl(vm, level, messageUtf8.data(), messageUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_mark_needs_update(uint32_t vmHandle, uint32_t object)
 {
-    rtMarkNeedsUpdateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rtMarkNeedsUpdateImpl(vm, object);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_budget_exceeded(uint32_t vmHandle, uint32_t ms)
 {
-    rtBudgetExceededImpl((WasmScriptingVM*)(uintptr_t)vmHandle, ms);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rtBudgetExceededImpl(vm, ms);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_debug_enter(uint32_t vmHandle, uint32_t func, uint32_t line)
 {
-    rtDebugEnterImpl((WasmScriptingVM*)(uintptr_t)vmHandle, func, line);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rtDebugEnterImpl(vm, func, line);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_rt_debug_line(uint32_t vmHandle, uint32_t line)
 {
-    return rtDebugLineImpl((WasmScriptingVM*)(uintptr_t)vmHandle, line);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return rtDebugLineImpl(vm, line);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_debug_leave(uint32_t vmHandle)
 {
-    rtDebugLeaveImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rtDebugLeaveImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_rt_utc_offset(uint32_t vmHandle, double epochSeconds)
 {
-    return rtUtcOffsetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return rtUtcOffsetImpl(vm, epochSeconds);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_rt_is_dst(uint32_t vmHandle, double epochSeconds)
 {
-    return rtIsDstImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return rtIsDstImpl(vm, epochSeconds);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_rt_zone_name(uint32_t vmHandle, double epochSeconds, char* buffer, uint32_t capacity)
 {
-    return rtZoneNameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, epochSeconds, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return rtZoneNameImpl(vm, epochSeconds, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_view_model(uint32_t vmHandle, uint32_t object)
 {
-    return dataViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataViewModelImpl(vm, object);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_root_view_model(uint32_t vmHandle, uint32_t object)
 {
-    return dataRootViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataRootViewModelImpl(vm, object);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_global_view_model(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return dataGlobalViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataGlobalViewModelImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_global_view_model_names(uint32_t vmHandle, uint32_t object, char* buffer, uint32_t capacity)
 {
-    return dataGlobalViewModelNamesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataGlobalViewModelNamesImpl(vm, object, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_context(uint32_t vmHandle, uint32_t object)
 {
-    return dataContextImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataContextImpl(vm, object);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_context_parent(uint32_t vmHandle, uint32_t dataContext)
 {
-    return dataContextParentImpl((WasmScriptingVM*)(uintptr_t)vmHandle, dataContext);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataContextParentImpl(vm, dataContext);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_context_view_model(uint32_t vmHandle, uint32_t dataContext)
 {
-    return dataContextViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, dataContext);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataContextViewModelImpl(vm, dataContext);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_context_release(uint32_t vmHandle, uint32_t dataContext)
 {
-    dataContextReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, dataContext);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataContextReleaseImpl(vm, dataContext);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_has_view_model(uint32_t vmHandle, const char* name, uint32_t nameLength)
 {
-    return dataHasViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, name, nameLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataHasViewModelImpl(vm, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_new_view_model(uint32_t vmHandle, const char* name, uint32_t nameLength, const char* templateName, uint32_t templateLength)
 {
-    return dataNewViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, name, nameLength, templateName, templateLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    WasmStringArg templateNameUtf8(vm, templateName, templateLength);
+    return dataNewViewModelImpl(vm, nameUtf8.data(), nameUtf8.size(), templateNameUtf8.data(), templateNameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_vmi_release(uint32_t vmHandle, uint32_t vmi)
 {
-    dataVmiReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataVmiReleaseImpl(vm, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_number(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiNumberImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiNumberImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_boolean(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiBooleanImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiBooleanImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_string(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiStringImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiStringImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_trigger(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiTriggerImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiTriggerImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_color(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiColorImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiColorImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_view_model(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiViewModelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiViewModelImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_property(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length, uint32_t* kindOut, uint32_t kindCount)
 {
-    return dataVmiPropertyImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length, kindOut, kindCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiPropertyImpl(vm, vmi, nameUtf8.data(), nameUtf8.size(), kindOut, kindCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_instance(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t nameLength)
 {
-    return dataVmiInstanceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, nameLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataVmiInstanceImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_symbol_index(uint32_t vmHandle, uint32_t vmi)
 {
-    return dataVmiSymbolIndexImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataVmiSymbolIndexImpl(vm, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
 {
-    return dataVmiEqualImpl((WasmScriptingVM*)(uintptr_t)vmHandle, a, b);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataVmiEqualImpl(vm, a, b);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_view_model_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataViewModelGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataViewModelGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_list(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiListImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiListImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_enum(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiEnumImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiEnumImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_image(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiImageImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiImageImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_font(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiFontImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiFontImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_vmi_blob(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiBlobImpl((WasmScriptingVM*)(uintptr_t)vmHandle, vmi, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiBlobImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_image_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataImageGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataImageGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_image_set(uint32_t vmHandle, uint32_t property, uint32_t image)
 {
-    dataImageSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, image);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataImageSetImpl(vm, property, image);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_font_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataFontGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataFontGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_font_set(uint32_t vmHandle, uint32_t property, uint32_t font)
 {
-    dataFontSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, font);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataFontSetImpl(vm, property, font);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_font_release(uint32_t vmHandle, uint32_t font)
 {
-    dataFontReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, font);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataFontReleaseImpl(vm, font);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_blob_present(uint32_t vmHandle, uint32_t property)
 {
-    return dataBlobPresentImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataBlobPresentImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_blob_get(uint32_t vmHandle, uint32_t property, uint8_t* buffer, uint32_t capacity)
 {
-    return dataBlobGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataBlobGetImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_blob_name(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataBlobNameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataBlobNameImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_blob_set(uint32_t vmHandle, uint32_t property, const uint8_t* bytes, uint32_t byteCount)
 {
-    dataBlobSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, bytes, byteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataBlobSetImpl(vm, property, bytes, byteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_blob_clear(uint32_t vmHandle, uint32_t property)
 {
-    dataBlobClearImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataBlobClearImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_enum_get(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataEnumGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataEnumGetImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_enum_set(uint32_t vmHandle, uint32_t property, const char* value, uint32_t length)
 {
-    dataEnumSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, value, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg valueUtf8(vm, value, length);
+    dataEnumSetImpl(vm, property, valueUtf8.data(), valueUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_enum_values(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataEnumValuesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataEnumValuesImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_prop_release(uint32_t vmHandle, uint32_t property)
 {
-    dataPropReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataPropReleaseImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_trigger_fire(uint32_t vmHandle, uint32_t property)
 {
-    dataTriggerFireImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataTriggerFireImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_list_length(uint32_t vmHandle, uint32_t property)
 {
-    return dataListLengthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataListLengthImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_push(uint32_t vmHandle, uint32_t property, uint32_t vmi)
 {
-    dataListPushImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListPushImpl(vm, property, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_list_pop(uint32_t vmHandle, uint32_t property)
 {
-    return dataListPopImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataListPopImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_list_shift(uint32_t vmHandle, uint32_t property)
 {
-    return dataListShiftImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataListShiftImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_clear(uint32_t vmHandle, uint32_t property)
 {
-    dataListClearImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListClearImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_swap(uint32_t vmHandle, uint32_t property, uint32_t index1, uint32_t index2)
 {
-    dataListSwapImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, index1, index2);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListSwapImpl(vm, property, index1, index2);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_insert(uint32_t vmHandle, uint32_t property, uint32_t vmi, uint32_t index)
 {
-    dataListInsertImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, vmi, index);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListInsertImpl(vm, property, vmi, index);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_remove(uint32_t vmHandle, uint32_t property, uint32_t vmi)
 {
-    dataListRemoveImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListRemoveImpl(vm, property, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_remove_at(uint32_t vmHandle, uint32_t property, uint32_t index)
 {
-    dataListRemoveAtImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, index);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListRemoveAtImpl(vm, property, index);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_list_remove_all_of(uint32_t vmHandle, uint32_t property, uint32_t vmi)
 {
-    dataListRemoveAllOfImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataListRemoveAllOfImpl(vm, property, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_list_get(uint32_t vmHandle, uint32_t property, uint32_t index)
 {
-    return dataListGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, index);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataListGetImpl(vm, property, index);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_view_model_set(uint32_t vmHandle, uint32_t property, uint32_t vmi)
 {
-    dataViewModelSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataViewModelSetImpl(vm, property, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_color_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataColorGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataColorGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_color_set(uint32_t vmHandle, uint32_t property, uint32_t value)
 {
-    dataColorSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataColorSetImpl(vm, property, value);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_data_number_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataNumberGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataNumberGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_number_set(uint32_t vmHandle, uint32_t property, float value)
 {
-    dataNumberSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataNumberSetImpl(vm, property, value);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_boolean_get(uint32_t vmHandle, uint32_t property)
 {
-    return dataBooleanGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataBooleanGetImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_boolean_set(uint32_t vmHandle, uint32_t property, uint32_t value)
 {
-    dataBooleanSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataBooleanSetImpl(vm, property, value);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_string_get(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataStringGetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, buffer, capacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataStringGetImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_string_set(uint32_t vmHandle, uint32_t property, const char* value, uint32_t length)
 {
-    dataStringSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, value, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg valueUtf8(vm, value, length);
+    dataStringSetImpl(vm, property, valueUtf8.data(), valueUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_watch(uint32_t vmHandle, uint32_t property, uint32_t token)
 {
-    dataWatchImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property, token);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataWatchImpl(vm, property, token);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_unwatch(uint32_t vmHandle, uint32_t property)
 {
-    dataUnwatchImpl((WasmScriptingVM*)(uintptr_t)vmHandle, property);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataUnwatchImpl(vm, property);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_data_convert_result(uint32_t vmHandle, uint32_t kind, float number, uint32_t booleanValue, uint32_t color, const char* value, uint32_t length)
 {
-    dataConvertResultImpl((WasmScriptingVM*)(uintptr_t)vmHandle, kind, number, booleanValue, color, value, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg valueUtf8(vm, value, length);
+    dataConvertResultImpl(vm, kind, number, booleanValue, color, valueUtf8.data(), valueUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_release(uint32_t vmHandle, uint32_t artboard)
 {
-    artboardReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardReleaseImpl(vm, artboard);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_advance(uint32_t vmHandle, uint32_t artboard, float seconds)
 {
-    return artboardAdvanceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, seconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardAdvanceImpl(vm, artboard, seconds);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_draw(uint32_t vmHandle, uint32_t artboard, uint32_t renderer)
 {
-    artboardDrawImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, renderer);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardDrawImpl(vm, artboard, renderer);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_instance(uint32_t vmHandle, uint32_t artboard, uint32_t vmi)
 {
-    return artboardInstanceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, vmi);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardInstanceImpl(vm, artboard, vmi);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_data(uint32_t vmHandle, uint32_t artboard)
 {
-    return artboardDataImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardDataImpl(vm, artboard);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_artboard_width(uint32_t vmHandle, uint32_t artboard)
 {
-    return artboardWidthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardWidthImpl(vm, artboard);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_artboard_height(uint32_t vmHandle, uint32_t artboard)
 {
-    return artboardHeightImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardHeightImpl(vm, artboard);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_set_width(uint32_t vmHandle, uint32_t artboard, float value)
 {
-    artboardSetWidthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardSetWidthImpl(vm, artboard, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_set_height(uint32_t vmHandle, uint32_t artboard, float value)
 {
-    artboardSetHeightImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardSetHeightImpl(vm, artboard, value);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_frame_origin(uint32_t vmHandle, uint32_t artboard)
 {
-    return artboardFrameOriginImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardFrameOriginImpl(vm, artboard);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_set_frame_origin(uint32_t vmHandle, uint32_t artboard, uint32_t value)
 {
-    artboardSetFrameOriginImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardSetFrameOriginImpl(vm, artboard, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_bounds(uint32_t vmHandle, uint32_t artboard, float* out, uint32_t outCount)
 {
-    artboardBoundsImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardBoundsImpl(vm, artboard, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_pointer_event(uint32_t vmHandle, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y)
 {
-    return artboardPointerEventImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, kind, pointerId, x, y);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_animation(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
 {
-    return artboardAnimationImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardAnimationImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_animation_release(uint32_t vmHandle, uint32_t animation)
 {
-    artboardAnimationReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, animation);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardAnimationReleaseImpl(vm, animation);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_artboard_animation_duration(uint32_t vmHandle, uint32_t animation)
 {
-    return artboardAnimationDurationImpl((WasmScriptingVM*)(uintptr_t)vmHandle, animation);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardAnimationDurationImpl(vm, animation);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_animation_advance(uint32_t vmHandle, uint32_t animation, float seconds)
 {
-    return artboardAnimationAdvanceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, animation, seconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardAnimationAdvanceImpl(vm, animation, seconds);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_animation_set_time(uint32_t vmHandle, uint32_t animation, float value, uint32_t mode)
 {
-    artboardAnimationSetTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, animation, value, mode);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardAnimationSetTimeImpl(vm, animation, value, mode);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
 {
-    return artboardNodeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, artboard, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardNodeImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_release(uint32_t vmHandle, uint32_t node)
 {
-    artboardNodeReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeReleaseImpl(vm, node);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_transform(uint32_t vmHandle, uint32_t node, float* out, uint32_t outCount)
 {
-    artboardNodeTransformImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeTransformImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_set(uint32_t vmHandle, uint32_t node, uint32_t field, float v0, float v1)
 {
-    artboardNodeSetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, field, v0, v1);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeSetImpl(vm, node, field, v0, v1);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_world_transform(uint32_t vmHandle, uint32_t node, float* out, uint32_t outCount)
 {
-    artboardNodeWorldTransformImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeWorldTransformImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_set_world_transform(uint32_t vmHandle, uint32_t node, const float* values, uint32_t floatCount)
 {
-    artboardNodeSetWorldTransformImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, values, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeSetWorldTransformImpl(vm, node, values, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_artboard_node_decompose(uint32_t vmHandle, uint32_t node, const float* values, uint32_t floatCount)
 {
-    artboardNodeDecomposeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, values, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardNodeDecomposeImpl(vm, node, values, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node_path_verbs(uint32_t vmHandle, uint32_t node, uint8_t* out, uint32_t outCount)
 {
-    return artboardNodePathVerbsImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardNodePathVerbsImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node_path_points(uint32_t vmHandle, uint32_t node, float* out, uint32_t outCount)
 {
-    return artboardNodePathPointsImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardNodePathPointsImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node_paint(uint32_t vmHandle, uint32_t node, uint32_t* out, uint32_t outCount)
 {
-    return artboardNodePaintImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardNodePaintImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node_children(uint32_t vmHandle, uint32_t node, uint32_t* out, uint32_t outCount)
 {
-    return artboardNodeChildrenImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardNodeChildrenImpl(vm, node, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node_parent(uint32_t vmHandle, uint32_t node)
 {
-    return artboardNodeParentImpl((WasmScriptingVM*)(uintptr_t)vmHandle, node);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardNodeParentImpl(vm, node);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return audioSourceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return audioSourceImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_source_release(uint32_t vmHandle, uint32_t source)
 {
-    audioSourceReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSourceReleaseImpl(vm, source);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_audio_source_duration(uint32_t vmHandle, uint32_t source)
 {
-    return audioSourceDurationImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSourceDurationImpl(vm, source);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_source_sample_rate(uint32_t vmHandle, uint32_t source)
 {
-    return audioSourceSampleRateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSourceSampleRateImpl(vm, source);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_source_channels(uint32_t vmHandle, uint32_t source)
 {
-    return audioSourceChannelsImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSourceChannelsImpl(vm, source);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_play(uint32_t vmHandle, uint32_t source)
 {
-    return audioPlayImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioPlayImpl(vm, source);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_play_at_time(uint32_t vmHandle, uint32_t source, float seconds)
 {
-    return audioPlayAtTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, seconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioPlayAtTimeImpl(vm, source, seconds);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_play_in_time(uint32_t vmHandle, uint32_t source, float seconds)
 {
-    return audioPlayInTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, seconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioPlayInTimeImpl(vm, source, seconds);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_play_at_frame(uint32_t vmHandle, uint32_t source, double frame)
 {
-    return audioPlayAtFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, frame);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioPlayAtFrameImpl(vm, source, frame);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_play_in_frame(uint32_t vmHandle, uint32_t source, double frame)
 {
-    return audioPlayInFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, source, frame);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioPlayInFrameImpl(vm, source, frame);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_audio_time(uint32_t vmHandle)
 {
-    return audioTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioTimeImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 double rive_web_audio_time_frame(uint32_t vmHandle)
 {
-    return audioTimeFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioTimeFrameImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_sample_rate(uint32_t vmHandle)
 {
-    return audioSampleRateImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSampleRateImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_release(uint32_t vmHandle, uint32_t sound)
 {
-    audioSoundReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundReleaseImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_play(uint32_t vmHandle, uint32_t sound)
 {
-    audioSoundPlayImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundPlayImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_pause(uint32_t vmHandle, uint32_t sound)
 {
-    audioSoundPauseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundPauseImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_resume(uint32_t vmHandle, uint32_t sound)
 {
-    audioSoundResumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundResumeImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_stop(uint32_t vmHandle, uint32_t sound, uint32_t fadeFrames)
 {
-    audioSoundStopImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, fadeFrames);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundStopImpl(vm, sound, fadeFrames);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_sound_seek(uint32_t vmHandle, uint32_t sound, float seconds)
 {
-    return audioSoundSeekImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, seconds);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundSeekImpl(vm, sound, seconds);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_sound_seek_frame(uint32_t vmHandle, uint32_t sound, double frame)
 {
-    return audioSoundSeekFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, frame);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundSeekFrameImpl(vm, sound, frame);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_sound_completed(uint32_t vmHandle, uint32_t sound)
 {
-    return audioSoundCompletedImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundCompletedImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_audio_sound_time(uint32_t vmHandle, uint32_t sound)
 {
-    return audioSoundTimeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundTimeImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 double rive_web_audio_sound_time_frame(uint32_t vmHandle, uint32_t sound)
 {
-    return audioSoundTimeFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundTimeFrameImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_audio_sound_volume(uint32_t vmHandle, uint32_t sound)
 {
-    return audioSoundVolumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return audioSoundVolumeImpl(vm, sound);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_audio_sound_set_volume(uint32_t vmHandle, uint32_t sound, float value)
 {
-    audioSoundSetVolumeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sound, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    audioSoundSetVolumeImpl(vm, sound, value);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_path_new(uint32_t vmHandle)
 {
-    return pathNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return pathNewImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_path_update(uint32_t vmHandle, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule)
 {
-    pathUpdateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, path, verbs, verbCount, points, floatCount, fillRule);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    pathUpdateImpl(vm, path, verbs, verbCount, points, floatCount, fillRule);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_path_release(uint32_t vmHandle, uint32_t path)
 {
-    pathReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, path);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    pathReleaseImpl(vm, path);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_path_effect_result(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    pathEffectResultImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    pathEffectResultImpl(vm, verbs, verbCount, points, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_path_new(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    return measurePathNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measurePathNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_contours_new(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    return measureContoursNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, verbs, verbCount, points, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureContoursNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_contour_next(uint32_t vmHandle, uint32_t measure)
 {
-    return measureContourNextImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureContourNextImpl(vm, measure);
 }
 EMSCRIPTEN_KEEPALIVE
 float rive_web_measure_length(uint32_t vmHandle, uint32_t measure)
 {
-    return measureLengthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureLengthImpl(vm, measure);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_is_closed(uint32_t vmHandle, uint32_t measure)
 {
-    return measureIsClosedImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureIsClosedImpl(vm, measure);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_measure_pos_tan(uint32_t vmHandle, uint32_t measure, float distance, float* out, uint32_t outCount)
 {
-    measurePosTanImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, distance, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    measurePosTanImpl(vm, measure, distance, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_measure_warp(uint32_t vmHandle, uint32_t measure, float x, float y, float* out, uint32_t outCount)
 {
-    measureWarpImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, x, y, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    measureWarpImpl(vm, measure, x, y, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_extract(uint32_t vmHandle, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove)
 {
-    return measureExtractImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, startDistance, endDistance, startWithMove);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureExtractImpl(vm, measure, startDistance, endDistance, startWithMove);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_measure_extract_read(uint32_t vmHandle, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount)
 {
-    return measureExtractReadImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure, verbs, verbCount, points, floatCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return measureExtractReadImpl(vm, measure, verbs, verbCount, points, floatCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_measure_release(uint32_t vmHandle, uint32_t measure)
 {
-    measureReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, measure);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    measureReleaseImpl(vm, measure);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_paint_new(uint32_t vmHandle)
 {
-    return paintNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return paintNewImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_release(uint32_t vmHandle, uint32_t paint)
 {
-    paintReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintReleaseImpl(vm, paint);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_style(uint32_t vmHandle, uint32_t paint, uint32_t value)
 {
-    paintStyleImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintStyleImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_color(uint32_t vmHandle, uint32_t paint, uint32_t value)
 {
-    paintColorImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintColorImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_thickness(uint32_t vmHandle, uint32_t paint, float value)
 {
-    paintThicknessImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintThicknessImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_join(uint32_t vmHandle, uint32_t paint, uint32_t value)
 {
-    paintJoinImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintJoinImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_cap(uint32_t vmHandle, uint32_t paint, uint32_t value)
 {
-    paintCapImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintCapImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_blend_mode(uint32_t vmHandle, uint32_t paint, uint32_t value)
 {
-    paintBlendModeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintBlendModeImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_feather(uint32_t vmHandle, uint32_t paint, float value)
 {
-    paintFeatherImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, value);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintFeatherImpl(vm, paint, value);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_paint_shader(uint32_t vmHandle, uint32_t paint, uint32_t shader)
 {
-    paintShaderImpl((WasmScriptingVM*)(uintptr_t)vmHandle, paint, shader);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintShaderImpl(vm, paint, shader);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_new(uint32_t vmHandle, uint32_t width, uint32_t height)
 {
-    return canvasNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, width, height);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasNewImpl(vm, width, height);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_canvas_release(uint32_t vmHandle, uint32_t canvas)
 {
-    canvasReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    canvasReleaseImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_width(uint32_t vmHandle, uint32_t canvas)
 {
-    return canvasWidthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasWidthImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_height(uint32_t vmHandle, uint32_t canvas)
 {
-    return canvasHeightImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasHeightImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_resize(uint32_t vmHandle, uint32_t canvas, uint32_t width, uint32_t height)
 {
-    return canvasResizeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, width, height);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasResizeImpl(vm, canvas, width, height);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_image(uint32_t vmHandle, uint32_t canvas)
 {
-    return canvasImageImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasImageImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_begin_frame(uint32_t vmHandle, uint32_t canvas, uint32_t clearColor)
 {
-    return canvasBeginFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, clearColor);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return canvasBeginFrameImpl(vm, canvas, clearColor);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_canvas_end_frame(uint32_t vmHandle, uint32_t canvas)
 {
-    canvasEndFrameImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    canvasEndFrameImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_features(uint32_t vmHandle, uint32_t* out, uint32_t outCount)
 {
-    return gpuFeaturesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuFeaturesImpl(vm, out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_canvas_new(uint32_t vmHandle, uint32_t width, uint32_t height)
 {
-    return gpuCanvasNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, width, height);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuCanvasNewImpl(vm, width, height);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_canvas_release(uint32_t vmHandle, uint32_t canvas)
 {
-    gpuCanvasReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuCanvasReleaseImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_canvas_color_view(uint32_t vmHandle, uint32_t canvas, uint32_t* props, uint32_t propCount)
 {
-    return gpuCanvasColorViewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, props, propCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuCanvasColorViewImpl(vm, canvas, props, propCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_canvas_image(uint32_t vmHandle, uint32_t canvas)
 {
-    return gpuCanvasImageImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuCanvasImageImpl(vm, canvas);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_canvas_resize(uint32_t vmHandle, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount)
 {
-    return gpuCanvasResizeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, canvas, width, height, props, propCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuCanvasResizeImpl(vm, canvas, width, height, props, propCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_pass_begin(uint32_t vmHandle, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
 {
-    return gpuPassBeginImpl((WasmScriptingVM*)(uintptr_t)vmHandle, desc, descByteCount, colors, colorByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuPassBeginImpl(vm, desc, descByteCount, colors, colorByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_pipeline(uint32_t vmHandle, uint32_t pass, uint32_t pipeline)
 {
-    gpuPassSetPipelineImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, pipeline);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetPipelineImpl(vm, pass, pipeline);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_vertex_buffer(uint32_t vmHandle, uint32_t pass, uint32_t slot, uint32_t buffer, uint32_t offset)
 {
-    gpuPassSetVertexBufferImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, slot, buffer, offset);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetVertexBufferImpl(vm, pass, slot, buffer, offset);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_index_buffer(uint32_t vmHandle, uint32_t pass, uint32_t buffer, uint32_t indexFormat, uint32_t offset)
 {
-    gpuPassSetIndexBufferImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, buffer, indexFormat, offset);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetIndexBufferImpl(vm, pass, buffer, indexFormat, offset);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_bind_group(uint32_t vmHandle, uint32_t pass, uint32_t groupIndex, uint32_t bindGroup, const uint32_t* dynamicOffsets, uint32_t dynamicOffsetByteCount)
 {
-    gpuPassSetBindGroupImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetBindGroupImpl(vm, pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_viewport(uint32_t vmHandle, uint32_t pass, float x, float y, float width, float height, float minDepth, float maxDepth)
 {
-    gpuPassSetViewportImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, x, y, width, height, minDepth, maxDepth);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetViewportImpl(vm, pass, x, y, width, height, minDepth, maxDepth);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_scissor(uint32_t vmHandle, uint32_t pass, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
-    gpuPassSetScissorImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, x, y, width, height);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetScissorImpl(vm, pass, x, y, width, height);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_stencil_reference(uint32_t vmHandle, uint32_t pass, uint32_t ref)
 {
-    gpuPassSetStencilReferenceImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, ref);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetStencilReferenceImpl(vm, pass, ref);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_blend_color(uint32_t vmHandle, uint32_t pass, float r, float g, float b, float a)
 {
-    gpuPassSetBlendColorImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, r, g, b, a);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassSetBlendColorImpl(vm, pass, r, g, b, a);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_draw(uint32_t vmHandle, uint32_t pass, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
-    gpuPassDrawImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, vertexCount, instanceCount, firstVertex, firstInstance);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassDrawImpl(vm, pass, vertexCount, instanceCount, firstVertex, firstInstance);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_draw_indexed(uint32_t vmHandle, uint32_t pass, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t baseVertex, uint32_t firstInstance)
 {
-    gpuPassDrawIndexedImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassDrawIndexedImpl(vm, pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_finish(uint32_t vmHandle, uint32_t pass)
 {
-    gpuPassFinishImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassFinishImpl(vm, pass);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_release(uint32_t vmHandle, uint32_t pass)
 {
-    gpuPassReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pass);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPassReleaseImpl(vm, pass);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_image_view(uint32_t vmHandle, uint32_t image, uint32_t width, uint32_t height)
 {
-    return gpuImageViewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, image, width, height);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuImageViewImpl(vm, image, width, height);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_buffer_new(uint32_t vmHandle, uint32_t usage, uint32_t sizeInBytes, uint32_t immutable, const uint8_t* data, uint32_t dataCount)
 {
-    return gpuBufferNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, usage, sizeInBytes, immutable, data, dataCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuBufferNewImpl(vm, usage, sizeInBytes, immutable, data, dataCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_buffer_update(uint32_t vmHandle, uint32_t buffer, uint32_t dstOffset, const uint8_t* data, uint32_t dataCount)
 {
-    gpuBufferUpdateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, buffer, dstOffset, data, dataCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuBufferUpdateImpl(vm, buffer, dstOffset, data, dataCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_buffer_release(uint32_t vmHandle, uint32_t buffer)
 {
-    gpuBufferReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, buffer);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuBufferReleaseImpl(vm, buffer);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_texture_new(uint32_t vmHandle, const rive_gpu_texture_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuTextureNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, desc, descByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuTextureNewImpl(vm, desc, descByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_texture_upload(uint32_t vmHandle, uint32_t texture, const rive_gpu_texture_upload_v1* region, uint32_t regionByteCount, const uint8_t* data, uint32_t dataCount)
 {
-    gpuTextureUploadImpl((WasmScriptingVM*)(uintptr_t)vmHandle, texture, region, regionByteCount, data, dataCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuTextureUploadImpl(vm, texture, region, regionByteCount, data, dataCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_texture_release(uint32_t vmHandle, uint32_t texture)
 {
-    gpuTextureReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, texture);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuTextureReleaseImpl(vm, texture);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_sampler_new(uint32_t vmHandle, const rive_gpu_sampler_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuSamplerNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, desc, descByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuSamplerNewImpl(vm, desc, descByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_sampler_release(uint32_t vmHandle, uint32_t sampler)
 {
-    gpuSamplerReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sampler);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuSamplerReleaseImpl(vm, sampler);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_texture_view_new(uint32_t vmHandle, uint32_t texture, const rive_gpu_texture_view_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuTextureViewNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, texture, desc, descByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuTextureViewNewImpl(vm, texture, desc, descByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_texture_view_release(uint32_t vmHandle, uint32_t view)
 {
-    gpuTextureViewReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, view);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuTextureViewReleaseImpl(vm, view);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_shader_target(uint32_t vmHandle)
 {
-    return gpuShaderTargetImpl((WasmScriptingVM*)(uintptr_t)vmHandle);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuShaderTargetImpl(vm);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_shader_asset_bytes(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
-    return gpuShaderAssetBytesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return gpuShaderAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_shader_asset_id(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return gpuShaderAssetIdImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return gpuShaderAssetIdImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_shader_module_new(uint32_t vmHandle, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
-    return gpuShaderModuleNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, desc, descByteCount, blob, blobCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuShaderModuleNewImpl(vm, desc, descByteCount, blob, blobCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_shader_module_release(uint32_t vmHandle, uint32_t shaderModule)
 {
-    gpuShaderModuleReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, shaderModule);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuShaderModuleReleaseImpl(vm, shaderModule);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_bind_group_layout_new(uint32_t vmHandle, uint32_t groupIndex, const rive_gpu_bind_group_layout_entry_v1* entries, uint32_t entryByteCount)
 {
-    return gpuBindGroupLayoutNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, groupIndex, entries, entryByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuBindGroupLayoutNewImpl(vm, groupIndex, entries, entryByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_bind_group_layout_release(uint32_t vmHandle, uint32_t layout)
 {
-    gpuBindGroupLayoutReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, layout);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuBindGroupLayoutReleaseImpl(vm, layout);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_bind_group_layout_from_shader(uint32_t vmHandle, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
 {
-    return gpuBindGroupLayoutFromShaderImpl((WasmScriptingVM*)(uintptr_t)vmHandle, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_bind_group_new(uint32_t vmHandle, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
-    return gpuBindGroupNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuBindGroupNewImpl(vm, layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_bind_group_release(uint32_t vmHandle, uint32_t bindGroup)
 {
-    gpuBindGroupReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, bindGroup);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuBindGroupReleaseImpl(vm, bindGroup);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_pipeline_new(uint32_t vmHandle, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
-    return gpuPipelineNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, desc, descByteCount, blob, blobCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuPipelineNewImpl(vm, desc, descByteCount, blob, blobCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pipeline_release(uint32_t vmHandle, uint32_t pipeline)
 {
-    gpuPipelineReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, pipeline);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    gpuPipelineReleaseImpl(vm, pipeline);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_buffer_new(uint32_t vmHandle, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes)
 {
-    return bufferNewImpl((WasmScriptingVM*)(uintptr_t)vmHandle, bufferType, flags, sizeInBytes);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return bufferNewImpl(vm, bufferType, flags, sizeInBytes);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_buffer_update(uint32_t vmHandle, uint32_t buffer, const uint8_t* bytes, uint32_t byteCount)
 {
-    bufferUpdateImpl((WasmScriptingVM*)(uintptr_t)vmHandle, buffer, bytes, byteCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    bufferUpdateImpl(vm, buffer, bytes, byteCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_buffer_release(uint32_t vmHandle, uint32_t buffer)
 {
-    bufferReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, buffer);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    bufferReleaseImpl(vm, buffer);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_blob_asset_bytes(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
-    return blobAssetBytesImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, nameLength, out, outCount);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return blobAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_image_from_asset(uint32_t vmHandle, uint32_t object, const char* name, uint32_t length)
 {
-    return imageFromAssetImpl((WasmScriptingVM*)(uintptr_t)vmHandle, object, name, length);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return imageFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_image_width(uint32_t vmHandle, uint32_t image)
 {
-    return imageWidthImpl((WasmScriptingVM*)(uintptr_t)vmHandle, image);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return imageWidthImpl(vm, image);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_image_height(uint32_t vmHandle, uint32_t image)
 {
-    return imageHeightImpl((WasmScriptingVM*)(uintptr_t)vmHandle, image);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return imageHeightImpl(vm, image);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_image_release(uint32_t vmHandle, uint32_t image)
 {
-    imageReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, image);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    imageReleaseImpl(vm, image);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_image_decode(uint32_t vmHandle, const uint8_t* bytes, uint32_t byteCount, uint32_t token)
 {
-    return imageDecodeImpl((WasmScriptingVM*)(uintptr_t)vmHandle, bytes, byteCount, token);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return imageDecodeImpl(vm, bytes, byteCount, token);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_image_decode_cancel(uint32_t vmHandle, uint32_t token)
 {
-    imageDecodeCancelImpl((WasmScriptingVM*)(uintptr_t)vmHandle, token);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    imageDecodeCancelImpl(vm, token);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_shader_linear(uint32_t vmHandle, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count)
 {
-    return shaderLinearImpl((WasmScriptingVM*)(uintptr_t)vmHandle, sx, sy, ex, ey, colors, stops, count);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return shaderLinearImpl(vm, sx, sy, ex, ey, colors, stops, count);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_shader_radial(uint32_t vmHandle, float cx, float cy, float radius, uint32_t colors, uint32_t stops, uint32_t count)
 {
-    return shaderRadialImpl((WasmScriptingVM*)(uintptr_t)vmHandle, cx, cy, radius, colors, stops, count);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return shaderRadialImpl(vm, cx, cy, radius, colors, stops, count);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_shader_release(uint32_t vmHandle, uint32_t shader)
 {
-    shaderReleaseImpl((WasmScriptingVM*)(uintptr_t)vmHandle, shader);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    shaderReleaseImpl(vm, shader);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_save(uint32_t vmHandle, uint32_t renderer)
 {
-    rendererSaveImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererSaveImpl(vm, renderer);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_restore(uint32_t vmHandle, uint32_t renderer)
 {
-    rendererRestoreImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererRestoreImpl(vm, renderer);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_transform(uint32_t vmHandle, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty)
 {
-    rendererTransformImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer, xx, xy, yx, yy, tx, ty);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererTransformImpl(vm, renderer, xx, xy, yx, yy, tx, ty);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_draw_path(uint32_t vmHandle, uint32_t renderer, uint32_t path, uint32_t paint)
 {
-    rendererDrawPathImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer, path, paint);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererDrawPathImpl(vm, renderer, path, paint);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_clip_path(uint32_t vmHandle, uint32_t renderer, uint32_t path)
 {
-    rendererClipPathImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer, path);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererClipPathImpl(vm, renderer, path);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_draw_image(uint32_t vmHandle, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity)
 {
-    rendererDrawImageImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer, image, sampler, blend, opacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererDrawImageImpl(vm, renderer, image, sampler, blend, opacity);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_draw_image_mesh(uint32_t vmHandle, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity)
 {
-    rendererDrawImageMeshImpl((WasmScriptingVM*)(uintptr_t)vmHandle, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererDrawImageMeshImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
 }
 
 } // extern "C"

@@ -415,895 +415,1146 @@ void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t 
 
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
-    rtLogImpl(vmFromEnv(env), level, message, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg messageUtf8(vm, message, length);
+    rtLogImpl(vm, level, messageUtf8.data(), messageUtf8.size());
 }
 void rtMarkNeedsUpdate(wasm_exec_env_t env, uint32_t object)
 {
-    rtMarkNeedsUpdateImpl(vmFromEnv(env), object);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rtMarkNeedsUpdateImpl(vm, object);
 }
 void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
 {
-    rtBudgetExceededImpl(vmFromEnv(env), ms);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rtBudgetExceededImpl(vm, ms);
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
-    rtDebugEnterImpl(vmFromEnv(env), func, line);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rtDebugEnterImpl(vm, func, line);
 }
 uint32_t rtDebugLine(wasm_exec_env_t env, uint32_t line)
 {
-    return rtDebugLineImpl(vmFromEnv(env), line);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtDebugLineImpl(vm, line);
 }
 void rtDebugLeave(wasm_exec_env_t env)
 {
-    rtDebugLeaveImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rtDebugLeaveImpl(vm);
 }
 uint32_t rtUtcOffset(wasm_exec_env_t env, double epochSeconds)
 {
-    return rtUtcOffsetImpl(vmFromEnv(env), epochSeconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtUtcOffsetImpl(vm, epochSeconds);
 }
 uint32_t rtIsDst(wasm_exec_env_t env, double epochSeconds)
 {
-    return rtIsDstImpl(vmFromEnv(env), epochSeconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtIsDstImpl(vm, epochSeconds);
 }
 uint32_t rtZoneName(wasm_exec_env_t env, double epochSeconds, char* buffer, uint32_t capacity)
 {
-    return rtZoneNameImpl(vmFromEnv(env), epochSeconds, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtZoneNameImpl(vm, epochSeconds, buffer, capacity);
 }
 uint32_t dataViewModel(wasm_exec_env_t env, uint32_t object)
 {
-    return dataViewModelImpl(vmFromEnv(env), object);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataViewModelImpl(vm, object);
 }
 uint32_t dataRootViewModel(wasm_exec_env_t env, uint32_t object)
 {
-    return dataRootViewModelImpl(vmFromEnv(env), object);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataRootViewModelImpl(vm, object);
 }
 uint32_t dataGlobalViewModel(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return dataGlobalViewModelImpl(vmFromEnv(env), object, name, nameLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataGlobalViewModelImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataGlobalViewModelNames(wasm_exec_env_t env, uint32_t object, char* buffer, uint32_t capacity)
 {
-    return dataGlobalViewModelNamesImpl(vmFromEnv(env), object, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataGlobalViewModelNamesImpl(vm, object, buffer, capacity);
 }
 uint32_t dataContext(wasm_exec_env_t env, uint32_t object)
 {
-    return dataContextImpl(vmFromEnv(env), object);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataContextImpl(vm, object);
 }
 uint32_t dataContextParent(wasm_exec_env_t env, uint32_t dataContext)
 {
-    return dataContextParentImpl(vmFromEnv(env), dataContext);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataContextParentImpl(vm, dataContext);
 }
 uint32_t dataContextViewModel(wasm_exec_env_t env, uint32_t dataContext)
 {
-    return dataContextViewModelImpl(vmFromEnv(env), dataContext);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataContextViewModelImpl(vm, dataContext);
 }
 void dataContextRelease(wasm_exec_env_t env, uint32_t dataContext)
 {
-    dataContextReleaseImpl(vmFromEnv(env), dataContext);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataContextReleaseImpl(vm, dataContext);
 }
 uint32_t dataHasViewModel(wasm_exec_env_t env, const char* name, uint32_t nameLength)
 {
-    return dataHasViewModelImpl(vmFromEnv(env), name, nameLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataHasViewModelImpl(vm, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataNewViewModel(wasm_exec_env_t env, const char* name, uint32_t nameLength, const char* templateName, uint32_t templateLength)
 {
-    return dataNewViewModelImpl(vmFromEnv(env), name, nameLength, templateName, templateLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    WasmStringArg templateNameUtf8(vm, templateName, templateLength);
+    return dataNewViewModelImpl(vm, nameUtf8.data(), nameUtf8.size(), templateNameUtf8.data(), templateNameUtf8.size());
 }
 void dataVmiRelease(wasm_exec_env_t env, uint32_t vmi)
 {
-    dataVmiReleaseImpl(vmFromEnv(env), vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataVmiReleaseImpl(vm, vmi);
 }
 uint32_t dataVmiNumber(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiNumberImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiNumberImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiBoolean(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiBooleanImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiBooleanImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiString(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiStringImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiStringImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiTrigger(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiTriggerImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiTriggerImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiColor(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiColorImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiColorImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiViewModel(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiViewModelImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiViewModelImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiProperty(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length, uint32_t* kindOut, uint32_t kindCount)
 {
-    return dataVmiPropertyImpl(vmFromEnv(env), vmi, name, length, kindOut, kindCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiPropertyImpl(vm, vmi, nameUtf8.data(), nameUtf8.size(), kindOut, kindCount);
 }
 uint32_t dataVmiInstance(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t nameLength)
 {
-    return dataVmiInstanceImpl(vmFromEnv(env), vmi, name, nameLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return dataVmiInstanceImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiSymbolIndex(wasm_exec_env_t env, uint32_t vmi)
 {
-    return dataVmiSymbolIndexImpl(vmFromEnv(env), vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataVmiSymbolIndexImpl(vm, vmi);
 }
 uint32_t dataVmiEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
 {
-    return dataVmiEqualImpl(vmFromEnv(env), a, b);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataVmiEqualImpl(vm, a, b);
 }
 uint32_t dataViewModelGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataViewModelGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataViewModelGetImpl(vm, property);
 }
 uint32_t dataVmiList(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiListImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiListImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiEnum(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiEnumImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiEnumImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiImage(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiImageImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiImageImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiFont(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiFontImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiFontImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataVmiBlob(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
 {
-    return dataVmiBlobImpl(vmFromEnv(env), vmi, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiBlobImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t dataImageGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataImageGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataImageGetImpl(vm, property);
 }
 void dataImageSet(wasm_exec_env_t env, uint32_t property, uint32_t image)
 {
-    dataImageSetImpl(vmFromEnv(env), property, image);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataImageSetImpl(vm, property, image);
 }
 uint32_t dataFontGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataFontGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataFontGetImpl(vm, property);
 }
 void dataFontSet(wasm_exec_env_t env, uint32_t property, uint32_t font)
 {
-    dataFontSetImpl(vmFromEnv(env), property, font);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataFontSetImpl(vm, property, font);
 }
 void dataFontRelease(wasm_exec_env_t env, uint32_t font)
 {
-    dataFontReleaseImpl(vmFromEnv(env), font);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataFontReleaseImpl(vm, font);
 }
 uint32_t dataBlobPresent(wasm_exec_env_t env, uint32_t property)
 {
-    return dataBlobPresentImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBlobPresentImpl(vm, property);
 }
 uint32_t dataBlobGet(wasm_exec_env_t env, uint32_t property, uint8_t* buffer, uint32_t capacity)
 {
-    return dataBlobGetImpl(vmFromEnv(env), property, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBlobGetImpl(vm, property, buffer, capacity);
 }
 uint32_t dataBlobName(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataBlobNameImpl(vmFromEnv(env), property, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBlobNameImpl(vm, property, buffer, capacity);
 }
 void dataBlobSet(wasm_exec_env_t env, uint32_t property, const uint8_t* bytes, uint32_t byteCount)
 {
-    dataBlobSetImpl(vmFromEnv(env), property, bytes, byteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataBlobSetImpl(vm, property, bytes, byteCount);
 }
 void dataBlobClear(wasm_exec_env_t env, uint32_t property)
 {
-    dataBlobClearImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataBlobClearImpl(vm, property);
 }
 uint32_t dataEnumGet(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataEnumGetImpl(vmFromEnv(env), property, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataEnumGetImpl(vm, property, buffer, capacity);
 }
 void dataEnumSet(wasm_exec_env_t env, uint32_t property, const char* value, uint32_t length)
 {
-    dataEnumSetImpl(vmFromEnv(env), property, value, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg valueUtf8(vm, value, length);
+    dataEnumSetImpl(vm, property, valueUtf8.data(), valueUtf8.size());
 }
 uint32_t dataEnumValues(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataEnumValuesImpl(vmFromEnv(env), property, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataEnumValuesImpl(vm, property, buffer, capacity);
 }
 void dataPropRelease(wasm_exec_env_t env, uint32_t property)
 {
-    dataPropReleaseImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataPropReleaseImpl(vm, property);
 }
 void dataTriggerFire(wasm_exec_env_t env, uint32_t property)
 {
-    dataTriggerFireImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataTriggerFireImpl(vm, property);
 }
 uint32_t dataListLength(wasm_exec_env_t env, uint32_t property)
 {
-    return dataListLengthImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataListLengthImpl(vm, property);
 }
 void dataListPush(wasm_exec_env_t env, uint32_t property, uint32_t vmi)
 {
-    dataListPushImpl(vmFromEnv(env), property, vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListPushImpl(vm, property, vmi);
 }
 uint32_t dataListPop(wasm_exec_env_t env, uint32_t property)
 {
-    return dataListPopImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataListPopImpl(vm, property);
 }
 uint32_t dataListShift(wasm_exec_env_t env, uint32_t property)
 {
-    return dataListShiftImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataListShiftImpl(vm, property);
 }
 void dataListClear(wasm_exec_env_t env, uint32_t property)
 {
-    dataListClearImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListClearImpl(vm, property);
 }
 void dataListSwap(wasm_exec_env_t env, uint32_t property, uint32_t index1, uint32_t index2)
 {
-    dataListSwapImpl(vmFromEnv(env), property, index1, index2);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListSwapImpl(vm, property, index1, index2);
 }
 void dataListInsert(wasm_exec_env_t env, uint32_t property, uint32_t vmi, uint32_t index)
 {
-    dataListInsertImpl(vmFromEnv(env), property, vmi, index);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListInsertImpl(vm, property, vmi, index);
 }
 void dataListRemove(wasm_exec_env_t env, uint32_t property, uint32_t vmi)
 {
-    dataListRemoveImpl(vmFromEnv(env), property, vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListRemoveImpl(vm, property, vmi);
 }
 void dataListRemoveAt(wasm_exec_env_t env, uint32_t property, uint32_t index)
 {
-    dataListRemoveAtImpl(vmFromEnv(env), property, index);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListRemoveAtImpl(vm, property, index);
 }
 void dataListRemoveAllOf(wasm_exec_env_t env, uint32_t property, uint32_t vmi)
 {
-    dataListRemoveAllOfImpl(vmFromEnv(env), property, vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataListRemoveAllOfImpl(vm, property, vmi);
 }
 uint32_t dataListGet(wasm_exec_env_t env, uint32_t property, uint32_t index)
 {
-    return dataListGetImpl(vmFromEnv(env), property, index);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataListGetImpl(vm, property, index);
 }
 void dataViewModelSet(wasm_exec_env_t env, uint32_t property, uint32_t vmi)
 {
-    dataViewModelSetImpl(vmFromEnv(env), property, vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataViewModelSetImpl(vm, property, vmi);
 }
 uint32_t dataColorGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataColorGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataColorGetImpl(vm, property);
 }
 void dataColorSet(wasm_exec_env_t env, uint32_t property, uint32_t value)
 {
-    dataColorSetImpl(vmFromEnv(env), property, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataColorSetImpl(vm, property, value);
 }
 float dataNumberGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataNumberGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataNumberGetImpl(vm, property);
 }
 void dataNumberSet(wasm_exec_env_t env, uint32_t property, float value)
 {
-    dataNumberSetImpl(vmFromEnv(env), property, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataNumberSetImpl(vm, property, value);
 }
 uint32_t dataBooleanGet(wasm_exec_env_t env, uint32_t property)
 {
-    return dataBooleanGetImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataBooleanGetImpl(vm, property);
 }
 void dataBooleanSet(wasm_exec_env_t env, uint32_t property, uint32_t value)
 {
-    dataBooleanSetImpl(vmFromEnv(env), property, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataBooleanSetImpl(vm, property, value);
 }
 uint32_t dataStringGet(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
-    return dataStringGetImpl(vmFromEnv(env), property, buffer, capacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataStringGetImpl(vm, property, buffer, capacity);
 }
 void dataStringSet(wasm_exec_env_t env, uint32_t property, const char* value, uint32_t length)
 {
-    dataStringSetImpl(vmFromEnv(env), property, value, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg valueUtf8(vm, value, length);
+    dataStringSetImpl(vm, property, valueUtf8.data(), valueUtf8.size());
 }
 void dataWatch(wasm_exec_env_t env, uint32_t property, uint32_t token)
 {
-    dataWatchImpl(vmFromEnv(env), property, token);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataWatchImpl(vm, property, token);
 }
 void dataUnwatch(wasm_exec_env_t env, uint32_t property)
 {
-    dataUnwatchImpl(vmFromEnv(env), property);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataUnwatchImpl(vm, property);
 }
 void dataConvertResult(wasm_exec_env_t env, uint32_t kind, float number, uint32_t booleanValue, uint32_t color, const char* value, uint32_t length)
 {
-    dataConvertResultImpl(vmFromEnv(env), kind, number, booleanValue, color, value, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg valueUtf8(vm, value, length);
+    dataConvertResultImpl(vm, kind, number, booleanValue, color, valueUtf8.data(), valueUtf8.size());
 }
 void artboardRelease(wasm_exec_env_t env, uint32_t artboard)
 {
-    artboardReleaseImpl(vmFromEnv(env), artboard);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardReleaseImpl(vm, artboard);
 }
 uint32_t artboardAdvance(wasm_exec_env_t env, uint32_t artboard, float seconds)
 {
-    return artboardAdvanceImpl(vmFromEnv(env), artboard, seconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardAdvanceImpl(vm, artboard, seconds);
 }
 void artboardDraw(wasm_exec_env_t env, uint32_t artboard, uint32_t renderer)
 {
-    artboardDrawImpl(vmFromEnv(env), artboard, renderer);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardDrawImpl(vm, artboard, renderer);
 }
 uint32_t artboardInstance(wasm_exec_env_t env, uint32_t artboard, uint32_t vmi)
 {
-    return artboardInstanceImpl(vmFromEnv(env), artboard, vmi);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardInstanceImpl(vm, artboard, vmi);
 }
 uint32_t artboardData(wasm_exec_env_t env, uint32_t artboard)
 {
-    return artboardDataImpl(vmFromEnv(env), artboard);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardDataImpl(vm, artboard);
 }
 float artboardWidth(wasm_exec_env_t env, uint32_t artboard)
 {
-    return artboardWidthImpl(vmFromEnv(env), artboard);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardWidthImpl(vm, artboard);
 }
 float artboardHeight(wasm_exec_env_t env, uint32_t artboard)
 {
-    return artboardHeightImpl(vmFromEnv(env), artboard);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardHeightImpl(vm, artboard);
 }
 void artboardSetWidth(wasm_exec_env_t env, uint32_t artboard, float value)
 {
-    artboardSetWidthImpl(vmFromEnv(env), artboard, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardSetWidthImpl(vm, artboard, value);
 }
 void artboardSetHeight(wasm_exec_env_t env, uint32_t artboard, float value)
 {
-    artboardSetHeightImpl(vmFromEnv(env), artboard, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardSetHeightImpl(vm, artboard, value);
 }
 uint32_t artboardFrameOrigin(wasm_exec_env_t env, uint32_t artboard)
 {
-    return artboardFrameOriginImpl(vmFromEnv(env), artboard);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardFrameOriginImpl(vm, artboard);
 }
 void artboardSetFrameOrigin(wasm_exec_env_t env, uint32_t artboard, uint32_t value)
 {
-    artboardSetFrameOriginImpl(vmFromEnv(env), artboard, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardSetFrameOriginImpl(vm, artboard, value);
 }
 void artboardBounds(wasm_exec_env_t env, uint32_t artboard, float* out, uint32_t outCount)
 {
-    artboardBoundsImpl(vmFromEnv(env), artboard, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardBoundsImpl(vm, artboard, out, outCount);
 }
 uint32_t artboardPointerEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y)
 {
-    return artboardPointerEventImpl(vmFromEnv(env), artboard, kind, pointerId, x, y);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
 uint32_t artboardAnimation(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
-    return artboardAnimationImpl(vmFromEnv(env), artboard, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardAnimationImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
 }
 void artboardAnimationRelease(wasm_exec_env_t env, uint32_t animation)
 {
-    artboardAnimationReleaseImpl(vmFromEnv(env), animation);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardAnimationReleaseImpl(vm, animation);
 }
 float artboardAnimationDuration(wasm_exec_env_t env, uint32_t animation)
 {
-    return artboardAnimationDurationImpl(vmFromEnv(env), animation);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardAnimationDurationImpl(vm, animation);
 }
 uint32_t artboardAnimationAdvance(wasm_exec_env_t env, uint32_t animation, float seconds)
 {
-    return artboardAnimationAdvanceImpl(vmFromEnv(env), animation, seconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardAnimationAdvanceImpl(vm, animation, seconds);
 }
 void artboardAnimationSetTime(wasm_exec_env_t env, uint32_t animation, float value, uint32_t mode)
 {
-    artboardAnimationSetTimeImpl(vmFromEnv(env), animation, value, mode);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardAnimationSetTimeImpl(vm, animation, value, mode);
 }
 uint32_t artboardNode(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
-    return artboardNodeImpl(vmFromEnv(env), artboard, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardNodeImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
 }
 void artboardNodeRelease(wasm_exec_env_t env, uint32_t node)
 {
-    artboardNodeReleaseImpl(vmFromEnv(env), node);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeReleaseImpl(vm, node);
 }
 void artboardNodeTransform(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
-    artboardNodeTransformImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeTransformImpl(vm, node, out, outCount);
 }
 void artboardNodeSet(wasm_exec_env_t env, uint32_t node, uint32_t field, float v0, float v1)
 {
-    artboardNodeSetImpl(vmFromEnv(env), node, field, v0, v1);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeSetImpl(vm, node, field, v0, v1);
 }
 void artboardNodeWorldTransform(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
-    artboardNodeWorldTransformImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeWorldTransformImpl(vm, node, out, outCount);
 }
 void artboardNodeSetWorldTransform(wasm_exec_env_t env, uint32_t node, const float* values, uint32_t floatCount)
 {
-    artboardNodeSetWorldTransformImpl(vmFromEnv(env), node, values, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeSetWorldTransformImpl(vm, node, values, floatCount);
 }
 void artboardNodeDecompose(wasm_exec_env_t env, uint32_t node, const float* values, uint32_t floatCount)
 {
-    artboardNodeDecomposeImpl(vmFromEnv(env), node, values, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardNodeDecomposeImpl(vm, node, values, floatCount);
 }
 uint32_t artboardNodePathVerbs(wasm_exec_env_t env, uint32_t node, uint8_t* out, uint32_t outCount)
 {
-    return artboardNodePathVerbsImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodePathVerbsImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodePathPoints(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
-    return artboardNodePathPointsImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodePathPointsImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodePaint(wasm_exec_env_t env, uint32_t node, uint32_t* out, uint32_t outCount)
 {
-    return artboardNodePaintImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodePaintImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodeChildren(wasm_exec_env_t env, uint32_t node, uint32_t* out, uint32_t outCount)
 {
-    return artboardNodeChildrenImpl(vmFromEnv(env), node, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodeChildrenImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodeParent(wasm_exec_env_t env, uint32_t node)
 {
-    return artboardNodeParentImpl(vmFromEnv(env), node);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardNodeParentImpl(vm, node);
 }
 uint32_t audioSource(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return audioSourceImpl(vmFromEnv(env), object, name, nameLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return audioSourceImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 void audioSourceRelease(wasm_exec_env_t env, uint32_t source)
 {
-    audioSourceReleaseImpl(vmFromEnv(env), source);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSourceReleaseImpl(vm, source);
 }
 float audioSourceDuration(wasm_exec_env_t env, uint32_t source)
 {
-    return audioSourceDurationImpl(vmFromEnv(env), source);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSourceDurationImpl(vm, source);
 }
 uint32_t audioSourceSampleRate(wasm_exec_env_t env, uint32_t source)
 {
-    return audioSourceSampleRateImpl(vmFromEnv(env), source);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSourceSampleRateImpl(vm, source);
 }
 uint32_t audioSourceChannels(wasm_exec_env_t env, uint32_t source)
 {
-    return audioSourceChannelsImpl(vmFromEnv(env), source);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSourceChannelsImpl(vm, source);
 }
 uint32_t audioPlay(wasm_exec_env_t env, uint32_t source)
 {
-    return audioPlayImpl(vmFromEnv(env), source);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioPlayImpl(vm, source);
 }
 uint32_t audioPlayAtTime(wasm_exec_env_t env, uint32_t source, float seconds)
 {
-    return audioPlayAtTimeImpl(vmFromEnv(env), source, seconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioPlayAtTimeImpl(vm, source, seconds);
 }
 uint32_t audioPlayInTime(wasm_exec_env_t env, uint32_t source, float seconds)
 {
-    return audioPlayInTimeImpl(vmFromEnv(env), source, seconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioPlayInTimeImpl(vm, source, seconds);
 }
 uint32_t audioPlayAtFrame(wasm_exec_env_t env, uint32_t source, double frame)
 {
-    return audioPlayAtFrameImpl(vmFromEnv(env), source, frame);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioPlayAtFrameImpl(vm, source, frame);
 }
 uint32_t audioPlayInFrame(wasm_exec_env_t env, uint32_t source, double frame)
 {
-    return audioPlayInFrameImpl(vmFromEnv(env), source, frame);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioPlayInFrameImpl(vm, source, frame);
 }
 float audioTime(wasm_exec_env_t env)
 {
-    return audioTimeImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioTimeImpl(vm);
 }
 double audioTimeFrame(wasm_exec_env_t env)
 {
-    return audioTimeFrameImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioTimeFrameImpl(vm);
 }
 uint32_t audioSampleRate(wasm_exec_env_t env)
 {
-    return audioSampleRateImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSampleRateImpl(vm);
 }
 void audioSoundRelease(wasm_exec_env_t env, uint32_t sound)
 {
-    audioSoundReleaseImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundReleaseImpl(vm, sound);
 }
 void audioSoundPlay(wasm_exec_env_t env, uint32_t sound)
 {
-    audioSoundPlayImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundPlayImpl(vm, sound);
 }
 void audioSoundPause(wasm_exec_env_t env, uint32_t sound)
 {
-    audioSoundPauseImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundPauseImpl(vm, sound);
 }
 void audioSoundResume(wasm_exec_env_t env, uint32_t sound)
 {
-    audioSoundResumeImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundResumeImpl(vm, sound);
 }
 void audioSoundStop(wasm_exec_env_t env, uint32_t sound, uint32_t fadeFrames)
 {
-    audioSoundStopImpl(vmFromEnv(env), sound, fadeFrames);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundStopImpl(vm, sound, fadeFrames);
 }
 uint32_t audioSoundSeek(wasm_exec_env_t env, uint32_t sound, float seconds)
 {
-    return audioSoundSeekImpl(vmFromEnv(env), sound, seconds);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundSeekImpl(vm, sound, seconds);
 }
 uint32_t audioSoundSeekFrame(wasm_exec_env_t env, uint32_t sound, double frame)
 {
-    return audioSoundSeekFrameImpl(vmFromEnv(env), sound, frame);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundSeekFrameImpl(vm, sound, frame);
 }
 uint32_t audioSoundCompleted(wasm_exec_env_t env, uint32_t sound)
 {
-    return audioSoundCompletedImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundCompletedImpl(vm, sound);
 }
 float audioSoundTime(wasm_exec_env_t env, uint32_t sound)
 {
-    return audioSoundTimeImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundTimeImpl(vm, sound);
 }
 double audioSoundTimeFrame(wasm_exec_env_t env, uint32_t sound)
 {
-    return audioSoundTimeFrameImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundTimeFrameImpl(vm, sound);
 }
 float audioSoundVolume(wasm_exec_env_t env, uint32_t sound)
 {
-    return audioSoundVolumeImpl(vmFromEnv(env), sound);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return audioSoundVolumeImpl(vm, sound);
 }
 void audioSoundSetVolume(wasm_exec_env_t env, uint32_t sound, float value)
 {
-    audioSoundSetVolumeImpl(vmFromEnv(env), sound, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    audioSoundSetVolumeImpl(vm, sound, value);
 }
 uint32_t pathNew(wasm_exec_env_t env)
 {
-    return pathNewImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return pathNewImpl(vm);
 }
 void pathUpdate(wasm_exec_env_t env, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule)
 {
-    pathUpdateImpl(vmFromEnv(env), path, verbs, verbCount, points, floatCount, fillRule);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    pathUpdateImpl(vm, path, verbs, verbCount, points, floatCount, fillRule);
 }
 void pathRelease(wasm_exec_env_t env, uint32_t path)
 {
-    pathReleaseImpl(vmFromEnv(env), path);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    pathReleaseImpl(vm, path);
 }
 void pathEffectResult(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    pathEffectResultImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    pathEffectResultImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measurePathNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    return measurePathNewImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measurePathNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measureContoursNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
-    return measureContoursNewImpl(vmFromEnv(env), verbs, verbCount, points, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureContoursNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measureContourNext(wasm_exec_env_t env, uint32_t measure)
 {
-    return measureContourNextImpl(vmFromEnv(env), measure);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureContourNextImpl(vm, measure);
 }
 float measureLength(wasm_exec_env_t env, uint32_t measure)
 {
-    return measureLengthImpl(vmFromEnv(env), measure);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureLengthImpl(vm, measure);
 }
 uint32_t measureIsClosed(wasm_exec_env_t env, uint32_t measure)
 {
-    return measureIsClosedImpl(vmFromEnv(env), measure);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureIsClosedImpl(vm, measure);
 }
 void measurePosTan(wasm_exec_env_t env, uint32_t measure, float distance, float* out, uint32_t outCount)
 {
-    measurePosTanImpl(vmFromEnv(env), measure, distance, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    measurePosTanImpl(vm, measure, distance, out, outCount);
 }
 void measureWarp(wasm_exec_env_t env, uint32_t measure, float x, float y, float* out, uint32_t outCount)
 {
-    measureWarpImpl(vmFromEnv(env), measure, x, y, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    measureWarpImpl(vm, measure, x, y, out, outCount);
 }
 uint32_t measureExtract(wasm_exec_env_t env, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove)
 {
-    return measureExtractImpl(vmFromEnv(env), measure, startDistance, endDistance, startWithMove);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureExtractImpl(vm, measure, startDistance, endDistance, startWithMove);
 }
 uint32_t measureExtractRead(wasm_exec_env_t env, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount)
 {
-    return measureExtractReadImpl(vmFromEnv(env), measure, verbs, verbCount, points, floatCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return measureExtractReadImpl(vm, measure, verbs, verbCount, points, floatCount);
 }
 void measureRelease(wasm_exec_env_t env, uint32_t measure)
 {
-    measureReleaseImpl(vmFromEnv(env), measure);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    measureReleaseImpl(vm, measure);
 }
 uint32_t paintNew(wasm_exec_env_t env)
 {
-    return paintNewImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return paintNewImpl(vm);
 }
 void paintRelease(wasm_exec_env_t env, uint32_t paint)
 {
-    paintReleaseImpl(vmFromEnv(env), paint);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintReleaseImpl(vm, paint);
 }
 void paintStyle(wasm_exec_env_t env, uint32_t paint, uint32_t value)
 {
-    paintStyleImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintStyleImpl(vm, paint, value);
 }
 void paintColor(wasm_exec_env_t env, uint32_t paint, uint32_t value)
 {
-    paintColorImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintColorImpl(vm, paint, value);
 }
 void paintThickness(wasm_exec_env_t env, uint32_t paint, float value)
 {
-    paintThicknessImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintThicknessImpl(vm, paint, value);
 }
 void paintJoin(wasm_exec_env_t env, uint32_t paint, uint32_t value)
 {
-    paintJoinImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintJoinImpl(vm, paint, value);
 }
 void paintCap(wasm_exec_env_t env, uint32_t paint, uint32_t value)
 {
-    paintCapImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintCapImpl(vm, paint, value);
 }
 void paintBlendMode(wasm_exec_env_t env, uint32_t paint, uint32_t value)
 {
-    paintBlendModeImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintBlendModeImpl(vm, paint, value);
 }
 void paintFeather(wasm_exec_env_t env, uint32_t paint, float value)
 {
-    paintFeatherImpl(vmFromEnv(env), paint, value);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintFeatherImpl(vm, paint, value);
 }
 void paintShader(wasm_exec_env_t env, uint32_t paint, uint32_t shader)
 {
-    paintShaderImpl(vmFromEnv(env), paint, shader);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    paintShaderImpl(vm, paint, shader);
 }
 uint32_t canvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
 {
-    return canvasNewImpl(vmFromEnv(env), width, height);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasNewImpl(vm, width, height);
 }
 void canvasRelease(wasm_exec_env_t env, uint32_t canvas)
 {
-    canvasReleaseImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    canvasReleaseImpl(vm, canvas);
 }
 uint32_t canvasWidth(wasm_exec_env_t env, uint32_t canvas)
 {
-    return canvasWidthImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasWidthImpl(vm, canvas);
 }
 uint32_t canvasHeight(wasm_exec_env_t env, uint32_t canvas)
 {
-    return canvasHeightImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasHeightImpl(vm, canvas);
 }
 uint32_t canvasResize(wasm_exec_env_t env, uint32_t canvas, uint32_t width, uint32_t height)
 {
-    return canvasResizeImpl(vmFromEnv(env), canvas, width, height);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasResizeImpl(vm, canvas, width, height);
 }
 uint32_t canvasImage(wasm_exec_env_t env, uint32_t canvas)
 {
-    return canvasImageImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasImageImpl(vm, canvas);
 }
 uint32_t canvasBeginFrame(wasm_exec_env_t env, uint32_t canvas, uint32_t clearColor)
 {
-    return canvasBeginFrameImpl(vmFromEnv(env), canvas, clearColor);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return canvasBeginFrameImpl(vm, canvas, clearColor);
 }
 void canvasEndFrame(wasm_exec_env_t env, uint32_t canvas)
 {
-    canvasEndFrameImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    canvasEndFrameImpl(vm, canvas);
 }
 uint32_t gpuFeatures(wasm_exec_env_t env, uint32_t* out, uint32_t outCount)
 {
-    return gpuFeaturesImpl(vmFromEnv(env), out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuFeaturesImpl(vm, out, outCount);
 }
 uint32_t gpuCanvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
 {
-    return gpuCanvasNewImpl(vmFromEnv(env), width, height);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuCanvasNewImpl(vm, width, height);
 }
 void gpuCanvasRelease(wasm_exec_env_t env, uint32_t canvas)
 {
-    gpuCanvasReleaseImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuCanvasReleaseImpl(vm, canvas);
 }
 uint32_t gpuCanvasColorView(wasm_exec_env_t env, uint32_t canvas, uint32_t* props, uint32_t propCount)
 {
-    return gpuCanvasColorViewImpl(vmFromEnv(env), canvas, props, propCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuCanvasColorViewImpl(vm, canvas, props, propCount);
 }
 uint32_t gpuCanvasImage(wasm_exec_env_t env, uint32_t canvas)
 {
-    return gpuCanvasImageImpl(vmFromEnv(env), canvas);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuCanvasImageImpl(vm, canvas);
 }
 uint32_t gpuCanvasResize(wasm_exec_env_t env, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount)
 {
-    return gpuCanvasResizeImpl(vmFromEnv(env), canvas, width, height, props, propCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuCanvasResizeImpl(vm, canvas, width, height, props, propCount);
 }
 uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
 {
-    return gpuPassBeginImpl(vmFromEnv(env), desc, descByteCount, colors, colorByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuPassBeginImpl(vm, desc, descByteCount, colors, colorByteCount);
 }
 void gpuPassSetPipeline(wasm_exec_env_t env, uint32_t pass, uint32_t pipeline)
 {
-    gpuPassSetPipelineImpl(vmFromEnv(env), pass, pipeline);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetPipelineImpl(vm, pass, pipeline);
 }
 void gpuPassSetVertexBuffer(wasm_exec_env_t env, uint32_t pass, uint32_t slot, uint32_t buffer, uint32_t offset)
 {
-    gpuPassSetVertexBufferImpl(vmFromEnv(env), pass, slot, buffer, offset);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetVertexBufferImpl(vm, pass, slot, buffer, offset);
 }
 void gpuPassSetIndexBuffer(wasm_exec_env_t env, uint32_t pass, uint32_t buffer, uint32_t indexFormat, uint32_t offset)
 {
-    gpuPassSetIndexBufferImpl(vmFromEnv(env), pass, buffer, indexFormat, offset);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetIndexBufferImpl(vm, pass, buffer, indexFormat, offset);
 }
 void gpuPassSetBindGroup(wasm_exec_env_t env, uint32_t pass, uint32_t groupIndex, uint32_t bindGroup, const uint32_t* dynamicOffsets, uint32_t dynamicOffsetByteCount)
 {
-    gpuPassSetBindGroupImpl(vmFromEnv(env), pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetBindGroupImpl(vm, pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount);
 }
 void gpuPassSetViewport(wasm_exec_env_t env, uint32_t pass, float x, float y, float width, float height, float minDepth, float maxDepth)
 {
-    gpuPassSetViewportImpl(vmFromEnv(env), pass, x, y, width, height, minDepth, maxDepth);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetViewportImpl(vm, pass, x, y, width, height, minDepth, maxDepth);
 }
 void gpuPassSetScissor(wasm_exec_env_t env, uint32_t pass, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
-    gpuPassSetScissorImpl(vmFromEnv(env), pass, x, y, width, height);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetScissorImpl(vm, pass, x, y, width, height);
 }
 void gpuPassSetStencilReference(wasm_exec_env_t env, uint32_t pass, uint32_t ref)
 {
-    gpuPassSetStencilReferenceImpl(vmFromEnv(env), pass, ref);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetStencilReferenceImpl(vm, pass, ref);
 }
 void gpuPassSetBlendColor(wasm_exec_env_t env, uint32_t pass, float r, float g, float b, float a)
 {
-    gpuPassSetBlendColorImpl(vmFromEnv(env), pass, r, g, b, a);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassSetBlendColorImpl(vm, pass, r, g, b, a);
 }
 void gpuPassDraw(wasm_exec_env_t env, uint32_t pass, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
-    gpuPassDrawImpl(vmFromEnv(env), pass, vertexCount, instanceCount, firstVertex, firstInstance);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassDrawImpl(vm, pass, vertexCount, instanceCount, firstVertex, firstInstance);
 }
 void gpuPassDrawIndexed(wasm_exec_env_t env, uint32_t pass, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t baseVertex, uint32_t firstInstance)
 {
-    gpuPassDrawIndexedImpl(vmFromEnv(env), pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassDrawIndexedImpl(vm, pass, indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
 }
 void gpuPassFinish(wasm_exec_env_t env, uint32_t pass)
 {
-    gpuPassFinishImpl(vmFromEnv(env), pass);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassFinishImpl(vm, pass);
 }
 void gpuPassRelease(wasm_exec_env_t env, uint32_t pass)
 {
-    gpuPassReleaseImpl(vmFromEnv(env), pass);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPassReleaseImpl(vm, pass);
 }
 uint32_t gpuImageView(wasm_exec_env_t env, uint32_t image, uint32_t width, uint32_t height)
 {
-    return gpuImageViewImpl(vmFromEnv(env), image, width, height);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuImageViewImpl(vm, image, width, height);
 }
 uint32_t gpuBufferNew(wasm_exec_env_t env, uint32_t usage, uint32_t sizeInBytes, uint32_t immutable, const uint8_t* data, uint32_t dataCount)
 {
-    return gpuBufferNewImpl(vmFromEnv(env), usage, sizeInBytes, immutable, data, dataCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBufferNewImpl(vm, usage, sizeInBytes, immutable, data, dataCount);
 }
 void gpuBufferUpdate(wasm_exec_env_t env, uint32_t buffer, uint32_t dstOffset, const uint8_t* data, uint32_t dataCount)
 {
-    gpuBufferUpdateImpl(vmFromEnv(env), buffer, dstOffset, data, dataCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuBufferUpdateImpl(vm, buffer, dstOffset, data, dataCount);
 }
 void gpuBufferRelease(wasm_exec_env_t env, uint32_t buffer)
 {
-    gpuBufferReleaseImpl(vmFromEnv(env), buffer);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuBufferReleaseImpl(vm, buffer);
 }
 uint32_t gpuTextureNew(wasm_exec_env_t env, const rive_gpu_texture_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuTextureNewImpl(vmFromEnv(env), desc, descByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuTextureNewImpl(vm, desc, descByteCount);
 }
 void gpuTextureUpload(wasm_exec_env_t env, uint32_t texture, const rive_gpu_texture_upload_v1* region, uint32_t regionByteCount, const uint8_t* data, uint32_t dataCount)
 {
-    gpuTextureUploadImpl(vmFromEnv(env), texture, region, regionByteCount, data, dataCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuTextureUploadImpl(vm, texture, region, regionByteCount, data, dataCount);
 }
 void gpuTextureRelease(wasm_exec_env_t env, uint32_t texture)
 {
-    gpuTextureReleaseImpl(vmFromEnv(env), texture);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuTextureReleaseImpl(vm, texture);
 }
 uint32_t gpuSamplerNew(wasm_exec_env_t env, const rive_gpu_sampler_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuSamplerNewImpl(vmFromEnv(env), desc, descByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuSamplerNewImpl(vm, desc, descByteCount);
 }
 void gpuSamplerRelease(wasm_exec_env_t env, uint32_t sampler)
 {
-    gpuSamplerReleaseImpl(vmFromEnv(env), sampler);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuSamplerReleaseImpl(vm, sampler);
 }
 uint32_t gpuTextureViewNew(wasm_exec_env_t env, uint32_t texture, const rive_gpu_texture_view_desc_v1* desc, uint32_t descByteCount)
 {
-    return gpuTextureViewNewImpl(vmFromEnv(env), texture, desc, descByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuTextureViewNewImpl(vm, texture, desc, descByteCount);
 }
 void gpuTextureViewRelease(wasm_exec_env_t env, uint32_t view)
 {
-    gpuTextureViewReleaseImpl(vmFromEnv(env), view);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuTextureViewReleaseImpl(vm, view);
 }
 uint32_t gpuShaderTarget(wasm_exec_env_t env)
 {
-    return gpuShaderTargetImpl(vmFromEnv(env));
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuShaderTargetImpl(vm);
 }
 uint32_t gpuShaderAssetBytes(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
-    return gpuShaderAssetBytesImpl(vmFromEnv(env), object, name, nameLength, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return gpuShaderAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
 uint32_t gpuShaderAssetId(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
-    return gpuShaderAssetIdImpl(vmFromEnv(env), object, name, nameLength);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return gpuShaderAssetIdImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t gpuShaderModuleNew(wasm_exec_env_t env, const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
-    return gpuShaderModuleNewImpl(vmFromEnv(env), desc, descByteCount, blob, blobCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuShaderModuleNewImpl(vm, desc, descByteCount, blob, blobCount);
 }
 void gpuShaderModuleRelease(wasm_exec_env_t env, uint32_t shaderModule)
 {
-    gpuShaderModuleReleaseImpl(vmFromEnv(env), shaderModule);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuShaderModuleReleaseImpl(vm, shaderModule);
 }
 uint32_t gpuBindGroupLayoutNew(wasm_exec_env_t env, uint32_t groupIndex, const rive_gpu_bind_group_layout_entry_v1* entries, uint32_t entryByteCount)
 {
-    return gpuBindGroupLayoutNewImpl(vmFromEnv(env), groupIndex, entries, entryByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBindGroupLayoutNewImpl(vm, groupIndex, entries, entryByteCount);
 }
 void gpuBindGroupLayoutRelease(wasm_exec_env_t env, uint32_t layout)
 {
-    gpuBindGroupLayoutReleaseImpl(vmFromEnv(env), layout);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuBindGroupLayoutReleaseImpl(vm, layout);
 }
 uint32_t gpuBindGroupLayoutFromShader(wasm_exec_env_t env, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
 {
-    return gpuBindGroupLayoutFromShaderImpl(vmFromEnv(env), shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
 uint32_t gpuBindGroupNew(wasm_exec_env_t env, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
-    return gpuBindGroupNewImpl(vmFromEnv(env), layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuBindGroupNewImpl(vm, layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount);
 }
 void gpuBindGroupRelease(wasm_exec_env_t env, uint32_t bindGroup)
 {
-    gpuBindGroupReleaseImpl(vmFromEnv(env), bindGroup);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuBindGroupReleaseImpl(vm, bindGroup);
 }
 uint32_t gpuPipelineNew(wasm_exec_env_t env, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
-    return gpuPipelineNewImpl(vmFromEnv(env), desc, descByteCount, blob, blobCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return gpuPipelineNewImpl(vm, desc, descByteCount, blob, blobCount);
 }
 void gpuPipelineRelease(wasm_exec_env_t env, uint32_t pipeline)
 {
-    gpuPipelineReleaseImpl(vmFromEnv(env), pipeline);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    gpuPipelineReleaseImpl(vm, pipeline);
 }
 uint32_t bufferNew(wasm_exec_env_t env, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes)
 {
-    return bufferNewImpl(vmFromEnv(env), bufferType, flags, sizeInBytes);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return bufferNewImpl(vm, bufferType, flags, sizeInBytes);
 }
 void bufferUpdate(wasm_exec_env_t env, uint32_t buffer, const uint8_t* bytes, uint32_t byteCount)
 {
-    bufferUpdateImpl(vmFromEnv(env), buffer, bytes, byteCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    bufferUpdateImpl(vm, buffer, bytes, byteCount);
 }
 void bufferRelease(wasm_exec_env_t env, uint32_t buffer)
 {
-    bufferReleaseImpl(vmFromEnv(env), buffer);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    bufferReleaseImpl(vm, buffer);
 }
 uint32_t blobAssetBytes(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
-    return blobAssetBytesImpl(vmFromEnv(env), object, name, nameLength, out, outCount);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return blobAssetBytesImpl(vm, object, nameUtf8.data(), nameUtf8.size(), out, outCount);
 }
 uint32_t imageFromAsset(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t length)
 {
-    return imageFromAssetImpl(vmFromEnv(env), object, name, length);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return imageFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size());
 }
 uint32_t imageWidth(wasm_exec_env_t env, uint32_t image)
 {
-    return imageWidthImpl(vmFromEnv(env), image);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return imageWidthImpl(vm, image);
 }
 uint32_t imageHeight(wasm_exec_env_t env, uint32_t image)
 {
-    return imageHeightImpl(vmFromEnv(env), image);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return imageHeightImpl(vm, image);
 }
 void imageRelease(wasm_exec_env_t env, uint32_t image)
 {
-    imageReleaseImpl(vmFromEnv(env), image);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    imageReleaseImpl(vm, image);
 }
 uint32_t imageDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount, uint32_t token)
 {
-    return imageDecodeImpl(vmFromEnv(env), bytes, byteCount, token);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return imageDecodeImpl(vm, bytes, byteCount, token);
 }
 void imageDecodeCancel(wasm_exec_env_t env, uint32_t token)
 {
-    imageDecodeCancelImpl(vmFromEnv(env), token);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    imageDecodeCancelImpl(vm, token);
 }
 uint32_t shaderLinear(wasm_exec_env_t env, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count)
 {
-    return shaderLinearImpl(vmFromEnv(env), sx, sy, ex, ey, colors, stops, count);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return shaderLinearImpl(vm, sx, sy, ex, ey, colors, stops, count);
 }
 uint32_t shaderRadial(wasm_exec_env_t env, float cx, float cy, float radius, uint32_t colors, uint32_t stops, uint32_t count)
 {
-    return shaderRadialImpl(vmFromEnv(env), cx, cy, radius, colors, stops, count);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return shaderRadialImpl(vm, cx, cy, radius, colors, stops, count);
 }
 void shaderRelease(wasm_exec_env_t env, uint32_t shader)
 {
-    shaderReleaseImpl(vmFromEnv(env), shader);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    shaderReleaseImpl(vm, shader);
 }
 void rendererSave(wasm_exec_env_t env, uint32_t renderer)
 {
-    rendererSaveImpl(vmFromEnv(env), renderer);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererSaveImpl(vm, renderer);
 }
 void rendererRestore(wasm_exec_env_t env, uint32_t renderer)
 {
-    rendererRestoreImpl(vmFromEnv(env), renderer);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererRestoreImpl(vm, renderer);
 }
 void rendererTransform(wasm_exec_env_t env, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty)
 {
-    rendererTransformImpl(vmFromEnv(env), renderer, xx, xy, yx, yy, tx, ty);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererTransformImpl(vm, renderer, xx, xy, yx, yy, tx, ty);
 }
 void rendererDrawPath(wasm_exec_env_t env, uint32_t renderer, uint32_t path, uint32_t paint)
 {
-    rendererDrawPathImpl(vmFromEnv(env), renderer, path, paint);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererDrawPathImpl(vm, renderer, path, paint);
 }
 void rendererClipPath(wasm_exec_env_t env, uint32_t renderer, uint32_t path)
 {
-    rendererClipPathImpl(vmFromEnv(env), renderer, path);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererClipPathImpl(vm, renderer, path);
 }
 void rendererDrawImage(wasm_exec_env_t env, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity)
 {
-    rendererDrawImageImpl(vmFromEnv(env), renderer, image, sampler, blend, opacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererDrawImageImpl(vm, renderer, image, sampler, blend, opacity);
 }
 void rendererDrawImageMesh(wasm_exec_env_t env, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity)
 {
-    rendererDrawImageMeshImpl(vmFromEnv(env), renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererDrawImageMeshImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
 }
 
 NativeSymbol kRtNatives[] = {

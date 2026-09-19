@@ -139,7 +139,10 @@ def host_args(params):
         kind = p['kind']
         if kind in ('u32', 'handle', 'i32', 'f32', 'f64', 'addr'):
             out.append(p['name'])
-        elif kind in ('buf', 'mutbuf', 'str'):
+        elif kind == 'str':
+            out.append('%sUtf8.data()' % p['name'])
+            out.append('%sUtf8.size()' % p['name'])
+        elif kind in ('buf', 'mutbuf'):
             out.append(p['name'])
             out.append(p['count'])
         elif kind == 'pod':
@@ -148,6 +151,14 @@ def host_args(params):
         else:
             raise ValueError(kind)
     return out
+
+
+def host_string_prologue(params):
+    # A module that passes its strings as UTF-16 has them transcoded here,
+    # so the impl cores only ever see UTF-8.
+    return ['    WasmStringArg %sUtf8(vm, %s, %s);' %
+            (p['name'], p['name'], p['count'])
+            for p in params if p['kind'] == 'str']
 
 
 def check_arg_budget(namespace, op):
@@ -273,11 +284,13 @@ def emit_host():
         for op in namespace['ops']:
             name = impl_name(namespace, op)
             params = ['wasm_exec_env_t env'] + host_params(op['params'])
-            args = ['vmFromEnv(env)'] + host_args(op['params'])
+            args = ['vm'] + host_args(op['params'])
             call = '%sImpl(%s)' % (name, ', '.join(args))
             lines.append('%s %s(%s)' %
                          (ret_ctype(op), name, ', '.join(params)))
             lines.append('{')
+            lines.append('    WasmScriptingVM* vm = vmFromEnv(env);')
+            lines += host_string_prologue(op['params'])
             lines.append('    %s%s;' %
                          ('' if op['ret'] is None else 'return ', call))
             lines.append('}')
@@ -331,12 +344,13 @@ def emit_web_host():
         for op in namespace['ops']:
             sym = 'rive_web_' + namespace['short'] + '_' + op['name']
             params = ['uint32_t vmHandle'] + host_params(op['params'])
-            args = ['(WasmScriptingVM*)(uintptr_t)vmHandle'] + \
-                host_args(op['params'])
+            args = ['vm'] + host_args(op['params'])
             call = '%sImpl(%s)' % (impl_name(namespace, op), ', '.join(args))
             lines.append('EMSCRIPTEN_KEEPALIVE')
             lines.append('%s %s(%s)' % (ret_ctype(op), sym, ', '.join(params)))
             lines.append('{')
+            lines.append('    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;')
+            lines += host_string_prologue(op['params'])
             lines.append('    %s%s;' %
                          ('' if op['ret'] is None else 'return ', call))
             lines.append('}')
@@ -518,8 +532,8 @@ def as_wrapper_params(params):
             args.append(name)
         elif kind == 'str':
             decl.append('%s: string' % name)
-            args.append('changetype<usize>(%s_utf8)' % name)
-            args.append('<u32>%s_utf8.byteLength' % name)
+            args.append('changetype<usize>(%s)' % name)
+            args.append('<u32>(%s.length << 1)' % name)
             unsafe = True
         elif kind in ('buf', 'mutbuf'):
             count = camel(p['count'])
@@ -541,13 +555,8 @@ def as_wrapper_params(params):
 
 
 def as_string_prologue(params):
-    lines = []
-    for p in params:
-        if p['kind'] == 'str':
-            name = camel(p['name'])
-            lines.append('        let %s_utf8 = String.UTF8.encode(%s);' %
-                         (name, name))
-    return lines
+    # Strings cross as they are, UTF-16, announced by __riveUtf16Strings.
+    return []
 
 
 def emit_as_natives():
@@ -556,7 +565,7 @@ def emit_as_natives():
         '//',
         '// Typed classes over the import contract, one per namespace:',
         '// instance methods where the namespace owns the leading handle,',
-        '// statics elsewhere. Strings cross as UTF-8; buffers stay raw',
+        '// statics elsewhere. Strings cross as they sit, UTF-16; buffers stay raw',
         '// address plus count so the ergonomic layer picks the element',
         '// type. Owning factories mirror their handle for the frame',
         '// collector; adopt() wraps a host owned handle without ownership.',

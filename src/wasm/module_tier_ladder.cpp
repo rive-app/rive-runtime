@@ -144,9 +144,9 @@ const std::string& ModuleTierLadder::wamrcVersion()
 std::string ModuleTierLadder::keyedCacheDir()
 {
     // The revision folds our wamrc flag choices into the cache key; bump
-    // it whenever species flags change or stale artifacts (like the
-    // pre-codegen-cap -O1 ones) get served on a cache hit.
-    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r3";
+    // it whenever species flags change or stale artifacts get served on a
+    // cache hit.
+    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r4";
     mkdir(m_cacheDir.c_str(), 0755);
     mkdir(dir.c_str(), 0755);
     return dir;
@@ -475,14 +475,15 @@ bool ModuleTierLadder::runWamrc(Job& job)
     }
     else
     {
-        // LLVM's optimizing backend miscompiles the strict (constrained)
-        // FP wamrc emits, probabilistically corrupting float-heavy modules
-        // (box2d was the repro; the town's draco trap was the same class).
-        // Our vendored wamrc pins codegen conservative while the IR still
-        // optimizes; lift only against the box2d strict-probe soak.
-        args.push_back("--opt-level=1");
-        args.push_back("--codegen-opt-level=0");
+        args.push_back("--opt-level=3");
     }
+#if (defined(__APPLE__) || defined(_WIN32)) &&                                 \
+    (defined(__aarch64__) || defined(_M_ARM64))
+    // The platform clobbers x18; reserve it here so safety does not depend on
+    // the wamrc we were handed. Features need an explicit cpu.
+    args.push_back("--cpu=generic");
+    args.push_back("--cpu-features=+reserve-x18");
+#endif
     args.push_back("-o");
     args.push_back(tmpPath);
     args.push_back(job.wasmPath);

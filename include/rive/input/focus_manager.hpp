@@ -40,39 +40,20 @@ public:
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
 
-    /// Re-homes primary focus when its target is no longer visible in the
-    /// hierarchy (collapsed, hidden, opacity 0, nested host paused).
+    /// Re-homes primary focus when its target can no longer hold it
+    /// (collapsed, hidden, opacity 0, nested host paused). Eligibility for
+    /// FOCUS, not for traversal: canTraverse only takes a node out of Tab and
+    /// arrow navigation, it does not stop a node something focused explicitly
+    /// from keeping that focus.
     ///
     /// Focus moves to the nearest ancestor that can still offer a focus stop,
-    /// preferring another eligible leaf under that ancestor over the ancestor
-    /// itself, and only clears when no ancestor has one. The walk stays inside
-    /// the ancestor chain — it does not fall out into the manager's other root
-    /// branches, which are unrelated trees. Kept under the original name
-    /// because it is exported through the FFI/wasm bindings.
+    /// preferring a stop under that ancestor over the ancestor itself so focus
+    /// keeps its depth, and only clears when no ancestor has one. The walk
+    /// stays inside the ancestor chain — it does not fall out into the
+    /// manager's other root branches, which are unrelated trees.
     void dropFocusIfFocusTargetHidden();
 
     void dropFocusIfFocusTargetHidden(const Artboard* rootArtboard);
-
-    /// Re-applies the focus-rests-on-a-leaf rule to the current target.
-    ///
-    /// Call after an update pass, for the same reason as
-    /// processPendingFocusRequests: renderOpacity and collapse are what
-    /// eligibility reads, and they are only meaningful once that pass has run.
-    ///
-    /// Scoped to [rootArtboard] for that same reason. A manager can be shared
-    /// across independent roots, and each root updates its own components:
-    /// descending into a node that belongs to another root would measure its
-    /// eligibility against components that root hasn't refreshed yet. The
-    /// scope test is on where focus would LAND, not on where it sits — that is
-    /// the eligibility being claimed. A destination that can't be attributed
-    /// to any root — under a node a host created through the FocusNode API —
-    /// is always descended, since no root's pass would ever claim it.
-    void descendFocusToLeaf(const Artboard* rootArtboard);
-
-    /// descendFocusToLeaf for every root on this manager at once, for a host
-    /// that updates all of its roots together and so can descend whichever one
-    /// the target belongs to.
-    void descendFocusToLeafAllRoots();
 
     bool hasFocus(rcp<FocusNode> node) const; // node or descendant has focus
     bool hasPrimaryFocus(
@@ -236,8 +217,11 @@ public:
     /// keyboard focus from a pointer or scripted one.
     bool isTraversing() const { return m_traversing; }
 
-    // Get traversable children of a scope (or root nodes if scope is null)
-    // Sorted by tabIndex, filtered by canFocus && canTraverse
+    /// Children of a scope (or the root nodes when scope is null) that are, or
+    /// contain, a focus stop — sorted by tabIndex, ties keeping hierarchy
+    /// order. A child that can't be focused itself is still listed while
+    /// something reachable lives under it: a parent's own flags never take its
+    /// children out of navigation.
     std::vector<FocusNode*> getTraversableNodes(FocusNode* scope) const;
 
     // === Input Routing ===
@@ -312,8 +296,6 @@ private:
     /// @returns true when the request is done with — it took effect, or it
     /// never can (its target is gone). False means "try again later".
     bool applyPendingFocusRequest(const PendingFocusRequest& request);
-    /// Shared body of descendFocusToLeaf and descendFocusToLeafAllRoots.
-    void applyDescendFocusToLeaf(const Artboard* rootArtboard, bool allRoots);
 
     rcp<FocusNode> m_primaryFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
@@ -337,6 +319,14 @@ private:
 #endif
 
     void notifyFocusChange(FocusNode* oldFocus, FocusNode* newFocus);
+    /// The sibling list `node` sits in: its parent's children, or the
+    /// manager's roots when it has no parent. Sorted by tabIndex.
+    std::vector<FocusNode*> siblingsOf(FocusNode* node) const;
+    /// The focus stop a Tab (forward) or Shift+Tab (backward) from `current`
+    /// lands on, in pre-order over the focus tree. Returns `current` itself
+    /// when an edge behavior refuses to move, and null when the walk runs off
+    /// the end of the root list. Pure: it decides, findNextFocusable applies.
+    FocusNode* nextFocusStop(FocusNode* current, bool forward) const;
     FocusNode* findNextFocusable(FocusNode* current, bool forward) const;
     FocusNode* findNodeInDirection(FocusNode* current,
                                    Direction direction) const;

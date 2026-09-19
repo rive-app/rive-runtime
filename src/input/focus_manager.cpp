@@ -42,13 +42,19 @@ static bool focusNodeEligibleForFocus(FocusNode* node)
         // stop. Nothing is left that could ever report it collapsed or hidden,
         // so it would be permanently eligible — and, being unreachable through
         // its own FocusData, unremovable. Traversal still descends *through*
-        // it (focusNodeTraversable) so any live children stay reachable.
+        // it, as it does through any non-stop, so live children stay
+        // reachable.
         return !node->hadFocusable();
     }
     return f->isEligibleForFocusTraversal();
 }
 
-static bool focusNodeEligibleForTraversal(FocusNode* node)
+// A focus stop is any node navigation may land on: it opts into traversal, it
+// can hold focus, and it is currently visible. Being a stop says nothing about
+// whether the node has children — a container that is itself focusable and
+// traversable is a stop AND a scope, and the walk visits it before its
+// children.
+static bool isFocusStop(FocusNode* node)
 {
     if (node == nullptr || !node->canTraverse())
     {
@@ -57,9 +63,101 @@ static bool focusNodeEligibleForTraversal(FocusNode* node)
     return focusNodeEligibleForFocus(node);
 }
 
-// Defined later in this file; used by setFocus to descend a scope to its first
-// eligible leaf.
-static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager);
+// `children` in traversal order. Stable, so equal tabIndex keeps hierarchy
+// order. Deliberately unfiltered: the walk decides per subtree whether
+// anything in it is reachable, and filtering here would answer that question a
+// second time for every child it then descends into.
+static std::vector<FocusNode*> sortedByTabIndex(
+    const std::vector<rcp<FocusNode>>& children)
+{
+    std::vector<FocusNode*> result;
+    result.reserve(children.size());
+    for (const auto& child : children)
+    {
+        result.push_back(child.get());
+    }
+    std::stable_sort(result.begin(),
+                     result.end(),
+                     [](FocusNode* a, FocusNode* b) {
+                         return a->tabIndex() < b->tabIndex();
+                     });
+    return result;
+}
+
+// The first stop in `node`'s subtree in pre-order: `node` itself when it is a
+// stop, else the first stop under its children in tab order. Null when the
+// subtree holds none.
+//
+// Nothing is pruned on the way down. A node that is not a stop — a structural
+// scope, an authored canFocus=false container, a node whose FocusData died —
+// still has its children visited, so a parent's own flags never decide for its
+// children.
+static FocusNode* firstStopInSubtree(FocusNode* node)
+{
+    if (node == nullptr)
+    {
+        return nullptr;
+    }
+    if (isFocusStop(node))
+    {
+        return node;
+    }
+    for (FocusNode* child : sortedByTabIndex(node->children()))
+    {
+        FocusNode* stop = firstStopInSubtree(child);
+        if (stop != nullptr)
+        {
+            return stop;
+        }
+    }
+    return nullptr;
+}
+
+// Mirror of firstStopInSubtree: the last stop in reverse pre-order, so
+// children (reverse tab order) come before `node` itself.
+static FocusNode* lastStopInSubtree(FocusNode* node)
+{
+    if (node == nullptr)
+    {
+        return nullptr;
+    }
+    auto children = sortedByTabIndex(node->children());
+    for (auto it = children.rbegin(); it != children.rend(); ++it)
+    {
+        FocusNode* stop = lastStopInSubtree(*it);
+        if (stop != nullptr)
+        {
+            return stop;
+        }
+    }
+    return isFocusStop(node) ? node : nullptr;
+}
+
+static FocusNode* firstStopAmong(const std::vector<FocusNode*>& siblings)
+{
+    for (FocusNode* sibling : siblings)
+    {
+        FocusNode* stop = firstStopInSubtree(sibling);
+        if (stop != nullptr)
+        {
+            return stop;
+        }
+    }
+    return nullptr;
+}
+
+static FocusNode* lastStopAmong(const std::vector<FocusNode*>& siblings)
+{
+    for (auto it = siblings.rbegin(); it != siblings.rend(); ++it)
+    {
+        FocusNode* stop = lastStopInSubtree(*it);
+        if (stop != nullptr)
+        {
+            return stop;
+        }
+    }
+    return nullptr;
+}
 
 // The root artboard whose tree `node` sits in, or nullptr when it can't be
 // attributed to one. Walks up the focus tree to the nearest node backed by a
@@ -101,25 +199,32 @@ static bool belongsToAnotherRoot(FocusNode* node, const Artboard* rootArtboard)
 
 void FocusManager::dropFocusIfFocusTargetHidden()
 {
+    // Tested for FOCUS, not for traversal. canTraverse only means "not in
+    // navigation"; a node a script, a pointer or a FocusAction focused keeps
+    // that focus while it is visible, even though Tab would never pick it.
     if (m_primaryFocus == nullptr ||
-        focusNodeEligibleForTraversal(m_primaryFocus.get()))
+        focusNodeEligibleForFocus(m_primaryFocus.get()))
     {
         return;
     }
 
     // Walk ancestors outward and take the first that can still offer a focus
-    // stop. getFirstLeaf does the choosing at each level, so it prefers
-    // another eligible leaf under that ancestor (a sibling of what just
-    // disappeared) and settles for the ancestor itself only when it is an
-    // eligible leaf in its own right. That keeps the focus-rests-on-a-leaf
-    // invariant intact.
+    // stop. Children first, the ancestor itself only as a fallback: plain
+    // pre-order would hand back the ancestor whenever it is a stop, and focus
+    // should keep its depth — a hidden list row hands over to a sibling row,
+    // not to the list.
     for (FocusNode* ancestor = m_primaryFocus->parent(); ancestor != nullptr;
          ancestor = ancestor->parent())
     {
-        FocusNode* leaf = getFirstLeaf(ancestor, this);
-        if (leaf != nullptr)
+        FocusNode* stop =
+            firstStopAmong(sortedByTabIndex(ancestor->children()));
+        if (stop == nullptr && isFocusStop(ancestor))
         {
-            setFocus(ref_rcp(leaf));
+            stop = ancestor;
+        }
+        if (stop != nullptr)
+        {
+            setFocus(ref_rcp(stop));
             return;
         }
     }
@@ -139,40 +244,6 @@ void FocusManager::dropFocusIfFocusTargetHidden(const Artboard* rootArtboard)
         return;
     }
     dropFocusIfFocusTargetHidden();
-}
-
-void FocusManager::descendFocusToLeaf(const Artboard* rootArtboard)
-{
-    applyDescendFocusToLeaf(rootArtboard, /*allRoots=*/false);
-}
-
-void FocusManager::descendFocusToLeafAllRoots()
-{
-    applyDescendFocusToLeaf(nullptr, /*allRoots=*/true);
-}
-
-void FocusManager::applyDescendFocusToLeaf(const Artboard* rootArtboard,
-                                           bool allRoots)
-{
-    // Fast path for the overwhelmingly common state: focus already rests on a
-    // leaf.
-    if (m_primaryFocus == nullptr || m_primaryFocus->children().empty())
-    {
-        return;
-    }
-    // getFirstLeaf returns the node itself when it is still a leaf, so a
-    // different result means the target has gained eligible traversable
-    // descendants since focus landed on it and is now a scope.
-    FocusNode* leaf = getFirstLeaf(m_primaryFocus.get(), this);
-    if (leaf == nullptr || leaf == m_primaryFocus.get())
-    {
-        return;
-    }
-    if (!allRoots && belongsToAnotherRoot(leaf, rootArtboard))
-    {
-        return;
-    }
-    setFocus(ref_rcp(leaf));
 }
 
 Artboard* FocusManager::primaryFocusArtboard() const
@@ -238,22 +309,14 @@ void FocusManager::assignManager(rcp<FocusNode> node)
 
 void FocusManager::setFocus(rcp<FocusNode> node)
 {
-    // Focus always rests on a leaf: if handed a scope (a node with eligible
-    // traversable descendants), descend to its first eligible leaf — matching
-    // Tab/arrow traversal, which never lands focus on a scope. Falls back to
-    // the node itself when it has no eligible leaf.
-    //
-    // Gate the descent on the requested target being eligible for focus, so a
-    // programmatic focus on an ineligible target (canFocus==false, collapsed,
-    // hidden, opacity 0, ...) stays a no-op as before, rather than reaching an
-    // eligible descendant and bypassing the early-return guards below.
-    if (node != nullptr && focusNodeEligibleForFocus(node.get()))
+    // Focus lands exactly where it was asked to. There is no descent: a node
+    // that can be focused is focused, children or not, and a node that cannot
+    // (canFocus==false, collapsed, hidden, opacity 0, a defunct FocusData) is
+    // a no-op rather than a redirect to some descendant the caller never
+    // named. focusNodeEligibleForFocus already covers canFocus.
+    if (node != nullptr && !focusNodeEligibleForFocus(node.get()))
     {
-        FocusNode* leaf = getFirstLeaf(node.get(), this);
-        if (leaf != nullptr)
-        {
-            node = ref_rcp(leaf);
-        }
+        return;
     }
 
     if (node == m_primaryFocus)
@@ -261,15 +324,6 @@ void FocusManager::setFocus(rcp<FocusNode> node)
         return;
     }
 
-    if (node && !node->canFocus())
-    {
-        return;
-    }
-
-    if (node != nullptr && !focusNodeEligibleForFocus(node.get()))
-    {
-        return;
-    }
     FocusNode* oldFocus = m_primaryFocus.get();
     m_primaryFocus = std::move(node);
     notifyFocusChange(oldFocus, m_primaryFocus.get());
@@ -684,39 +738,20 @@ static bool getRootBounds(FocusNode* node, AABB& outBounds)
     return false;
 }
 
-static bool focusNodeTraversable(FocusNode* node);
-
-// Helper to check if a node is a leaf (no traversable children). Uses the same
-// predicate as Tab traversal so directional navigation and Tab agree on what
-// counts as a scope: a child that is a transparent structural scope (canFocus
-// false) still makes this node a non-leaf when a focusable lives beneath it.
-static bool isLeaf(FocusNode* node)
-{
-    for (const auto& child : node->children())
-    {
-        if (focusNodeTraversable(child.get()))
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Helper to collect all traversable leaf focus nodes recursively
-// Only collects leaves (nodes with no traversable children) to match
-// next/prev behavior
-static void collectAllTraversableNodes(const std::vector<rcp<FocusNode>>& nodes,
-                                       std::vector<FocusNode*>& result)
+// Every focus stop in the tree, in hierarchy order. Unlike Tab this ignores
+// structure entirely — scoring is purely spatial — but it must agree with Tab
+// on WHAT a stop is, so a container that is itself focusable and traversable
+// is a candidate like any other.
+static void collectFocusStops(const std::vector<rcp<FocusNode>>& nodes,
+                              std::vector<FocusNode*>& result)
 {
     for (const auto& node : nodes)
     {
-        if (node->canFocus() && node->canTraverse() && isLeaf(node.get()) &&
-            focusNodeEligibleForTraversal(node.get()))
+        if (isFocusStop(node.get()))
         {
             result.push_back(node.get());
         }
-        // Recurse into children
-        collectAllTraversableNodes(node->children(), result);
+        collectFocusStops(node->children(), result);
     }
 }
 
@@ -934,7 +969,7 @@ FocusNode* FocusManager::findNodeInDirection(FocusNode* current,
     }
 
     std::vector<FocusNode*> candidates;
-    collectAllTraversableNodes(m_rootNodes, candidates);
+    collectFocusStops(m_rootNodes, candidates);
 
     FocusNode* best = nullptr;
     float bestScore = std::numeric_limits<float>::max();
@@ -1226,148 +1261,141 @@ void FocusManager::notifyFocusChange(FocusNode* oldFocus, FocusNode* newFocus)
     }
 #endif
 }
-
-static bool hasEligibleTraversableChildInFocusTree(FocusNode* node);
-
-// True if this node is a focusable traversal target itself, or the transparent
-// scope of a data-bound nested artboard that we descend through to reach its
-// focusable descendants.
-static bool focusNodeTraversable(FocusNode* node)
-{
-    if (node == nullptr)
-    {
-        return false;
-    }
-    if (focusNodeEligibleForTraversal(node))
-    {
-        return true;
-    }
-    // The data-bound nested-artboard scope is the only runtime FocusNode with
-    // no Focusable: descend through such an unbacked node. Authored
-    // canFocus=false nodes keep their Focusable and stay non-traversable
-    if (node->focusable() != nullptr)
-    {
-        return false;
-    }
-    return hasEligibleTraversableChildInFocusTree(node);
-}
-
 std::vector<FocusNode*> FocusManager::getTraversableNodes(
     FocusNode* scope) const
 {
-    std::vector<FocusNode*> result;
-
-    // Get children from scope or root nodes
-    const std::vector<rcp<FocusNode>>* childList =
-        scope ? &scope->children() : &m_rootNodes;
-
-    for (const auto& child : *childList)
-    {
-        if (focusNodeTraversable(child.get()))
-        {
-            result.push_back(child.get());
-        }
-    }
-
-    // Sort by tabIndex, then by tree order (which is insertion order)
-    std::stable_sort(result.begin(),
-                     result.end(),
-                     [](FocusNode* a, FocusNode* b) {
-                         return a->tabIndex() < b->tabIndex();
-                     });
-
-    return result;
+    auto children =
+        sortedByTabIndex(scope != nullptr ? scope->children() : m_rootNodes);
+    children.erase(std::remove_if(children.begin(),
+                                  children.end(),
+                                  [](FocusNode* child) {
+                                      return firstStopInSubtree(child) ==
+                                             nullptr;
+                                  }),
+                   children.end());
+    return children;
 }
 
-static bool hasEligibleTraversableChildInFocusTree(FocusNode* node)
+// The sibling list `node` sits in: its parent's children, or the manager's
+// roots when it has no parent.
+std::vector<FocusNode*> FocusManager::siblingsOf(FocusNode* node) const
 {
-    for (const auto& ch : node->children())
-    {
-        if (focusNodeTraversable(ch.get()))
-        {
-            return true;
-        }
-    }
-    return false;
+    FocusNode* parent = node != nullptr ? node->parent() : nullptr;
+    return sortedByTabIndex(parent != nullptr ? parent->children()
+                                              : m_rootNodes);
 }
 
-// First eligible leaf under node (deepest first); nullptr if none
-static FocusNode* getFirstLeaf(FocusNode* node, const FocusManager* manager)
+// Pre-order walk. Forward: into `current`'s own subtree first, then out
+// through each ancestor's following siblings. Backward is the exact mirror
+// (reverse pre-order): the previous sibling's deepest-last stop, then the
+// parent itself, then further out.
+//
+// edgeBehavior is asked wherever the walk would LEAVE a scope's subtree, which
+// is the only place it can mean anything now that a scope can be a stop in its
+// own right:
+//   parentScope - keep climbing (the root list always behaves this way)
+//   closedLoop  - wrap to the other end of that same subtree
+//   stop        - stay put; the caller reads "no change" from next == current
+//
+// Only a scope is asked. A childless node's edgeBehavior has never applied and
+// still doesn't (see FocusNode::edgeBehavior) — asking it here would let an
+// authored closedLoop on a leaf wrap the leaf onto itself and trap focus.
+FocusNode* FocusManager::nextFocusStop(FocusNode* current, bool forward) const
 {
-    if (node == nullptr)
+    // Nothing focused, or focus is sitting on a node this manager does not
+    // own: detachChild takes a subtree out of the manager while deliberately
+    // leaving focus on it, and leaves its children hanging off it. Neither the
+    // subtree nor the parent chain is ours to walk, so re-enter from the root
+    // list instead. Checked before the descent below, not after it, or a
+    // detached scope would hand focus to a child the manager no longer knows
+    // about.
+    if (current == nullptr || current->manager() != this)
     {
-        return nullptr;
+        auto roots = sortedByTabIndex(m_rootNodes);
+        return forward ? firstStopAmong(roots) : lastStopAmong(roots);
     }
-    auto children = manager->getTraversableNodes(node);
-    for (FocusNode* ch : children)
-    {
-        FocusNode* leaf = getFirstLeaf(ch, manager);
-        if (leaf != nullptr)
-        {
-            return leaf;
-        }
-    }
-    // `children` is already the focusNodeTraversable-filtered child list, which
-    // is the exact predicate hasEligibleTraversableChildInFocusTree applies, so
-    // empty == "no traversable children". Testing it here instead re-uses that
-    // scan rather than repeating it, and short-circuits the ancestor walk in
-    // focusNodeEligibleForTraversal for every non-leaf.
-    if (children.empty() && focusNodeEligibleForTraversal(node))
-    {
-        return node;
-    }
-    return nullptr;
-}
 
-static FocusNode* getLastLeaf(FocusNode* node, const FocusManager* manager)
-{
-    if (node == nullptr)
-    {
-        return nullptr;
-    }
-    auto children = manager->getTraversableNodes(node);
-    for (auto it = children.rbegin(); it != children.rend(); ++it)
-    {
-        FocusNode* leaf = getLastLeaf(*it, manager);
-        if (leaf != nullptr)
-        {
-            return leaf;
-        }
-    }
-    // Same reuse as getFirstLeaf.
-    if (children.empty() && focusNodeEligibleForTraversal(node))
-    {
-        return node;
-    }
-    return nullptr;
-}
-
-static FocusNode* firstEligibleLeafFrom(
-    const std::vector<FocusNode*>& traversable,
-    bool forward,
-    const FocusManager* manager)
-{
     if (forward)
     {
-        for (FocusNode* t : traversable)
+        // `current`'s own subtree comes next in pre-order, whatever `current`'s
+        // flags say: a parent that can't be traversed doesn't take its children
+        // out of the order with it.
+        for (FocusNode* child : sortedByTabIndex(current->children()))
         {
-            FocusNode* leaf = getFirstLeaf(t, manager);
-            if (leaf != nullptr)
+            FocusNode* stop = firstStopInSubtree(child);
+            if (stop != nullptr)
             {
-                return leaf;
+                return stop;
             }
         }
     }
-    else
+
+    for (FocusNode* node = current; node != nullptr;)
     {
-        for (auto it = traversable.rbegin(); it != traversable.rend(); ++it)
+        // Everything inside `node` has been offered, so this step leaves its
+        // subtree and its edge behavior decides whether the walk may.
+        if (node->isScope())
         {
-            FocusNode* leaf = getLastLeaf(*it, manager);
-            if (leaf != nullptr)
+            switch (node->edgeBehavior())
             {
-                return leaf;
+                case EdgeBehavior::closedLoop:
+                    // Wrap within this subtree. With one stop left in it (or
+                    // none) this lands back on `current` (or nowhere), which
+                    // the caller reads as no change rather than looping.
+                    return forward ? firstStopInSubtree(node)
+                                   : lastStopInSubtree(node);
+                case EdgeBehavior::stop:
+                    return current;
+                case EdgeBehavior::parentScope:
+                    break;
             }
         }
+
+        // `node` belongs to this manager, so it is in the list it claims --
+        // the check above sent everything else back to the root list. A miss
+        // would leave index at siblings.size(), which reads as "past the end"
+        // and lets the walk climb, so there is nothing to guard against here.
+        auto siblings = siblingsOf(node);
+        auto it = std::find(siblings.begin(), siblings.end(), node);
+        size_t index = static_cast<size_t>(it - siblings.begin());
+        if (forward)
+        {
+            for (size_t i = index + 1; i < siblings.size(); i++)
+            {
+                FocusNode* stop = firstStopInSubtree(siblings[i]);
+                if (stop != nullptr)
+                {
+                    return stop;
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = index; i-- > 0;)
+            {
+                FocusNode* stop = lastStopInSubtree(siblings[i]);
+                if (stop != nullptr)
+                {
+                    return stop;
+                }
+            }
+        }
+
+        FocusNode* parent = node->parent();
+        if (parent == nullptr)
+        {
+            // The root list has no owner to ask, so it always reads as
+            // parentScope: the walk runs off the end and focus clears.
+            return nullptr;
+        }
+        if (!forward && isFocusStop(parent))
+        {
+            // Reverse pre-order: a scope precedes its children, so the parent
+            // is the predecessor of its first child's subtree. Still INSIDE
+            // the parent's subtree, so the parent's edge has no say yet.
+            return parent;
+        }
+        node = parent;
     }
     return nullptr;
 }
@@ -1375,128 +1403,19 @@ static FocusNode* firstEligibleLeafFrom(
 FocusNode* FocusManager::findNextFocusable(FocusNode* current,
                                            bool forward) const
 {
-    FocusNode* scope = current ? current->parent() : nullptr;
-    auto traversable = getTraversableNodes(scope);
-
-    if (traversable.empty())
+    FocusNode* next = nextFocusStop(current, forward);
+    if (next == current)
     {
-        if (scope)
-        {
-            return findNextFocusable(scope, forward);
-        }
+        // An edge that says stop, or a closed loop with nothing else left in
+        // it. Reported as "didn't move" so a queued traversal request knows it
+        // has nothing to retry for.
         return nullptr;
     }
-
-    auto it = std::find(traversable.begin(), traversable.end(), current);
-    FocusNode* next = nullptr;
-
-    if (it == traversable.end())
-    {
-        next = firstEligibleLeafFrom(traversable, forward, this);
-    }
-    else
-    {
-        size_t idx = static_cast<size_t>(it - traversable.begin());
-        if (forward)
-        {
-            for (size_t i = idx + 1; i < traversable.size(); i++)
-            {
-                next = getFirstLeaf(traversable[i], this);
-                if (next != nullptr)
-                {
-                    break;
-                }
-            }
-            if (next == nullptr)
-            {
-                EdgeBehavior edge =
-                    scope ? scope->edgeBehavior() : EdgeBehavior::parentScope;
-                switch (edge)
-                {
-                    case EdgeBehavior::closedLoop:
-                        for (size_t i = 0; i < idx; i++)
-                        {
-                            next = getFirstLeaf(traversable[i], this);
-                            if (next != nullptr)
-                            {
-                                break;
-                            }
-                        }
-                        if (next == nullptr)
-                        {
-                            next =
-                                firstEligibleLeafFrom(traversable, true, this);
-                        }
-                        break;
-                    case EdgeBehavior::stop:
-                        next = current;
-                        break;
-                    case EdgeBehavior::parentScope:
-                        if (scope)
-                        {
-                            return findNextFocusable(scope, forward);
-                        }
-                        next = nullptr;
-                        break;
-                }
-            }
-        }
-        else
-        {
-            for (int i = static_cast<int>(idx) - 1; i >= 0; i--)
-            {
-                next = getLastLeaf(traversable[static_cast<size_t>(i)], this);
-                if (next != nullptr)
-                {
-                    break;
-                }
-            }
-            if (next == nullptr)
-            {
-                EdgeBehavior edge =
-                    scope ? scope->edgeBehavior() : EdgeBehavior::parentScope;
-                switch (edge)
-                {
-                    case EdgeBehavior::closedLoop:
-                        for (int i = static_cast<int>(traversable.size()) - 1;
-                             i > static_cast<int>(idx);
-                             i--)
-                        {
-                            next =
-                                getLastLeaf(traversable[static_cast<size_t>(i)],
-                                            this);
-                            if (next != nullptr)
-                            {
-                                break;
-                            }
-                        }
-                        if (next == nullptr)
-                        {
-                            next =
-                                firstEligibleLeafFrom(traversable, false, this);
-                        }
-                        break;
-                    case EdgeBehavior::stop:
-                        next = current;
-                        break;
-                    case EdgeBehavior::parentScope:
-                        if (scope)
-                        {
-                            return findNextFocusable(scope, forward);
-                        }
-                        next = nullptr;
-                        break;
-                }
-            }
-        }
-    }
-
-    if (next != current)
-    {
-        const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
-        return next;
-    }
-    return nullptr;
+    // A null `next` with focus set is the walk running off the end of the root
+    // list, which clears focus. ref_rcp is null-safe and setFocus(nullptr)
+    // clears, so this stays one call.
+    const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
+    return next;
 }
 
 } // namespace rive

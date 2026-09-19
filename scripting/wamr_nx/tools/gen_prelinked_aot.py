@@ -19,10 +19,8 @@ from pathlib import Path
 AOT_SECTION_TEXT = 2
 
 # --xip implies --disable-llvm-intrinsics: floating point lowers to
-# aot_intrinsic_* helper calls and the llvm.experimental.constrained.* nodes
-# behind the AArch64 strict-FP miscompile are never emitted, so these
-# artifacts deliberately keep optimized backend codegen instead of the
-# --codegen-opt-level=0 cap the runtime ladder applies to non-xip builds.
+# aot_intrinsic_* helper calls instead of llvm.experimental.constrained.*
+# nodes.
 WAMRC_FLAGS = [
     "--xip",
     "--bounds-checks=1",

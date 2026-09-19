@@ -38,10 +38,15 @@ public:
     ~FocusNode();
 
     // Transparent structural scope: unbacked (no Focusable) and never a focus
-    // target itself. Traversal descends through it to reach focusable
-    // descendants (see focusNodeTraversable); empty scopes contribute no
-    // focus stops. Used by data-bound nested-artboard hosts and component
-    // lists.
+    // target itself, because canFocus and canTraverse are both off. Traversal
+    // descends through it to reach focusable descendants — as it does through
+    // any non-stop, so this no longer depends on the node being unbacked;
+    // empty scopes contribute no focus stops. Used by data-bound
+    // nested-artboard hosts and component lists.
+    //
+    // Any host building a container FocusNode of its own should come through
+    // here. A bare FocusNode defaults to canFocus/canTraverse ON, so it is a
+    // tab stop in its own right even when its only job is to hold children.
     static rcp<FocusNode> makeStructuralScope()
     {
         auto node = make_rcp<FocusNode>();
@@ -114,7 +119,10 @@ public:
     // input.
 
     // Scope status is implicit: a node with children is a scope.
-    // EdgeBehavior only applies to scopes (nodes with children).
+    // EdgeBehavior only applies to scopes (nodes with children). Load-bearing:
+    // FocusManager::nextFocusStop gates the edge switch on isScope(), because
+    // an edge behavior read off a childless node would let an authored
+    // closedLoop wrap that node onto itself and trap focus there.
     EdgeBehavior edgeBehavior() const
     {
         return static_cast<EdgeBehavior>((m_flags >> edgeBehaviorShift) &

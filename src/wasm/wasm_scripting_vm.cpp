@@ -458,6 +458,84 @@ void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
 namespace
 {
 
+// A string argument as the impl cores read it, UTF-8. A module that hands
+// over its own UTF-16 has it transcoded here, on the stack for anything the
+// size of a name.
+class WasmStringArg
+{
+public:
+    WasmStringArg(WasmScriptingVM* vm, const char* bytes, uint32_t byteCount) :
+        m_data(bytes), m_size(byteCount)
+    {
+        // Module start calls in before the vm rides on the exec env.
+        WasmScriptingVM* owner = vm != nullptr ? vm : s_booting;
+        if (owner == nullptr || !owner->utf16Strings() || bytes == nullptr)
+        {
+            return;
+        }
+        auto in = reinterpret_cast<const uint8_t*>(bytes);
+        uint32_t units = byteCount / 2;
+        // A unit is three bytes at most, a surrogate pair four for its two.
+        char* out = m_inline;
+        if ((size_t)units * 3 > sizeof(m_inline))
+        {
+            m_heap.resize((size_t)units * 3);
+            out = &m_heap[0];
+        }
+        m_data = out;
+        auto unitAt = [in](uint32_t i) {
+            return (uint32_t)in[i * 2] | (uint32_t)in[i * 2 + 1] << 8;
+        };
+        for (uint32_t i = 0; i < units; i++)
+        {
+            uint32_t code = unitAt(i);
+            if (code >= 0xD800 && code < 0xDC00 && i + 1 < units)
+            {
+                uint32_t low = unitAt(i + 1);
+                if (low >= 0xDC00 && low < 0xE000)
+                {
+                    code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+                    i++;
+                }
+            }
+            // A lone surrogate encodes as it stands, as the module's own
+            // encoder did.
+            if (code < 0x80)
+            {
+                *out++ = (char)code;
+            }
+            else if (code < 0x800)
+            {
+                *out++ = (char)(0xC0 | code >> 6);
+                *out++ = (char)(0x80 | (code & 0x3F));
+            }
+            else if (code < 0x10000)
+            {
+                *out++ = (char)(0xE0 | code >> 12);
+                *out++ = (char)(0x80 | (code >> 6 & 0x3F));
+                *out++ = (char)(0x80 | (code & 0x3F));
+            }
+            else
+            {
+                *out++ = (char)(0xF0 | code >> 18);
+                *out++ = (char)(0x80 | (code >> 12 & 0x3F));
+                *out++ = (char)(0x80 | (code >> 6 & 0x3F));
+                *out++ = (char)(0x80 | (code & 0x3F));
+            }
+        }
+        m_size = (uint32_t)(out - m_data);
+    }
+
+    const char* data() const { return m_data; }
+    uint32_t size() const { return m_size; }
+
+private:
+    const char* m_data;
+    uint32_t m_size;
+    char m_inline[192];
+    std::string m_heap;
+};
+
 // Prototypes, descriptor PODs, and registration tables for the rive_*_v1
 // namespaces come from the binding IDL (src/wasm/idl/bindings.py); the
 // declarations pin each implementation below to the contract signature.
@@ -6794,6 +6872,15 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             m_unresolvedImports.push_back(std::string(import.module_name) +
                                           "." + import.name);
         }
+    }
+    // Read off the module, not the instance: module start runs every
+    // script's top level, which already passes strings.
+    int32_t exportCount = wasm_runtime_get_export_count(m_state->module);
+    for (int32_t i = 0; i < exportCount && !m_utf16Strings; i++)
+    {
+        wasm_export_t moduleExport;
+        wasm_runtime_get_export_type(m_state->module, i, &moduleExport);
+        m_utf16Strings = strcmp(moduleExport.name, "__riveUtf16Strings") == 0;
     }
     s_bootPrint = &m_print;
     s_booting = this;

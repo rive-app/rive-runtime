@@ -20,6 +20,11 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_boolean_runtime.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/input/gamepad_batch.hpp"
@@ -923,7 +928,35 @@ TEST_CASE("FocusManager edge behavior closedLoop", "[FocusManager]")
     manager.setFocus(node2);
     manager.focusNext();
 
-    // Should wrap to first
+    // The loop is the scope's whole subtree in pre-order, and a plain
+    // FocusNode is focusable and traversable, so the scope is the first stop
+    // in it: scope -> node1 -> node2 -> scope.
+    CHECK(manager.primaryFocus() == scope);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == node1);
+}
+
+TEST_CASE("FocusManager closedLoop skips a scope that can't be focused",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto node1 = make_rcp<FocusNode>();
+    auto node2 = make_rcp<FocusNode>();
+
+    scope->edgeBehavior(EdgeBehavior::closedLoop);
+    // A pure container now has to say so; holding focusable children is no
+    // longer enough to keep a node out of the order.
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, node1);
+    manager.addChild(scope, node2);
+
+    manager.setFocus(node2);
+    manager.focusNext();
+
+    // Wraps to the first stop in the subtree, which is now node1.
     CHECK(manager.primaryFocus() == node1);
 }
 
@@ -943,8 +976,469 @@ TEST_CASE("FocusManager edge behavior stop", "[FocusManager]")
     manager.setFocus(node2);
     manager.focusNext();
 
-    // Should stay on node2
+    // node2 is the last stop in the scope's subtree, so the next step would
+    // leave it — which `stop` refuses.
     CHECK(manager.primaryFocus() == node2);
+}
+
+TEST_CASE("FocusManager traversal is pre-order in both directions",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto root = make_rcp<FocusNode>();
+    auto a = make_rcp<FocusNode>();
+    auto a1 = make_rcp<FocusNode>();
+    auto a2 = make_rcp<FocusNode>();
+    auto b = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, root);
+    manager.addChild(root, a);
+    manager.addChild(a, a1);
+    manager.addChild(a, a2);
+    manager.addChild(root, b);
+
+    const std::vector<FocusNode*> order{root.get(),
+                                        a.get(),
+                                        a1.get(),
+                                        a2.get(),
+                                        b.get()};
+
+    for (FocusNode* expected : order)
+    {
+        manager.focusNext();
+        CHECK(manager.primaryFocusPtr() == expected);
+    }
+
+    // And Shift+Tab retraces it exactly.
+    for (auto it = order.rbegin() + 1; it != order.rend(); ++it)
+    {
+        manager.focusPrevious();
+        CHECK(manager.primaryFocusPtr() == *it);
+    }
+}
+
+TEST_CASE("FocusManager a parent's flags do not decide for its children",
+          "[FocusManager]")
+{
+    // The regression this rule change is about. A backed canFocus=false
+    // container used to prune its entire subtree from traversal, which is how
+    // an artboard-level <FocusData canFocus="false"/> — the documented way to
+    // host keyboard listeners — took every focusable in the file out of Tab.
+    MockFocusable containerFocusable, childFocusable, siblingFocusable;
+
+    SECTION("canFocus=false parent")
+    {
+        FocusManager manager;
+        auto container = make_rcp<FocusNode>(&containerFocusable);
+        auto child = make_rcp<FocusNode>(&childFocusable);
+        container->canFocus(false);
+        manager.addChild(nullptr, container);
+        manager.addChild(container, child);
+
+        CHECK(manager.getTraversableNodes(nullptr).size() == 1);
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == child);
+    }
+
+    SECTION("canTraverse=false parent")
+    {
+        FocusManager manager;
+        auto container = make_rcp<FocusNode>(&containerFocusable);
+        auto child = make_rcp<FocusNode>(&childFocusable);
+        container->canTraverse(false);
+        manager.addChild(nullptr, container);
+        manager.addChild(container, child);
+
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == child);
+    }
+
+    SECTION("directional navigation agrees")
+    {
+        FocusManager manager;
+        auto container = make_rcp<FocusNode>(&containerFocusable);
+        auto child = make_rcp<FocusNode>(&childFocusable);
+        auto sibling = make_rcp<FocusNode>(&siblingFocusable);
+        container->canFocus(false);
+        // The container's bounds enclose the child's, so it sits closer to
+        // the focused sibling and would win the scoring outright if it were
+        // ever collected as a candidate.
+        container->worldBounds(AABB(0, 0, 50, 50));
+        child->worldBounds(AABB(0, 0, 10, 10));
+        sibling->worldBounds(AABB(100, 0, 110, 10));
+        manager.addChild(nullptr, container);
+        manager.addChild(container, child);
+        manager.addChild(nullptr, sibling);
+
+        manager.setFocus(sibling);
+        CHECK(manager.focusLeft());
+        CHECK(manager.primaryFocus() == child);
+    }
+
+    SECTION("backward traversal agrees")
+    {
+        FocusManager manager;
+        auto container = make_rcp<FocusNode>(&containerFocusable);
+        auto child = make_rcp<FocusNode>(&childFocusable);
+        auto before = make_rcp<FocusNode>(&siblingFocusable);
+        container->canFocus(false);
+        manager.addChild(nullptr, before);
+        manager.addChild(nullptr, container);
+        manager.addChild(container, child);
+
+        manager.setFocus(child);
+        manager.focusPrevious();
+        // Straight past the container to the node before it, rather than
+        // stopping on it or refusing to leave its subtree.
+        CHECK(manager.primaryFocus() == before);
+    }
+
+    SECTION("two non-stop levels deep")
+    {
+        FocusManager manager;
+        MockFocusable innerFocusable;
+        auto outer = make_rcp<FocusNode>(&containerFocusable);
+        auto inner = make_rcp<FocusNode>(&innerFocusable);
+        auto child = make_rcp<FocusNode>(&childFocusable);
+        outer->canFocus(false);
+        inner->canTraverse(false);
+        manager.addChild(nullptr, outer);
+        manager.addChild(outer, inner);
+        manager.addChild(inner, child);
+
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == child);
+    }
+}
+
+TEST_CASE("FocusManager flag matrix decides focus and navigation separately",
+          "[FocusManager]")
+{
+    // canFocus and canTraverse answer two different questions: "may this node
+    // hold focus at all" and "does navigation visit it". Every combination,
+    // against every route in.
+    MockFocusable beforeFocusable, subjectFocusable, afterFocusable;
+
+    bool canFocus = false;
+    bool canTraverse = false;
+    SECTION("canFocus, canTraverse")
+    {
+        canFocus = true;
+        canTraverse = true;
+    }
+    SECTION("canFocus, !canTraverse")
+    {
+        canFocus = true;
+        canTraverse = false;
+    }
+    SECTION("!canFocus, canTraverse")
+    {
+        canFocus = false;
+        canTraverse = true;
+    }
+    SECTION("!canFocus, !canTraverse")
+    {
+        canFocus = false;
+        canTraverse = false;
+    }
+
+    FocusManager manager;
+    auto before = make_rcp<FocusNode>(&beforeFocusable);
+    auto subject = make_rcp<FocusNode>(&subjectFocusable);
+    auto after = make_rcp<FocusNode>(&afterFocusable);
+    subject->canFocus(canFocus);
+    subject->canTraverse(canTraverse);
+    // The subject sits between the other two on the x axis, so it is what
+    // every arrow-key step from `after` would reach first.
+    before->worldBounds(AABB(0, 0, 10, 10));
+    subject->worldBounds(AABB(50, 0, 60, 10));
+    after->worldBounds(AABB(100, 0, 110, 10));
+    manager.addChild(nullptr, before);
+    manager.addChild(nullptr, subject);
+    manager.addChild(nullptr, after);
+
+    // Only canFocus decides whether focus may land when something names it.
+    manager.setFocus(subject);
+    CHECK(manager.hasPrimaryFocus(subject) == canFocus);
+    manager.clearFocus();
+
+    // Navigation needs both, in both directions and on the arrows.
+    const bool navigable = canFocus && canTraverse;
+
+    manager.setFocus(before);
+    manager.focusNext();
+    CHECK(manager.hasPrimaryFocus(subject) == navigable);
+
+    manager.setFocus(after);
+    manager.focusPrevious();
+    CHECK(manager.hasPrimaryFocus(subject) == navigable);
+
+    manager.setFocus(after);
+    manager.focusLeft();
+    CHECK(manager.hasPrimaryFocus(subject) == navigable);
+
+    // And a node Tab skips still keeps focus it was handed directly — being
+    // out of navigation is not the same as being unable to hold focus.
+    if (canFocus)
+    {
+        manager.setFocus(subject);
+        REQUIRE(manager.hasPrimaryFocus(subject));
+        manager.dropFocusIfFocusTargetHidden();
+        CHECK(manager.hasPrimaryFocus(subject));
+    }
+}
+
+TEST_CASE("FocusManager follows the flags when they change at runtime",
+          "[FocusManager]")
+{
+    // canFocus and canTraverse are animatable and data-bindable, so both can
+    // flip under a node that already holds focus.
+    MockFocusable subjectFocusable, otherFocusable;
+
+    SECTION("canFocus going false re-homes focus away")
+    {
+        FocusManager manager;
+        auto subject = make_rcp<FocusNode>(&subjectFocusable);
+        auto other = make_rcp<FocusNode>(&otherFocusable);
+        auto parent = make_rcp<FocusNode>();
+        manager.addChild(nullptr, parent);
+        manager.addChild(parent, subject);
+        manager.addChild(parent, other);
+
+        manager.setFocus(subject);
+        REQUIRE(manager.primaryFocus() == subject);
+
+        subject->canFocus(false);
+        manager.dropFocusIfFocusTargetHidden();
+        CHECK(manager.primaryFocus() == other);
+        CHECK(subjectFocusable.blurredCount == 1);
+    }
+
+    SECTION("canTraverse going false leaves focus where it is")
+    {
+        FocusManager manager;
+        auto subject = make_rcp<FocusNode>(&subjectFocusable);
+        auto other = make_rcp<FocusNode>(&otherFocusable);
+        manager.addChild(nullptr, subject);
+        manager.addChild(nullptr, other);
+
+        manager.setFocus(subject);
+        REQUIRE(manager.primaryFocus() == subject);
+
+        subject->canTraverse(false);
+        manager.dropFocusIfFocusTargetHidden();
+        CHECK(manager.primaryFocus() == subject);
+        CHECK(subjectFocusable.blurredCount == 0);
+
+        // But Tab no longer comes back to it.
+        manager.setFocus(other);
+        manager.focusPrevious();
+        CHECK(manager.primaryFocus() != subject);
+    }
+
+    SECTION("a flag flip changes the order without a rebuild")
+    {
+        FocusManager manager;
+        auto first = make_rcp<FocusNode>(&subjectFocusable);
+        auto second = make_rcp<FocusNode>(&otherFocusable);
+        manager.addChild(nullptr, first);
+        manager.addChild(nullptr, second);
+
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == first);
+
+        manager.clearFocus();
+        first->canTraverse(false);
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == second);
+
+        manager.clearFocus();
+        first->canTraverse(true);
+        first->canFocus(false);
+        manager.focusNext();
+        CHECK(manager.primaryFocus() == second);
+    }
+}
+
+TEST_CASE("FocusManager authored focus flags behave like the node flags",
+          "[FocusManager]")
+{
+    // The bare-FocusNode tests above set the flags directly; authored files
+    // set them as bits of FocusData::focusFlags. Same rules, and in
+    // particular an authored canFocus="false" container — the documented way
+    // to host keyboard listeners — keeps its children in the order.
+    FocusManager manager;
+    FocusData container;
+    FocusData child;
+    container.focusFlags(container.focusFlags() & ~FocusData::canFocusBitmask);
+    manager.addChild(nullptr, container.focusNode());
+    manager.addChild(container.focusNode(), child.focusNode());
+
+    REQUIRE(container.focusNode()->canFocus() == false);
+    CHECK(manager.getTraversableNodes(nullptr).size() == 1);
+
+    manager.setFocus(container.focusNode());
+    CHECK(manager.primaryFocus() == nullptr);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == child.focusNode());
+}
+
+TEST_CASE("FocusManager a queued focus request never lands on a "
+          "non-focusable target",
+          "[FocusManager]")
+{
+    // The FocusActionTarget route: requests that can't take are retried on
+    // every drain rather than applied once, so a canFocus=false target has to
+    // be refused at each one.
+    FocusManager manager;
+    MockFocusable targetFocusable;
+    auto target = make_rcp<FocusNode>(&targetFocusable);
+    target->canFocus(false);
+    manager.addChild(nullptr, target);
+
+    manager.requestFocus(target, nullptr);
+    CHECK(manager.primaryFocus() == nullptr);
+
+    manager.processPendingFocusRequests(nullptr);
+    CHECK(manager.primaryFocus() == nullptr);
+
+    manager.finishPendingFocusRequests(nullptr);
+    CHECK(manager.primaryFocus() == nullptr);
+    CHECK(targetFocusable.focusedCount == 0);
+}
+
+TEST_CASE("FocusManager edgeBehavior on a childless node is inert",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto node1 = make_rcp<FocusNode>();
+    auto node2 = make_rcp<FocusNode>();
+    // Authored edge behavior on something that is not a scope has never
+    // applied. If it did, closedLoop here would wrap node1 onto itself and
+    // focus could never leave it.
+    node1->edgeBehavior(EdgeBehavior::closedLoop);
+    node2->edgeBehavior(EdgeBehavior::stop);
+
+    manager.addChild(nullptr, node1);
+    manager.addChild(nullptr, node2);
+
+    manager.setFocus(node1);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == node2);
+}
+
+TEST_CASE("FocusManager closedLoop with a single stop does not move focus",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto only = make_rcp<FocusNode>();
+    scope->edgeBehavior(EdgeBehavior::closedLoop);
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, only);
+
+    manager.setFocus(only);
+    CHECK(manager.focusNext() == false);
+    CHECK(manager.primaryFocus() == only);
+    CHECK(manager.focusPrevious() == false);
+    CHECK(manager.primaryFocus() == only);
+}
+
+TEST_CASE("FocusManager traversal re-enters after the focused node is detached",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto node1 = make_rcp<FocusNode>();
+    auto node2 = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, node1);
+    manager.addChild(nullptr, node2);
+
+    manager.setFocus(node2);
+    // detachChild deliberately keeps focus, leaving the target off both its
+    // parent and the root list. The walk has no chain to climb, so it
+    // re-enters the list it was handed.
+    manager.detachChild(node2);
+    REQUIRE(manager.primaryFocus() == node2);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == node1);
+}
+
+TEST_CASE("FocusManager traversal reports nothing when the tree holds no stop",
+          "[FocusManager]")
+{
+    // A tree of nodes none of which can be focused: both directions have to
+    // come back empty rather than land on one anyway.
+    FocusManager manager;
+    auto parent = make_rcp<FocusNode>();
+    auto child = make_rcp<FocusNode>();
+    parent->canFocus(false);
+    child->canFocus(false);
+    manager.addChild(nullptr, parent);
+    manager.addChild(parent, child);
+
+    CHECK(manager.focusNext() == false);
+    CHECK(manager.primaryFocus() == nullptr);
+    CHECK(manager.focusPrevious() == false);
+    CHECK(manager.primaryFocus() == nullptr);
+    CHECK(manager.getTraversableNodes(nullptr).empty());
+}
+
+TEST_CASE("FocusManager traversal does not descend into a detached subtree",
+          "[FocusManager]")
+{
+    // detachChild takes a whole subtree out of the manager (it clears
+    // m_manager on every descendant) but leaves the node's children hanging
+    // off it, and deliberately keeps focus where it is. Traversal must not
+    // walk into that subtree: those nodes are no longer the manager's to hand
+    // focus to, and the caller is holding them to re-add or destroy.
+    FocusManager manager;
+    auto stay = make_rcp<FocusNode>();
+    auto detached = make_rcp<FocusNode>();
+    auto detachedChild = make_rcp<FocusNode>();
+
+    manager.addChild(nullptr, stay);
+    manager.addChild(nullptr, detached);
+    manager.addChild(detached, detachedChild);
+
+    manager.setFocus(detached);
+    manager.detachChild(detached);
+    REQUIRE(manager.primaryFocus() == detached);
+    REQUIRE(detached->manager() == nullptr);
+    REQUIRE(detachedChild->manager() == nullptr);
+    // The subtree is still wired together, which is what makes this reachable.
+    REQUIRE(detached->children().size() == 1);
+
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == stay);
+
+    manager.clearFocus();
+    manager.setFocus(detached);
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == stay);
+}
+
+TEST_CASE("FocusManager getTraversableNodes lists a container of stops",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable containerFocusable, childFocusable;
+    auto container = make_rcp<FocusNode>(&containerFocusable);
+    auto child = make_rcp<FocusNode>(&childFocusable);
+    container->canFocus(false);
+    manager.addChild(nullptr, container);
+
+    // Nothing reachable under it yet, so it contributes no stop.
+    CHECK(manager.getTraversableNodes(nullptr).empty());
+
+    manager.addChild(container, child);
+    auto roots = manager.getTraversableNodes(nullptr);
+    REQUIRE(roots.size() == 1);
+    CHECK(roots[0] == container.get());
 }
 
 TEST_CASE("FocusManager ancestor notification on focus", "[FocusManager]")
@@ -1002,7 +1496,8 @@ TEST_CASE("FocusManager common ancestor optimization", "[FocusManager]")
     CHECK(parent->hasFocus() == true);
 }
 
-TEST_CASE("FocusManager traversal focuses leaves only", "[FocusManager]")
+TEST_CASE("FocusManager traversal visits a focusable scope before its children",
+          "[FocusManager]")
 {
     FocusManager manager;
     MockFocusable scopeFocusable, leaf1Focusable, leaf2Focusable;
@@ -1014,7 +1509,10 @@ TEST_CASE("FocusManager traversal focuses leaves only", "[FocusManager]")
     manager.addChild(scope, leaf1);
     manager.addChild(scope, leaf2);
 
-    // Start with no focus, focusNext should focus first leaf, not scope
+    // Pre-order: having children doesn't take the scope out of the order.
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == scope);
+
     manager.focusNext();
     CHECK(manager.primaryFocus() == leaf1);
     CHECK(manager.hasPrimaryFocus(scope) == false);
@@ -1024,7 +1522,29 @@ TEST_CASE("FocusManager traversal focuses leaves only", "[FocusManager]")
     CHECK(manager.primaryFocus() == leaf2);
 }
 
-TEST_CASE("FocusManager nested scopes focus deepest leaf", "[FocusManager]")
+TEST_CASE("FocusManager traversal skips a scope that can't be focused",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    MockFocusable scopeFocusable, leaf1Focusable, leaf2Focusable;
+    auto scope = make_rcp<FocusNode>(&scopeFocusable);
+    auto leaf1 = make_rcp<FocusNode>(&leaf1Focusable);
+    auto leaf2 = make_rcp<FocusNode>(&leaf2Focusable);
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, leaf1);
+    manager.addChild(scope, leaf2);
+
+    // A backed canFocus=false parent used to prune its whole subtree from
+    // traversal. It now only takes itself out of the order.
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leaf1);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == leaf2);
+}
+
+TEST_CASE("FocusManager walks nested scopes in pre-order", "[FocusManager]")
 {
     FocusManager manager;
     auto scope1 = make_rcp<FocusNode>();
@@ -1035,11 +1555,21 @@ TEST_CASE("FocusManager nested scopes focus deepest leaf", "[FocusManager]")
     manager.addChild(scope1, scope2);
     manager.addChild(scope2, leaf);
 
-    // Navigate should go directly to the deepest leaf
+    // Outermost first, then down one level per step.
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == scope1);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == scope2);
     manager.focusNext();
     CHECK(manager.primaryFocus() == leaf);
     CHECK(scope1->hasFocus() == true);
     CHECK(scope2->hasFocus() == true);
+
+    // And back out the same way.
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == scope2);
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == scope1);
 }
 
 TEST_CASE("FocusManager edge behavior parentScope exits to parent",
@@ -1194,7 +1724,34 @@ TEST_CASE("FocusManager traversal backward from first leaf exits scope",
     // Focus the inner node
     manager.setFocus(inner);
 
-    // Navigate backward should exit scope and go to before
+    // Reverse pre-order: the scope precedes its own children, so it is the
+    // predecessor of `inner` and the walk only leaves the subtree after it.
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == scope);
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == before);
+}
+
+TEST_CASE("FocusManager backward exits a scope that can't be focused",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto root = make_rcp<FocusNode>();
+    auto before = make_rcp<FocusNode>();
+    auto scope = make_rcp<FocusNode>();
+    auto inner = make_rcp<FocusNode>();
+
+    scope->edgeBehavior(EdgeBehavior::parentScope);
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, root);
+    manager.addChild(root, before);
+    manager.addChild(root, scope);
+    manager.addChild(scope, inner);
+
+    manager.setFocus(inner);
+
+    // Nothing to stop on at the scope, so the walk leaves its subtree.
     manager.focusPrevious();
     CHECK(manager.primaryFocus() == before);
 }
@@ -1215,6 +1772,35 @@ TEST_CASE("FocusManager closedLoop wraps backward", "[FocusManager]")
     manager.setFocus(node1);
     manager.focusPrevious();
 
+    // The scope precedes node1 in pre-order, so backward reaches it before
+    // the loop has anything to wrap.
+    CHECK(manager.primaryFocus() == scope);
+
+    // Now the walk would leave the subtree, and closedLoop sends it to the
+    // other end instead.
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == node2);
+}
+
+TEST_CASE("FocusManager closedLoop wraps backward past a scope that can't be "
+          "focused",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto node1 = make_rcp<FocusNode>();
+    auto node2 = make_rcp<FocusNode>();
+
+    scope->edgeBehavior(EdgeBehavior::closedLoop);
+    scope->canFocus(false);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, node1);
+    manager.addChild(scope, node2);
+
+    manager.setFocus(node1);
+    manager.focusPrevious();
+
     // Should wrap to last
     CHECK(manager.primaryFocus() == node2);
 }
@@ -1227,6 +1813,32 @@ TEST_CASE("FocusManager stop prevents backward traversal", "[FocusManager]")
     auto node2 = make_rcp<FocusNode>();
 
     scope->edgeBehavior(EdgeBehavior::stop);
+
+    manager.addChild(nullptr, scope);
+    manager.addChild(scope, node1);
+    manager.addChild(scope, node2);
+
+    manager.setFocus(node1);
+    manager.focusPrevious();
+
+    // The scope is still inside its own subtree, so `stop` has no say yet.
+    CHECK(manager.primaryFocus() == scope);
+
+    // From the scope the walk would leave, and `stop` holds it there.
+    manager.focusPrevious();
+    CHECK(manager.primaryFocus() == scope);
+}
+
+TEST_CASE("FocusManager stop holds a scope that can't be focused",
+          "[FocusManager]")
+{
+    FocusManager manager;
+    auto scope = make_rcp<FocusNode>();
+    auto node1 = make_rcp<FocusNode>();
+    auto node2 = make_rcp<FocusNode>();
+
+    scope->edgeBehavior(EdgeBehavior::stop);
+    scope->canFocus(false);
 
     manager.addChild(nullptr, scope);
     manager.addChild(scope, node1);
@@ -1854,7 +2466,7 @@ TEST_CASE("StateMachineInstance::keyInput and textInput use the external focus "
     smi.setExternalFocusManager(nullptr);
 }
 
-TEST_CASE("FocusManager setFocus on a scope descends to first leaf",
+TEST_CASE("FocusManager setFocus on a scope focuses the scope",
           "[FocusManager]")
 {
     FocusManager manager;
@@ -1866,12 +2478,13 @@ TEST_CASE("FocusManager setFocus on a scope descends to first leaf",
     manager.addChild(scope, leaf1);
     manager.addChild(scope, leaf2);
 
-    // Focusing the scope resolves to its first eligible leaf.
+    // Focus lands where it was asked to. Having children no longer redirects
+    // it to a descendant the caller never named.
     manager.setFocus(scope);
-    CHECK(manager.primaryFocus() == leaf1);
+    CHECK(manager.primaryFocus() == scope);
 }
 
-TEST_CASE("FocusManager setFocus on a scope descends depth-first",
+TEST_CASE("FocusManager setFocus never redirects to a descendant",
           "[FocusManager]")
 {
     FocusManager manager;
@@ -1885,26 +2498,47 @@ TEST_CASE("FocusManager setFocus on a scope descends depth-first",
     manager.addChild(row, leaf);
     manager.addChild(scope, sibling);
 
-    // Depth-first: first leaf is the leaf nested under the first child (row).
     manager.setFocus(scope);
-    CHECK(manager.primaryFocus() == leaf);
+    CHECK(manager.primaryFocus() == scope);
+
+    // Even a scope whose only children are untraversable keeps the focus it
+    // was handed, rather than falling back to anything.
+    manager.clearFocus();
+    row->canTraverse(false);
+    leaf->canTraverse(false);
+    sibling->canTraverse(false);
+    manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == scope);
 }
 
-TEST_CASE("FocusManager setFocus on a scope with no eligible leaf falls back",
+TEST_CASE("FocusManager setFocus honours canFocus on a node Tab would skip",
           "[FocusManager]")
 {
     FocusManager manager;
-    auto scope = make_rcp<FocusNode>();
-    auto child = make_rcp<FocusNode>();
-    // Child cannot be traversed, so the scope has no eligible leaf to descend
-    // to. The scope itself remains the focus target (preserves prior behavior).
-    child->canTraverse(false);
+    auto traversable = make_rcp<FocusNode>();
+    auto reachableOnlyByName = make_rcp<FocusNode>();
+    // Out of navigation, but still focusable: a FocusActionTarget or a script
+    // naming it directly must still land.
+    reachableOnlyByName->canTraverse(false);
 
-    manager.addChild(nullptr, scope);
-    manager.addChild(scope, child);
+    manager.addChild(nullptr, traversable);
+    manager.addChild(nullptr, reachableOnlyByName);
 
-    manager.setFocus(scope);
-    CHECK(manager.primaryFocus() == scope);
+    manager.setFocus(reachableOnlyByName);
+    CHECK(manager.primaryFocus() == reachableOnlyByName);
+
+    // And it survives the frame's re-home pass, which asks whether the target
+    // can hold focus, not whether Tab would have picked it.
+    manager.dropFocusIfFocusTargetHidden();
+    CHECK(manager.primaryFocus() == reachableOnlyByName);
+
+    // Tab still skips it entirely: it is the last root, so stepping past the
+    // traversable one runs off the end of the root list and clears.
+    manager.clearFocus();
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == traversable);
+    manager.focusNext();
+    CHECK(manager.primaryFocus() == nullptr);
 }
 
 TEST_CASE("FocusManager setFocus on an ineligible scope is a no-op",
@@ -1913,9 +2547,8 @@ TEST_CASE("FocusManager setFocus on an ineligible scope is a no-op",
     FocusManager manager;
     auto scope = make_rcp<FocusNode>();
     auto leaf = make_rcp<FocusNode>();
-    // The requested target itself cannot be focused. Descent must not reach an
-    // eligible descendant — focus stays unchanged (no-op), matching the prior
-    // early-return guard behavior.
+    // The requested target itself cannot be focused, so the request does
+    // nothing at all — it does not fall through to an eligible descendant.
     scope->canFocus(false);
 
     manager.addChild(nullptr, scope);
@@ -1936,12 +2569,12 @@ TEST_CASE("FocusManager setFocus on a leaf is unchanged", "[FocusManager]")
     manager.addChild(scope, leaf1);
     manager.addChild(scope, leaf2);
 
-    // Directly focusing a leaf still focuses that exact leaf (no-op descent).
+    // Directly focusing a leaf focuses that exact leaf.
     manager.setFocus(leaf2);
     CHECK(manager.primaryFocus() == leaf2);
 }
 
-TEST_CASE("FocusManager Tab after focusing a scope traverses leaf siblings",
+TEST_CASE("FocusManager Tab after focusing a scope descends into it",
           "[FocusManager]")
 {
     FocusManager manager;
@@ -1953,9 +2586,12 @@ TEST_CASE("FocusManager Tab after focusing a scope traverses leaf siblings",
     manager.addChild(scope, leaf1);
     manager.addChild(scope, leaf2);
 
-    // Focusing the scope lands on the first leaf; Tab then advances to the
-    // scope's next leaf rather than skipping the scope's children.
+    // Focusing the scope focuses the scope; Tab then steps into its first
+    // child, as pre-order says.
     manager.setFocus(scope);
+    CHECK(manager.primaryFocus() == scope);
+
+    manager.focusNext();
     CHECK(manager.primaryFocus() == leaf1);
 
     manager.focusNext();
@@ -2076,7 +2712,7 @@ TEST_CASE("FocusManager re-homes focus to a sibling leaf when the target hides",
     manager.addChild(parent, leafA);
     manager.addChild(parent, leafB);
 
-    manager.setFocus(parent); // descends to the first leaf
+    manager.setFocus(leafA);
     REQUIRE(manager.primaryFocus() == leafA);
 
     // A hides: focus lands on its sibling, not on the parent and not nowhere.
@@ -2101,7 +2737,7 @@ TEST_CASE("FocusManager re-homes focus to the parent when it is the only "
     manager.addChild(nullptr, parent);
     manager.addChild(parent, leaf);
 
-    manager.setFocus(parent);
+    manager.setFocus(leaf);
     REQUIRE(manager.primaryFocus() == leaf);
 
     // No sibling to fall back to, so the parent itself takes focus.
@@ -2123,7 +2759,7 @@ TEST_CASE("FocusManager walks past a hidden parent to an eligible grandparent",
     manager.addChild(grand, parent);
     manager.addChild(parent, leaf);
 
-    manager.setFocus(grand);
+    manager.setFocus(leaf);
     REQUIRE(manager.primaryFocus() == leaf);
 
     // The whole parent branch hides: skip it, land on the grandparent.
@@ -2143,7 +2779,7 @@ TEST_CASE("FocusManager clears focus when no ancestor can hold it",
     manager.addChild(nullptr, parent);
     manager.addChild(parent, leaf);
 
-    manager.setFocus(parent);
+    manager.setFocus(leaf);
     REQUIRE(manager.primaryFocus() == leaf);
 
     // Everything up the chain is gone, so focus really does clear.
@@ -2189,7 +2825,7 @@ TEST_CASE("FocusManager clears rather than crossing into another root branch",
     manager.addChild(nullptr, rootB);
     manager.addChild(rootB, leafB);
 
-    manager.setFocus(rootA);
+    manager.setFocus(leafA);
     REQUIRE(manager.primaryFocus() == leafA);
 
     // The whole first root branch goes away. Re-homing stays inside the
@@ -2224,113 +2860,6 @@ TEST_CASE("FocusManager clears when a focused root node hides",
     CHECK(rootBFocusable.focusedCount == 0);
 }
 
-// =============================================================================
-// Re-descending focus when a hidden child reappears
-// =============================================================================
-
-TEST_CASE("FocusManager descends focus to a child that becomes eligible",
-          "[FocusManager]")
-{
-    FocusManager manager;
-    MockFocusable parentFocusable, childFocusable;
-    auto parent = make_rcp<FocusNode>(&parentFocusable);
-    auto child = make_rcp<FocusNode>(&childFocusable);
-    manager.addChild(nullptr, parent);
-    manager.addChild(parent, child);
-
-    // With the child hidden, the parent is a leaf and keeps focus itself.
-    childFocusable.eligible = false;
-    manager.setFocus(parent);
-    REQUIRE(manager.primaryFocus() == parent);
-    CHECK(parentFocusable.focusedCount == 1);
-
-    // Still a leaf, so an update pass changes nothing.
-    manager.descendFocusToLeaf(nullptr);
-    CHECK(manager.primaryFocus() == parent);
-    CHECK(childFocusable.focusedCount == 0);
-
-    // The child becomes visible: the parent has silently become a scope, and
-    // focus has to follow to the leaf Tab would have picked.
-    childFocusable.eligible = true;
-    manager.descendFocusToLeaf(nullptr);
-    CHECK(manager.primaryFocus() == child);
-    CHECK(childFocusable.focusedCount == 1);
-    // The parent stays on the focus path, so it is neither blurred nor
-    // re-focused.
-    CHECK(parentFocusable.blurredCount == 0);
-    CHECK(parentFocusable.focusedCount == 1);
-
-    // Focus rests on a leaf again; further passes are no-ops.
-    manager.descendFocusToLeaf(nullptr);
-    CHECK(manager.primaryFocus() == child);
-    CHECK(childFocusable.focusedCount == 1);
-}
-
-TEST_CASE("FocusManager only descends focus for the root that just updated",
-          "[FocusManager]")
-{
-    NoOpFactory factory;
-    Artboard artboardA(&factory);
-    Artboard artboardB(&factory);
-
-    FocusManager manager;
-    MockFocusable parentFocusable, childFocusable;
-    parentFocusable.artboard = &artboardB;
-    childFocusable.artboard = &artboardB;
-    auto parent = make_rcp<FocusNode>(&parentFocusable);
-    auto child = make_rcp<FocusNode>(&childFocusable);
-    manager.addChild(nullptr, parent);
-    manager.addChild(parent, child);
-
-    childFocusable.eligible = false;
-    manager.setFocus(parent);
-    REQUIRE(manager.primaryFocus() == parent);
-
-    childFocusable.eligible = true;
-    // Root A advancing must not touch a target living in root B: only B's own
-    // update pass has refreshed what eligibility reads.
-    manager.descendFocusToLeaf(&artboardA);
-    CHECK(manager.primaryFocus() == parent);
-
-    // B's pass does the descent.
-    manager.descendFocusToLeaf(&artboardB);
-    CHECK(manager.primaryFocus() == child);
-}
-
-TEST_CASE("FocusManager scopes descent by where focus would land",
-          "[FocusManager]")
-{
-    NoOpFactory factory;
-    Artboard artboardA(&factory);
-    Artboard artboardB(&factory);
-
-    FocusManager manager;
-    // A host-created parent: no artboard backs it, so no root owns it. Its
-    // child does live in a real artboard, which is the eligibility the
-    // descent would be acting on.
-    MockFocusable parentFocusable, childFocusable;
-    childFocusable.artboard = &artboardB;
-    auto parent = make_rcp<FocusNode>(&parentFocusable);
-    auto child = make_rcp<FocusNode>(&childFocusable);
-    manager.addChild(nullptr, parent);
-    manager.addChild(parent, child);
-
-    childFocusable.eligible = false;
-    manager.setFocus(parent);
-    REQUIRE(manager.primaryFocus() == parent);
-
-    childFocusable.eligible = true;
-    // Scoping on the unattributable parent would let root A descend into
-    // root B's child on B's stale state; scoping on the destination defers.
-    manager.descendFocusToLeaf(&artboardA);
-    CHECK(manager.primaryFocus() == parent);
-
-    // And it still descends — B's own pass claims it, rather than the
-    // unattributable target being deferred forever.
-    manager.descendFocusToLeaf(&artboardB);
-    CHECK(manager.primaryFocus() == child);
-}
-
 TEST_CASE("FocusManager only drops a hidden target for its own root",
           "[FocusManager]")
 {
@@ -2350,7 +2879,7 @@ TEST_CASE("FocusManager only drops a hidden target for its own root",
     manager.addChild(parent, leafA);
     manager.addChild(parent, leafB);
 
-    manager.setFocus(parent);
+    manager.setFocus(leafA);
     REQUIRE(manager.primaryFocus() == leafA);
 
     leafAFocusable.eligible = false;
@@ -2365,6 +2894,535 @@ TEST_CASE("FocusManager only drops a hidden target for its own root",
 }
 
 } // namespace rive
+
+namespace
+{
+// Walks Tab from nothing focused to the end of the order, collecting every
+// stop it lands on. focusNext() reports false once it runs off the end of the
+// root list (which also clears focus), so that ends the walk.
+std::vector<rive::FocusNode*> collectTabOrder(rive::FocusManager* manager)
+{
+    manager->clearFocus();
+    std::vector<rive::FocusNode*> order;
+    // Guard against a cycle turning a failure into a hang.
+    for (size_t step = 0; step < 32; step++)
+    {
+        if (!manager->focusNext() || manager->primaryFocusPtr() == nullptr)
+        {
+            break;
+        }
+        order.push_back(manager->primaryFocusPtr());
+    }
+    return order;
+}
+
+// The same order walked backwards, for comparing against a reversed forward
+// walk: Shift+Tab has to retrace Tab exactly.
+std::vector<rive::FocusNode*> collectShiftTabOrder(rive::FocusManager* manager)
+{
+    manager->clearFocus();
+    std::vector<rive::FocusNode*> order;
+    for (size_t step = 0; step < 32; step++)
+    {
+        if (!manager->focusPrevious() || manager->primaryFocusPtr() == nullptr)
+        {
+            break;
+        }
+        order.push_back(manager->primaryFocusPtr());
+    }
+    return order;
+}
+} // namespace
+
+TEST_CASE("A click requests focus only while the child is focusable",
+          "[silver]")
+{
+    // Each child artboard in focus_traversal_test.riv carries a pointer
+    // listener that asks for focus on itself. That request goes through the
+    // same gate as any other: canFocus decides whether focus may land, so a
+    // child whose bound `focusable` is off must swallow the click, and must
+    // start taking it again the moment the binding turns back on.
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focus_traversal_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto* viewModel = file->defaultArtboardViewModel(artboard.get());
+    REQUIRE(viewModel != nullptr);
+    auto vmi = viewModel->createDefaultInstance();
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi->instance());
+
+    // `child1` drives the second child of its parent and `child2` the first —
+    // the view model names run opposite to hierarchy order.
+    auto* layoutChildren = vmi->propertyList("layoutChildren");
+    REQUIRE(layoutChildren != nullptr);
+    REQUIRE(layoutChildren->size() == 3);
+    std::vector<rive::rcp<rive::ViewModelInstanceRuntime>> rowInstances;
+    for (int i = 0; i < 3; i++)
+    {
+        rowInstances.push_back(layoutChildren->instanceAt(i));
+        REQUIRE(rowInstances.back() != nullptr);
+    }
+    // Start with every child reachable so the clicks below have somewhere to
+    // land; the toggles later take individual ones away again.
+    auto setLeaf = [&](rive::ViewModelInstanceRuntime* instance,
+                       const std::string& child,
+                       bool focusable,
+                       bool traversable) {
+        instance->propertyBoolean(child + "/focusable")->value(focusable);
+        instance->propertyBoolean(child + "/traversable")->value(traversable);
+    };
+    setLeaf(vmi.get(), "node/child1", true, true);
+    setLeaf(vmi.get(), "node/child2", true, true);
+    for (auto& row : rowInstances)
+    {
+        setLeaf(row.get(), "child1", true, true);
+        setLeaf(row.get(), "child2", true, true);
+    }
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto* manager = stateMachine->focusManager();
+    REQUIRE(manager != nullptr);
+
+    // The eight children, in the order they sit down the artboard: the nested
+    // artboard's two, then two per list row.
+    const auto& roots = manager->rootNodes();
+    REQUIRE(roots.size() == 2);
+    std::vector<rive::FocusNode*> children;
+    rive::FocusNode* nestedParent = roots[0]->children()[0].get();
+    REQUIRE(nestedParent->children().size() == 2);
+    children.push_back(nestedParent->children()[0].get());
+    children.push_back(nestedParent->children()[1].get());
+    rive::FocusNode* listScope = roots[1]->children()[0].get();
+    REQUIRE(listScope->children().size() == 3);
+    for (const auto& row : listScope->children())
+    {
+        rive::FocusNode* rowParent = row->children()[0].get();
+        REQUIRE(rowParent->children().size() == 2);
+        children.push_back(rowParent->children()[0].get());
+        children.push_back(rowParent->children()[1].get());
+    }
+    REQUIRE(children.size() == 8);
+
+    auto renderer = silver.makeRenderer();
+
+    // Click the middle of a node's own world bounds rather than a hardcoded
+    // eighth of the artboard, so the test keeps aiming at the right child if
+    // the layout is ever re-proportioned.
+    auto clickCenterOf = [&](rive::FocusNode* node) {
+        rive::AABB bounds;
+        REQUIRE(node->focusable() != nullptr);
+        REQUIRE(node->focusable()->worldBounds(bounds));
+        const rive::Vec2D center = bounds.center();
+        stateMachine->pointerDown(center);
+        stateMachine->pointerUp(center);
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    };
+
+    // === 1. While focusable, a click focuses the child it landed on ========
+    // Every one of the eight, so the listener is proven wired on all of them
+    // and no click leaks to a neighbour or to an enclosing parent.
+    for (size_t i = 0; i < children.size(); i++)
+    {
+        manager->clearFocus();
+        clickCenterOf(children[i]);
+        CHECK(manager->primaryFocusPtr() == children[i]);
+    }
+
+    // === 2. Not focusable: the click is swallowed =========================
+    // Focus is parked on a different child first, so this asserts the click
+    // does nothing at all rather than merely failing to land — a request that
+    // cleared focus would pass a null check but still be wrong.
+    rive::FocusNode* nestedFirst = children[0];
+    rive::FocusNode* nestedSecond = children[1];
+    setLeaf(vmi.get(),
+            "node/child2",
+            /*focusable=*/false,
+            /*traversable=*/true);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(!nestedFirst->canFocus());
+
+    manager->clearFocus();
+    manager->setFocus(ref_rcp(nestedSecond));
+    REQUIRE(manager->primaryFocusPtr() == nestedSecond);
+    clickCenterOf(nestedFirst);
+    CHECK(manager->primaryFocusPtr() == nestedSecond);
+
+    // === 3. Focusable again: the same click works ========================
+    setLeaf(vmi.get(), "node/child2", /*focusable=*/true, /*traversable=*/true);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(nestedFirst->canFocus());
+
+    clickCenterOf(nestedFirst);
+    CHECK(manager->primaryFocusPtr() == nestedFirst);
+
+    // === 4. The same cycle inside a list row =============================
+    // Each row is driven by its own view model instance, so switching the
+    // middle row's child off must leave the other rows clickable.
+    rive::FocusNode* middleRowSecond = children[5];
+    rive::FocusNode* lastRowSecond = children[7];
+    setLeaf(rowInstances[1].get(),
+            "child1",
+            /*focusable=*/false,
+            /*traversable=*/true);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(!middleRowSecond->canFocus());
+    REQUIRE(lastRowSecond->canFocus());
+
+    manager->clearFocus();
+    manager->setFocus(ref_rcp(lastRowSecond));
+    clickCenterOf(middleRowSecond);
+    CHECK(manager->primaryFocusPtr() == lastRowSecond);
+
+    // The untouched rows still take a click.
+    clickCenterOf(children[3]);
+    CHECK(manager->primaryFocusPtr() == children[3]);
+
+    setLeaf(rowInstances[1].get(),
+            "child1",
+            /*focusable=*/true,
+            /*traversable=*/true);
+    stateMachine->advanceAndApply(0.016f);
+    clickCenterOf(middleRowSecond);
+    CHECK(manager->primaryFocusPtr() == middleRowSecond);
+
+    // === 5. canTraverse has no say over a click ==========================
+    // Tab skips a child with traversable off, but a pointer names it
+    // directly, and canFocus is the only gate on that.
+    setLeaf(vmi.get(),
+            "node/child1",
+            /*focusable=*/true,
+            /*traversable=*/false);
+    stateMachine->advanceAndApply(0.016f);
+    REQUIRE(nestedSecond->canFocus());
+    REQUIRE(!nestedSecond->canTraverse());
+
+    manager->clearFocus();
+    clickCenterOf(nestedSecond);
+    CHECK(manager->primaryFocusPtr() == nestedSecond);
+
+    // And with both off it is unreachable by either route.
+    setLeaf(vmi.get(),
+            "node/child1",
+            /*focusable=*/false,
+            /*traversable=*/false);
+    stateMachine->advanceAndApply(0.016f);
+    manager->clearFocus();
+    manager->setFocus(ref_rcp(nestedFirst));
+    clickCenterOf(nestedSecond);
+    CHECK(manager->primaryFocusPtr() == nestedFirst);
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focus_traversal_click_to_focus"));
+}
+
+TEST_CASE("Data bound focus flags drive traversal through a nested artboard "
+          "and a list",
+          "[silver]")
+{
+    // focus_traversal_test.riv: a Main artboard with two layouts, each owning a
+    // FocusData. One hosts a nested artboard, the other an artboard list of
+    // three rows. Both hosted artboards carry a FocusData of their own plus two
+    // focusable children, and every child's canFocus/canTraverse is data bound
+    // to a `focusable`/`traversable` boolean on its own view model instance.
+    //
+    // That shape exercises all three of the traversal rules at once:
+    //   - the two Main layouts are canTraverse=false, and must not take their
+    //     subtrees out of the order with them;
+    //   - the hosted artboards' FocusData are canFocus+canTraverse, so they are
+    //     stops in their own right and come before their children;
+    //   - the children are only reachable when BOTH their booleans are on.
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/focus_traversal_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto* viewModel = file->defaultArtboardViewModel(artboard.get());
+    REQUIRE(viewModel != nullptr);
+    auto vmi = viewModel->createDefaultInstance();
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi->instance());
+    stateMachine->advanceAndApply(0.016f);
+
+    auto* manager = stateMachine->focusManager();
+    REQUIRE(manager != nullptr);
+
+    // === Handles into the focus tree =======================================
+    const auto& roots = manager->rootNodes();
+    REQUIRE(roots.size() == 2);
+
+    // Both Main-level layout nodes can hold focus but opt out of traversal.
+    rive::FocusNode* nestedHost = roots[0].get();
+    rive::FocusNode* listHost = roots[1].get();
+    REQUIRE(nestedHost->canFocus());
+    REQUIRE(!nestedHost->canTraverse());
+    REQUIRE(listHost->canFocus());
+    REQUIRE(!listHost->canTraverse());
+
+    REQUIRE(nestedHost->children().size() == 1);
+    rive::FocusNode* nestedParent = nestedHost->children()[0].get();
+    REQUIRE(nestedParent->canFocus());
+    REQUIRE(nestedParent->canTraverse());
+    REQUIRE(nestedParent->children().size() == 2);
+    rive::FocusNode* nestedLeafA = nestedParent->children()[0].get();
+    rive::FocusNode* nestedLeafB = nestedParent->children()[1].get();
+
+    // The list sits under a structural scope, one structural row per item.
+    REQUIRE(listHost->children().size() == 1);
+    rive::FocusNode* listScope = listHost->children()[0].get();
+    REQUIRE(listScope->children().size() == 3);
+    std::vector<rive::FocusNode*> rowParents;
+    std::vector<rive::FocusNode*> rowLeafA;
+    std::vector<rive::FocusNode*> rowLeafB;
+    for (const auto& row : listScope->children())
+    {
+        REQUIRE(row->children().size() == 1);
+        rive::FocusNode* rowParent = row->children()[0].get();
+        REQUIRE(rowParent->children().size() == 2);
+        rowParents.push_back(rowParent);
+        rowLeafA.push_back(rowParent->children()[0].get());
+        rowLeafB.push_back(rowParent->children()[1].get());
+    }
+
+    // === Handles into the bound booleans ===================================
+    // The view model names run opposite to hierarchy order: `child1` drives the
+    // SECOND child of its parent and `child2` the first. Bind by what each one
+    // actually moves rather than by its name.
+    auto boolFor = [](rive::ViewModelInstanceRuntime* instance,
+                      const std::string& path) {
+        auto* property = instance->propertyBoolean(path);
+        REQUIRE(property != nullptr);
+        return property;
+    };
+    auto* nestedLeafAFocusable = boolFor(vmi.get(), "node/child2/focusable");
+    auto* nestedLeafATraversable =
+        boolFor(vmi.get(), "node/child2/traversable");
+    auto* nestedLeafBFocusable = boolFor(vmi.get(), "node/child1/focusable");
+    auto* nestedLeafBTraversable =
+        boolFor(vmi.get(), "node/child1/traversable");
+
+    auto* layoutChildren = vmi->propertyList("layoutChildren");
+    REQUIRE(layoutChildren != nullptr);
+    REQUIRE(layoutChildren->size() == 3);
+    std::vector<rive::rcp<rive::ViewModelInstanceRuntime>> rowInstances;
+    for (int i = 0; i < 3; i++)
+    {
+        auto item = layoutChildren->instanceAt(i);
+        REQUIRE(item != nullptr);
+        rowInstances.push_back(item);
+    }
+
+    auto renderer = silver.makeRenderer();
+    // Settle, draw, and report the order the current flags produce.
+    auto settleAndDraw = [&]() {
+        stateMachine->advanceAndApply(0.016f);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    };
+
+    // === 1. Defaults: every leaf boolean is off ============================
+    // Only the hosted artboards' own FocusData are stops. The two Main layouts
+    // are canTraverse=false, yet everything beneath them is still reachable —
+    // a parent's flags speak only for itself.
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            rowParents[0],
+            rowParents[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+
+        std::vector<rive::FocusNode*> reversed(expected.rbegin(),
+                                               expected.rend());
+        CHECK(collectShiftTabOrder(manager) == reversed);
+    }
+
+    // === 2. focusable alone is not enough to be navigable ==================
+    nestedLeafBFocusable->value(true);
+    settleAndDraw();
+    {
+        CHECK(nestedLeafB->canFocus());
+        CHECK(!nestedLeafB->canTraverse());
+
+        // Tab still skips it...
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            rowParents[0],
+            rowParents[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+
+        // ...but naming it directly still focuses it, because canFocus is what
+        // decides whether focus may land, and canTraverse only decides whether
+        // navigation goes looking.
+        manager->setFocus(ref_rcp(nestedLeafB));
+        CHECK(manager->primaryFocusPtr() == nestedLeafB);
+    }
+
+    // === 3. traversable alone is not enough either =========================
+    nestedLeafBFocusable->value(false);
+    nestedLeafBTraversable->value(true);
+    settleAndDraw();
+    {
+        CHECK(!nestedLeafB->canFocus());
+        CHECK(nestedLeafB->canTraverse());
+
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            rowParents[0],
+            rowParents[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+
+        // And it cannot be focused by name either.
+        manager->clearFocus();
+        manager->setFocus(ref_rcp(nestedLeafB));
+        CHECK(manager->primaryFocusPtr() == nullptr);
+    }
+
+    // === 4. Both on: the leaf joins, after its parent =======================
+    nestedLeafBFocusable->value(true);
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            nestedLeafB,
+            rowParents[0],
+            rowParents[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+    }
+
+    // === 5. Both leaves of the nested artboard, in hierarchy order ==========
+    nestedLeafAFocusable->value(true);
+    nestedLeafATraversable->value(true);
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            nestedLeafA,
+            nestedLeafB,
+            rowParents[0],
+            rowParents[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+
+        std::vector<rive::FocusNode*> reversed(expected.rbegin(),
+                                               expected.rend());
+        CHECK(collectShiftTabOrder(manager) == reversed);
+    }
+
+    // === 6. One list row opts its children in ==============================
+    // Each row is driven by its own view model instance, so enabling the middle
+    // row must leave the other two alone.
+    rowInstances[1]->propertyBoolean("child2/focusable")->value(true);
+    rowInstances[1]->propertyBoolean("child2/traversable")->value(true);
+    rowInstances[1]->propertyBoolean("child1/focusable")->value(true);
+    rowInstances[1]->propertyBoolean("child1/traversable")->value(true);
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            nestedLeafA,
+            nestedLeafB,
+            rowParents[0],
+            rowParents[1],
+            rowLeafA[1],
+            rowLeafB[1],
+            rowParents[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+    }
+
+    // === 7. Every leaf in the file, forward and back =======================
+    for (int i = 0; i < 3; i++)
+    {
+        for (const char* path : {"child1/focusable",
+                                 "child1/traversable",
+                                 "child2/focusable",
+                                 "child2/traversable"})
+        {
+            rowInstances[static_cast<size_t>(i)]->propertyBoolean(path)->value(
+                true);
+        }
+    }
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            nestedLeafA,
+            nestedLeafB,
+            rowParents[0],
+            rowLeafA[0],
+            rowLeafB[0],
+            rowParents[1],
+            rowLeafA[1],
+            rowLeafB[1],
+            rowParents[2],
+            rowLeafA[2],
+            rowLeafB[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+
+        std::vector<rive::FocusNode*> reversed(expected.rbegin(),
+                                               expected.rend());
+        CHECK(collectShiftTabOrder(manager) == reversed);
+    }
+
+    // === 8. Turning a row's children back off removes just those ===========
+    for (const char* path : {"child1/focusable",
+                             "child1/traversable",
+                             "child2/focusable",
+                             "child2/traversable"})
+    {
+        rowInstances[0]->propertyBoolean(path)->value(false);
+    }
+    settleAndDraw();
+    {
+        const std::vector<rive::FocusNode*> expected{
+            nestedParent,
+            nestedLeafA,
+            nestedLeafB,
+            rowParents[0],
+            rowParents[1],
+            rowLeafA[1],
+            rowLeafB[1],
+            rowParents[2],
+            rowLeafA[2],
+            rowLeafB[2],
+        };
+        CHECK(collectTabOrder(manager) == expected);
+    }
+
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("focus_traversal_data_bound"));
+}
 
 TEST_CASE("Swapping bindable artboard registers nested focus nodes for Tab",
           "[silver]")
@@ -2393,9 +3451,12 @@ TEST_CASE("Swapping bindable artboard registers nested focus nodes for Tab",
     stateMachine->advanceAndApply(0.016f);
     REQUIRE(focusManager->primaryFocus() != nullptr);
 
+    // The main artboard offers two stops: the container that holds the focus
+    // tree, then the single leaf under it. The empty bindable slot is a
+    // structural scope and contributes none.
+    CHECK(stateMachine->focusNext() == true);
     CHECK(stateMachine->focusNext() == false);
-    // There's only one focus node in the main artboard, go back to that last
-    // node
+    // Running off the end cleared focus; step back onto that last node.
     stateMachine->focusPrevious();
 
     auto* artboardProp = vmi->propertyValue("bindedArt");
@@ -2939,36 +4000,48 @@ TEST_CASE("Focus traversal clears focus when it reaches edge of root scope",
 
     stateMachine->bindViewModelInstance(vmi);
     stateMachine->advanceAndApply(0.1f);
+
+    // The silver is a rendered image, so on its own it pins nothing a reader
+    // can check and a rebaseline would bless any order at all. State the order
+    // here too: pre-order over this file's tree — a top-level node, the
+    // container, its three children, the last top-level node — then off the
+    // end of the root list (which clears), then round again.
+    auto* manager = stateMachine->focusManager();
+    const auto& roots = manager->rootNodes();
+    REQUIRE(roots.size() == 3);
+    rive::FocusNode* firstTop = roots[0].get();
+    rive::FocusNode* container = roots[1].get();
+    rive::FocusNode* lastTop = roots[2].get();
+    REQUIRE(container->children().size() == 3);
+
+    const std::vector<rive::FocusNode*> expected{
+        firstTop,
+        // The container is a stop in its own right now; holding focusable
+        // children no longer takes it out of the order.
+        container,
+        container->children()[0].get(),
+        container->children()[1].get(),
+        container->children()[2].get(),
+        lastTop,
+        // Past the last root the walk runs off the end, which clears — the
+        // thing this case is named for.
+        nullptr,
+    };
+
     auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
     silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->focusManager()->focusNext();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+    for (size_t step = 0; step < expected.size(); step++)
+    {
+        manager->focusNext();
+        stateMachine->advanceAndApply(0.1f);
+        CHECK(manager->primaryFocusPtr() == expected[step]);
+        artboard->draw(renderer.get());
+        if (step + 1 < expected.size())
+        {
+            silver.addFrame();
+        }
+    }
 
     CHECK(silver.matches("focusable_element"));
 }
@@ -3759,6 +4832,18 @@ TEST_CASE("Focus change with gamepad navigation", "[silver]")
 
     stateMachine->bindViewModelInstance(vmi);
     stateMachine->advanceAndApply(0.0f);
+
+    // This file nests two containers above three leaves, and all five are
+    // stops — a container is no longer a pass-through just because something
+    // focusable lives under it. That is what the traversal below steps
+    // through, and why this baseline moved.
+    {
+        const auto& roots = stateMachine->focusManager()->rootNodes();
+        REQUIRE(roots.size() == 1);
+        REQUIRE(roots[0]->children().size() == 1);
+        REQUIRE(roots[0]->children()[0]->children().size() == 3);
+    }
+
     auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
     silver.addFrame();
