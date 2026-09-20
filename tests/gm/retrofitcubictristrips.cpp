@@ -76,7 +76,8 @@ public:
                      ? FillRule::clockwise
                      : FillRule::nonZero,
                  paint,
-                 1.0f, // modulatedOpacity
+                 1.0f,       // modulatedOpacity
+                 0xFFFFFFFF, // modulatedColor
                  SelectCoverageType(paint,
                                     1,
                                     context->platformFeatures(),

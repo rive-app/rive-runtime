@@ -528,13 +528,13 @@ static Mat2D makeTranslate(const Artboard* artboard)
 
 void NestedArtboard::draw(Renderer* renderer)
 {
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->save();
     }
     renderer->transform(worldTransform());
-    m_referencedArtboard->drawInternal(renderer);
-    if (m_needsSaveOperation)
+    artboard()->drawHosted(m_referencedArtboard, renderer);
+    if (needsSaveOperation())
     {
         renderer->restore();
     }

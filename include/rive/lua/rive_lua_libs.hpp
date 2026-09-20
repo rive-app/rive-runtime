@@ -397,6 +397,16 @@ enum class LuaAtoms : int16_t
     hasStandardAxisIntent,
     intentButton,
     intentAxis,
+
+    // Drawable
+    modulateColor,
+    setColorModulation,
+    propertyKey,
+    drawModulated,
+    number,
+    boolean,
+    string,
+    properties,
 };
 
 struct ScriptedMat2D
@@ -1099,6 +1109,7 @@ public:
     void transform(lua_State* L, const Mat2D& mat2d);
     void clipPath(lua_State* L, ScriptedPathData* path);
     void modulateOpacity(lua_State* L, float opacity);
+    void modulateColor(lua_State* L, ColorInt color, bool replace);
     Renderer* validate(lua_State* L);
 
     static constexpr uint8_t luaTag = LUA_T_COUNT + 9;
@@ -1109,6 +1120,17 @@ private:
     // Not owned by the ScriptedRenderer, only valid when passed in.
     Renderer* m_renderer = nullptr;
     uint32_t m_saveCount = 0;
+
+public:
+    uint32_t saveCount() const { return m_saveCount; }
+    // Closes the saves a script that errored left open.
+    void restoreTo(uint32_t saveCount)
+    {
+        for (; m_saveCount > saveCount; m_saveCount--)
+        {
+            m_renderer->restore();
+        }
+    }
 };
 
 // A handle to one child of a ScriptedTransition — a mounted artboard, either an
@@ -2088,6 +2110,17 @@ private:
     rcp<ScriptReffedArtboard> m_artboard;
     TransformComponent* m_component = nullptr;
     const ShapePaint* m_shapePaint = nullptr;
+};
+
+// The drawable handed to an artboard:draw visitor, borrowed for that call.
+class VisitedDrawable
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 69;
+    static constexpr const char* luaName = "Drawable";
+    static constexpr bool hasMetatable = true;
+
+    Drawable* drawable = nullptr;
 };
 
 class ScriptedContourMeasure

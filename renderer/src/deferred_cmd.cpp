@@ -112,6 +112,7 @@ void replayRenderCommands(Factory* factory,
             case RenderCmd::drawImage:
             case RenderCmd::drawImageMesh:
             case RenderCmd::modulateOpacity:
+            case RenderCmd::modulateColor:
             case RenderCmd::canvasContentBegin:
             case RenderCmd::canvasContentEnd:
                 return f == ReplayFilter::draws;
@@ -726,6 +727,15 @@ void replayRenderCommands(Factory* factory,
                 if (cur)
                 {
                     cur->modulateOpacity(c.opacity);
+                }
+                break;
+            }
+            case RenderCmd::modulateColor:
+            {
+                auto c = reader.read<ModulateColorPOD>();
+                if (cur)
+                {
+                    cur->modulateColor(c.color, c.replace != 0);
                 }
                 break;
             }

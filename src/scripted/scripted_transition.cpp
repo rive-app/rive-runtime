@@ -664,7 +664,7 @@ void ScriptedTransition::draw(Renderer* renderer)
     {
         renderer->save();
         renderer->transform(worldTransform());
-        m_current.instance->drawInternal(renderer);
+        artboard()->drawHosted(m_current.instance, renderer);
         renderer->restore();
     }
 }

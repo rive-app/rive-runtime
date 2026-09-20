@@ -188,16 +188,17 @@ bool Gradient::isOpaque() const
     return m_isOpaque == gpu::TriState::yes;
 }
 
-rcp<Gradient> Gradient::getModulated(float opacity) const
+rcp<Gradient> Gradient::getModulated(float opacity, ColorInt color) const
 {
     // Fast path: no modulation needed
-    if (opacity == 1.0f)
+    if (opacity == 1.0f && color == 0xFFFFFFFF)
     {
         return ref_rcp(const_cast<Gradient*>(this));
     }
 
     // Check single-entry cache
-    if (m_lastModulatedOpacity == opacity && m_lastModulatedGradient)
+    if (m_lastModulatedOpacity == opacity && m_lastModulatedColor == color &&
+        m_lastModulatedGradient)
     {
         return m_lastModulatedGradient;
     }
@@ -206,7 +207,7 @@ rcp<Gradient> Gradient::getModulated(float opacity) const
     GradDataArray<ColorInt> newColors(m_count);
     for (size_t i = 0; i < m_count; ++i)
     {
-        newColors[i] = colorModulateOpacity(m_colors[i], opacity);
+        newColors[i] = colorModulate(m_colors[i], color, opacity);
     }
 
     GradDataArray<float> newStops(m_stops.get(), m_count);
@@ -219,6 +220,7 @@ rcp<Gradient> Gradient::getModulated(float opacity) const
                                                m_coeffs[1],
                                                m_coeffs[2]));
     m_lastModulatedOpacity = opacity;
+    m_lastModulatedColor = color;
 
     return m_lastModulatedGradient;
 }

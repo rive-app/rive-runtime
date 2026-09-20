@@ -63,6 +63,7 @@ enum class RenderCmd : uint8_t
     drawImage,       // DrawImagePOD
     drawImageMesh,   // DrawImageMeshPOD
     modulateOpacity, // OpacityPOD
+    modulateColor,   // ModulateColorPOD
 
     // ---- render target scheduling ----
     // Canvas content records inline between these brackets; replay redirects
@@ -301,6 +302,12 @@ struct OpacityPOD
     float opacity;
 };
 
+struct ModulateColorPOD
+{
+    ColorInt color;
+    uint32_t replace;
+};
+
 struct CanvasContentPOD
 {
     RenderHandle
@@ -345,6 +352,7 @@ struct CanvasContentPOD
     X(drawImage, DrawImagePOD)                                                 \
     X(drawImageMesh, DrawImageMeshPOD)                                         \
     X(modulateOpacity, OpacityPOD)                                             \
+    X(modulateColor, ModulateColorPOD)                                         \
     X(canvasContentBegin, CanvasContentPOD)                                    \
     X(canvasContentEnd, ResIdPOD)                                              \
     X(resourceNewVersion, ResourceVersionPOD)

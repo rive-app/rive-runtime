@@ -54,7 +54,7 @@ public:
     {}
     void draw(Renderer* renderer) override
     {
-        m_clippingShapeOperation->draw(renderer, m_needsSaveOperation);
+        m_clippingShapeOperation->draw(renderer, needsSaveOperation());
     }
 
     int emptyClipCount() override

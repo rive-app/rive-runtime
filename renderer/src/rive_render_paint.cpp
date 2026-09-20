@@ -37,11 +37,12 @@ void RiveRenderPaint::shader(rcp<RenderShader> shader)
     m_data.m_simpleValue.color = 0xff000000;
 }
 
-rcp<gpu::Gradient> RiveRenderPaint::getGradientWithOpacity(float opacity) const
+rcp<gpu::Gradient> RiveRenderPaint::getModulatedGradient(float opacity,
+                                                         ColorInt color) const
 {
     if (m_data.m_gradient)
     {
-        return m_data.m_gradient->getModulated(opacity);
+        return m_data.m_gradient->getModulated(opacity, color);
     }
     return nullptr;
 }

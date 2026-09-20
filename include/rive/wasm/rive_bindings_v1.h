@@ -414,6 +414,20 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "node_children")
 uint32_t rive_artboard_node_children(uint32_t node, uint32_t* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_parent")
 uint32_t rive_artboard_node_parent(uint32_t node);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "property_key")
+uint32_t rive_artboard_property_key(uint32_t artboard, const char* name, uint32_t length);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "draw_visit")
+void rive_artboard_draw_visit(uint32_t artboard, uint32_t renderer);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "draw_modulated")
+void rive_artboard_draw_modulated(uint32_t artboard, uint32_t renderer, uint32_t key);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "drawable_draw")
+void rive_artboard_drawable_draw(uint32_t drawable, uint32_t renderer);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "drawable_value")
+uint32_t rive_artboard_drawable_value(uint32_t drawable, uint32_t key, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "drawable_string")
+uint32_t rive_artboard_drawable_string(uint32_t drawable, uint32_t key, char* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "drawable_properties")
+uint32_t rive_artboard_drawable_properties(uint32_t drawable, char* out, uint32_t outCount);
 
 // rive_audio_v1
 RIVE_BINDING_IMPORT("rive_audio_v1", "source")
@@ -670,6 +684,8 @@ RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_path")
 void rive_renderer_draw_path(uint32_t renderer, uint32_t path, uint32_t paint);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "clip_path")
 void rive_renderer_clip_path(uint32_t renderer, uint32_t path);
+RIVE_BINDING_IMPORT("rive_renderer_v1", "modulate_color")
+void rive_renderer_modulate_color(uint32_t renderer, uint32_t color, uint32_t replace);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image")
 void rive_renderer_draw_image(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh")

@@ -920,7 +920,7 @@ const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
 
 void Text::draw(Renderer* renderer)
 {
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->save();
     }
@@ -957,7 +957,7 @@ void Text::draw(Renderer* renderer)
             drawColorGlyph(renderer, cmd.colorGlyph, worldTransform);
         }
     }
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->restore();
     }

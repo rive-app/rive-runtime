@@ -306,6 +306,11 @@ public:
     // captured by save() and restored by restore().
     virtual void modulateOpacity(float opacity) = 0;
 
+    // Multiply a color into subsequent draw calls, scoped by save() and
+    // restore() like modulateOpacity. With replace the color is set rather
+    // than multiplied, so an inner scope can undo an outer one.
+    virtual void modulateColor(ColorInt color, bool replace = false) {}
+
     // Reports the renderer's current transform (CTM) into *out, if the
     // renderer tracks one. Returns false and leaves *out untouched otherwise.
     // Needed when a draw has to be re-issued through a different renderer that

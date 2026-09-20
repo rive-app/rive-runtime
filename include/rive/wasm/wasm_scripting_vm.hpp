@@ -101,6 +101,7 @@ public:
             node,
             audioSource,
             audioSound,
+            drawable,
             count,
         };
         struct Slot
@@ -118,6 +119,15 @@ public:
         void release(uint32_t handle, Tag tag);
     };
     HandleTable& handles() { return m_handles; }
+
+    // Saves the draw visit in flight has open on the renderer it was handed,
+    // so a trap can close them before the rest of the frame draws.
+    struct VisitSaves
+    {
+        Renderer* renderer = nullptr;
+        int open = 0;
+    };
+    VisitSaves& visitSaves() { return m_visitSaves; }
     Factory* factory() const { return m_factory; }
 
     /// Brackets one call into the module. Calls nest, so the exit reclaims
@@ -166,6 +176,10 @@ public:
 
     /// Delivers a watched value change to the module's listener registry.
     void notifyDataValueChanged(uint32_t token);
+
+    /// Hands one drawable to the module's draw visitor. False when the
+    /// module has none or it trapped.
+    bool notifyDrawVisit(uint32_t drawable);
 
     /// context:decodeImage plumbing. The module issues the token; the decode
     /// runs as a WorkTask on the global WorkPool, so completion lands through
@@ -517,6 +531,7 @@ private:
     /// Module exports __riveUtf16Strings: its string arguments arrive as
     /// UTF-16. Modules baked before that, and the Luau one, pass UTF-8.
     bool m_utf16Strings = false;
+    VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
     /// Module exports __riveHeapUsed; the leak watch reads bump bytes

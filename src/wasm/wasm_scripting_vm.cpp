@@ -16,6 +16,13 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/blob_asset.hpp"
+#include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_color.hpp"
+#include "rive/assets/manifest_asset.hpp"
+#include "rive/custom_property.hpp"
+#include "rive/custom_property_number.hpp"
+#include "rive/custom_property_string.hpp"
+#include "rive/drawable.hpp"
 #ifdef WITH_RIVE_AUDIO
 #include "rive/assets/audio_asset.hpp"
 #include "rive/audio/audio_engine.hpp"
@@ -3512,6 +3519,8 @@ void rendererSaveImpl(WasmScriptingVM* vm, uint32_t handle)
     if (auto renderer = resolveRenderer(vm, handle))
     {
         renderer->save();
+        auto& saves = vm->visitSaves();
+        saves.open += renderer == saves.renderer ? 1 : 0;
     }
 }
 void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -3519,6 +3528,8 @@ void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t handle)
     if (auto renderer = resolveRenderer(vm, handle))
     {
         renderer->restore();
+        auto& saves = vm->visitSaves();
+        saves.open -= renderer == saves.renderer ? 1 : 0;
     }
 }
 void rendererTransformImpl(WasmScriptingVM* vm,
@@ -3623,6 +3634,18 @@ void rendererClipPathImpl(WasmScriptingVM* vm,
         return;
     }
     renderer->clipPath(hostPath->path.get());
+}
+
+void rendererModulateColorImpl(WasmScriptingVM* vm,
+                               uint32_t rendererHandle,
+                               uint32_t color,
+                               uint32_t replace)
+{
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (renderer != nullptr)
+    {
+        renderer->modulateColor(color, replace != 0);
+    }
 }
 
 void rtLogImpl(WasmScriptingVM* vm,
@@ -4775,6 +4798,193 @@ void artboardDrawImpl(WasmScriptingVM* vm,
         host->artboard->drawInternal(renderer);
     }
 }
+
+namespace
+{
+struct WasmDrawVisit
+{
+    WasmScriptingVM* vm;
+    bool failed = false;
+};
+
+void wasmDrawVisitor(void* context, Drawable* drawable, Renderer* renderer)
+{
+    auto visit = static_cast<WasmDrawVisit*>(context);
+    if (visit->failed)
+    {
+        drawable->draw(renderer);
+        return;
+    }
+    auto& handles = visit->vm->handles();
+    uint32_t handle =
+        handles.mint(WasmScriptingVM::HandleTable::Tag::drawable, drawable);
+    auto& saves = visit->vm->visitSaves();
+    WasmScriptingVM::VisitSaves outer = saves;
+    saves = {renderer, 0};
+    visit->failed = !visit->vm->notifyDrawVisit(handle);
+    if (visit->failed)
+    {
+        for (; saves.open > 0; saves.open--)
+        {
+            renderer->restore();
+        }
+    }
+    saves = outer;
+    handles.release(handle, WasmScriptingVM::HandleTable::Tag::drawable);
+}
+
+Drawable* resolveDrawable(WasmScriptingVM* vm, uint32_t handle)
+{
+    return vm == nullptr ? nullptr
+                         : static_cast<Drawable*>(vm->handles().resolve(
+                               handle,
+                               WasmScriptingVM::HandleTable::Tag::drawable));
+}
+
+CustomProperty* resolveDrawableProperty(WasmScriptingVM* vm,
+                                        uint32_t handle,
+                                        uint32_t key)
+{
+    auto drawable = resolveDrawable(vm, handle);
+    return drawable != nullptr ? drawable->customProperty(key) : nullptr;
+}
+} // namespace
+
+void artboardDrawVisitImpl(WasmScriptingVM* vm,
+                           uint32_t handle,
+                           uint32_t rendererHandle)
+{
+    auto host = resolveArtboard(vm, handle);
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (host == nullptr || renderer == nullptr)
+    {
+        return;
+    }
+    WasmDrawVisit visit = {vm};
+    host->artboard->drawInternal(renderer, wasmDrawVisitor, &visit, host->file);
+}
+
+void artboardDrawModulatedImpl(WasmScriptingVM* vm,
+                               uint32_t handle,
+                               uint32_t rendererHandle,
+                               uint32_t key)
+{
+    auto host = resolveArtboard(vm, handle);
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (host != nullptr && renderer != nullptr)
+    {
+        host->artboard->drawModulated(renderer, key, host->file);
+    }
+}
+
+void artboardDrawableDrawImpl(WasmScriptingVM* vm,
+                              uint32_t handle,
+                              uint32_t rendererHandle)
+{
+    auto drawable = resolveDrawable(vm, handle);
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (drawable != nullptr && renderer != nullptr)
+    {
+        drawable->draw(renderer);
+    }
+}
+
+uint32_t artboardPropertyKeyImpl(WasmScriptingVM* vm,
+                                 uint32_t handle,
+                                 const char* name,
+                                 uint32_t length)
+{
+    auto host = resolveArtboard(vm, handle);
+    return File::customPropertyKey(host != nullptr ? host->file : nullptr,
+                                   name,
+                                   length);
+}
+
+uint32_t artboardDrawableValueImpl(WasmScriptingVM* vm,
+                                   uint32_t handle,
+                                   uint32_t key,
+                                   uint32_t* out,
+                                   uint32_t outCount)
+{
+    auto property = resolveDrawableProperty(vm, handle, key);
+    if (property == nullptr)
+    {
+        return 0;
+    }
+    CustomPropertyKind kind = property->kind();
+    uint32_t bits = 0;
+    switch (kind)
+    {
+        case CustomPropertyKind::number:
+        {
+            float value = property->as<CustomPropertyNumber>()->propertyValue();
+            memcpy(&bits, &value, sizeof(bits));
+            break;
+        }
+        case CustomPropertyKind::boolean:
+            bits = property->as<CustomPropertyBoolean>()->propertyValue();
+            break;
+        case CustomPropertyKind::color:
+            bits = property->as<CustomPropertyColor>()->propertyValue();
+            break;
+        default:
+            // No reader takes the others' bits, the kind answers has().
+            break;
+    }
+    if (outCount > 0)
+    {
+        out[0] = bits;
+    }
+    return (uint32_t)kind + 1;
+}
+
+uint32_t artboardDrawableStringImpl(WasmScriptingVM* vm,
+                                    uint32_t handle,
+                                    uint32_t key,
+                                    char* out,
+                                    uint32_t outCount)
+{
+    auto property = resolveDrawableProperty(vm, handle, key);
+    if (property == nullptr || !property->is<CustomPropertyString>())
+    {
+        return ~0u;
+    }
+    const std::string& value =
+        property->as<CustomPropertyString>()->propertyValue();
+    memcpy(out, value.data(), std::min<size_t>(value.size(), outCount));
+    return (uint32_t)value.size();
+}
+
+#ifdef WITH_RIVE_TOOLS
+uint32_t artboardDrawablePropertiesImpl(WasmScriptingVM* vm,
+                                        uint32_t handle,
+                                        char* out,
+                                        uint32_t outCount)
+{
+    auto drawable = resolveDrawable(vm, handle);
+    auto file =
+        drawable != nullptr ? drawable->artboard()->drawVisitorFile() : nullptr;
+    auto manifest = file != nullptr ? file->manifest() : nullptr;
+    if (manifest == nullptr)
+    {
+        return 0;
+    }
+    std::string packed;
+    for (auto child : drawable->children())
+    {
+        auto property = CustomProperty::tagging(child);
+        if (property == nullptr)
+        {
+            continue;
+        }
+        packed.push_back((char)property->kind());
+        packed.append(manifest->resolveName(property->nameId()));
+        packed.push_back('\0');
+    }
+    memcpy(out, packed.data(), std::min<size_t>(packed.size(), outCount));
+    return (uint32_t)packed.size();
+}
+#endif
 
 uint32_t artboardInstanceImpl(WasmScriptingVM* vm,
                               uint32_t handle,
@@ -6251,6 +6461,12 @@ WasmScriptingVM::~WasmScriptingVM()
     }
 }
 
+bool WasmScriptingVM::notifyDrawVisit(uint32_t drawable)
+{
+    uint32_t args[2] = {m_L, drawable};
+    return valid() && callModule("host_draw_visit", 2, args) != 0;
+}
+
 void WasmScriptingVM::notifyDataValueChanged(uint32_t token)
 {
     if (!valid())
@@ -7235,6 +7451,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "audioSource";
         case Tag::audioSound:
             return "audioSound";
+        case Tag::drawable:
+            return "drawable";
         case Tag::empty:
         case Tag::count:
             break;

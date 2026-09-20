@@ -26,7 +26,7 @@ void Image::draw(Renderer* renderer)
     {
         return;
     }
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
 
         renderer->save();
@@ -52,7 +52,7 @@ void Image::draw(Renderer* renderer)
                             blendMode(),
                             renderOpacity());
     }
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->restore();
     }

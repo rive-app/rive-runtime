@@ -109,6 +109,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::modulateOpacity:
                 r.read<OpacityPOD>();
                 break;
+            case RenderCmd::modulateColor:
+                r.read<ModulateColorPOD>();
+                break;
             case RenderCmd::canvasContentBegin:
                 r.read<CanvasContentPOD>();
                 break;
@@ -271,6 +274,9 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
                 break;
             case RenderCmd::modulateOpacity:
                 r.read<OpacityPOD>();
+                break;
+            case RenderCmd::modulateColor:
+                r.read<ModulateColorPOD>();
                 break;
             case RenderCmd::canvasContentBegin:
                 r.read<CanvasContentPOD>();

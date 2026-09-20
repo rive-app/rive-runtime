@@ -64,6 +64,7 @@ public:
                        float opacity,
                        float additiveness) override;
     void modulateOpacity(float opacity) override;
+    void modulateColor(ColorInt color, bool replace = false) override;
 
     bool currentTransform(Mat2D* out) const override
     {
@@ -97,6 +98,10 @@ public:
     float currentModulatedOpacity() const
     {
         return m_renderStateStack.back().modulatedOpacity;
+    }
+    ColorInt currentModulatedColor() const
+    {
+        return m_renderStateStack.back().modulatedColor;
     }
 #endif
 
@@ -140,12 +145,16 @@ private:
         IAABB clipRectPixelBounds;
         const gpu::ClipRectInverseMatrix* clipRectInverseMatrix = nullptr;
         float modulatedOpacity = 1.0f;
+        ColorInt modulatedColor = 0xFFFFFFFF;
 
         // The pixel bounds for all clipping (clip rects *and* clip paths),
         // which defaults to a maximally-large rectangle
         IAABB overallClipPixelBounds = IAABB::makeMaximal();
     };
     std::vector<RenderState> m_renderStateStack{1};
+
+    // A draw's color with this scope's modulation folded in.
+    ColorInt modulated(ColorInt color, float opacity) const;
 
     struct ClipElement
     {

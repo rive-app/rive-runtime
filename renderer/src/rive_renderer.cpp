@@ -156,6 +156,20 @@ void RiveRenderer::modulateOpacity(float opacity)
         std::max(0.0f, m_renderStateStack.back().modulatedOpacity * opacity);
 }
 
+ColorInt RiveRenderer::modulated(ColorInt color, float opacity) const
+{
+    return colorModulate(color,
+                         m_renderStateStack.back().modulatedColor,
+                         opacity);
+}
+
+void RiveRenderer::modulateColor(ColorInt color, bool replace)
+{
+    RenderState& state = m_renderStateStack.back();
+    state.modulatedColor =
+        replace ? color : colorModulate(state.modulatedColor, color);
+}
+
 void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -353,9 +367,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                     ref_rcp(paint->getImageTexture()),
                     ref_rcp(paint->getGradient()),
                     paint->getImageSampler(),
-                    colorModulateOpacity(
-                        paintColor,
-                        m_renderStateStack.back().modulatedOpacity),
+                    modulated(paintColor,
+                              m_renderStateStack.back().modulatedOpacity),
                     imageMatrix,
                     gradientMatrix)));
 
@@ -387,7 +400,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                                                     matrixMaxScale),
                 path->getFillRule(),
                 paint,
-                m_renderStateStack.back().modulatedOpacity));
+                m_renderStateStack.back().modulatedOpacity,
+                m_renderStateStack.back().modulatedColor));
             return;
         }
     }
@@ -399,7 +413,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                             ref_rcp(path),
                             path->getFillRule(),
                             paint,
-                            m_renderStateStack.back().modulatedOpacity));
+                            m_renderStateStack.back().modulatedOpacity,
+                            m_renderStateStack.back().modulatedColor));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
@@ -723,7 +738,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     std::move(imageTexture),
                     nullptr, // gradient
                     imageSampler,
-                    colorModulateOpacity(0xFFFFFFFF, finalOpacity),
+                    modulated(0xFFFFFFFF, finalOpacity),
                     Mat2D{},    // imageMatrix
                     Mat2D{}))); // gradientMatrix
         }
@@ -809,18 +824,18 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     float finalOpacity =
         std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
 
-    clipAndPushDraw(gpu::DrawUniquePtr(
-        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-                                            m_renderStateStack.back().matrix,
-                                            blendMode,
-                                            additiveness,
-                                            std::move(imageTexture),
-                                            imageSampler,
-                                            std::move(vertices_f32),
-                                            std::move(uvCoords_f32),
-                                            std::move(indices_u16),
-                                            indexCount,
-                                            finalOpacity)));
+    clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
+        gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+        m_renderStateStack.back().matrix,
+        blendMode,
+        additiveness,
+        std::move(imageTexture),
+        imageSampler,
+        std::move(vertices_f32),
+        std::move(uvCoords_f32),
+        std::move(indices_u16),
+        indexCount,
+        modulated(0xFFFFFFFF, finalOpacity))));
 }
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
@@ -1072,7 +1087,8 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                                 std::move(clipPath),
                                 clipFillRule,
                                 &clipUpdatePaint,
-                                1.0f, // no opacity modulation for clips
+                                1.0f, // no modulation for clips
+                                0xFFFFFFFF,
                                 pixelBounds);
 
         // We have already validated that the clip path is within the screen

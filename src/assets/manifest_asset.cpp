@@ -3,6 +3,7 @@
 #include "rive/core/binary_reader.hpp"
 #include "rive/span.hpp"
 #include "rive/manifest_sections.hpp"
+#include <cstring>
 
 using namespace rive;
 
@@ -207,6 +208,19 @@ const std::string& ManifestAsset::resolveName(int id)
         return it->second;
     }
     return empty;
+}
+
+int ManifestAsset::nameId(const char* name, size_t length) const
+{
+    for (const auto& entry : m_names)
+    {
+        if (entry.second.size() == length &&
+            memcmp(entry.second.data(), name, length) == 0)
+        {
+            return entry.first;
+        }
+    }
+    return -1;
 }
 
 const std::vector<uint32_t>& ManifestAsset::resolvePath(int id)

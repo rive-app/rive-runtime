@@ -1409,14 +1409,14 @@ ImageRectInstance::getAttributes()
 
 ImageMeshInstance::ImageMeshInstance(
     const Mat2D& matrix,
-    float opacity,
+    ColorInt modulatedColor,
     const ClipRectInverseMatrix* clipRectInverseMatrix,
     uint32_t clipID,
     BlendMode blendMode,
     uint32_t zIndex,
     float additiveness) :
     m_commons{matrix,
-              colorModulateOpacity(0xFFFFFFFF, opacity),
+              modulatedColor,
               clipRectInverseMatrix,
               clipID,
               blendMode,

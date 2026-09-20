@@ -326,6 +326,10 @@ public:
             opacity);
     }
     void modulateOpacity(float) override {}
+    void modulateColor(ColorInt color, bool replace) override
+    {
+        rive_renderer_modulate_color(m_handle, color, replace);
+    }
     uint32_t handle() const { return m_handle; }
 
 private:

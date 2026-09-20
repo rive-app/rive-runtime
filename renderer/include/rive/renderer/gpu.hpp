@@ -1912,7 +1912,7 @@ public:
     ImageMeshInstance() = default;
 
     ImageMeshInstance(const Mat2D&,
-                      float opacity,
+                      ColorInt modulatedColor,
                       const ClipRectInverseMatrix*,
                       uint32_t clipID,
                       BlendMode,

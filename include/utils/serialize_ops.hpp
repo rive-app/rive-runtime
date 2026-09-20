@@ -60,6 +60,7 @@ enum class SerializeOp : uint32_t
     makeRenderCanvas = 32,   // id, width, height
     canvasContentBegin = 33, // id, clearColor
     canvasContentEnd = 34,   // id
+    modulateColor = 35,      // color, replace
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

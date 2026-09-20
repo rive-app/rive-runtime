@@ -15,7 +15,11 @@
 #include "rive/semantic/semantic_node.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/custom_property_color.hpp"
+#include "rive/custom_property_number.hpp"
 #include "rive/custom_property_trigger.hpp"
+#include "rive/math/math_types.hpp"
+#include "rive/shapes/paint/color.hpp"
 #include "rive/dependency_sorter.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
@@ -76,6 +80,7 @@
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #endif
 
@@ -1986,18 +1991,112 @@ void Artboard::draw(Renderer* renderer)
     drawContent(renderer);
 }
 
-void Artboard::drawInternal(Renderer* renderer)
+struct ModulatedDraw
 {
+    uint32_t propertyKey;
+    // Alpha, red, green, blue of the tags above, multiplied in float so
+    // depth does not round.
+    std::array<float, 4> level = {1.0f, 1.0f, 1.0f, 1.0f};
+};
+
+static void modulatedDrawVisitor(void* context,
+                                 Drawable* drawable,
+                                 Renderer* renderer)
+{
+    auto modulated = static_cast<ModulatedDraw*>(context);
+    auto property = drawable->customProperty(modulated->propertyKey);
+    std::array<float, 4> own;
+    if (property != nullptr && property->is<CustomPropertyNumber>())
+    {
+        float value =
+            math::clamp(property->as<CustomPropertyNumber>()->propertyValue(),
+                        0.0f,
+                        1.0f);
+        own = {1.0f, value, value, value};
+    }
+    else if (property != nullptr && property->is<CustomPropertyColor>())
+    {
+        ColorInt color = property->as<CustomPropertyColor>()->propertyValue();
+        own = {colorOpacity(color),
+               colorRed(color) / 255.0f,
+               colorGreen(color) / 255.0f,
+               colorBlue(color) / 255.0f};
+    }
+    else
+    {
+        // Tagged, but not with this key.
+        drawable->draw(renderer);
+        return;
+    }
+    std::array<float, 4> outer = modulated->level;
+    unsigned int channels[4];
+    for (size_t i = 0; i < own.size(); i++)
+    {
+        modulated->level[i] = outer[i] * own[i];
+        channels[i] = (unsigned int)std::lround(modulated->level[i] * 255.0f);
+    }
+    renderer->modulateColor(
+        colorARGB(channels[0], channels[1], channels[2], channels[3]),
+        true);
+    drawable->draw(renderer);
+    modulated->level = outer;
+}
+
+void Artboard::drawModulated(Renderer* renderer,
+                             uint32_t propertyKey,
+                             const File* keysFile)
+{
+    ModulatedDraw modulated = {propertyKey};
+    drawInternal(renderer, modulatedDrawVisitor, &modulated, keysFile);
+}
+
+const File* Artboard::drawVisitorFile() const
+{
+    return m_drawVisitorFile != nullptr ? m_drawVisitorFile
+                                        : artboardFile().get();
+}
+
+void Artboard::drawHosted(Artboard* hosted, Renderer* renderer)
+{
+    DrawVisitor visitor = m_drawVisitor;
+    if (visitor != nullptr)
+    {
+        // Name ids are per file, so a key means nothing in an artboard bound
+        // in from another one.
+        const File* file = drawVisitorFile();
+        const File* hostedFile = hosted->artboardFile().get();
+        if (hostedFile != nullptr && hostedFile != file)
+        {
+            visitor = nullptr;
+        }
+        hosted->m_drawVisitorFile = file;
+    }
+    hosted->drawInternal(renderer, visitor, m_drawVisitorContext);
+}
+
+void Artboard::drawInternal(Renderer* renderer,
+                            DrawVisitor visitor,
+                            void* visitorContext,
+                            const File* keysFile)
+{
+    if (keysFile != nullptr)
+    {
+        m_drawVisitorFile = keysFile;
+    }
 #ifdef RIVE_CANVAS
-    if (m_BitmapCache != nullptr && drawCachedAsBitmap(renderer))
+    // A cached bitmap has no drawables left to visit.
+    if (visitor == nullptr && m_BitmapCache != nullptr &&
+        drawCachedAsBitmap(renderer))
     {
         return;
     }
 #endif
-    drawContent(renderer);
+    drawContent(renderer, visitor, visitorContext);
 }
 
-void Artboard::drawContent(Renderer* renderer)
+void Artboard::drawContent(Renderer* renderer,
+                           DrawVisitor visitor,
+                           void* visitorContext)
 {
     RIVE_PROF_SCOPE_L(1)
     m_didChange = false;
@@ -2005,6 +2104,21 @@ void Artboard::drawContent(Renderer* renderer)
     {
         return;
     }
+    // Hosted artboards read these while this draw runs. A draw started from
+    // inside a visit hands them back, and none outlives its context.
+    struct VisitorScope
+    {
+        Artboard* artboard;
+        DrawVisitor visitor;
+        void* context;
+        ~VisitorScope()
+        {
+            artboard->m_drawVisitor = visitor;
+            artboard->m_drawVisitorContext = context;
+        }
+    } visitorScope{this, m_drawVisitor, m_drawVisitorContext};
+    m_drawVisitor = visitor;
+    m_drawVisitorContext = visitorContext;
     bool hasSelf = hasSelfTransform();
     bool save = clip() || m_FrameOrigin || hasSelf;
     if (save)
@@ -2093,7 +2207,17 @@ void Artboard::drawContent(Renderer* renderer)
                 pendingClipOperations.clear();
             }
         }
-        drawable->draw(renderer);
+        if (visitor != nullptr && drawable->hasCustomProperties())
+        {
+            // Whatever the visitor sets on the renderer ends with the visit.
+            renderer->save();
+            visitor(visitorContext, drawable, renderer);
+            renderer->restore();
+        }
+        else
+        {
+            drawable->draw(renderer);
+        }
     }
     if (save)
     {

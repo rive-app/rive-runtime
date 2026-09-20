@@ -306,6 +306,12 @@ public:
         return nullptr;
     }
 
+    /// @returns the key custom properties of this name are read by, ~0u when
+    /// the file, which may be null, names none. It scans, so resolve once.
+    static uint32_t customPropertyKey(const File* file,
+                                      const char* name,
+                                      size_t length);
+
     /// @returns the file's manifest, or nullptr if it has none. Carries the
     /// string/path tables and the watermark record.
     ManifestAsset* manifest() const

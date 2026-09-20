@@ -1,11 +1,44 @@
 #include "rive/drawable.hpp"
 #include "rive/artboard.hpp"
+#include "rive/custom_property.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/clip_result.hpp"
 
 using namespace rive;
+
+bool Drawable::hasCustomProperties()
+{
+#ifdef WITH_RIVE_EDITOR
+    // Children change under the editor, so nothing cached stays true.
+    for (auto child : children())
+    {
+        if (CustomProperty::tagging(child) != nullptr)
+        {
+            return true;
+        }
+    }
+    return false;
+#else
+    return runtimeFlag(RuntimeFlags::hasCustomProperties);
+#endif
+}
+
+CustomProperty* Drawable::customProperty(uint32_t nameId)
+{
+    for (auto child : children())
+    {
+        // Only tagging ones: the key of a missing name is what every other
+        // property holds, a scripted drawable's inputs among them.
+        auto property = CustomProperty::tagging(child);
+        if (property != nullptr && property->nameId() == nameId)
+        {
+            return property;
+        }
+    }
+    return nullptr;
+}
 
 StatusCode Drawable::onAddedDirty(CoreContext* context)
 {

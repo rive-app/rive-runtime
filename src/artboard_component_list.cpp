@@ -1161,7 +1161,7 @@ const std::vector<int>& ArtboardComponentList::orderedListIndices()
 
 void ArtboardComponentList::draw(Renderer* renderer)
 {
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->save();
     }
@@ -1181,7 +1181,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
                     renderer->save();
                     auto transform = m_artboardTransforms[artboard];
                     renderer->transform(transform);
-                    artboard->drawInternal(renderer);
+                    Component::artboard()->drawHosted(artboard, renderer);
                     renderer->restore();
                 }
             }
@@ -1198,12 +1198,12 @@ void ArtboardComponentList::draw(Renderer* renderer)
                 renderer->save();
                 auto transform = m_artboardTransforms[artboard];
                 renderer->transform(transform);
-                artboard->drawInternal(renderer);
+                Component::artboard()->drawHosted(artboard, renderer);
                 renderer->restore();
             }
         }
     }
-    if (m_needsSaveOperation)
+    if (needsSaveOperation())
     {
         renderer->restore();
     }

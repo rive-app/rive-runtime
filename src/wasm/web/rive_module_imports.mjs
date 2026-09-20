@@ -344,6 +344,36 @@ export function createRiveModuleImports(host, moduleMemory) {
                 return ret;
             },
             node_parent: calls.rive_artboard_node_parent,
+            property_key: (artboard, name, length) => {
+                stackReset();
+                const name_p = stageIn(name, length);
+                const ret = calls.rive_artboard_property_key(artboard, name_p, length);
+                return ret;
+            },
+            draw_visit: calls.rive_artboard_draw_visit,
+            draw_modulated: calls.rive_artboard_draw_modulated,
+            drawable_draw: calls.rive_artboard_drawable_draw,
+            drawable_value: (drawable, key, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_artboard_drawable_value(drawable, key, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            drawable_string: (drawable, key, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount);
+                const ret = calls.rive_artboard_drawable_string(drawable, key, out_p, outCount);
+                copyOut(out_p, out, outCount);
+                return ret;
+            },
+            drawable_properties: (drawable, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount);
+                const ret = calls.rive_artboard_drawable_properties(drawable, out_p, outCount);
+                copyOut(out_p, out, outCount);
+                return ret;
+            },
         },
         rive_audio_v1: {
             source: (object, name, nameLength) => {
@@ -647,6 +677,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             transform: calls.rive_renderer_transform,
             draw_path: calls.rive_renderer_draw_path,
             clip_path: calls.rive_renderer_clip_path,
+            modulate_color: calls.rive_renderer_modulate_color,
             draw_image: calls.rive_renderer_draw_image,
             draw_image_mesh: calls.rive_renderer_draw_image_mesh,
         },

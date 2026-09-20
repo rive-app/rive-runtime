@@ -66,6 +66,20 @@ ColorInt colorModulateOpacity(ColorInt value, float opacity)
     return colorWithAlpha(value, opacityToAlpha(colorOpacity(value) * opacity));
 }
 
+static unsigned int mul8(unsigned int a, unsigned int b)
+{
+    return (a * b + 127) / 255;
+}
+
+ColorInt colorModulate(ColorInt value, ColorInt color, float opacity)
+{
+    return colorARGB(
+        opacityToAlpha(colorOpacity(value) * colorOpacity(color) * opacity),
+        mul8(colorRed(value), colorRed(color)),
+        mul8(colorGreen(value), colorGreen(color)),
+        mul8(colorBlue(value), colorBlue(color)));
+}
+
 static unsigned int lerp(unsigned int a, unsigned int b, float mix)
 {
     return (unsigned int)std::lround(

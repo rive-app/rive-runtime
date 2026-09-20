@@ -11,6 +11,7 @@
 namespace rive
 {
 class ClippingShape;
+class CustomProperty;
 class Artboard;
 class DrawRules;
 class LayoutComponent;
@@ -28,8 +29,29 @@ private:
     Drawable* prev = nullptr;
     Drawable* next = nullptr;
 
+    enum class RuntimeFlags : uint8_t
+    {
+        none = 0,
+        needsSaveOperation = 1 << 0,
+        // Set by a property so untagged drawables pay no child scan.
+        hasCustomProperties = 1 << 1,
+    };
+    RuntimeFlags m_runtimeFlags = RuntimeFlags::needsSaveOperation;
+
+    bool runtimeFlag(RuntimeFlags flag) const
+    {
+        return (m_runtimeFlags & flag) == flag;
+    }
+    void runtimeFlag(RuntimeFlags flag, bool value)
+    {
+        m_runtimeFlags = value ? m_runtimeFlags | flag : m_runtimeFlags & ~flag;
+    }
+
 protected:
-    bool m_needsSaveOperation = true;
+    bool needsSaveOperation() const
+    {
+        return runtimeFlag(RuntimeFlags::needsSaveOperation);
+    }
 #ifdef WITH_RIVE_EDITOR
     void flagsChanged() override
     {
@@ -122,13 +144,25 @@ public:
     virtual bool isClipEnd() { return false; }
     virtual bool willClip() { return false; }
     virtual bool willDraw();
-    void needsSaveOperation(bool value) { m_needsSaveOperation = value; }
+    void needsSaveOperation(bool value)
+    {
+        runtimeFlag(RuntimeFlags::needsSaveOperation, value);
+    }
 
     bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
 
     virtual Drawable* hittableComponent() { return this; }
+
+    // Whether custom properties tag this drawable for a draw visitor.
+    bool hasCustomProperties();
+    void markHasCustomProperties()
+    {
+        runtimeFlag(RuntimeFlags::hasCustomProperties, true);
+    }
+    // The tagging property with this name id, null when there is none.
+    CustomProperty* customProperty(uint32_t nameId);
 
     virtual int emptyClipCount() { return 0; }
 

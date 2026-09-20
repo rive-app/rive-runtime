@@ -1333,6 +1333,9 @@ public:
                 object->as<ViewModelInstanceSymbolListIndexBase>()
                     ->propertyValue(value);
                 break;
+            case CustomPropertyBase::nameIdPropertyKey:
+                object->as<CustomPropertyBase>()->nameId(value);
+                break;
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 object->as<CustomPropertyTriggerBase>()->propertyValue(value);
                 break;
@@ -3537,6 +3540,8 @@ public:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceSymbolListIndexBase>()
                     ->propertyValue();
+            case CustomPropertyBase::nameIdPropertyKey:
+                return object->as<CustomPropertyBase>()->nameId();
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyTriggerBase>()->propertyValue();
             case DrawTargetBase::placementValuePropertyKey:
@@ -5006,6 +5011,7 @@ public:
             case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
+            case CustomPropertyBase::nameIdPropertyKey:
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
             case DistanceConstraintBase::modeValuePropertyKey:
@@ -5821,6 +5827,8 @@ public:
                 return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceSymbolListIndexBase>();
+            case CustomPropertyBase::nameIdPropertyKey:
+                return object->is<CustomPropertyBase>();
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyTriggerBase>();
             case DrawTargetBase::placementValuePropertyKey:

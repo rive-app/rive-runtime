@@ -161,6 +161,12 @@ def host_string_prologue(params):
             for p in params if p['kind'] == 'str']
 
 
+def guarded(op, lines):
+    if not op.get('guard'):
+        return lines
+    return ['#ifdef ' + op['guard']] + lines + ['#endif']
+
+
 def check_arg_budget(namespace, op):
     # Beyond seven integer wire args (plus the implicit exec_env) arguments
     # spill to the native stack, which WAMR's generic invocation drops.
@@ -276,9 +282,9 @@ def emit_host():
     for namespace in NAMESPACES:
         for op in namespace['ops']:
             params = ['WasmScriptingVM* vm'] + host_params(op['params'])
-            lines.append('%s %sImpl(%s);' %
-                         (ret_ctype(op), impl_name(namespace, op),
-                          ', '.join(params)))
+            lines += guarded(op, ['%s %sImpl(%s);' %
+                                  (ret_ctype(op), impl_name(namespace, op),
+                                   ', '.join(params))])
     lines.append('')
     for namespace in NAMESPACES:
         for op in namespace['ops']:
@@ -286,22 +292,22 @@ def emit_host():
             params = ['wasm_exec_env_t env'] + host_params(op['params'])
             args = ['vm'] + host_args(op['params'])
             call = '%sImpl(%s)' % (name, ', '.join(args))
-            lines.append('%s %s(%s)' %
-                         (ret_ctype(op), name, ', '.join(params)))
-            lines.append('{')
-            lines.append('    WasmScriptingVM* vm = vmFromEnv(env);')
-            lines += host_string_prologue(op['params'])
-            lines.append('    %s%s;' %
-                         ('' if op['ret'] is None else 'return ', call))
-            lines.append('}')
+            body = ['%s %s(%s)' % (ret_ctype(op), name, ', '.join(params)),
+                    '{',
+                    '    WasmScriptingVM* vm = vmFromEnv(env);']
+            body += host_string_prologue(op['params'])
+            body += ['    %s%s;' %
+                     ('' if op['ret'] is None else 'return ', call),
+                     '}']
+            lines += guarded(op, body)
     lines.append('')
     for namespace in NAMESPACES:
         table = 'k%sNatives' % camel(namespace['short']).capitalize()
         lines.append('NativeSymbol %s[] = {' % table)
         for op in namespace['ops']:
-            lines.append('    {"%s", (void*)%s, "%s", nullptr},' %
-                         (op['name'], impl_name(namespace, op),
-                          wamr_signature(op)))
+            lines += guarded(op, ['    {"%s", (void*)%s, "%s", nullptr},' %
+                                  (op['name'], impl_name(namespace, op),
+                                   wamr_signature(op))])
         lines.append('};')
         lines.append('')
     lines.append('inline bool registerRiveBindingNatives()')
@@ -346,14 +352,15 @@ def emit_web_host():
             params = ['uint32_t vmHandle'] + host_params(op['params'])
             args = ['vm'] + host_args(op['params'])
             call = '%sImpl(%s)' % (impl_name(namespace, op), ', '.join(args))
-            lines.append('EMSCRIPTEN_KEEPALIVE')
-            lines.append('%s %s(%s)' % (ret_ctype(op), sym, ', '.join(params)))
-            lines.append('{')
-            lines.append('    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;')
-            lines += host_string_prologue(op['params'])
-            lines.append('    %s%s;' %
-                         ('' if op['ret'] is None else 'return ', call))
-            lines.append('}')
+            body = ['EMSCRIPTEN_KEEPALIVE',
+                    '%s %s(%s)' % (ret_ctype(op), sym, ', '.join(params)),
+                    '{',
+                    '    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;']
+            body += host_string_prologue(op['params'])
+            body += ['    %s%s;' %
+                     ('' if op['ret'] is None else 'return ', call),
+                     '}']
+            lines += guarded(op, body)
     lines += [
         '',
         '} // extern "C"',

@@ -291,6 +291,17 @@ constexpr LuaAtomName atoms[] = {
     {"invertAffine", (int16_t)LuaAtoms::invertAffine},
     // Vector
     {"writeVec4", (int16_t)LuaAtoms::writeVec4},
+    // Drawable
+    {"modulateColor", (int16_t)LuaAtoms::modulateColor},
+    {"setColorModulation", (int16_t)LuaAtoms::setColorModulation},
+    {"propertyKey", (int16_t)LuaAtoms::propertyKey},
+    {"drawModulated", (int16_t)LuaAtoms::drawModulated},
+    {"number", (int16_t)LuaAtoms::number},
+    {"boolean", (int16_t)LuaAtoms::boolean},
+    {"string", (int16_t)LuaAtoms::string},
+#ifdef WITH_RIVE_TOOLS
+    {"properties", (int16_t)LuaAtoms::properties},
+#endif
 };
 
 constexpr size_t atomCount = std::size(atoms);

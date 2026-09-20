@@ -69,6 +69,12 @@ void ScriptedRenderer::modulateOpacity(lua_State* L, float opacity)
     m_renderer->modulateOpacity(opacity);
 }
 
+void ScriptedRenderer::modulateColor(lua_State* L, ColorInt color, bool replace)
+{
+    validate(L);
+    m_renderer->modulateColor(color, replace);
+}
+
 static int renderer_drawImage(lua_State* L)
 {
     auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
@@ -181,6 +187,14 @@ static int renderer_modulateOpacity(lua_State* L)
     return 0;
 }
 
+static int renderer_modulateColor(lua_State* L, bool replace)
+{
+    auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
+    auto color = (ColorInt)luaL_checkunsigned(L, 2);
+    scriptedRenderer->modulateColor(L, color, replace);
+    return 0;
+}
+
 static int renderer_namecall(lua_State* L)
 {
     int atom;
@@ -201,6 +215,10 @@ static int renderer_namecall(lua_State* L)
                 return renderer_transform(L);
             case (int)LuaAtoms::modulateOpacity:
                 return renderer_modulateOpacity(L);
+            case (int)LuaAtoms::modulateColor:
+                return renderer_modulateColor(L, false);
+            case (int)LuaAtoms::setColorModulation:
+                return renderer_modulateColor(L, true);
             case (int)LuaAtoms::drawImage:
                 return renderer_drawImage(L);
             case (int)LuaAtoms::drawImageMesh:

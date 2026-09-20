@@ -33,7 +33,7 @@ void ScriptedDrawable::draw(Renderer* renderer)
 
     float opacity = renderOpacity();
     bool needsOpacitySave = (opacity != 1.0f);
-    if (m_needsSaveOperation || needsOpacitySave)
+    if (needsSaveOperation() || needsOpacitySave)
     {
         renderer->save();
     }
@@ -46,7 +46,7 @@ void ScriptedDrawable::draw(Renderer* renderer)
     renderer->transform(worldTransform());
     m_vm->callDraw(this, m_self, renderer);
 
-    if (m_needsSaveOperation || needsOpacitySave)
+    if (needsSaveOperation() || needsOpacitySave)
     {
         renderer->restore();
     }

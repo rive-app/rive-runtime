@@ -662,6 +662,51 @@ uint32_t rive_web_artboard_node_parent(uint32_t vmHandle, uint32_t node)
     return artboardNodeParentImpl(vm, node);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_property_key(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardPropertyKeyImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_artboard_draw_visit(uint32_t vmHandle, uint32_t artboard, uint32_t renderer)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardDrawVisitImpl(vm, artboard, renderer);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_artboard_draw_modulated(uint32_t vmHandle, uint32_t artboard, uint32_t renderer, uint32_t key)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardDrawModulatedImpl(vm, artboard, renderer, key);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_artboard_drawable_draw(uint32_t vmHandle, uint32_t drawable, uint32_t renderer)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    artboardDrawableDrawImpl(vm, drawable, renderer);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_drawable_value(uint32_t vmHandle, uint32_t drawable, uint32_t key, uint32_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardDrawableValueImpl(vm, drawable, key, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_drawable_string(uint32_t vmHandle, uint32_t drawable, uint32_t key, char* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardDrawableStringImpl(vm, drawable, key, out, outCount);
+}
+#ifdef WITH_RIVE_TOOLS
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_drawable_properties(uint32_t vmHandle, uint32_t drawable, char* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardDrawablePropertiesImpl(vm, drawable, out, outCount);
+}
+#endif
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_audio_source(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -1367,6 +1412,12 @@ void rive_web_renderer_clip_path(uint32_t vmHandle, uint32_t renderer, uint32_t 
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     rendererClipPathImpl(vm, renderer, path);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_renderer_modulate_color(uint32_t vmHandle, uint32_t renderer, uint32_t color, uint32_t replace)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererModulateColorImpl(vm, renderer, color, replace);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_draw_image(uint32_t vmHandle, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity)

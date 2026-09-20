@@ -420,6 +420,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                              FillRule fillRule,
                              const RiveRenderPaint* paint,
                              float modulatedOpacity,
+                             ColorInt modulatedColor,
                              std::optional<IAABB> precomputedPixelBounds)
 {
     RIVE_PROF_SCOPE_L(2);
@@ -507,6 +508,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
                                         fillRule,
                                         paint,
                                         modulatedOpacity,
+                                        modulatedColor,
                                         coverageType,
                                         context->frameDescriptor());
     if (triangulator != nullptr)
@@ -528,6 +530,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
                    FillRule initialFillRule,
                    const RiveRenderPaint* paint,
                    float modulatedOpacity,
+                   ColorInt modulatedColor,
                    CoverageType coverageType,
                    const RenderContext::FrameDescriptor& frameDesc) :
     Draw(pixelBounds,
@@ -541,7 +544,8 @@ PathDraw::PathDraw(IAABB pixelBounds,
     m_pathRef(path.release()),
     m_pathFillRule(frameDesc.clockwiseFillOverride ? FillRule::clockwise
                                                    : initialFillRule),
-    m_gradientRef(paint->getGradientWithOpacity(modulatedOpacity).release()),
+    m_gradientRef(paint->getModulatedGradient(modulatedOpacity, modulatedColor)
+                      .release()),
     m_paintType(paint->getType()),
     m_coverageType(coverageType)
 {
@@ -689,16 +693,17 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
     m_simplePaintValue = paint->getSimpleValue();
 
-    // Apply modulated opacity to the paint value.
+    // Apply modulation to the paint value.
     // Gradient modulation is handled upfront in the gradient initialization.
-    if (modulatedOpacity != 1.0f)
+    if (modulatedOpacity != 1.0f || modulatedColor != 0xFFFFFFFF)
     {
         switch (m_paintType)
         {
             case gpu::PaintType::solidColor:
                 m_simplePaintValue.color =
-                    colorModulateOpacity(m_simplePaintValue.color,
-                                         modulatedOpacity);
+                    colorModulate(m_simplePaintValue.color,
+                                  modulatedColor,
+                                  modulatedOpacity);
                 break;
             case gpu::PaintType::linearGradient:
             case gpu::PaintType::radialGradient:
@@ -2697,7 +2702,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              rcp<RenderBuffer> uvBuffer,
                              rcp<RenderBuffer> indexBuffer,
                              uint32_t indexCount,
-                             float opacity) :
+                             ColorInt modulatedColor) :
 
     Draw(pixelBounds,
          matrix,
@@ -2711,7 +2716,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     m_uvBufferRef(uvBuffer.release()),
     m_indexBufferRef(indexBuffer.release()),
     m_indexCount(indexCount),
-    m_opacity(opacity)
+    m_modulatedColor(modulatedColor)
 {
     assert(m_vertexBufferRef != nullptr);
     assert(m_uvBufferRef != nullptr);

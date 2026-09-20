@@ -224,8 +224,11 @@ PODS = [
 ]
 
 
-def op(name, params=(), ret=None, stub=None):
-    return {'name': name, 'params': list(params), 'ret': ret, 'stub': stub}
+def op(name, params=(), ret=None, stub=None, guard=None):
+    # guard: the host only carries the op when this macro is defined. Modules
+    # import what they call, so one that never calls it links anywhere.
+    return {'name': name, 'params': list(params), 'ret': ret, 'stub': stub,
+            'guard': guard}
 
 
 def ns(module, short, ops):
@@ -461,6 +464,33 @@ NAMESPACES = [
            ret='u32'),
         # The parent as a new node handle, 0 when it is not a transform.
         op('node_parent', [handle('node')], ret='u32'),
+        # The key custom properties are read by, ~0u when no property in the
+        # file carries that name. Resolve once, it scans the name table.
+        op('property_key', [handle('artboard'), string('name', 'length')],
+           ret='u32'),
+        # draw with a visitor: the host calls the module's host_draw_visit
+        # export for each drawable that has custom properties. The drawable
+        # handle is borrowed and goes stale when the export returns.
+        op('draw_visit', [handle('artboard'), handle('renderer')]),
+        # The host sets the color modulation per tagged drawable from its
+        # property of this key, with no callback into the module.
+        op('draw_modulated', [handle('artboard'), handle('renderer'),
+                              u32('key')]),
+        op('drawable_draw', [handle('drawable'), handle('renderer')]),
+        # Returns the CustomPropertyKind plus one, 0 when absent; out[0]
+        # receives the value bits of a number, boolean or color.
+        op('drawable_value', [handle('drawable'), u32('key'),
+                              mutbuf('uint32_t', 'out', 'outCount')],
+           ret='u32'),
+        # Retrying copy-out; ~0u means no string property by that key.
+        op('drawable_string', [handle('drawable'), u32('key'),
+                               mutbuf('char', 'out', 'outCount')],
+           ret='u32'),
+        # Retrying copy-out of one kind byte, the name and a NUL per
+        # property.
+        op('drawable_properties', [handle('drawable'),
+                                   mutbuf('char', 'out', 'outCount')],
+           ret='u32', guard='WITH_RIVE_TOOLS'),
     ]),
     # The Luau Audio surface: sources resolve from the object's file by
     # asset name, sounds come back from the play ops. Frame clocks cross as
@@ -829,6 +859,9 @@ NAMESPACES = [
             handle('paint'),
         ]),
         op('clip_path', [handle('renderer'), handle('path')]),
+        # color is packed ARGB; replace sets it instead of multiplying.
+        op('modulate_color', [handle('renderer'), u32('color'),
+                              u32('replace')]),
         # sampler is ImageSampler::asKey(); blend is the BlendMode enum.
         op('draw_image', [
             handle('renderer'),

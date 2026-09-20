@@ -27,6 +27,8 @@ public:
     bool decode(SimpleArray<uint8_t>&, Factory*) override;
     std::string fileExtension() const override;
     const std::string& resolveName(int id) override;
+    // Scans, so resolve once and keep the id. -1 when the name is absent.
+    int nameId(const char* name, size_t length) const;
     const std::vector<uint32_t>& resolvePath(int id) override;
 
     /// Whether the file this manifest belongs to carries a watermark.

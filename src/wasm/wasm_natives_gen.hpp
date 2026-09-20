@@ -293,6 +293,15 @@ uint32_t artboardNodePathPointsImpl(WasmScriptingVM* vm, uint32_t node, float* o
 uint32_t artboardNodePaintImpl(WasmScriptingVM* vm, uint32_t node, uint32_t* out, uint32_t outCount);
 uint32_t artboardNodeChildrenImpl(WasmScriptingVM* vm, uint32_t node, uint32_t* out, uint32_t outCount);
 uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t node);
+uint32_t artboardPropertyKeyImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
+void artboardDrawVisitImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t renderer);
+void artboardDrawModulatedImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t renderer, uint32_t key);
+void artboardDrawableDrawImpl(WasmScriptingVM* vm, uint32_t drawable, uint32_t renderer);
+uint32_t artboardDrawableValueImpl(WasmScriptingVM* vm, uint32_t drawable, uint32_t key, uint32_t* out, uint32_t outCount);
+uint32_t artboardDrawableStringImpl(WasmScriptingVM* vm, uint32_t drawable, uint32_t key, char* out, uint32_t outCount);
+#ifdef WITH_RIVE_TOOLS
+uint32_t artboardDrawablePropertiesImpl(WasmScriptingVM* vm, uint32_t drawable, char* out, uint32_t outCount);
+#endif
 uint32_t audioSourceImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength);
 void audioSourceReleaseImpl(WasmScriptingVM* vm, uint32_t source);
 float audioSourceDurationImpl(WasmScriptingVM* vm, uint32_t source);
@@ -410,6 +419,7 @@ void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererTransformImpl(WasmScriptingVM* vm, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty);
 void rendererDrawPathImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t path, uint32_t paint);
 void rendererClipPathImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t path);
+void rendererModulateColorImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t color, uint32_t replace);
 void rendererDrawImageImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
 
@@ -956,6 +966,44 @@ uint32_t artboardNodeParent(wasm_exec_env_t env, uint32_t node)
     WasmScriptingVM* vm = vmFromEnv(env);
     return artboardNodeParentImpl(vm, node);
 }
+uint32_t artboardPropertyKey(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return artboardPropertyKeyImpl(vm, artboard, nameUtf8.data(), nameUtf8.size());
+}
+void artboardDrawVisit(wasm_exec_env_t env, uint32_t artboard, uint32_t renderer)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardDrawVisitImpl(vm, artboard, renderer);
+}
+void artboardDrawModulated(wasm_exec_env_t env, uint32_t artboard, uint32_t renderer, uint32_t key)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardDrawModulatedImpl(vm, artboard, renderer, key);
+}
+void artboardDrawableDraw(wasm_exec_env_t env, uint32_t drawable, uint32_t renderer)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardDrawableDrawImpl(vm, drawable, renderer);
+}
+uint32_t artboardDrawableValue(wasm_exec_env_t env, uint32_t drawable, uint32_t key, uint32_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardDrawableValueImpl(vm, drawable, key, out, outCount);
+}
+uint32_t artboardDrawableString(wasm_exec_env_t env, uint32_t drawable, uint32_t key, char* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardDrawableStringImpl(vm, drawable, key, out, outCount);
+}
+#ifdef WITH_RIVE_TOOLS
+uint32_t artboardDrawableProperties(wasm_exec_env_t env, uint32_t drawable, char* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardDrawablePropertiesImpl(vm, drawable, out, outCount);
+}
+#endif
 uint32_t audioSource(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1546,6 +1594,11 @@ void rendererClipPath(wasm_exec_env_t env, uint32_t renderer, uint32_t path)
     WasmScriptingVM* vm = vmFromEnv(env);
     rendererClipPathImpl(vm, renderer, path);
 }
+void rendererModulateColor(wasm_exec_env_t env, uint32_t renderer, uint32_t color, uint32_t replace)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererModulateColorImpl(vm, renderer, color, replace);
+}
 void rendererDrawImage(wasm_exec_env_t env, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1668,6 +1721,15 @@ NativeSymbol kArtboardNatives[] = {
     {"node_paint", (void*)artboardNodePaint, "(i*~)i", nullptr},
     {"node_children", (void*)artboardNodeChildren, "(i*~)i", nullptr},
     {"node_parent", (void*)artboardNodeParent, "(i)i", nullptr},
+    {"property_key", (void*)artboardPropertyKey, "(i*~)i", nullptr},
+    {"draw_visit", (void*)artboardDrawVisit, "(ii)", nullptr},
+    {"draw_modulated", (void*)artboardDrawModulated, "(iii)", nullptr},
+    {"drawable_draw", (void*)artboardDrawableDraw, "(ii)", nullptr},
+    {"drawable_value", (void*)artboardDrawableValue, "(ii*~)i", nullptr},
+    {"drawable_string", (void*)artboardDrawableString, "(ii*~)i", nullptr},
+#ifdef WITH_RIVE_TOOLS
+    {"drawable_properties", (void*)artboardDrawableProperties, "(i*~)i", nullptr},
+#endif
 };
 
 NativeSymbol kAudioNatives[] = {
@@ -1818,6 +1880,7 @@ NativeSymbol kRendererNatives[] = {
     {"transform", (void*)rendererTransform, "(iffffff)", nullptr},
     {"draw_path", (void*)rendererDrawPath, "(iii)", nullptr},
     {"clip_path", (void*)rendererClipPath, "(ii)", nullptr},
+    {"modulate_color", (void*)rendererModulateColor, "(iii)", nullptr},
     {"draw_image", (void*)rendererDrawImage, "(iiiif)", nullptr},
     {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", nullptr},
 };

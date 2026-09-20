@@ -326,6 +326,12 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
             case SerializeOp::modulateOpacity:
                 active->modulateOpacity(reader.readFloat32());
                 break;
+            case SerializeOp::modulateColor:
+            {
+                ColorInt color = (ColorInt)reader.readVarUint64();
+                active->modulateColor(color, reader.readVarUint64() != 0);
+                break;
+            }
             case SerializeOp::drawPath:
             {
                 uint64_t pathId = reader.readVarUint64();

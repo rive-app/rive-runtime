@@ -3657,7 +3657,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
         math::lossless_numeric_cast<uint32_t>(
             m_ctx->m_imageMeshInstanceData.elementsWritten());
     m_ctx->m_imageMeshInstanceData.emplace_back(draw->imageMatrix(),
-                                                draw->opacity(),
+                                                draw->modulatedColor(),
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
                                                 draw->blendMode(),

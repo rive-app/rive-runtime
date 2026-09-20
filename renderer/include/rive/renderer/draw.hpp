@@ -238,6 +238,7 @@ public:
                               FillRule,
                               const RiveRenderPaint*,
                               float modulatedOpacity,
+                              ColorInt modulatedColor,
                               std::optional<IAABB> pixelBounds = {});
 
     // Determines how coverage is calculated for antialiasing and feathers.
@@ -262,6 +263,7 @@ public:
              FillRule,
              const RiveRenderPaint*,
              float modulatedOpacity,
+             ColorInt modulatedColor,
              CoverageType,
              const RenderContext::FrameDescriptor&);
 
@@ -552,13 +554,13 @@ public:
                   rcp<RenderBuffer> uvBuffer,
                   rcp<RenderBuffer> indexBuffer,
                   uint32_t indexCount,
-                  float opacity);
+                  ColorInt modulatedColor);
 
     RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
     RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
     RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
     uint32_t indexCount() const { return m_indexCount; }
-    float opacity() const { return m_opacity; }
+    ColorInt modulatedColor() const { return m_modulatedColor; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
                                         int subpassIndex) override;
@@ -570,7 +572,7 @@ protected:
     RenderBuffer* const m_uvBufferRef;
     RenderBuffer* const m_indexBufferRef;
     const uint32_t m_indexCount;
-    const float m_opacity;
+    const ColorInt m_modulatedColor;
 };
 
 // Resets the clip by either entirely erasing the existing clip, or intersecting

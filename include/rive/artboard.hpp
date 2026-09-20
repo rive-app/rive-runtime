@@ -80,6 +80,10 @@ typedef uint8_t (*IsAncestorCallback)(void*, uint16_t);
 typedef float (*RootTransformCallback)(void*, float, float, bool);
 #endif
 
+// Called in place of Drawable::draw for each drawable that has custom
+// properties; it decides whether and how the drawable draws.
+using DrawVisitor = void (*)(void* context, Drawable*, Renderer*);
+
 class Artboard : public ArtboardBase,
                  public CoreContext,
                  public Virtualizable,
@@ -144,6 +148,11 @@ private:
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
     bool m_didChange = true;
+    DrawVisitor m_drawVisitor = nullptr;
+    void* m_drawVisitorContext = nullptr;
+    // The file the visit's keys belong to, handed down because a nested
+    // instance of that same file does not know its file.
+    const File* m_drawVisitorFile = nullptr;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
     // This artboard's own manager, allocated only by roots — an artboard
@@ -539,7 +548,24 @@ public:
     /// script callbacks run. Called at the top of advance().
     void pollAsyncWork();
 
-    void drawInternal(Renderer* renderer);
+    // Draws with the color modulation set from each drawable's property of
+    // this key: a number as a gray level, a color as is. Levels multiply
+    // down through tagged drawables that hold others.
+    void drawModulated(Renderer* renderer,
+                       uint32_t propertyKey,
+                       const File* keysFile = nullptr);
+    // keysFile is the file the visitor's keys were resolved in, for a caller
+    // whose instance does not know its own, as one a script made does not.
+    void drawInternal(Renderer* renderer,
+                      DrawVisitor visitor = nullptr,
+                      void* visitorContext = nullptr,
+                      const File* keysFile = nullptr);
+    // The file a visit's keys and names belong to.
+    const File* drawVisitorFile() const;
+
+    // Draws an artboard hosted inside this one, passing on the visitor this
+    // one is being drawn with so it reaches nested content of the same file.
+    void drawHosted(Artboard* hosted, Renderer* renderer);
     void draw(Renderer* renderer) override;
 
     /// Attach a watermark pre-roll. While it plays this artboard neither
@@ -557,7 +583,9 @@ public:
     // cache-as-bitmap hook (in drawInternal) can rasterize into an offscreen
     // canvas without re-entering the hook, and so the standalone-root draw()
     // path can bypass caching entirely.
-    void drawContent(Renderer* renderer);
+    void drawContent(Renderer* renderer,
+                     DrawVisitor visitor = nullptr,
+                     void* visitorContext = nullptr);
 
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);

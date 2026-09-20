@@ -105,6 +105,8 @@ static const char* opToName(SerializeOp op)
             return "frameSize";
         case SerializeOp::modulateOpacity:
             return "modulateOpacity";
+        case SerializeOp::modulateColor:
+            return "modulateColor";
 
         // Offscreen canvases (cache-as-bitmap).
         case SerializeOp::makeRenderCanvas:
@@ -562,6 +564,13 @@ public:
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::modulateOpacity);
         m_writer->writeFloat(opacity);
+    }
+
+    void modulateColor(ColorInt color, bool replace) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::modulateColor);
+        m_writer->writeVarUint(color);
+        m_writer->writeVarUint((uint32_t)replace);
     }
 
     void drawPath(RenderPath* path, RenderPaint* paint) override
@@ -1478,6 +1487,19 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     return false;
                 }
                 if (!varUintMatches(opA, "framesize_height", readerA, readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::modulateColor:
+                if (!varUintMatches(opA,
+                                    "modulatecolor_value",
+                                    readerA,
+                                    readerB) ||
+                    !varUintMatches(opA,
+                                    "modulatecolor_replace",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }

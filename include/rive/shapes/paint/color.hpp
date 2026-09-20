@@ -33,6 +33,9 @@ ColorInt colorWithOpacity(ColorInt value, float opacity);
 
 ColorInt colorModulateOpacity(ColorInt value, float opacity);
 
+// Multiplies value by color per channel, and its alpha by opacity too.
+ColorInt colorModulate(ColorInt value, ColorInt color, float opacity = 1.0f);
+
 ColorInt colorLerp(ColorInt from, ColorInt to, float mix);
 } // namespace rive
 #endif

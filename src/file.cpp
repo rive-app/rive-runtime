@@ -1331,6 +1331,14 @@ std::unique_ptr<ArtboardInstance> File::instanceArtboard(Artboard* ab) const
     return nullptr;
 }
 
+uint32_t File::customPropertyKey(const File* file,
+                                 const char* name,
+                                 size_t length)
+{
+    auto manifest = file != nullptr ? file->manifest() : nullptr;
+    return manifest != nullptr ? (uint32_t)manifest->nameId(name, length) : ~0u;
+}
+
 void File::attachWatermark(ArtboardInstance* instance,
                            const Artboard* source) const
 {

@@ -416,6 +416,12 @@ public:
         m_buffer->append(static_cast<uint8_t>(RenderCmd::modulateOpacity),
                          OpacityPOD{opacity});
     }
+    void modulateColor(ColorInt color, bool replace) override
+    {
+        route();
+        m_buffer->append(static_cast<uint8_t>(RenderCmd::modulateColor),
+                         ModulateColorPOD{color, replace ? 1u : 0u});
+    }
 
     void drawImage(const RenderImage* image,
                    ImageSampler s,
