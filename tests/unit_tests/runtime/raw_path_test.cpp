@@ -621,3 +621,39 @@ TEST_CASE("addPathBackwards", "[rawpath]")
         checkPathReversal(path);
     }
 }
+
+TEST_CASE("coarse area measured from a nearby origin ignores position",
+          "[rawpath]")
+{
+    float curvedAtOrigin = 0;
+    for (float offset : {0.0f, 1e3f, 1e6f})
+    {
+        RawPath path;
+        path.moveTo(offset, offset);
+        path.lineTo(offset + 100, offset);
+        path.lineTo(offset + 100, offset + 100);
+        path.lineTo(offset, offset + 100);
+        path.close();
+        CHECK(path.computeCoarseArea(path.bounds().center()) ==
+              Approx(10000.0f));
+
+        RawPath curved;
+        curved.moveTo(offset, offset);
+        curved.cubicTo(offset + 100,
+                       offset,
+                       offset + 100,
+                       offset + 100,
+                       offset,
+                       offset + 100);
+        curved.close();
+        float area = curved.computeCoarseArea(curved.bounds().center());
+        if (offset == 0)
+        {
+            curvedAtOrigin = area;
+            CHECK(curvedAtOrigin > 5000.0f);
+            // The renderer's goldens depend on the default staying as it was.
+            CHECK(curved.computeCoarseArea() == Approx(curvedAtOrigin));
+        }
+        CHECK(area == Approx(curvedAtOrigin));
+    }
+}

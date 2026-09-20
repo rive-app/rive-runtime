@@ -710,7 +710,7 @@ AABB RawPath::preciseBounds() const
     return bounds;
 }
 
-float RawPath::computeCoarseArea() const
+float RawPath::computeCoarseArea(Vec2D origin) const
 {
     float a = 0;
     Vec2D contourP0 = {0, 0}, lastPt = {0, 0};
@@ -722,13 +722,13 @@ float RawPath::computeCoarseArea() const
         {
             case PathVerb::move:
                 a += Vec2D::cross(lastPt, contourP0);
-                contourP0 = lastPt = pts[0];
+                contourP0 = lastPt = pts[0] - origin;
                 break;
             case PathVerb::close:
                 break;
             case PathVerb::line:
-                a += Vec2D::cross(lastPt, pts[1]);
-                lastPt = pts[1];
+                a += Vec2D::cross(lastPt, pts[1] - origin);
+                lastPt = pts[1] - origin;
                 break;
             case PathVerb::quad:
                 RIVE_UNREACHABLE();
@@ -747,19 +747,19 @@ float RawPath::computeCoarseArea() const
                     for (; t.x < 1; t += dt)
                     {
                         float4 p = evalCubic(t);
-                        Vec2D lo = {p.x, p.y};
+                        Vec2D lo = Vec2D(p.x, p.y) - origin;
                         a += Vec2D::cross(lastPt, lo);
                         lastPt = lo;
                         if (t.y < 1)
                         {
-                            Vec2D hi = {p.z, p.w};
+                            Vec2D hi = Vec2D(p.z, p.w) - origin;
                             a += Vec2D::cross(lastPt, hi);
                             lastPt = hi;
                         }
                     }
                 }
-                a += Vec2D::cross(lastPt, pts[3]);
-                lastPt = pts[3];
+                a += Vec2D::cross(lastPt, pts[3] - origin);
+                lastPt = pts[3] - origin;
                 break;
             }
         }

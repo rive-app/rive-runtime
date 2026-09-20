@@ -53,7 +53,11 @@ public:
     // each weight to the wrong bone. `finalizeBatch` calls this on
     // every Skin after hydration to restore the author-time order.
     void sortTendonsForEditor();
+    void bindingChangedForEditor();
 #endif
+    // 1 when no bone mirrors, -1 when every bone mirrors, 0 when they
+    // disagree or none carries an orientation.
+    int windingSign() const;
 
 #ifdef TESTING
     std::vector<Tendon*>& tendons() { return m_Tendons; }

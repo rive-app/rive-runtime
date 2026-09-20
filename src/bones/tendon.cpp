@@ -42,6 +42,7 @@ StatusCode Tendon::onAddedDirty(CoreContext* context)
 
 #ifdef WITH_RIVE_EDITOR
     setBoneForEditor(static_cast<Bone*>(coreObject));
+    bindingChangedForEditor();
 #else
     m_Bone = static_cast<Bone*>(coreObject);
 #endif
@@ -72,6 +73,15 @@ void Tendon::resolveBone(CoreContext* context)
     if (core != nullptr && core->is<Bone>())
     {
         setBoneForEditor(static_cast<Bone*>(core));
+        bindingChangedForEditor();
+    }
+}
+
+void Tendon::bindingChangedForEditor()
+{
+    if (parent() != nullptr && parent()->is<Skin>())
+    {
+        parent()->as<Skin>()->bindingChangedForEditor();
     }
 }
 #endif

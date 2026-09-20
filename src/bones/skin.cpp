@@ -7,6 +7,8 @@
 #include "rive/constraints/constraint.hpp"
 #include <algorithm>
 
+#include <cmath>
+
 using namespace rive;
 
 Skin::~Skin() { delete[] m_BoneTransforms; }
@@ -72,6 +74,47 @@ void Skin::update(ComponentDirt value)
     }
 }
 
+int Skin::windingSign() const
+{
+    if (m_BoneTransforms == nullptr)
+    {
+        return 0;
+    }
+    bool anyMirrored = false;
+    bool anyUpright = false;
+    const float* transform = m_BoneTransforms;
+    for (auto tendon : m_Tendons)
+    {
+        transform += 6;
+#ifdef WITH_RIVE_EDITOR
+        if (tendon->bone() == nullptr)
+        {
+            continue;
+        }
+#else
+        (void)tendon;
+#endif
+        float xxyy = transform[0] * transform[3];
+        float xyyx = transform[1] * transform[2];
+        float determinant = xxyy - xyyx;
+        // A collapsed bone carries no orientation, and its determinant is
+        // only zero up to the rounding of the two products.
+        if (std::abs(determinant) <= 1e-6f * (std::abs(xxyy) + std::abs(xyyx)))
+        {
+            continue;
+        }
+        if (determinant < 0)
+        {
+            anyMirrored = true;
+        }
+        else
+        {
+            anyUpright = true;
+        }
+    }
+    return anyMirrored == anyUpright ? 0 : (anyMirrored ? -1 : 1);
+}
+
 void Skin::buildDependencies()
 {
     // depend on bones from tendons
@@ -131,9 +174,23 @@ void Skin::deform(Span<Vertex*> vertices)
         vertex->deform(m_WorldTransform, m_BoneTransforms);
     }
 }
-void Skin::addTendon(Tendon* tendon) { m_Tendons.push_back(tendon); }
+void Skin::addTendon(Tendon* tendon)
+{
+    m_Tendons.push_back(tendon);
+#ifdef WITH_RIVE_EDITOR
+    bindingChangedForEditor();
+#endif
+}
 
 #ifdef WITH_RIVE_EDITOR
+void Skin::bindingChangedForEditor()
+{
+    if (m_Skinnable != nullptr)
+    {
+        m_Skinnable->bindingChangedForEditor();
+    }
+}
+
 void Skin::sortTendonsForEditor()
 {
     auto byChildOrder = [](const Tendon* a, const Tendon* b) {
@@ -144,6 +201,7 @@ void Skin::sortTendonsForEditor()
         return;
     }
     std::sort(m_Tendons.begin(), m_Tendons.end(), byChildOrder);
+    bindingChangedForEditor();
     // Weights index m_BoneTransforms by tendon position, so a reorder has to
     // rebuild the buffer and re-deform the skinnable.
     addDirt(ComponentDirt::WorldTransform);

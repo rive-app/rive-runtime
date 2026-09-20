@@ -278,7 +278,9 @@ public:
     // Approximates the area of the path by linearizing it with a coarse
     // tolerance of 8px in artboard space.
     constexpr static float kCoarseAreaTolerance = 8;
-    float computeCoarseArea() const;
+    // Far from the artboard origin the products cancel into rounding noise,
+    // pass an origin near the path to keep them small.
+    float computeCoarseArea(Vec2D origin = {0, 0}) const;
 
 private:
     std::vector<Vec2D> m_Points;

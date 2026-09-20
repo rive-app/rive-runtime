@@ -43,6 +43,9 @@ public:
     // `Skin::buildDependencies` runs, so a null `m_Bone` after Pass 3
     // is recoverable instead of crashing.
     void resolveBone(CoreContext* context);
+
+private:
+    void bindingChangedForEditor();
 #endif
 };
 } // namespace rive

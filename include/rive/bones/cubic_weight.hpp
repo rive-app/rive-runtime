@@ -13,6 +13,12 @@ private:
 public:
     Vec2D& inTranslation() { return m_InTranslation; }
     Vec2D& outTranslation() { return m_OutTranslation; }
+#ifdef WITH_RIVE_EDITOR
+    void inValuesChanged() override { bindingChanged(); }
+    void inIndicesChanged() override { bindingChanged(); }
+    void outValuesChanged() override { bindingChanged(); }
+    void outIndicesChanged() override { bindingChanged(); }
+#endif
 };
 } // namespace rive
 

@@ -80,10 +80,9 @@ void PathComposer::update(ComponentDirt value)
                     inverseWorld * path->pathTransform();
                 bool isNotClockwise =
                     path->is<PointsPath>() &&
-                    (localTransform.determinant() *
-                         (path->as<PointsPath>()->isClockwise() ? 1.0f
-                                                                : -1.0f) <
-                     0);
+                    localTransform.determinant() *
+                            path->as<PointsPath>()->winding() <
+                        0;
                 bool isHole = path->isHole();
                 // Only draw backwards if values are different
                 if (isNotClockwise != isHole)

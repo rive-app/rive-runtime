@@ -18,6 +18,13 @@ public:
 #ifdef WITH_RIVE_EDITOR
     void editorParentChanged(ContainerComponent* from,
                              ContainerComponent* to) override;
+    void valuesChanged() override { bindingChanged(); }
+    void indicesChanged() override { bindingChanged(); }
+
+protected:
+    void bindingChanged();
+
+public:
 #endif
 
     static Vec2D deform(Vec2D inPoint,
