@@ -146,11 +146,10 @@ public:
              .safeFrameNumber = m_swapchain->safeFrameNumber(),
              .currentFrameNumber = m_swapchain->currentFrameNumber()});
     }
+    // The Ore frame runs inside the screen frame, which end() presents.
     void endOreFrame(rive::ore::Context* oreContext) override
     {
         FiddleContext::endOreFrame(oreContext);
-        auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
     }
 
     void onSizeChanged(GLFWwindow* window,

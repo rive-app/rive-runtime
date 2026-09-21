@@ -184,13 +184,12 @@ public:
              .safeFrameNumber = m_swapchain->safeFrameNumber(),
              .currentFrameNumber = m_swapchain->currentFrameNumber()});
     }
+    // The Ore frame runs inside the screen frame, which endFrame() submits.
     void endOreFrame() override
     {
         auto oreContext =
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         oreContext->endFrame();
-        auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
     }
 
     void resize(int width, int height) override

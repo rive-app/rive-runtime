@@ -299,13 +299,12 @@ private:
              .currentFrameNumber = m_frameSynchronizer->currentFrameNumber()});
     }
 
+    // The Ore frame runs inside the screen frame, which endFrame() submits.
     void endOreFrame() override
     {
         auto oreContext =
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
         oreContext->endFrame();
-        auto lastAccess = m_renderTarget->targetLastAccess();
-        VK_ABORT_ON_FAIL(m_frameSynchronizer->endFrame(lastAccess));
     }
 
     const BackendParams m_backendParams;
