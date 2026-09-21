@@ -183,6 +183,21 @@ void IKConstraint::solve2(BoneChainLink* fk1,
 
 void IKConstraint::invertDirectionChanged() { markConstraintDirty(); }
 
+// True while the bone's world is still ours composed under its current parent,
+// so the angle on it is ours and not a rebuilt pose. Comparing worlds instead
+// would read a moved parent as someone else's work.
+bool IKConstraint::BoneChainLink::holdsOurSolve() const
+{
+    return solved &&
+           getParentWorld(*bone) * solvedLocal == bone->worldTransform();
+}
+
+void IKConstraint::BoneChainLink::recordSolve()
+{
+    solvedLocal = bone->transform();
+    solved = true;
+}
+
 void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 {
     Bone* bone = fk.bone;
@@ -223,29 +238,32 @@ void IKConstraint::constrain(TransformComponent* component)
 
     Vec2D worldTargetTranslation = tgt->worldTranslation();
 
-    // Decompose the chain where it currently stands, before rebuilding any of
-    // it, so no bone is measured against a parent we already rebuilt. A
-    // constraint that ran before us left its work here and nowhere else.
+    // The pose to blend from: whatever ran before us leaves its work here.
     for (BoneChainLink& item : m_FkChain)
     {
         item.parentWorldInverse = getParentWorld(*item.bone).invertOrIdentity();
         item.transformComponents =
             (item.parentWorldInverse * item.bone->worldTransform()).decompose();
+        item.ours = item.holdsOurSolve();
+        if (item.ours)
+        {
+            // Our own angle. Blending from it creeps toward the full solution.
+            item.transformComponents.rotation(item.baseRotation);
+        }
+        item.baseRotation = item.transformComponents.rotation();
     }
 
-    // Take the angle back from the FK base. Rotation is the only component we
-    // write, so reading ours back would blend from the pose we solved last
-    // pass; translation, scale and skew we merely carry, so they stay as
-    // whatever constrained the bone left them.
+    // Longer chains solve from the pose they stand in, so put ours back first.
+    bool rebuilt = false;
     for (BoneChainLink& item : m_FkChain)
     {
-        Bone* bone = item.bone;
-        bone->updateTransform();
-        item.transformComponents.rotation(
-            bone->transform().decompose().rotation());
-
-        item.parentWorldInverse = getParentWorld(*bone).invertOrIdentity();
-        constrainRotation(item, item.transformComponents.rotation());
+        rebuilt = rebuilt || item.ours;
+        if (rebuilt)
+        {
+            item.parentWorldInverse =
+                getParentWorld(*item.bone).invertOrIdentity();
+            constrainRotation(item, item.transformComponents.rotation());
+        }
     }
 
     int count = (int)m_FkChain.size();
@@ -297,5 +315,11 @@ void IKConstraint::constrain(TransformComponent* component)
             float angle = fromAngle + diff * strength();
             constrainRotation(fk, angle);
         }
+    }
+
+    // Lets the next solve tell our own output from a rebuilt pose.
+    for (BoneChainLink& item : m_FkChain)
+    {
+        item.recordSolve();
     }
 }

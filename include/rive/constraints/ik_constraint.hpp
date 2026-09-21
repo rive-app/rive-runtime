@@ -18,6 +18,16 @@ private:
         float angle;
         TransformComponents transformComponents;
         Mat2D parentWorldInverse;
+        // The angle the bone held before we wrote to it, and the local
+        // transform we left on it.
+        float baseRotation = 0.0f;
+        Mat2D solvedLocal;
+        bool solved = false;
+        // Whether the pose found on the bone this solve was our own.
+        bool ours = false;
+
+        bool holdsOurSolve() const;
+        void recordSolve();
     };
     std::vector<BoneChainLink> m_FkChain;
     void solve1(BoneChainLink* fk1, const Vec2D& worldTargetTranslation);
