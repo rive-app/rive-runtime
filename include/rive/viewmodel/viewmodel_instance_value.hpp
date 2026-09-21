@@ -82,9 +82,9 @@ public:
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
     void viewModelInstance(ViewModelInstance* value);
-#ifdef WITH_RIVE_TOOLS
+    // Not tools-only: a scripted property wrapper keeps the instance that owns
+    // its value alive through this, in every build.
     ViewModelInstance* viewModelInstance() const { return m_viewModelInstance; }
-#endif
     void addDependent(ViewModelValueDependent* value);
     void removeDependent(ViewModelValueDependent* value);
     virtual void setRoot(rcp<ViewModelInstance> value);

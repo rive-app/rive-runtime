@@ -1308,6 +1308,14 @@ private:
 protected:
     lua_State* m_state;
     rcp<ViewModelInstanceValue> m_instanceValue;
+    // The instance that owns m_instanceValue. The instance owns its values but
+    // they only point back raw, so without this a script holding a property
+    // outlives the view model it came from: the value survives, its owner does
+    // not, and writes land in an orphan. Holding it keeps the whole view model
+    // alive for as long as any script is using one of its properties, which is
+    // what lets a reference swap elsewhere leave this wrapper working. Scripts
+    // opt into the new reference by resolving it again.
+    rcp<ViewModelInstance> m_owningInstance;
     int m_cachedValueRef = 0;
     void clearCachedValueRef();
 };
@@ -1630,7 +1638,16 @@ class ScriptingContext
 {
 public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
-    virtual ~ScriptingContext() { shutdownAsync(); }
+    virtual ~ScriptingContext()
+    {
+        shutdownAsync();
+#ifdef WITH_RIVE_TOOLS
+        // Properties a host claimed with an owner tag survive the File-level
+        // sweep, so they can still be tracked here when the context dies.
+        // They hold a raw pointer back for untracking; cut it now.
+        disposeOrphanScriptedProperties(/*allTags=*/true);
+#endif
+    }
     Factory* factory() const { return m_factory; }
     // A caller supplied VM is built before decode picks a factory, so File
     // re-points it at the one the file imported through.
@@ -1905,7 +1922,12 @@ public:
     bool isPlaying() const { return m_isPlaying; }
     void trackOrphanScriptedProperty(ScriptedProperty* property);
     void untrackOrphanScriptedProperty(ScriptedProperty* property);
-    void disposeOrphanScriptedProperties();
+    /// Disposes orphan properties. By default only untagged ones: a non-zero
+    /// tag means a host (the editor's Dart scripted objects, a preview view)
+    /// claimed the property and disposes it on its own lifecycle, so a File
+    /// dropping its VM must not take it out from under a running script.
+    /// `allTags` is for real teardown, where nothing survives.
+    void disposeOrphanScriptedProperties(bool allTags = false);
     // Hosts tag properties created while invoking script callbacks (a
     // FileFormat view), then dispose that owner's orphans deterministically
     // when the owner goes away instead of waiting on GC or a VM swap.
@@ -2158,12 +2180,69 @@ private:
     PathMeasure m_measure;
 };
 
+/// Holds the single Lua wrapper a long-lived owner hands out for a given
+/// target, keyed by that target.
+///
+/// A wrapper anchors every child it creates in the Lua registry, and a
+/// registry entry is a GC root that only the owning wrapper's C++ destructor
+/// releases. Building a fresh wrapper per call therefore grows the registry
+/// without bound in a hot script: the discarded tree needs one GC cycle per
+/// level to unwind (each level's destructor has to run before the next level
+/// stops being rooted) while a new tree is built every frame. Allocation
+/// outruns teardown, and traversing the growing registry makes each GC cycle
+/// more expensive than the last.
+template <typename T> class ScriptedWrapperCache
+{
+public:
+    ScriptedWrapperCache() = default;
+    ScriptedWrapperCache(const ScriptedWrapperCache&) = delete;
+    ScriptedWrapperCache& operator=(const ScriptedWrapperCache&) = delete;
+    ~ScriptedWrapperCache() { release(); }
+
+    /// Pushes the cached wrapper and returns true when it was built for
+    /// `key`; the caller builds and stores a wrapper otherwise.
+    bool push(lua_State* L, const rcp<T>& key)
+    {
+        if (m_ref == 0 || m_key != key)
+        {
+            return false;
+        }
+        lua_rawgeti(L, LUA_REGISTRYINDEX, m_ref);
+        return true;
+    }
+
+    /// Anchors the wrapper at the top of the stack as the entry for `key`,
+    /// leaving it on the stack. Does not pop, matching lua_ref.
+    void store(lua_State* L, const rcp<T>& key)
+    {
+        release();
+        m_state = L;
+        m_ref = lua_ref(L, -1);
+        m_key = key;
+    }
+
+    void release()
+    {
+        if (m_ref != 0 && m_state != nullptr)
+        {
+            lua_unref(m_state, m_ref);
+        }
+        m_ref = 0;
+        m_key = nullptr;
+    }
+
+private:
+    lua_State* m_state = nullptr;
+    int m_ref = 0;
+    rcp<T> m_key;
+};
+
 class ScriptedContext
 {
 public:
     ScriptedContext(ScriptedObject*);
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
-    void clearScriptedObject() { m_scriptedObject = nullptr; }
+    void clearScriptedObject();
     int pushViewModel(lua_State*);
     int pushRootViewModel(lua_State*);
     int pushGlobalViewModel(lua_State*);
@@ -2177,6 +2256,16 @@ public:
 private:
     ScriptedObject* m_scriptedObject = nullptr;
     bool m_missingRequestedData = false;
+
+    // A script only ever sees one Context per scripted-object lifetime, so
+    // these caches make repeated calls (a pointer handler can run every frame)
+    // hand back the same wrapper rather than a fresh registry-rooted tree.
+    // Each re-keys itself when the data context rebinds to a new instance.
+    ScriptedWrapperCache<ViewModelInstance> m_viewModel;
+    ScriptedWrapperCache<ViewModelInstance> m_rootViewModel;
+    std::unordered_map<std::string, ScriptedWrapperCache<ViewModelInstance>>
+        m_globalViewModels;
+    ScriptedWrapperCache<DataContext> m_dataContext;
 };
 
 /// Wraps [`ListenerInvocation`] for `performAction` in scripted listener
@@ -2489,6 +2578,11 @@ public:
 private:
     lua_State* m_state = nullptr;
     rcp<DataContext> m_dataContext = nullptr;
+
+    // Same reason as ScriptedContext: this wrapper outlives a single call, so
+    // handing back a fresh child per call would leak registry roots.
+    ScriptedWrapperCache<ViewModelInstance> m_viewModelCache;
+    ScriptedWrapperCache<DataContext> m_parentCache;
 };
 
 static void interruptCPP(lua_State* L, int gc)

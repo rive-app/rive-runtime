@@ -1797,3 +1797,199 @@ TEST_CASE("rive_lua_pcall reclaims only what the nested call opened",
                                });
 }
 #endif // RIVE_CANVAS && RIVE_ORE
+
+// A script sees one Context for its scripted object's whole lifetime and can
+// call these every frame from a pointer handler. Each call used to build a
+// fresh wrapper, and a wrapper anchors its children in the Lua registry (a GC
+// root released only by the owning wrapper's destructor), so a discarded tree
+// needed one GC cycle per level to unwind while a new one was built every
+// frame. Handing back the same wrapper is what keeps that bounded.
+//
+// These use rawequal, not ==: ScriptedViewModel defines __eq in terms of the
+// instance it wraps, so == cannot tell two wrappers of one instance apart.
+TEST_CASE("context view model wrappers are reused across calls", "[scripting]")
+{
+    auto file = ReadRiveFile("assets/scripted_color.riv");
+    auto artboard = file->artboard("ColorArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+
+    ScriptingTest vm(
+        R"(
+function init(self, context)
+  self.context = context
+  print(tostring(rawequal(context:viewModel(), context:viewModel())))
+  print(tostring(rawequal(context:rootViewModel(), context:rootViewModel())))
+  print(tostring(rawequal(context:dataContext(), context:dataContext())))
+  local dc = context:dataContext()
+  print(tostring(rawequal(dc:viewModel(), dc:viewModel())))
+  return true
+end
+
+return function()
+  return {
+    init = init,
+    context = late(),
+  }
+end
+)");
+
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+
+    ScriptedObjectTest object;
+    object.implementedMethods(object.implementedMethods() |
+                              (1 << 9)); // m_initsBit, so init() runs
+    object.dataContext(make_rcp<DataContext>(viewModelInstance));
+    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+    REQUIRE(object.hydrateScriptInputs());
+
+    REQUIRE(vm.console.size() == 4);
+    CHECK(vm.console[0] == "true"); // context:viewModel()
+    CHECK(vm.console[1] == "true"); // context:rootViewModel()
+    CHECK(vm.console[2] == "true"); // context:dataContext()
+    CHECK(vm.console[3] == "true"); // dataContext:viewModel()
+
+    object.scriptDispose();
+}
+
+// The symptom this guards: a pointer handler walking its view model every
+// frame grew the Lua heap without bound until playback stalled and the process
+// ran out of memory. Counting distinct wrappers is the deterministic form of
+// that -- a heap measurement depends on when the collector happens to run.
+TEST_CASE("repeated context view model access allocates no new wrappers",
+          "[scripting]")
+{
+    auto file = ReadRiveFile("assets/scripted_color.riv");
+    auto artboard = file->artboard("ColorArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+
+    ScriptingTest vm(
+        R"(
+function init(self, context)
+  self.context = context
+  return true
+end
+
+-- Stands in for a pointerMove handler re-deriving its view model each frame.
+function churn(self)
+  local first = self.context:viewModel()
+  local firstProp = first:getColor("colorProp")
+  local sameViewModel = true
+  local sameProperty = true
+  for i = 1, 2000 do
+    local vm = self.context:viewModel()
+    if not rawequal(vm, first) then
+      sameViewModel = false
+    end
+    if not rawequal(vm:getColor("colorProp"), firstProp) then
+      sameProperty = false
+    end
+  end
+  print(tostring(sameViewModel))
+  print(tostring(sameProperty))
+end
+
+return function()
+  return {
+    init = init,
+    churn = churn,
+    context = late(),
+  }
+end
+)");
+
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+
+    ScriptedObjectTest object;
+    object.implementedMethods(object.implementedMethods() |
+                              (1 << 9)); // m_initsBit, so init() runs
+    object.dataContext(make_rcp<DataContext>(viewModelInstance));
+    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+    REQUIRE(object.hydrateScriptInputs());
+
+    object.trigger("churn");
+
+    REQUIRE(vm.console.size() == 2);
+    CHECK(vm.console[0] == "true"); // one view model wrapper for 2000 calls
+    CHECK(vm.console[1] == "true"); // and one property wrapper under it
+
+    object.scriptDispose();
+}
+
+// The cache is keyed to the bound instance, not held forever: rebinding the
+// data context has to hand out a wrapper for the new instance.
+TEST_CASE("context view model wrapper is rebuilt when the instance changes",
+          "[scripting]")
+{
+    auto file = ReadRiveFile("assets/scripted_color.riv");
+    auto artboard = file->artboard("ColorArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+
+    auto first = file->createDefaultViewModelInstance(artboard.get());
+    auto second = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(first != second);
+
+    first->propertyValue("colorProp")
+        ->as<ViewModelInstanceColor>()
+        ->propertyValue(0xFF112233);
+    second->propertyValue("colorProp")
+        ->as<ViewModelInstanceColor>()
+        ->propertyValue(0xFF445566);
+
+    ScriptingTest vm(
+        R"(
+function init(self, context)
+  self.context = context
+  return true
+end
+
+function probe(self)
+  local vm = self.context:viewModel()
+  print(tostring(vm:getColor("colorProp").value))
+end
+
+return function()
+  return {
+    init = init,
+    probe = probe,
+    context = late(),
+  }
+end
+)");
+
+    lua_State* L = vm.state();
+    REQUIRE(lua_gettop(L) >= 1);
+    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+
+    ScriptedObjectTest object;
+    object.implementedMethods(object.implementedMethods() |
+                              (1 << 9)); // m_initsBit, so init() runs
+    object.dataContext(make_rcp<DataContext>(first));
+    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+    REQUIRE(object.hydrateScriptInputs());
+
+    object.trigger("probe");
+    REQUIRE(vm.console.size() == 1);
+    const std::string firstValue = vm.console[0];
+
+    // Rebind to a different instance; the cached wrapper must not be reused.
+    object.dataContext(make_rcp<DataContext>(second));
+    object.trigger("probe");
+    REQUIRE(vm.console.size() == 2);
+    CHECK(vm.console[1] != firstValue);
+
+    object.scriptDispose();
+}

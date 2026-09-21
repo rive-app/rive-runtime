@@ -144,6 +144,35 @@ ScriptedContext::ScriptedContext(ScriptedObject* scriptedObject) :
     m_scriptedObject(scriptedObject)
 {}
 
+void ScriptedContext::clearScriptedObject()
+{
+    m_scriptedObject = nullptr;
+    // Drop the wrappers now rather than waiting for this Context to be
+    // collected; the scripted object they describe is already going away.
+    m_viewModel.release();
+    m_rootViewModel.release();
+    m_dataContext.release();
+    m_globalViewModels.clear();
+}
+
+// Pushes the wrapper for `viewModelInstance`, reusing the cached one when the
+// data context still resolves to the same instance.
+static int pushCachedViewModel(lua_State* state,
+                               ScriptedWrapperCache<ViewModelInstance>& cache,
+                               const rcp<ViewModelInstance>& viewModelInstance)
+{
+    if (cache.push(state, viewModelInstance))
+    {
+        return 1;
+    }
+    lua_newrive<ScriptedViewModel>(state,
+                                   state,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    cache.store(state, viewModelInstance);
+    return 1;
+}
+
 int ScriptedContext::pushViewModel(lua_State* state)
 {
     if (m_scriptedObject)
@@ -151,13 +180,9 @@ int ScriptedContext::pushViewModel(lua_State* state)
         auto dataContext = m_scriptedObject->dataContext();
         if (dataContext && dataContext->mainViewModelInstance())
         {
-            auto viewModelInstance = dataContext->mainViewModelInstance();
-            lua_newrive<ScriptedViewModel>(
-                state,
-                state,
-                ref_rcp(viewModelInstance->viewModel()),
-                viewModelInstance);
-            return 1;
+            return pushCachedViewModel(state,
+                                       m_viewModel,
+                                       dataContext->mainViewModelInstance());
         }
     }
     m_missingRequestedData = true;
@@ -174,12 +199,9 @@ int ScriptedContext::pushRootViewModel(lua_State* state)
             auto viewModelInstance = dataContext->rootViewModelInstance();
             if (viewModelInstance)
             {
-                lua_newrive<ScriptedViewModel>(
-                    state,
-                    state,
-                    ref_rcp(viewModelInstance->viewModel()),
-                    viewModelInstance);
-                return 1;
+                return pushCachedViewModel(state,
+                                           m_rootViewModel,
+                                           viewModelInstance);
             }
         }
     }
@@ -203,12 +225,9 @@ int ScriptedContext::pushGlobalViewModel(lua_State* state)
                     dataContext->resolveGlobalViewModel(file, name);
                 if (viewModelInstance != nullptr)
                 {
-                    lua_newrive<ScriptedViewModel>(
-                        state,
-                        state,
-                        ref_rcp(viewModelInstance->viewModel()),
-                        viewModelInstance);
-                    return 1;
+                    return pushCachedViewModel(state,
+                                               m_globalViewModels[name],
+                                               viewModelInstance);
                 }
             }
         }
@@ -249,7 +268,12 @@ int ScriptedContext::pushDataContext(lua_State* state)
         auto dataContext = m_scriptedObject->dataContext();
         if (dataContext)
         {
+            if (m_dataContext.push(state, dataContext))
+            {
+                return 1;
+            }
             lua_newrive<ScriptedDataContext>(state, state, dataContext);
+            m_dataContext.store(state, dataContext);
             return 1;
         }
     }

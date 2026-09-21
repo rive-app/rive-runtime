@@ -729,17 +729,27 @@ void ScriptingContext::untrackOrphanScriptedProperty(ScriptedProperty* property)
     m_orphanScriptedProperties.erase(it, m_orphanScriptedProperties.end());
 }
 
-void ScriptingContext::disposeOrphanScriptedProperties()
+void ScriptingContext::disposeOrphanScriptedProperties(bool allTags)
 {
+    // dispose() untracks each property, so iterate a copy and let the
+    // survivors stay on the list.
     auto orphans = m_orphanScriptedProperties;
     for (ScriptedProperty* property : orphans)
     {
-        if (property != nullptr)
+        if (property == nullptr)
         {
-            property->dispose();
+            continue;
         }
+        // A tagged property belongs to a host that disposes it on its own
+        // lifecycle. The editor regenerates its runtime file constantly, and
+        // each regeneration reaches here; sweeping tagged properties would
+        // wipe the wrappers a running script resolved in init.
+        if (!allTags && property->orphanOwnerTag() != 0)
+        {
+            continue;
+        }
+        property->dispose();
     }
-    m_orphanScriptedProperties.clear();
 }
 
 void ScriptingContext::disposeOrphanScriptedProperties(uint32_t tag)

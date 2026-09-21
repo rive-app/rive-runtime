@@ -13,12 +13,15 @@ ScriptedDataContext::ScriptedDataContext(lua_State* L,
 
 int ScriptedDataContext::pushParent()
 {
-    if (m_dataContext->parent())
+    auto parent = m_dataContext->parent();
+    if (parent)
     {
-
-        lua_newrive<ScriptedDataContext>(m_state,
-                                         m_state,
-                                         m_dataContext->parent());
+        if (m_parentCache.push(m_state, parent))
+        {
+            return 1;
+        }
+        lua_newrive<ScriptedDataContext>(m_state, m_state, parent);
+        m_parentCache.store(m_state, parent);
     }
     else
     {
@@ -32,10 +35,15 @@ int ScriptedDataContext::pushViewModel()
     auto vmi = m_dataContext->mainViewModelInstance();
     if (vmi)
     {
+        if (m_viewModelCache.push(m_state, vmi))
+        {
+            return 1;
+        }
         lua_newrive<ScriptedViewModel>(m_state,
                                        m_state,
                                        ref_rcp(vmi->viewModel()),
                                        vmi);
+        m_viewModelCache.store(m_state, vmi);
     }
     else
     {

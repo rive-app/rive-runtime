@@ -194,6 +194,10 @@ ScriptedProperty::ScriptedProperty(lua_State* L,
     if (m_instanceValue != nullptr)
     {
         m_instanceValue->addDelegate(this);
+        // See m_owningInstance: the value's back-pointer is raw, so without
+        // this the view model can die under a script that is still holding one
+        // of its properties.
+        m_owningInstance = ref_rcp(m_instanceValue->viewModelInstance());
     }
 
     auto context = scriptingContext(L);
@@ -241,6 +245,7 @@ void ScriptedProperty::dispose()
         m_instanceValue->removeDelegate(this);
         m_instanceValue = nullptr;
     }
+    m_owningInstance = nullptr;
 
     clearCachedValueRef();
     clearListeners();
@@ -359,14 +364,14 @@ void ScriptedPropertyViewModel::setValue(ScriptedViewModel* scriptedViewModel)
     if (m_instanceValue != nullptr &&
         m_instanceValue->is<ViewModelInstanceViewModel>())
     {
-        auto instanceValue = m_instanceValue->as<ViewModelInstanceViewModel>();
-        auto parentViewModelInstance = instanceValue->parentViewModelInstance();
+        auto vmValue = m_instanceValue->as<ViewModelInstanceViewModel>();
+        auto parentViewModelInstance = vmValue->parentViewModelInstance();
         auto viewModelInstance = scriptedViewModel->mutableViewModelInstance();
         // replaceViewModelByProperty notifies this property's value-dependents
         // (including this wrapper and any siblings sharing the property) so
-        // cached Lua-side values are invalidated.
+        // cached Lua-side wrappers are moved onto the new instance.
         parentViewModelInstance->replaceViewModelByProperty(
-            instanceValue,
+            vmValue,
             rcp<ViewModelInstance>(viewModelInstance));
     }
 }
@@ -477,6 +482,12 @@ static ScriptedProperty* scriptedPropertyOrNull(lua_State* L, int idx)
         case ScriptedPropertyFont::luaTag:
         case ScriptedPropertyBlob::luaTag:
             return (ScriptedProperty*)lua_touserdata(L, idx);
+        case ScriptedPropertyViewModel::luaTag:
+            // Two bases, so the upcast goes through the concrete type rather
+            // than reinterpreting the allocation. Leaving it out handed back
+            // a disposed nested view model instead of re-minting it.
+            return static_cast<ScriptedPropertyViewModel*>(
+                lua_touserdata(L, idx));
         default:
             return nullptr;
     }
@@ -490,12 +501,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
     {
         lua_rawgeti(m_state, LUA_REGISTRYINDEX, itr->second);
 #ifdef WITH_RIVE_TOOLS
-        // Orphan properties (which are only tracked/swept under
-        // WITH_RIVE_TOOLS) can be disposed out from under us when a
-        // scripting-context regeneration (e.g. the editor's recompileAll)
-        // sweeps them but keeps this lua_State alive — leaving the
-        // ScriptedViewModel (cached on a long-lived artboard/self) pointing at
-        // dead wrappers.
+        // A wrapper with no owner is swept by File teardown / VM swap, which
+        // keeps this lua_State alive -- leaving this view model (cached on a
+        // long-lived artboard or self) holding a dead wrapper. Disposal is
+        // terminal, so re-mint rather than hand the dead one back. Owned
+        // wrappers die with the object that owns them, together with this.
         ScriptedProperty* cached = scriptedPropertyOrNull(m_state, -1);
         if (cached != nullptr && cached->disposed())
         {
@@ -657,6 +667,12 @@ int ScriptedPropertyViewModel::pushValue()
     return 1;
 }
 
+// The reference moved, so the cached wrapper describes a view model this
+// property no longer points at. Drop it; the next read mints one for the new
+// reference. Wrappers a script already resolved keep working against the
+// instance they came from, which stays alive through m_owningInstance: a
+// swapped-in view model is a different set of properties, and a script asks
+// for those by resolving them again.
 void ScriptedPropertyViewModel::relinkDataBind() { clearRef(); }
 
 static int property_vm_index(lua_State* L)
