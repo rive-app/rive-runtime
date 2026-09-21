@@ -103,6 +103,9 @@ bool operator==(const std::vector<t>& left, const std::vector<t>& right)
 #include <rive/assets/image_asset.hpp>
 #include <rive/assets/script_asset.hpp>
 
+// MSVC compiles the unit tests as C++20, where u8 literals are char8_t.
+#define U8(literal) reinterpret_cast<const char*>(u8##literal)
+
 using namespace rive;
 
 static void server_thread(rcp<CommandQueue> commandQueue)
@@ -6972,7 +6975,7 @@ TEST_CASE("Input commands preserve arguments and deliver both listeners",
                               false,
                               false,
                               6);
-    std::string text = u8"héllo 日本 😀";
+    std::string text = U8("héllo 日本 😀");
     fx.commandQueue->textInput(fx.stateMachineHandle, text, 7);
     text.assign("caller changed its buffer");
     fx.commandQueue->textInput(fx.stateMachineHandle, "", 8);
@@ -6986,7 +6989,7 @@ TEST_CASE("Input commands preserve arguments and deliver both listeners",
     CHECK(recipient.keys[1].modifiers == KeyModifiers::none);
     CHECK_FALSE(recipient.keys[1].isPressed);
     CHECK_FALSE(recipient.keys[1].isRepeat);
-    CHECK(recipient.texts == std::vector<std::string>{u8"héllo 日本 😀", ""});
+    CHECK(recipient.texts == std::vector<std::string>{U8("héllo 日本 😀"), ""});
     REQUIRE(listener.m_keyResults.size() == 2);
     CHECK(listener.m_keyResults[0].requestId == 5);
     CHECK(listener.m_keyResults[0].value);
@@ -7074,12 +7077,12 @@ TEST_CASE("Input commands edit a real text field in queue order",
                               true,
                               false,
                               15);
-    fx.commandQueue->textInput(stateMachine, u8"é", 16);
+    fx.commandQueue->textInput(stateMachine, U8("é"), 16);
     fx.commandQueue->advanceStateMachine(stateMachine, 0.0f);
     fx.pump();
     REQUIRE(input != nullptr);
-    CHECK(input->text() == u8"hellé");
-    CHECK(input->rawTextInput()->text() == u8"hellé");
+    CHECK(input->text() == U8("hellé"));
+    CHECK(input->rawTextInput()->text() == U8("hellé"));
     REQUIRE(listener.m_keyResults.size() == 2);
     CHECK(listener.m_keyResults[0].value);
     CHECK(listener.m_keyResults[1].value);
