@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/object_stream.hpp"
+#include "rive/input/focusable.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
@@ -437,6 +438,36 @@ public:
             const StateMachineHandle stateMachineHandle,
             uint64_t requestId,
             ViewModelInstanceHandle viewModelInstanceHandle)
+        {}
+
+        /**
+         * Reports whether a focused node or its ancestor handled a key event.
+         * A handled input need not change text. Invalid handles are reported
+         * through onStateMachineError instead.
+         *
+         * @param stateMachineHandle The state machine that received the input.
+         * @param requestId The input command's request identifier.
+         * @param handled Whether a recipient claimed the input.
+         */
+        virtual void onKeyInputHandled(
+            const StateMachineHandle stateMachineHandle,
+            uint64_t requestId,
+            bool handled)
+        {}
+
+        /**
+         * Reports whether a focused node or its ancestor handled committed
+         * text. A handled input need not change text. Invalid handles are
+         * reported through onStateMachineError instead.
+         *
+         * @param stateMachineHandle The state machine that received the input.
+         * @param requestId The input command's request identifier.
+         * @param handled Whether a recipient claimed the input.
+         */
+        virtual void onTextInputHandled(
+            const StateMachineHandle stateMachineHandle,
+            uint64_t requestId,
+            bool handled)
         {}
 
         // Delivered when an incremental semantic diff is available for this
@@ -935,6 +966,43 @@ public:
     void pointerUp(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
     void pointerExit(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
 
+    /**
+     * Enqueues a key event for the state machine's focused node and ancestors.
+     * Reports consumption asynchronously through
+     * StateMachineListener::onKeyInputHandled, or an invalid handle through
+     * StateMachineListener::onStateMachineError. Printable text must be sent
+     * separately with textInput; a key event does not insert its character.
+     *
+     * @param stateMachineHandle The state machine receiving the event.
+     * @param key The Rive key code to dispatch.
+     * @param modifiers The active modifier flags.
+     * @param isPressed Whether the key is pressed rather than released.
+     * @param isRepeat Whether this is a repeated key press.
+     * @param requestId Identifier returned with the result or error.
+     */
+    void keyInput(StateMachineHandle stateMachineHandle,
+                  Key key,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat,
+                  uint64_t requestId = 0);
+
+    /**
+     * Enqueues committed UTF-8 text for the focused node and its ancestors.
+     * A focused TextInput inserts it at the caret, replacing any selection.
+     * Reports consumption asynchronously through
+     * StateMachineListener::onTextInputHandled, or an invalid handle through
+     * StateMachineListener::onStateMachineError. This does not set an IME
+     * composing range or replace the field's entire value.
+     *
+     * @param stateMachineHandle The state machine receiving the text.
+     * @param text The committed text, owned by the queue until dispatch.
+     * @param requestId Identifier returned with the result or error.
+     */
+    void textInput(StateMachineHandle stateMachineHandle,
+                   std::string text,
+                   uint64_t requestId = 0);
+
     void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
 
     // Fire a semantic action (tap / increase / decrease) on the given node.
@@ -1328,6 +1396,8 @@ private:
         pointerDown,
         pointerUp,
         pointerExit,
+        keyInput,
+        textInput,
         disconnect,
         // This will cause processCommands to return once received. We want to
         // ensure that we do not indefinetly block the calling thread. This is
@@ -1393,6 +1463,8 @@ private:
         stateMachineDeleted,
         stateMachineSettled,
         stateMachineViewModelInstanceReceived,
+        keyInputHandled,
+        textInputHandled,
         semanticsDiffReceived,
         fileAssetsListed,
         artboardSizeReceived,

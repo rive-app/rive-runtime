@@ -4372,6 +4372,87 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::keyInput:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                Key key;
+                KeyModifiers modifiers;
+                bool isPressed;
+                bool isRepeat;
+                commandStream >> key;
+                commandStream >> modifiers;
+                commandStream >> isPressed;
+                commandStream >> isRepeat;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    const bool handled = wrapper->instance->keyInput(key,
+                                                                     modifiers,
+                                                                     isPressed,
+                                                                     isRepeat);
+                    stateMachineLock.unlock();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::keyInputHandled;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << handled;
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for keyInput.";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::textInput:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                std::string text;
+                m_commandQueue->m_names >> text;
+                lock.unlock();
+                if (auto wrapper = getStateMachineWrapper(handle))
+                {
+                    std::unique_lock<std::mutex> stateMachineLock(
+                        wrapper->m_mutex);
+                    const bool handled = wrapper->instance->textInput(text);
+                    stateMachineLock.unlock();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::textInputHandled;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << handled;
+                }
+                else
+                {
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for textInput.";
+                }
+                break;
+            }
+
             case CommandQueue::Command::addImageFileAsset:
             {
                 RenderImageHandle handle;

@@ -7,6 +7,7 @@
 #include "rive/command_queue.hpp"
 #include "rive/command_server.hpp"
 #include "rive/file.hpp"
+#include "rive/text/text_input.hpp"
 #include "rive/semantic/semantic_role.hpp"
 #include "rive/semantic/semantic_state.hpp"
 #include "rive/semantic/semantic_trait.hpp"
@@ -6752,7 +6753,7 @@ TEST_CASE("file assets listed - all assets returned", "[CommandQueue]")
 }
 
 // ============================================================
-// Focus
+// Focus and keyboard/text input
 // ============================================================
 
 namespace
@@ -6806,7 +6807,28 @@ public:
         m_focusStateResults.push_back({requestId, focusState});
     }
 
+    /// Records the key dispatch result and verifies its state machine identity.
+    void onKeyInputHandled(const StateMachineHandle handle,
+                           uint64_t requestId,
+                           bool handled) override
+    {
+        CHECK(handle == m_handle);
+        m_keyResults.push_back({requestId, handled});
+    }
+
+    /// Records the text dispatch result and verifies its state machine
+    /// identity.
+    void onTextInputHandled(const StateMachineHandle handle,
+                            uint64_t requestId,
+                            bool handled) override
+    {
+        CHECK(handle == m_handle);
+        m_textResults.push_back({requestId, handled});
+    }
+
     StateMachineHandle m_handle = RIVE_NULL_HANDLE;
+    std::vector<FocusBoolResult> m_keyResults;
+    std::vector<FocusBoolResult> m_textResults;
     std::vector<FocusBoolResult> m_availabilityResults;
     std::vector<FocusStateResult> m_focusStateResults;
     std::vector<uint64_t> m_errorRequestIds;
@@ -6847,7 +6869,227 @@ struct FocusCommandFixture
         commandQueue->processMessages();
     }
 };
+
+/// Captures dispatched input to verify arguments and consumption results.
+class RecordingInputFocusable : public KeyboardAcceptingFocusable
+{
+public:
+    struct KeyEvent
+    {
+        Key key;
+        KeyModifiers modifiers;
+        bool isPressed;
+        bool isRepeat;
+    };
+
+    /// Records all key arguments and returns the configured consumption result.
+    bool keyInput(Key key,
+                  KeyModifiers modifiers,
+                  bool isPressed,
+                  bool isRepeat) override
+    {
+        keys.push_back({key, modifiers, isPressed, isRepeat});
+        return handled;
+    }
+
+    /// Owns a copy of the dispatched text and returns configured consumption.
+    bool textInput(const std::string& text) override
+    {
+        texts.push_back(text);
+        return handled;
+    }
+
+    bool handled = true;
+    std::vector<KeyEvent> keys;
+    std::vector<std::string> texts;
+};
 } // namespace
+
+TEST_CASE("Input commands report invalid and deleted handles", "[CommandQueue]")
+{
+    FocusCommandFixture fx;
+    FocusCommandListener listener;
+    const auto handle = GENERATE(false, true)
+                            ? fx.stateMachineHandle
+                            : reinterpret_cast<StateMachineHandle>(
+                                  static_cast<uintptr_t>(999999));
+    listener.m_handle = handle;
+    fx.commandQueue->setGlobalStateMachineListener(&listener);
+    fx.commandQueue->deleteStateMachine(fx.stateMachineHandle);
+    fx.commandQueue
+        ->keyInput(handle, Key::a, KeyModifiers::none, true, false, 1);
+    fx.commandQueue->textInput(handle, "discard this payload", 2);
+    fx.pump();
+    CHECK(listener.m_errorRequestIds == std::vector<uint64_t>{1, 2});
+    CHECK(listener.m_keyResults.empty());
+    CHECK(listener.m_textResults.empty());
+    fx.commandQueue->setGlobalStateMachineListener(nullptr);
+}
+
+TEST_CASE("Input commands return false without a focused recipient",
+          "[CommandQueue]")
+{
+    FocusCommandListener listener;
+    FocusCommandFixture fx(&listener);
+    fx.commandQueue->keyInput(fx.stateMachineHandle,
+                              Key::a,
+                              KeyModifiers::none,
+                              true,
+                              false,
+                              3);
+    fx.commandQueue->textInput(fx.stateMachineHandle, "hello", 4);
+    fx.pump();
+    REQUIRE(listener.m_keyResults.size() == 1);
+    CHECK(listener.m_keyResults[0].requestId == 3);
+    CHECK_FALSE(listener.m_keyResults[0].value);
+    REQUIRE(listener.m_textResults.size() == 1);
+    CHECK(listener.m_textResults[0].requestId == 4);
+    CHECK_FALSE(listener.m_textResults[0].value);
+}
+
+TEST_CASE("Input commands preserve arguments and deliver both listeners",
+          "[CommandQueue]")
+{
+    RecordingInputFocusable recipient;
+    FocusCommandListener listener;
+    FocusCommandListener globalListener;
+    FocusCommandFixture fx(&listener);
+    globalListener.m_handle = fx.stateMachineHandle;
+    fx.commandQueue->setGlobalStateMachineListener(&globalListener);
+    fx.commandQueue->runOnce([&](CommandServer* server) {
+        auto* manager = server->getStateMachineInstance(fx.stateMachineHandle)
+                            ->focusManager();
+        auto node = make_rcp<FocusNode>(&recipient);
+        manager->addChild(nullptr, node);
+        manager->setFocus(std::move(node));
+    });
+    const auto modifiers = KeyModifiers::ctrl | KeyModifiers::shift;
+    fx.commandQueue
+        ->keyInput(fx.stateMachineHandle, Key::left, modifiers, true, true, 5);
+    fx.commandQueue->keyInput(fx.stateMachineHandle,
+                              Key::left,
+                              KeyModifiers::none,
+                              false,
+                              false,
+                              6);
+    std::string text = u8"héllo 日本 😀";
+    fx.commandQueue->textInput(fx.stateMachineHandle, text, 7);
+    text.assign("caller changed its buffer");
+    fx.commandQueue->textInput(fx.stateMachineHandle, "", 8);
+    fx.pump();
+    REQUIRE(recipient.keys.size() == 2);
+    CHECK(recipient.keys[0].key == Key::left);
+    CHECK(recipient.keys[0].modifiers == modifiers);
+    CHECK(recipient.keys[0].isPressed);
+    CHECK(recipient.keys[0].isRepeat);
+    CHECK(recipient.keys[1].key == Key::left);
+    CHECK(recipient.keys[1].modifiers == KeyModifiers::none);
+    CHECK_FALSE(recipient.keys[1].isPressed);
+    CHECK_FALSE(recipient.keys[1].isRepeat);
+    CHECK(recipient.texts == std::vector<std::string>{u8"héllo 日本 😀", ""});
+    REQUIRE(listener.m_keyResults.size() == 2);
+    CHECK(listener.m_keyResults[0].requestId == 5);
+    CHECK(listener.m_keyResults[0].value);
+    CHECK(listener.m_keyResults[1].requestId == 6);
+    CHECK(listener.m_keyResults[1].value);
+    REQUIRE(listener.m_textResults.size() == 2);
+    CHECK(listener.m_textResults[0].requestId == 7);
+    CHECK(listener.m_textResults[0].value);
+    CHECK(listener.m_textResults[1].requestId == 8);
+    CHECK(listener.m_textResults[1].value);
+
+    REQUIRE(globalListener.m_keyResults.size() == 2);
+    CHECK(globalListener.m_keyResults[0].value);
+    CHECK(globalListener.m_keyResults[1].value);
+    REQUIRE(globalListener.m_textResults.size() == 2);
+    CHECK(globalListener.m_textResults[0].value);
+    CHECK(globalListener.m_textResults[1].value);
+
+    // Consume an invalid command's string before the next valid text payload.
+    fx.commandQueue->setGlobalStateMachineListener(nullptr);
+    fx.commandQueue->textInput(RIVE_NULL_HANDLE, "discard", 9);
+    fx.pump();
+    fx.commandQueue->setGlobalStateMachineListener(&globalListener);
+    recipient.handled = false;
+    fx.commandQueue->keyInput(fx.stateMachineHandle,
+                              Key::enter,
+                              KeyModifiers::alt,
+                              true,
+                              false,
+                              10);
+    fx.commandQueue->textInput(fx.stateMachineHandle, "after invalid", 11);
+    fx.pump();
+    REQUIRE(globalListener.m_keyResults.size() == 3);
+    CHECK(globalListener.m_keyResults.back().requestId == 10);
+    CHECK_FALSE(globalListener.m_keyResults.back().value);
+    REQUIRE(globalListener.m_textResults.size() == 3);
+    CHECK(globalListener.m_textResults.back().requestId == 11);
+    CHECK_FALSE(globalListener.m_textResults.back().value);
+    CHECK_FALSE(listener.m_keyResults.back().value);
+    CHECK_FALSE(listener.m_textResults.back().value);
+    CHECK(recipient.texts.back() == "after invalid");
+    fx.commandQueue->setGlobalStateMachineListener(nullptr);
+}
+
+#ifdef WITH_RIVE_TEXT
+TEST_CASE("Input commands edit a real text field in queue order",
+          "[CommandQueue]")
+{
+    FocusCommandListener listener;
+    FocusCommandFixture fx;
+    std::ifstream stream("assets/text_input.riv", std::ios::binary);
+    auto file = fx.commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    auto artboard =
+        fx.commandQueue->instantiateArtboardNamed(file,
+                                                  "Text Input - Multiline");
+    auto stateMachine =
+        fx.commandQueue->instantiateDefaultStateMachine(artboard, &listener);
+    listener.m_handle = stateMachine;
+    TextInput* input = nullptr;
+    fx.commandQueue->runOnce([&](CommandServer* server) {
+        auto* instance = server->getStateMachineInstance(stateMachine);
+        REQUIRE(instance != nullptr);
+        input =
+            server->getArtboardInstance(artboard)->objects<TextInput>().first();
+        REQUIRE(input != nullptr);
+        input->text("");
+        instance->advanceAndApply(0.0f);
+        auto* manager = instance->focusManager();
+        auto node = make_rcp<FocusNode>(input);
+        manager->addChild(nullptr, node);
+        manager->setFocus(std::move(node));
+    });
+    fx.commandQueue->textInput(stateMachine, "hello", 12);
+    fx.commandQueue->keyInput(stateMachine,
+                              Key::left,
+                              KeyModifiers::shift,
+                              true,
+                              false,
+                              13);
+    fx.commandQueue->textInput(stateMachine, "!", 14);
+    fx.commandQueue->keyInput(stateMachine,
+                              Key::backspace,
+                              KeyModifiers::none,
+                              true,
+                              false,
+                              15);
+    fx.commandQueue->textInput(stateMachine, u8"é", 16);
+    fx.commandQueue->advanceStateMachine(stateMachine, 0.0f);
+    fx.pump();
+    REQUIRE(input != nullptr);
+    CHECK(input->text() == u8"hellé");
+    CHECK(input->rawTextInput()->text() == u8"hellé");
+    REQUIRE(listener.m_keyResults.size() == 2);
+    CHECK(listener.m_keyResults[0].value);
+    CHECK(listener.m_keyResults[1].value);
+    REQUIRE(listener.m_textResults.size() == 3);
+    CHECK(listener.m_textResults[0].value);
+    CHECK(listener.m_textResults[1].value);
+    CHECK(listener.m_textResults[2].value);
+    CHECK(listener.m_errorRequestIds.empty());
+}
+#endif
 
 TEST_CASE("Focus commands mirror StateMachineInstance traversal and queries",
           "[CommandQueue]")

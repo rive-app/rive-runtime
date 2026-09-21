@@ -678,6 +678,34 @@ void CommandQueue::pointerExit(StateMachineHandle stateMachineHandle,
     m_pointerEvents << std::move(pointerEvent);
 }
 
+void CommandQueue::keyInput(StateMachineHandle stateMachineHandle,
+                            Key key,
+                            KeyModifiers modifiers,
+                            bool isPressed,
+                            bool isRepeat,
+                            uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::keyInput;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << key;
+    m_commandStream << modifiers;
+    m_commandStream << isPressed;
+    m_commandStream << isRepeat;
+}
+
+void CommandQueue::textInput(StateMachineHandle stateMachineHandle,
+                             std::string text,
+                             uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::textInput;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_names << std::move(text);
+}
+
 void CommandQueue::bindViewModelInstance(StateMachineHandle handle,
                                          ViewModelInstanceHandle viewModel,
                                          uint64_t requestId)
@@ -2279,6 +2307,50 @@ void CommandQueue::processMessages()
                 if (itr != m_stateMachineListeners.end())
                 {
                     itr->second->onStateMachineDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::keyInputHandled:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                bool handled;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> handled;
+                lock.unlock();
+                if (m_globalStateMachineListener)
+                {
+                    m_globalStateMachineListener->onKeyInputHandled(handle,
+                                                                    requestId,
+                                                                    handled);
+                }
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onKeyInputHandled(handle, requestId, handled);
+                }
+                break;
+            }
+            case Message::textInputHandled:
+            {
+                StateMachineHandle handle;
+                uint64_t requestId;
+                bool handled;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> handled;
+                lock.unlock();
+                if (m_globalStateMachineListener)
+                {
+                    m_globalStateMachineListener->onTextInputHandled(handle,
+                                                                     requestId,
+                                                                     handled);
+                }
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onTextInputHandled(handle, requestId, handled);
                 }
                 break;
             }
