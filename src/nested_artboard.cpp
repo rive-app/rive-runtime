@@ -928,10 +928,11 @@ void NestedArtboard::unbind()
 
 void NestedArtboard::updateDataBinds()
 {
-    if (artboardInstance() != nullptr && !isPaused())
+    if (artboardInstance() == nullptr || isPaused() || isCollapsed())
     {
-        artboardInstance()->updateDataBinds();
+        return;
     }
+    artboardInstance()->updateDataBinds();
 }
 
 void NestedArtboard::bindViewModelInstance(

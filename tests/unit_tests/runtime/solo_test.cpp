@@ -649,6 +649,40 @@ TEST_CASE("solo children of a layout render fitted to the layout parent",
 
     CHECK(silver.matches("layout_solos_fit_to_layout_parent"));
 }
+TEST_CASE("solo nested artboards only process data binds when active",
+          "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapsed_databinds_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(2.0f / 0.25f);
+    for (int i = 0; i < frames; i++)
+    {
+        stateMachine->advanceAndApply(0.25f);
+    }
+    silver.addFrame();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("collapsed_databinds_test"));
+}
 
 // solo_nested_artboard_leaf.riv holds the same 500x250 scene three ways, each
 // nesting the "Item" artboard through a contain-fit NestedArtboardLeaf:

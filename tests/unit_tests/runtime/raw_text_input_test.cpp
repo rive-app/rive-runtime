@@ -721,6 +721,53 @@ TEST_CASE("text input journal works", "[text_input]")
     CHECK_CURSOR(textInput.cursor(), 4, 7);
 }
 
+TEST_CASE("moving left from a selection lands before its first character",
+          "[text_input]")
+{
+    auto font = loadFont("assets/fonts/IBMPlexSansArabic-Regular.ttf");
+
+    RawTextInput textInput;
+    textInput.insert("hello world");
+    textInput.font(font);
+    textInput.sizing(TextSizing::autoHeight);
+    textInput.maxWidth(500.0f);
+    textInput.fontSize(72.0f);
+
+    NoOpFactory factory;
+    textInput.update(&factory);
+
+    // Forward selection: "he[llo] world" collapses to "h|ello world".
+    textInput.cursor(Cursor(CursorPosition(0, 2), CursorPosition(0, 5)));
+    textInput.cursorLeft();
+    CHECK_CURSOR(textInput.cursor(), 1, 1);
+
+    // Backward selection behaves the same, the leading edge is what matters.
+    textInput.cursor(Cursor(CursorPosition(0, 5), CursorPosition(0, 2)));
+    textInput.cursorLeft();
+    CHECK_CURSOR(textInput.cursor(), 1, 1);
+
+    // Nothing to the left of the selection, so we stop at the beginning.
+    textInput.cursor(Cursor(CursorPosition(0, 0), CursorPosition(0, 5)));
+    textInput.cursorLeft();
+    CHECK_CURSOR(textInput.cursor(), 0, 0);
+
+    // Word moves start from the leading edge too: "hello [wor]ld" lands at the
+    // start of "hello".
+    textInput.cursor(Cursor(CursorPosition(0, 6), CursorPosition(0, 9)));
+    textInput.cursorLeft(CursorBoundary::word);
+    CHECK_CURSOR(textInput.cursor(), 0, 0);
+
+    // Shift+left still extends from the active end.
+    textInput.cursor(Cursor(CursorPosition(0, 2), CursorPosition(0, 5)));
+    textInput.cursorLeft(CursorBoundary::character, true);
+    CHECK_CURSOR(textInput.cursor(), 2, 4);
+
+    // Moving right is unchanged, it collapses off the active end.
+    textInput.cursor(Cursor(CursorPosition(0, 2), CursorPosition(0, 5)));
+    textInput.cursorRight();
+    CHECK_CURSOR(textInput.cursor(), 6, 6);
+}
+
 TEST_CASE("clearSelection collapses to the selection end", "[text_input]")
 {
     RawTextInput textInput;

@@ -581,15 +581,21 @@ void RawTextInput::cursorHorizontal(int32_t offset,
 {
     ensureShape();
     m_idealCursorX = -1.0f;
-    CursorPosition end = m_cursor.end();
+    // Collapsing a selection with a leftward move works off its leading edge,
+    // so the cursor ends up before the selection's first character instead of
+    // before its last. Clamping keeps a selection that already starts at the
+    // beginning there.
+    CursorPosition basePosition =
+        !select && offset < 0 && m_cursor.hasSelection() ? m_cursor.first()
+                                                         : m_cursor.end();
 
-    CursorPosition position = end;
+    CursorPosition position = basePosition;
     switch (boundary)
     {
         case CursorBoundary::character:
         {
             const auto& glyphLookup = m_shape.glyphLookup();
-            uint32_t nextIndex = end.codePointIndex(offset);
+            uint32_t nextIndex = basePosition.codePointIndex(offset);
             // Skip over interior codepoints of multi-codepoint glyphs.
             if (offset > 0)
             {
@@ -611,14 +617,15 @@ void RawTextInput::cursorHorizontal(int32_t offset,
         }
         case CursorBoundary::line:
         {
-            auto line = orderedLine(end);
+            auto line = orderedLine(basePosition);
             if (line != nullptr)
             {
                 uint32_t codePointIndex =
                     offset < 0
                         ? line->firstCodePointIndex(m_shape.glyphLookup())
                         : line->lastCodePointIndex(m_shape.glyphLookup());
-                position = CursorPosition(end.lineIndex(), codePointIndex);
+                position =
+                    CursorPosition(basePosition.lineIndex(), codePointIndex);
             }
             break;
         }

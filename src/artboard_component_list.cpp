@@ -1408,6 +1408,16 @@ void ArtboardComponentList::clearDataContext() {}
 void ArtboardComponentList::unbind() { clear(); }
 void ArtboardComponentList::updateDataBinds()
 {
+    // A collapsed list does no bind work at all: not the rows' own binds, not
+    // their state machines, and nothing mounted inside them. collapse() here
+    // is semantic-only, exactly as in NestedArtboard, so nothing in a row is
+    // ever flagged and DataBind::canSkip cannot see that the list is hidden --
+    // without this, a toSource bind in a row publishes an uncomputed value
+    // into the shared view model and every reader picks it up.
+    if (isCollapsed())
+    {
+        return;
+    }
     for (int i = 0; i < artboardCount(); i++)
     {
         auto stateMachine = stateMachineInstance(i);
