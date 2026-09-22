@@ -51,6 +51,12 @@ static void execute_tool()
         extern int goldens_ios_main(int argc, const char* argv[]);
         exit(goldens_ios_main(tool_argc, tool_argv));
     }
+
+    if (strcmp(tool_argv[0], "player") == 0)
+    {
+        extern int player_ios_main(int argc, const char* argv[]);
+        exit(player_ios_main(tool_argc, tool_argv));
+    }
 }
 
 int main(int argc, char* argv[])
@@ -65,5 +71,5 @@ int main(int argc, char* argv[])
     tool_argv = const_cast<const char**>(argv + 1);
     std::thread thread(execute_tool);
 
-    return UIApplicationMain(argc, argv, nil, nil);
+    return UIApplicationMain(argc, argv, nil, @"RiveAppDelegate");
 }

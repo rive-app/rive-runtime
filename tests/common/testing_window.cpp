@@ -501,10 +501,15 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 break;
             }
 #endif
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+            s_TestingWindow =
+                TestingWindow::MakeMetalLayer(backendParams, platformWindow);
+#else
             s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
                                                                backendParams,
                                                                visibility,
                                                                platformWindow);
+#endif
             break;
         case Backend::d3d:
         case Backend::d3d12:

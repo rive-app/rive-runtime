@@ -13,6 +13,7 @@
 		83EA6A242C141D820092F554 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 83EA6A232C141D820092F554 /* UIKit.framework */; };
 		BCF0C6262C73D8B0008F6296 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BCF0C6252C73D8B0008F6296 /* ImageIO.framework */; };
 		BCF0C6272C73D8D4008F6296 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F274FCA52C51A75B0067CA38 /* CoreGraphics.framework */; };
+		BCF0C6292C73D8E0008F6296 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BCF0C6282C73D8E0008F6296 /* QuartzCore.framework */; };
 		F274FCA82C51A7620067CA38 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F274FCA72C51A7620067CA38 /* CoreText.framework */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +24,7 @@
 		83EA6A212C141D7C0092F554 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		83EA6A232C141D820092F554 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		BCF0C6252C73D8B0008F6296 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		BCF0C6282C73D8E0008F6296 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		F274FCA52C51A75B0067CA38 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		F274FCA72C51A7620067CA38 /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -37,6 +39,7 @@
 				F274FCA82C51A7620067CA38 /* CoreText.framework in Frameworks */,
 				83EA6A242C141D820092F554 /* UIKit.framework in Frameworks */,
 				83EA6A222C141D7C0092F554 /* Metal.framework in Frameworks */,
+				BCF0C6292C73D8E0008F6296 /* QuartzCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +80,7 @@
 				F274FCA52C51A75B0067CA38 /* CoreGraphics.framework */,
 				83EA6A232C141D820092F554 /* UIKit.framework */,
 				83EA6A212C141D7C0092F554 /* Metal.framework */,
+				BCF0C6282C73D8E0008F6296 /* QuartzCore.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -296,7 +300,6 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Exchange .rivs and .pngs with the python test harness";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = metal;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -325,6 +328,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					"-lplayer",
 					'-lminiaudio',
 				);
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
@@ -340,6 +344,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					"-lplayer",
 					'-lminiaudio',
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
@@ -362,7 +367,6 @@
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Exchange .rivs and .pngs with the python test harness";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = metal;
 				INFOPLIST_KEY_UIStatusBarHidden = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -391,6 +395,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					"-lplayer",
 					'-lminiaudio',
 				);
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
@@ -406,6 +411,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					"-lplayer",
 					'-lminiaudio',
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";

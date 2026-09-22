@@ -318,6 +318,10 @@ public:
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
     static TestingWindow* MakeMetalTexture(const BackendParams&);
 #endif
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+    static TestingWindow* MakeMetalLayer(const BackendParams&,
+                                         void* platformWindow);
+#endif
     static TestingWindow* MakeCoreGraphics();
     static TestingWindow* MakeFiddleContext(Backend,
                                             const BackendParams&,

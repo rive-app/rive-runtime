@@ -14,6 +14,7 @@
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/renderer.hpp"
+#include "rive/renderer/scoped_autorelease_pool.hpp"
 #include "rive/scene.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/raw_text.hpp"
@@ -33,6 +34,10 @@
 
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
 #include "common/rive_android_app.hpp"
+#endif
+
+#if (defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)) && !defined(RIVE_UNREAL)
+#include "common/rive_ios_app.hpp"
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -335,6 +340,10 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
     }
 
     m_scene = m_artboard->defaultStateMachine();
+    if (!m_scene && m_artboard->stateMachineCount() > 0)
+    {
+        m_scene = m_artboard->stateMachineAt(0);
+    }
     if (!m_scene)
     {
         m_scene = m_artboard->animationAt(0);
@@ -715,6 +724,8 @@ int main(int argc, const char* argv[])
                         options.visibility,
 #ifdef RIVE_ANDROID
                         rive_android_app_wait_for_window()
+#elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+                        rive_ios_app_wait_for_window()
 #else
                         reinterpret_cast<void*>(
                             static_cast<intptr_t>(player.monitorIdx()))
@@ -742,6 +753,7 @@ int main(int argc, const char* argv[])
 #else
     for (;;)
     {
+        rive::gpu::ScopedAutoreleasePool autoreleasePool;
         if (!player.doFrame())
         {
             player_shutdown();
