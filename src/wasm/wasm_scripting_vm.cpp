@@ -1034,9 +1034,34 @@ uint32_t fdSeek(wasm_exec_env_t env,
     return 70; // WASI ESPIPE
 }
 
+// The blob's libc asks for the environment at start and closes its streams
+// at exit; there is no environment and the streams are the log.
+uint32_t environSizesGet(wasm_exec_env_t env, uint32_t* count, uint32_t* size)
+{
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    if (!wasm_runtime_validate_native_addr(inst, count, 4) ||
+        !wasm_runtime_validate_native_addr(inst, size, 4))
+    {
+        return 21; // WASI EFAULT
+    }
+    *count = 0;
+    *size = 0;
+    return 0;
+}
+
+uint32_t environGet(wasm_exec_env_t env, uint32_t* environ, char* buffer)
+{
+    return 0;
+}
+
+uint32_t fdClose(wasm_exec_env_t env, uint32_t fd) { return 0; }
+
 NativeSymbol kWasiNatives[] = {
     {"fd_write", (void*)fdWrite, "(i*i*)i", nullptr},
     {"fd_seek", (void*)fdSeek, "(iiiii)i", nullptr},
+    {"environ_sizes_get", (void*)environSizesGet, "(**)i", nullptr},
+    {"environ_get", (void*)environGet, "(**)i", nullptr},
+    {"fd_close", (void*)fdClose, "(i)i", nullptr},
 };
 
 // --- rive_path/paint/renderer_v1: handle-backed render objects --------------
