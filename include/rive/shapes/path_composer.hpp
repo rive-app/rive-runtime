@@ -32,6 +32,7 @@ private:
     ShapePaintPath m_worldPath;
     ShapePaintPath m_localClockwisePath;
     bool m_deferredPathDirt;
+    bool m_shapeNotified = false;
 };
 } // namespace rive
 #endif

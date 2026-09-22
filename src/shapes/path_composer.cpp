@@ -28,17 +28,19 @@ void PathComposer::buildDependencies()
 
 void PathComposer::onDirty(ComponentDirt dirt)
 {
-    if (m_deferredPathDirt)
+    if (m_deferredPathDirt && !m_shapeNotified)
     {
         // We'd deferred the update, let's make sure the rest of our
         // dependencies update too. Constraints need to update too, stroke
         // effects, etc.
+        m_shapeNotified = true;
         m_shape->pathChanged();
     }
 }
 
 void PathComposer::update(ComponentDirt value)
 {
+    m_shapeNotified = false;
     if (hasDirt(value, ComponentDirt::Path | ComponentDirt::NSlicer))
     {
         if (m_shape->canDeferPathUpdate())

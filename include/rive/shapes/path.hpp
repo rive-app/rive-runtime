@@ -41,6 +41,8 @@ protected:
     Shape* m_Shape = nullptr;
     std::vector<PathVertex*> m_Vertices;
     bool m_deferredPathDirt = false;
+    bool m_shapeNotified = false;
+    void shapePathChanged();
     PathFlags m_pathFlags = PathFlags::none;
     RawPath m_rawPath;
     RenderPathDeformer* deformer() const;

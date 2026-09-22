@@ -431,19 +431,26 @@ void Path::buildPath(RawPath& rawPath) const
 void Path::markPathDirty(bool sendToLayout)
 {
     addDirt(ComponentDirt::Path);
-    if (m_Shape != nullptr)
+    shapePathChanged();
+}
+
+// Dirt accumulates until update, so the shape only needs telling once per
+// cycle.
+void Path::shapePathChanged()
+{
+    if (m_shapeNotified || m_Shape == nullptr)
     {
-        m_Shape->pathChanged();
+        return;
     }
+    m_shapeNotified = true;
+    m_Shape->pathChanged();
 }
 
 void Path::onDirty(ComponentDirt value)
 {
-    if (hasDirt(value,
-                ComponentDirt::WorldTransform | ComponentDirt::NSlicer) &&
-        m_Shape != nullptr)
+    if (hasDirt(value, ComponentDirt::WorldTransform | ComponentDirt::NSlicer))
     {
-        m_Shape->pathChanged();
+        shapePathChanged();
     }
     if (m_deferredPathDirt)
     {
@@ -453,6 +460,7 @@ void Path::onDirty(ComponentDirt value)
 
 void Path::update(ComponentDirt value)
 {
+    m_shapeNotified = false;
     Super::update(value);
 
     bool pathChanged = hasDirt(value, ComponentDirt::Path);

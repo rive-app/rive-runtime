@@ -34,6 +34,7 @@ private:
     float m_WorldLength = -1;
 
     bool m_WantDifferencePath = false;
+    bool m_hasLayoutParticipant = false;
     RenderPathDeformer* m_deformer = nullptr;
 
     // Scale-to-fit and the memoized intrinsic bounds live on the
@@ -49,6 +50,7 @@ private:
 public:
     Shape();
     void buildDependencies() override;
+    void addChild(Component* component) override;
     bool collapse(bool value) override;
     bool canDeferPathUpdate();
     void addPath(Path* path);

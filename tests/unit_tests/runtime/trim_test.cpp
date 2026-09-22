@@ -194,3 +194,56 @@ TEST_CASE("Different types of trim paths", "[trim]")
                                            rive::PathVerb::cubic};
     testRawPath(artboard, "mixed-shapes-100", verbs10);
 }
+
+static std::vector<rive::Vec2D> trimPoints(rive::Artboard* artboard,
+                                           const char* shapeName)
+{
+    auto shape = artboard->find<rive::Shape>(shapeName);
+    for (auto& child : shape->children())
+    {
+        if (child->is<rive::Stroke>())
+        {
+            auto stroke = child->as<rive::Stroke>();
+            auto points =
+                stroke->effect()->effectPath(stroke)->rawPath()->points();
+            return std::vector<rive::Vec2D>(points.begin(), points.end());
+        }
+    }
+    return {};
+}
+
+TEST_CASE("Hidden stroke picks up path changes once shown", "[trim]")
+{
+    auto file = ReadRiveFile("assets/trim_path.riv");
+    auto artboard = file->artboard("artboard-2")->instance();
+    auto control = file->artboard("artboard-2")->instance();
+    auto shape = artboard->find<rive::Shape>("clipped-rect");
+    REQUIRE(shape != nullptr);
+    REQUIRE(shape->paths()[0]->is<rive::Rectangle>());
+    auto rect = shape->paths()[0]->as<rive::Rectangle>();
+    artboard->advance(0.0f);
+    auto before = trimPoints(artboard.get(), "clipped-rect");
+    REQUIRE(!before.empty());
+
+    shape->opacity(0.0f);
+    artboard->advance(0.0f);
+    rect->width(rect->width() * 2);
+    artboard->advance(0.0f);
+    shape->opacity(1.0f);
+    artboard->advance(0.0f);
+
+    control->find<rive::Shape>("clipped-rect")
+        ->paths()[0]
+        ->as<rive::Rectangle>()
+        ->width(rect->width());
+    control->advance(0.0f);
+    auto expected = trimPoints(control.get(), "clipped-rect");
+    auto after = trimPoints(artboard.get(), "clipped-rect");
+    REQUIRE(after.size() == expected.size());
+    REQUIRE(after != before);
+    for (size_t i = 0; i < after.size(); i++)
+    {
+        CHECK(after[i].x == Approx(expected[i].x));
+        CHECK(after[i].y == Approx(expected[i].y));
+    }
+}

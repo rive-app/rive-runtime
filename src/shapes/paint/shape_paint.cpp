@@ -50,6 +50,13 @@ void ShapePaint::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::Path) && shapeEffects->size() > 0)
     {
         auto container = ShapePaintContainer::from(parent());
+        // Hidden paints are re-invalidated when shown, so measuring now is
+        // wasted, unless a clip still reads the result.
+        if (renderOpacity() == 0 &&
+            (container->pathFlags() & PathFlags::clipping) == PathFlags::none)
+        {
+            return;
+        }
         auto path = pickPath(container);
         for (auto& effect : *shapeEffects)
         {

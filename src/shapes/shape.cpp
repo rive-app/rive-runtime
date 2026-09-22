@@ -27,6 +27,11 @@ void Shape::addPath(Path* path)
     // Make sure the path is not already in the shape.
     assert(std::find(m_Paths.begin(), m_Paths.end(), path) == m_Paths.end());
     m_Paths.push_back(path);
+    if (path->is<PointsPath>() && path->as<PointsPath>()->skin() != nullptr)
+    {
+        // Bones deform a skinned path whether or not the shape is visible.
+        addFlags(PathFlags::neverDeferUpdate);
+    }
     invalidateIntrinsicBounds();
 }
 
@@ -38,21 +43,22 @@ bool Shape::isFlagged(PathFlags flags) const
 
 bool Shape::canDeferPathUpdate()
 {
-    auto canDefer =
-        renderOpacity() == 0 &&
-        !isFlagged(PathFlags::clipping | PathFlags::neverDeferUpdate);
-    if (canDefer)
+    if (renderOpacity() != 0 ||
+        isFlagged(PathFlags::clipping | PathFlags::neverDeferUpdate))
     {
-        // If we have a dependent Skin, don't defer the update
-        for (auto d : dependents())
+        return false;
+    }
+#ifdef WITH_RIVE_EDITOR
+    // Skins come and go under the editor, after addPath set its flag.
+    for (auto path : m_Paths)
+    {
+        if (path->is<PointsPath>() && path->as<PointsPath>()->skin() != nullptr)
         {
-            if (d->is<PointsPath>() && d->as<PointsPath>()->skin() != nullptr)
-            {
-                return false;
-            }
+            return false;
         }
     }
-    return canDefer;
+#endif
+    return true;
 }
 
 void Shape::update(ComponentDirt value)
@@ -627,10 +633,26 @@ void Shape::updateLayoutScale(Vec2D size)
     }
 }
 
+void Shape::addChild(Component* component)
+{
+    Super::addChild(component);
+    if (component->is<LayoutParticipant>())
+    {
+        m_hasLayoutParticipant = true;
+    }
+}
+
 // The whole shape scales to fit, so place the scaled combined-bounds top-left
 // at the slot (the origin is irrelevant once we scale).
 LayoutParticipant* Shape::layoutParticipant() const
 {
+#ifndef WITH_RIVE_EDITOR
+    // Children are fixed at runtime and few shapes have one to look for.
+    if (!m_hasLayoutParticipant)
+    {
+        return nullptr;
+    }
+#endif
     for (auto* child : children())
     {
         if (child->is<LayoutParticipant>())
