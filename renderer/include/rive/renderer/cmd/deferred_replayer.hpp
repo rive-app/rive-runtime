@@ -405,6 +405,37 @@ private:
                              hooks);
     }
 
+public:
+    // Replays DeferredSession::takePendingDestroys bytes outside any frame.
+    // Destroys touch neither factory nor renderer, so no sink is needed. Runs
+    // wherever this replayer's frames do, the tables stay single threaded.
+    void replayDestroys(Span<const uint8_t> commands,
+                        Span<const uint8_t> oreCommands)
+    {
+        ReplayHooks hooks;
+        hooks.filter = ReplayFilter::destroys;
+        replayRenderCommands(nullptr,
+                             nullptr,
+                             commands,
+                             Span<const uint8_t>(),
+                             m_2d,
+                             hooks);
+        ore::cmd::OreCommandReader reader(oreCommands, Span<const uint8_t>());
+        ore::cmd::CommandType type;
+        while (reader.next(type))
+        {
+            if (type != ore::cmd::CommandType::destroyResource)
+            {
+                // Only destroys were drained; anything else would desync.
+                assert(false);
+                break;
+            }
+            auto pod = reader.read<ore::cmd::DestroyResourcePOD>();
+            m_ore.destroy(pod.handle, pod.generation);
+        }
+    }
+
+private:
     ResourceTable m_2d;          // resident 2D resources
     ore::cmd::OreResident m_ore; // resident Ore resources
     ReplayStats m_stats;

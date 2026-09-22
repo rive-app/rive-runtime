@@ -303,6 +303,28 @@ public:
         reopenUnroutedRange();
     }
 
+    // Destroys enter the stream only at a frame boundary, so an idle session
+    // strands them. Drains them now and returns a copy of just those bytes;
+    // they stay in the stream too, a second replay is a generation no-op.
+    struct PendingDestroyBytes
+    {
+        std::vector<uint8_t> commands, oreCommands;
+        bool empty() const { return commands.empty() && oreCommands.empty(); }
+    };
+    PendingDestroyBytes takePendingDestroys()
+    {
+        auto tail = [](Span<const uint8_t> bytes, size_t begin) {
+            return std::vector<uint8_t>(bytes.data() + begin,
+                                        bytes.data() + bytes.size());
+        };
+        const size_t begin = commandBuffer().commandBytes().size();
+        const size_t oreBegin = m_ore.stream().commandBytes().size();
+        commandBuffer().drainDestroys();
+        m_ore.drainPendingDestroys();
+        return {tail(commandBuffer().commandBytes(), begin),
+                tail(m_ore.stream().commandBytes(), oreBegin)};
+    }
+
     // Replay bindings are per frame so the retained set stays bounded; each
     // frame's draws re-register what they reference.
     void resetFrame()

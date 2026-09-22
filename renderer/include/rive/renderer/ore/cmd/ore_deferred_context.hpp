@@ -447,6 +447,9 @@ public:
         return handleForAs<DeferredBindGroup>(g);
     }
 
+    // Drain queued destroys into the stream without ending the frame.
+    void drainPendingDestroys() { m_render.drainDestroys(); }
+
     // The consumer keeps its resident table. Real bindings are re-captured
     // each frame, keeping the retained set bounded by what one frame binds.
     void resetFrame()
