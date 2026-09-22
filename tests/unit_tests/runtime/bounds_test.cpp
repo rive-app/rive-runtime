@@ -1,6 +1,7 @@
 #include "rive/file.hpp"
 #include "rive/layout/n_sliced_node.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/math/math_types.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/node.hpp"
 #include "rive/shapes/image.hpp"
@@ -183,4 +184,76 @@ TEST_CASE("test local bounds", "[bounds]")
     CHECK(layoutCellBounds.top() == 0.0f);
     CHECK(layoutCellBounds.right() == 88.0f);
     CHECK(layoutCellBounds.bottom() == 84.0f);
+}
+// A shape's local bounds are its paths measured in *its own* space, so its own
+// world transform must cancel out: inverse-world composed onto each path's
+// world transform, in that order. Composing them the other way conjugates
+// instead of cancelling, which only shows up once the shape rotates/scales and
+// a path sits off the shape's origin -- exactly what this pins down. Also
+// covers the memoization in Shape::localBounds(): every read below follows a
+// mutation, so a cache that failed to invalidate would return a stale box.
+TEST_CASE("local bounds cancel the shape's own transform", "[bounds]")
+{
+    auto file = ReadRiveFile("assets/local_bounds.riv");
+    auto artboard = file->artboard();
+
+    auto shape = artboard->find<rive::Shape>("Shape3");
+    REQUIRE(shape != nullptr);
+    REQUIRE(shape->paths().size() == 1);
+    auto path = shape->paths()[0];
+
+    // Shape3 is a 60x60 box with its origin at 0,0. Offset its path from the
+    // shape origin so the two compositions can disagree.
+    path->x(20.0f);
+    path->y(10.0f);
+    path->markTransformDirty();
+    artboard->advance(0.0f);
+
+    auto bounds = shape->localBounds();
+    CHECK(bounds.left() == Approx(20.0f));
+    CHECK(bounds.top() == Approx(10.0f));
+    CHECK(bounds.right() == Approx(80.0f));
+    CHECK(bounds.bottom() == Approx(70.0f));
+
+    // Rotating (and scaling) the shape moves it in the world but cannot move
+    // its paths relative to itself, so the local bounds are unchanged.
+    shape->rotation(rive::math::PI / 2.0f);
+    shape->scaleX(2.0f);
+    shape->markTransformDirty();
+    artboard->advance(0.0f);
+
+    bounds = shape->localBounds();
+    CHECK(bounds.left() == Approx(20.0f));
+    CHECK(bounds.top() == Approx(10.0f));
+    CHECK(bounds.right() == Approx(80.0f));
+    CHECK(bounds.bottom() == Approx(70.0f));
+
+    // Moving the path relative to the shape does move them.
+    path->x(50.0f);
+    path->markTransformDirty();
+    artboard->advance(0.0f);
+
+    bounds = shape->localBounds();
+    CHECK(bounds.left() == Approx(50.0f));
+    CHECK(bounds.top() == Approx(10.0f));
+    CHECK(bounds.right() == Approx(110.0f));
+    CHECK(bounds.bottom() == Approx(70.0f));
+
+    // Collapsing a path takes it out of the measurement entirely, and that
+    // reaches the shape through pathCollapseChanged() rather than
+    // pathChanged(), so the cache has to drop there too.
+    path->collapse(true);
+    bounds = shape->localBounds();
+    auto fresh = shape->computeLocalBounds();
+    CHECK(bounds.left() == fresh.left());
+    CHECK(bounds.top() == fresh.top());
+    CHECK(bounds.right() == fresh.right());
+    CHECK(bounds.bottom() == fresh.bottom());
+
+    path->collapse(false);
+    bounds = shape->localBounds();
+    CHECK(bounds.left() == Approx(50.0f));
+    CHECK(bounds.top() == Approx(10.0f));
+    CHECK(bounds.right() == Approx(110.0f));
+    CHECK(bounds.bottom() == Approx(70.0f));
 }

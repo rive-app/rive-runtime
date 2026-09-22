@@ -106,6 +106,11 @@ void Shape::pathChanged()
 {
     m_PathComposer.addDirt(ComponentDirt::Path, true);
     m_WorldLength = -1;
+    // Drop the local bounds here rather than only in markBoundsDirty(): this is
+    // raised for every input they have (Path geometry and Path transform), and
+    // it still fires when the composer defers its update (a transparent,
+    // non-clipping shape), where markBoundsDirty() never runs.
+    m_LocalBoundsClean = false;
     invalidateIntrinsicBounds();
     for (auto constraint : constraints())
     {
@@ -392,18 +397,20 @@ bool Shape::willDraw() { return Super::willDraw() && renderOpacity() != 0.0f; }
 
 // Do constraints need to be marked as dirty too? From tests it doesn't seem
 // they do.
-void Shape::pathCollapseChanged() { m_PathComposer.pathCollapseChanged(); }
+void Shape::pathCollapseChanged()
+{
+    // Collapsed paths are skipped when measuring, so which paths are in the
+    // bounds just changed. Drop the cache here for the same reason
+    // pathChanged() does: the composer's update, and with it markBoundsDirty(),
+    // is deferred for a transparent, non-clipping shape.
+    m_LocalBoundsClean = false;
+    m_PathComposer.pathCollapseChanged();
+}
 
 class ComputeBoundsCommandPath : public CommandPath
 {
 public:
     ComputeBoundsCommandPath() {}
-
-    AABB bounds(const Mat2D& xform)
-    {
-        m_rawPath.transformInPlace(xform);
-        return m_rawPath.bounds();
-    }
 
     // Tight curve bounds (solves cubic extrema) rather than the control-point
     // box, so a participant sizing to its geometry scales to fill exactly.
@@ -450,18 +457,21 @@ AABB Shape::computeWorldBounds(const Mat2D* xform) const
     bool first = true;
     AABB computedBounds = AABB::forExpansion();
 
-    ComputeBoundsCommandPath boundsCalculator;
     for (auto path : m_Paths)
     {
         if (path->isCollapsed())
         {
             continue;
         }
-        path->rawPath().addTo(&boundsCalculator);
-
-        AABB aabb = boundsCalculator.bounds(
-            xform == nullptr ? path->pathTransform()
-                             : path->pathTransform() * *xform);
+        // The control point hull, transformed: Mat2D::mapBoundingBox fuses the
+        // transform and the min/max into one SIMD pass over the points, so we
+        // never copy the path just to measure it. (A Path's raw path only ever
+        // holds moves, lines and cubics, so there are no quadratic control
+        // points needing conversion first.)
+        const Mat2D transform = xform == nullptr
+                                    ? path->pathTransform()
+                                    : *xform * path->pathTransform();
+        AABB aabb = transform.mapBoundingBox(path->rawPath().points());
 
         if (first)
         {
@@ -472,7 +482,6 @@ AABB Shape::computeWorldBounds(const Mat2D* xform) const
         {
             computedBounds.expand(aabb);
         }
-        boundsCalculator.rewind();
     }
 
     return computedBounds;

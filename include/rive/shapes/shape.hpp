@@ -22,6 +22,15 @@ private:
     PathComposer m_PathComposer;
     std::vector<Path*> m_Paths;
     AABB m_WorldBounds;
+    // Memoized like m_WorldBounds, but computed on demand from a const getter,
+    // so the cache itself is mutable. Invalidated by markBoundsDirty(), by
+    // pathChanged() -- which Path raises for both of its inputs, geometry
+    // (markPathDirty) and path transform (onDirty) -- and by
+    // pathCollapseChanged(), which changes which paths are measured at all. Our
+    // own world transform moving dirties our paths' world transforms, so that
+    // routes here too.
+    mutable AABB m_LocalBounds;
+    mutable bool m_LocalBoundsClean = false;
     float m_WorldLength = -1;
 
     bool m_WantDifferencePath = false;
@@ -70,7 +79,15 @@ public:
     float length() override;
     void setLength(float value) override {}
 
-    AABB localBounds() const override { return computeLocalBounds(); }
+    AABB localBounds() const override
+    {
+        if (!m_LocalBoundsClean)
+        {
+            m_LocalBoundsClean = true;
+            m_LocalBounds = computeLocalBounds();
+        }
+        return m_LocalBounds;
+    }
     AABB worldBounds()
     {
         if ((static_cast<DrawableFlag>(drawableFlags()) &
@@ -87,6 +104,7 @@ public:
     {
         drawableFlags(drawableFlags() & ~static_cast<unsigned short>(
                                             DrawableFlag::WorldBoundsClean));
+        m_LocalBoundsClean = false;
         m_WorldLength = -1;
 #ifdef WITH_RIVE_LAYOUT
         // A participant's intrinsic bounds drive its layout slot, so
@@ -98,6 +116,9 @@ public:
 #endif
     }
 
+    // Combined path bounds in world space. xform, when given, is applied
+    // after each path's world transform -- pass an inverse world transform to
+    // measure in this shape's space (what computeLocalBounds does).
     AABB computeWorldBounds(const Mat2D* xform = nullptr) const;
     AABB computeLocalBounds() const;
     // Combined path bounds in this shape's local space, computed from each
