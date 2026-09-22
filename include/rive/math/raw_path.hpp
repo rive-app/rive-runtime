@@ -42,7 +42,9 @@ public:
 #ifdef DEBUG
     void printCode() const;
 #endif
-    AABB preciseBounds() const;
+    AABB preciseBounds() const { return preciseBounds(Mat2D()); }
+    // Tight bounds of the path as it would be after xform, without copying it.
+    AABB preciseBounds(const Mat2D& xform) const;
     size_t countMoveTos() const;
 
     void move(Vec2D);

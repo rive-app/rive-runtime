@@ -73,6 +73,17 @@ TEST_CASE("compute precise bounds of a raw path", "[bounds]")
     CHECK(preciseBounds.top() == Approx(-1.78456f));
     CHECK(preciseBounds.right() == Approx(428.90216f));
     CHECK(preciseBounds.bottom() == Approx(466.05313f));
+
+    // A rotation moves the cubic extrema, so this only passes if the control
+    // points are mapped before solving, exactly as transforming a copy would.
+    rive::Mat2D xform = rive::Mat2D::fromRotation(0.7f).scale({1.5f, 0.5f});
+    auto transformed = path.transform(xform).preciseBounds();
+    auto inPlace = path.preciseBounds(xform);
+    CHECK(inPlace.left() == Approx(transformed.left()));
+    CHECK(inPlace.top() == Approx(transformed.top()));
+    CHECK(inPlace.right() == Approx(transformed.right()));
+    CHECK(inPlace.bottom() == Approx(transformed.bottom()));
+    CHECK(inPlace.left() != Approx(preciseBounds.left()));
 }
 
 TEST_CASE("test local bounds", "[bounds]")

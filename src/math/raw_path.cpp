@@ -655,8 +655,10 @@ static void expandCubicBoundsForAxis(AABB& bounds,
     }
 }
 
-AABB RawPath::preciseBounds() const
+AABB RawPath::preciseBounds(const Mat2D& xform) const
 {
+    // Affine maps send a curve's control points to the transformed curve's, so
+    // mapping them here is exact and saves transforming a copy of the path.
     AABB bounds = AABB::forExpansion();
     for (auto iter : *this)
     {
@@ -665,46 +667,37 @@ AABB RawPath::preciseBounds() const
         switch (verb)
         {
             case PathVerb::move:
-                bounds.expandTo(bounds, pts[0]);
+                bounds.expandTo(bounds, xform * pts[0]);
                 break;
             case PathVerb::line:
-                bounds.expandTo(bounds, pts[1]);
+                bounds.expandTo(bounds, xform * pts[1]);
                 break;
             case PathVerb::cubic:
-                expandCubicBoundsForAxis(bounds,
-                                         0,
-                                         pts[0].x,
-                                         pts[1].x,
-                                         pts[2].x,
-                                         pts[3].x);
-                expandCubicBoundsForAxis(bounds,
-                                         1,
-                                         pts[0].y,
-                                         pts[1].y,
-                                         pts[2].y,
-                                         pts[3].y);
+            {
+                Vec2D p0 = xform * pts[0];
+                Vec2D p1 = xform * pts[1];
+                Vec2D p2 = xform * pts[2];
+                Vec2D p3 = xform * pts[3];
+                expandCubicBoundsForAxis(bounds, 0, p0.x, p1.x, p2.x, p3.x);
+                expandCubicBoundsForAxis(bounds, 1, p0.y, p1.y, p2.y, p3.y);
                 break;
+            }
             case PathVerb::close:
                 break;
             case PathVerb::quad:
+            {
                 // Rive very rarely computes precise bounds for quadratics so we
                 // don't implement this specific case. We do use it in the
                 // editor for some cases so we still solve it as a cubic.
-                Vec2D pt1 = Vec2D::lerp(pts[0], pts[1], 2 / 3.f);
-                Vec2D pt2 = Vec2D::lerp(pts[2], pts[1], 2 / 3.f);
-                expandCubicBoundsForAxis(bounds,
-                                         0,
-                                         pts[0].x,
-                                         pt1.x,
-                                         pt2.x,
-                                         pts[2].x);
-                expandCubicBoundsForAxis(bounds,
-                                         1,
-                                         pts[0].y,
-                                         pt1.y,
-                                         pt2.y,
-                                         pts[2].y);
+                Vec2D p0 = xform * pts[0];
+                Vec2D p1 = xform * pts[1];
+                Vec2D p2 = xform * pts[2];
+                Vec2D pt1 = Vec2D::lerp(p0, p1, 2 / 3.f);
+                Vec2D pt2 = Vec2D::lerp(p2, p1, 2 / 3.f);
+                expandCubicBoundsForAxis(bounds, 0, p0.x, pt1.x, pt2.x, p2.x);
+                expandCubicBoundsForAxis(bounds, 1, p0.y, pt1.y, pt2.y, p2.y);
                 break;
+            }
         }
     }
     return bounds;

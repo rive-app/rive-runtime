@@ -407,51 +407,6 @@ void Shape::pathCollapseChanged()
     m_PathComposer.pathCollapseChanged();
 }
 
-class ComputeBoundsCommandPath : public CommandPath
-{
-public:
-    ComputeBoundsCommandPath() {}
-
-    // Tight curve bounds (solves cubic extrema) rather than the control-point
-    // box, so a participant sizing to its geometry scales to fill exactly.
-    AABB preciseBounds(const Mat2D& xform)
-    {
-        m_rawPath.transformInPlace(xform);
-        return m_rawPath.preciseBounds();
-    }
-
-    void rewind() override { m_rawPath.rewind(); }
-    void fillRule(FillRule value) override {}
-    void addPath(CommandPath* path, const Mat2D& transform) override
-    {
-        assert(false);
-    }
-
-    void moveTo(float x, float y) override { m_rawPath.moveTo(x, y); }
-    void lineTo(float x, float y) override { m_rawPath.lineTo(x, y); }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
-        override
-    {
-        m_rawPath.cubicTo(ox, oy, ix, iy, x, y);
-    }
-    void close() override { m_rawPath.close(); }
-
-    RenderPath* renderPath() override
-    {
-        assert(false);
-        return nullptr;
-    }
-
-    const RenderPath* renderPath() const override
-    {
-        assert(false);
-        return nullptr;
-    }
-
-private:
-    RawPath m_rawPath;
-};
-
 AABB Shape::computeWorldBounds(const Mat2D* xform) const
 {
     bool first = true;
@@ -509,7 +464,6 @@ AABB Shape::computeIntrinsicBounds() const
     bool first = true;
     AABB computedBounds = AABB::forExpansion();
 
-    ComputeBoundsCommandPath boundsCalculator;
     RawPath pendingPath;
     bool usedPendingBuild = false;
     for (auto path : m_Paths)
@@ -522,9 +476,7 @@ AABB Shape::computeIntrinsicBounds() const
         AABB propertyBounds;
         if (!path->needsPathBuild())
         {
-            path->rawPath().addTo(&boundsCalculator);
-            aabb = boundsCalculator.preciseBounds(path->transform());
-            boundsCalculator.rewind();
+            aabb = path->rawPath().preciseBounds(path->transform());
         }
         else if (path->tryPropertyBounds(propertyBounds))
         {
@@ -543,9 +495,7 @@ AABB Shape::computeIntrinsicBounds() const
             usedPendingBuild = true;
             pendingPath.rewind();
             path->buildPath(pendingPath);
-            pendingPath.addTo(&boundsCalculator);
-            aabb = boundsCalculator.preciseBounds(path->transform());
-            boundsCalculator.rewind();
+            aabb = pendingPath.preciseBounds(path->transform());
         }
         // An empty (vertex-less) path leaves preciseBounds at its expansion
         // sentinel, which is inverted (+/-FLT_MAX). Folding that in would
