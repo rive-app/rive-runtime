@@ -771,11 +771,17 @@ static YGSize measureFunc(YGNode* node,
                           float height,
                           YGMeasureMode heightMode)
 {
-    Vec2D size = ((LayoutComponent*)node->getContext())
-                     ->measureLayout(width,
-                                     (LayoutMeasureMode)widthMode,
-                                     height,
-                                     (LayoutMeasureMode)heightMode);
+    const bool probing = YGConfigIsMeasuringMinContent(node->getConfig());
+    Vec2D size =
+        ((LayoutComponent*)node->getContext())
+            ->measureLayout(width,
+                            measureModeForContent((LayoutMeasureMode)widthMode,
+                                                  width,
+                                                  probing),
+                            height,
+                            measureModeForContent((LayoutMeasureMode)heightMode,
+                                                  height,
+                                                  probing));
 
     return YGSize{size.x, size.y};
 }
@@ -785,6 +791,29 @@ Vec2D LayoutComponent::measureLayout(float width,
                                      float height,
                                      LayoutMeasureMode heightMode)
 {
+    if (m_style != nullptr && m_style->hugUnbounded())
+    {
+        // Per axis: a fill axis leaves flexBasis auto, so its measure feeds
+        // yoga's basis for the line. Widening it there would move this item's
+        // share of the remainder -- a fill axis the option never promised to
+        // touch.
+        bool widthHugs = effectiveWidthScaleType() == LayoutScaleType::hug;
+        bool heightHugs = effectiveHeightScaleType() == LayoutScaleType::hug;
+        // Legacy files encode hug as fixed on BOTH axes plus
+        // intrinsicallySized.
+        if (!widthHugs && !heightHugs)
+        {
+            widthHugs = heightHugs = m_style->intrinsicallySized();
+        }
+        if (widthHugs)
+        {
+            widthMode = unboundMeasureMode(widthMode);
+        }
+        if (heightHugs)
+        {
+            heightMode = unboundMeasureMode(heightMode);
+        }
+    }
     Vec2D size = Vec2D();
     for (auto child : children())
     {

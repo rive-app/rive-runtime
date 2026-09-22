@@ -510,6 +510,7 @@ void LayoutComponentStyle::layoutHeightScaleTypeChanged()
 {
     scaleTypeChanged();
 }
+void LayoutComponentStyle::hugUnboundedChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::displayValueChanged() { displayChanged(); }
 void LayoutComponentStyle::layoutTypeValueChanged()
 {

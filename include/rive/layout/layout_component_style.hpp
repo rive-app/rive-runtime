@@ -85,6 +85,7 @@ public:
     void layoutAlignmentTypeChanged() override;
     void layoutWidthScaleTypeChanged() override;
     void layoutHeightScaleTypeChanged() override;
+    void hugUnboundedChanged() override;
     void displayValueChanged() override;
     void layoutTypeValueChanged() override;
     void justifyItemsValueChanged() override;

@@ -1,6 +1,6 @@
 # Layout matrix corpus
 
-Generated. 491 fixtures.
+Generated. 553 fixtures.
 
 | Fixture | Slice | Container | Wrapper | Subject | Sizing | Origin | Constraint | Collected | Known defect |
 |---|---|---|---|---|---|---|---|---|---|
@@ -495,6 +495,68 @@ Generated. 491 fixtures.
 | `s19__flex-column__none__text__participant__fixed__wb-break-all` | s19 | flexColumn | none | text | fixed | sourceArtboard | none | yes |  |
 | `s19__flex-column__none__text__participant__fill__y-hug__k-min-over-fill__wb-break-all` | s19 | flexColumn | none | text | fill | sourceArtboard | none | yes |  |
 | `s19__flex-row__none__text__non-participant__wb-break-all__pk-max-under-fill` | s19 | flexRow | none | text | fill | sourceArtboard | none | no |  |
+| `s20__flex-row__none__layout-component__hug__leaf-content__over` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__leaf-content__over__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__hug__over` | s20 | flexRow | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__hug__over__unbounded` | s20 | flexRow | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__layout-component__hug__leaf-content__over` | s20 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__layout-component__hug__leaf-content__over__unbounded` | s20 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__shape__participant__hug__over` | s20 | flexColumn | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__shape__participant__hug__over__unbounded` | s20 | flexColumn | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__leaf-content__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__k-max-over-fill__leaf-content__over__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__y-fixed__leaf-content__over__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__hug__unbounded` | s20 | flexRow | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__hug__k-max-over-fill__over__unbounded` | s20 | flexRow | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__hug__y-fixed__over__unbounded` | s20 | flexRow | none | shape | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__text__participant__hug__k-max-over-host__over` | s20 | flexRow | none | text | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__text__participant__hug__k-max-over-host__over__unbounded` | s20 | flexRow | none | text | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__k-max-over-host__leaf-text__over` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__k-max-over-host__leaf-text__over__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__text__participant__hug__k-max-over-host__over` | s20 | flexColumn | none | text | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__text__participant__hug__k-max-over-host__over__unbounded` | s20 | flexColumn | none | text | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__layout-component__hug__k-max-over-host__leaf-text__over` | s20 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-column__none__layout-component__hug__k-max-over-host__leaf-text__over__unbounded` | s20 | flexColumn | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__fill__y-hug__sibling-fills__over` | s20 | flexRow | none | shape | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__shape__participant__fill__y-hug__sibling-fills__over__unbounded` | s20 | flexRow | none | shape | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__text__participant__fill__y-hug__k-max-over-host__sibling-fills__over` | s20 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__text__participant__fill__y-hug__k-max-over-host__sibling-fills__over__unbounded` | s20 | flexRow | none | text | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__fill__y-hug__k-max-over-host__sibling-fills__leaf-text__over` | s20 | flexRow | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__fill__y-hug__k-max-over-host__sibling-fills__leaf-text__over__unbounded` | s20 | flexRow | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__over` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s20__flex-row__none__layout-component__hug__over__unbounded` | s20 | flexRow | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__track-row-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__track-row-auto` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__track-column-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__track-column-auto` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__layout-component__hug__leaf-content__over` | s21 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__unbounded__track-row-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__auto__leaf-content__over__unbounded__track-column-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__layout-component__hug__leaf-content__over__unbounded` | s21 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__track-row-fr` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__track-row-auto` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__track-column-fr` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__track-column-auto` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__shape__participant__hug__over` | s21 | stack | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__unbounded__track-row-fr` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__shape__participant__hug__auto__over__unbounded__track-column-fr` | s21 | grid | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__shape__participant__hug__over__unbounded` | s21 | stack | none | shape | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__track-row-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__track-row-auto` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__track-column-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__track-column-auto` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__layout-component__hug__k-max-over-host__leaf-text__over` | s21 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__unbounded__track-row-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__layout-component__hug__k-max-over-host__auto__leaf-text__over__unbounded__track-column-fr` | s21 | grid | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__layout-component__hug__k-max-over-host__leaf-text__over__unbounded` | s21 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__track-row-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__track-row-auto` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__track-column-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__track-column-auto` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__text__participant__hug__k-max-over-host__over` | s21 | stack | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__unbounded__track-row-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__unbounded__track-column-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
+| `s21__stack__none__text__participant__hug__k-max-over-host__over__unbounded` | s21 | stack | none | text | hug | sourceArtboard | none | yes |  |
 
 ## Skipped as illegal
 

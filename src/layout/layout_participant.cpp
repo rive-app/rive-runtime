@@ -51,14 +51,35 @@ static YGSize participantMeasureFunc(YGNode* node,
                                      float height,
                                      YGMeasureMode heightMode)
 {
-    auto* component = static_cast<Component*>(node->getContext());
-    auto* sizeable = IntrinsicallySizeable::from(component);
-    Vec2D size = sizeable != nullptr
-                     ? sizeable->measureLayout(width,
-                                               (LayoutMeasureMode)widthMode,
-                                               height,
-                                               (LayoutMeasureMode)heightMode)
-                     : Vec2D();
+    auto* participant = static_cast<LayoutParticipant*>(node->getContext());
+    auto* sizeable =
+        IntrinsicallySizeable::from(participant->transformComponent());
+    if (sizeable == nullptr)
+    {
+        return YGSize{0.0f, 0.0f};
+    }
+    auto wMode = (LayoutMeasureMode)widthMode;
+    auto hMode = (LayoutMeasureMode)heightMode;
+    if (participant->hugUnbounded())
+    {
+        // Per axis: see LayoutComponent::measureLayout -- a fill axis's measure
+        // feeds yoga's flex basis, so widening it would move this item's share
+        // of the line.
+        if ((LayoutScaleType)participant->layoutWidthScaleType() ==
+            LayoutScaleType::hug)
+        {
+            wMode = unboundMeasureMode(wMode);
+        }
+        if ((LayoutScaleType)participant->layoutHeightScaleType() ==
+            LayoutScaleType::hug)
+        {
+            hMode = unboundMeasureMode(hMode);
+        }
+    }
+    const bool probing = YGConfigIsMeasuringMinContent(node->getConfig());
+    wMode = measureModeForContent(wMode, width, probing);
+    hMode = measureModeForContent(hMode, height, probing);
+    Vec2D size = sizeable->measureLayout(width, wMode, height, hMode);
     return YGSize{size.x, size.y};
 }
 #endif
@@ -206,8 +227,8 @@ void LayoutParticipant::resync()
     {
         m_layoutData = new LayoutData();
         m_layoutData->node.getConfig()->setPointScaleFactor(0);
-        // Measure our host's intrinsic (hug) size via IntrinsicallySizeable.
-        m_layoutData->node.setContext(host);
+        // Context is us, not the host: the measure func reads hugUnbounded.
+        m_layoutData->node.setContext(this);
         m_layoutData->node.setMeasureFunc(participantMeasureFunc);
         // We are our own sizing style.
         addLayoutStyleApplier(this);
@@ -352,7 +373,7 @@ bool LayoutParticipant::syncStyleChanges()
                         heightScale == LayoutScaleType::hug;
     if (needsMeasure)
     {
-        node.setContext(transformComponent());
+        node.setContext(this);
         node.setMeasureFunc(participantMeasureFunc);
     }
     else

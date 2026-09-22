@@ -2323,6 +2323,9 @@ public:
             case NestedArtboardBase::isStatefulPropertyKey:
                 object->as<NestedArtboardBase>()->isStateful(value);
                 break;
+            case LayoutSizingStyleBase::hugUnboundedPropertyKey:
+                object->as<LayoutSizingStyleBase>()->hugUnbounded(value);
+                break;
             case AxisBase::normalizedPropertyKey:
                 object->as<AxisBase>()->normalized(value);
                 break;
@@ -4249,6 +4252,8 @@ public:
                 return object->as<NestedArtboardBase>()->isPaused();
             case NestedArtboardBase::isStatefulPropertyKey:
                 return object->as<NestedArtboardBase>()->isStateful();
+            case LayoutSizingStyleBase::hugUnboundedPropertyKey:
+                return object->as<LayoutSizingStyleBase>()->hugUnbounded();
             case AxisBase::normalizedPropertyKey:
                 return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -5230,6 +5235,7 @@ public:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case NestedArtboardBase::isPausedPropertyKey:
             case NestedArtboardBase::isStatefulPropertyKey:
+            case LayoutSizingStyleBase::hugUnboundedPropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -6255,6 +6261,8 @@ public:
                 return object->is<NestedArtboardBase>();
             case NestedArtboardBase::isStatefulPropertyKey:
                 return object->is<NestedArtboardBase>();
+            case LayoutSizingStyleBase::hugUnboundedPropertyKey:
+                return object->is<LayoutSizingStyleBase>();
             case AxisBase::normalizedPropertyKey:
                 return object->is<AxisBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:

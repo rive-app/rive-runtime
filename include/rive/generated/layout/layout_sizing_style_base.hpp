@@ -1,6 +1,7 @@
 #ifndef _RIVE_LAYOUT_SIZING_STYLE_BASE_HPP_
 #define _RIVE_LAYOUT_SIZING_STYLE_BASE_HPP_
 #include "rive/component.hpp"
+#include "rive/core/field_types/core_bool_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
 #ifdef WITH_RIVE_EDITOR
@@ -22,6 +23,7 @@ struct LayoutSizingStyleMinMaxSizingSidecar
     uint8_t maxWidthUnitsValue = 0;
     uint8_t minHeightUnitsValue = 0;
     uint8_t maxHeightUnitsValue = 0;
+    bool hugUnbounded = false;
 };
 #endif
 class LayoutSizingStyleBase : public Component
@@ -58,6 +60,7 @@ public:
     static const uint16_t maxHeightUnitsValuePropertyKey = 630;
     static const uint16_t layoutWidthScaleTypePropertyKey = 655;
     static const uint16_t layoutHeightScaleTypePropertyKey = 656;
+    static const uint16_t hugUnboundedPropertyKey = 451;
     static const uint16_t widthUnitsValuePropertyKey = 607;
     static const uint16_t heightUnitsValuePropertyKey = 608;
     static const uint16_t justifySelfValuePropertyKey = 1046;
@@ -90,6 +93,9 @@ protected:
 #endif
     uint8_t m_LayoutWidthScaleType = 0;
     uint8_t m_LayoutHeightScaleType = 0;
+#ifdef WITH_RIVE_EDITOR
+    bool m_HugUnbounded = false;
+#endif
     uint8_t m_WidthUnitsValue = 1;
     uint8_t m_HeightUnitsValue = 1;
     uint8_t m_JustifySelfValue = 6;
@@ -390,6 +396,37 @@ public:
         notifyPropertyChanged(layoutHeightScaleTypePropertyKey);
     }
 
+#ifdef WITH_RIVE_EDITOR
+    inline bool hugUnbounded() const { return m_HugUnbounded; }
+    void hugUnbounded(bool value)
+    {
+        if (m_HugUnbounded == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(hugUnboundedPropertyKey, &m_HugUnbounded, &value);
+        m_HugUnbounded = value;
+        RIVE_EDITOR_CHANGED(hugUnboundedChanged());
+        notifyPropertyChanged(hugUnboundedPropertyKey);
+    }
+#else
+    inline bool hugUnbounded() const
+    {
+        auto* sidecar = m_minMaxSizing.get();
+        return sidecar != nullptr ? sidecar->hugUnbounded : false;
+    }
+    void hugUnbounded(bool value)
+    {
+        if (hugUnbounded() == value)
+        {
+            return;
+        }
+        m_minMaxSizing.ensureAllocated()->hugUnbounded = value;
+        hugUnboundedChanged();
+        notifyPropertyChanged(hugUnboundedPropertyKey);
+    }
+#endif
+
     inline uint8_t widthUnitsValue() const { return m_WidthUnitsValue; }
     void widthUnitsValue(uint8_t value)
     {
@@ -476,6 +513,9 @@ public:
 #endif
         m_LayoutWidthScaleType = object.m_LayoutWidthScaleType;
         m_LayoutHeightScaleType = object.m_LayoutHeightScaleType;
+#ifdef WITH_RIVE_EDITOR
+        m_HugUnbounded = object.m_HugUnbounded;
+#endif
         m_WidthUnitsValue = object.m_WidthUnitsValue;
         m_HeightUnitsValue = object.m_HeightUnitsValue;
         m_JustifySelfValue = object.m_JustifySelfValue;
@@ -561,6 +601,14 @@ public:
             case layoutHeightScaleTypePropertyKey:
                 m_LayoutHeightScaleType = CoreUintType::deserialize(reader);
                 return true;
+            case hugUnboundedPropertyKey:
+#ifdef WITH_RIVE_EDITOR
+                m_HugUnbounded = CoreBoolType::deserialize(reader);
+#else
+                m_minMaxSizing.ensureAllocated()->hugUnbounded =
+                    CoreBoolType::deserialize(reader);
+#endif
+                return true;
             case widthUnitsValuePropertyKey:
                 m_WidthUnitsValue = CoreUintType::deserialize(reader);
                 return true;
@@ -589,6 +637,7 @@ protected:
     virtual void maxHeightUnitsValueChanged() {}
     virtual void layoutWidthScaleTypeChanged() {}
     virtual void layoutHeightScaleTypeChanged() {}
+    virtual void hugUnboundedChanged() {}
     virtual void widthUnitsValueChanged() {}
     virtual void heightUnitsValueChanged() {}
     virtual void justifySelfValueChanged() {}

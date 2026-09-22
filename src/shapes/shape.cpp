@@ -16,6 +16,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include <algorithm>
+#include <limits>
 
 using namespace rive;
 
@@ -598,11 +599,19 @@ Vec2D Shape::measureLayout(float width,
 {
 #ifdef WITH_RIVE_LAYOUT
     // A participant sizes to its combined bounds (all paths); controlSize then
-    // scales those bounds to fill the slot.
+    // scales those bounds to fill the slot. Clamps to the available space like
+    // the parametric path below, so hug means the same thing in both models.
     if (isParticipatingInLayout())
     {
         AABB bounds = computeIntrinsicBounds();
-        return Vec2D(bounds.width(), bounds.height());
+        return Vec2D(std::min(widthMode == LayoutMeasureMode::undefined
+                                  ? std::numeric_limits<float>::max()
+                                  : width,
+                              bounds.width()),
+                     std::min(heightMode == LayoutMeasureMode::undefined
+                                  ? std::numeric_limits<float>::max()
+                                  : height,
+                              bounds.height()));
     }
 #endif
     Vec2D size = Vec2D();

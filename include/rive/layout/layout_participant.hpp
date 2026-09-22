@@ -87,6 +87,7 @@ protected:
     void onSizingChanged();
     void layoutWidthScaleTypeChanged() override { onSizingChanged(); }
     void layoutHeightScaleTypeChanged() override { onSizingChanged(); }
+    void hugUnboundedChanged() override { onSizingChanged(); }
     void widthChanged() override { onSizingChanged(); }
     void heightChanged() override { onSizingChanged(); }
     void fractionalWidthChanged() override { onSizingChanged(); }
