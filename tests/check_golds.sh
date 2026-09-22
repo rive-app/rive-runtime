@@ -53,6 +53,14 @@ while :; do
             fi
             shift
         ;;
+        -ui)
+            TARGET="unreal_ios"
+            # msaa is what we target on android. atomics needs pixel shader
+            # UAVs, which mobile handles badly, and it hangs on adreno.
+            DEFAULT_BACKEND=metalatomic
+            ARGS="$ARGS --no-rebuild"
+            shift
+        ;;
         -ua)
             TARGET="unreal_android"
             # msaa is what we target on android. atomics needs pixel shader

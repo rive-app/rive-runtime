@@ -112,7 +112,7 @@ parser.add_argument("-m", "--match",
 parser.add_argument("-t", "--target",
                     default="host",
                     choices=["host", "android", "ios", "iossim", "unreal",
-                             "unreal_android", "webbrowser", "webserver",
+                             "unreal_android", "unreal_ios", "webbrowser", "webserver",
                              "webbrowserandroid", "webserverandroid", 'console'],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
@@ -548,8 +548,17 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         unreal_exe_path = os.path.join(dirname, *UNREAL_HOST_PACKAGE)
         return [unreal_exe_path] + unreal_tool_args(toolname) + \
                unreal_engine_args(args.target, args.backend) + \
-               ["-ResX=1280", "-ResY=720"] + unreal_offscreen_args(toolname) + \
+               unreal_resolution_args(toolname) + unreal_offscreen_args(toolname) + \
                cmd[1:]
+
+    if args.target == "unreal_ios":
+        print("\nDeploying %s on unreal ios (udid=%s, ios_version=%i)..." %
+              (toolname, args.ios_udid, target_info["ios_version"]))
+        return ["xcrun", "devicectl", "device", "process", "launch", "--console",
+                "--device", args.ios_udid, unreal_ios_bundle_id(), "--"] + \
+               unreal_tool_args(toolname) + \
+               unreal_engine_args(args.target, args.backend) + \
+               unreal_offscreen_args(toolname) + cmd[1:]
 
     if args.target == "unreal_android":
         tool_args = ' '.join(unreal_tool_args(toolname) +
@@ -724,6 +733,7 @@ else:
 UNREAL_TARGET_PLATFORMS = {
     "unreal": UNREAL_HOST_PLATFORM,
     "unreal_android": "Android",
+    "unreal_ios": "iOS",
 }
 
 # One map serves every tool: which tool runs is chosen by "-rivetool=<name>",
@@ -738,6 +748,9 @@ def unreal_offscreen_args(toolname):
     # The harness tools dump pngs and never need to be seen; the player is
     # something you watch, so it keeps its window.
     return [] if toolname == "player" else ["-RenderOffScreen"]
+
+def unreal_resolution_args(toolname):
+    return [] if toolname == "player" else ["-ResX=1280", "-ResY=720"]
 
 UNREAL_RHI_SWITCHES = {
     "d3d": "-dx11",
@@ -757,12 +770,14 @@ SUPPORTED_UNREAL_BACKENDS = {
               ["vk"] if platform.system() == "Linux" else
               ["d3d", "d3d12", "vk"],
     "unreal_android": ["vk"],
+    "unreal_ios": ["metal"],
 }
 
 DEFAULT_UNREAL_BACKENDS = {
     "unreal": "metal" if platform.system() == "Darwin" else
               "vk" if platform.system() == "Linux" else "d3d12",
     "unreal_android": "vk",
+    "unreal_ios": "metal",
 }
 
 def split_unreal_backend(name):
@@ -845,10 +860,43 @@ def unreal_package_platform_args():
     table package_project.py keeps is public and has no entry for one."""
     return ["--platform", UNREAL_TARGET_PLATFORMS[args.target]]
 
+def ios_device_version(udid):
+    listing = subprocess.check_output(["xcrun", "xctrace", "list", "devices"]).decode()
+    for line in listing.splitlines():
+        if udid not in line:
+            continue
+        version = re.search(r"\(([0-9]+)\.[0-9.]+\)", line)
+        if version:
+            return int(version.group(1))
+    return None
+
+def unreal_ios_bundle():
+    stage_dir = os.path.join(args.builddir, "IOS")
+    bundles = sorted(glob.glob(os.path.join(stage_dir, "*.app")))
+    if not bundles:
+        ipas = sorted(glob.glob(os.path.join(stage_dir, "*.ipa")))
+        raise RuntimeError(
+            "no .app in %s; devicectl and the bundle id both need the .app "
+            "directory that package_project.py archives%s"
+            % (stage_dir,
+               ", but only these .ipa archives are there: %s" %
+               ", ".join(os.path.basename(i) for i in ipas) if ipas else ""))
+    return bundles[0]
+
+def unreal_ios_bundle_id():
+    bundle = unreal_ios_bundle()
+    plist = os.path.join(bundle, "Info.plist")
+    return subprocess.check_output(
+        ["plutil", "-extract", "CFBundleIdentifier", "raw", "-o", "-", plist]
+    ).decode().strip()
+
 def install_unreal_package():
     """Put the packaged build on the device. Nothing to do where the launch
     command reaches it from the host."""
-    pass
+    if args.target != "unreal_ios":
+        return
+    subprocess.check_call(["xcrun", "devicectl", "device", "install", "app",
+                           "--device", args.ios_udid, unreal_ios_bundle()])
 
 def package_unreal_project():
     # No engine path -> assume the project is already packaged (legacy behavior).
@@ -863,7 +911,6 @@ def package_unreal_project():
                            "--output", os.path.abspath(args.builddir),
                            "--config", unreal_client_config(),
                            "--no-rive-build"] + unreal_package_platform_args())
-    install_unreal_package()
 
 def main():
     # Parse skipped tests. These only apply to a whole-corpus sweep: gms or
@@ -921,7 +968,7 @@ def main():
         args.remote = True # Since we can't do port forwarding in iOS, it always has to be remote.
         if not args.ios_udid:
             args.ios_udid = "booted"
-    elif args.target == 'unreal' or args.target == 'unreal_android':
+    elif args.target in ('unreal', 'unreal_android', 'unreal_ios'):
          # currently, unreal needs to run only one job at a time for goldens and gms to work
         args.jobs_per_tool = 1
         if args.builddir == None:
@@ -929,6 +976,25 @@ def main():
         if args.backend == None:
             args.backend = DEFAULT_UNREAL_BACKENDS[args.target]
         unreal_engine_args(args.target, args.backend)
+        if args.target == 'unreal_ios':
+            args.remote = True
+            if not args.ios_udid:
+                udids = subprocess.check_output(["idevice_id", "-l"]).decode().split()
+                if len(udids) != 1:
+                    print("expected exactly one attached iOS device, found %d; "
+                          "pass --ios_udid" % len(udids))
+                    return -1
+                args.ios_udid = udids[0]
+            ios_version = ios_device_version(args.ios_udid)
+            if ios_version is None:
+                print("no device matching --ios_udid=%s in 'xcrun xctrace list devices'"
+                      % args.ios_udid)
+                return -1
+            if ios_version < 17:
+                print("--target=unreal_ios launches through devicectl, which needs "
+                      "iOS 17 or newer; this device reports iOS %d" % ios_version)
+                return -1
+            target_info["ios_version"] = ios_version
     elif args.target.startswith("web"):
         args.jobs_per_tool = 1
         if args.builddir == None:
@@ -1082,6 +1148,8 @@ def main():
                 subprocess.check_call(["ios-deploy", "--bundle",
                                        "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
             print()
+        elif "unreal" in args.target or args.target == "console":
+            install_unreal_package()
         elif args.target == "iossim":
             # Install the ios_tests wrapper app on the simulator.
             subprocess.check_call(["xcrun", "simctl", "install", args.ios_udid,
