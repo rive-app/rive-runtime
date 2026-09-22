@@ -481,6 +481,7 @@ void Path::update(ComponentDirt value)
         // tester).
         m_rawPath.rewind();
         buildPath(m_rawPath);
+        m_geometryVersion++;
     }
     // if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
     // {

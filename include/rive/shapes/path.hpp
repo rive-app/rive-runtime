@@ -45,6 +45,9 @@ protected:
     void shapePathChanged();
     PathFlags m_pathFlags = PathFlags::none;
     RawPath m_rawPath;
+    // Bumped whenever m_rawPath is rebuilt, so a consumer can tell "this is the
+    // same geometry I saw last time" apart from "it was rebuilt".
+    uint32_t m_geometryVersion = 0;
     RenderPathDeformer* deformer() const;
     void isHoleChanged() override;
 
@@ -66,6 +69,7 @@ public:
     virtual const Mat2D& pathTransform() const;
     bool collapse(bool value) override;
     const RawPath& rawPath() const { return m_rawPath; }
+    uint32_t geometryVersion() const { return m_geometryVersion; }
     // True while m_rawPath has yet to be rebuilt for pending changes: the Path
     // dirt is still queued, or the build was deferred. Layout runs before
     // Path::update in the update pass, so a measure can land here first and
