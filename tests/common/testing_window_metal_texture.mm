@@ -61,7 +61,6 @@ public:
             .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
-        m_flushCommandBuffer = [m_queue commandBuffer];
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
@@ -87,6 +86,12 @@ public:
             m_pixelReadBuff =
                 [m_gpu newBufferWithLength:m_height * m_width * 4
                                    options:MTLResourceStorageModeShared];
+        }
+        // A deferred replay flushes canvases before beginFrame, so the buffer
+        // may not exist yet.
+        if (m_flushCommandBuffer == nil)
+        {
+            m_flushCommandBuffer = [m_queue commandBuffer];
         }
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr

@@ -63,12 +63,9 @@ public:
     {
         if (m_activeCanvas == nullptr)
             return;
-        void* cb = m_rc->impl()->makeCommandBuffer();
-        rive::gpu::RenderContext::FlushResources fr{};
-        fr.renderTarget = m_activeCanvas->renderTarget();
-        fr.externalCommandBuffer = cb;
-        m_rc->flush(fr);
-        m_rc->impl()->commitCommandBuffer(cb);
+        // The window's own frame command buffer, so a canvas flush never
+        // idles the queue the way the impl's canvas command buffer does.
+        TestingWindow::Get()->flushPLSContext(m_activeCanvas->renderTarget());
         m_canvasRenderer.reset();
         m_activeCanvas = nullptr;
     }
