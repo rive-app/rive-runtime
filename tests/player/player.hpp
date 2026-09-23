@@ -5,12 +5,18 @@
 #pragma once
 
 #include "common/frame_runner.hpp"
+#include "common/testing_window.hpp"
 #include "rive/refcnt.hpp"
 
 #include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
+
+namespace rive
+{
+class StateMachineInstance;
+}
 
 namespace rive
 {
@@ -48,6 +54,7 @@ public:
     void init(std::string rivName, std::vector<uint8_t> rivBytes);
 
     bool doFrame() override;
+    void submitGamepad(const TestingWindow::InputEventData& event);
 
     // Unwinds deferred resources against the live context; call before the
     // window is destroyed.
@@ -103,6 +110,8 @@ private:
     rive::rcp<rive::File> m_file;
     std::unique_ptr<rive::ArtboardInstance> m_artboard;
     std::unique_ptr<rive::Scene> m_scene;
+    // The scene when it is a state machine, which is what takes gamepads.
+    rive::StateMachineInstance* m_stateMachine = nullptr;
     rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
 
     int m_lastReportedCopyCount = 0;

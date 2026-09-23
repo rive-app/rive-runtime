@@ -13,6 +13,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/input/gamepad_batch.hpp"
 #include "rive/renderer.hpp"
 #include "rive/renderer/scoped_autorelease_pool.hpp"
 #include "rive/scene.hpp"
@@ -339,11 +340,13 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
         m_artboard->bindViewModelInstance(m_viewModelInstance);
     }
 
-    m_scene = m_artboard->defaultStateMachine();
-    if (!m_scene && m_artboard->stateMachineCount() > 0)
+    auto stateMachine = m_artboard->defaultStateMachine();
+    if (!stateMachine && m_artboard->stateMachineCount() > 0)
     {
-        m_scene = m_artboard->stateMachineAt(0);
+        stateMachine = m_artboard->stateMachineAt(0);
     }
+    m_stateMachine = stateMachine.get();
+    m_scene = std::move(stateMachine);
     if (!m_scene)
     {
         m_scene = m_artboard->animationAt(0);
@@ -364,6 +367,58 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
     m_fps->whiteFill->color(0xffffffff);
     m_fps->timeLastUpdate = std::chrono::high_resolution_clock::now();
     m_timestampPrevFrame = std::chrono::high_resolution_clock::now();
+}
+
+// The state machine takes gamepads as the wire batch our js embedder sends.
+static void appendU32(std::vector<uint8_t>& buffer, uint32_t value)
+{
+    for (int i = 0; i < 4; ++i)
+    {
+        buffer.push_back(static_cast<uint8_t>(value >> (8 * i)));
+    }
+}
+
+void Player::submitGamepad(const TestingWindow::InputEventData& event)
+{
+    if (m_stateMachine == nullptr)
+    {
+        return;
+    }
+    const auto& pad = event.metadata.pad;
+    std::vector<uint8_t> buffer;
+    appendU32(buffer, rive::kGamepadBatchWireVersion);
+    if (event.eventType == TestingWindow::InputEvent::GamepadConnected)
+    {
+        buffer.push_back(
+            static_cast<uint8_t>(rive::GamepadRecordType::connected));
+        appendU32(buffer, pad.deviceId);
+        buffer.push_back(0); // standard mapping
+        buffer.push_back(pad.buttonCount);
+        buffer.push_back(pad.axisCount);
+        buffer.push_back(0); // padding
+        for (int i = 0; i < pad.buttonCount + pad.axisCount; ++i)
+        {
+            appendU32(buffer, 0); // every value at rest
+        }
+    }
+    else if (event.eventType == TestingWindow::InputEvent::GamepadDisconnected)
+    {
+        buffer.push_back(
+            static_cast<uint8_t>(rive::GamepadRecordType::disconnected));
+        appendU32(buffer, pad.deviceId);
+    }
+    else
+    {
+        buffer.push_back(static_cast<uint8_t>(rive::GamepadRecordType::update));
+        appendU32(buffer, pad.deviceId);
+        buffer.push_back(1); // one change
+        buffer.push_back(pad.isAxis ? 1 : 0);
+        buffer.push_back(pad.index);
+        uint32_t bits;
+        memcpy(&bits, &pad.value, sizeof(bits));
+        appendU32(buffer, bits);
+    }
+    m_stateMachine->submitGamepadsFromBuffer(buffer.data(), buffer.size());
 }
 
 bool Player::doFrame()
@@ -611,11 +666,12 @@ bool Player::doFrame()
     TestingWindow::InputEventData inputEventData;
     while (TestingWindow::Get()->consumeInputEvent(inputEventData))
     {
-        const rive::Vec2D mousePosAligned =
-            alignmentMat.invertOrIdentity() *
-            rive::Vec2D(inputEventData.metadata.posX,
-                        inputEventData.metadata.posY);
-
+        // Only pointer events carry a position in the union.
+        auto alignedPos = [&]() {
+            return alignmentMat.invertOrIdentity() *
+                   rive::Vec2D(inputEventData.metadata.posX,
+                               inputEventData.metadata.posY);
+        };
         switch (inputEventData.eventType)
         {
             case TestingWindow::InputEvent::KeyPress:
@@ -623,15 +679,20 @@ bool Player::doFrame()
                 break;
 
             case TestingWindow::InputEvent::MouseMove:
-                m_scene->pointerMove(mousePosAligned);
+                m_scene->pointerMove(alignedPos());
                 break;
 
             case TestingWindow::InputEvent::MouseDown:
-                m_scene->pointerDown(mousePosAligned);
+                m_scene->pointerDown(alignedPos());
                 break;
 
             case TestingWindow::InputEvent::MouseUp:
-                m_scene->pointerUp(mousePosAligned);
+                m_scene->pointerUp(alignedPos());
+                break;
+            case TestingWindow::InputEvent::GamepadConnected:
+            case TestingWindow::InputEvent::GamepadDisconnected:
+            case TestingWindow::InputEvent::GamepadChange:
+                submitGamepad(inputEventData);
                 break;
         }
     }

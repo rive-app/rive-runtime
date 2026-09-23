@@ -152,7 +152,10 @@ public:
         KeyPress,
         MouseDown,
         MouseUp,
-        MouseMove
+        MouseMove,
+        GamepadConnected,
+        GamepadDisconnected,
+        GamepadChange,
     };
 
     // Aligns with GLFW's mouse button enum
@@ -179,6 +182,32 @@ public:
             metadata = {.key = c};
         }
 
+        // A gamepad arriving, with its standard layout button and axis counts.
+        InputEventData(InputEvent type,
+                       uint32_t deviceId,
+                       uint8_t buttonCount,
+                       uint8_t axisCount) :
+            eventType(type)
+        {
+            metadata.pad = {.deviceId = deviceId,
+                            .buttonCount = buttonCount,
+                            .axisCount = axisCount};
+        }
+
+        // One standard layout button or axis changing value.
+        InputEventData(InputEvent type,
+                       uint32_t deviceId,
+                       bool isAxis,
+                       uint8_t index,
+                       float value) :
+            eventType(type)
+        {
+            metadata.pad = {.deviceId = deviceId,
+                            .isAxis = isAxis,
+                            .index = index,
+                            .value = value};
+        }
+
         InputEvent eventType;
 
         union
@@ -191,6 +220,15 @@ public:
             };
 
             char key;
+            struct
+            {
+                uint32_t deviceId;
+                bool isAxis;
+                uint8_t index;
+                uint8_t buttonCount;
+                uint8_t axisCount;
+                float value;
+            } pad;
         } metadata;
     };
 
