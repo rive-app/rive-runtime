@@ -287,6 +287,35 @@ API api =
 bool angle = false;
 bool skia = false;
 
+void makeContext()
+{
+    lastWidth = 0;
+    lastHeight = 0;
+
+    switch (api)
+    {
+        case API::metal:
+            fiddleContext = FiddleContext::MakeMetalPLS(options);
+            break;
+        case API::d3d:
+            fiddleContext = FiddleContext::MakeD3DPLS(options);
+            break;
+        case API::d3d12:
+            fiddleContext = FiddleContext::MakeD3D12PLS(options);
+            break;
+        case API::dawn:
+            fiddleContext = FiddleContext::MakeDawnPLS(options);
+            break;
+        case API::vulkan:
+            fiddleContext = FiddleContext::MakeVulkanPLS(options);
+            break;
+        case API::gl:
+            fiddleContext =
+                skia ? FiddleContext::MakeGLSkia() : FiddleContext::MakeGLPLS();
+            break;
+    }
+}
+
 static void key_callback(GLFWwindow* window,
                          int key,
                          int scancode,
@@ -303,6 +332,13 @@ static void key_callback(GLFWwindow* window,
                 break;
             case GLFW_KEY_GRAVE_ACCENT: // ` key, backtick
                 hotloadShaders = true;
+                break;
+            case GLFW_KEY_R:
+                if (shift)
+                {
+                    fiddleContext.reset();
+                    makeContext();
+                }
                 break;
             case GLFW_KEY_A:
                 forceAtomicMode = !forceAtomicMode;
@@ -574,6 +610,10 @@ int main(int argc, const char** argv)
         {
             api = API::d3d12;
         }
+        else if (!strcmp(argv[i], "--d3d12GBV"))
+        {
+            options.enableValidationLayer = true;
+        }
         else if (!strcmp(argv[i], "--d3datomic"))
         {
             api = API::d3d;
@@ -797,28 +837,8 @@ int main(int argc, const char** argv)
     forceWindowToForeground(window);
 #endif
 
-    switch (api)
-    {
-        case API::metal:
-            fiddleContext = FiddleContext::MakeMetalPLS(options);
-            break;
-        case API::d3d:
-            fiddleContext = FiddleContext::MakeD3DPLS(options);
-            break;
-        case API::d3d12:
-            fiddleContext = FiddleContext::MakeD3D12PLS(options);
-            break;
-        case API::dawn:
-            fiddleContext = FiddleContext::MakeDawnPLS(options);
-            break;
-        case API::vulkan:
-            fiddleContext = FiddleContext::MakeVulkanPLS(options);
-            break;
-        case API::gl:
-            fiddleContext =
-                skia ? FiddleContext::MakeGLSkia() : FiddleContext::MakeGLPLS();
-            break;
-    }
+    makeContext();
+
     if (!fiddleContext)
     {
         fprintf(stderr, "Failed to create a fiddle context.\n");

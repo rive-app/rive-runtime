@@ -319,6 +319,13 @@ public:
         // Increment the current frame one more to get past this wait.
         m_currentFrame++;
     }
+    ~FiddleContextD3D12PLS()
+    {
+        if (!m_isHeadless && m_swapChain)
+            m_swapChain->Release();
+
+        waitForLastFrame();
+    }
 
     float dpiScale(GLFWwindow*) const override { return 1; }
 
@@ -744,11 +751,14 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
             dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
         }
 
-        // Query the newer interface for GPU-based validation
-        ComPtr<ID3D12Debug1> debugController1;
-        if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController1))))
+        if (fiddleOptions.enableValidationLayer)
         {
-            debugController1->SetEnableGPUBasedValidation(TRUE);
+            ComPtr<ID3D12Debug1> debugController1;
+            if (SUCCEEDED(
+                    D3D12GetDebugInterface(IID_PPV_ARGS(&debugController1))))
+            {
+                debugController1->SetEnableGPUBasedValidation(TRUE);
+            }
         }
     }
 #endif

@@ -35,6 +35,7 @@ struct FiddleContextOptions
     bool enableVulkanCoreValidationLayers = false;
     bool enableVulkanSynchronizationValidationLayers = false;
     bool disableDebugCallbacks = false;
+    bool enableValidationLayer = false;
     const char* gpuNameFilter = nullptr; // Substring of GPU name to use.
 };
 
