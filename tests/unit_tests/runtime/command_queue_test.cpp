@@ -6873,6 +6873,47 @@ struct FocusCommandFixture
     }
 };
 
+// Runs a real server thread so synchronized queue calls can wait for results.
+struct SynchronizedFocusCommandFixture
+{
+    rcp<CommandQueue> commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread{server_thread, commandQueue};
+    StateMachineHandle stateMachineHandle = RIVE_NULL_HANDLE;
+
+    SynchronizedFocusCommandFixture()
+    {
+        std::ifstream stream("assets/multiple_state_machines.riv",
+                             std::ios::binary);
+        auto file = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+        auto artboard = commandQueue->instantiateDefaultArtboard(file);
+        stateMachineHandle =
+            commandQueue->instantiateStateMachineNamed(artboard, "one");
+    }
+
+    ~SynchronizedFocusCommandFixture()
+    {
+        commandQueue->disconnect();
+        serverThread.join();
+    }
+
+    // Queue setup before traversal. The container is not itself a focus stop.
+    void addScope(EdgeBehavior edge, Focusable* focusable)
+    {
+        commandQueue->runOnce([handle = stateMachineHandle, edge, focusable](
+                                  CommandServer* server) {
+            auto* instance = server->getStateMachineInstance(handle);
+            REQUIRE(instance != nullptr);
+            auto* manager = instance->focusManager();
+            auto scope = make_rcp<FocusNode>();
+            scope->edgeBehavior(edge);
+            scope->canFocus(false);
+            manager->addChild(nullptr, scope);
+            manager->addChild(scope, make_rcp<FocusNode>(focusable));
+        });
+    }
+};
+
 /// Captures dispatched input to verify arguments and consumption results.
 class RecordingInputFocusable : public KeyboardAcceptingFocusable
 {
@@ -7199,6 +7240,313 @@ TEST_CASE("Synchronized focus traversal mirrors StateMachineInstance",
 
     commandQueue->disconnect();
     serverThread.join();
+}
+
+TEST_CASE(
+    "Synchronized focus result: returns traversal and resulting focus state",
+    "[CommandQueue]")
+{
+    KeyboardAcceptingFocusable focusable;
+    SynchronizedFocusCommandFixture fx;
+    fx.addScope(EdgeBehavior::parentScope, &focusable);
+    CommandQueue::FocusTraversalResult entry;
+    CommandQueue::FocusTraversalResult result;
+
+    SECTION("Next")
+    {
+        entry = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+        result = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    SECTION("Previous")
+    {
+        entry = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+        result = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    CHECK(entry.moved);
+    CHECK(entry.focusState.hasFocus);
+    CHECK(entry.focusState.expectsKeyboardInput);
+    CHECK_FALSE(result.moved);
+    CHECK_FALSE(result.focusState.hasFocus);
+    CHECK_FALSE(result.focusState.expectsKeyboardInput);
+}
+
+TEST_CASE(
+    "Synchronized focus result: reports retained focus when traversal does not move",
+    "[CommandQueue]")
+{
+    KeyboardAcceptingFocusable focusable;
+    SynchronizedFocusCommandFixture fx;
+    fx.addScope(EdgeBehavior::stop, &focusable);
+    CommandQueue::FocusTraversalResult entry;
+    CommandQueue::FocusTraversalResult result;
+
+    SECTION("Next")
+    {
+        entry = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+        result = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    SECTION("Previous")
+    {
+        entry = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+        result = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    CHECK(entry.moved);
+    CHECK(entry.focusState.hasFocus);
+    CHECK(entry.focusState.expectsKeyboardInput);
+    CHECK_FALSE(result.moved);
+    CHECK(result.focusState.hasFocus);
+    CHECK(result.focusState.expectsKeyboardInput);
+}
+
+TEST_CASE("Synchronized focus result: queued clear precedes traversal",
+          "[CommandQueue]")
+{
+    KeyboardAcceptingFocusable focusable;
+    SynchronizedFocusCommandFixture fx;
+    fx.addScope(EdgeBehavior::stop, &focusable);
+    CommandQueue::FocusTraversalResult entry;
+    CommandQueue::FocusTraversalResult result;
+
+    SECTION("Next")
+    {
+        entry = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+        fx.commandQueue->clearFocus(fx.stateMachineHandle);
+        result = fx.commandQueue->focusNextWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    SECTION("Previous")
+    {
+        entry = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+        fx.commandQueue->clearFocus(fx.stateMachineHandle);
+        result = fx.commandQueue->focusPreviousWithResultSynchronized(
+            fx.stateMachineHandle);
+    }
+
+    CHECK(entry.moved);
+    CHECK(entry.focusState.hasFocus);
+    CHECK(entry.focusState.expectsKeyboardInput);
+    // A single-node stop scope cannot move again unless the queued clear
+    // was processed before the synchronized traversal.
+    CHECK(result.moved);
+    CHECK(result.focusState.hasFocus);
+    CHECK(result.focusState.expectsKeyboardInput);
+}
+
+TEST_CASE("Synchronized focus result: invalid handles return empty results",
+          "[CommandQueue]")
+{
+    SynchronizedFocusCommandFixture fx;
+    StateMachineHandle handle = RIVE_NULL_HANDLE;
+
+    SECTION("Null handle") { handle = RIVE_NULL_HANDLE; }
+
+    SECTION("Deleted machine")
+    {
+        handle = fx.stateMachineHandle;
+        fx.commandQueue->deleteStateMachine(handle);
+    }
+
+    const auto next = fx.commandQueue->focusNextWithResultSynchronized(handle);
+    CHECK_FALSE(next.moved);
+    CHECK_FALSE(next.focusState.hasFocus);
+    CHECK_FALSE(next.focusState.expectsKeyboardInput);
+
+    const auto previous =
+        fx.commandQueue->focusPreviousWithResultSynchronized(handle);
+    CHECK_FALSE(previous.moved);
+    CHECK_FALSE(previous.focusState.hasFocus);
+    CHECK_FALSE(previous.focusState.expectsKeyboardInput);
+}
+
+TEST_CASE("Synchronized key input forwards arguments and consumption",
+          "[CommandQueue]")
+{
+    RecordingInputFocusable recipient;
+    SynchronizedFocusCommandFixture fx;
+    fx.addScope(EdgeBehavior::stop, &recipient);
+    REQUIRE(fx.commandQueue->focusNextSynchronized(fx.stateMachineHandle));
+    const auto modifiers = KeyModifiers::ctrl | KeyModifiers::shift;
+
+    CHECK(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                Key::left,
+                                                modifiers,
+                                                true,
+                                                true));
+    recipient.handled = false;
+    CHECK_FALSE(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                      Key::left,
+                                                      KeyModifiers::none,
+                                                      false,
+                                                      false));
+
+    REQUIRE(recipient.keys.size() == 2);
+    CHECK(recipient.keys[0].key == Key::left);
+    CHECK(recipient.keys[0].modifiers == modifiers);
+    CHECK(recipient.keys[0].isPressed);
+    CHECK(recipient.keys[0].isRepeat);
+    CHECK(recipient.keys[1].key == Key::left);
+    CHECK(recipient.keys[1].modifiers == KeyModifiers::none);
+    CHECK_FALSE(recipient.keys[1].isPressed);
+    CHECK_FALSE(recipient.keys[1].isRepeat);
+
+    recipient.handled = true;
+    CHECK(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                Key::right,
+                                                KeyModifiers::alt,
+                                                true,
+                                                false));
+    REQUIRE(recipient.keys.size() == 3);
+    CHECK(recipient.keys[2].key == Key::right);
+    CHECK(recipient.keys[2].modifiers == KeyModifiers::alt);
+    CHECK(recipient.keys[2].isPressed);
+    CHECK_FALSE(recipient.keys[2].isRepeat);
+}
+
+TEST_CASE("Synchronized key input observes a queued clear", "[CommandQueue]")
+{
+    RecordingInputFocusable recipient;
+    SynchronizedFocusCommandFixture fx;
+    fx.addScope(EdgeBehavior::stop, &recipient);
+    REQUIRE(fx.commandQueue->focusNextSynchronized(fx.stateMachineHandle));
+    REQUIRE(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                  Key::right,
+                                                  KeyModifiers::none,
+                                                  true,
+                                                  false));
+
+    // Without the queued clear, the same recipient would accept this key.
+    fx.commandQueue->clearFocus(fx.stateMachineHandle);
+    CHECK_FALSE(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                      Key::right,
+                                                      KeyModifiers::none,
+                                                      true,
+                                                      false));
+    CHECK(recipient.keys.size() == 1);
+}
+
+TEST_CASE("Synchronized directional focus forwards direction and movement",
+          "[CommandQueue]")
+{
+    const auto direction = GENERATE(Direction::left,
+                                    Direction::right,
+                                    Direction::up,
+                                    Direction::down);
+    SynchronizedFocusCommandFixture fx;
+    auto origin = make_rcp<FocusNode>();
+    auto target = make_rcp<FocusNode>();
+    origin->worldBounds(AABB(0, 0, 10, 10));
+    switch (direction)
+    {
+        case Direction::left:
+            target->worldBounds(AABB(-20, 0, -10, 10));
+            break;
+        case Direction::right:
+            target->worldBounds(AABB(20, 0, 30, 10));
+            break;
+        case Direction::up:
+            target->worldBounds(AABB(0, -20, 10, -10));
+            break;
+        case Direction::down:
+            target->worldBounds(AABB(0, 20, 10, 30));
+            break;
+    }
+    // This setup is queued, so successful traversal also verifies FIFO
+    // ordering.
+    fx.commandQueue->runOnce([handle = fx.stateMachineHandle, origin, target](
+                                 CommandServer* server) {
+        auto* manager = server->getStateMachineInstance(handle)->focusManager();
+        manager->addChild(nullptr, origin);
+        manager->addChild(nullptr, target);
+        manager->setFocus(origin);
+    });
+
+    REQUIRE(fx.commandQueue->focusInDirectionSynchronized(fx.stateMachineHandle,
+                                                          direction));
+    CHECK_FALSE(
+        fx.commandQueue->focusInDirectionSynchronized(fx.stateMachineHandle,
+                                                      direction));
+}
+
+TEST_CASE("Synchronized keyboard and directional input reject missing targets",
+          "[CommandQueue]")
+{
+    SynchronizedFocusCommandFixture fx;
+    StateMachineHandle handle = RIVE_NULL_HANDLE;
+    SECTION("Null handle") {}
+    SECTION("Machine without focus nodes") { handle = fx.stateMachineHandle; }
+    CHECK_FALSE(fx.commandQueue->keyInputSynchronized(handle,
+                                                      Key::right,
+                                                      KeyModifiers::none,
+                                                      true,
+                                                      false));
+    CHECK_FALSE(
+        fx.commandQueue->focusInDirectionSynchronized(handle,
+                                                      Direction::right));
+}
+
+TEST_CASE("Synchronized input observes queued state machine deletion",
+          "[CommandQueue]")
+{
+    RecordingInputFocusable recipient;
+    SynchronizedFocusCommandFixture fx;
+    fx.commandQueue->runOnce([handle = fx.stateMachineHandle,
+                              &recipient](CommandServer* server) {
+        auto* manager = server->getStateMachineInstance(handle)->focusManager();
+        auto left = make_rcp<FocusNode>(&recipient);
+        auto right = make_rcp<FocusNode>(&recipient);
+        left->worldBounds(AABB(0, 0, 10, 10));
+        right->worldBounds(AABB(20, 0, 30, 10));
+        manager->addChild(nullptr, left);
+        manager->addChild(nullptr, right);
+        manager->setFocus(left);
+    });
+
+    SECTION("Key input")
+    {
+        REQUIRE(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                      Key::right,
+                                                      KeyModifiers::none,
+                                                      true,
+                                                      false));
+        fx.commandQueue->deleteStateMachine(fx.stateMachineHandle);
+        CHECK_FALSE(fx.commandQueue->keyInputSynchronized(fx.stateMachineHandle,
+                                                          Key::right,
+                                                          KeyModifiers::none,
+                                                          true,
+                                                          false));
+        CHECK(recipient.keys.size() == 1);
+    }
+
+    SECTION("Directional focus")
+    {
+        REQUIRE(
+            fx.commandQueue->focusInDirectionSynchronized(fx.stateMachineHandle,
+                                                          Direction::right));
+        REQUIRE(
+            fx.commandQueue->focusInDirectionSynchronized(fx.stateMachineHandle,
+                                                          Direction::left));
+        // Right is available again; only deletion should prevent this
+        // traversal.
+        fx.commandQueue->deleteStateMachine(fx.stateMachineHandle);
+        CHECK_FALSE(
+            fx.commandQueue->focusInDirectionSynchronized(fx.stateMachineHandle,
+                                                          Direction::right));
+    }
 }
 
 TEST_CASE("Focus state query reports internal focus changes", "[CommandQueue]")

@@ -38,6 +38,7 @@ static_assert(sizeof(void*) == 4, "expected a 32-bit environment");
 
 namespace rive
 {
+enum class Direction : uint8_t;
 class Factory;
 class File;
 class ArtboardInstance;
@@ -360,6 +361,17 @@ public:
     {
         bool hasFocus = false;
         bool expectsKeyboardInput = false;
+    };
+
+    /** Traversal and its resulting state, observed under the same lock. */
+    struct FocusTraversalResult
+    {
+        /** Whether traversal moved focus, including entry into the focus tree.
+         */
+        bool moved = false;
+        /** The focus state immediately after traversal, even when it did not
+         * move. */
+        FocusState focusState = {};
     };
 
     class ViewModelInstanceListener
@@ -1203,6 +1215,58 @@ public:
     void requestHasFocusNodes(StateMachineHandle, uint64_t requestId = 0);
     void clearFocus(StateMachineHandle, uint64_t requestId = 0);
     void requestFocusState(StateMachineHandle, uint64_t requestId = 0);
+
+    /**
+     * Synchronously traverses forward and captures the resulting focus state.
+     * A traversal that does not move may still retain focus, such as at a stop
+     * boundary. The returned state distinguishes retained focus from exit.
+     *
+     * @param stateMachineHandle The state machine whose focus tree to traverse.
+     * @return Movement and post-traversal state, or a default-initialized
+     * result if the state machine does not exist.
+     */
+    FocusTraversalResult focusNextWithResultSynchronized(
+        StateMachineHandle stateMachineHandle);
+
+    /**
+     * Synchronously traverses backward and captures the resulting focus state.
+     * A traversal that does not move may still retain focus, such as at a stop
+     * boundary. The returned state distinguishes retained focus from exit.
+     *
+     * @param stateMachineHandle The state machine whose focus tree to traverse.
+     * @return Movement and post-traversal state, or a default-initialized
+     * result if the state machine does not exist.
+     */
+    FocusTraversalResult focusPreviousWithResultSynchronized(
+        StateMachineHandle stateMachineHandle);
+
+    /**
+     * Delivers a key synchronously to the focused node and its ancestors.
+     *
+     * @param stateMachineHandle The state machine receiving the event.
+     * @param key The Rive key code to dispatch.
+     * @param modifiers The active modifier flags.
+     * @param isPressed Whether the key is pressed rather than released.
+     * @param isRepeat Whether this is a repeated key press.
+     * @return Whether the event was handled. Returns false for a missing
+     * state machine or when no focused node or ancestor handles the event.
+     */
+    bool keyInputSynchronized(StateMachineHandle stateMachineHandle,
+                              Key key,
+                              KeyModifiers modifiers,
+                              bool isPressed,
+                              bool isRepeat);
+
+    /**
+     * Synchronously attempts spatial focus traversal in the given direction.
+     *
+     * @param stateMachineHandle The state machine whose focus tree to traverse.
+     * @param direction The direction in root artboard space.
+     * @return Whether traversal moved focus. Returns false for a missing
+     * state machine, missing focus manager, or unsuccessful traversal.
+     */
+    bool focusInDirectionSynchronized(StateMachineHandle stateMachineHandle,
+                                      Direction direction);
 
     /**
      * Sets the listener for runtime-defined command server messages.

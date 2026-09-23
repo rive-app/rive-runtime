@@ -13,6 +13,7 @@
 #include "rive/assets/script_module_asset.hpp"
 #include "rive/assets/text_asset.hpp"
 #include "rive/file.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #ifdef WITH_RIVE_SCRIPTING_LUAU
@@ -4767,20 +4768,55 @@ CommandServer::SynchronizedStateMachine::SynchronizedStateMachine(
 
 bool CommandServer::focusNextSynchronized(StateMachineHandle handle)
 {
+    return focusNextWithResultSynchronized(handle).moved;
+}
+
+bool CommandServer::focusPreviousSynchronized(StateMachineHandle handle)
+{
+    return focusPreviousWithResultSynchronized(handle).moved;
+}
+
+CommandQueue::FocusTraversalResult CommandServer::
+    focusNextWithResultSynchronized(StateMachineHandle handle)
+{
     std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
     auto it = m_stateMachines.find(handle);
     if (it == m_stateMachines.end())
     {
-        return false;
+        return {};
     }
 
     auto stateMachine = it->second;
     accessLock.unlock();
     std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-    return stateMachine->instance->focusNext();
+    const bool moved = stateMachine->instance->focusNext();
+    const auto state = stateMachine->instance->focusState();
+    return {moved, {state.hasFocus, state.expectsKeyboardInput}};
 }
 
-bool CommandServer::focusPreviousSynchronized(StateMachineHandle handle)
+CommandQueue::FocusTraversalResult CommandServer::
+    focusPreviousWithResultSynchronized(StateMachineHandle handle)
+{
+    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it == m_stateMachines.end())
+    {
+        return {};
+    }
+
+    auto stateMachine = it->second;
+    accessLock.unlock();
+    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+    const bool moved = stateMachine->instance->focusPrevious();
+    const auto state = stateMachine->instance->focusState();
+    return {moved, {state.hasFocus, state.expectsKeyboardInput}};
+}
+
+bool CommandServer::keyInputSynchronized(StateMachineHandle handle,
+                                         Key key,
+                                         KeyModifiers modifiers,
+                                         bool isPressed,
+                                         bool isRepeat)
 {
     std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
     auto it = m_stateMachines.find(handle);
@@ -4788,10 +4824,40 @@ bool CommandServer::focusPreviousSynchronized(StateMachineHandle handle)
     {
         return false;
     }
-
-    auto stateMachine = it->second;
+    auto wrapper = it->second;
     accessLock.unlock();
-    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-    return stateMachine->instance->focusPrevious();
+    std::unique_lock<std::mutex> lock(wrapper->m_mutex);
+    return wrapper->instance->keyInput(key, modifiers, isPressed, isRepeat);
+}
+
+bool CommandServer::focusInDirectionSynchronized(StateMachineHandle handle,
+                                                 Direction direction)
+{
+    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it == m_stateMachines.end())
+    {
+        return false;
+    }
+    auto wrapper = it->second;
+    accessLock.unlock();
+    std::unique_lock<std::mutex> lock(wrapper->m_mutex);
+    auto* manager = wrapper->instance->focusManager();
+    if (!manager)
+    {
+        return false;
+    }
+    switch (direction)
+    {
+        case Direction::left:
+            return manager->focusLeft();
+        case Direction::right:
+            return manager->focusRight();
+        case Direction::up:
+            return manager->focusUp();
+        case Direction::down:
+            return manager->focusDown();
+    }
+    return false;
 }
 }; // namespace rive

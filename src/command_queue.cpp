@@ -2738,4 +2738,56 @@ void CommandQueue::requestFocusState(StateMachineHandle stateMachineHandle,
     m_commandStream << requestId;
 }
 
+CommandQueue::FocusTraversalResult CommandQueue::
+    focusNextWithResultSynchronized(StateMachineHandle handle)
+{
+    auto result = std::make_shared<std::promise<FocusTraversalResult>>();
+    auto future = result->get_future();
+    runOnce([handle, result](CommandServer* server) {
+        result->set_value(server->focusNextWithResultSynchronized(handle));
+    });
+    return future.get();
+}
+
+CommandQueue::FocusTraversalResult CommandQueue::
+    focusPreviousWithResultSynchronized(StateMachineHandle handle)
+{
+    auto result = std::make_shared<std::promise<FocusTraversalResult>>();
+    auto future = result->get_future();
+    runOnce([handle, result](CommandServer* server) {
+        result->set_value(server->focusPreviousWithResultSynchronized(handle));
+    });
+    return future.get();
+}
+
+bool CommandQueue::keyInputSynchronized(StateMachineHandle handle,
+                                        Key key,
+                                        KeyModifiers modifiers,
+                                        bool isPressed,
+                                        bool isRepeat)
+{
+    auto result = std::make_shared<std::promise<bool>>();
+    auto future = result->get_future();
+    runOnce([handle, key, modifiers, isPressed, isRepeat, result](
+                CommandServer* server) {
+        result->set_value(server->keyInputSynchronized(handle,
+                                                       key,
+                                                       modifiers,
+                                                       isPressed,
+                                                       isRepeat));
+    });
+    return future.get();
+}
+
+bool CommandQueue::focusInDirectionSynchronized(StateMachineHandle handle,
+                                                Direction direction)
+{
+    auto result = std::make_shared<std::promise<bool>>();
+    auto future = result->get_future();
+    runOnce([handle, direction, result](CommandServer* server) {
+        result->set_value(
+            server->focusInDirectionSynchronized(handle, direction));
+    });
+    return future.get();
+}
 }; // namespace rive

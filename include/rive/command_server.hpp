@@ -128,6 +128,25 @@ public:
     bool focusNextSynchronized(StateMachineHandle);
     bool focusPreviousSynchronized(StateMachineHandle);
 
+    /** @copydoc CommandQueue::focusNextWithResultSynchronized */
+    CommandQueue::FocusTraversalResult focusNextWithResultSynchronized(
+        StateMachineHandle stateMachineHandle);
+
+    /** @copydoc CommandQueue::focusPreviousWithResultSynchronized */
+    CommandQueue::FocusTraversalResult focusPreviousWithResultSynchronized(
+        StateMachineHandle stateMachineHandle);
+
+    /** @copydoc CommandQueue::keyInputSynchronized */
+    bool keyInputSynchronized(StateMachineHandle stateMachineHandle,
+                              Key key,
+                              KeyModifiers modifiers,
+                              bool isPressed,
+                              bool isRepeat);
+
+    /** @copydoc CommandQueue::focusInDirectionSynchronized */
+    bool focusInDirectionSynchronized(StateMachineHandle stateMachineHandle,
+                                      Direction direction);
+
 private:
     friend class CommandQueue;
 
