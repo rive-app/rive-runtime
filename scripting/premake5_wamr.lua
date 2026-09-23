@@ -1,8 +1,8 @@
 -- WAMR for the wasm scripting backend. Flags proven by the luau_wasm EH
 -- spike: sw-bounds artifacts must never unwind through hardware traps
 -- (the longjmp skips the sjlj glue's native frames). Bounds checks default
--- sw; wasm_hw_bounds below. No libc-wasi: AssemblyScript modules import
--- none, and the runtime serves the Luau host module's two wasi calls itself.
+-- sw; wasm_hw_bounds below. libc-wasi stays on: it makes WAMR leave the Luau
+-- blob's __wasm_call_ctors to the host, off it also runs them at instantiate.
 local dependency = require('dependency')
 -- The patch set carries the rive fast-interp fixes (linear_mem_size
 -- refreshes around growth, gated OOB diagnostics); a clone without them is
@@ -23,7 +23,7 @@ local wamrConfigDefines = {
     'WASM_ENABLE_AOT=1',
     'WASM_ENABLE_JIT=0',
     'WASM_ENABLE_LIBC_BUILTIN=1',
-    'WASM_ENABLE_LIBC_WASI=0',
+    'WASM_ENABLE_LIBC_WASI=1',
     'WASM_ENABLE_MODULE_INST_CONTEXT=1',
     'WASM_ENABLE_BULK_MEMORY=1',
     -- Simde-backed v128 in the fast interpreter; scalar modules
@@ -183,6 +183,10 @@ do
         platformPath,
         wamr .. '/core/shared/platform/common/libc-util',
         wamr .. '/core/shared/mem-alloc',
+        -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
+        -- on, which our config always is.
+        wamr .. '/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/src',
+        wamr .. '/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/include',
         wamr .. '/core/shared/utils',
         wamr .. '/core/shared/utils/uncommon',
         simde,
@@ -196,6 +200,7 @@ do
         wamr .. '/core/iwasm/aot/*.c',
         wamr .. '/core/iwasm/aot/arch/' .. aotReloc,
         wamr .. '/core/iwasm/libraries/libc-builtin/*.c',
+        wamr .. '/core/iwasm/libraries/libc-wasi/**.c',
         platformPath .. '/*.c',
         -- Windows replaces the posix layer wholesale; win_atomic is C++.
         (os.target() == 'windows' and not isNx)
@@ -232,6 +237,10 @@ return {
         -- platform_internal.h comes from the per-platform dir.
         platformPath,
         wamr .. '/core/shared/mem-alloc',
+        -- wasm_runtime_common.h pulls the wasi primitives when libc-wasi is
+        -- on, which our config always is.
+        wamr .. '/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/src',
+        wamr .. '/core/iwasm/libraries/libc-wasi/sandboxed-system-primitives/include',
         wamr .. '/core/shared/utils',
     },
 }
