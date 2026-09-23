@@ -12,6 +12,7 @@
 #include "rive/renderer/cmd/deferred_session.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "common/render_context_null.hpp"
+#include "common/testing_window.hpp"
 #include "rive_file_reader.hpp"
 #include "rive/scene.hpp"
 
@@ -136,7 +137,13 @@ std::vector<FlushStats> runImmediate(const char* rivPath, uint32_t* features)
     {
         advanceFrame(scene.get(), artboard.get(), frame);
         FlushStats before = ctx.observer()->stats;
-        ctx.beginFrame({.renderTargetWidth = w, .renderTargetHeight = h});
+        ctx.beginFrame(
+            {.renderTargetWidth = w,
+             .renderTargetHeight = h,
+             // Since this is testing that the immediate and recorded passes get
+             // identical results, the triangulation decisions must be
+             // deterministic. The default is based on wall clock.
+             .triangulationThresholds = DeterministicTriangulationThresholds});
         RiveRenderer renderer(&ctx);
         drawFrame(scene.get(), artboard.get(), &renderer);
         ctx.flush({.renderTarget = rt.get()});
@@ -162,7 +169,12 @@ public:
     {
         REQUIRE(target == 0);
         m_ctx->beginFrame(
-            {.renderTargetWidth = m_width, .renderTargetHeight = m_height});
+            {.renderTargetWidth = m_width,
+             .renderTargetHeight = m_height,
+             // Since this is testing that the immediate and recorded passes get
+             // identical results, the triangulation decisions must be
+             // deterministic. The default is based on wall clock.
+             .triangulationThresholds = DeterministicTriangulationThresholds});
         m_renderer = std::make_unique<RiveRenderer>(m_ctx);
         return m_renderer.get();
     }
