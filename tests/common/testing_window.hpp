@@ -348,6 +348,10 @@ public:
     virtual void beginOreFrame() {}
     virtual void endOreFrame() {}
 
+    // Whether beginFrame through endFrame may run off the thread that made the
+    // window. A current GL context or GLFW event polling in endFrame says no.
+    virtual bool supportsRenderThread() const { return false; }
+
     virtual ~TestingWindow() {}
 
     static TestingWindow* MakeEGL(Backend,

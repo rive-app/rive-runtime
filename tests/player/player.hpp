@@ -96,6 +96,12 @@ private:
     int m_frameCounter = 0;
 
     bool m_useDeferred = false;
+    bool m_threaded = false;
+    struct FrameJob;
+    struct RenderThread;
+    std::unique_ptr<RenderThread> m_renderThread;
+    // Replays and presents one frame, on the render thread under --threaded.
+    void presentFrame(FrameJob& job);
     // The import factory: the session when deferred, the window's otherwise.
     rive::Factory* m_factory = nullptr;
 #ifdef RIVE_CANVAS

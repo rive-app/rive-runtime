@@ -31,7 +31,11 @@
 #endif
 #include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>
+#include <condition_variable>
 #include <fstream>
+#include <mutex>
+#include <optional>
+#include <thread>
 
 #if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
 #include "common/rive_android_app.hpp"
@@ -58,12 +62,88 @@ struct Player::FPSOverlay
     std::chrono::high_resolution_clock::time_point timeLastUpdate;
 };
 
+struct Player::FrameJob
+{
+    TestingWindow::FrameOptions options;
+#ifdef RIVE_CANVAS
+    rive::cmd::DeferredFrame frame;
+#endif
+    std::vector<uint8_t>* pixels = nullptr;
+};
+
+// One frame in flight at most: submit blocks until the previous frame has
+// presented. Every window call happens on this thread while it lives.
+struct Player::RenderThread
+{
+    explicit RenderThread(Player* player) :
+        m_thread([this, player] { run(player); })
+    {}
+
+    ~RenderThread()
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            m_quit = true;
+        }
+        m_cv.notify_all();
+        m_thread.join();
+    }
+
+    void submit(FrameJob job)
+    {
+        std::unique_lock lock(m_mutex);
+        m_cv.wait(lock, [this] { return idle(); });
+        m_pending = std::move(job);
+        m_cv.notify_all();
+    }
+
+    // Returns once every submitted frame has presented.
+    void drain()
+    {
+        std::unique_lock lock(m_mutex);
+        m_cv.wait(lock, [this] { return idle(); });
+    }
+
+private:
+    bool idle() const { return !m_pending.has_value(); }
+
+    void run(Player* player)
+    {
+        for (;;)
+        {
+            std::unique_lock lock(m_mutex);
+            m_cv.wait(lock, [this] { return m_pending.has_value() || m_quit; });
+            if (!m_pending.has_value())
+            {
+                return;
+            }
+            lock.unlock();
+            {
+                rive::gpu::ScopedAutoreleasePool autoreleasePool;
+                player->presentFrame(*m_pending);
+            }
+            lock.lock();
+            m_pending.reset();
+            lock.unlock();
+            m_cv.notify_all();
+        }
+    }
+
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    std::optional<FrameJob> m_pending;
+    bool m_quit = false;
+    std::thread m_thread; // last, so the state above exists before it runs
+};
+
 Player::Player() : m_fps(std::make_unique<FPSOverlay>()) {}
 
-Player::~Player() = default;
+// Joins before the replay state below goes, for hosts that skip shutdown.
+Player::~Player() { m_renderThread = nullptr; }
 
 void Player::shutdown()
 {
+    m_renderThread = nullptr;
 #ifdef RIVE_CANVAS
     if (m_session != nullptr)
     {
@@ -242,6 +322,10 @@ bool Player::parseArgs(int argc,
         {
             m_useDeferred = true;
         }
+        else if (strcmp(argv[i], "--threaded") == 0)
+        {
+            m_threaded = true;
+        }
         else if (strcmp(argv[i], "--dump") == 0 && i + 1 < argc)
         {
             m_dumpPath = argv[++i];
@@ -318,6 +402,10 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
             printf("--deferred unavailable on this backend, drawing "
                    "immediate\n");
         }
+        else if (m_threaded && TestingWindow::Get()->supportsRenderThread())
+        {
+            m_renderThread = std::make_unique<RenderThread>(this);
+        }
     }
 #else
     if (m_useDeferred)
@@ -325,6 +413,11 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
         printf("--deferred requires a RIVE_CANVAS build, drawing immediate\n");
     }
 #endif
+    if (m_threaded && m_renderThread == nullptr)
+    {
+        printf("--threaded needs deferred replay on a window that presents "
+               "off the main thread, presenting inline\n");
+    }
     m_file = rive::File::import(rivBytes, m_factory);
     assert(m_file);
 
@@ -421,6 +514,24 @@ void Player::submitGamepad(const TestingWindow::InputEventData& event)
     m_stateMachine->submitGamepadsFromBuffer(buffer.data(), buffer.size());
 }
 
+void Player::presentFrame(FrameJob& job)
+{
+#ifdef RIVE_CANVAS
+    if (m_session != nullptr)
+    {
+        TestingWindowFrameSink sink(job.options);
+        m_replayer->replayFrame(job.frame, sink);
+        uint32_t dropped = m_replayer->droppedDraws();
+        if (dropped != 0 && dropped != m_lastDroppedDraws)
+        {
+            printf("deferred replay dropped %u draws\n", dropped);
+        }
+        m_lastDroppedDraws = dropped;
+    }
+#endif
+    TestingWindow::Get()->endFrame(job.pixels);
+}
+
 bool Player::doFrame()
 {
     if (m_quit || TestingWindow::Get()->shouldQuit()
@@ -447,6 +558,10 @@ bool Player::doFrame()
             printf("Resizing HTML canvas to %i x %i.\n",
                    canvasExpectedWidth,
                    canvasExpectedHeight);
+            if (m_renderThread != nullptr)
+            {
+                m_renderThread->drain();
+            }
             TestingWindow::Get()->resize(canvasExpectedWidth,
                                          canvasExpectedHeight);
             emscripten_set_element_css_size("#canvas",
@@ -527,6 +642,10 @@ bool Player::doFrame()
         m_hotloadShaders = false;
 #ifndef RIVE_NO_STD_SYSTEM
         std::system("sh rebuild_shaders.sh /tmp/rive");
+        if (m_renderThread != nullptr)
+        {
+            m_renderThread->drain();
+        }
         TestingWindow::Get()->hotloadShaders();
 #endif
     }
@@ -580,26 +699,33 @@ bool Player::doFrame()
     }
 
     renderer->restore();
+
+    std::vector<uint8_t> pixels;
+    const bool dump = !m_dumpPath.empty() && ++m_frameCounter >= m_dumpFrame;
+    FrameJob job = {.options = frameOptions,
+                    .pixels = dump ? &pixels : nullptr};
 #ifdef RIVE_CANVAS
     if (m_session != nullptr)
     {
         // Snapshot replay is the same path a threaded consumer takes.
-        rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(*m_session);
+        job.frame = rive::cmd::snapshotFrame(*m_session);
         m_session->resetFrame();
-        TestingWindowFrameSink sink(frameOptions);
-        m_replayer->replayFrame(frame, sink);
-        uint32_t dropped = m_replayer->droppedDraws();
-        if (dropped != 0 && dropped != m_lastDroppedDraws)
-        {
-            printf("deferred replay dropped %u draws\n", dropped);
-        }
-        m_lastDroppedDraws = dropped;
     }
 #endif
-    if (!m_dumpPath.empty() && ++m_frameCounter >= m_dumpFrame)
+    if (m_renderThread != nullptr)
     {
-        std::vector<uint8_t> pixels;
-        TestingWindow::Get()->endFrame(&pixels);
+        m_renderThread->submit(std::move(job));
+        if (dump)
+        {
+            m_renderThread->drain();
+        }
+    }
+    else
+    {
+        presentFrame(job);
+    }
+    if (dump)
+    {
         uint32_t w = TestingWindow::Get()->width();
         uint32_t h = TestingWindow::Get()->height();
         if (FILE* f = fopen(m_dumpPath.c_str(), "wb"))
@@ -623,7 +749,6 @@ bool Player::doFrame()
         m_quit = true;
         return false;
     }
-    TestingWindow::Get()->endFrame();
 
     // Count FPS.
     ++m_fps->frames;
