@@ -4,6 +4,7 @@
 
 #include <rive/math/aabb.hpp>
 #include <rive/math/hit_test.hpp>
+#include <rive/artboard_component_list.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/animation/state_machine_input_instance.hpp>
@@ -1185,4 +1186,82 @@ TEST_CASE("Hit test leaves in collapsed layouts", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("hittest_collapsed_layouts"));
+}
+
+// A hidden NestedArtboard is not drawn, so it must not take pointer events
+// either. `HiddenOver` is declared before `Visible`, which is what puts it
+// ahead in hit order; before the fix it swallowed the click and the visible
+// instance underneath never saw it.
+TEST_CASE("hidden nested artboard does not take hits", "[hittest]")
+{
+    auto file = ReadRiveFile("assets/hidden_hit_targets.riv");
+
+    auto artboard = file->artboardNamed("NestedHost");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+
+    auto clickedInput = [&](const char* name) {
+        auto nested = artboard->find<rive::NestedArtboard>(name);
+        REQUIRE(nested != nullptr);
+        auto nestedStateMachine =
+            nested->nestedAnimations()[0]->as<NestedStateMachine>();
+        REQUIRE(nestedStateMachine != nullptr);
+        auto input =
+            nestedStateMachine->stateMachineInstance()->getBool("Clicked");
+        REQUIRE(input != nullptr);
+        return input;
+    };
+    auto hiddenClicked = clickedInput("HiddenOver");
+    auto visibleClicked = clickedInput("Visible");
+
+    stateMachine->advanceAndApply(0.0f);
+    REQUIRE(hiddenClicked->value() == false);
+    REQUIRE(visibleClicked->value() == false);
+
+    // Both instances sit at [50, 50, 150, 150]; this lands on both.
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 100.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 100.0f));
+    stateMachine->advanceAndApply(0.0f);
+
+    CHECK(visibleClicked->value() == true);
+    CHECK(hiddenClicked->value() == false);
+}
+
+// Same contract for ArtboardComponentList: a hidden list is skipped by the
+// draw walk, so its rows must not be hit targets. Both lists here are bound
+// to the same list property and stacked in one group, so their rows overlap
+// exactly.
+TEST_CASE("hidden artboard component list does not take hits", "[hittest]")
+{
+    auto file = ReadRiveFile("assets/hidden_hit_targets.riv");
+
+    auto artboard = file->artboardNamed("ListHost");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(
+        file->createDefaultViewModelInstance(artboard.get()));
+    stateMachine->advanceAndApply(0.0f);
+
+    auto clickedInput = [&](const char* name) {
+        auto list = artboard->find<rive::ArtboardComponentList>(name);
+        REQUIRE(list != nullptr);
+        REQUIRE(list->artboardCount() == 1);
+        auto input = list->stateMachineInstance(0)->getBool("Clicked");
+        REQUIRE(input != nullptr);
+        return input;
+    };
+    auto hiddenClicked = clickedInput("HiddenList");
+    auto visibleClicked = clickedInput("VisibleList");
+
+    REQUIRE(hiddenClicked->value() == false);
+    REQUIRE(visibleClicked->value() == false);
+
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 100.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 100.0f));
+    stateMachine->advanceAndApply(0.0f);
+
+    CHECK(visibleClicked->value() == true);
+    CHECK(hiddenClicked->value() == false);
 }

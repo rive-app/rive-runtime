@@ -940,7 +940,8 @@ public:
     bool hitTest(Vec2D position) const override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
-        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+            nestedArtboard->isPaused())
         {
             return false;
         }
@@ -968,7 +969,8 @@ public:
     bool hitTestBounded(Vec2D position) const override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
-        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+            nestedArtboard->isPaused())
         {
             return false;
         }
@@ -1015,7 +1017,8 @@ public:
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         HitResult hitResult = HitResult::none;
-        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+            nestedArtboard->isPaused())
         {
             return hitResult;
         }
@@ -1132,7 +1135,7 @@ public:
     bool hitTest(Vec2D position) const override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
-        if (componentList->isCollapsed())
+        if (componentList->isCollapsed() || componentList->isHidden())
         {
             return false;
         }
@@ -1157,7 +1160,7 @@ public:
     bool hitTestBounded(Vec2D position) const override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
-        if (componentList->isCollapsed())
+        if (componentList->isCollapsed() || componentList->isHidden())
         {
             return false;
         }
@@ -1188,7 +1191,7 @@ public:
         auto componentList = m_component->as<ArtboardComponentList>();
         HitResult hitResult = HitResult::none;
         bool runningCanHit = canHit;
-        if (componentList->isCollapsed())
+        if (componentList->isCollapsed() || componentList->isHidden())
         {
             return hitResult;
         }

@@ -1,0 +1,175 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/hidden_hit_targets.riv. Unlike most fixtures
+      here this one is not an editor export: rebuild the .riv from this file
+      with the CLI, from a directory holding this scene.rml and a rive.yaml
+      naming it, then copy build/hidden_hit_targets.riv into assets/.
+
+          rive . --once
+
+      What it is for: a hidden hit target must not swallow pointer events.
+      Two hosts, one per hit-component kind that owns its own visibility
+      check -- NestedHost stacks NestedArtboards, ListHost stacks
+      ArtboardComponentLists. In both the hidden one is declared FIRST, which
+      is what puts it ahead of the visible one in hit order; declare it second
+      and the bug hides, because the visible one is reached first either way.
+
+      Both hosts are 200x200 and their stacked targets cover [50,50,150,150],
+      so (100,100) lands on the hidden and the visible target at once. Each
+      target flips its own `Clicked` bool input and animates teal -> red, so
+      the scene is readable as a picture (`rive . --screenshot`) as well as
+      through the inputs the tests assert on.
+    -->
+    <!-- ===================== nested artboard host ===================== -->
+    <Artboard defaultStateMachineId="0:70" clip="true" width="200" height="200" styleId="0:61" name="NestedHost" id="0:60">
+        <LayoutComponentStyle name="NestedHost Style" id="0:61"/>
+        <Fill name="Background" id="0:62">
+            <SolidColor colorValue="FF16181D" name="Color" id="0:63"/>
+        </Fill>
+
+        <NestedArtboard artboardId="0:2" x="50" y="50" hidden="true" name="HiddenOver" id="0:64">
+            <NestedStateMachine animationId="0:7" name="State Machine 1" id="0:65"/>
+        </NestedArtboard>
+        <NestedArtboard artboardId="0:2" x="50" y="50" name="Visible" id="0:66">
+            <NestedStateMachine animationId="0:7" name="State Machine 1" id="0:67"/>
+        </NestedArtboard>
+
+        <StateMachine name="State Machine 1" id="0:70">
+            <StateMachineLayer name="Layer 1" id="0:71">
+                <EntryState id="0:72"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- The thing both hosts stack: a 100x100 opaque click target that flips
+         its own `Clicked` input and turns teal -> red so the scene is also
+         readable as a picture. -->
+    <Artboard defaultStateMachineId="0:7" isComponent="true" width="100" height="100" styleId="0:4" name="Button" id="0:2">
+        <LayoutComponentStyle name="Button Style" id="0:4"/>
+        <Shape isTargetOpaque="true" name="Hit" id="0:5">
+            <Rectangle width="100" height="100" name="Path" id="0:6"/>
+            <Fill name="Fill" id="0:8">
+                <SolidColor colorValue="FF5FBDB2" name="Color" id="0:9"/>
+            </Fill>
+        </Shape>
+
+        <LinearAnimation duration="1" viewEnd="1" name="idle" id="0:20">
+            <KeyedObject objectId="0:9" id="0:21">
+                <KeyedProperty propertyKey="37" id="0:22">
+                    <KeyFrameColor value="FF5FBDB2" interpolationType="0" id="0:23"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" viewEnd="1" name="pressed" id="0:25">
+            <KeyedObject objectId="0:9" id="0:26">
+                <KeyedProperty propertyKey="37" id="0:27">
+                    <KeyFrameColor value="FFE04F4F" interpolationType="0" id="0:28"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="State Machine 1" id="0:7">
+            <StateMachineBool name="Clicked" id="0:30"/>
+            <StateMachineLayer name="Layer 1" id="0:10">
+                <EntryState x="-120" id="0:11">
+                    <StateTransition stateToId="0:32" id="0:33"/>
+                </EntryState>
+                <AnimationState animationId="0:20" x="40" id="0:32">
+                    <StateTransition stateToId="0:35" id="0:36">
+                        <TransitionBoolCondition inputId="0:30" id="0:37"/>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="0:25" x="200" id="0:35"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:5" name="click" id="0:12">
+                <ListenerInputType listenerTypeValue="2" id="0:13"/>
+                <ListenerBoolChange inputId="0:30" value="true" id="0:14"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <!-- ======================== list host ======================== -->
+    <Artboard defaultStateMachineId="0:90" clip="true" viewModelId="0:100" viewModelInstanceId="0:102" width="200" height="200" styleId="0:81" name="ListHost" id="0:80">
+        <LayoutComponentStyle name="ListHost Style" id="0:81"/>
+        <Fill name="Background" id="0:82">
+            <SolidColor colorValue="FF16181D" name="Color" id="0:83"/>
+        </Fill>
+
+        <Node x="50" y="50" name="Stack" id="0:84">
+            <ArtboardComponentList hidden="true" name="HiddenList" id="0:85">
+                <DataBindContext sourcePathIds="0:100-0:101" propertyKey="800" id="0:86"/>
+            </ArtboardComponentList>
+            <ArtboardComponentList name="VisibleList" id="0:87">
+                <DataBindContext sourcePathIds="0:100-0:101" propertyKey="800" id="0:88"/>
+            </ArtboardComponentList>
+        </Node>
+
+        <StateMachine name="State Machine 1" id="0:90">
+            <StateMachineLayer name="Layer 1" id="0:91">
+                <EntryState id="0:92"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <!-- The list row: same shape as Button, but bound to RowVm so the lists
+         can resolve it from their list items. -->
+    <Artboard defaultStateMachineId="0:47" viewModelId="0:110" viewModelInstanceId="0:112" isComponent="true" width="100" height="100" styleId="0:41" name="Row" id="0:40">
+        <LayoutComponentStyle name="Row Style" id="0:41"/>
+        <Shape isTargetOpaque="true" name="Hit" id="0:42">
+            <Rectangle width="100" height="100" name="Path" id="0:43"/>
+            <Fill name="Fill" id="0:44">
+                <SolidColor colorValue="FF5FBDB2" name="Color" id="0:45"/>
+            </Fill>
+        </Shape>
+
+        <LinearAnimation duration="1" viewEnd="1" name="idle" id="0:120">
+            <KeyedObject objectId="0:45" id="0:121">
+                <KeyedProperty propertyKey="37" id="0:122">
+                    <KeyFrameColor value="FF5FBDB2" interpolationType="0" id="0:123"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" viewEnd="1" name="pressed" id="0:125">
+            <KeyedObject objectId="0:45" id="0:126">
+                <KeyedProperty propertyKey="37" id="0:127">
+                    <KeyFrameColor value="FFE04F4F" interpolationType="0" id="0:128"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="State Machine 1" id="0:47">
+            <StateMachineBool name="Clicked" id="0:48"/>
+            <StateMachineLayer name="Layer 1" id="0:130">
+                <EntryState x="-120" id="0:131">
+                    <StateTransition stateToId="0:132" id="0:133"/>
+                </EntryState>
+                <AnimationState animationId="0:120" x="40" id="0:132">
+                    <StateTransition stateToId="0:135" id="0:136">
+                        <TransitionBoolCondition inputId="0:48" id="0:137"/>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState animationId="0:125" x="200" id="0:135"/>
+            </StateMachineLayer>
+            <StateMachineListener targetId="0:42" name="click" id="0:49">
+                <ListenerInputType listenerTypeValue="2" id="0:46"/>
+                <ListenerBoolChange inputId="0:48" value="true" id="0:140"/>
+            </StateMachineListener>
+        </StateMachine>
+    </Artboard>
+
+    <ViewModel defaultInstanceId="0:112" name="RowVm" id="0:110">
+        <ViewModelPropertyNumber name="index" id="0:111"/>
+        <ViewModelInstance exports="true" name="Instance" id="0:112">
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:111" name="Component" id="0:113"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <ViewModel defaultInstanceId="0:102" name="ListVm" id="0:100">
+        <ViewModelPropertyList name="rows" id="0:101"/>
+        <ViewModelInstance exports="true" name="Instance" id="0:102">
+            <ViewModelInstanceList viewModelPropertyId="0:101" name="Component" id="0:103">
+                <ViewModelInstanceListItem name="Row 1" viewModelId="0:110" viewModelInstanceId="0:112" id="0:104"/>
+            </ViewModelInstanceList>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>
