@@ -308,6 +308,13 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
                                       @a_imageRectPackedGradientData.xy,
                                       @a_imageRectPackedGradientData.z);
     }
+    else
+    {
+        // Always write this, even when there is no gradient. If we skip it,
+        // the later shader can get leftover garbage and think a gradient is
+        // present, which makes the image flicker.
+        v_gradient = float4(.0, .0, .0, .0);
+    }
     VARYING_PACK(v_texCoord);
     VARYING_PACK(v_edgeCoverage);
     VARYING_PACK(v_gradient);
