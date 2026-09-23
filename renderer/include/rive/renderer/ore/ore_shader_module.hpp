@@ -98,34 +98,65 @@ public:
     // `glLinkProgram` time.
     std::vector<GLFixupEntry> m_glFixup;
 
-    // Helper: parse `desc.glFixupBytes` (RSTB GL fixup blob format)
-    // into `m_glFixup`. No-op when the sidecar is absent or malformed.
-    void applyGLFixupFromDesc(const ShaderModuleDesc& desc)
+    // The RSTB GL fixup blob: version(u8) = 1, count(u16), then per entry
+    // kind(u8), slot(u8), name_len(u16), name. Rows already decoded stay
+    // in `out` when the blob ends early.
+    static bool parseGLFixup(const uint8_t* bytes,
+                             uint32_t size,
+                             std::vector<GLFixupEntry>& out)
     {
-        if (desc.glFixupBytes == nullptr || desc.glFixupSize < 3)
-            return;
-        const uint8_t* p = desc.glFixupBytes;
-        const uint8_t* end = p + desc.glFixupSize;
+        if (bytes == nullptr || size < 3)
+            return false;
+        const uint8_t* p = bytes;
+        const uint8_t* end = p + size;
         if (*p++ != 1) // version
-            return;
+            return false;
         uint16_t count = uint16_t(p[0]) | (uint16_t(p[1]) << 8);
         p += 2;
-        m_glFixup.reserve(count);
+        out.reserve(out.size() + count);
         for (uint16_t i = 0; i < count; ++i)
         {
             if (end - p < 4)
-                return;
+                return false;
             GLFixupEntry e;
             e.kind = static_cast<GLFixupEntry::Kind>(*p++);
             e.slot = *p++;
             uint16_t nameLen = uint16_t(p[0]) | (uint16_t(p[1]) << 8);
             p += 2;
             if (end - p < nameLen)
-                return;
+                return false;
             e.name.assign(reinterpret_cast<const char*>(p), nameLen);
             p += nameLen;
-            m_glFixup.push_back(std::move(e));
+            out.push_back(std::move(e));
         }
+        return true;
+    }
+
+    static std::vector<uint8_t> encodeGLFixup(
+        const std::vector<GLFixupEntry>& entries)
+    {
+        std::vector<uint8_t> blob;
+        blob.push_back(1); // version
+        uint16_t count = static_cast<uint16_t>(entries.size());
+        blob.push_back(count & 0xFF);
+        blob.push_back((count >> 8) & 0xFF);
+        for (const GLFixupEntry& e : entries)
+        {
+            blob.push_back(static_cast<uint8_t>(e.kind));
+            blob.push_back(e.slot);
+            uint16_t nameLen = static_cast<uint16_t>(e.name.size());
+            blob.push_back(nameLen & 0xFF);
+            blob.push_back((nameLen >> 8) & 0xFF);
+            blob.insert(blob.end(), e.name.begin(), e.name.end());
+        }
+        return blob;
+    }
+
+    // Helper: parse `desc.glFixupBytes` into `m_glFixup`. No-op when the
+    // sidecar is absent or malformed.
+    void applyGLFixupFromDesc(const ShaderModuleDesc& desc)
+    {
+        parseGLFixup(desc.glFixupBytes, desc.glFixupSize, m_glFixup);
     }
 
     virtual ~ShaderModule() = default;
