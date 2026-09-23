@@ -1171,6 +1171,87 @@ TEST_CASE("fitFontSize hug slot honors fitFontSizeResizesBox at 7.4", "[text]")
     CHECK(barY == Approx(439.49f).margin(0.5f));
 }
 
+// A fitFontSize text in a hug slot must not shrink just because it is
+// vertically trimmed. The hug box is measured *from the text*, and
+// computeVerticalTrim takes the trim band off that measurement, so the slot
+// the layout hands back (effectiveHeight()) is already trimmed. The fit
+// predicate used to compare the untrimmed content height against it, so the
+// trim band was charged twice: the font shrank by exactly the band that had
+// been removed, and the dead space the trim was meant to delete came back.
+//
+// Same asset as the tests above, with a short run so the fit is height-bound
+// rather than width-bound -- that is the axis the trim moves.
+static void checkTrimmedHugFit(rive::TextTrimTop top,
+                               rive::TextTrimBottom bottom,
+                               float* outHugHeight,
+                               float* outFittedSize)
+{
+    auto file = importTextWithMinorVersion(4);
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    rive::Text* title = nullptr;
+    for (auto text : artboard->find<rive::Text>())
+    {
+        if (!text->runs().empty() && !text->runs()[0]->text().empty())
+        {
+            title = text;
+            break;
+        }
+    }
+    REQUIRE(title != nullptr);
+    REQUIRE(title->overflow() == rive::TextOverflow::fitFontSize);
+    title->fitFontSizeResizesBox(true);
+    title->runs()[0]->text("Ag");
+    title->verticalTrimValue(rive::packTextVerticalTrim(top, bottom));
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    int viewModelId = artboard->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+
+    REQUIRE(title->parent()->is<rive::LayoutComponent>());
+    *outHugHeight =
+        title->parent()->as<rive::LayoutComponent>()->layoutHeight();
+
+    // The shaped runs carry the size the fit actually chose.
+    REQUIRE(title->shape().size() == 1);
+    REQUIRE(!title->shape()[0].runs.empty());
+    *outFittedSize = title->shape()[0].runs[0].size;
+}
+
+TEST_CASE("vertical trim does not shrink a fitFontSize hug text", "[text]")
+{
+    float untrimmedHeight = 0.0f;
+    float untrimmedSize = 0.0f;
+    checkTrimmedHugFit(rive::TextTrimTop::none,
+                       rive::TextTrimBottom::none,
+                       &untrimmedHeight,
+                       &untrimmedSize);
+
+    float trimmedHeight = 0.0f;
+    float trimmedSize = 0.0f;
+    checkTrimmedHugFit(rive::TextTrimTop::cap,
+                       rive::TextTrimBottom::alphabetic,
+                       &trimmedHeight,
+                       &trimmedSize);
+
+    // Nothing constrains this text -- the hug slot comes from the text itself
+    // -- so the fit is a no-op on both. The authored size is 175pt.
+    CHECK(untrimmedSize == Approx(175.0f).margin(0.01f));
+    // Used to fit to 105pt (0.6x): the 84.4px trim band charged twice.
+    CHECK(trimmedSize == Approx(untrimmedSize).margin(0.01f));
+
+    // The trim still does its job on the box: the slot loses the band.
+    CHECK(trimmedHeight < untrimmedHeight);
+    CHECK(untrimmedHeight == Approx(211.74f).margin(0.5f));
+    CHECK(trimmedHeight == Approx(127.32f).margin(0.5f));
+}
+
 TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
 {
     rive::SerializingFactory silver;

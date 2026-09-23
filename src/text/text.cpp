@@ -432,6 +432,15 @@ float Text::fitFontScale()
 
 float Text::fitFontScale(float boxWidth, float boxHeight)
 {
+    // The box we are fitting into is the *trimmed* one: computeBoundsInfo and
+    // measure both take the trim band off the content height before the box is
+    // sized, so boxHeight already excludes it (it is the height the layout
+    // handed back, or the offer measure is fitting into). Comparing the raw
+    // content height against it would charge the trim band twice and shrink
+    // the font by it, leaving exactly the dead space the trim removed. Gated
+    // like computeBoundsInfo: a fixed box keeps its authored, untrimmed size.
+    const bool boxIsTrimmed = effectiveSizing() != TextSizing::fixed;
+
     // Largest authored font size across runs is our maximum; we search integer
     // sizes in [1, maxSize]. Scaling all runs by a single multiplier preserves
     // their relative proportions while stepping the largest run by integers.
@@ -488,8 +497,20 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
             y += paragraphSpacing() * scale;
         }
 
+        float topTrim = 0.0f;
+        float bottomTrim = 0.0f;
+        if (boxIsTrimmed)
+        {
+            computeVerticalTrim(lines,
+                                shape,
+                                verticalTrimTop(),
+                                verticalTrimBottom(),
+                                topTrim,
+                                bottomTrim);
+        }
+
         bool widthFits = maxWidth <= boxWidth;
-        bool heightFits = y <= boxHeight;
+        bool heightFits = y - topTrim - bottomTrim <= boxHeight;
         return widthFits && heightFits;
     };
 
