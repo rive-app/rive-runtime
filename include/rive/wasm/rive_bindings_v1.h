@@ -684,6 +684,8 @@ RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_path")
 void rive_renderer_draw_path(uint32_t renderer, uint32_t path, uint32_t paint);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "clip_path")
 void rive_renderer_clip_path(uint32_t renderer, uint32_t path);
+RIVE_BINDING_IMPORT("rive_renderer_v1", "modulate_opacity")
+void rive_renderer_modulate_opacity(uint32_t renderer, float opacity);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "modulate_color")
 void rive_renderer_modulate_color(uint32_t renderer, uint32_t color, uint32_t replace);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image")

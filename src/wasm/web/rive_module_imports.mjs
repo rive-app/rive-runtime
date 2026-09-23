@@ -677,6 +677,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             transform: calls.rive_renderer_transform,
             draw_path: calls.rive_renderer_draw_path,
             clip_path: calls.rive_renderer_clip_path,
+            modulate_opacity: calls.rive_renderer_modulate_opacity,
             modulate_color: calls.rive_renderer_modulate_color,
             draw_image: calls.rive_renderer_draw_image,
             draw_image_mesh: calls.rive_renderer_draw_image_mesh,

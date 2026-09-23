@@ -3661,6 +3661,17 @@ void rendererClipPathImpl(WasmScriptingVM* vm,
     renderer->clipPath(hostPath->path.get());
 }
 
+void rendererModulateOpacityImpl(WasmScriptingVM* vm,
+                                 uint32_t rendererHandle,
+                                 float opacity)
+{
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (renderer != nullptr)
+    {
+        renderer->modulateOpacity(opacity);
+    }
+}
+
 void rendererModulateColorImpl(WasmScriptingVM* vm,
                                uint32_t rendererHandle,
                                uint32_t color,

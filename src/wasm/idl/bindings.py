@@ -859,6 +859,7 @@ NAMESPACES = [
             handle('paint'),
         ]),
         op('clip_path', [handle('renderer'), handle('path')]),
+        op('modulate_opacity', [handle('renderer'), f32('opacity')]),
         # color is packed ARGB; replace sets it instead of multiplying.
         op('modulate_color', [handle('renderer'), u32('color'),
                               u32('replace')]),

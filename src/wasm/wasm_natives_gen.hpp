@@ -419,6 +419,7 @@ void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererTransformImpl(WasmScriptingVM* vm, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty);
 void rendererDrawPathImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t path, uint32_t paint);
 void rendererClipPathImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t path);
+void rendererModulateOpacityImpl(WasmScriptingVM* vm, uint32_t renderer, float opacity);
 void rendererModulateColorImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t color, uint32_t replace);
 void rendererDrawImageImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
@@ -1594,6 +1595,11 @@ void rendererClipPath(wasm_exec_env_t env, uint32_t renderer, uint32_t path)
     WasmScriptingVM* vm = vmFromEnv(env);
     rendererClipPathImpl(vm, renderer, path);
 }
+void rendererModulateOpacity(wasm_exec_env_t env, uint32_t renderer, float opacity)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererModulateOpacityImpl(vm, renderer, opacity);
+}
 void rendererModulateColor(wasm_exec_env_t env, uint32_t renderer, uint32_t color, uint32_t replace)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1880,6 +1886,7 @@ NativeSymbol kRendererNatives[] = {
     {"transform", (void*)rendererTransform, "(iffffff)", nullptr},
     {"draw_path", (void*)rendererDrawPath, "(iii)", nullptr},
     {"clip_path", (void*)rendererClipPath, "(ii)", nullptr},
+    {"modulate_opacity", (void*)rendererModulateOpacity, "(if)", nullptr},
     {"modulate_color", (void*)rendererModulateColor, "(iii)", nullptr},
     {"draw_image", (void*)rendererDrawImage, "(iiiif)", nullptr},
     {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", nullptr},

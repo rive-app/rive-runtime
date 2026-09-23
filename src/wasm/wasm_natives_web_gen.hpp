@@ -1414,6 +1414,12 @@ void rive_web_renderer_clip_path(uint32_t vmHandle, uint32_t renderer, uint32_t 
     rendererClipPathImpl(vm, renderer, path);
 }
 EMSCRIPTEN_KEEPALIVE
+void rive_web_renderer_modulate_opacity(uint32_t vmHandle, uint32_t renderer, float opacity)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererModulateOpacityImpl(vm, renderer, opacity);
+}
+EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_modulate_color(uint32_t vmHandle, uint32_t renderer, uint32_t color, uint32_t replace)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
