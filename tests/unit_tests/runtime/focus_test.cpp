@@ -2291,6 +2291,114 @@ TEST_CASE("StateMachineInstance::focusState uses external focus manager when "
     CHECK(state.expectsKeyboardInput == true);
 }
 
+TEST_CASE("StateMachineInstance directional focus moves by position",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = instanceWithFocus(artboard);
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+    auto* manager = smi.focusManager();
+
+    // A plus shape: one node on each side of the center.
+    MockFocusable centerF, leftF, rightF, upF, downF;
+    auto center = make_rcp<FocusNode>(&centerF);
+    auto left = make_rcp<FocusNode>(&leftF);
+    auto right = make_rcp<FocusNode>(&rightF);
+    auto up = make_rcp<FocusNode>(&upF);
+    auto down = make_rcp<FocusNode>(&downF);
+    center->worldBounds(AABB(100, 100, 110, 110));
+    left->worldBounds(AABB(0, 100, 10, 110));
+    right->worldBounds(AABB(200, 100, 210, 110));
+    up->worldBounds(AABB(100, 0, 110, 10));
+    down->worldBounds(AABB(100, 200, 110, 210));
+    for (auto& node : {center, left, right, up, down})
+    {
+        manager->addChild(nullptr, node);
+    }
+
+    SECTION("nothing focused")
+    {
+        CHECK(smi.focusLeft() == false);
+        CHECK(smi.focusRight() == false);
+        CHECK(smi.focusUp() == false);
+        CHECK(smi.focusDown() == false);
+        CHECK(manager->primaryFocus() == nullptr);
+    }
+
+    SECTION("each direction from the center")
+    {
+        manager->setFocus(center);
+        CHECK(smi.focusLeft() == true);
+        CHECK(manager->primaryFocus() == left);
+
+        manager->setFocus(center);
+        CHECK(smi.focusRight() == true);
+        CHECK(manager->primaryFocus() == right);
+
+        manager->setFocus(center);
+        CHECK(smi.focusUp() == true);
+        CHECK(manager->primaryFocus() == up);
+
+        manager->setFocus(center);
+        CHECK(smi.focusDown() == true);
+        CHECK(manager->primaryFocus() == down);
+    }
+
+    SECTION("an edge keeps focus")
+    {
+        manager->setFocus(left);
+        CHECK(smi.focusLeft() == false);
+        CHECK(manager->primaryFocus() == left);
+    }
+}
+
+TEST_CASE("StateMachineInstance directional focus uses the external focus "
+          "manager when set",
+          "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = instanceWithFocus(artboard);
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    FocusManager external;
+    MockFocusable aF, bF;
+    auto a = make_rcp<FocusNode>(&aF);
+    auto b = make_rcp<FocusNode>(&bF);
+    a->worldBounds(AABB(0, 0, 10, 10));
+    b->worldBounds(AABB(100, 0, 110, 10));
+    external.addChild(nullptr, a);
+    external.addChild(nullptr, b);
+    external.setFocus(a);
+
+    smi.setExternalFocusManager(&external);
+
+    CHECK(smi.focusRight() == true);
+    CHECK(external.primaryFocus() == b);
+    CHECK(smi.focusLeft() == true);
+    CHECK(external.primaryFocus() == a);
+}
+
+TEST_CASE(
+    "StateMachineInstance directional focus without a focus manager returns false",
+    "[FocusManager]")
+{
+    NoOpFactory factory;
+    Artboard artboard(&factory);
+    auto instance = artboard.instance();
+    StateMachine machine;
+    StateMachineInstance smi(&machine, instance.get());
+
+    REQUIRE(smi.focusManager() == nullptr);
+    CHECK(smi.focusLeft() == false);
+    CHECK(smi.focusRight() == false);
+    CHECK(smi.focusUp() == false);
+    CHECK(smi.focusDown() == false);
+}
+
 TEST_CASE("StateMachineInstance::clearFocus clears internal focus manager",
           "[FocusState]")
 {

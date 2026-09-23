@@ -264,6 +264,13 @@ public:
     bool hasFocusNodes();
     bool focusNext();
     bool focusPrevious();
+    /// Move focus to the nearest focus stop in the given direction from the
+    /// primary focus. Returns false when nothing is focused or no candidate
+    /// lies that way.
+    bool focusLeft();
+    bool focusRight();
+    bool focusUp();
+    bool focusDown();
     void clearFocus();
 
     /// Route a key event to the focused element via the active focus manager.

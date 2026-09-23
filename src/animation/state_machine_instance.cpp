@@ -3680,6 +3680,46 @@ bool StateMachineInstance::focusPrevious()
     return fm->focusPrevious();
 }
 
+bool StateMachineInstance::focusLeft()
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->focusLeft();
+}
+
+bool StateMachineInstance::focusRight()
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->focusRight();
+}
+
+bool StateMachineInstance::focusUp()
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->focusUp();
+}
+
+bool StateMachineInstance::focusDown()
+{
+    if (!focusManager())
+    {
+        return false;
+    }
+    auto* fm = focusManager();
+    return fm->focusDown();
+}
+
 void StateMachineInstance::clearFocus()
 {
     if (!focusManager())
