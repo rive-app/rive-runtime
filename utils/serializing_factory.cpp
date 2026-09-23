@@ -94,6 +94,8 @@ static const char* opToName(SerializeOp op)
             return "feather";
         case SerializeOp::blendMode:
             return "blendMode";
+        case SerializeOp::additiveness:
+            return "additiveness";
         case SerializeOp::shader:
             return "shader";
         case SerializeOp::paintModulatedImage:
@@ -115,6 +117,10 @@ static const char* opToName(SerializeOp op)
             return "canvasContentBegin";
         case SerializeOp::canvasContentEnd:
             return "canvasContentEnd";
+        case SerializeOp::drawImageAdditive:
+            return "drawImageAdditive";
+        case SerializeOp::drawImageMeshAdditive:
+            return "drawImageMeshAdditive";
     }
     return "???";
 }
@@ -227,6 +233,18 @@ public:
         m_writer->writeVarUint((uint32_t)m_blendMode);
     }
 
+    void additiveness(float value) override
+    {
+        if (m_additiveness == value)
+        {
+            return;
+        }
+        m_additiveness = value;
+        m_writer->writeVarUint((uint32_t)SerializeOp::additiveness);
+        m_writer->writeVarUint(m_id);
+        m_writer->writeFloat(m_additiveness);
+    }
+
     void shader(rcp<RenderShader> shader) override
     {
         if (m_shader == shader)
@@ -287,6 +305,7 @@ private:
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
     float m_feather = 0;
+    float m_additiveness = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
     bool m_stroked = false;
 };
@@ -592,10 +611,28 @@ public:
                            BlendMode blendMode,
                            float opacity) override
     {
-        m_writer->writeVarUint((uint32_t)SerializeOp::drawImage);
+        drawImage(image, samplerOptions, blendMode, opacity, 0.0f);
+    }
+
+    virtual void drawImage(const RenderImage* image,
+                           ImageSampler samplerOptions,
+                           BlendMode blendMode,
+                           float opacity,
+                           float additiveness) override
+    {
+        // The additive variant only differs by a trailing float, so a draw
+        // that isn't additive still records as a plain drawImage.
+        const bool isAdditive = additiveness != 0;
+        m_writer->writeVarUint((uint32_t)(isAdditive
+                                              ? SerializeOp::drawImageAdditive
+                                              : SerializeOp::drawImage));
         m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
+        if (isAdditive)
+        {
+            m_writer->writeFloat(additiveness);
+        }
     }
 
     virtual void drawImageMesh(const RenderImage* image,
@@ -608,7 +645,33 @@ public:
                                BlendMode blendMode,
                                float opacity) override
     {
-        m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMesh);
+        drawImageMesh(image,
+                      samplerOptions,
+                      std::move(positions),
+                      std::move(uvs),
+                      std::move(indices),
+                      vertexCount,
+                      indexCount,
+                      blendMode,
+                      opacity,
+                      0.0f);
+    }
+
+    virtual void drawImageMesh(const RenderImage* image,
+                               ImageSampler samplerOptions,
+                               rcp<RenderBuffer> positions,
+                               rcp<RenderBuffer> uvs,
+                               rcp<RenderBuffer> indices,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
+                               BlendMode blendMode,
+                               float opacity,
+                               float additiveness) override
+    {
+        const bool isAdditive = additiveness != 0;
+        m_writer->writeVarUint(
+            (uint32_t)(isAdditive ? SerializeOp::drawImageMeshAdditive
+                                  : SerializeOp::drawImageMesh));
         m_writer->writeVarUint(m_factory->imageId(image));
         m_writer->writeVarUint((uint32_t)blendMode);
         m_writer->writeFloat(opacity);
@@ -618,6 +681,10 @@ public:
             static_cast<SerializingRenderBuffer*>(uvs.get())->id());
         m_writer->writeVarUint(
             static_cast<SerializingRenderBuffer*>(indices.get())->id());
+        if (isAdditive)
+        {
+            m_writer->writeFloat(additiveness);
+        }
     }
 
 private:
@@ -1143,6 +1210,7 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 }
                 break;
             case SerializeOp::drawImage:
+            case SerializeOp::drawImageAdditive:
                 if (!varUintMatches(opA, "drawimage_id", readerA, readerB))
                 {
                     return false;
@@ -1158,8 +1226,17 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 {
                     return false;
                 }
+                if (opA == (uint64_t)SerializeOp::drawImageAdditive &&
+                    !floatMatches(opA,
+                                  "drawimage_additiveness",
+                                  readerA,
+                                  readerB))
+                {
+                    return false;
+                }
                 break;
             case SerializeOp::drawImageMesh:
+            case SerializeOp::drawImageMeshAdditive:
                 if (!varUintMatches(opA, "drawimagemesh_id", readerA, readerB))
                 {
                     return false;
@@ -1196,6 +1273,14 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                     "drawimagemesh_index_id",
                                     readerA,
                                     readerB))
+                {
+                    return false;
+                }
+                if (opA == (uint64_t)SerializeOp::drawImageMeshAdditive &&
+                    !floatMatches(opA,
+                                  "drawimagemesh_additiveness",
+                                  readerA,
+                                  readerB))
                 {
                     return false;
                 }
@@ -1399,6 +1484,19 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     return false;
                 }
                 if (!floatMatches(opA, "feather_value", readerA, readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::additiveness:
+                if (!varUintMatches(opA,
+                                    "additiveness_paint_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!floatMatches(opA, "additiveness_value", readerA, readerB))
                 {
                     return false;
                 }

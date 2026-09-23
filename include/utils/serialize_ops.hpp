@@ -61,6 +61,18 @@ enum class SerializeOp : uint32_t
     canvasContentBegin = 33, // id, clearColor
     canvasContentEnd = 34,   // id
     modulateColor = 35,      // color, replace
+
+    // RenderPaint::additiveness. Its own op rather than a field on an existing
+    // one so a stream with no additive content is byte for byte what it was
+    // before additiveness existed.
+    additiveness = 36, // paint id, value
+
+    // drawImage / drawImageMesh carrying a non zero additiveness, which images
+    // take per draw instead of off a paint. Same payload as the plain op plus
+    // a trailing float, and only emitted when the value is non zero, so an
+    // ordinary image draw still records as drawImage.
+    drawImageAdditive = 37,
+    drawImageMeshAdditive = 38,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

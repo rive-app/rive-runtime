@@ -208,6 +208,14 @@ public:
         }
         emitFloat(RenderCmd::paintFeather, m_state.feather);
     }
+    void additiveness(float v) override
+    {
+        if (absorbed(m_state.additiveness, v))
+        {
+            return;
+        }
+        emitFloat(RenderCmd::paintAdditiveness, m_state.additiveness);
+    }
     void blendMode(BlendMode v) override
     {
         if (absorbed(m_state.blendMode, static_cast<uint8_t>(v)))
@@ -250,6 +258,7 @@ private:
         ColorInt color = 0xFF000000;
         float thickness = 1;
         float feather = 0;
+        float additiveness = 0;
         uint8_t style = 1; // fill; a fresh paint is unstroked until told
         uint8_t join = 0;  // miter
         uint8_t cap = 0;   // butt

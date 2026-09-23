@@ -319,14 +319,20 @@ void Shape::buildDependencies()
 
     Super::buildDependencies();
 
-    // Set the blend mode on all the shape paints. If we ever animate this
-    // property, we'll need to update it in the update cycle/mark dirty when the
-    // blend mode changes.
+    syncShapePaintBlendModes();
+}
+
+void Shape::syncShapePaintBlendModes()
+{
     for (auto paint : m_ShapePaints)
     {
-        paint->blendMode(blendMode());
+        paint->blendMode(blendMode(), additiveAmount());
     }
 }
+
+// blendModeValue itself never animates, but additiveAmount does (and data
+// binds), so the buildDependencies sync above is not enough on its own.
+void Shape::additiveAmountChanged() { syncShapePaintBlendModes(); }
 
 StatusCode Shape::onAddedDirty(CoreContext* context)
 {

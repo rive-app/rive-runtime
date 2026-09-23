@@ -52,6 +52,7 @@ static CGBlendMode convert(BlendMode mode) {
     CGBlendMode cg = kCGBlendModeNormal;
     switch (mode) {
         case BlendMode::srcOver: cg = kCGBlendModeNormal; break;
+        case BlendMode::additive: cg = kCGBlendModePlusLighter; break;
         case BlendMode::screen: cg = kCGBlendModeScreen; break;
         case BlendMode::overlay: cg = kCGBlendModeOverlay; break;
         case BlendMode::darken: cg = kCGBlendModeDarken; break;

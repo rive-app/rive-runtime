@@ -15,6 +15,18 @@ class Gradient;
 
 namespace rive
 {
+// This renderer has no additive blend id: additive is expressed as srcOver
+// with a scaled source alpha (see RenderPaint::additiveness), and additiveness
+// is only honored under srcOver. Everything that feeds a BlendMode into the
+// GPU pipeline folds it through here first.
+//
+// Canvas-backed renderers deliberately do NOT fold -- they map additive onto
+// their own "plus" mode instead -- so this stays local to the PLS renderer.
+inline BlendMode foldAdditiveToSrcOver(BlendMode mode)
+{
+    return mode == BlendMode::additive ? BlendMode::srcOver : mode;
+}
+
 // RenderPaint implementation for Rive's pixel local storage renderer.
 class RiveRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, RiveRenderPaint)
 {
@@ -42,7 +54,10 @@ public:
     {
         m_data.m_additiveness = additiveness;
     }
-    void blendMode(BlendMode mode) override { m_data.m_blendMode = mode; }
+    void blendMode(BlendMode mode) override
+    {
+        m_data.m_blendMode = foldAdditiveToSrcOver(mode);
+    }
     void shader(rcp<RenderShader> shader) override;
 
     void modulatedImage(const RenderImage*,

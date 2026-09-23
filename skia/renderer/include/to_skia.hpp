@@ -70,6 +70,7 @@ public:
         static SkBlendMode convert(BlendMode blendMode) {
             switch (blendMode) {
                 case BlendMode::srcOver:    return SkBlendMode::kSrcOver;
+                case BlendMode::additive:   return SkBlendMode::kPlus;
                 case BlendMode::screen:     return SkBlendMode::kScreen;
                 case BlendMode::overlay:    return SkBlendMode::kOverlay;
                 case BlendMode::darken:     return SkBlendMode::kDarken;

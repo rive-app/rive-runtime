@@ -570,6 +570,8 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     void markLayoutStyleDirty();
     void clipChanged() override;
+    void additiveAmountChanged() override;
+    void syncShapePaintBlendModes();
     void registerForegroundDrawable()
     {
         setLayoutFlag(LayoutComponentFlags::HasForegroundDrawable, true);

@@ -188,6 +188,15 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                     static_cast<BlendMode>(reader.readVarUint64()));
                 break;
             }
+            case SerializeOp::additiveness:
+            {
+                uint64_t id = reader.readVarUint64();
+                RenderPaint* paint = find(paints, id);
+                if (paint == nullptr)
+                    return false;
+                paint->additiveness(reader.readFloat32());
+                break;
+            }
             case SerializeOp::shader:
             {
                 uint64_t id = reader.readVarUint64();
@@ -353,10 +362,16 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 break;
             }
             case SerializeOp::drawImage:
+            case SerializeOp::drawImageAdditive:
             {
                 uint64_t imageId = reader.readVarUint64();
                 auto blend = static_cast<BlendMode>(reader.readVarUint64());
                 float opacity = reader.readFloat32();
+                // Only the additive variant carries the trailing float; the
+                // plain op means an additiveness of 0.
+                float additiveness = op == SerializeOp::drawImageAdditive
+                                         ? reader.readFloat32()
+                                         : 0.0f;
                 // Null when a decode failed or when the host declined the
                 // canvas this id names; either way there is nothing to
                 // composite and the rest of the frame still replays.
@@ -365,11 +380,13 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                     active->drawImage(image,
                                       ImageSampler::LinearClamp(),
                                       blend,
-                                      opacity);
+                                      opacity,
+                                      additiveness);
                 }
                 break;
             }
             case SerializeOp::drawImageMesh:
+            case SerializeOp::drawImageMeshAdditive:
             {
                 uint64_t imageId = reader.readVarUint64();
                 auto blend = static_cast<BlendMode>(reader.readVarUint64());
@@ -377,6 +394,9 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 rcp<RenderBuffer> pos = buffers[reader.readVarUint64()];
                 rcp<RenderBuffer> uvs = buffers[reader.readVarUint64()];
                 rcp<RenderBuffer> idx = buffers[reader.readVarUint64()];
+                float additiveness = op == SerializeOp::drawImageMeshAdditive
+                                         ? reader.readFloat32()
+                                         : 0.0f;
                 uint32_t vertexCount =
                     pos ? static_cast<uint32_t>(pos->sizeInBytes() /
                                                 (2 * sizeof(float)))
@@ -400,7 +420,8 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                                           vertexCount,
                                           indexCount,
                                           blend,
-                                          opacity);
+                                          opacity,
+                                          additiveness);
                 }
                 break;
             }

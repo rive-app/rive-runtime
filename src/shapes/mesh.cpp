@@ -180,7 +180,8 @@ void Mesh::draw(Renderer* renderer,
                 const RenderImage* image,
                 ImageSampler ImageSampler,
                 BlendMode blendMode,
-                float opacity)
+                float opacity,
+                float additiveness)
 {
     if (m_VertexRenderBufferDirty && m_VertexRenderBuffer == nullptr &&
         !m_Vertices.empty())
@@ -219,5 +220,6 @@ void Mesh::draw(Renderer* renderer,
                             static_cast<uint32_t>(m_Vertices.size()),
                             static_cast<uint32_t>(m_IndexBuffer->size()),
                             blendMode,
-                            opacity);
+                            opacity,
+                            additiveness);
 }

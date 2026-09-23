@@ -4139,6 +4139,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             case BlendMode::multiply:
                 shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
                 break;
+            // Additive is folded into srcOver before it gets here, and
+            // additiveness needs no shader feature of its own.
+            case BlendMode::additive:
             case BlendMode::srcOver:
                 break;
         }

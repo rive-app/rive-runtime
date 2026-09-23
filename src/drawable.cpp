@@ -51,6 +51,7 @@ StatusCode Drawable::onAddedDirty(CoreContext* context)
     switch (blendMode)
     {
         case rive::BlendMode::srcOver:
+        case rive::BlendMode::additive:
         case rive::BlendMode::screen:
         case rive::BlendMode::overlay:
         case rive::BlendMode::darken:

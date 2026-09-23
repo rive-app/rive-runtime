@@ -98,6 +98,9 @@ BlendMode rive::lua_toblendmode(lua_State* L, int idx)
         case (int)LuaAtoms::srcOver:
             return BlendMode::srcOver;
 
+        case (int)LuaAtoms::additive:
+            return BlendMode::additive;
+
         case (int)LuaAtoms::screen:
             return BlendMode::screen;
 
@@ -381,6 +384,9 @@ void ScriptedPaintData::pushBlendMode(lua_State* L)
     {
         case BlendMode::srcOver:
             lua_pushstring(L, "srcOver");
+            break;
+        case BlendMode::additive:
+            lua_pushstring(L, "additive");
             break;
         case BlendMode::screen:
             lua_pushstring(L, "screen");

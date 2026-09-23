@@ -6,6 +6,7 @@
 #include "rive/renderer.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/drawable_flag.hpp"
+#include "rive/shapes/paint/blend_mode.hpp"
 #include <vector>
 
 namespace rive
@@ -69,6 +70,13 @@ public:
     }
 
     BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
+
+    /// additiveAmount() as the renderer wants it: 0 (plain srcOver) to 1
+    /// (fully additive), and always 0 for the modes that ignore it.
+    float additiveness() const
+    {
+        return additivenessFor(blendMode(), additiveAmount());
+    }
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     bool hitTestPoint(const Vec2D& position,

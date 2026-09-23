@@ -73,7 +73,8 @@ void TextStyleBackground::draw(Renderer* renderer, const Mat2D& worldTransform)
         {
             continue;
         }
-        shapePaint->blendMode(style()->parent()->as<Text>()->blendMode());
+        shapePaint->blendMode(style()->parent()->as<Text>()->blendMode(),
+                              style()->parent()->as<Text>()->additiveAmount());
         shapePaint->draw(renderer, &m_path, worldTransform, true);
     }
 }

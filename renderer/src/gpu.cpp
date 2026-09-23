@@ -828,6 +828,12 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
     {
         case BlendMode::srcOver:
             return BLEND_SRC_OVER;
+        case BlendMode::additive:
+            // RiveRenderPaint::blendMode() and RiveRenderer::drawImage() both
+            // fold additive into srcOver, so it should never reach here. The
+            // case exists to keep the switch exhaustive over BlendMode.
+            assert(!"additive should have been resolved to srcOver");
+            return BLEND_SRC_OVER;
         case BlendMode::screen:
             return BLEND_MODE_SCREEN;
         case BlendMode::overlay:

@@ -26,7 +26,8 @@ void SliceMesh::draw(Renderer* renderer,
                      const RenderImage* renderImage,
                      ImageSampler ImageSampler,
                      BlendMode blendMode,
-                     float opacity)
+                     float opacity,
+                     float additiveness)
 {
     if (m_nslicer == nullptr || m_nslicer->image() == nullptr)
     {
@@ -48,7 +49,8 @@ void SliceMesh::draw(Renderer* renderer,
                             static_cast<uint32_t>(m_vertices.size()),
                             static_cast<uint32_t>(m_indices.size()),
                             blendMode,
-                            opacity);
+                            opacity,
+                            additiveness);
 }
 
 void SliceMesh::onAssetLoaded(RenderImage* renderImage) {}

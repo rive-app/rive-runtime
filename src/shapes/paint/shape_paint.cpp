@@ -80,18 +80,31 @@ RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
     return m_RenderPaint.get();
 }
 
-void ShapePaint::blendMode(BlendMode parentValue)
+void ShapePaint::blendMode(BlendMode parentValue, uint8_t parentAdditiveAmount)
 {
     assert(m_RenderPaint != nullptr);
     // 127 means inherit
-    if (blendModeValue() == 127)
+    const bool inherits = blendModeValue() == 127;
+    const BlendMode mode = inherits ? parentValue : (BlendMode)blendModeValue();
+    const uint8_t amount = inherits ? parentAdditiveAmount : additiveAmount();
+
+    m_RenderPaint->blendMode(mode);
+    // Only additive is parameterized; every other mode ignores additiveness
+    // anyway, but keep it at 0 so a stale value can never leak through.
+    m_RenderPaint->additiveness(additivenessFor(mode, amount));
+}
+
+void ShapePaint::additiveAmountChanged()
+{
+    // additiveAmount animates and data binds, so it can change long after
+    // buildDependencies() did the initial sync. A paint set to inherit takes
+    // its amount from the parent drawable, which pushes it down itself.
+    if (m_RenderPaint == nullptr || inheritsBlendMode())
     {
-        m_RenderPaint->blendMode(parentValue);
+        return;
     }
-    else
-    {
-        m_RenderPaint->blendMode((BlendMode)blendModeValue());
-    }
+    m_RenderPaint->blendMode(blendMode());
+    m_RenderPaint->additiveness(additivenessFor(blendMode(), additiveAmount()));
 }
 
 void ShapePaint::feather(Feather* feather) { m_feather = feather; }

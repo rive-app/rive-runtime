@@ -29,7 +29,8 @@ public:
                       const RenderImage* image,
                       ImageSampler,
                       BlendMode blendMode,
-                      float opacity) = 0;
+                      float opacity,
+                      float additiveness) = 0;
 };
 } // namespace rive
 

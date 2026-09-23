@@ -36,10 +36,12 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t blendModeValuePropertyKey = 23;
+    static const uint16_t additiveAmountPropertyKey = 450;
     static const uint16_t drawableFlagsPropertyKey = 129;
 
 protected:
     uint8_t m_BlendModeValue = 3;
+    uint8_t m_AdditiveAmount = 255;
     uint16_t m_DrawableFlags = 0;
 
 public:
@@ -56,6 +58,21 @@ public:
         m_BlendModeValue = value;
         RIVE_EDITOR_CHANGED(blendModeValueChanged());
         notifyPropertyChanged(blendModeValuePropertyKey);
+    }
+
+    inline uint8_t additiveAmount() const { return m_AdditiveAmount; }
+    void additiveAmount(uint8_t value)
+    {
+        if (m_AdditiveAmount == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(additiveAmountPropertyKey,
+                             &m_AdditiveAmount,
+                             &value);
+        m_AdditiveAmount = value;
+        RIVE_EDITOR_CHANGED(additiveAmountChanged());
+        notifyPropertyChanged(additiveAmountPropertyKey);
     }
 
     inline uint16_t drawableFlags() const { return m_DrawableFlags; }
@@ -76,6 +93,7 @@ public:
     void copy(const DrawableBase& object)
     {
         m_BlendModeValue = object.m_BlendModeValue;
+        m_AdditiveAmount = object.m_AdditiveAmount;
         m_DrawableFlags = object.m_DrawableFlags;
         RIVE_EDITOR_COPY(object);
         Node::copy(object);
@@ -88,6 +106,9 @@ public:
             case blendModeValuePropertyKey:
                 m_BlendModeValue = CoreUintType::deserialize(reader);
                 return true;
+            case additiveAmountPropertyKey:
+                m_AdditiveAmount = CoreUintType::deserialize(reader);
+                return true;
             case drawableFlagsPropertyKey:
                 m_DrawableFlags = CoreUintType::deserialize(reader);
                 return true;
@@ -98,6 +119,7 @@ public:
 
 protected:
     virtual void blendModeValueChanged() {}
+    virtual void additiveAmountChanged() {}
     virtual void drawableFlagsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/drawable_ext.inl"

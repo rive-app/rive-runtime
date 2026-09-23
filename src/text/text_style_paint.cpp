@@ -56,7 +56,8 @@ void TextStylePaint::draw(Renderer* renderer, const Mat2D& worldTransform)
         {
             continue;
         }
-        shapePaint->blendMode(parent()->as<Text>()->blendMode());
+        shapePaint->blendMode(parent()->as<Text>()->blendMode(),
+                              parent()->as<Text>()->additiveAmount());
 
         // For blend modes to work, opaque paths render first
         auto itr = m_opacityPaths.find(1.0f);

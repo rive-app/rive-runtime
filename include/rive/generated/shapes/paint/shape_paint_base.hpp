@@ -35,10 +35,12 @@ public:
 
     static const uint16_t isVisiblePropertyKey = 41;
     static const uint16_t blendModeValuePropertyKey = 747;
+    static const uint16_t additiveAmountPropertyKey = 452;
 
 protected:
     bool m_IsVisible = true;
-    uint32_t m_BlendModeValue = 127;
+    uint8_t m_BlendModeValue = 127;
+    uint8_t m_AdditiveAmount = 255;
 
 public:
     virtual bool isVisible() const { return m_IsVisible; }
@@ -54,8 +56,8 @@ public:
         notifyPropertyChanged(isVisiblePropertyKey);
     }
 
-    inline uint32_t blendModeValue() const { return m_BlendModeValue; }
-    void blendModeValue(uint32_t value)
+    inline uint8_t blendModeValue() const { return m_BlendModeValue; }
+    void blendModeValue(uint8_t value)
     {
         if (m_BlendModeValue == value)
         {
@@ -69,10 +71,26 @@ public:
         notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
+    inline uint8_t additiveAmount() const { return m_AdditiveAmount; }
+    void additiveAmount(uint8_t value)
+    {
+        if (m_AdditiveAmount == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(additiveAmountPropertyKey,
+                             &m_AdditiveAmount,
+                             &value);
+        m_AdditiveAmount = value;
+        RIVE_EDITOR_CHANGED(additiveAmountChanged());
+        notifyPropertyChanged(additiveAmountPropertyKey);
+    }
+
     void copy(const ShapePaintBase& object)
     {
         m_IsVisible = object.m_IsVisible;
         m_BlendModeValue = object.m_BlendModeValue;
+        m_AdditiveAmount = object.m_AdditiveAmount;
         RIVE_EDITOR_COPY(object);
         ContainerComponent::copy(object);
     }
@@ -87,6 +105,9 @@ public:
             case blendModeValuePropertyKey:
                 m_BlendModeValue = CoreUintType::deserialize(reader);
                 return true;
+            case additiveAmountPropertyKey:
+                m_AdditiveAmount = CoreUintType::deserialize(reader);
+                return true;
         }
         RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return ContainerComponent::deserialize(propertyKey, reader);
@@ -95,6 +116,7 @@ public:
 protected:
     virtual void isVisibleChanged() {}
     virtual void blendModeValueChanged() {}
+    virtual void additiveAmountChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/shape_paint_ext.inl"
 #endif

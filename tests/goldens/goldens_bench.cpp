@@ -69,6 +69,7 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             }
             case RenderCmd::paintThickness:
             case RenderCmd::paintFeather:
+            case RenderCmd::paintAdditiveness:
                 paintSets[r.read<PaintFloatPOD>().paint]++;
                 break;
             case RenderCmd::paintShader:
@@ -258,6 +259,7 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
                 break;
             case RenderCmd::paintThickness:
             case RenderCmd::paintFeather:
+            case RenderCmd::paintAdditiveness:
                 r.read<PaintFloatPOD>();
                 break;
             case RenderCmd::paintShader:

@@ -60,6 +60,7 @@ constexpr LuaAtomName atoms[] = {
     {"butt", (int16_t)LuaAtoms::butt},
     {"square", (int16_t)LuaAtoms::square},
     {"srcOver", (int16_t)LuaAtoms::srcOver},
+    {"additive", (int16_t)LuaAtoms::additive},
     {"screen", (int16_t)LuaAtoms::screen},
     {"overlay", (int16_t)LuaAtoms::overlay},
     {"darken", (int16_t)LuaAtoms::darken},

@@ -191,14 +191,21 @@ void LayoutComponent::buildDependencies()
     {
         parent()->addDependent(this);
     }
-    // Set the blend mode on all the shape paints. If we ever animate this
-    // property, we'll need to update it in the update cycle/mark dirty when the
-    // blend mode changes.
+    syncShapePaintBlendModes();
+}
+
+void LayoutComponent::syncShapePaintBlendModes()
+{
     for (auto paint : m_ShapePaints)
     {
-        paint->blendMode(blendMode());
+        paint->blendMode(blendMode(), additiveAmount());
     }
 }
+
+// blendModeValue itself never animates, but additiveAmount does (and data
+// binds), so the buildDependencies sync above is not enough on its own. Any
+// ForegroundLayoutDrawable child re-reads us in its own draw().
+void LayoutComponent::additiveAmountChanged() { syncShapePaintBlendModes(); }
 
 Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 

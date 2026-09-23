@@ -205,6 +205,7 @@ struct PaintShadow
     uint8_t cap = 0;
     uint8_t strokePosition = 1; // center
     float feather = 0;
+    float additiveness = 0;
     uint8_t blendMode = 3; // srcOver
     RenderHandle shader = kInvalidRenderHandle;
     // Modulated image; kInvalidRenderHandle means none (a fresh paint has no

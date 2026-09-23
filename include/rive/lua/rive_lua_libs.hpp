@@ -136,6 +136,7 @@ enum class LuaAtoms : int16_t
     butt,
     square,
     srcOver,
+    additive,
     screen,
     overlay,
     darken,
@@ -1086,6 +1087,7 @@ public:
     {
         ScriptedPaintData::blendMode(value);
         renderPaint->blendMode(value);
+        renderPaint->additiveness(additivenessFor(value, 255));
     }
 
     void gradient(rcp<RenderShader> value) override

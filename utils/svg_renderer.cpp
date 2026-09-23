@@ -20,6 +20,8 @@ const char* blendModeToCss(BlendMode mode)
     {
         case BlendMode::srcOver:
             return nullptr;
+        case BlendMode::additive:
+            return "plus-lighter";
         case BlendMode::screen:
             return "screen";
         case BlendMode::overlay:

@@ -35,7 +35,16 @@ public:
     float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
     void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
 
-    void blendMode(BlendMode value);
+    /// Syncs this paint's blend mode onto its RenderPaint. A ShapePaint whose
+    /// blendModeValue is 127 inherits both the mode and the additive amount
+    /// from its parent drawable, hence both parameters.
+    void blendMode(BlendMode parentValue, uint8_t parentAdditiveAmount);
+
+    /// 127 in the mode byte means "take the parent drawable's blend mode".
+    bool inheritsBlendMode() const { return blendModeValue() == 127; }
+    BlendMode blendMode() const { return (BlendMode)blendModeValue(); }
+
+    void additiveAmountChanged() override;
 
     void addStrokeEffect(StrokeEffect* effect) override;
 

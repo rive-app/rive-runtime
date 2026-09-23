@@ -48,6 +48,7 @@ enum class RenderCmd : uint8_t
     paintCap,              // PaintU8POD
     paintStrokePosition,   // PaintU8POD
     paintFeather,          // PaintFloatPOD
+    paintAdditiveness,     // PaintFloatPOD
     paintBlendMode,        // PaintU8POD
     paintShader,           // PaintShaderPOD
     paintModulatedImage,   // PaintModulatedImagePOD
@@ -284,6 +285,7 @@ struct DrawImagePOD
     uint8_t wrapX, wrapY, filter; // ImageSampler
     uint8_t blendMode;
     float opacity;
+    float additiveness;
 };
 
 struct DrawImageMeshPOD
@@ -295,6 +297,7 @@ struct DrawImageMeshPOD
     uint8_t wrapX, wrapY, filter; // ImageSampler
     uint8_t blendMode;
     float opacity;
+    float additiveness;
 };
 
 struct OpacityPOD
@@ -339,6 +342,7 @@ struct CanvasContentPOD
     X(paintCap, PaintU8POD)                                                    \
     X(paintStrokePosition, PaintU8POD)                                         \
     X(paintFeather, PaintFloatPOD)                                             \
+    X(paintAdditiveness, PaintFloatPOD)                                        \
     X(paintBlendMode, PaintU8POD)                                              \
     X(paintShader, PaintShaderPOD)                                             \
     X(paintModulatedImage, PaintModulatedImagePOD)                             \

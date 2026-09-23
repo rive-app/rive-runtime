@@ -51,6 +51,8 @@ public:
     Shape();
     void buildDependencies() override;
     void addChild(Component* component) override;
+    void additiveAmountChanged() override;
+    void syncShapePaintBlendModes();
     bool collapse(bool value) override;
     bool canDeferPathUpdate();
     void addPath(Path* path);

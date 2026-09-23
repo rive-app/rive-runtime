@@ -704,6 +704,10 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
     RIVE_PROF_SCOPE_L(2)
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
+    // ImageRectDraw below takes the blend mode directly rather than through a
+    // RiveRenderPaint, so fold additive here too.
+    blendMode = foldAdditiveToSrcOver(blendMode);
+
     rcp<gpu::Texture> imageTexture = image->refTexture();
     if (imageTexture == nullptr)
     {
@@ -801,6 +805,10 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
 {
     RIVE_PROF_SCOPE_L(2)
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+
+    // ImageMeshDraw below takes the blend mode directly rather than through a
+    // RiveRenderPaint, so fold additive here too.
+    blendMode = foldAdditiveToSrcOver(blendMode);
 
     rcp<gpu::Texture> imageTexture = image->refTexture();
     if (imageTexture == nullptr)

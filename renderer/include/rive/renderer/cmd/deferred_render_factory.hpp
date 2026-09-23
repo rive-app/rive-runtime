@@ -428,6 +428,14 @@ public:
                    BlendMode blend,
                    float opacity) override
     {
+        drawImage(image, s, blend, opacity, 0);
+    }
+    void drawImage(const RenderImage* image,
+                   ImageSampler s,
+                   BlendMode blend,
+                   float opacity,
+                   float additiveness) override
+    {
         // Canvas images get a flagged id from the registry on first sight.
         RenderHandle id = idOfImage(image);
         if (id == kInvalidRenderHandle && m_canvases)
@@ -447,7 +455,8 @@ public:
                                       static_cast<uint8_t>(s.wrapY),
                                       static_cast<uint8_t>(s.filter),
                                       static_cast<uint8_t>(blend),
-                                      opacity});
+                                      opacity,
+                                      additiveness});
     }
     void drawImageMesh(const RenderImage* image,
                        ImageSampler s,
@@ -458,6 +467,28 @@ public:
                        uint32_t indexCount,
                        BlendMode blend,
                        float opacity) override
+    {
+        drawImageMesh(image,
+                      s,
+                      std::move(vertices),
+                      std::move(uvCoords),
+                      std::move(indices),
+                      vertexCount,
+                      indexCount,
+                      blend,
+                      opacity,
+                      0);
+    }
+    void drawImageMesh(const RenderImage* image,
+                       ImageSampler s,
+                       rcp<RenderBuffer> vertices,
+                       rcp<RenderBuffer> uvCoords,
+                       rcp<RenderBuffer> indices,
+                       uint32_t vertexCount,
+                       uint32_t indexCount,
+                       BlendMode blend,
+                       float opacity,
+                       float additiveness) override
     {
         RenderHandle imgId = idOfImage(image);
         if (imgId == kInvalidRenderHandle && m_canvases)
@@ -499,7 +530,8 @@ public:
                                           static_cast<uint8_t>(s.wrapY),
                                           static_cast<uint8_t>(s.filter),
                                           static_cast<uint8_t>(blend),
-                                          opacity});
+                                          opacity,
+                                          additiveness});
     }
 
 private:

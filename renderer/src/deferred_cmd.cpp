@@ -345,6 +345,7 @@ void replayRenderCommands(Factory* factory,
                             fresh->strokePosition(
                                 static_cast<StrokePosition>(sh.strokePosition));
                             fresh->feather(sh.feather);
+                            fresh->additiveness(sh.additiveness);
                             fresh->blendMode(
                                 static_cast<BlendMode>(sh.blendMode));
                             if (sh.shader != kInvalidRenderHandle)
@@ -539,6 +540,16 @@ void replayRenderCommands(Factory* factory,
                 }
                 break;
             }
+            case RenderCmd::paintAdditiveness:
+            {
+                auto c = reader.read<PaintFloatPOD>();
+                if (auto* pt = paint(c.paint))
+                {
+                    pt->additiveness(c.value);
+                    table.paintShadows[c.paint].additiveness = c.value;
+                }
+                break;
+            }
             case RenderCmd::paintBlendMode:
             {
                 auto c = reader.read<PaintU8POD>();
@@ -679,7 +690,8 @@ void replayRenderCommands(Factory* factory,
                     cur->drawImage(im,
                                    sampler(c.wrapX, c.wrapY, c.filter),
                                    static_cast<BlendMode>(c.blendMode),
-                                   c.opacity);
+                                   c.opacity,
+                                   c.additiveness);
                 }
                 else if (cur != nullptr && hooks.stats != nullptr)
                 {
@@ -712,7 +724,8 @@ void replayRenderCommands(Factory* factory,
                                        c.vertexCount,
                                        c.indexCount,
                                        static_cast<BlendMode>(c.blendMode),
-                                       c.opacity);
+                                       c.opacity,
+                                       c.additiveness);
                 }
                 else if (cur != nullptr && hooks.stats != nullptr)
                 {

@@ -18,7 +18,8 @@ void ForegroundLayoutDrawable::buildDependencies()
         parentLayout->registerForegroundDrawable();
         for (auto paint : m_ShapePaints)
         {
-            paint->blendMode(parentLayout->blendMode());
+            paint->blendMode(parentLayout->blendMode(),
+                             parentLayout->additiveAmount());
         }
     }
 }
@@ -46,6 +47,11 @@ void ForegroundLayoutDrawable::draw(Renderer* renderer)
 
     for (auto shapePaint : m_ShapePaints)
     {
+        // Our paints blend against the layout we draw over, and its
+        // additiveAmount animates, so re-read it rather than relying on the
+        // one-shot sync in buildDependencies().
+        shapePaint->blendMode(parentLayoutComponent->blendMode(),
+                              parentLayoutComponent->additiveAmount());
         if (!shapePaint->shouldDraw())
         {
             continue;

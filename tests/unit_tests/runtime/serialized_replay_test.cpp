@@ -36,6 +36,7 @@ TEST_CASE("serialized 2D commands replay byte-identically",
     paint->cap(StrokeCap::square);
     paint->blendMode(BlendMode::multiply);
     paint->feather(2.0f);
+    paint->additiveness(0.375f);
 
     RawPath rp;
     rp.move({0, 0});
@@ -81,6 +82,56 @@ TEST_CASE("serialized 2D commands replay byte-identically",
     rendererA->drawPath(path.get(), paint.get());
     rendererA->drawPath(path.get(), paint2.get());
     rendererA->drawPath(path.get(), paint3.get());
+
+    // Images carry additiveness per draw rather than on a paint, and a non
+    // zero value records as a different op, so both branches need covering.
+    rendererA->drawImage(image.get(),
+                         ImageSampler::LinearClamp(),
+                         BlendMode::srcOver,
+                         1.0f);
+    rendererA->drawImage(image.get(),
+                         ImageSampler::LinearClamp(),
+                         BlendMode::srcOver,
+                         1.0f,
+                         0.625f);
+
+    float verts[8] = {0, 0, 10, 0, 10, 10, 0, 10};
+    float uvs[8] = {0, 0, 1, 0, 1, 1, 0, 1};
+    uint16_t indices[6] = {0, 1, 2, 0, 2, 3};
+    auto vertexBuffer = a.makeRenderBuffer(RenderBufferType::vertex,
+                                           RenderBufferFlags::none,
+                                           sizeof(verts));
+    auto uvBuffer = a.makeRenderBuffer(RenderBufferType::vertex,
+                                       RenderBufferFlags::none,
+                                       sizeof(uvs));
+    auto indexBuffer = a.makeRenderBuffer(RenderBufferType::index,
+                                          RenderBufferFlags::none,
+                                          sizeof(indices));
+    memcpy(vertexBuffer->map(), verts, sizeof(verts));
+    vertexBuffer->unmap();
+    memcpy(uvBuffer->map(), uvs, sizeof(uvs));
+    uvBuffer->unmap();
+    memcpy(indexBuffer->map(), indices, sizeof(indices));
+    indexBuffer->unmap();
+    rendererA->drawImageMesh(image.get(),
+                             ImageSampler::LinearClamp(),
+                             vertexBuffer,
+                             uvBuffer,
+                             indexBuffer,
+                             4,
+                             6,
+                             BlendMode::srcOver,
+                             1.0f);
+    rendererA->drawImageMesh(image.get(),
+                             ImageSampler::LinearClamp(),
+                             vertexBuffer,
+                             uvBuffer,
+                             indexBuffer,
+                             4,
+                             6,
+                             BlendMode::srcOver,
+                             1.0f,
+                             0.625f);
     rendererA->restore();
 
     SerializingFactory b;

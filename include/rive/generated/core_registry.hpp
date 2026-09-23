@@ -1372,6 +1372,9 @@ public:
             case DrawableBase::blendModeValuePropertyKey:
                 object->as<DrawableBase>()->blendModeValue(value);
                 break;
+            case DrawableBase::additiveAmountPropertyKey:
+                object->as<DrawableBase>()->additiveAmount(value);
+                break;
             case DrawableBase::drawableFlagsPropertyKey:
                 object->as<DrawableBase>()->drawableFlags(value);
                 break;
@@ -1669,6 +1672,9 @@ public:
                 break;
             case ShapePaintBase::blendModeValuePropertyKey:
                 object->as<ShapePaintBase>()->blendModeValue(value);
+                break;
+            case ShapePaintBase::additiveAmountPropertyKey:
+                object->as<ShapePaintBase>()->additiveAmount(value);
                 break;
             case ColorChannelsBase::colorRedPropertyKey:
             {
@@ -3570,6 +3576,8 @@ public:
                 return object->as<ScrollConstraintBase>()->virtualizeBuffer();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->as<DrawableBase>()->blendModeValue();
+            case DrawableBase::additiveAmountPropertyKey:
+                return object->as<DrawableBase>()->additiveAmount();
             case DrawableBase::drawableFlagsPropertyKey:
                 return object->as<DrawableBase>()->drawableFlags();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -3790,6 +3798,8 @@ public:
                 return object->as<ListenerInputTypeBase>()->listenerTypeValue();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->as<ShapePaintBase>()->blendModeValue();
+            case ShapePaintBase::additiveAmountPropertyKey:
+                return object->as<ShapePaintBase>()->additiveAmount();
             case ColorChannelsBase::colorRedPropertyKey:
                 if (auto* _c = ColorChannelsBase::from(object))
                 {
@@ -5028,6 +5038,7 @@ public:
             case ScrollConstraintBase::physicsTypeValuePropertyKey:
             case ScrollConstraintBase::virtualizeBufferPropertyKey:
             case DrawableBase::blendModeValuePropertyKey:
+            case DrawableBase::additiveAmountPropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
@@ -5118,6 +5129,7 @@ public:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
+            case ShapePaintBase::additiveAmountPropertyKey:
             case ColorChannelsBase::colorRedPropertyKey:
             case ColorChannelsBase::colorGreenPropertyKey:
             case ColorChannelsBase::colorBluePropertyKey:
@@ -5560,6 +5572,8 @@ public:
     {
         switch (propertyKey)
         {
+            case DrawableBase::additiveAmountPropertyKey:
+            case ShapePaintBase::additiveAmountPropertyKey:
             case ColorChannelsBase::colorRedPropertyKey:
             case ColorChannelsBase::colorGreenPropertyKey:
             case ColorChannelsBase::colorBluePropertyKey:
@@ -5857,6 +5871,8 @@ public:
                 return object->is<ScrollConstraintBase>();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->is<DrawableBase>();
+            case DrawableBase::additiveAmountPropertyKey:
+                return object->is<DrawableBase>();
             case DrawableBase::drawableFlagsPropertyKey:
                 return object->is<DrawableBase>();
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -6030,6 +6046,8 @@ public:
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
                 return object->is<ListenerInputTypeBase>();
             case ShapePaintBase::blendModeValuePropertyKey:
+                return object->is<ShapePaintBase>();
+            case ShapePaintBase::additiveAmountPropertyKey:
                 return object->is<ShapePaintBase>();
             case ColorChannelsBase::colorRedPropertyKey:
                 return ColorChannelsBase::from(object) != nullptr;
