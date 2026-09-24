@@ -166,7 +166,8 @@ public:
     // NOTE: Subpasses are not necessarily rendered one after the other.
     // Separate, non-overlapping draws may have gotten sorted between subpasses.
     virtual gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                                int subpassIndex) = 0;
+                                                int subpassIndex,
+                                                uint32_t zIndex) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the
     // client calls this method before clearing the drawList to release all our
@@ -350,7 +351,8 @@ public:
     void countSubpasses(const gpu::PlatformFeatures&) override;
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex) override;
+                                        int subpassIndex,
+                                        uint32_t zIndex) override;
 
     // Called after pushToRenderContext(), and only when this draw uses an atlas
     // for tessellation. In the CoverageType::atlas case, pushToRenderContext()
@@ -524,7 +526,8 @@ public:
     const Mat2D& gradientMatrix() const { return m_gradientMatrix; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex) override;
+                                        int subpassIndex,
+                                        uint32_t zIndex) override;
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
     void releaseRefs() override;
@@ -563,7 +566,8 @@ public:
     ColorInt modulatedColor() const { return m_modulatedColor; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex) override;
+                                        int subpassIndex,
+                                        uint32_t zIndex) override;
 
     void releaseRefs() override;
 
@@ -594,7 +598,8 @@ public:
     uint32_t previousClipID() const { return m_previousClipID; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex) override;
+                                        int subpassIndex,
+                                        uint32_t zIndex) override;
 
 protected:
     const uint32_t m_previousClipID;

@@ -450,7 +450,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
         .depthTestEnable = pipelineState.depthTestEnabled,
         .depthWriteEnable = pipelineState.depthWriteEnabled,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthCompareOp = VK_COMPARE_OP_GREATER,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = pipelineState.stencilTestEnabled,
         .minDepthBounds = gpu::DEPTH_MIN,
@@ -508,7 +508,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     {
         // Dynamic state is currently only used for multi-pass path draws, which
         // toggle depth-write, stencil, cull, and color-write per pass.
-        // NOTE: depthCompareOp stays baked at LESS and stencilReference is a
+        // NOTE: depthCompareOp stays baked at GREATER and stencilReference is a
         // constant 0x80, so neither is listed here.
         dynamicStates.push_back(VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE);
         dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK);

@@ -262,6 +262,16 @@
 #define BLEND_MODE_COLOR 14u
 #define BLEND_MODE_LUMINOSITY 15u
 
+// Rive's depth buffer is a packed 23-bit integer:
+//
+//   bits [22:8] : path zIndex (larger == on top, depth-tested with GREATER)
+//   bits [7:0]  : coverage
+//
+// Coverage sits below the zIndex, so the depth test resolves zIndex first and
+// max coverage second, for free.
+#define DEPTH_Z_INDEX_BIT_COUNT 15u
+#define DEPTH_COVERAGE_BIT_COUNT 8u
+
 // Fixed-point coverage values for atomic mode.
 // Atomic mode uses 6:11 fixed point, so the winding number breaks if a shape
 // has more than 32 levels of self overlap in either winding direction at any

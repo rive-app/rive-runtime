@@ -115,7 +115,8 @@ public:
     }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        int subpassIndex) override
+                                        int subpassIndex,
+                                        uint32_t zIndex) override
     {
         // Make sure the rawPath in our path reference hasn't changed since we
         // began holding!
@@ -127,7 +128,7 @@ public:
             m_resourceCounts.outerCubicTessVertexCount);
         if (tessVertexCount > 0)
         {
-            m_pathID = flush->pushPath(this);
+            m_pathID = flush->pushPath(this, zIndex);
 
             uint32_t tessLocation =
                 flush->allocateOuterCubicTessVertices(tessVertexCount);

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/renderer/cmd/deferred_canvas.hpp"
 #include "rive/renderer/cmd/foreign_image_registry.hpp"
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
 #include "rive/renderer/cmd/deferred_render_factory.hpp"
@@ -70,6 +71,8 @@ public:
         {
             attachment->deferredSessionDestroyed();
         }
+        // Canvases outliving the session let their backing go on their own.
+        m_canvasRetirer->close();
     }
 
     // ---- Attachments ----
@@ -139,7 +142,9 @@ public:
     {
 #ifdef RIVE_CANVAS
         auto* rc = static_cast<gpu::RenderContext*>(m_renderContext);
-        return rc != nullptr ? rc->makeDeferredRenderCanvas(width, height)
+        return rc != nullptr ? make_rcp<DeferredRenderCanvas>(m_canvasRetirer,
+                                                              width,
+                                                              height)
                              : nullptr;
 #else
         (void)width;
@@ -321,6 +326,8 @@ public:
         const size_t oreBegin = m_ore.stream().commandBytes().size();
         commandBuffer().drainDestroys();
         m_ore.drainPendingDestroys();
+        // An idle session has no replay in flight to hand these to.
+        m_canvasRetirer->take();
         return {tail(commandBuffer().commandBytes(), begin),
                 tail(m_ore.stream().commandBytes(), oreBegin)};
     }
@@ -331,6 +338,9 @@ public:
     {
         DeferredFactory::resetFrame();
         m_ore.resetFrame();
+        // A snapshot already carried these to its frame; an inline replay,
+        // done on this thread, drops what is left here.
+        m_canvasRetirer->take();
         m_canvases.reset();
         m_contentCanvases.clear();
         m_canvasRenderers.clear();
@@ -412,6 +422,12 @@ public:
     {
         return m_contentCanvases;
     }
+    // Backings of canvases that died since the last frame, for the frame to
+    // drop once it has replayed.
+    std::vector<RetiredCanvasBacking> takeRetiredCanvasBackings()
+    {
+        return m_canvasRetirer->take();
+    }
 
 private:
     void wireOreCanvases()
@@ -490,6 +506,7 @@ private:
     ForeignImageRegistry m_canvases;
     // Canvas id to real canvas, retained so it lives to replay. Per frame.
     std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>> m_contentCanvases;
+    rcp<CanvasRetirer> m_canvasRetirer = make_rcp<CanvasRetirer>();
     // Alive until resetFrame so scripted renderers stay valid across
     // interleaved canvas frames.
     std::unordered_map<uint64_t, std::unique_ptr<DeferredRenderer>>

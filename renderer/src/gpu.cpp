@@ -26,6 +26,9 @@ static_assert(sizeof(PaintAuxData) / StorageBufferElementSizeInBytes(
                                          PaintAuxData::kBufferStructure) ==
               PAINT_AUX_ENTRY_ELEMENT_COUNT);
 
+// packNormalizedDepth() only supports 23 bits of payload. (See common.glsl.)
+static_assert(DEPTH_Z_INDEX_BIT_COUNT + DEPTH_COVERAGE_BIT_COUNT == 23);
+
 static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
 {
     switch (mode)

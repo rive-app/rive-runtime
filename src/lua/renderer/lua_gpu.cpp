@@ -2816,7 +2816,11 @@ rcp<gpu::RenderCanvas> rive::allocScriptRenderCanvas(gpu::RenderContext* rc,
 {
     assert(rc != nullptr);
     assert(ctx != nullptr);
-    if (ctx->deferredCanvasHost() != nullptr || ctx->renderContextIsLateBound())
+    if (auto* deferredHost = ctx->deferredCanvasHost())
+    {
+        return deferredHost->makeContentCanvas(width, height);
+    }
+    if (ctx->renderContextIsLateBound())
     {
         return rc->makeDeferredRenderCanvas(width, height);
     }

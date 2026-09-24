@@ -36,10 +36,10 @@ class RenderCanvas : public RefCnt<RenderCanvas>
 {
 public:
     RenderCanvas(uint32_t width, uint32_t height) :
-        m_renderImage(make_rcp<RenderCanvasImage>(width, height)),
-        m_width(width),
-        m_height(height)
+        RenderCanvas(make_rcp<RenderCanvasImage>(width, height), width, height)
     {}
+    // A deferred canvas hands its backing to the replay thread on the way out.
+    virtual ~RenderCanvas() = default;
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -58,6 +58,17 @@ public:
 
     // Use as a RenderTarget for rendering into this texture.
     RenderTarget* renderTarget() { return m_renderTarget.get(); }
+
+protected:
+    RenderCanvas(rcp<RenderCanvasImage> image,
+                 uint32_t width,
+                 uint32_t height) :
+        m_renderImage(std::move(image)), m_width(width), m_height(height)
+    {}
+    rcp<RenderTarget> releaseRenderTarget()
+    {
+        return std::move(m_renderTarget);
+    }
 
 private:
     rcp<RenderCanvasImage> m_renderImage;

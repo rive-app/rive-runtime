@@ -9,6 +9,12 @@
 // doesn't try to put all of its functions into the glsl_cross namespace
 #include <array>
 
+// common.glsl writes GLSL constructors and reads the flush uniforms.
+#define RIVE_GLSL_CROSS_WANT_CONSTRUCTORS
+// Included out here, not in the namespace below: common.glsl defines its own
+// make_half() and friends, which shadow these rather than collide with them.
+#include "cpp.glsl"
+
 namespace glsl_cross
 {
 #ifdef _MSC_VER
@@ -19,29 +25,18 @@ namespace glsl_cross
 #pragma warning(disable : 4305)
 #endif
 
-#include "cpp.glsl"
-#include "generated/shaders/constants.minified.glsl"
-#if 0
-// "common.glsl" is currently too complicated to compile for C++. If we really
-// need it we can make it work, but for now it works to just declare our own
-// version of a couple required functions
-#include "generated/shaders/common.minified.glsl"
-#else
-static half3 unmultiply_rgb(half4 premul)
-{
-    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
-    // also be approximate here. The blend modes that depend on this exact level
-    // of precision (colordodge and colorburn) account for it with dstPremul.
-    return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
-}
+RIVE_GLSL_CROSS_CONSTRUCTORS
 
-static half min_component(half3 v) { return min(v.x, min(v.y, v.z)); }
-static half max_component(half3 v) { return max(v.x, max(v.y, v.z)); }
-#endif
 #define FRAGMENT
 #define ENABLE_ADVANCED_BLEND true
 #define ENABLE_HSL_BLEND_MODES true
+// The GLSL-flavored casts in common.glsl are the ones that compile as C++.
+#define GLSL
 
+#include "generated/shaders/constants.minified.glsl"
+// unmultiply_rgb(), min_component() and max_component() come from here rather
+// than from hand-written copies, so a change to them can't pass this test.
+#include "generated/shaders/common.minified.glsl"
 #include "generated/shaders/advanced_blend.minified.glsl"
 
 #ifdef _MSC_VER

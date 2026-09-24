@@ -142,7 +142,7 @@ template <typename T> struct gvec_data<T, 3>
 {
     union
     {
-        T data[2];
+        T data[3];
         struct
         {
             T x, y, z;
@@ -151,6 +151,7 @@ template <typename T> struct gvec_data<T, 3>
         {
             T r, g, b;
         };
+        gvec<T, 2> xy;
         gvec<T, 3, PackSwizzle3(3, 0, 1, 2)> xyz;
     };
 };

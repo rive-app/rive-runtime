@@ -736,7 +736,7 @@ private:
         // This method does not add the path to the draw list. The caller must
         // define that draw specifically with a separate call to
         // pushMidpointFanDraw() or pushOuterCubicsDraw().
-        [[nodiscard]] uint32_t pushPath(const PathDraw* draw);
+        [[nodiscard]] uint32_t pushPath(const PathDraw* draw, uint32_t zIndex);
 
         // Pushes a contour record to the GPU that references the given path.
         //
@@ -801,13 +801,13 @@ private:
         // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
         // should be drawn as rectangular paths with an image paint.
-        gpu::DrawBatch& pushImageRectDraw(ImageRectDraw*);
+        gpu::DrawBatch& pushImageRectDraw(ImageRectDraw*, uint32_t zIndex);
 
         // Pushes an "imageMesh" draw to the list.
-        gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*);
+        gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*, uint32_t zIndex);
 
         // Pushes a "clipReset" draw to the list.
-        gpu::DrawBatch& pushClipResetDraw(ClipReset*);
+        gpu::DrawBatch& pushClipResetDraw(ClipReset*, uint32_t zIndex);
 
     private:
         friend class TessellationWriter;
@@ -923,11 +923,6 @@ private:
         // (pushPathDraw()/pushDraw()). If any barriers are pending, this also
         // prevents DrawBatches from being combined with the existing drawList.
         BarrierFlags m_pendingBarriers;
-
-        // Stateful Z index of the current draw being pushed. Used by
-        // depthStencil mode to avoid double hits and to reverse-sort opaque
-        // paths front to back.
-        uint32_t m_currentZIndex;
 
         RIVE_DEBUG_CODE(bool m_hasDoneLayout = false;)
     };

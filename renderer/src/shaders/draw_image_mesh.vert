@@ -108,7 +108,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     pos.y = -pos.y;
 #endif
 #ifdef @RENDER_MODE_DEPTH_STENCIL
-    pos.z = normalize_z_index(@a_imageDrawZIndex);
+    pos.z = packNormalizedDepth(@a_imageDrawZIndex, 0xffu);
 #endif
 
     v_imageModulatedColor = unpackUnorm4x8(@a_imageDrawModulatedColor);

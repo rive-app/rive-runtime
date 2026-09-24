@@ -345,8 +345,6 @@ void RenderContext::LogicalFlush::rewind()
 
     m_pendingBarriers = BarrierFlags::none;
 
-    m_currentZIndex = 0;
-
     RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
 }
 
@@ -1598,7 +1596,10 @@ void RenderContext::LogicalFlush::writeResources()
             assert(draw->subpassCount() > 0);
             for (int i = 0; i < draw->subpassCount(); ++i)
             {
-                draw->pushToRenderContext(this, i);
+                // Non-depthStencil draws don't use zIndex.
+                assert(m_ctx->frameInterlockMode() !=
+                       gpu::InterlockMode::depthStencil);
+                draw->pushToRenderContext(this, i, /*zIndex =*/0);
             }
         }
     }
@@ -1706,6 +1707,19 @@ void RenderContext::LogicalFlush::writeResources()
         // Set this to 0, any actual scissor IDs used will then start at 1.
         m_ctx->m_prevScissorID = 0;
 
+        // When the dstBlend barrier has no other option than to copy out a
+        // texture, this copy destroys MSAA information and we can no longer
+        // put subpasses in different drawGroups.
+        // Otherwise, we put subpasses into different draw groups because it
+        // yields better reordering.
+        const bool allSubpassesInSameDrawGroup =
+            m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
+            !platformFeatures.supportsBlendAdvancedKHR &&
+            enums::is_flag_set(m_combinedDrawContents,
+                               gpu::DrawContents::advancedBlend);
+
+        int16_t maxZIndex = 0;
+
         for (int16_t drawIndex = 0; drawIndex < int16_t(m_draws.size());
              ++drawIndex)
         {
@@ -1797,18 +1811,6 @@ void RenderContext::LogicalFlush::writeResources()
                 };
             }
 
-            // When the dstBlend barrier has no other option than to copy out a
-            // texture, this copy destroys MSAA information and we can no longer
-            // put subpasses in different drawGroups.
-            // Otherwise, we put subpasses into different draw groups because it
-            // yields better reordering.
-            const bool allSubpassesInSameDrawGroup =
-                m_ctx->frameInterlockMode() ==
-                    gpu::InterlockMode::depthStencil &&
-                !platformFeatures.supportsBlendAdvancedKHR &&
-                enums::is_flag_set(m_combinedDrawContents,
-                                   gpu::DrawContents::advancedBlend);
-
             // Our top priority in re-ordering is to group non-overlapping draws
             // together, in order to maximize batching while preserving
             // correctness.
@@ -1820,6 +1822,7 @@ void RenderContext::LogicalFlush::writeResources()
                 kDisallowOverlapMask,
                 allSubpassesInSameDrawGroup ? 1 : maxSubpasses);
             assert(drawGroupIdx > 0);
+            maxZIndex = std::max(maxZIndex, drawGroupIdx);
             const auto textureHash =
                 (draw->imageTexture() != nullptr)
                     ? draw->imageTexture()->textureResourceHash()
@@ -2056,6 +2059,31 @@ void RenderContext::LogicalFlush::writeResources()
             }
         }
 
+        // zIndex occupies 15 bits of our packed depth value. (See common.glsl,
+        // packNormalizedDepth().) If we don't have 15 bits worth of Z in this
+        // flush, shift our indices so we still light up that 15th bit.
+        //
+        // The reason for this is hypothetical. Hierarchical-Z is a huge
+        // optimization for us (i.e., early depth discard, full chunks at a
+        // time), but if the GPU doesn't use full precision for that coarse
+        // discard, we will benefit from spacing our Z values as far apart as
+        // possible. In practice this has not yet measured as a win on any
+        // physical device, but it only costs a shift, so we might as well.
+        const uint32_t zIndexMSB = math::msb(maxZIndex);
+        assert(zIndexMSB <= DEPTH_Z_INDEX_BIT_COUNT);
+        const uint32_t zIndexShift = DEPTH_Z_INDEX_BIT_COUNT - zIndexMSB;
+#ifndef NDEBUG
+        constexpr uint32_t DEPTH_Z_INDEX_MASK =
+            (1u << DEPTH_Z_INDEX_BIT_COUNT) - 1u;
+        constexpr uint32_t DEPTH_Z_INDEX_TOP_BIT =
+            1u << (DEPTH_Z_INDEX_BIT_COUNT - 1);
+        // Make sure nothing lands outside the zIndex field.
+        assert(((maxZIndex << zIndexShift) & ~DEPTH_Z_INDEX_MASK) == 0);
+        // Make sure the largest zIndex lights up the top bit of the field.
+        assert(maxZIndex == 0 ||
+               ((maxZIndex << zIndexShift) & DEPTH_Z_INDEX_TOP_BIT) != 0);
+#endif
+
         // Write out the draw data from the sorted draw list, and build up a
         // condensed/batched list of low-level draws.
         constexpr int64_t BEGIN_KEY = std::numeric_limits<int64_t>::min();
@@ -2090,18 +2118,25 @@ void RenderContext::LogicalFlush::writeResources()
             auto drawIndex = sortEntry.drawIndex;
             auto subpassIndex =
                 keyBuilder.extract<int8_t>(SortEntry::subpassIndex, key);
+            const int16_t drawGroup =
+                keyBuilder.extract<int16_t>(SortEntry::drawGroup, key);
+            assert(drawGroup > 0);
+            // All subpasses of a draw have the same zIndex, even though they're
+            // in different drawGroups. Use the zIndex of the lowest subpass.
+            assert(subpassIndex >= 0);
+            const int16_t baseDrawGroup = allSubpassesInSameDrawGroup
+                                              ? drawGroup
+                                              : drawGroup - subpassIndex;
+            assert(baseDrawGroup > 0);
+            const uint32_t zIndex = uint32_t(baseDrawGroup) << zIndexShift;
+            assert(zIndex < (1u << DEPTH_Z_INDEX_BIT_COUNT));
+
             if (signedKey < 0)
             {
                 // Negative keys are a prepass. Update the subpassIndex to be
                 // negative.
                 subpassIndex = -1 - subpassIndex;
             }
-            // FIXME: m_currentZIndex shouldn't be a stateful variable; it
-            // should be passed to pushToRenderContext() instead.
-            const int16_t drawGroup =
-                keyBuilder.extract<int16_t>(SortEntry::drawGroup, key);
-            assert(drawGroup > 0);
-            m_currentZIndex = drawGroup;
 
             Draw* draw = m_draws[drawIndex].get();
 
@@ -2112,7 +2147,8 @@ void RenderContext::LogicalFlush::writeResources()
             assert(draw->blendMode() != BlendMode::srcOver ==
                    draw->hasAdvancedBlend());
 
-            DrawBatch* batch = draw->pushToRenderContext(this, subpassIndex);
+            DrawBatch* batch =
+                draw->pushToRenderContext(this, subpassIndex, zIndex);
 
             if (batch != nullptr && platformFeatures.supportsClipScissor)
             {
@@ -3084,7 +3120,8 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
     return location;
 }
 
-uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
+uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
+                                               uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
@@ -3095,7 +3132,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
     m_ctx->m_pathData.set_back(draw->paintMatrix(),
                                draw->strokeRadius(),
                                draw->featherRadius(),
-                               m_currentZIndex,
+                               zIndex,
                                draw->featherAtlasTransform(),
                                draw->coverageBufferRange());
     m_ctx->m_paintData.set_back(
@@ -3591,7 +3628,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushFeatherAtlasBlit(
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
-    ImageRectDraw* draw)
+    ImageRectDraw* draw,
+    uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
@@ -3630,7 +3668,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
                                                 draw->blendMode(),
-                                                m_currentZIndex,
+                                                zIndex,
                                                 draw->imageMatrix(),
                                                 gradientMatrix,
                                                 gradientType,
@@ -3648,7 +3686,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
-    ImageMeshDraw* draw)
+    ImageMeshDraw* draw,
+    uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
@@ -3661,7 +3700,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
                                                 draw->clipRectInverseMatrix(),
                                                 draw->clipID(),
                                                 draw->blendMode(),
-                                                m_currentZIndex,
+                                                zIndex,
                                                 draw->additiveness());
 
     DrawBatch& batch = pushDraw(draw,
@@ -3677,7 +3716,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     return batch;
 }
 
-gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw)
+gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw,
+                                                               uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
@@ -3685,16 +3725,15 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw)
     uint32_t baseVertex = math::lossless_numeric_cast<uint32_t>(
         m_ctx->m_triangleVertexData.elementsWritten());
     auto [l, t, r, b] = AABB(getClipInfo(draw->previousClipID()).contentBounds);
-    uint32_t z = m_currentZIndex;
     assert(AABB(l, t, r, b).round() == draw->pixelBounds());
     assert(draw->resourceCounts().maxTriangleVertexCount == 6);
     assert(m_ctx->m_triangleVertexData.hasRoomFor(6));
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, b}, 0, z);
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 0, z);
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, b}, 0, z);
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, b}, 0, z);
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 0, z);
-    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 0, z);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, b}, 0, zIndex);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 0, zIndex);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, b}, 0, zIndex);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, b}, 0, zIndex);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 0, zIndex);
+    m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 0, zIndex);
     return pushDraw(draw,
                     DrawType::clipReset,
                     gpu::ShaderMiscFlags::none,

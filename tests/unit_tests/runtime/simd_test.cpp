@@ -105,6 +105,26 @@ TEST_CASE("swizzles", "[simd]")
     CHECK_ALL((v2.xyxy == float4{1, -2, 1, -2}));
     CHECK_ALL((v2.yxyx == float4{-2, 1, -2, 1}));
 
+    // NOTE: with clang these are native vector swizzles, but every other
+    // compiler gets them from simd_gvec_polyfill.hpp, which spells each one out
+    // by hand -- so a missing member only shows up here, and only off clang.
+    vec<3> f3{1, -2, 3};
+    CHECK(f3.x == 1);
+    CHECK(f3.y == -2);
+    CHECK(f3.z == 3);
+    CHECK(f3[0] == f3.x);
+    CHECK(f3[1] == f3.y);
+    CHECK(f3[2] == f3.z);
+    CHECK_ALL((f3.xy == float2{1, -2}));
+    CHECK_ALL((f3.xyz == vec<3>{1, -2, 3}));
+    CHECK_ALL((float2(f3.xy) == float2{1, -2}));
+    CHECK(simd::reduce_add(f3.xy) == -1);
+
+    f3.xy = v2.yx;
+    CHECK_ALL((f3 == vec<3>{-2, 1, 3}));
+    f3.xyz = 7.f;
+    CHECK_ALL((f3 == vec<3>{7, 7, 7}));
+
     float4 v4{1, -2, 3, -1};
     CHECK(v4.x == 1);
     CHECK(v4.y == -2);

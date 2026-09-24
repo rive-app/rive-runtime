@@ -1363,7 +1363,7 @@ struct FlushDescriptor
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
     uint32_t coverageClearValue = 0;
-    float depthClearValue = DEPTH_MAX;
+    float depthClearValue = DEPTH_MIN;
     uint8_t stencilClearValue = STENCIL_CLEAR;
 
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if

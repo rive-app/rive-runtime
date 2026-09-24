@@ -317,7 +317,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         pos.y = -pos.y;
 #endif
 #ifdef @RENDER_MODE_DEPTH_STENCIL
-        pos.z = normalize_z_index(pathZIndex);
+        pos.z = packNormalizedDepth(pathZIndex, 0xffu);
 #elif defined(@RENDER_MODE_CLOCKWISE_ATOMIC)
         uint4 coverageData =
             STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);

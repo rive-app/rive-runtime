@@ -76,6 +76,8 @@ struct DeferredFrame
     std::vector<uint8_t> oreCommands, oreBlobs; // Ore ordered stream
     std::vector<rcp<RenderImage>> canvasImages; // unflagged canvas id -> image
     std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>> contentCanvases;
+    // Dropped where the frame is destroyed, which is the replay thread.
+    std::vector<RetiredCanvasBacking> retiredCanvasBackings;
     std::vector<rcp<rive::gpu::GPUResource>> oreReals; // unflagged real id
     // Assembled scheduler segments; byte ranges index the streams above.
     std::vector<DeferredSegment> segments;
@@ -99,6 +101,7 @@ inline DeferredFrame snapshotFrame(DeferredSession& session)
     f.oreBlobs = copy(session.oreContext().stream().blobBytes());
     f.canvasImages = session.canvases().images();
     f.contentCanvases = session.contentCanvases();
+    f.retiredCanvasBackings = session.takeRetiredCanvasBackings();
     f.oreReals = session.oreContext().realResources();
     f.segments = session.schedulerSegments();
     f.oreCaps = session.oreContext().caps();

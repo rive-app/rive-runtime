@@ -747,4 +747,5 @@ INLINE half4 polyfill_unpackUnorm4x8(uint u)
 // incorrectly declare this builtin on ES 3.0, leading to compiler errors if we
 // just declare it as a normal function.
 #define unpackUnorm4x8 polyfill_unpackUnorm4x8
+
 #endif

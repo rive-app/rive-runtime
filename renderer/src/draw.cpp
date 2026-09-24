@@ -1572,7 +1572,8 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
 
 gpu::DrawBatch* PathDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex)
+    int subpassIndex,
+    uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     // Make sure the rawPath in our path reference hasn't changed since we began
@@ -1593,7 +1594,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
     if (m_pathID == 0)
     {
         // Reserve our pathID and write out a path record.
-        m_pathID = flush->pushPath(this);
+        m_pathID = flush->pushPath(this, zIndex);
     }
 
     switch (m_coverageType)
@@ -2686,10 +2687,11 @@ void ImageRectDraw::releaseRefs()
 
 gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex)
+    int subpassIndex,
+    uint32_t zIndex)
 {
     assert(subpassIndex == 0);
-    return &flush->pushImageRectDraw(this);
+    return &flush->pushImageRectDraw(this, zIndex);
 }
 
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
@@ -2726,10 +2728,11 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
 
 gpu::DrawBatch* ImageMeshDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex)
+    int subpassIndex,
+    uint32_t zIndex)
 {
     assert(subpassIndex == 0);
-    return &flush->pushImageMeshDraw(this);
+    return &flush->pushImageMeshDraw(this, zIndex);
 }
 
 void ImageMeshDraw::releaseRefs()
@@ -2772,9 +2775,10 @@ ClipReset::ClipReset(RenderContext* context,
 
 gpu::DrawBatch* ClipReset::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex)
+    int subpassIndex,
+    uint32_t zIndex)
 {
     assert(subpassIndex == 0);
-    return &flush->pushClipResetDraw(this);
+    return &flush->pushClipResetDraw(this, zIndex);
 }
 } // namespace rive::gpu

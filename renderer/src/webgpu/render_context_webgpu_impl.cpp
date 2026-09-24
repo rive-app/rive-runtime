@@ -3584,7 +3584,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             .format = WGPUTextureFormat_Depth24PlusStencil8,
             .depthWriteEnabled = wgpu_bool(pipelineState.depthWriteEnabled),
             .depthCompare = pipelineState.depthTestEnabled
-                                ? WGPUCompareFunction_Less
+                                ? WGPUCompareFunction_Greater
                                 : WGPUCompareFunction_Always,
             .stencilFront =
                 pipelineState.stencilTestEnabled

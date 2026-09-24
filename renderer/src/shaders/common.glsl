@@ -385,9 +385,55 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
 
 #else // !@RENDER_MODE_DEPTH_STENCIL => @RENDER_MODE_DEPTH_STENCIL
 
-INLINE float normalize_z_index(uint zIndex)
+// Rive's depth buffer is a packed 23-bit integer:
+//
+//   bits [22:8] : path zIndex (larger == on top, depth-tested with GREATER)
+//   bits [7:0]  : coverage
+//
+// Coverage sits below the zIndex, so the depth test resolves zIndex first and
+// max coverage second, for free.
+//
+// Shaders output a normalized float32 depth, but we have to control the precise
+// 24-bit integer that lands in our D24_UNORM buffer.
+//
+// The hardware retires "round(z * 0xffffff)", but we can't just output
+// "z = depth / float(0xffffff)" because implementations are allowed to divide
+// via reciprocal, which could yield LSB errors on the 24-bit value retired.
+//
+// Scaling by a power of two is the only way there, with a +.5 to keep the error
+// in check.
+//
+// When we output (depth + .5) * 2^-24, what the hardware rounds is:
+//
+//     (depth + .5) * 2^-24 * 0xffffff
+//   = (depth + .5) * 2^-24 * (2^24 - 1)
+//   = (depth + .5) * (1 - 2^-24)
+//   = depth + .5 - (depth + .5) * 2^-24
+//
+// And the error is ".5 - (depth + .5) * 2^-24", which crosses beyond -.5
+// exactly between 2^24-1 and 2^24.
+//
+// So, all 24-bit values, including 0, should mathematically fall within error
+// bounds and round to the correct value. BUT, representability gets us first.
+// "depth + .5" needs a significand bit below the integer, so it isn't exact in
+// float32 after 2^23, and that is what caps the payload at 23 bits. (15 zIndex
+// + 8 coverage).
+INLINE float packNormalizedDepth(uint zIndex15, uint coverage8)
 {
-    return 1. - float(zIndex) * (2. / 32768.);
+    float depth = float((zIndex15 << DEPTH_COVERAGE_BIT_COUNT) | coverage8);
+#if defined(GLSL) && !defined(@TARGET_SPIRV)
+    // GL expects depth values normalized to -1..+1:
+    //
+    //   (depth + .5) * 2^-23 - 1
+    //
+    return depth * uintBitsToFloat(0x34000000u) + uintBitsToFloat(0xbf7fffffu);
+#else
+    // Everybody else expects depth values normalized to 0..1:
+    //
+    //   (depth + .5) * 2^-24
+    //
+    return depth * uintBitsToFloat(0x33800000u) + uintBitsToFloat(0x33000000u);
+#endif
 }
 
 #ifdef @ENABLE_CLIP_RECT

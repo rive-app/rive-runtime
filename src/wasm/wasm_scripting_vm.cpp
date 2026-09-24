@@ -1731,8 +1731,9 @@ uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
     {
         return 0;
     }
-    auto canvas = vm->factory()->deferredCanvasHost() != nullptr
-                      ? renderContext->makeDeferredRenderCanvas(width, height)
+    auto* deferredHost = vm->factory()->deferredCanvasHost();
+    auto canvas = deferredHost != nullptr
+                      ? deferredHost->makeContentCanvas(width, height)
                       : renderContext->makeRenderCanvas(width, height);
     if (canvas == nullptr)
     {
@@ -1831,8 +1832,9 @@ uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    auto canvas = vm->factory()->deferredCanvasHost() != nullptr
-                      ? renderContext->makeDeferredRenderCanvas(width, height)
+    auto* deferredHost = vm->factory()->deferredCanvasHost();
+    auto canvas = deferredHost != nullptr
+                      ? deferredHost->makeContentCanvas(width, height)
                       : renderContext->makeRenderCanvas(width, height);
     if (canvas == nullptr)
     {
@@ -3281,10 +3283,11 @@ bool canvasSatisfyPending(WasmScriptingVM* vm, HostCanvas* host)
         return true;
     }
     // A refused size leaves the previous backing in place.
+    auto* deferredHost = vm->factory()->deferredCanvasHost();
     rcp<gpu::RenderCanvas> canvas =
-        vm->factory()->deferredCanvasHost() != nullptr
-            ? renderContext->makeDeferredRenderCanvas(host->pendingWidth,
-                                                      host->pendingHeight)
+        deferredHost != nullptr
+            ? deferredHost->makeContentCanvas(host->pendingWidth,
+                                              host->pendingHeight)
             : renderContext->makeRenderCanvas(host->pendingWidth,
                                               host->pendingHeight);
     host->pendingWidth = 0;
