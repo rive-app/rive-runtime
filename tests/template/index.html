@@ -10,7 +10,7 @@
             --failure-text-color: #f04646;
             --success-text-color: #46d046;
             --deemphasized-text-color: #687e7e;
-            
+
             --far-background-color: #18191a;
             --panel-background-color: #43484b;
             --header-background-color: #292b2c;
@@ -20,7 +20,7 @@
         details h2:not(:first-of-type) {{
             padding-top: 50px;
         }}
-        
+
         header {{
             text-align: left;
         }}
@@ -73,13 +73,13 @@
         }}
 
         .entry_table_values {{
-            border-spacing: 10px 0; 
+            border-spacing: 10px 0;
             text-align: right;
             padding-top: 20px;
         }}
 
         .entry_table_images {{
-            border-spacing: 10px 0; 
+            border-spacing: 10px 0;
             text-align: right;
         }}
 
@@ -113,6 +113,12 @@
             {missing_golden}
         </p>
     </details>
+    <details open>
+        <summary class="fail">{size_mismatch_number} Incorrect Size</summary>
+        <p>
+            {size_mismatch}
+        </p>
+    </details>
     <details class="{pass_hide_class}">
         <summary class="success">{passing_number} Passing Tests</summary>
         <p>
@@ -128,8 +134,8 @@
     <details>
         <summary class="device_summary">Device Summary ({device_number} device(s))</summary>
             <table class="device_summary_values">
-                <thead> 
-                    <tr> 
+                <thead>
+                    <tr>
                         <th>Device Name</th>
                         <th>Fail Count</th>
                         <th>Missing Count</th>
@@ -146,45 +152,45 @@
         <summary class="legend_summary">legend</summary>
         <table class="header_table">
             <thead>
-                <tr> 
+                <tr>
                     <th> header </th>
                     <th> meaning </th>
                 </tr>
             </thead>
             <tbody>
-                <tr> 
+                <tr>
                     <td> canvas/skia/rive mesh/text/vector </td>
                     <td> The data is the result of a test using one of our renderers, either canvas, skia or rive. We have 3 different tests, one to highlight mesh issues, one text and one vector.</td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> maxRGB mismatch </td>
                     <td> the largest individual RGB mismatch, this is on a single color channel presumably (@chris, can you confirm this, also do we do ARGB?) </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> avgRGB mismatch </td>
                     <td> the average RGB mismatch of all pixels across all channels (@chris, does it make sense to do an avgRGB mismatch for mismatching pixels as well as for all pixels?) </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> # of different pixels  </td>
                     <td> The total number of pixels that have any difference </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> % of different pixels </td>
                     <td> The percentage of pixels that have any difference out of the total number of pixels </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> candidate </td>
                     <td> The image produced on this test run for the given test (e.g using skia rendering the mesh test image) </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> golden </td>
                     <td> The image we consider the "gold standard" for this test. This is the previously accepted target image that we want to compare our candidate against. </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> color diff </td>
                     <td> A representation of the difference between the candidate and the golden image. Here we show the color difference for each individual pixel. pixels with the same color will be black (0 color difference in each channel) in this representation. this highlights how significant a difference is, white would be very significant. </td>
                 </tr>
-                <tr>  
+                <tr>
                     <td> pixel diff </td>
                     <td> A representation of the difference between the candidate and the golden image. Here we show the color difference as white for any pixel that has any difference. this highlights where we have differences. </td>
                 </tr>

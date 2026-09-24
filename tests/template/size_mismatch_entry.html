@@ -2,20 +2,14 @@
 <table class="entry_table_values">
     <thead>
         <tr>
-            <th>maxRGB mismatch </th>
-            <th>AvgRGB mismatch</th>
-            <th># of different pixels</th>
-            <th>% of different pixels</th>
-            <th>{thresh_type}</th>
+            <th>golden size</th>
+            <th>candidate size</th>
         </tr>
     </thead>
     <tbody>
         <tr>
-            <td>{max}</td>
-            <td>{avg}</td>
-            <td>{total_diff}</td>
-            <td>{percent}</td>
-            <td>{threshold}</td>
+            <td>{golden_size}</td>
+            <td>{candidate_size}</td>
         </tr>
     </tbody>
 </table>
@@ -24,17 +18,12 @@
         <tr>
             <th>golden</th>
             <th>candidate </th>
-            <th>color diff</th>
-            <th>pixel diff</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td> <a href="{golden}"><img src="{golden_thumb}" height="192"></a></td>
             <td> <a href="{candidate}"><img src="{candidate_thumb}" height="192"></a></td>
-            <td> <a href="{diff0}"><img src="{diff0_thumb}" height="192"></a></td>
-            <td> <a href="{diff1}"><img src="{diff1_thumb}" height="192"></a></td>
-
         </tr>
     </tbody>
 </table>

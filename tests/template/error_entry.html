@@ -1,35 +1,35 @@
 <h2><b class="white_text"><a target="_blank" onclick="window.open(this.href,'_blank');return false;" href={url}>{name}</a></b></h2>
 <table class="entry_table_values">
-    <thead> 
-        <tr> 
+    <thead>
+        <tr>
             <th>maxRGB mismatch </th>
             <th>AvgRGB mismatch</th>
             <th># of different pixels</th>
             <th>% of different pixels</th>
-            <th>histogram</th>
+            <th>{thresh_type}</th>
         </tr>
     </thead>
-    <tbody> 
-        <tr> 
+    <tbody>
+        <tr>
             <td>{max}</td>
             <td>{avg}</td>
             <td>{total_diff}</td>
             <td>{percent}</td>
-            <td>{histogram}</td>
+            <td>{threshold}</td>
         </tr>
     </tbody>
 </table>
 <table class="entry_table_values">
-    <thead> 
-        <tr> 
+    <thead>
+        <tr>
             <th>golden</th>
             <th>candidate </th>
             <th>color diff</th>
             <th>pixel diff</th>
         </tr>
     </thead>
-    <tbody> 
-        <tr> 
+    <tbody>
+        <tr>
             <td> <a href="{golden}"><img src="{golden_thumb}" height="192"></a></td>
             <td> <a href="{candidate}"><img src="{candidate_thumb}" height="192"></a></td>
             <td> <a href="{diff0}"><img src="{diff0_thumb}" height="192"></a></td>

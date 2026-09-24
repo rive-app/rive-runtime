@@ -154,10 +154,6 @@ def diff_one(filename, status):
         write_thumbnail(golden, os.path.join(args.outdir, name + ".golden.thumb.png"))
 
     status.write(name + "\t")
-    if failed:
-        status.write("failed\n")
-        verbose_log(name, "failed to load golden or candidate")
-        return
     if candidate is None:
         status.write("missing_candidate\n")
         verbose_log(name, "missing candidate for " + name)
@@ -165,6 +161,10 @@ def diff_one(filename, status):
     if golden is None:
         status.write("missing_golden\n")
         verbose_log(name, "missing golden for " + name)
+        return
+    if not size_match:
+        status.write(f"size_mismatch\t{golden.shape[1]}x{golden.shape[0]}\t{candidate.shape[1]}x{candidate.shape[0]}\n")
+        verbose_log(name, "files are not the same size")
         return
     if failed:
         status.write("failed\n")
@@ -174,10 +174,7 @@ def diff_one(filename, status):
         status.write("identical\n")
         verbose_log(name, "files are identical")
         return
-    if not size_match:
-        status.write("sizemismatch\n")
-        verbose_log(name, "files are not the same size")
-        return
+
     status.write(str(max_diff)+"\t")
     # prevent python from writing out in scientific notation
     status.write(f"{float(avg):.5f}\t")
