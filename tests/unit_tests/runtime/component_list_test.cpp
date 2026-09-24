@@ -6,6 +6,8 @@
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
@@ -1497,4 +1499,59 @@ TEST_CASE("Virtualized list items are clipped by an ancestor layout viewport",
     }
     // First visible item is item 2, flush with the viewport top.
     REQUIRE(scrolled.draws[1].bounds.minY == viewport.minY);
+}
+
+TEST_CASE("Component List rows without an artboard", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_1.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(list->virtualizationEnabled() == false);
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    artboard->advance(0.0f);
+
+    // Swap the rows for items whose view model no artboard is bound to, so
+    // the list keeps its rows but creates no artboard for any of them.
+    auto buttons = viewModelInstance->propertyValue("Buttons")
+                       ->as<rive::ViewModelInstanceList>();
+    while (!buttons->listItems().empty())
+    {
+        buttons->removeItem(0);
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        auto orphan = rive::make_rcp<rive::ViewModelInstance>();
+        orphan->viewModelId(static_cast<uint32_t>(file->viewModelCount()));
+        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+        item->viewModelInstance(orphan);
+        buttons->addItem(item);
+    }
+    artboard->advance(0.0f);
+
+    REQUIRE(list->numLayoutNodes() == 3);
+    REQUIRE(scroll->scrollItemCount() == 3);
+    for (int i = 0; i < 3; i++)
+    {
+        REQUIRE(list->artboardInstance(i) == nullptr);
+        auto bounds = list->layoutBoundsForNode(i);
+        REQUIRE(bounds.width() == 0);
+        REQUIRE(bounds.height() == 0);
+    }
+
+    // Resolving a scroll index walks every row's layout bounds. No row is
+    // visible, so the intent stays pending and the offset doesn't move.
+    scroll->setScrollIndex(1);
+    artboard->advance(0.0f);
+    REQUIRE(scroll->offsetX() == 0);
+    REQUIRE(scroll->offsetY() == 0);
 }

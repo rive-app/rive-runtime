@@ -965,9 +965,11 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
     }
     else
     {
-        if (index >= 0 && index < numLayoutNodes())
+        // A row can have no artboard (e.g. its view model resolves to none).
+        auto artboard = artboardInstance(index);
+        if (artboard != nullptr)
         {
-            return artboardInstance(index)->layoutBounds();
+            return artboard->layoutBounds();
         }
     }
     return AABB();
