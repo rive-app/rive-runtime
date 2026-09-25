@@ -24,6 +24,10 @@
 #include <limits>
 #include <string_view>
 
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
 #endif
@@ -426,8 +430,19 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
         m_frameDescriptor.msaaSampleCount == 0)
     {
-        // msaaSampleCount is 0 but no other mode was supported; fall back to 4x
-        // MSAA.
+        // No other mode was supported. Say so once, since MSAA costs
+        // differently and a host that wants it should ask for it.
+        [[maybe_unused]] static const bool warned = [] {
+            const char* msg = "rive: no interlock mode supports this frame, "
+                              "drawing it in depthStencil with 4x MSAA\n";
+#if defined(__ANDROID__)
+            // stderr goes nowhere on Android.
+            __android_log_print(ANDROID_LOG_WARN, "Rive", "%s", msg);
+#else
+            fprintf(stderr, "%s", msg);
+#endif
+            return true;
+        }();
         m_frameDescriptor.msaaSampleCount = 4;
     }
     m_frameShaderFeaturesMask =

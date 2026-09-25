@@ -58,9 +58,24 @@ public:
     // GL, Metal), where zero serials also disable backing reuse.
     virtual rive::ore::Context::FrameDescriptor oreFrame() { return {}; }
     void afterOreFrame() override;
+    // The interlock choice a frame is opened with. A canvas frame takes the
+    // screen's unless canvasMode says otherwise, so a canvas never lands in a
+    // mode the host did not choose.
+    struct FrameMode
+    {
+        uint32_t msaaSampleCount = 0;
+        bool disableRasterOrdering = false;
+        bool clockwiseFillOverride = false;
+    };
+
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override;
     void endCanvasContent() override;
+    // Override to open one canvas differently from the screen.
+    virtual FrameMode canvasMode(rive::gpu::RenderCanvas*)
+    {
+        return m_screenMode;
+    }
 
     // This host's target was reached, so there is something to present.
     bool began() const { return m_screen != nullptr; }
@@ -71,9 +86,9 @@ protected:
     // prior texture's target is still this session's content, and refusing
     // it leaves static content blank with nothing left to re-record.
     bool m_acceptAnyScreenTarget = false;
-    // D3D11 disables raster ordering and flushes without an external command
-    // buffer.
-    bool m_disableRasterOrdering = false;
+    // How the host opens its screen frame; D3D11 disables raster ordering.
+    FrameMode m_screenMode;
+    // D3D11 flushes without an external command buffer.
     bool m_useExternalCommandBuffer = true;
     rive::gpu::RenderCanvas* m_activeCanvas = nullptr;
 

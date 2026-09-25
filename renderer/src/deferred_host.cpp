@@ -97,7 +97,10 @@ rive::Renderer* HostFrameSink::beginCanvasContent(
     d.renderTargetHeight = canvas->height();
     d.loadAction = rive::gpu::LoadAction::clear;
     d.clearColor = clearColor;
-    d.disableRasterOrdering = m_disableRasterOrdering;
+    const FrameMode mode = canvasMode(canvas);
+    d.msaaSampleCount = mode.msaaSampleCount;
+    d.disableRasterOrdering = mode.disableRasterOrdering;
+    d.clockwiseFillOverride = mode.clockwiseFillOverride;
     rc->beginFrame(d);
     m_canvasRenderer = std::make_unique<rive::RiveRenderer>(rc);
     return m_canvasRenderer.get();

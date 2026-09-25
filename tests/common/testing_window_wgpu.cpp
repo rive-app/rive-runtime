@@ -382,6 +382,7 @@ public:
                                                  m_currentCanvasTexture);
         }
 
+        FrameMode mode = frameMode(options);
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = m_renderTarget->width(),
             .renderTargetHeight = m_renderTarget->height(),
@@ -389,18 +390,24 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = m_backendParams.msaaSampleCount,
-            .disableRasterOrdering = options.disableRasterOrdering,
+            .msaaSampleCount = mode.msaaSampleCount,
+            .disableRasterOrdering = mode.disableRasterOrdering,
             .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride =
-                m_backendParams.clockwise || options.clockwiseFillOverride,
+            .clockwiseFillOverride = mode.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());
+    }
+
+    FrameMode frameMode(const FrameOptions& options) const override
+    {
+        return {m_backendParams.msaaSampleCount,
+                options.disableRasterOrdering,
+                m_backendParams.clockwise || options.clockwiseFillOverride};
     }
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final

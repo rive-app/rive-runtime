@@ -67,6 +67,15 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
             return std::make_unique<rive::RiveRenderer>(m_renderContext.get());
         }
 
+        TestingWindow::FrameMode frameMode(
+            const TestingWindow::FrameOptions& options) const override
+        {
+            return {std::max(m_backendParams.msaaSampleCount,
+                             options.forceMSAA ? 4u : 0u),
+                    m_backendParams.atomic || options.disableRasterOrdering,
+                    m_backendParams.clockwise || options.clockwiseFillOverride};
+        }
+
         void beginFrame(const TestingWindow::FrameOptions& options) override
         {
             // For testing, reset GPU resources to their initial sizes every
@@ -75,6 +84,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
             // a nondeterministic order.
             m_renderContext->releaseResources();
 
+            TestingWindow::FrameMode mode = frameMode(options);
             rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
                 .renderTargetWidth = m_renderTarget->width(),
                 .renderTargetHeight = m_renderTarget->height(),
@@ -82,16 +92,13 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                                   ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = options.clearColor,
-                .msaaSampleCount = std::max(m_backendParams.msaaSampleCount,
-                                            options.forceMSAA ? 4u : 0u),
-                .disableRasterOrdering =
-                    m_backendParams.atomic || options.disableRasterOrdering,
+                .msaaSampleCount = mode.msaaSampleCount,
+                .disableRasterOrdering = mode.disableRasterOrdering,
                 .triangulationThresholds = options.triangulationThresholds,
                 .wireframe = options.wireframe,
                 .fillsDisabled = options.fillsDisabled,
                 .strokesDisabled = options.strokesDisabled,
-                .clockwiseFillOverride =
-                    m_backendParams.clockwise || options.clockwiseFillOverride,
+                .clockwiseFillOverride = mode.clockwiseFillOverride,
                 .synthesizedFailureType = options.synthesizedFailureType,
             };
             m_renderContext->beginFrame(frameDescriptor);

@@ -252,6 +252,7 @@ public:
             makeDeviceAndRenderContext();
         }
 
+        FrameMode mode = frameMode(options);
         m_renderContext->beginFrame(RenderContext::FrameDescriptor{
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
@@ -259,18 +260,24 @@ public:
                               ? gpu::LoadAction::clear
                               : gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = m_backendParams.msaaSampleCount,
-            .disableRasterOrdering = options.disableRasterOrdering,
+            .msaaSampleCount = mode.msaaSampleCount,
+            .disableRasterOrdering = mode.disableRasterOrdering,
             .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride =
-                m_backendParams.clockwise || options.clockwiseFillOverride,
+            .clockwiseFillOverride = mode.clockwiseFillOverride,
             .synthesizedFailureType = options.synthesizedFailureType,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());
+    }
+
+    FrameMode frameMode(const FrameOptions& options) const override
+    {
+        return {m_backendParams.msaaSampleCount,
+                options.disableRasterOrdering,
+                m_backendParams.clockwise || options.clockwiseFillOverride};
     }
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) override

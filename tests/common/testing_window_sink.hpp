@@ -20,8 +20,9 @@
 class TestingWindowFrameSink : public rive::cmd::DeferredFrameSink
 {
 public:
-    explicit TestingWindowFrameSink(
-        const TestingWindow::FrameOptions& options) :
+    using FrameOptions = TestingWindow::FrameOptions;
+
+    explicit TestingWindowFrameSink(const FrameOptions& options) :
         m_rc(TestingWindow::Get()->renderContext()), m_options(options)
     {}
 
@@ -54,6 +55,11 @@ public:
         d.clearColor = clearColor;
         // Canvas content is the same frame as the screen content around it, so
         // it has to be drawn under the same rules.
+        TestingWindow::FrameMode mode =
+            TestingWindow::Get()->canvasFrameMode(m_options);
+        d.msaaSampleCount = mode.msaaSampleCount;
+        d.disableRasterOrdering = mode.disableRasterOrdering;
+        d.clockwiseFillOverride = mode.clockwiseFillOverride;
         d.triangulationThresholds = m_options.triangulationThresholds;
         m_rc->beginFrame(d);
         m_canvasRenderer = std::make_unique<rive::RiveRenderer>(m_rc);
@@ -72,7 +78,7 @@ public:
 
 private:
     rive::gpu::RenderContext* m_rc;
-    TestingWindow::FrameOptions m_options;
+    FrameOptions m_options;
     std::unique_ptr<rive::Renderer> m_screen;
     std::unique_ptr<rive::RiveRenderer> m_canvasRenderer;
     rive::gpu::RenderCanvas* m_activeCanvas = nullptr;

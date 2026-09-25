@@ -28,6 +28,8 @@ public:
         int width,
         int height,
         uint32_t targetTextureID = 0) = 0;
+    virtual TestingWindow::FrameMode frameMode(
+        const TestingWindow::FrameOptions&) const = 0;
     virtual void beginFrame(const TestingWindow::FrameOptions&) = 0;
     virtual void flush(int dpiScale = 1) = 0;
 

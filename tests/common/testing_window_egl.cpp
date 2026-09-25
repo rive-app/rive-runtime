@@ -544,6 +544,11 @@ public:
         m_height = height;
     }
 
+    FrameMode frameMode(const FrameOptions& options) const override
+    {
+        return m_renderer->frameMode(options);
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {

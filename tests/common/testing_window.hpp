@@ -286,6 +286,27 @@ public:
     virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
 
+    // The descriptor fields that pick a frame's interlock mode.
+    struct FrameMode
+    {
+        uint32_t msaaSampleCount = 0;
+        bool disableRasterOrdering = false;
+        bool clockwiseFillOverride = false;
+    };
+    // Windows that add backend settings resolve them here, so a replayed
+    // canvas opens in the same mode as the screen.
+    virtual FrameMode frameMode(const FrameOptions& options) const
+    {
+        return {options.forceMSAA ? 4u : 0u,
+                options.disableRasterOrdering,
+                options.clockwiseFillOverride};
+    }
+    // Override to open a replayed canvas differently from the screen.
+    virtual FrameMode canvasFrameMode(const FrameOptions& options) const
+    {
+        return frameMode(options);
+    }
+
     // For testing directly on RenderContext.
     virtual rive::gpu::RenderContext* renderContext() const { return nullptr; }
     virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const

@@ -499,9 +499,18 @@ public:
         return m_fiddleContext->getCommandBuffer();
     }
 
+    FrameMode frameMode(const FrameOptions& options) const override
+    {
+        return {std::max(m_backendParams.msaaSampleCount,
+                         options.forceMSAA ? 4u : 0u),
+                options.disableRasterOrdering,
+                m_backendParams.clockwise || options.clockwiseFillOverride};
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
+        FrameMode mode = frameMode(options);
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = static_cast<uint32_t>(m_width),
             .renderTargetHeight = static_cast<uint32_t>(m_height),
@@ -509,15 +518,13 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = std::max(m_backendParams.msaaSampleCount,
-                                        options.forceMSAA ? 4u : 0u),
-            .disableRasterOrdering = options.disableRasterOrdering,
+            .msaaSampleCount = mode.msaaSampleCount,
+            .disableRasterOrdering = mode.disableRasterOrdering,
             .triangulationThresholds = options.triangulationThresholds,
             .wireframe = options.wireframe,
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride =
-                m_backendParams.clockwise || options.clockwiseFillOverride,
+            .clockwiseFillOverride = mode.clockwiseFillOverride,
 #ifdef WITH_RIVE_TOOLS
             .synthesizedFailureType = options.synthesizedFailureType,
 #endif
