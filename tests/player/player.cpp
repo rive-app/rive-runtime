@@ -322,6 +322,15 @@ bool Player::parseArgs(int argc,
         {
             m_useDeferred = true;
         }
+        else if (strcmp(argv[i], "--fit") == 0 && i + 1 < argc)
+        {
+            const char* fit = argv[++i];
+            m_fitSet = true;
+            m_fit = strcmp(fit, "layout") == 0  ? rive::Fit::layout
+                    : strcmp(fit, "cover") == 0 ? rive::Fit::cover
+                    : strcmp(fit, "fill") == 0  ? rive::Fit::fill
+                                                : rive::Fit::contain;
+        }
         else if (strcmp(argv[i], "--threaded") == 0)
         {
             m_threaded = true;
@@ -423,6 +432,12 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
 
     m_artboard = m_file->artboardDefault();
     assert(m_artboard);
+    // A layout artboard is authored to resize, so it fills the window like
+    // our other hosts rather than letterboxing at its design size.
+    if (!m_fitSet && m_artboard->style() != nullptr)
+    {
+        m_fit = rive::Fit::layout;
+    }
 
     // Bind the artboard's default view model instance, if it has one, the same
     // way a real host runtime would.
@@ -659,6 +674,13 @@ bool Player::doFrame()
         renderer->transform(rive::Mat2D(0, 1, -1, 0, width, 0));
         std::swap(height, width);
     }
+    if (m_fit == rive::Fit::layout &&
+        (m_artboard->width() != width || m_artboard->height() != height))
+    {
+        m_artboard->width(width);
+        m_artboard->height(height);
+        m_artboard->advance(0.0f);
+    }
     if (m_zoomLevel != 0)
     {
         float scale = powf(1.25f, m_zoomLevel);
@@ -669,7 +691,7 @@ bool Player::doFrame()
 
     // Draw the .riv.
     renderer->save();
-    renderer->align(rive::Fit::contain,
+    renderer->align(m_fit,
                     rive::Alignment::center,
                     rive::AABB(0, 0, width, height),
                     m_artboard->bounds());
@@ -782,7 +804,7 @@ bool Player::doFrame()
     }
 
     const rive::Mat2D alignmentMat =
-        computeAlignment(rive::Fit::contain,
+        computeAlignment(m_fit,
                          rive::Alignment::center,
                          rive::AABB(0, 0, width, height),
                          m_artboard->bounds());

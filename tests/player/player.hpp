@@ -6,6 +6,7 @@
 
 #include "common/frame_runner.hpp"
 #include "common/testing_window.hpp"
+#include "rive/layout.hpp"
 #include "rive/refcnt.hpp"
 
 #include <chrono>
@@ -71,6 +72,8 @@ private:
     int m_copiesBelow = 0;
     int m_rotations90 = 0;
     int m_zoomLevel = 0;
+    rive::Fit m_fit = rive::Fit::contain;
+    bool m_fitSet = false;
     int m_spacing = 0;
     int m_monitorIdx = 0;
     int m_paintStyle = 0;
