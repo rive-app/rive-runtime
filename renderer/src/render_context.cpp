@@ -3716,7 +3716,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
                                                 draw->clipID(),
                                                 draw->blendMode(),
                                                 zIndex,
-                                                draw->additiveness());
+                                                draw->additiveness(),
+                                                draw->uvTranslate(),
+                                                draw->uvScale());
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,
@@ -3724,6 +3726,56 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
                                 PaintType::solidColor,
                                 1, // one instance (the mesh)
                                 imageMeshBaseInstance);
+    batch.indexCountPerInstance = draw->indexCount();
+    batch.vertexBuffer = draw->vertexBuffer();
+    batch.uvBuffer = draw->uvBuffer();
+    batch.indexBuffer = draw->indexBuffer();
+    return batch;
+}
+
+gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshInstancedDraw(
+    ImageMeshInstancedDraw* draw,
+    uint32_t zIndex)
+{
+    RIVE_PROF_SCOPE_L(2)
+    assert(m_hasDoneLayout);
+
+    assert(!draw->instancesHaveBeenEditedSinceCreation());
+
+    Span<const ImageMeshInstanceData> instances =
+        draw->instances().instanceData();
+    assert(!instances.empty());
+
+    const uint32_t imageMeshBaseInstance =
+        math::lossless_numeric_cast<uint32_t>(
+            m_ctx->m_imageMeshInstanceData.elementsWritten());
+
+    const Mat2D& ctm = draw->imageMatrix();
+    const ColorInt modulatedColor = draw->modulatedColor();
+    const float modulatedOpacity = draw->modulatedOpacity();
+    for (const ImageMeshInstanceData& instance : instances)
+    {
+        m_ctx->m_imageMeshInstanceData.emplace_back(
+            ctm * instance.transform,
+            colorModulate(0xFFFFFFFF,
+                          modulatedColor,
+                          instance.opacity * modulatedOpacity),
+            draw->clipRectInverseMatrix(),
+            draw->clipID(),
+            BlendMode::srcOver,
+            zIndex,
+            math::clamp(instance.additiveness, 0.0f, 1.0f),
+            instance.uvTranslate,
+            instance.uvScale);
+    }
+
+    DrawBatch& batch =
+        pushDraw(draw,
+                 DrawType::imageMesh,
+                 m_baselineShaderMiscFlags,
+                 PaintType::solidColor,
+                 math::lossless_numeric_cast<uint32_t>(instances.size()),
+                 imageMeshBaseInstance);
     batch.indexCountPerInstance = draw->indexCount();
     batch.vertexBuffer = draw->vertexBuffer();
     batch.uvBuffer = draw->uvBuffer();

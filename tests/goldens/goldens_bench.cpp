@@ -107,6 +107,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::drawImageMesh:
                 r.read<DrawImageMeshPOD>();
                 break;
+            case RenderCmd::drawImageMeshInstanced:
+                r.read<DrawImageMeshInstancedPOD>();
+                break;
             case RenderCmd::modulateOpacity:
                 r.read<OpacityPOD>();
                 break;
@@ -136,6 +139,12 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
                 break;
             case RenderCmd::bufferData:
                 r.read<BufferDataPOD>();
+                break;
+            case RenderCmd::makeImageMeshInstances:
+                r.read<MakeImageMeshInstancesPOD>();
+                break;
+            case RenderCmd::imageMeshInstancesData:
+                r.read<ImageMeshInstancesDataPOD>();
                 break;
             case RenderCmd::destroyResource:
                 r.read<DestroyResourcePOD>();
@@ -274,6 +283,9 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
             case RenderCmd::drawImageMesh:
                 r.read<DrawImageMeshPOD>();
                 break;
+            case RenderCmd::drawImageMeshInstanced:
+                r.read<DrawImageMeshInstancedPOD>();
+                break;
             case RenderCmd::modulateOpacity:
                 r.read<OpacityPOD>();
                 break;
@@ -300,6 +312,12 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
                 break;
             case RenderCmd::bufferData:
                 r.read<BufferDataPOD>();
+                break;
+            case RenderCmd::makeImageMeshInstances:
+                r.read<MakeImageMeshInstancesPOD>();
+                break;
+            case RenderCmd::imageMeshInstancesData:
+                r.read<ImageMeshInstancesDataPOD>();
                 break;
             default:
                 // Sizes come from RIVE_RENDER_CMD_TABLE, so a command this

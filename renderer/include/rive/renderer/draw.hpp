@@ -544,7 +544,36 @@ protected:
 };
 
 // Pushes an imageMesh to the render context.
-class ImageMeshDraw : public Draw
+class ImageMeshDrawBase : public Draw
+{
+public:
+    ImageMeshDrawBase(IAABB pixelBounds,
+                      const Mat2D&,
+                      BlendMode,
+                      float additiveness,
+                      rcp<Texture>,
+                      const ImageSampler imageSampler,
+                      rcp<RenderBuffer> vertexBuffer,
+                      rcp<RenderBuffer> uvBuffer,
+                      rcp<RenderBuffer> indexBuffer,
+                      uint32_t indexCount);
+
+    RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
+    RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
+    RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
+    uint32_t indexCount() const { return m_indexCount; }
+
+    void releaseRefs() override;
+
+protected:
+    RenderBuffer* const m_vertexBufferRef;
+    RenderBuffer* const m_uvBufferRef;
+    RenderBuffer* const m_indexBufferRef;
+    const uint32_t m_indexCount;
+};
+
+// Draws one copy of a mesh.
+class ImageMeshDraw : public ImageMeshDrawBase
 {
 public:
     ImageMeshDraw(IAABB pixelBounds,
@@ -557,13 +586,44 @@ public:
                   rcp<RenderBuffer> uvBuffer,
                   rcp<RenderBuffer> indexBuffer,
                   uint32_t indexCount,
-                  ColorInt modulatedColor);
+                  ColorInt modulatedColor,
+                  const Vec2D& uvTranslate,
+                  const Vec2D& uvScale);
 
-    RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
-    RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
-    RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
-    uint32_t indexCount() const { return m_indexCount; }
     ColorInt modulatedColor() const { return m_modulatedColor; }
+    Vec2D uvTranslate() const { return m_uvTranslate; }
+    Vec2D uvScale() const { return m_uvScale; }
+
+    gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
+                                        int subpassIndex,
+                                        uint32_t zIndex) override;
+
+private:
+    const ColorInt m_modulatedColor;
+    const Vec2D m_uvTranslate;
+    const Vec2D m_uvScale;
+};
+
+// Draws one mesh once per entry in an ImageMeshInstances array.
+class ImageMeshInstancedDraw : public ImageMeshDrawBase
+{
+public:
+    ImageMeshInstancedDraw(IAABB pixelBounds,
+                           const Mat2D&,
+                           rcp<Texture>,
+                           const ImageSampler imageSampler,
+                           rcp<RenderBuffer> vertexBuffer,
+                           rcp<RenderBuffer> uvBuffer,
+                           rcp<RenderBuffer> indexBuffer,
+                           uint32_t indexCount,
+                           rcp<ImageMeshInstances> instances,
+                           ColorInt modulatedColor,
+                           float modulatedOpacity);
+
+    const ImageMeshInstances& instances() const { return *m_instancesRef; }
+
+    ColorInt modulatedColor() const { return m_modulatedColor; }
+    float modulatedOpacity() const { return m_modulatedOpacity; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
                                         int subpassIndex,
@@ -571,12 +631,18 @@ public:
 
     void releaseRefs() override;
 
-protected:
-    RenderBuffer* const m_vertexBufferRef;
-    RenderBuffer* const m_uvBufferRef;
-    RenderBuffer* const m_indexBufferRef;
-    const uint32_t m_indexCount;
+#ifdef DEBUG
+    bool instancesHaveBeenEditedSinceCreation() const
+    {
+        return m_editCount != m_instancesRef->editCount();
+    }
+#endif
+
+private:
+    ImageMeshInstances* const m_instancesRef;
     const ColorInt m_modulatedColor;
+    const float m_modulatedOpacity;
+    RIVE_DEBUG_CODE(size_t m_editCount = 0;)
 };
 
 // Resets the clip by either entirely erasing the existing clip, or intersecting

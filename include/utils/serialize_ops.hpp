@@ -73,6 +73,12 @@ enum class SerializeOp : uint32_t
     // ordinary image draw still records as drawImage.
     drawImageAdditive = 37,
     drawImageMeshAdditive = 38,
+
+    // Instanced image meshes
+    makeImageMeshInstances = 39,    // id, count
+    setImageMeshInstancesData = 40, // id, instances[count]
+    // image, positions, uvs, indices, instances
+    drawImageMeshInstanced = 41,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

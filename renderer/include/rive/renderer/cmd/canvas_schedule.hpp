@@ -97,7 +97,8 @@ inline CanvasSchedule scheduleCanvases(
                 break; // corrupt range; the decoder will warn at replay
             }
             uint32_t payload = static_cast<uint32_t>(payloadSizeOf(c));
-            if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh)
+            if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh ||
+                c == RenderCmd::drawImageMeshInstanced)
             {
                 RenderHandle h = drawnImageHandle(commands.data() + pos + 1);
                 if (h != kInvalidRenderHandle && (h & kCanvasHandleFlag))

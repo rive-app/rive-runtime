@@ -84,6 +84,7 @@ public:
             image,
             font,
             buffer,
+            meshInstances,
             canvas,
             gpuCanvas,
             gpuPass,

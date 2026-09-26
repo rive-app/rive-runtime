@@ -2007,7 +2007,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                indexCount:batch.indexCountPerInstance
                                 indexType:MTLIndexTypeUInt16
                               indexBuffer:indexBuffer->submittedBuffer()
-                        indexBufferOffset:batch.baseIndex * sizeof(uint16_t)];
+                        indexBufferOffset:batch.baseIndex * sizeof(uint16_t)
+                            instanceCount:batch.elementCount];
                 break;
             }
             case DrawType::renderPassInitialize:

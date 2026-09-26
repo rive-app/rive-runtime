@@ -157,6 +157,7 @@ enum class LuaAtoms : int16_t
     drawPath,
     drawImage,
     drawImageMesh,
+    drawImageMeshInstanced,
     clipPath,
     save,
     restore,
@@ -334,6 +335,7 @@ enum class LuaAtoms : int16_t
     colorView,
     depthView,
     resize,
+    set,
     canvas,
     gpuCanvas,
     features,
@@ -547,6 +549,19 @@ public:
 
     uint16_t max = 0;
     void update(Factory* factory);
+};
+
+class ScriptedImageMeshInstances
+{
+public:
+    ScriptedImageMeshInstances(Factory* factory, size_t count) :
+        instances(factory->makeImageMeshInstances(count))
+    {}
+
+    rcp<ImageMeshInstances> instances;
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 70;
+    static constexpr const char* luaName = "MeshInstances";
+    static constexpr bool hasMetatable = true;
 };
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)

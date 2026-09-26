@@ -41,6 +41,7 @@ struct GpuCensus
     // sized.
     uint32_t images = 0;
     uint32_t buffers = 0;
+    uint32_t imageMeshInstances = 0;
     uint32_t paths = 0;
     uint32_t paints = 0;
     uint32_t shaders = 0;
@@ -60,8 +61,8 @@ struct GpuCensus
 
     uint32_t liveObjects() const
     {
-        return images + buffers + paths + paints + shaders + oreTextures +
-               oreBuffers + oreOther;
+        return images + buffers + imageMeshInstances + paths + paints +
+               shaders + oreTextures + oreBuffers + oreOther;
     }
 };
 
@@ -113,6 +114,7 @@ inline GpuCensus takeGpuCensus(const ResourceTable& t2d,
     c.shaders = countLive(t2d.shaders, c.slots2d);
     c.buffers = countLive(t2d.buffers, c.slots2d);
     c.images = countLive(t2d.images, c.slots2d);
+    c.imageMeshInstances = countLive(t2d.imageMeshInstances, c.slots2d);
 
     for (const rcp<RenderImage>& img : t2d.images.objects)
     {

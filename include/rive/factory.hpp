@@ -38,6 +38,11 @@ public:
                                                RenderBufferFlags,
                                                size_t sizeInBytes) = 0;
 
+    virtual rcp<ImageMeshInstances> makeImageMeshInstances(size_t count)
+    {
+        return make_rcp<ImageMeshInstances>(count);
+    }
+
     virtual rcp<RenderShader> makeLinearGradient(
         float sx,
         float sy,

@@ -794,6 +794,19 @@ NAMESPACES = [
                       buf('uint8_t', 'bytes', 'byteCount')]),
         op('release', [handle('buffer')]),
     ]),
+    # Instances of one mesh, drawn in a single call. Unlike a buffer these
+    # are meant to be rewritten every frame, so the handle outlives an update
+    # and the host resizes in place.
+    ns('rive_mesh_instances_v1', 'mesh_instances', [
+        op('new', [u32('count')], ret='u32'),
+        op('resize', [handle('mesh_instances', 'instances'), u32('count')]),
+        op('update', [
+            handle('mesh_instances', 'instances'),
+            u32('first'),
+            buf('uint8_t', 'bytes', 'byteCount'),
+        ]),
+        op('release', [handle('mesh_instances', 'instances')]),
+    ]),
     ns('rive_blob_v1', 'blob', [
         # Resolves a non-empty BlobAsset by name from the object's file,
         # the context:blob surface. Returns the full byte count; callers
@@ -883,6 +896,18 @@ NAMESPACES = [
             handle('indexBuffer'),
             u32('blend'),
             f32('opacity'),
+        ]),
+        # Blend is always srcOver and opacity is per instance, which is what
+        # buys the room to pass the instances; this sits exactly on the seven
+        # integer ceiling, so the data cannot also cross inline as a buf.
+        op('draw_image_mesh_instanced', [
+            handle('renderer'),
+            handle('image'),
+            u32('sampler'),
+            handle('vertexBuffer'),
+            handle('uvBuffer'),
+            handle('indexBuffer'),
+            handle('instances'),
         ]),
     ]),
 ]

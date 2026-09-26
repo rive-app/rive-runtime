@@ -229,6 +229,7 @@ struct ResourceTable
     Resident<RenderShader> shaders;
     Resident<RenderImage> images;
     Resident<RenderBuffer> buffers;
+    Resident<ImageMeshInstances> imageMeshInstances;
     std::vector<PaintShadow> paintShadows;
     std::vector<uint8_t> pathFillRules;
     std::vector<BufferShadow> bufferShadows;
@@ -252,6 +253,9 @@ struct ResourceTable
                 break;
             case ResourceKind::buffer:
                 buffers.destroy(id, generation);
+                break;
+            case ResourceKind::imageMeshInstances:
+                imageMeshInstances.destroy(id, generation);
                 break;
         }
     }

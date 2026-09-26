@@ -125,6 +125,38 @@ static int renderer_drawImageMesh(lua_State* L)
     return 0;
 }
 
+static int renderer_drawImageMeshInstanced(lua_State* L)
+{
+    auto scriptedRenderer = lua_torive<ScriptedRenderer>(L, 1);
+    auto scriptedImage = lua_torive<ScriptedImage>(L, 2);
+    auto scriptedSampler = lua_torive<ScriptedImageSampler>(L, 3);
+    auto scriptedVertexBuffer = lua_torive<ScriptedVertexBuffer>(L, 4);
+    auto scriptedUVBuffer = lua_torive<ScriptedVertexBuffer>(L, 5);
+    auto scriptedTriangleBuffer = lua_torive<ScriptedTriangleBuffer>(L, 6);
+    auto scriptedInstances = lua_torive<ScriptedImageMeshInstances>(L, 7);
+
+    // Ensure the buffers are created before drawing
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    Factory* factory = context->factory();
+    scriptedVertexBuffer->update(factory);
+    scriptedUVBuffer->update(factory);
+    scriptedTriangleBuffer->update(factory);
+
+    auto renderer = scriptedRenderer->validate(L);
+    renderer->drawImageMeshInstanced(
+        scriptedImage->image.get(),
+        scriptedSampler->sampler,
+        scriptedVertexBuffer->vertexBuffer,
+        scriptedUVBuffer->vertexBuffer,
+        scriptedTriangleBuffer->indexBuffer,
+        (uint32_t)scriptedVertexBuffer->values.size(),
+        (uint32_t)scriptedTriangleBuffer->values.size(),
+        scriptedInstances->instances);
+
+    return 0;
+}
+
 Renderer* ScriptedRenderer::validate(lua_State* L)
 {
     if (m_renderer == nullptr)
@@ -223,6 +255,8 @@ static int renderer_namecall(lua_State* L)
                 return renderer_drawImage(L);
             case (int)LuaAtoms::drawImageMesh:
                 return renderer_drawImageMesh(L);
+            case (int)LuaAtoms::drawImageMeshInstanced:
+                return renderer_drawImageMeshInstanced(L);
         }
     }
 

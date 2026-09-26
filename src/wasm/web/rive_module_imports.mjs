@@ -638,6 +638,16 @@ export function createRiveModuleImports(host, moduleMemory) {
             },
             release: calls.rive_buffer_release,
         },
+        rive_mesh_instances_v1: {
+            new: calls.rive_mesh_instances_new,
+            resize: calls.rive_mesh_instances_resize,
+            update: (instances, first, bytes, byteCount) => {
+                stackReset();
+                const bytes_p = stageIn(bytes, byteCount);
+                calls.rive_mesh_instances_update(instances, first, bytes_p, byteCount);
+            },
+            release: calls.rive_mesh_instances_release,
+        },
         rive_blob_v1: {
             asset_bytes: (object, name, nameLength, out, outCount) => {
                 stackReset();
@@ -681,6 +691,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             modulate_color: calls.rive_renderer_modulate_color,
             draw_image: calls.rive_renderer_draw_image,
             draw_image_mesh: calls.rive_renderer_draw_image_mesh,
+            draw_image_mesh_instanced: calls.rive_renderer_draw_image_mesh_instanced,
         },
     };
 }

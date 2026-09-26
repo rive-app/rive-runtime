@@ -64,6 +64,12 @@ static const char* opToName(SerializeOp op)
             return "drawImage";
         case SerializeOp::drawImageMesh:
             return "drawImageMesh";
+        case SerializeOp::makeImageMeshInstances:
+            return "makeImageMeshInstances";
+        case SerializeOp::setImageMeshInstancesData:
+            return "setImageMeshInstancesData";
+        case SerializeOp::drawImageMeshInstanced:
+            return "drawImageMeshInstanced";
 
         // RenderBuffer
         case SerializeOp::setVertexBufferData:
@@ -386,6 +392,49 @@ private:
     BinaryWriter* m_writer;
 };
 
+class SerializingImageMeshInstances : public ImageMeshInstances
+{
+public:
+    SerializingImageMeshInstances(BinaryWriter* writer,
+                                  uint64_t id,
+                                  size_t count) :
+        ImageMeshInstances(count), m_writer(writer), m_id(id)
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::makeImageMeshInstances);
+        m_writer->writeVarUint(m_id);
+        m_writer->writeVarUint((uint64_t)count);
+    }
+
+    uint64_t id() const { return m_id; }
+
+protected:
+    void onEndEdit() override
+    {
+        Span<const ImageMeshInstanceData> data = instanceData();
+        m_writer->writeVarUint(
+            (uint32_t)SerializeOp::setImageMeshInstancesData);
+        m_writer->writeVarUint(m_id);
+        m_writer->writeVarUint((uint64_t)data.size());
+        for (const ImageMeshInstanceData& instance : data)
+        {
+            for (int i = 0; i < 6; ++i)
+            {
+                m_writer->writeFloat(instance.transform[i]);
+            }
+            m_writer->writeFloat(instance.uvTranslate.x);
+            m_writer->writeFloat(instance.uvTranslate.y);
+            m_writer->writeFloat(instance.uvScale.x);
+            m_writer->writeFloat(instance.uvScale.y);
+            m_writer->writeFloat(instance.opacity);
+            m_writer->writeFloat(instance.additiveness);
+        }
+    }
+
+private:
+    BinaryWriter* m_writer;
+    uint64_t m_id;
+};
+
 class SerializingRenderBuffer : public RenderBuffer
 {
 public:
@@ -464,6 +513,13 @@ rcp<RenderBuffer> SerializingFactory::makeRenderBuffer(RenderBufferType type,
                                              type,
                                              flags,
                                              size);
+}
+
+rcp<ImageMeshInstances> SerializingFactory::makeImageMeshInstances(size_t count)
+{
+    return make_rcp<SerializingImageMeshInstances>(&m_writer,
+                                                   m_imageMeshInstancesId++,
+                                                   count);
 }
 
 rcp<RenderShader> SerializingFactory::makeLinearGradient(
@@ -685,6 +741,27 @@ public:
         {
             m_writer->writeFloat(additiveness);
         }
+    }
+
+    void drawImageMeshInstanced(const RenderImage* image,
+                                ImageSampler samplerOptions,
+                                rcp<RenderBuffer> positions,
+                                rcp<RenderBuffer> uvs,
+                                rcp<RenderBuffer> indices,
+                                uint32_t vertexCount,
+                                uint32_t indexCount,
+                                rcp<ImageMeshInstances> instances) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMeshInstanced);
+        m_writer->writeVarUint(m_factory->imageId(image));
+        m_writer->writeVarUint(
+            static_cast<SerializingRenderBuffer*>(positions.get())->id());
+        m_writer->writeVarUint(
+            static_cast<SerializingRenderBuffer*>(uvs.get())->id());
+        m_writer->writeVarUint(
+            static_cast<SerializingRenderBuffer*>(indices.get())->id());
+        m_writer->writeVarUint(
+            static_cast<SerializingImageMeshInstances*>(instances.get())->id());
     }
 
 private:
@@ -1281,6 +1358,96 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                   "drawimagemesh_additiveness",
                                   readerA,
                                   readerB))
+                {
+                    return false;
+                }
+                break;
+
+            case SerializeOp::makeImageMeshInstances:
+                if (!varUintMatches(opA,
+                                    "makeimagemeshinstances_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "makeimagemeshinstances_count",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                break;
+
+            case SerializeOp::setImageMeshInstancesData:
+            {
+                if (!varUintMatches(opA,
+                                    "setimagemeshinstancesdata_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                uint64_t count = 0;
+                if (!varUintMatches(opA,
+                                    "setimagemeshinstancesdata_count",
+                                    readerA,
+                                    readerB,
+                                    &count))
+                {
+                    return false;
+                }
+                // transform[6], uvTranslate, uvScale, opacity, additiveness.
+                constexpr int FloatsPerInstance = 12;
+                for (uint64_t i = 0; i < count * FloatsPerInstance; i++)
+                {
+                    if (!floatMatches(
+                            opA,
+                            std::string("setimagemeshinstancesdata_[") +
+                                std::to_string(i) + std::string("]"),
+                            readerA,
+                            readerB))
+                    {
+                        return false;
+                    }
+                }
+                break;
+            }
+
+            case SerializeOp::drawImageMeshInstanced:
+                if (!varUintMatches(opA,
+                                    "drawimagemeshinstanced_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "drawimagemeshinstanced_vertex_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "drawimagemeshinstanced_uv_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "drawimagemeshinstanced_index_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA,
+                                    "drawimagemeshinstanced_instances_id",
+                                    readerA,
+                                    readerB))
                 {
                     return false;
                 }

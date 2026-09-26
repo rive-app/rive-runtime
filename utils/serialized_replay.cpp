@@ -45,6 +45,7 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
     std::unordered_map<uint64_t, rcp<RenderShader>> shaders;
     std::unordered_map<uint64_t, rcp<RenderImage>> images;
     std::unordered_map<uint64_t, rcp<RenderBuffer>> buffers;
+    std::unordered_map<uint64_t, rcp<ImageMeshInstances>> meshInstances;
 
     // Cache-as-bitmap. A canvas is declared by makeRenderCanvas, its content
     // arrives inline between canvasContentBegin/End, and the composite that
@@ -388,40 +389,103 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
             case SerializeOp::drawImageMesh:
             case SerializeOp::drawImageMeshAdditive:
             {
-                uint64_t imageId = reader.readVarUint64();
+                RenderImage* image = find(images, reader.readVarUint64());
                 auto blend = static_cast<BlendMode>(reader.readVarUint64());
                 float opacity = reader.readFloat32();
-                rcp<RenderBuffer> pos = buffers[reader.readVarUint64()];
-                rcp<RenderBuffer> uvs = buffers[reader.readVarUint64()];
-                rcp<RenderBuffer> idx = buffers[reader.readVarUint64()];
+                RenderBuffer* pos = find(buffers, reader.readVarUint64());
+                RenderBuffer* uvs = find(buffers, reader.readVarUint64());
+                RenderBuffer* idx = find(buffers, reader.readVarUint64());
                 float additiveness = op == SerializeOp::drawImageMeshAdditive
                                          ? reader.readFloat32()
                                          : 0.0f;
-                uint32_t vertexCount =
-                    pos ? static_cast<uint32_t>(pos->sizeInBytes() /
-                                                (2 * sizeof(float)))
-                        : 0;
-                uint32_t indexCount =
-                    idx ? static_cast<uint32_t>(idx->sizeInBytes() /
-                                                sizeof(uint16_t))
-                        : 0;
-                // Same rule as drawImage: the id can name a decode that
-                // failed or a canvas the host declined, and there is nothing
-                // to draw either way. Looked up rather than indexed so a
-                // missing id does not insert a null entry that a later
-                // composite would then find.
-                if (RenderImage* image = find(images, imageId))
+                // Draws referring to failed or invalid objects are dropped.
+                if (image != nullptr && pos != nullptr && uvs != nullptr &&
+                    idx != nullptr)
                 {
+                    uint32_t vertexCount = static_cast<uint32_t>(
+                        pos->sizeInBytes() / (2 * sizeof(float)));
+                    uint32_t indexCount = static_cast<uint32_t>(
+                        idx->sizeInBytes() / sizeof(uint16_t));
                     active->drawImageMesh(image,
                                           ImageSampler::LinearClamp(),
-                                          pos,
-                                          uvs,
-                                          idx,
+                                          ref_rcp(pos),
+                                          ref_rcp(uvs),
+                                          ref_rcp(idx),
                                           vertexCount,
                                           indexCount,
                                           blend,
                                           opacity,
                                           additiveness);
+                }
+                break;
+            }
+            case SerializeOp::makeImageMeshInstances:
+            {
+                uint64_t id = reader.readVarUint64();
+                size_t count = static_cast<size_t>(reader.readVarUint64());
+                meshInstances[id] = factory->makeImageMeshInstances(count);
+                break;
+            }
+            case SerializeOp::setImageMeshInstancesData:
+            {
+                uint64_t id = reader.readVarUint64();
+                size_t count = static_cast<size_t>(reader.readVarUint64());
+                // An unknown id is dropped, but its payload is still read
+                // so the stream stays in step.
+                ImageMeshInstances* mi = find(meshInstances, id);
+                Span<ImageMeshInstanceData> dst =
+                    mi != nullptr ? mi->edit(count)
+                                  : Span<ImageMeshInstanceData>();
+                for (size_t i = 0; i < count; ++i)
+                {
+                    ImageMeshInstanceData instance;
+                    float m[6];
+                    for (int j = 0; j < 6; ++j)
+                    {
+                        m[j] = reader.readFloat32();
+                    }
+                    instance.transform =
+                        Mat2D(m[0], m[1], m[2], m[3], m[4], m[5]);
+                    instance.uvTranslate.x = reader.readFloat32();
+                    instance.uvTranslate.y = reader.readFloat32();
+                    instance.uvScale.x = reader.readFloat32();
+                    instance.uvScale.y = reader.readFloat32();
+                    instance.opacity = reader.readFloat32();
+                    instance.additiveness = reader.readFloat32();
+                    if (i < dst.size())
+                    {
+                        dst[i] = instance;
+                    }
+                }
+                if (mi != nullptr)
+                {
+                    mi->endEdit();
+                }
+                break;
+            }
+            case SerializeOp::drawImageMeshInstanced:
+            {
+                RenderImage* image = find(images, reader.readVarUint64());
+                RenderBuffer* pos = find(buffers, reader.readVarUint64());
+                RenderBuffer* uvs = find(buffers, reader.readVarUint64());
+                RenderBuffer* idx = find(buffers, reader.readVarUint64());
+                ImageMeshInstances* mi =
+                    find(meshInstances, reader.readVarUint64());
+                if (image != nullptr && pos != nullptr && uvs != nullptr &&
+                    idx != nullptr && mi != nullptr)
+                {
+                    uint32_t vertexCount = static_cast<uint32_t>(
+                        pos->sizeInBytes() / (2 * sizeof(float)));
+                    uint32_t indexCount = static_cast<uint32_t>(
+                        idx->sizeInBytes() / sizeof(uint16_t));
+                    active->drawImageMeshInstanced(image,
+                                                   ImageSampler::LinearClamp(),
+                                                   ref_rcp(pos),
+                                                   ref_rcp(uvs),
+                                                   ref_rcp(idx),
+                                                   vertexCount,
+                                                   indexCount,
+                                                   ref_rcp(mi));
                 }
                 break;
             }

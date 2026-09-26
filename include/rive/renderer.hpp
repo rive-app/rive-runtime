@@ -19,8 +19,10 @@
 #include "rive/shapes/paint/stroke_position.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/span.hpp"
 #include <stdio.h>
 #include <cstdint>
+#include <vector>
 
 namespace rive
 {
@@ -105,6 +107,54 @@ private:
     bool m_dirty = false;
     RIVE_DEBUG_CODE(size_t m_mapCount = 0;)
     RIVE_DEBUG_CODE(size_t m_unmapCount = 0;)
+};
+
+struct ImageMeshInstanceData
+{
+    Mat2D transform;
+    Vec2D uvTranslate = {0.0f, 0.0f};
+    Vec2D uvScale = {1.0f, 1.0f};
+    float opacity = 1.0f;
+    float additiveness = 0.0f;
+};
+
+class ImageMeshInstances : public RefCnt<ImageMeshInstances>,
+                           public ENABLE_LITE_RTTI(ImageMeshInstances)
+{
+public:
+    ImageMeshInstances(size_t count);
+    virtual ~ImageMeshInstances();
+
+    size_t count() const { return m_instanceData.size(); }
+
+    Span<const ImageMeshInstanceData> instanceData() const
+    {
+        return m_instanceData;
+    }
+
+    // These functions are used to begin/end editing of the instance data.
+    // Instance data is retained across edits so the entire array doesn't need
+    // to be rewritten each edit.
+    Span<ImageMeshInstanceData> edit();
+
+    // Sets the number of instances to `count`. Existing elements retain their
+    // previous data.
+    Span<ImageMeshInstanceData> edit(size_t count);
+
+    void endEdit();
+
+#ifdef DEBUG
+    bool isEditing() const { return m_editCount != m_endEditCount; }
+    size_t editCount() const { return m_editCount; }
+#endif
+
+protected:
+    virtual void onEndEdit() {}
+
+private:
+    std::vector<ImageMeshInstanceData> m_instanceData;
+    RIVE_DEBUG_CODE(size_t m_editCount = 0;)
+    RIVE_DEBUG_CODE(size_t m_endEditCount = 0;)
 };
 
 enum class RenderPaintStyle
@@ -299,6 +349,21 @@ public:
                       blendMode,
                       opacity);
     }
+
+    // Draws the same mesh once per entry in `instances`. This is more efficient
+    // than making N drawImageMesh calls, but blend modes are not supported.
+    //
+    // TODO(ben) the default implementation issues one drawImageMesh per
+    // instance, and drawImageMesh does not support UV transforms, so non-Rive
+    // renderers don't yet support UV transforms.
+    virtual void drawImageMeshInstanced(const RenderImage*,
+                                        ImageSampler,
+                                        rcp<RenderBuffer> vertices_f32,
+                                        rcp<RenderBuffer> uvCoords_f32,
+                                        rcp<RenderBuffer> indices_u16,
+                                        uint32_t vertexCount,
+                                        uint32_t indexCount,
+                                        rcp<ImageMeshInstances>);
 
     // Modulate the opacity of subsequent draw calls. The opacity is stacked
     // multiplicatively (e.g., modulateOpacity(0.5) followed by

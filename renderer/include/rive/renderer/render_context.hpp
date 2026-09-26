@@ -36,6 +36,7 @@ namespace rive::gpu
 class GradientLibrary;
 class IntersectionBoard;
 class ImageMeshDraw;
+class ImageMeshInstancedDraw;
 class ImageRectDraw;
 class ClipReset;
 class Draw;
@@ -337,6 +338,7 @@ private:
     friend class PathDraw;
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
+    friend class ImageMeshInstancedDraw;
     friend class ClipReset;
     friend class ::PushRetrofitTriStripsGMDraw; // For testing.
     friend class ::RenderContextTest;           // For testing.
@@ -805,6 +807,11 @@ private:
 
         // Pushes an "imageMesh" draw to the list.
         gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*, uint32_t zIndex);
+
+        // Pushes an "imageMesh" draw with one instance per entry in the
+        // draw's ImageMeshInstances.
+        gpu::DrawBatch& pushImageMeshInstancedDraw(ImageMeshInstancedDraw*,
+                                                   uint32_t zIndex);
 
         // Pushes a "clipReset" draw to the list.
         gpu::DrawBatch& pushClipResetDraw(ClipReset*, uint32_t zIndex);

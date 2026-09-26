@@ -147,6 +147,156 @@ TEST_CASE("serialized 2D commands replay byte-identically",
     CHECK(std::memcmp(sa.data(), sb.data(), sa.size()) == 0);
 }
 
+namespace
+{
+// Records one instanced mesh draw, with every per instance field set to
+// something distinct so a swapped pair shows up.
+struct InstancedMesh
+{
+    rcp<RenderImage> image;
+    rcp<RenderBuffer> pts, uvs, indices;
+    rcp<ImageMeshInstances> instances;
+    static constexpr size_t Count = 3;
+};
+
+rcp<RenderBuffer> recordBuffer(SerializingFactory& f,
+                               RenderBufferType type,
+                               const void* source,
+                               size_t size)
+{
+    auto buffer = f.makeRenderBuffer(type, RenderBufferFlags::none, size);
+    memcpy(buffer->map(), source, size);
+    buffer->unmap();
+    return buffer;
+}
+
+InstancedMesh recordInstancedMesh(SerializingFactory& f, Renderer* renderer)
+{
+    InstancedMesh mesh;
+    auto imageBytes = ReadFile("assets/open_source.jpg");
+    mesh.image = f.decodeImage(imageBytes);
+    REQUIRE(mesh.image != nullptr);
+
+    const Vec2D quad[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
+    const Vec2D uv[4] = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+    const uint16_t idx[6] = {0, 1, 2, 0, 2, 3};
+    mesh.pts = recordBuffer(f, RenderBufferType::vertex, quad, sizeof(quad));
+    mesh.uvs = recordBuffer(f, RenderBufferType::vertex, uv, sizeof(uv));
+    mesh.indices = recordBuffer(f, RenderBufferType::index, idx, sizeof(idx));
+
+    mesh.instances = f.makeImageMeshInstances(InstancedMesh::Count);
+    Span<ImageMeshInstanceData> data = mesh.instances->edit();
+    data[0].transform = Mat2D(1, 0, 0, 1, 10, 20);
+    data[1].opacity = 0.5f;
+    data[2].uvTranslate = {0.25f, 0.5f};
+    data[2].uvScale = {0.5f, 0.25f};
+    data[2].additiveness = 1.0f;
+    mesh.instances->endEdit();
+
+    renderer->drawImageMeshInstanced(mesh.image.get(),
+                                     ImageSampler::LinearClamp(),
+                                     mesh.pts,
+                                     mesh.uvs,
+                                     mesh.indices,
+                                     4,
+                                     6,
+                                     mesh.instances);
+    return mesh;
+}
+
+// Keeps what the instanced draw delivered, and counts the plain mesh draws a
+// fallback would have produced instead.
+class MeshRecordingRenderer : public NoOpRenderer
+{
+public:
+    int instancedDraws = 0;
+    int plainDraws = 0;
+    std::vector<ImageMeshInstanceData> got;
+
+    void drawImageMesh(const RenderImage*,
+                       ImageSampler,
+                       rcp<RenderBuffer>,
+                       rcp<RenderBuffer>,
+                       rcp<RenderBuffer>,
+                       uint32_t,
+                       uint32_t,
+                       BlendMode,
+                       float) override
+    {
+        ++plainDraws;
+    }
+
+    void drawImageMeshInstanced(const RenderImage*,
+                                ImageSampler,
+                                rcp<RenderBuffer>,
+                                rcp<RenderBuffer>,
+                                rcp<RenderBuffer>,
+                                uint32_t,
+                                uint32_t,
+                                rcp<ImageMeshInstances> instances) override
+    {
+        ++instancedDraws;
+        got.assign(instances->instanceData().begin(),
+                   instances->instanceData().end());
+    }
+};
+} // namespace
+
+TEST_CASE("an instanced mesh draw replays byte-identically",
+          "[serialize][replay]")
+{
+    SerializingFactory a;
+    a.frameSize(256, 256);
+    a.addFrame();
+    auto rendererA = a.makeRenderer();
+    recordInstancedMesh(a, rendererA.get());
+
+    SerializingFactory b;
+    auto rendererB = b.makeRenderer();
+    SerializedReplayHooks hooks;
+    hooks.onFrame = [&]() { b.addFrame(); };
+    hooks.onFrameSize = [&](uint32_t w, uint32_t h) { b.frameSize(w, h); };
+    REQUIRE(replaySerializedCommands(a.bytes(), &b, rendererB.get(), hooks));
+
+    auto sa = a.bytes();
+    auto sb = b.bytes();
+    REQUIRE(sa.size() == sb.size());
+    CHECK(std::memcmp(sa.data(), sb.data(), sa.size()) == 0);
+}
+
+// Byte identity only proves the stream survives a rewrite; the writer and
+// reader would agree on a swapped pair of fields. Check the values land where
+// they were put, and that the draw stays one call rather than fanning out.
+TEST_CASE("replayed instances keep their data", "[serialize][replay]")
+{
+    SerializingFactory a;
+    a.frameSize(256, 256);
+    a.addFrame();
+    auto rendererA = a.makeRenderer();
+    recordInstancedMesh(a, rendererA.get());
+
+    SerializingFactory b;
+    MeshRecordingRenderer sink;
+    REQUIRE(replaySerializedCommands(a.bytes(), &b, &sink));
+
+    CHECK(sink.instancedDraws == 1);
+    CHECK(sink.plainDraws == 0);
+    REQUIRE(sink.got.size() == InstancedMesh::Count);
+
+    CHECK(sink.got[0].transform[4] == 10.0f);
+    CHECK(sink.got[0].transform[5] == 20.0f);
+    CHECK(sink.got[1].opacity == 0.5f);
+    CHECK(sink.got[2].uvTranslate.x == 0.25f);
+    CHECK(sink.got[2].uvTranslate.y == 0.5f);
+    CHECK(sink.got[2].uvScale.x == 0.5f);
+    CHECK(sink.got[2].uvScale.y == 0.25f);
+    CHECK(sink.got[2].additiveness == 1.0f);
+    // Untouched entries arrive at the defaults, not zeroed.
+    CHECK(sink.got[0].opacity == 1.0f);
+    CHECK(sink.got[0].uvScale.x == 1.0f);
+    CHECK(sink.got[0].uvScale.y == 1.0f);
+}
+
 TEST_CASE("serialized replay rejects a bad header", "[serialize][replay]")
 {
     const uint8_t garbage[8] = {'X', 'X', 'X', 'X', 1, 0, 0, 0};

@@ -670,4 +670,39 @@ private:
     std::vector<uint8_t> m_scratch;
 };
 
+class DeferredImageMeshInstances
+    : public LITE_RTTI_OVERRIDE(ImageMeshInstances, DeferredImageMeshInstances),
+      public VersionedDeferredResource
+{
+public:
+    DeferredImageMeshInstances(RenderHandle id,
+                               uint32_t generation,
+                               size_t count,
+                               RenderCommandBuffer* buffer,
+                               IdAllocator<RenderHandle>* allocator) :
+        LITE_RTTI_OVERRIDE(ImageMeshInstances,
+                           DeferredImageMeshInstances)(count),
+        VersionedDeferredResource(ResourceKind::imageMeshInstances,
+                                  id,
+                                  generation,
+                                  buffer,
+                                  allocator)
+    {}
+
+protected:
+    void onEndEdit() override
+    {
+        bump();
+        Span<const ImageMeshInstanceData> data = instanceData();
+        uint64_t off =
+            m_buffer->appendBlob(data.data(),
+                                 static_cast<uint32_t>(data.size_bytes()));
+        m_buffer->append(
+            static_cast<uint8_t>(RenderCmd::imageMeshInstancesData),
+            ImageMeshInstancesDataPOD{off,
+                                      m_id,
+                                      static_cast<uint32_t>(data.size())});
+    }
+};
+
 } // namespace rive::cmd

@@ -30,6 +30,15 @@ public:
                        BlendMode,
                        float) override
     {}
+    void drawImageMeshInstanced(const RenderImage*,
+                                ImageSampler,
+                                rcp<RenderBuffer>,
+                                rcp<RenderBuffer>,
+                                rcp<RenderBuffer>,
+                                uint32_t vertexCount,
+                                uint32_t indexCount,
+                                rcp<ImageMeshInstances>) override
+    {}
     void modulateOpacity(float) override {}
 };
 

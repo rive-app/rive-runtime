@@ -727,7 +727,6 @@ enum class DrawType : uint8_t
     // atomic mode, or copying an offscreen attachment to the final
     // renderTarget).
     renderPassResolve,
-
 };
 
 // True for drawTypes that switch dynamic state on a single pipeline and issue
@@ -1176,7 +1175,6 @@ enum class DrawContents
     // Put clip updates last because they use an entirely different shader in
     // clockwise mode.
     clipUpdate = 1 << 8,
-
 };
 
 // These are the only draw contents flags that apply to the pipeline state (and
@@ -1904,7 +1902,7 @@ class ImageMeshInstance
 public:
     constexpr static size_t FirstAttribIdx =
         ImageDrawInstanceBase::FirstAttribIdx;
-    static constexpr size_t AttributeCount = 7;
+    static constexpr size_t AttributeCount = 8;
     static constexpr size_t LastAttribIdx = FirstAttribIdx + AttributeCount - 1;
 
     static const std::array<VertexAttribute, AttributeCount>& getAttributes();
@@ -1917,12 +1915,15 @@ public:
                       uint32_t clipID,
                       BlendMode,
                       uint32_t zIndex,
-                      float additiveness);
+                      float additiveness,
+                      Vec2D uvTranslate,
+                      Vec2D uvScale);
 
 private:
     ImageDrawInstanceBase m_commons;
 
-    // Nothing additional yet
+    // Packed: uvTranslate (x,y), uvScale (x,y)
+    WRITEONLY float m_uvTransform[4];
 };
 
 #undef WRITEONLY

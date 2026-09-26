@@ -404,6 +404,10 @@ void gpuPipelineReleaseImpl(WasmScriptingVM* vm, uint32_t pipeline);
 uint32_t bufferNewImpl(WasmScriptingVM* vm, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes);
 void bufferUpdateImpl(WasmScriptingVM* vm, uint32_t buffer, const uint8_t* bytes, uint32_t byteCount);
 void bufferReleaseImpl(WasmScriptingVM* vm, uint32_t buffer);
+uint32_t meshInstancesNewImpl(WasmScriptingVM* vm, uint32_t count);
+void meshInstancesResizeImpl(WasmScriptingVM* vm, uint32_t instances, uint32_t count);
+void meshInstancesUpdateImpl(WasmScriptingVM* vm, uint32_t instances, uint32_t first, const uint8_t* bytes, uint32_t byteCount);
+void meshInstancesReleaseImpl(WasmScriptingVM* vm, uint32_t instances);
 uint32_t blobAssetBytesImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
 uint32_t imageFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t length);
 uint32_t imageWidthImpl(WasmScriptingVM* vm, uint32_t image);
@@ -423,6 +427,7 @@ void rendererModulateOpacityImpl(WasmScriptingVM* vm, uint32_t renderer, float o
 void rendererModulateColorImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t color, uint32_t replace);
 void rendererDrawImageImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
+void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
 
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
@@ -1518,6 +1523,26 @@ void bufferRelease(wasm_exec_env_t env, uint32_t buffer)
     WasmScriptingVM* vm = vmFromEnv(env);
     bufferReleaseImpl(vm, buffer);
 }
+uint32_t meshInstancesNew(wasm_exec_env_t env, uint32_t count)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return meshInstancesNewImpl(vm, count);
+}
+void meshInstancesResize(wasm_exec_env_t env, uint32_t instances, uint32_t count)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    meshInstancesResizeImpl(vm, instances, count);
+}
+void meshInstancesUpdate(wasm_exec_env_t env, uint32_t instances, uint32_t first, const uint8_t* bytes, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    meshInstancesUpdateImpl(vm, instances, first, bytes, byteCount);
+}
+void meshInstancesRelease(wasm_exec_env_t env, uint32_t instances)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    meshInstancesReleaseImpl(vm, instances);
+}
 uint32_t blobAssetBytes(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1614,6 +1639,11 @@ void rendererDrawImageMesh(wasm_exec_env_t env, uint32_t renderer, uint32_t imag
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     rendererDrawImageMeshImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
+}
+void rendererDrawImageMeshInstanced(wasm_exec_env_t env, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    rendererDrawImageMeshInstancedImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, instances);
 }
 
 NativeSymbol kRtNatives[] = {
@@ -1861,6 +1891,13 @@ NativeSymbol kBufferNatives[] = {
     {"release", (void*)bufferRelease, "(i)", nullptr},
 };
 
+NativeSymbol kMeshInstancesNatives[] = {
+    {"new", (void*)meshInstancesNew, "(i)i", nullptr},
+    {"resize", (void*)meshInstancesResize, "(ii)", nullptr},
+    {"update", (void*)meshInstancesUpdate, "(ii*~)", nullptr},
+    {"release", (void*)meshInstancesRelease, "(i)", nullptr},
+};
+
 NativeSymbol kBlobNatives[] = {
     {"asset_bytes", (void*)blobAssetBytes, "(i*~*~)i", nullptr},
 };
@@ -1890,6 +1927,7 @@ NativeSymbol kRendererNatives[] = {
     {"modulate_color", (void*)rendererModulateColor, "(iii)", nullptr},
     {"draw_image", (void*)rendererDrawImage, "(iiiif)", nullptr},
     {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", nullptr},
+    {"draw_image_mesh_instanced", (void*)rendererDrawImageMeshInstanced, "(iiiiiii)", nullptr},
 };
 
 inline bool registerRiveBindingNatives()
@@ -1934,6 +1972,10 @@ inline bool registerRiveBindingNatives()
                "rive_buffer_v1",
                kBufferNatives,
                sizeof(kBufferNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_mesh_instances_v1",
+               kMeshInstancesNatives,
+               sizeof(kMeshInstancesNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_blob_v1",
                kBlobNatives,

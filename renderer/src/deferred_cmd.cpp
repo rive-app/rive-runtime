@@ -95,6 +95,7 @@ void replayRenderCommands(Factory* factory,
     auto& shaders = table.shaders;
     auto& images = table.images;
     auto& buffers = table.buffers;
+    auto& meshInstances = table.imageMeshInstances;
 
     auto filterAllows = [](ReplayFilter f, RenderCmd c) {
         if (f == ReplayFilter::all)
@@ -111,6 +112,7 @@ void replayRenderCommands(Factory* factory,
             case RenderCmd::clipStroke:
             case RenderCmd::drawImage:
             case RenderCmd::drawImageMesh:
+            case RenderCmd::drawImageMeshInstanced:
             case RenderCmd::modulateOpacity:
             case RenderCmd::modulateColor:
             case RenderCmd::canvasContentBegin:
@@ -295,6 +297,32 @@ void replayRenderCommands(Factory* factory,
                                              c.sizeInBytes};
                 break;
             }
+            case RenderCmd::makeImageMeshInstances:
+            {
+                auto c = reader.read<MakeImageMeshInstancesPOD>();
+                meshInstances.set(c.id,
+                                  factory->makeImageMeshInstances(c.count),
+                                  c.generation);
+                break;
+            }
+            case RenderCmd::imageMeshInstancesData:
+            {
+                auto c = reader.read<ImageMeshInstancesDataPOD>();
+                Span<const uint8_t> src =
+                    reader.blobAt(c.blobOffset,
+                                  c.count * static_cast<uint32_t>(
+                                                sizeof(ImageMeshInstanceData)));
+                if (auto* mi = meshInstances.get(c.id))
+                {
+                    if (src.size() == c.count * sizeof(ImageMeshInstanceData))
+                    {
+                        Span<ImageMeshInstanceData> dst = mi->edit(c.count);
+                        std::memcpy(dst.data(), src.data(), src.size_bytes());
+                        mi->endEdit();
+                    }
+                }
+                break;
+            }
             case RenderCmd::bufferData:
             {
                 auto c = reader.read<BufferDataPOD>();
@@ -413,6 +441,14 @@ void replayRenderCommands(Factory* factory,
                                 sh.size);
                         }
                         buffers.newVersion(c.id, c.version, std::move(fresh));
+                        break;
+                    }
+                    case ResourceKind::imageMeshInstances:
+                    {
+                        meshInstances.newVersion(
+                            c.id,
+                            c.version,
+                            factory->makeImageMeshInstances(0));
                         break;
                     }
                     default:
@@ -726,6 +762,41 @@ void replayRenderCommands(Factory* factory,
                                        static_cast<BlendMode>(c.blendMode),
                                        c.opacity,
                                        c.additiveness);
+                }
+                else if (cur != nullptr && hooks.stats != nullptr)
+                {
+                    hooks.stats->droppedDraws = hooks.stats->droppedDraws + 1;
+                    replay_detail::logDroppedDraw(type, c.image, 0);
+                }
+                break;
+            }
+            case RenderCmd::drawImageMeshInstanced:
+            {
+                auto c = reader.read<DrawImageMeshInstancedPOD>();
+                RenderImage* im =
+                    (c.image & kCanvasHandleFlag)
+                        ? (hooks.canvasImage
+                               ? hooks.canvasImage(c.image & kCanvasHandleMask)
+                               : nullptr)
+                        : image(c.image);
+                rcp<RenderBuffer> vb =
+                    buffers.shared(c.vertices, c.vertexVersion);
+                rcp<RenderBuffer> uv = buffers.shared(c.uvCoords, c.uvVersion);
+                rcp<RenderBuffer> ib =
+                    buffers.shared(c.indices, c.indexVersion);
+                rcp<ImageMeshInstances> mi =
+                    meshInstances.shared(c.instances, c.instancesVersion);
+                if (cur && im && vb && uv && ib && mi)
+                {
+                    cur->drawImageMeshInstanced(
+                        im,
+                        sampler(c.wrapX, c.wrapY, c.filter),
+                        vb,
+                        uv,
+                        ib,
+                        c.vertexCount,
+                        c.indexCount,
+                        std::move(mi));
                 }
                 else if (cur != nullptr && hooks.stats != nullptr)
                 {

@@ -124,6 +124,64 @@ void RenderBuffer::unmap()
     onUnmap();
 }
 
+ImageMeshInstances::ImageMeshInstances(size_t count) : m_instanceData(count) {}
+
+ImageMeshInstances::~ImageMeshInstances() {}
+
+Span<ImageMeshInstanceData> ImageMeshInstances::edit()
+{
+    assert(m_editCount == m_endEditCount);
+    RIVE_DEBUG_CODE(++m_editCount;)
+    return m_instanceData;
+}
+
+Span<ImageMeshInstanceData> ImageMeshInstances::edit(size_t count)
+{
+    m_instanceData.resize(count);
+    return edit();
+}
+
+void ImageMeshInstances::endEdit()
+{
+    assert(m_endEditCount + 1 == m_editCount);
+    RIVE_DEBUG_CODE(++m_endEditCount;)
+    onEndEdit();
+}
+
+void Renderer::drawImageMeshInstanced(const RenderImage* image,
+                                      ImageSampler sampler,
+                                      rcp<RenderBuffer> vertices_f32,
+                                      rcp<RenderBuffer> uvCoords_f32,
+                                      rcp<RenderBuffer> indices_u16,
+                                      uint32_t vertexCount,
+                                      uint32_t indexCount,
+                                      rcp<ImageMeshInstances> instances)
+{
+    if (instances == nullptr)
+    {
+        return;
+    }
+
+    // The default implementation just delegates to drawImageMesh.
+    // TODO(ben) Add UV transform support to drawImageMesh
+    for (const ImageMeshInstanceData& instance : instances->instanceData())
+    {
+        save();
+        transform(instance.transform);
+        drawImageMesh(image,
+                      sampler,
+                      vertices_f32,
+                      uvCoords_f32,
+                      indices_u16,
+                      vertexCount,
+                      indexCount,
+                      BlendMode::srcOver,
+                      instance.opacity,
+                      instance.additiveness);
+        restore();
+    }
+}
+
 RenderShader::RenderShader() {}
 RenderShader::~RenderShader() {}
 

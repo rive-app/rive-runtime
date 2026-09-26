@@ -183,6 +183,21 @@ public:
                                               &m_bufferIds);
     }
 
+    rcp<ImageMeshInstances> makeImageMeshInstances(size_t count) override
+    {
+        auto a = m_instancesIds.alloc();
+        m_buffer.append(
+            static_cast<uint8_t>(RenderCmd::makeImageMeshInstances),
+            MakeImageMeshInstancesPOD{a.id,
+                                      a.generation,
+                                      static_cast<uint32_t>(count)});
+        return make_rcp<DeferredImageMeshInstances>(a.id,
+                                                    a.generation,
+                                                    count,
+                                                    &m_buffer,
+                                                    &m_instancesIds);
+    }
+
     rcp<RenderImage> decodeImage(Span<const uint8_t> bytes) override
     {
         auto a = m_imageIds.alloc();
@@ -271,6 +286,7 @@ private:
     IdAllocator<RenderHandle> m_shaderIds;
     IdAllocator<RenderHandle> m_imageIds;
     IdAllocator<RenderHandle> m_bufferIds;
+    IdAllocator<RenderHandle> m_instancesIds;
 };
 
 // Draws are attributed to the renderer that issues them, not their stream
@@ -532,6 +548,66 @@ public:
                                           static_cast<uint8_t>(blend),
                                           opacity,
                                           additiveness});
+    }
+
+    void drawImageMeshInstanced(const RenderImage* image,
+                                ImageSampler s,
+                                rcp<RenderBuffer> vertices,
+                                rcp<RenderBuffer> uvCoords,
+                                rcp<RenderBuffer> indices,
+                                uint32_t vertexCount,
+                                uint32_t indexCount,
+                                rcp<ImageMeshInstances> instances) override
+    {
+        if (instances == nullptr || instances->count() == 0)
+        {
+            return;
+        }
+        RenderHandle imgId = idOfImage(image);
+        if (imgId == kInvalidRenderHandle && m_canvases)
+        {
+            imgId = m_canvases->imageDrawId(const_cast<RenderImage*>(image));
+        }
+        RenderHandle vId = idOfBuffer(vertices.get());
+        RenderHandle uvId = idOfBuffer(uvCoords.get());
+        RenderHandle idxId = idOfBuffer(indices.get());
+        if (imgId == kInvalidRenderHandle || vId == kInvalidRenderHandle ||
+            uvId == kInvalidRenderHandle || idxId == kInvalidRenderHandle)
+        {
+            warnForeign("drawImageMeshInstanced");
+            return;
+        }
+        auto* dv = lite_rtti_cast<DeferredRenderBuffer*>(vertices.get());
+        auto* duv = lite_rtti_cast<DeferredRenderBuffer*>(uvCoords.get());
+        auto* di = lite_rtti_cast<DeferredRenderBuffer*>(indices.get());
+        dv->markDrawn();
+        duv->markDrawn();
+        di->markDrawn();
+        auto* dinst =
+            lite_rtti_cast<DeferredImageMeshInstances*>(instances.get());
+        if (dinst == nullptr)
+        {
+            warnForeign("drawImageMeshInstanced");
+            return;
+        }
+        route();
+        dinst->markDrawn();
+        m_buffer->append(
+            static_cast<uint8_t>(RenderCmd::drawImageMeshInstanced),
+            DrawImageMeshInstancedPOD{imgId,
+                                      vId,
+                                      uvId,
+                                      idxId,
+                                      dv->version(),
+                                      duv->version(),
+                                      di->version(),
+                                      vertexCount,
+                                      indexCount,
+                                      dinst->id(),
+                                      dinst->version(),
+                                      static_cast<uint8_t>(s.wrapX),
+                                      static_cast<uint8_t>(s.wrapY),
+                                      static_cast<uint8_t>(s.filter)});
     }
 
 private:

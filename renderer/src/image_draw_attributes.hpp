@@ -101,9 +101,21 @@ static constexpr auto ImageRectInstanceAttributes = std::apply(
 static_assert(std::size(ImageRectInstanceAttributes) ==
               IMAGE_RECT_ATTRIB_COUNT);
 
-// No additional attributes yet.
-static constexpr auto ImageMeshInstanceAttributes =
-    ImageDrawInstanceBaseAttributes;
+static constexpr auto ImageMeshInstanceAttributes = std::apply(
+    [](auto... baseAttribs) {
+        constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
+        return std::array{
+            baseAttribs..., // ImageDrawInstanceBase attributes come first
+            VertexAttribute{
+                // packed: m_uvTranslate (x,y), m_uvScale (x,y)
+                VertexElementFormat::float4,
+                BaseIndex + 0,
+                16 * sizeof(float),
+                GLSL_a_imageMeshUVTransform,
+            },
+        };
+    },
+    ImageDrawInstanceBaseAttributes);
 
 static_assert(std::size(ImageMeshInstanceAttributes) ==
               IMAGE_MESH_ATTRIB_COUNT);

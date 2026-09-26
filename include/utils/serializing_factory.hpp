@@ -64,6 +64,8 @@ public:
                                        RenderBufferFlags,
                                        size_t) override;
 
+    rcp<ImageMeshInstances> makeImageMeshInstances(size_t count) override;
+
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,
                                          float ex,
@@ -125,6 +127,7 @@ private:
     uint64_t m_renderPathId = 0;
     uint64_t m_renderBufferId = 0;
     uint64_t m_renderShaderId = 0;
+    uint64_t m_imageMeshInstancesId = 0;
 };
 } // namespace rive
 #endif

@@ -199,6 +199,42 @@ private:
     uint8_t* m_store;
 };
 
+// Instances live in module memory and push to the host on each edit.
+class ModuleImageMeshInstances : public ImageMeshInstances
+{
+public:
+    ModuleImageMeshInstances(size_t count) :
+        ImageMeshInstances(count),
+        m_handle(rive_mesh_instances_new((uint32_t)count)),
+        m_hostCount(count)
+    {}
+    ~ModuleImageMeshInstances() override
+    {
+        rive_mesh_instances_release(m_handle);
+    }
+    uint32_t handle() const { return m_handle; }
+
+protected:
+    void onEndEdit() override
+    {
+        Span<const ImageMeshInstanceData> data = instanceData();
+        if (data.size() != m_hostCount)
+        {
+            rive_mesh_instances_resize(m_handle, (uint32_t)data.size());
+            m_hostCount = data.size();
+        }
+        rive_mesh_instances_update(
+            m_handle,
+            0,
+            reinterpret_cast<const uint8_t*>(data.data()),
+            (uint32_t)(data.size() * sizeof(ImageMeshInstanceData)));
+    }
+
+private:
+    uint32_t m_handle;
+    size_t m_hostCount;
+};
+
 class ModuleRenderImage : public RenderImage
 {
 public:
@@ -225,6 +261,10 @@ public:
                                        size_t sizeInBytes) override
     {
         return make_rcp<ModuleRenderBuffer>(type, flags, sizeInBytes);
+    }
+    rcp<ImageMeshInstances> makeImageMeshInstances(size_t count) override
+    {
+        return make_rcp<ModuleImageMeshInstances>(count);
     }
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,
@@ -324,6 +364,24 @@ public:
             static_cast<ModuleRenderBuffer*>(indices.get())->handle(),
             (uint32_t)blend,
             opacity);
+    }
+    void drawImageMeshInstanced(const RenderImage* image,
+                                ImageSampler sampler,
+                                rcp<RenderBuffer> vertices,
+                                rcp<RenderBuffer> uvCoords,
+                                rcp<RenderBuffer> indices,
+                                uint32_t vertexCount,
+                                uint32_t indexCount,
+                                rcp<ImageMeshInstances> instances) override
+    {
+        rive_renderer_draw_image_mesh_instanced(
+            m_handle,
+            static_cast<const ModuleRenderImage*>(image)->handle(),
+            sampler.asKey(),
+            static_cast<ModuleRenderBuffer*>(vertices.get())->handle(),
+            static_cast<ModuleRenderBuffer*>(uvCoords.get())->handle(),
+            static_cast<ModuleRenderBuffer*>(indices.get())->handle(),
+            static_cast<ModuleImageMeshInstances*>(instances.get())->handle());
     }
     void modulateOpacity(float) override {}
     void modulateColor(ColorInt color, bool replace) override

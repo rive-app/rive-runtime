@@ -3531,6 +3531,83 @@ void bufferReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
     vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::buffer);
 }
 
+struct HostMeshInstances
+{
+    rcp<ImageMeshInstances> instances;
+};
+
+HostMeshInstances* resolveMeshInstances(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostMeshInstances*>(vm->handles().resolve(
+        handle,
+        WasmScriptingVM::HandleTable::Tag::meshInstances));
+}
+
+uint32_t meshInstancesNewImpl(WasmScriptingVM* vm, uint32_t count)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    auto instances = vm->factory()->makeImageMeshInstances(count);
+    if (instances == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::meshInstances,
+                              new HostMeshInstances{std::move(instances)});
+}
+
+void meshInstancesResizeImpl(WasmScriptingVM* vm,
+                             uint32_t handle,
+                             uint32_t count)
+{
+    auto host = resolveMeshInstances(vm, handle);
+    if (host == nullptr)
+    {
+        return;
+    }
+    host->instances->edit(count);
+    host->instances->endEdit();
+}
+
+void meshInstancesUpdateImpl(WasmScriptingVM* vm,
+                             uint32_t handle,
+                             uint32_t first,
+                             const uint8_t* bytes,
+                             uint32_t byteCount)
+{
+    auto host = resolveMeshInstances(vm, handle);
+    if (host == nullptr || byteCount % sizeof(ImageMeshInstanceData) != 0)
+    {
+        return;
+    }
+    size_t count = byteCount / sizeof(ImageMeshInstanceData);
+    Span<ImageMeshInstanceData> data = host->instances->edit();
+    if (first <= data.size() && count <= data.size() - first)
+    {
+        memcpy(data.data() + first, bytes, byteCount);
+    }
+    host->instances->endEdit();
+}
+
+void meshInstancesReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return;
+    }
+    delete static_cast<HostMeshInstances*>(vm->handles().resolve(
+        handle,
+        WasmScriptingVM::HandleTable::Tag::meshInstances));
+    vm->handles().release(handle,
+                          WasmScriptingVM::HandleTable::Tag::meshInstances);
+}
+
 Renderer* resolveRenderer(WasmScriptingVM* vm, uint32_t handle)
 {
     if (vm == nullptr)
@@ -3643,6 +3720,37 @@ void rendererDrawImageMeshImpl(WasmScriptingVM* vm,
         (uint32_t)(index->buffer->sizeInBytes() / sizeof(uint16_t)),
         (BlendMode)blend,
         opacity);
+}
+
+void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm,
+                                        uint32_t rendererHandle,
+                                        uint32_t imageHandle,
+                                        uint32_t samplerKey,
+                                        uint32_t vertexHandle,
+                                        uint32_t uvHandle,
+                                        uint32_t indexHandle,
+                                        uint32_t instancesHandle)
+{
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    auto image = resolveImage(vm, imageHandle);
+    auto vertex = resolveBuffer(vm, vertexHandle);
+    auto uv = resolveBuffer(vm, uvHandle);
+    auto index = resolveBuffer(vm, indexHandle);
+    auto instances = resolveMeshInstances(vm, instancesHandle);
+    if (renderer == nullptr || image == nullptr || vertex == nullptr ||
+        uv == nullptr || index == nullptr || instances == nullptr)
+    {
+        return;
+    }
+    renderer->drawImageMeshInstanced(
+        image->image.get(),
+        ImageSampler::SamplerFromKey((uint8_t)samplerKey),
+        vertex->buffer,
+        uv->buffer,
+        index->buffer,
+        (uint32_t)(vertex->buffer->sizeInBytes() / sizeof(Vec2D)),
+        (uint32_t)(index->buffer->sizeInBytes() / sizeof(uint16_t)),
+        instances->instances);
 }
 
 void rendererClipPathImpl(WasmScriptingVM* vm,
@@ -6434,6 +6542,9 @@ WasmScriptingVM::~WasmScriptingVM()
             case HandleTable::Tag::buffer:
                 delete static_cast<HostBuffer*>(slot.object);
                 break;
+            case HandleTable::Tag::meshInstances:
+                delete static_cast<HostMeshInstances*>(slot.object);
+                break;
             case HandleTable::Tag::dataContext:
                 delete static_cast<HostDataContext*>(slot.object);
                 break;
@@ -7456,6 +7567,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "font";
         case Tag::buffer:
             return "buffer";
+        case Tag::meshInstances:
+            return "meshInstances";
         case Tag::canvas:
             return "canvas";
         case Tag::gpuCanvas:

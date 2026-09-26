@@ -35,6 +35,11 @@ def camel(snake):
     return parts[0] + ''.join(p.capitalize() for p in parts[1:])
 
 
+def pascal(snake):
+    out = camel(snake)
+    return out[:1].upper() + out[1:]
+
+
 # Bytes per element of a buffer: a scalar, or a pod of u32 and f32 fields.
 def elem_size(elem):
     if elem in ELEM_SIZES:
@@ -302,7 +307,7 @@ def emit_host():
             lines += guarded(op, body)
     lines.append('')
     for namespace in NAMESPACES:
-        table = 'k%sNatives' % camel(namespace['short']).capitalize()
+        table = 'k%sNatives' % pascal(namespace['short'])
         lines.append('NativeSymbol %s[] = {' % table)
         for op in namespace['ops']:
             lines += guarded(op, ['    {"%s", (void*)%s, "%s", nullptr},' %
@@ -314,7 +319,7 @@ def emit_host():
     lines.append('{')
     checks = []
     for namespace in NAMESPACES:
-        table = 'k%sNatives' % camel(namespace['short']).capitalize()
+        table = 'k%sNatives' % pascal(namespace['short'])
         checks.append(
             'wasm_runtime_register_natives(\n'
             '               "%s",\n'
@@ -485,6 +490,7 @@ AS_HANDLE_KINDS = {
     'paint': 'paint',
     'shader': 'renderShader',
     'buffer': 'renderBuffer',
+    'mesh_instances': 'meshInstances',
     'image': 'image',
     'artboard': 'artboard',
     'measure': 'measure',
@@ -496,6 +502,7 @@ AS_OWNING_FACTORIES = {
     ('path', 'new'),
     ('paint', 'new'),
     ('buffer', 'new'),
+    ('mesh_instances', 'new'),
     ('image', 'from_asset'),
     ('shader', 'linear'),
     ('shader', 'radial'),
@@ -505,7 +512,7 @@ AS_OWNING_FACTORIES = {
 
 
 def as_class_name(namespace):
-    return namespace['short'].capitalize() + 'Native'
+    return pascal(namespace['short']) + 'Native'
 
 
 def as_self_tag(namespace):

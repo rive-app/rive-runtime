@@ -2694,18 +2694,16 @@ gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
     return &flush->pushImageRectDraw(this, zIndex);
 }
 
-ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
-                             const Mat2D& matrix,
-                             BlendMode blendMode,
-                             float additiveness,
-                             rcp<Texture> imageTexture,
-                             const ImageSampler imageSampler,
-                             rcp<RenderBuffer> vertexBuffer,
-                             rcp<RenderBuffer> uvBuffer,
-                             rcp<RenderBuffer> indexBuffer,
-                             uint32_t indexCount,
-                             ColorInt modulatedColor) :
-
+ImageMeshDrawBase::ImageMeshDrawBase(IAABB pixelBounds,
+                                     const Mat2D& matrix,
+                                     BlendMode blendMode,
+                                     float additiveness,
+                                     rcp<Texture> imageTexture,
+                                     const ImageSampler imageSampler,
+                                     rcp<RenderBuffer> vertexBuffer,
+                                     rcp<RenderBuffer> uvBuffer,
+                                     rcp<RenderBuffer> indexBuffer,
+                                     uint32_t indexCount) :
     Draw(pixelBounds,
          matrix,
          nullptr,
@@ -2717,12 +2715,48 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     m_vertexBufferRef(vertexBuffer.release()),
     m_uvBufferRef(uvBuffer.release()),
     m_indexBufferRef(indexBuffer.release()),
-    m_indexCount(indexCount),
-    m_modulatedColor(modulatedColor)
+    m_indexCount(indexCount)
 {
     assert(m_vertexBufferRef != nullptr);
     assert(m_uvBufferRef != nullptr);
     assert(m_indexBufferRef != nullptr);
+}
+
+void ImageMeshDrawBase::releaseRefs()
+{
+    Draw::releaseRefs();
+    m_vertexBufferRef->unref();
+    m_uvBufferRef->unref();
+    m_indexBufferRef->unref();
+}
+
+ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
+                             const Mat2D& matrix,
+                             BlendMode blendMode,
+                             float additiveness,
+                             rcp<Texture> imageTexture,
+                             const ImageSampler imageSampler,
+                             rcp<RenderBuffer> vertexBuffer,
+                             rcp<RenderBuffer> uvBuffer,
+                             rcp<RenderBuffer> indexBuffer,
+                             uint32_t indexCount,
+                             ColorInt modulatedColor,
+                             const Vec2D& uvTranslate,
+                             const Vec2D& uvScale) :
+    ImageMeshDrawBase(pixelBounds,
+                      matrix,
+                      blendMode,
+                      additiveness,
+                      std::move(imageTexture),
+                      imageSampler,
+                      std::move(vertexBuffer),
+                      std::move(uvBuffer),
+                      std::move(indexBuffer),
+                      indexCount),
+    m_modulatedColor(modulatedColor),
+    m_uvTranslate(uvTranslate),
+    m_uvScale(uvScale)
+{
     m_resourceCounts.imageMeshCount = 1;
 }
 
@@ -2735,12 +2769,52 @@ gpu::DrawBatch* ImageMeshDraw::pushToRenderContext(
     return &flush->pushImageMeshDraw(this, zIndex);
 }
 
-void ImageMeshDraw::releaseRefs()
+ImageMeshInstancedDraw::ImageMeshInstancedDraw(
+    IAABB pixelBounds,
+    const Mat2D& matrix,
+    rcp<Texture> imageTexture,
+    const ImageSampler imageSampler,
+    rcp<RenderBuffer> vertexBuffer,
+    rcp<RenderBuffer> uvBuffer,
+    rcp<RenderBuffer> indexBuffer,
+    uint32_t indexCount,
+    rcp<ImageMeshInstances> instances,
+    ColorInt modulatedColor,
+    float modulatedOpacity) :
+    ImageMeshDrawBase(pixelBounds,
+                      matrix,
+                      BlendMode::srcOver,
+                      0.0f, // Additiveness is per instance here.
+                      std::move(imageTexture),
+                      imageSampler,
+                      std::move(vertexBuffer),
+                      std::move(uvBuffer),
+                      std::move(indexBuffer),
+                      indexCount),
+    m_instancesRef(instances.release()),
+    m_modulatedColor(modulatedColor),
+    m_modulatedOpacity(modulatedOpacity)
 {
-    Draw::releaseRefs();
-    m_vertexBufferRef->unref();
-    m_uvBufferRef->unref();
-    m_indexBufferRef->unref();
+    assert(m_instancesRef != nullptr);
+    assert(m_instancesRef->count() > 0);
+    assert(!m_instancesRef->isEditing());
+    m_resourceCounts.imageMeshCount = m_instancesRef->count();
+    RIVE_DEBUG_CODE(m_editCount = m_instancesRef->editCount();)
+}
+
+gpu::DrawBatch* ImageMeshInstancedDraw::pushToRenderContext(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex,
+    uint32_t zIndex)
+{
+    assert(subpassIndex == 0);
+    return &flush->pushImageMeshInstancedDraw(this, zIndex);
+}
+
+void ImageMeshInstancedDraw::releaseRefs()
+{
+    ImageMeshDrawBase::releaseRefs();
+    m_instancesRef->unref();
 }
 
 ClipReset::ClipReset(RenderContext* context,

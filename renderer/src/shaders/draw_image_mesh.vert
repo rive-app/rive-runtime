@@ -21,6 +21,7 @@ ATTR(IMAGE_MODULATED_COLOR_ATTRIB_IDX, uint, @a_imageDrawModulatedColor);
 ATTR(IMAGE_CLIP_ID_ATTRIB_IDX, uint, @a_imageDrawClipID);
 ATTR(IMAGE_BLEND_MODE_ATTRIB_IDX, uint, @a_imageDrawBlendMode);
 ATTR(IMAGE_ZINDEX_ATTRIB_IDX, uint, @a_imageDrawZIndex);
+ATTR(IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX, float4, @a_imageMeshUVTransform);
 ATTR_BLOCK_END
 #endif
 
@@ -63,6 +64,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawClipID, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawBlendMode, uint);
     ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageDrawZIndex, uint);
+    ATTR_UNPACK(_instanceID, imageDrawAttrs, @a_imageMeshUVTransform, float4);
 
     VARYING_INIT(v_imageTexCoord, float2);
 #ifdef @ENABLE_CLIPPING
@@ -79,7 +81,8 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     float2 vertexPosition =
         MUL(make_float2x2(@a_imageDrawViewMatrix), @a_position) +
         @a_imageDrawTranslates.xy;
-    v_imageTexCoord = @a_texCoord;
+    v_imageTexCoord =
+        @a_texCoord * @a_imageMeshUVTransform.zw + @a_imageMeshUVTransform.xy;
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING)
     {

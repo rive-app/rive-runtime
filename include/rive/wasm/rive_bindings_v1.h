@@ -647,6 +647,16 @@ void rive_buffer_update(uint32_t buffer, const uint8_t* bytes, uint32_t byteCoun
 RIVE_BINDING_IMPORT("rive_buffer_v1", "release")
 void rive_buffer_release(uint32_t buffer);
 
+// rive_mesh_instances_v1
+RIVE_BINDING_IMPORT("rive_mesh_instances_v1", "new")
+uint32_t rive_mesh_instances_new(uint32_t count);
+RIVE_BINDING_IMPORT("rive_mesh_instances_v1", "resize")
+void rive_mesh_instances_resize(uint32_t instances, uint32_t count);
+RIVE_BINDING_IMPORT("rive_mesh_instances_v1", "update")
+void rive_mesh_instances_update(uint32_t instances, uint32_t first, const uint8_t* bytes, uint32_t byteCount);
+RIVE_BINDING_IMPORT("rive_mesh_instances_v1", "release")
+void rive_mesh_instances_release(uint32_t instances);
+
 // rive_blob_v1
 RIVE_BINDING_IMPORT("rive_blob_v1", "asset_bytes")
 uint32_t rive_blob_asset_bytes(uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
@@ -692,6 +702,8 @@ RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image")
 void rive_renderer_draw_image(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh")
 void rive_renderer_draw_image_mesh(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
+RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh_instanced")
+void rive_renderer_draw_image_mesh_instanced(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
 
 #ifdef __cplusplus
 }

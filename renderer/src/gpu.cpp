@@ -1423,7 +1423,9 @@ ImageMeshInstance::ImageMeshInstance(
     uint32_t clipID,
     BlendMode blendMode,
     uint32_t zIndex,
-    float additiveness) :
+    float additiveness,
+    Vec2D uvTranslate,
+    Vec2D uvScale) :
     m_commons{matrix,
               modulatedColor,
               clipRectInverseMatrix,
@@ -1433,6 +1435,14 @@ ImageMeshInstance::ImageMeshInstance(
               additiveness}
 {
     static_assert(offsetof(ImageMeshInstance, m_commons) == 0);
+    STATIC_ASSERT_ATTRIB(ImageMeshInstance,
+                         m_uvTransform,
+                         IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX);
+
+    m_uvTransform[0] = uvTranslate.x;
+    m_uvTransform[1] = uvTranslate.y;
+    m_uvTransform[2] = uvScale.x;
+    m_uvTransform[3] = uvScale.y;
 }
 
 const std::array<VertexAttribute, ImageMeshInstance::AttributeCount>&

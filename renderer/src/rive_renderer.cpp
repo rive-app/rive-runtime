@@ -832,18 +832,108 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     float finalOpacity =
         std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
 
-    clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
-        gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-        m_renderStateStack.back().matrix,
-        blendMode,
-        additiveness,
-        std::move(imageTexture),
-        imageSampler,
-        std::move(vertices_f32),
-        std::move(uvCoords_f32),
-        std::move(indices_u16),
-        indexCount,
-        modulated(0xFFFFFFFF, finalOpacity))));
+    clipAndPushDraw(gpu::DrawUniquePtr(
+        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+                                            m_renderStateStack.back().matrix,
+                                            blendMode,
+                                            additiveness,
+                                            std::move(imageTexture),
+                                            imageSampler,
+                                            std::move(vertices_f32),
+                                            std::move(uvCoords_f32),
+                                            std::move(indices_u16),
+                                            indexCount,
+                                            modulated(0xFFFFFFFF, finalOpacity),
+                                            Vec2D{0.0f, 0.0f},
+                                            Vec2D{1.0f, 1.0f})));
+}
+
+void RiveRenderer::drawImageMeshInstanced(const RenderImage* renderImage,
+                                          ImageSampler imageSampler,
+                                          rcp<RenderBuffer> vertices_f32,
+                                          rcp<RenderBuffer> uvCoords_f32,
+                                          rcp<RenderBuffer> indices_u16,
+                                          uint32_t vertexCount,
+                                          uint32_t indexCount,
+                                          rcp<ImageMeshInstances> instances)
+{
+    RIVE_PROF_SCOPE_L(2)
+    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+
+    rcp<gpu::Texture> imageTexture = image->refTexture();
+    if (imageTexture == nullptr)
+    {
+        // imageTexture may be null if the backend uses a custom factory and/or
+        // updates out-of-band assets asynchronously. If there's no texture yet,
+        // just don't draw anything.
+        return;
+    }
+
+    assert(vertices_f32);
+    assert(uvCoords_f32);
+    assert(indices_u16);
+
+    if (instances == nullptr || instances->count() == 0)
+    {
+        return;
+    }
+
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
+    {
+        return;
+    }
+
+    if (m_context->frameInterlockMode() == gpu::InterlockMode::atomics)
+    {
+        // If we're in atomic mode, meshes can't self-overlap, so we can't
+        // safely issue instanced calls without barriers since the individual
+        // instances may overlap. As a workaround, issue individual draw calls
+        // for each instance instead. This is slow, and I'm only doing it this
+        // way because atomic mode is soon going away.
+        for (const auto& instanceData : instances->instanceData())
+        {
+            float finalOpacity =
+                std::max(0.0f,
+                         instanceData.opacity *
+                             m_renderStateStack.back().modulatedOpacity);
+
+            clipAndPushDraw(
+                gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
+                    gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+                    m_renderStateStack.back().matrix * instanceData.transform,
+                    BlendMode::srcOver,
+                    instanceData.additiveness,
+                    imageTexture,
+                    imageSampler,
+                    vertices_f32,
+                    uvCoords_f32,
+                    indices_u16,
+                    indexCount,
+                    modulated(0xFFFFFFFF, finalOpacity),
+                    instanceData.uvTranslate,
+                    instanceData.uvScale)));
+        }
+    }
+    else
+    {
+        // Unlike in drawImageMesh, we wait to resolve the modulated
+        // color/opacity because each instance has its own opacity, so we avoid
+        // precision loss if we do the float -> u8 conversion after it's been
+        // multiplied in.
+        clipAndPushDraw(
+            gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshInstancedDraw>(
+                gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+                m_renderStateStack.back().matrix,
+                std::move(imageTexture),
+                imageSampler,
+                std::move(vertices_f32),
+                std::move(uvCoords_f32),
+                std::move(indices_u16),
+                indexCount,
+                std::move(instances),
+                m_renderStateStack.back().modulatedColor,
+                m_renderStateStack.back().modulatedOpacity)));
+    }
 }
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)

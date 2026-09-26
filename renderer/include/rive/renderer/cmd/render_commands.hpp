@@ -27,6 +27,8 @@ enum class RenderCmd : uint8_t
     decodeImage,        // DecodeImagePOD (+ encoded-bytes blob)
     makeBuffer,         // MakeBufferPOD
     bufferData,         // BufferDataPOD (+ data blob), a map()/unmap() write
+    makeImageMeshInstances, // MakeImageMeshInstancesPOD
+    imageMeshInstancesData, // ImageMeshInstancesDataPOD (+ data blob)
 
     // The consumer releases table[id] only when the generation matches, so a
     // stale destroy after slot reuse is harmless.
@@ -55,16 +57,17 @@ enum class RenderCmd : uint8_t
     paintInvalidateStroke, // ResId
 
     // ---- renderer draws ----
-    save,            // no payload
-    restore,         // no payload
-    transform,       // TransformPOD
-    drawPath,        // DrawPathPOD
-    clipPath,        // ClipPathPOD
-    clipStroke,      // ClipStrokePOD
-    drawImage,       // DrawImagePOD
-    drawImageMesh,   // DrawImageMeshPOD
-    modulateOpacity, // OpacityPOD
-    modulateColor,   // ModulateColorPOD
+    save,                   // no payload
+    restore,                // no payload
+    transform,              // TransformPOD
+    drawPath,               // DrawPathPOD
+    clipPath,               // ClipPathPOD
+    clipStroke,             // ClipStrokePOD
+    drawImage,              // DrawImagePOD
+    drawImageMesh,          // DrawImageMeshPOD
+    drawImageMeshInstanced, // DrawImageMeshInstancedPOD
+    modulateOpacity,        // OpacityPOD
+    modulateColor,          // ModulateColorPOD
 
     // ---- render target scheduling ----
     // Canvas content records inline between these brackets; replay redirects
@@ -97,6 +100,7 @@ enum class ResourceKind : uint8_t
     shader,
     image,
     buffer,
+    imageMeshInstances,
 };
 
 struct DestroyResourcePOD
@@ -300,6 +304,31 @@ struct DrawImageMeshPOD
     float additiveness;
 };
 
+struct DrawImageMeshInstancedPOD
+{
+    RenderHandle image;
+    RenderHandle vertices, uvCoords, indices;
+    uint32_t vertexVersion, uvVersion, indexVersion;
+    uint32_t vertexCount, indexCount;
+    RenderHandle instances;
+    uint32_t instancesVersion;
+    uint8_t wrapX, wrapY, filter; // ImageSampler
+};
+
+struct MakeImageMeshInstancesPOD
+{
+    RenderHandle id;
+    uint32_t generation;
+    uint32_t count;
+};
+
+struct ImageMeshInstancesDataPOD
+{
+    uint64_t blobOffset; // ImageMeshInstanceData[count]
+    RenderHandle id;
+    uint32_t count;
+};
+
 struct OpacityPOD
 {
     float opacity;
@@ -330,6 +359,8 @@ struct CanvasContentPOD
     X(decodeImage, DecodeImagePOD)                                             \
     X(makeBuffer, MakeBufferPOD)                                               \
     X(bufferData, BufferDataPOD)                                               \
+    X(makeImageMeshInstances, MakeImageMeshInstancesPOD)                       \
+    X(imageMeshInstancesData, ImageMeshInstancesDataPOD)                       \
     X(destroyResource, DestroyResourcePOD)                                     \
     X(pathRewind, ResIdPOD)                                                    \
     X(pathFillRule, PathFillRulePOD)                                           \
@@ -355,6 +386,7 @@ struct CanvasContentPOD
     X(clipStroke, ClipStrokePOD)                                               \
     X(drawImage, DrawImagePOD)                                                 \
     X(drawImageMesh, DrawImageMeshPOD)                                         \
+    X(drawImageMeshInstanced, DrawImageMeshInstancedPOD)                       \
     X(modulateOpacity, OpacityPOD)                                             \
     X(modulateColor, ModulateColorPOD)                                         \
     X(canvasContentBegin, CanvasContentPOD)                                    \

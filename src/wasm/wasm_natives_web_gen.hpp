@@ -1322,6 +1322,30 @@ void rive_web_buffer_release(uint32_t vmHandle, uint32_t buffer)
     bufferReleaseImpl(vm, buffer);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_mesh_instances_new(uint32_t vmHandle, uint32_t count)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return meshInstancesNewImpl(vm, count);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_mesh_instances_resize(uint32_t vmHandle, uint32_t instances, uint32_t count)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    meshInstancesResizeImpl(vm, instances, count);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_mesh_instances_update(uint32_t vmHandle, uint32_t instances, uint32_t first, const uint8_t* bytes, uint32_t byteCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    meshInstancesUpdateImpl(vm, instances, first, bytes, byteCount);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_mesh_instances_release(uint32_t vmHandle, uint32_t instances)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    meshInstancesReleaseImpl(vm, instances);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_blob_asset_bytes(uint32_t vmHandle, uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -1436,6 +1460,12 @@ void rive_web_renderer_draw_image_mesh(uint32_t vmHandle, uint32_t renderer, uin
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     rendererDrawImageMeshImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, blend, opacity);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_renderer_draw_image_mesh_instanced(uint32_t vmHandle, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    rendererDrawImageMeshInstancedImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, instances);
 }
 
 } // extern "C"
