@@ -3646,10 +3646,22 @@ int riveImageViewImpl(lua_State* L)
     if (!self->cachedOreView && oreCtx->isRecording())
     {
         // Image:view() must not touch the driver while recording, so record
-        // by resource id and let the consumer wrap at replay.
-        if (auto* deferredImage =
-                lite_rtti_cast<rive::cmd::DeferredRenderImage*>(
-                    self->image.get()))
+        // by resource id and let the consumer wrap at replay. Ordered like
+        // the immediate branch below: provenance first, because a canvas
+        // image carries no distinguishing rtti — RenderCanvasImage and
+        // DeferredRenderCanvasImage both report RiveRenderImage's tag, so a
+        // type test would misread a decoded asset as a canvas on any backend
+        // whose factory hands back a real RiveRenderImage.
+        if (self->sourceCanvas != nullptr)
+        {
+            self->cachedOreView =
+                oreCtx->recordWrapCanvasImage(self->sourceCanvas.get(),
+                                              self->image->width(),
+                                              self->image->height());
+        }
+        else if (auto* deferredImage =
+                     lite_rtti_cast<rive::cmd::DeferredRenderImage*>(
+                         self->image.get()))
         {
             self->cachedOreView =
                 oreCtx->recordWrapImageView(deferredImage->id(),
@@ -3658,10 +3670,13 @@ int riveImageViewImpl(lua_State* L)
         }
         else
         {
+            // Neither a canvas nor something this recorder created: a file
+            // asset decoded through the immediate factory. The registry
+            // carries it to replay.
             self->cachedOreView =
-                oreCtx->recordWrapCanvasImage(self->image.get(),
-                                              self->image->width(),
-                                              self->image->height());
+                oreCtx->recordWrapForeignImageView(self->image.get(),
+                                                   self->image->width(),
+                                                   self->image->height());
         }
         if (!self->cachedOreView)
         {

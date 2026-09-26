@@ -1989,6 +1989,12 @@ uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
                                                host->image->height());
         }
     }
+    else if (host->sourceCanvas != nullptr)
+    {
+        view = oreContext->recordWrapCanvasImage(host->sourceCanvas.get(),
+                                                 host->image->width(),
+                                                 host->image->height());
+    }
     else if (auto* deferredImage =
                  lite_rtti_cast<cmd::DeferredRenderImage*>(host->image.get()))
     {
@@ -1998,9 +2004,10 @@ uint32_t gpuImageViewImpl(WasmScriptingVM* vm,
     }
     else
     {
-        view = oreContext->recordWrapCanvasImage(host->image.get(),
-                                                 host->image->width(),
-                                                 host->image->height());
+        // A foreign image the recorder was handed rather than created.
+        view = oreContext->recordWrapForeignImageView(host->image.get(),
+                                                      host->image->width(),
+                                                      host->image->height());
     }
     if (view == nullptr)
     {

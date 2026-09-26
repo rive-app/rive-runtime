@@ -32,6 +32,18 @@ rcp<gpu::RenderCanvas> fakeCanvas()
     return canvas;
 }
 
+// A decoded file asset: neither a canvas nor anything the recorder minted, so
+// Image:view() has to route it as foreign. Deliberately not a RiveRenderImage,
+// matching backends whose images are context free until upload.
+struct FakeForeignImage : public RenderImage
+{
+    FakeForeignImage()
+    {
+        m_Width = 8;
+        m_Height = 8;
+    }
+};
+
 // GPU free stand-in for the replaying backend. Only the canvas wraps are
 // exercised; everything else a real replay would reach is unreachable here.
 class RecordingOreContext : public ore::Context
@@ -141,6 +153,13 @@ public:
         m_openCanvas = nullptr;
         m_canvasRenderer.reset();
     }
+    std::vector<RenderImage*> foreignPreps;
+    RenderImage* prepForeignImage(RenderImage* image) override
+    {
+        foreignPreps.push_back(image);
+        return image;
+    }
+
     void beginOreFrame() override { steps.push_back("ore"); }
     void endOreFrame() override { ++oreFrameEnds; }
     void afterOreFrame() override { ++oreFrameAfters; }
@@ -170,9 +189,8 @@ TEST_CASE("a canvas written and sampled in one frame wraps after its content",
     auto path = session.makeEmptyRenderPath();
     content->drawPath(path.get(), paint.get());
     session.endCanvasContent(canvas.get());
-    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas->renderImage(),
-                                                       8,
-                                                       8) != nullptr);
+    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+            nullptr);
     session.closeOpenRange();
 
     auto frame = snapshotFrame(session);
@@ -203,7 +221,7 @@ TEST_CASE("each recorded canvas view resolves to its own canvas",
         auto path = session.makeEmptyRenderPath();
         content->drawPath(path.get(), paint.get());
         session.endCanvasContent(canvas);
-        session.oreContext().recordWrapCanvasImage(canvas->renderImage(), 8, 8);
+        session.oreContext().recordWrapCanvasImage(canvas, 8, 8);
     }
     session.closeOpenRange();
 
@@ -228,9 +246,8 @@ TEST_CASE("ore replay waits for a successfully opened screen frame",
     auto path = session.makeEmptyRenderPath();
     content->drawPath(path.get(), paint.get());
     session.endCanvasContent(canvas.get());
-    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas->renderImage(),
-                                                       8,
-                                                       8) != nullptr);
+    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+            nullptr);
     session.closeOpenRange();
 
     auto frame = snapshotFrame(session);
@@ -244,4 +261,55 @@ TEST_CASE("ore replay waits for a successfully opened screen frame",
     CHECK(sink.ore.sampleWraps.empty());
     CHECK(sink.oreFrameEnds == 0);
     CHECK(sink.oreFrameAfters == 0);
+}
+
+TEST_CASE("a foreign image view resolves through the registry, not the canvas "
+          "table",
+          "[deferred][canvas-import]")
+{
+    DeferredSession session(rive::ore::ReplayCaps{});
+    auto image = make_rcp<FakeForeignImage>();
+
+    // What a script does with a decoded asset: context:image('Name'):view().
+    REQUIRE(session.oreContext().recordWrapForeignImageView(image.get(),
+                                                            8,
+                                                            8) != nullptr);
+    session.closeOpenRange();
+
+    auto frame = snapshotFrame(session);
+    ImportOrderSink sink;
+    DeferredReplayer replayer;
+    replayer.replayFrame(frame, sink);
+
+    // It reached the foreign resolver with the image it was recorded for.
+    REQUIRE(sink.foreignPreps.size() == 1);
+    CHECK(sink.foreignPreps[0] == image.get());
+    // And never the canvas sampling wrap, which is where it used to be hunted
+    // for: a decoded asset has no entry there, so the view came back null and
+    // every draw behind its bind group was dropped.
+    CHECK(sink.ore.sampleWraps.empty());
+}
+
+TEST_CASE("a canvas sampled in a frame it was never opened in still resolves",
+          "[deferred][canvas-import]")
+{
+    DeferredSession session(rive::ore::ReplayCaps{});
+    auto canvas = fakeCanvas();
+
+    // No beginCanvasContent this frame — the script samples a canvas whose
+    // content it wrote earlier. Minting the id without registering the canvas
+    // would leave it unresolvable, and the wrap is one shot: it never
+    // re-records, so the miss would be permanent rather than a dropped frame.
+    REQUIRE(session.oreContext().recordWrapCanvasImage(canvas.get(), 8, 8) !=
+            nullptr);
+    session.closeOpenRange();
+
+    auto frame = snapshotFrame(session);
+    ImportOrderSink sink;
+    DeferredReplayer replayer;
+    replayer.replayFrame(frame, sink);
+
+    REQUIRE(sink.ore.sampleWraps.size() == 1);
+    CHECK(sink.ore.sampleWraps[0] == canvas.get());
+    CHECK(sink.foreignPreps.empty());
 }

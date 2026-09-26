@@ -310,20 +310,45 @@ public:
     }
 
     // Same reserve as wrapCanvasTexture but tagged sampleView so the consumer
-    // does the backend sampling wrap at replay.
-    rcp<TextureView> recordWrapCanvasImage(RenderImage* image,
+    // does the backend sampling wrap at replay. Routed through
+    // canvasIdProvider, which both mints the id and registers the canvas for
+    // this frame — minting alone would leave a canvas sampled in a frame it
+    // was never opened in unresolvable, and the wrap never re-records.
+    rcp<TextureView> recordWrapCanvasImage(gpu::RenderCanvas* canvas,
                                            uint32_t width,
                                            uint32_t height) override
     {
-        assert(canvasRegistry != nullptr);
-        uint32_t canvasId =
-            canvasRegistry->imageDrawId(image) & rive::cmd::kCanvasHandleMask;
+        if (!canvasIdProvider)
+        {
+            // Sessionless GM fallback: wrap the real host canvas directly.
+            assert(m_real != nullptr);
+            return m_real->wrapCanvasSampleView(canvas);
+        }
+        uint32_t canvasId = canvasIdProvider(canvas);
         auto a = m_ids.alloc();
         recordWrapCanvasView(m_render,
                              a.id,
                              a.generation,
                              canvasId,
                              WrapCanvasViewMode::sampleView);
+        return makeReservedCanvasView(a.id, a.generation, width, height);
+    }
+
+    // A foreign image has no mint id, so the registry assigns one. The flag
+    // stays on: it is what tells the consumer to resolve in the registry
+    // instead of the 2D mint space, the same convention drawImage uses.
+    rcp<TextureView> recordWrapForeignImageView(RenderImage* image,
+                                                uint32_t width,
+                                                uint32_t height) override
+    {
+        assert(canvasRegistry != nullptr);
+        uint32_t imageId = canvasRegistry->imageDrawId(image);
+        auto a = m_ids.alloc();
+        recordWrapCanvasView(m_render,
+                             a.id,
+                             a.generation,
+                             imageId,
+                             WrapCanvasViewMode::imageView);
         return makeReservedCanvasView(a.id, a.generation, width, height);
     }
 

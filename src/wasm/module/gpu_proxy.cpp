@@ -740,10 +740,29 @@ public:
     }
 
     // Module images reach the host by handle; the host reruns the same
-    // deferred-vs-canvas dispatch the Luau binding does.
-    rcp<ore::TextureView> recordWrapCanvasImage(RenderImage* image,
+    // dispatch the Luau binding does, so a canvas and a foreign image both
+    // forward as their image handle and differ only on the host side.
+    rcp<ore::TextureView> recordWrapCanvasImage(gpu::RenderCanvas* canvas,
                                                 uint32_t width,
                                                 uint32_t height) override
+    {
+        return recordImageViewByHandle(canvas != nullptr ? canvas->renderImage()
+                                                         : nullptr,
+                                       width,
+                                       height);
+    }
+
+    rcp<ore::TextureView> recordWrapForeignImageView(RenderImage* image,
+                                                     uint32_t width,
+                                                     uint32_t height) override
+    {
+        return recordImageViewByHandle(image, width, height);
+    }
+
+private:
+    rcp<ore::TextureView> recordImageViewByHandle(RenderImage* image,
+                                                  uint32_t width,
+                                                  uint32_t height)
     {
         uint32_t handle =
             rive_gpu_image_view(wasmModuleImageHandle(image), width, height);
@@ -763,6 +782,7 @@ public:
                                               viewDesc);
     }
 
+public:
     void beginFrame(const FrameDescriptor&) override {}
     void endFrame() override {}
     void waitForGPU() override {}

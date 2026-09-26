@@ -203,9 +203,10 @@ public:
 
     // Recording form of Image:view on a canvas backed image. Only the
     // deferred context implements this, gated by isRecording.
-    virtual rcp<TextureView> recordWrapCanvasImage(RenderImage* /*image*/,
-                                                   uint32_t /*width*/,
-                                                   uint32_t /*height*/)
+    virtual rcp<TextureView> recordWrapCanvasImage(
+        gpu::RenderCanvas* /*canvas*/,
+        uint32_t /*width*/,
+        uint32_t /*height*/)
     {
         return nullptr;
     }
@@ -215,6 +216,17 @@ public:
     virtual rcp<TextureView> recordWrapImageView(uint32_t /*imageId*/,
                                                  uint32_t /*width*/,
                                                  uint32_t /*height*/)
+    {
+        return nullptr;
+    }
+
+    // Recording form of Image:view on a foreign image — one this recorder did
+    // not create, such as a file asset decoded through the immediate factory.
+    // It has no mint id, so the registry assigns one and the consumer resolves
+    // it there at replay. Only the deferred context implements this.
+    virtual rcp<TextureView> recordWrapForeignImageView(RenderImage* /*image*/,
+                                                        uint32_t /*width*/,
+                                                        uint32_t /*height*/)
     {
         return nullptr;
     }

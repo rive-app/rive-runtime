@@ -526,6 +526,15 @@ static int context_namecall(lua_State* L)
                 auto* img = lua_newrive<ScriptedImage>(L);
                 img->image = ref_rcp(
                     static_cast<RenderImage*>(handle->canvas->renderImage()));
+                // Provenance: canvas images carry no distinguishing rtti, so
+                // this is the only reliable signal that Image:view() has a
+                // canvas rather than a decoded asset. satisfyPending sets it
+                // on the late bound path; set it here too or the two paths
+                // disagree. The field only exists with ore, matching where
+                // the recording dispatch that reads it lives.
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+                img->sourceCanvas = handle->canvas;
+#endif
                 handle->m_imageRef = lua_ref(L, -1);
                 lua_pop(L, 1); // pop image, handle remains on top
                 return 1;
@@ -638,6 +647,7 @@ static int context_namecall(lua_State* L)
                 auto* img = lua_newrive<ScriptedImage>(L);
                 img->image = ref_rcp(
                     static_cast<RenderImage*>(handle->canvas->renderImage()));
+                img->sourceCanvas = handle->canvas;
                 handle->m_imageRef = lua_ref(L, -1);
                 lua_pop(L, 1); // pop image, handle remains on top
                 return 1;

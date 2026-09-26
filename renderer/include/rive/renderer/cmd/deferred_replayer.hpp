@@ -66,6 +66,14 @@ public:
         return nullptr;
     }
     virtual void endCanvasContent() {}
+
+    // A foreign image — one the recorder did not create, such as a file asset
+    // decoded through the immediate factory — may not be GPU resident yet.
+    // Backends whose images upload lazily return the uploaded image here;
+    // null means not ready this frame, which drops the dependent make rather
+    // than binding nothing. The default suits backends whose images are
+    // already RiveRenderImages by the time they reach replay.
+    virtual RenderImage* prepForeignImage(RenderImage* image) { return image; }
 };
 
 // Immutable snapshot of one recorded frame so the producer can record the next
@@ -287,6 +295,17 @@ private:
                                                                    : nullptr;
                 },
                 [&](uint32_t imageId) -> RenderImage* {
+                    // A flagged id is a foreign image the recorder was handed
+                    // rather than created, so it lives in the registry, not
+                    // the 2D mint space. Same convention drawImage uses.
+                    if (imageId & kCanvasHandleFlag)
+                    {
+                        RenderImage* foreign =
+                            canvasImage(imageId & kCanvasHandleMask);
+                        return foreign != nullptr
+                                   ? sink.prepForeignImage(foreign)
+                                   : nullptr;
+                    }
                     // Resident 2D image, created by the hoisted create pass
                     // or an earlier frame.
                     return m_2d.images.get(imageId);
