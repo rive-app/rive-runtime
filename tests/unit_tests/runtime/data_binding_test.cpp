@@ -1497,6 +1497,23 @@ TEST_CASE("View model runtime properties", "[data binding]")
     REQUIRE(numData != properties.end());
     REQUIRE(numData->type == rive::DataType::number);
     REQUIRE(numData->enumName.empty());
+    REQUIRE(numData->viewModelName.empty());
+
+    // View model properties expose the name of the view model they reference,
+    // both from an instance and from the view model runtime itself.
+    auto chiData = findProperty("chi");
+    REQUIRE(chiData != properties.end());
+    REQUIRE(chiData->type == rive::DataType::viewModel);
+    REQUIRE(chiData->viewModelName == "child");
+
+    auto viewModelProperties = vm->properties();
+    auto chiViewModelData = std::find_if(viewModelProperties.begin(),
+                                         viewModelProperties.end(),
+                                         [](const rive::PropertyData& data) {
+                                             return data.name == "chi";
+                                         });
+    REQUIRE(chiViewModelData != viewModelProperties.end());
+    REQUIRE(chiViewModelData->viewModelName == "child");
 }
 
 TEST_CASE("Trigger fires single change on listener", "[data binding]")
