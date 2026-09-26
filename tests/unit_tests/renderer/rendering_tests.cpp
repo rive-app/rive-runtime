@@ -18,6 +18,10 @@ struct FactoryWrapper
     const char* displayName;
     std::function<std::unique_ptr<TestingWindow>()> function;
 };
+// The two D3D12 contexts below OOM the entire process. Disable them until it's
+// fixed. (D3D11 and GL still cover these paths on Windows.)
+#define RIVE_TEST_D3D12_CONTEXTS 0
+
 static FactoryWrapper testingWindowFactories[] = {
     {"Vulkan",
      []() {
@@ -41,6 +45,7 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
 #endif
 #ifdef _WIN32
+#if RIVE_TEST_D3D12_CONTEXTS
     {"D3D12",
      []() {
          return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(
@@ -57,6 +62,7 @@ static FactoryWrapper testingWindowFactories[] = {
              TestingWindow::Visibility::headless,
              nullptr));
      }},
+#endif
     {"D3D11",
      []() {
          return std::unique_ptr<TestingWindow>(TestingWindow::MakeFiddleContext(

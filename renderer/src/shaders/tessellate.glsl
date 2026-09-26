@@ -559,7 +559,27 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     }
     else
     {
-        tessData.z = floatBitsToUint(mod(theta, _2PI));
+        // Otherwise, provide the vertex shader with "tangentAngle:miterRatio"
+        // in z, both 16-bit unorm.
+        // NOTE: multiply theta by 65536 (NOT 65535) because this is a cyclic
+        // function, and 0xffff is the final discrete step before wrapping back
+        // to 0. This also makes "& 0xffffu" the natural modular reduction of
+        // the angle without having to mod().
+        uint theta16 = uint(int(round(theta * (65536. / _2PI)))) & 0xffffu;
+        uint miterRatio16 = 0u;
+        if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+        {
+            // This spoke belongs to a miter or bevel join, which need the
+            // miterRatio.
+            float cosJoinAngle =
+                clamp(cosine_between_vectors(tangents[0], tangents[1]),
+                      -1.,
+                      1.);
+            // miterRatio is cos(joinAngle/2). Use a trig identity to find it.
+            // NOTE: multiply by 65535 here because miterRatio is 0..1.
+            miterRatio16 = uint(round(sqrt((1. + cosJoinAngle) * .5) * 65535.));
+        }
+        tessData.z = (theta16 << 16) | miterRatio16;
     }
     tessData.w = contourIDWithFlags;
     EMIT_FRAG_DATA(tessData);

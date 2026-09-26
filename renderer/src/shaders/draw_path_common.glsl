@@ -265,6 +265,23 @@ INLINE int2 tess_texel_coord(int texelIndex)
                 texelIndex >> TESS_TEXTURE_WIDTH_LOG2);
 }
 
+// The tessellator packs "tangentAngle:miterRatio" in tessVertex.z, both 16-bit
+// unorm.
+INLINE float unpackTessTheta(uint z)
+{
+    // This is roughly equivalent to "(z >> 16) * 2pi/65536", while avoiding an
+    // extra cycle for an integer shift. If the bottom half of 'z' is large, it
+    // may introduce a +1/65536 error, which we accept.
+    // NOTE: divide by 65536 (NOT 65535) because this is a cyclic function, and
+    // 0xffff is the final discrete step before wrapping back to 0.
+    return float(z) * (_2PI / (65536. * 65536.));
+}
+INLINE float unpackTessMiterJoinRatio(uint z)
+{
+    // Miter ratio is 0..1, so divide by 65535.
+    return float(z & 0xffffu) * (1. / 65535.);
+}
+
 INLINE float manhattan_pixel_width(float2x2 M, float2 normalized)
 {
 
@@ -407,8 +424,8 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                             tess_texel_coord(int(vertexIndex0)));
         }
 
-        featherJoinEdge0Theta = uintBitsToFloat(tessDataBeforeJoin.z);
-        float featherJoinEdge1Theta = uintBitsToFloat(tessDataAfterJoin.z);
+        featherJoinEdge0Theta = unpackTessTheta(tessDataBeforeJoin.z);
+        float featherJoinEdge1Theta = unpackTessTheta(tessDataAfterJoin.z);
         featherJoinCornerTheta = featherJoinEdge1Theta - featherJoinEdge0Theta;
         if (abs(featherJoinCornerTheta) > PI)
             featherJoinCornerTheta -= _2PI * sign(featherJoinCornerTheta);
@@ -469,7 +486,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     else
 #endif // @ENABLE_FEATHER
     {
-        theta = uintBitsToFloat(tessVertexData.z);
+        theta = unpackTessTheta(tessVertexData.z);
     }
     float2 norm = float2(sin(theta), -cos(theta));
     float2 origin = uintBitsToFloat(tessVertexData.xy);
@@ -526,30 +543,27 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
         if (joinType > ROUND_JOIN_CONTOUR_FLAG)
         {
-            // This vertex belongs to a miter or bevel join. Begin by finding
-            // the bisector, which is the same as the miter line. The first two
-            // vertices in the join peek forward to figure out the bisector, and
-            // the final two peek backward.
-            int peekDir = 2;
-            if ((contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) == 0u)
-                peekDir = -peekDir;
-            if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
-                peekDir = -peekDir;
-            int2 otherJoinTexelCoord =
-                tess_texel_coord(tessVertexIdx + peekDir);
-            uint4 otherJoinData =
-                TEXEL_FETCH(@tessVertexTexture, otherJoinTexelCoord);
-            float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
-            float joinAngle = abs(otherJoinTheta - theta);
-            if (joinAngle > PI)
-                joinAngle = _2PI - joinAngle;
             bool isTan0 =
                 (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
             bool isLeftJoin =
                 (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
-            float bisectTheta =
-                joinAngle * (isTan0 == isLeftJoin ? -.5 : .5) + theta;
-            float2 bisector = float2(sin(bisectTheta), -cos(bisectTheta));
+            // This vertex belongs to a miter or bevel join. Begin by finding
+            // the bisector, which is the same as norm rotated by joinAngle/2.
+            // The tessellator already packed cos(joinAngle/2) (the miterRatio),
+            // so we use that.
+            float miterRatio = unpackTessMiterJoinRatio(tessVertexData.z);
+            // Trig identity to find sin(joinAngle/2).
+            // (miterRatio == cos(joinAngle/2).)
+            float sinJoinAngleOver2 =
+                sqrt(max(1. - miterRatio * miterRatio, .0));
+            if (isTan0 == isLeftJoin)
+                sinJoinAngleOver2 = -sinJoinAngleOver2;
+            // Rotate norm by joinAngle/2 using a sin/cos rotation matrix.
+            float2x2 rot = float2x2(miterRatio,
+                                    sinJoinAngleOver2,
+                                    -sinJoinAngleOver2,
+                                    miterRatio);
+            float2 bisector = MUL(rot, norm);
             float bisectPixelWidth = manhattan_pixel_width(M, bisector);
 
             // Generalize everything to a "miter-clip", which is proposed in the
@@ -557,7 +571,6 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             // miter limit of 1/2 pixel. They technically bleed out 1/2 pixel
             // when drawn this way, but they seem to look fine and there is not
             // an obvious solution to antialias them without an ink bleed.
-            float miterRatio = cos(joinAngle * .5);
             float clipRadius;
             if ((joinType == MITER_CLIP_JOIN_CONTOUR_FLAG) ||
                 (joinType == MITER_REVERT_JOIN_CONTOUR_FLAG &&
