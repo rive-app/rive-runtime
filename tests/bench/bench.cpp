@@ -67,6 +67,7 @@ int main(int argc, const char** argv)
     clock::time_point start, end;
     do
     {
+        bench->beforeRun();
         start = clock::now();
         bench->run();
         end = clock::now();

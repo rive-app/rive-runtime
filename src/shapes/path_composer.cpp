@@ -115,6 +115,47 @@ bool PathComposer::localInputsChanged()
     return changed;
 }
 
+namespace
+{
+// Whether [a] and [b] differ by more than a few ULPs of the larger of them.
+bool movedPastULPs(float a, float b)
+{
+    constexpr float kULPs = 16.0f * std::numeric_limits<float>::epsilon();
+    return std::abs(a - b) > kULPs * std::max({1.0f, std::abs(a), std::abs(b)});
+}
+} // namespace
+
+// A participant's slot is measured from its intrinsic bounds
+// (Shape::computeIntrinsicBounds), so compare those rather than what they are
+// built from: a path can rebuild without moving them -- a deformed path
+// rebuilds on every world transform change -- and they come from each path's
+// own transform, so a layout folding the shape to zero can't hide a change.
+// Within a few ULPs, since a deformed path round-trips through world space,
+// and against the bounds the layout was last told about, so the tolerance
+// can't accumulate frame over frame.
+bool PathComposer::intrinsicBoundsChanged()
+{
+    // Measure fresh: a path collapsing moves them without dropping the
+    // participant's cached copy.
+    if (auto* participant = m_shape->layoutParticipant())
+    {
+        participant->invalidateHostBounds();
+    }
+    const AABB bounds = m_shape->computeIntrinsicBounds();
+    const AABB& last = m_reportedIntrinsicBounds;
+    const bool changed = !m_hasReportedIntrinsicBounds ||
+                         movedPastULPs(bounds.minX, last.minX) ||
+                         movedPastULPs(bounds.minY, last.minY) ||
+                         movedPastULPs(bounds.maxX, last.maxX) ||
+                         movedPastULPs(bounds.maxY, last.maxY);
+    if (changed)
+    {
+        m_reportedIntrinsicBounds = bounds;
+        m_hasReportedIntrinsicBounds = true;
+    }
+    return changed;
+}
+
 void PathComposer::update(ComponentDirt value)
 {
     m_shapeNotified = false;
@@ -196,7 +237,26 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
         }
-        m_shape->markBoundsDirty();
+        // A layout participant is measured from its intrinsic bounds, which a
+        // rigid move of the shape or an ancestor leaves alone. Telling the
+        // layout anyway is what kept a scene with a visible participant busy
+        // forever: the solve dirties the host's world transform, which
+        // arrives back here as a move.
+        bool measuredGeometryChanged = true;
+#ifdef WITH_RIVE_LAYOUT
+        if (m_shape->hasLayoutParticipant())
+        {
+            measuredGeometryChanged = intrinsicBoundsChanged();
+        }
+#endif
+        if (measuredGeometryChanged)
+        {
+            m_shape->markBoundsDirty();
+        }
+        else
+        {
+            m_shape->markWorldBoundsDirty();
+        }
     }
 }
 

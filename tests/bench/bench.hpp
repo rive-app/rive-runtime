@@ -16,6 +16,11 @@ public:
     // Called once before run().
     virtual void setup() {}
 
+    // Called before each timed run(), outside the timing, so a benchmark whose
+    // run() moves its own state along can put it back and every sample
+    // measures the same work.
+    virtual void beforeRun() {}
+
     // Runs the benchmark and returns any int, ideally a value that discourages
     // the compiler from optimizing the benchmark away.
     virtual int run() const = 0;

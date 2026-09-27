@@ -118,8 +118,9 @@ public:
 
 private:
     /// Install (or clear) the modulating image contributed by the optional
-    /// PaintImage child onto m_RenderPaint, fit to [bounds].
-    void applyModulatedImage(const AABB& bounds);
+    /// PaintImage child onto m_RenderPaint, fit to [path]'s bounds. The bounds
+    /// walk every point, so they are only measured when that child exists.
+    void applyModulatedImage(const ShapePaintPath* path);
 
     Feather* m_feather = nullptr;
     /// Whether the last draw installed a modulating image on m_RenderPaint. The

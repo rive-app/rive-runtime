@@ -264,7 +264,7 @@ void Path::buildPath(RawPath& rawPath) const
     else
     {
         startIsCubic = prevIsCubic = false;
-        auto point = *firstPoint->as<StraightVertex>();
+        auto& point = *firstPoint->as<StraightVertex>();
         auto radius = point.radius();
         if (radius != 0.0f)
         {
@@ -335,7 +335,7 @@ void Path::buildPath(RawPath& rawPath) const
         }
         else
         {
-            auto point = *vertex->as<StraightVertex>();
+            auto& point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
             auto radius = point.radius();
             if (radius != 0.0f)
@@ -556,7 +556,7 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
         {
             case StraightVertex::typeKey:
             {
-                auto point = *vertex->as<StraightVertex>();
+                auto& point = *vertex->as<StraightVertex>();
                 if (point.radius() > 0.0f &&
                     (isPathClosed() || (i != 0 && i != length - 1)))
                 {

@@ -106,10 +106,8 @@ public:
     }
     void markBoundsDirty()
     {
-        drawableFlags(drawableFlags() & ~static_cast<unsigned short>(
-                                            DrawableFlag::WorldBoundsClean));
+        markWorldBoundsDirty();
         m_LocalBoundsClean = false;
-        m_WorldLength = -1;
 #ifdef WITH_RIVE_LAYOUT
         // A participant's intrinsic bounds drive its layout slot, so
         // re-measure/re-solve when they change.
@@ -118,6 +116,17 @@ public:
             participant->markLayoutNodeDirty();
         }
 #endif
+    }
+    // For a rigid move of the shape or an ancestor: the world bounds moved,
+    // but what is measured in shape space -- the local bounds and a
+    // participant's slot -- did not. Re-solving the layout here is what kept a
+    // scene with a visible participant busy forever: the solve dirties the
+    // host's world transform, which arrived back here as a move.
+    void markWorldBoundsDirty()
+    {
+        drawableFlags(drawableFlags() & ~static_cast<unsigned short>(
+                                            DrawableFlag::WorldBoundsClean));
+        m_WorldLength = -1;
     }
 
     // Combined path bounds in world space. xform, when given, is applied
@@ -140,6 +149,16 @@ public:
     // Participation via an optional LayoutParticipant child.
     LayoutParticipant* layoutParticipant() const;
     bool isParticipatingInLayout() const;
+    // The same answer without walking the children, for per-update callers.
+    bool hasLayoutParticipant() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        // Children come and go under the editor, so the flag can go stale.
+        return layoutParticipant() != nullptr;
+#else
+        return m_hasLayoutParticipant;
+#endif
+    }
     void composeWorldTransform() override;
 
 protected:

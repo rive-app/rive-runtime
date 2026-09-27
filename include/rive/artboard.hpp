@@ -167,6 +167,9 @@ private:
     rcp<FocusNode> m_externalParentFocusNode;
 #endif
     static uint64_t sm_frameId;
+#ifdef TESTING
+    static uint64_t sm_layoutPassCount;
+#endif
     // Non-null only on top level instances vended by File for a file whose
     // manifest carries a watermark. Released as soon as the watermark finishes.
     std::unique_ptr<Watermark> m_watermark;
@@ -246,6 +249,9 @@ private:
 public:
     static uint64_t frameId() { return sm_frameId; }
 #ifdef TESTING
+    // Layout passes (calculateLayout calls) across every artboard, so a test
+    // can tell a settled artboard from one that re-solves every frame.
+    static uint64_t layoutPassCount() { return sm_layoutPassCount; }
     static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
     static void incFrameId() { sm_frameId++; }

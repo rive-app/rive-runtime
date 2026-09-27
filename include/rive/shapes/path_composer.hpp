@@ -3,6 +3,7 @@
 #include "rive/component.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/math/aabb.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/path_flags.hpp"
 #include <cmath>
@@ -66,9 +67,15 @@ public:
     };
     bool localInputsChanged();
 
+    // Whether a layout participant's intrinsic bounds -- what its slot is
+    // measured from -- moved since the layout was last told about them.
+    bool intrinsicBoundsChanged();
+
 private:
     std::vector<LocalPathInput> m_localInputs;
     std::vector<LocalPathInput> m_scratchInputs;
+    AABB m_reportedIntrinsicBounds;
+    bool m_hasReportedIntrinsicBounds = false;
     PathFlags m_builtLocalFlags = PathFlags::none;
     bool m_hasLocalInputs = false;
     Shape* m_shape;

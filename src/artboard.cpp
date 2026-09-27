@@ -90,6 +90,9 @@
 using namespace rive;
 
 uint64_t Artboard::sm_frameId = 0;
+#ifdef TESTING
+uint64_t Artboard::sm_layoutPassCount = 0;
+#endif
 
 Artboard::Artboard()
 {
@@ -1746,6 +1749,9 @@ void Artboard::calculateLayout()
     //   - Nested layout-mode artboards (NestedArtboardLayout): same
     //     as runtime, their layout node is owned by the Dart parent
     //     which sets m_updatesOwnLayout = false
+#ifdef TESTING
+    sm_layoutPassCount++;
+#endif
     calculateLayoutInternal(NAN, NAN);
 }
 

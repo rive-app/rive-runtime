@@ -226,7 +226,7 @@ void ShapePaint::draw(Renderer* renderer,
         // paint. The child is discovered by type rather than cached.
         if (overridePaint == nullptr)
         {
-            applyModulatedImage(shapePaintPath->rawPath()->bounds());
+            applyModulatedImage(shapePaintPath);
         }
 
         renderer->drawPath(renderPath,
@@ -240,10 +240,11 @@ void ShapePaint::draw(Renderer* renderer,
     }
 }
 
-void ShapePaint::applyModulatedImage(const AABB& bounds)
+void ShapePaint::applyModulatedImage(const ShapePaintPath* path)
 {
     PaintImage* image = firstChild<PaintImage>();
-    if (image != nullptr && image->applyTo(renderPaint(), bounds))
+    if (image != nullptr &&
+        image->applyTo(renderPaint(), path->rawPath()->bounds()))
     {
         m_hasModulatedImage = true;
         return;
