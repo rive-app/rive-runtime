@@ -1,0 +1,218 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/listener_input_values.riv. Unlike most fixtures
+      here this one is not an editor export: rebuild the .riv from this file
+      with the CLI, from a directory holding this scene.rml and a rive.yaml
+      naming it, then copy build/listener_input_values.riv into assets/.
+
+          rive . --once
+
+      What it is for: ListenerViewModelChange actions whose inputValue writes a
+      value of the input that fired the listener (pointer position, gamepad
+      buttons and axes, keys, text, focus) instead of a constant. One focused,
+      full-artboard shape carries every listener. The pointer listener's
+      keyPressed action can never be fed by a pointer, so it must be skipped:
+      its constant `true` must never reach `skipped`.
+
+      Cross-type values: the bindable property takes the input value's type
+      and its data bind's converter maps it to the view model property's
+      (south pressed -> number through To Number, pointer x -> string through
+      To String). Without a converter nothing is written (`southRaw` keeps 5).
+
+      The CLI's data-dump, pointer, gamepad and key options drive the same
+      scene headless, so its values can be checked without the unit tests.
+    -->
+    <Artboard defaultStateMachineId="0:7" viewModelId="0:40" viewModelInstanceId="0:70"
+              width="400" height="400" styleId="0:5" name="Inputs" id="0:2">
+
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+
+        <!-- Hit surface and focus owner for every listener. -->
+        <Shape x="200" y="200" name="Pad" id="0:6">
+            <FocusData id="0:3"/>
+            <Rectangle width="400" height="400" name="Path" id="0:9"/>
+            <Fill name="Fill">
+                <SolidColor colorValue="FF14171C" name="Color"/>
+            </Fill>
+        </Shape>
+
+        <LinearAnimation duration="1" name="Idle" id="0:14"/>
+
+        <StateMachine name="State Machine 1" id="0:7">
+
+            <!-- pointer down: position into px/py. The keyPressed action can't
+                 be fed by a pointer, so it must be skipped (its constant true
+                 would otherwise land in `skipped`). -->
+            <StateMachineListener targetId="0:6" name="Pointer" id="0:100">
+                <ListenerInputType listenerTypeValue="down"/>
+                <ListenerViewModelChange inputValue="pointerX">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:41" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="pointerY">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:42" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="keyPressed">
+                    <BindablePropertyBoolean propertyValue="true">
+                        <DataBindContext sourcePathIds="0:40-0:51" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="pointerX">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:55" propertyKey="636" direction="true" converterId="0:62"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- left stick: both axes, read from the full snapshot whichever
+                 one changed, plus x through a range mapper. -->
+            <StateMachineListener targetId="0:6" name="Stick" id="0:101">
+                <ListenerInputTypeGamepad listenerTypeValue="gamepad">
+                    <GamepadInput kind="axis" inputIndex="0"/>
+                    <GamepadInput kind="axis" inputIndex="1"/>
+                </ListenerInputTypeGamepad>
+                <ListenerViewModelChange inputValue="gamepadAxis" inputValueIndex="0">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:44" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="gamepadAxis" inputValueIndex="1">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:45" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="gamepadAxis" inputValueIndex="0">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:52" propertyKey="636" direction="true" converterId="0:60"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- south button, on press and release. -->
+            <StateMachineListener targetId="0:6" name="South" id="0:102">
+                <ListenerInputTypeGamepad listenerTypeValue="gamepad">
+                    <GamepadInput kind="button" inputIndex="0" buttonPhase="3"/>
+                </ListenerInputTypeGamepad>
+                <ListenerViewModelChange inputValue="gamepadButtonPressed">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:40-0:46" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="gamepadButtonValue">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:47" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="gamepadButtonPressed">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:40-0:54" propertyKey="634" direction="true" converterId="0:61"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange inputValue="gamepadButtonPressed">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:40-0:56" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- any gamepad button or axis: whatever changed. -->
+            <StateMachineListener targetId="0:6" name="Any gamepad" id="0:103">
+                <ListenerInputTypeGamepad listenerTypeValue="gamepad"/>
+                <ListenerViewModelChange inputValue="gamepadChangedValue">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="0:40-0:48" propertyKey="636" direction="true"/>
+                    </BindablePropertyNumber>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- key a, down and up (1 | 4). -->
+            <StateMachineListener targetId="0:6" name="Key" id="0:104">
+                <ListenerInputTypeKeyboard listenerTypeValue="keyboard">
+                    <KeyboardInput keyType="a" keyPhase="5"/>
+                </ListenerInputTypeKeyboard>
+                <ListenerViewModelChange inputValue="keyPressed">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:40-0:49" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- committed text. -->
+            <StateMachineListener targetId="0:6" name="Text" id="0:105">
+                <ListenerInputTypeText listenerTypeValue="textInput"/>
+                <ListenerViewModelChange inputValue="text">
+                    <BindablePropertyString>
+                        <DataBindContext sourcePathIds="0:40-0:50" propertyKey="635" direction="true"/>
+                    </BindablePropertyString>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- focus and blur. -->
+            <StateMachineListener targetId="0:6" name="Focus" id="0:106">
+                <ListenerInputType listenerTypeValue="focus"/>
+                <ListenerInputType listenerTypeValue="blur"/>
+                <ListenerViewModelChange inputValue="focused">
+                    <BindablePropertyBoolean>
+                        <DataBindContext sourcePathIds="0:40-0:53" propertyKey="634" direction="true"/>
+                    </BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListener>
+
+            <!-- Focus the pad on entry: keyboard, text and gamepad events
+                 only reach listeners on the focused node. -->
+            <StateMachineLayer name="Layer" id="0:8">
+                <AnyState x="0" y="-100" id="0:10"/>
+                <ExitState x="200" y="-100" id="0:11"/>
+                <EntryState x="0" y="0" id="0:12">
+                    <StateTransition stateToId="0:13"/>
+                </EntryState>
+                <AnimationState x="160" y="0" animationId="0:14" stateName="Focused" id="0:13">
+                    <FocusActionTarget targetId="0:6"/>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <DataConverterRangeMapper minInput="-1" maxInput="1" minOutput="0" maxOutput="100" name="Stick to percent" id="0:60"/>
+    <DataConverterToNumber name="To number" id="0:61"/>
+    <DataConverterToString round="true" decimals="0" name="Whole number" id="0:62"/>
+
+    <ViewModel defaultInstanceId="0:70" name="Inputs" id="0:40">
+        <ViewModelPropertyNumber name="px" id="0:41"/>
+        <ViewModelPropertyNumber name="py" id="0:42"/>
+        <ViewModelPropertyNumber name="lx" id="0:44"/>
+        <ViewModelPropertyNumber name="ly" id="0:45"/>
+        <ViewModelPropertyBoolean name="southPressed" id="0:46"/>
+        <ViewModelPropertyNumber name="southValue" id="0:47"/>
+        <ViewModelPropertyNumber name="changed" id="0:48"/>
+        <ViewModelPropertyBoolean name="keyDown" id="0:49"/>
+        <ViewModelPropertyString name="typed" id="0:50"/>
+        <ViewModelPropertyBoolean name="skipped" id="0:51"/>
+        <ViewModelPropertyNumber name="mapped" id="0:52"/>
+        <ViewModelPropertyBoolean name="focused" id="0:53"/>
+        <ViewModelPropertyNumber name="southNumber" id="0:54"/>
+        <ViewModelPropertyString name="pxText" id="0:55"/>
+        <ViewModelPropertyNumber name="southRaw" id="0:56"/>
+
+        <ViewModelInstance exports="true" name="Default" id="0:70">
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:41"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:42"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:44"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:45"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:46"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:47"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:48"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:49"/>
+            <ViewModelInstanceString propertyValue="" viewModelPropertyId="0:50"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:51"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:52"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="0:53"/>
+            <ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="0:54"/>
+            <ViewModelInstanceString propertyValue="" viewModelPropertyId="0:55"/>
+            <ViewModelInstanceNumber propertyValue="5" viewModelPropertyId="0:56"/>
+        </ViewModelInstance>
+    </ViewModel>
+</Rive>

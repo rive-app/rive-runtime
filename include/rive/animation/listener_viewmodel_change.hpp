@@ -14,7 +14,13 @@ public:
     StatusCode import(ImportStack& importStack) override;
 
 private:
-    BindableProperty* m_bindableProperty;
+    // Writes the value selected by inputValue() from [invocation] into
+    // [bindableInstance]. Returns false when the invocation does not carry
+    // that value or the bindable's type does not match it.
+    bool applyInputValue(BindableProperty* bindableInstance,
+                         const ListenerInvocation& invocation) const;
+
+    BindableProperty* m_bindableProperty = nullptr;
 };
 } // namespace rive
 

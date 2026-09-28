@@ -1659,6 +1659,13 @@ public:
             case LinearAnimationBase::workEndPropertyKey:
                 object->as<LinearAnimationBase>()->workEnd(value);
                 break;
+            case ListenerViewModelChangeBase::inputValuePropertyKey:
+                object->as<ListenerViewModelChangeBase>()->inputValue(value);
+                break;
+            case ListenerViewModelChangeBase::inputValueIndexPropertyKey:
+                object->as<ListenerViewModelChangeBase>()->inputValueIndex(
+                    value);
+                break;
             case TransitionPropertyComponentComparatorBase::
                 propertyKeyPropertyKey:
                 object->as<TransitionPropertyComponentComparatorBase>()
@@ -3788,6 +3795,11 @@ public:
                 return object->as<LinearAnimationBase>()->workStart();
             case LinearAnimationBase::workEndPropertyKey:
                 return object->as<LinearAnimationBase>()->workEnd();
+            case ListenerViewModelChangeBase::inputValuePropertyKey:
+                return object->as<ListenerViewModelChangeBase>()->inputValue();
+            case ListenerViewModelChangeBase::inputValueIndexPropertyKey:
+                return object->as<ListenerViewModelChangeBase>()
+                    ->inputValueIndex();
             case TransitionPropertyComponentComparatorBase::
                 propertyKeyPropertyKey:
                 return object->as<TransitionPropertyComponentComparatorBase>()
@@ -5124,6 +5136,8 @@ public:
             case LinearAnimationBase::loopValuePropertyKey:
             case LinearAnimationBase::workStartPropertyKey:
             case LinearAnimationBase::workEndPropertyKey:
+            case ListenerViewModelChangeBase::inputValuePropertyKey:
+            case ListenerViewModelChangeBase::inputValueIndexPropertyKey:
             case TransitionPropertyComponentComparatorBase::
                 propertyKeyPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
@@ -6038,6 +6052,10 @@ public:
                 return object->is<LinearAnimationBase>();
             case LinearAnimationBase::workEndPropertyKey:
                 return object->is<LinearAnimationBase>();
+            case ListenerViewModelChangeBase::inputValuePropertyKey:
+                return object->is<ListenerViewModelChangeBase>();
+            case ListenerViewModelChangeBase::inputValueIndexPropertyKey:
+                return object->is<ListenerViewModelChangeBase>();
             case TransitionPropertyComponentComparatorBase::
                 propertyKeyPropertyKey:
                 return object->is<TransitionPropertyComponentComparatorBase>();
