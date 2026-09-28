@@ -3,6 +3,7 @@
  */
 
 #include <rive/math/contour_measure.hpp>
+#include <rive/math/path_measure.hpp>
 #include <rive/math/math_types.hpp>
 #include <rive/math/raw_path.hpp>
 #include <rive/math/vec2d.hpp>
@@ -12,6 +13,8 @@
 
 #include <catch.hpp>
 #include <cstdio>
+#include <cstring>
+#include <new>
 
 using namespace rive;
 
@@ -235,4 +238,57 @@ TEST_CASE("trim keeps coincident control points", "[contourmeasure]")
         REQUIRE(tail.points().size() == 4);
         CHECK(tp[2] == tp[3]);
     }
+}
+
+TEST_CASE("PosTanDistance default-constructs to a zero position and tangent",
+          "[pathmeasure]")
+{
+    // Construct over NaN-filled storage so an uninitialised member shows up
+    // as NaN rather than whatever the stack happened to hold.
+    alignas(ContourMeasure::PosTanDistance) unsigned char
+        storage[sizeof(ContourMeasure::PosTanDistance)];
+    std::memset(storage, 0xFF, sizeof(storage));
+    auto* result = new (storage) ContourMeasure::PosTanDistance();
+    CHECK(result->pos == Vec2D(0, 0));
+    CHECK(result->tan == Vec2D(0, 0));
+    CHECK(result->distance == 0);
+}
+
+TEST_CASE("PathMeasure of an empty path samples a zero position and tangent",
+          "[pathmeasure]")
+{
+    RawPath empty;
+    PathMeasure measure(&empty);
+    CHECK(measure.length() == 0);
+    auto atDistance = measure.atDistance(0);
+    CHECK(atDistance.pos == Vec2D(0, 0));
+    CHECK(atDistance.tan == Vec2D(0, 0));
+    auto atPercentage = measure.atPercentage(0.5f);
+    CHECK(atPercentage.pos == Vec2D(0, 0));
+    CHECK(atPercentage.tan == Vec2D(0, 0));
+
+    // A path collapsed to a single point has no contours to measure either.
+    RawPath point;
+    point.moveTo(160, 830);
+    point.lineTo(160, 830);
+    PathMeasure pointMeasure(&point);
+    auto atPoint = pointMeasure.atPercentage(1.0f);
+    CHECK(atPoint.pos == Vec2D(0, 0));
+    CHECK(atPoint.tan == Vec2D(0, 0));
+}
+
+TEST_CASE("PathMeasure clamps a distance past the end to the last contour",
+          "[pathmeasure]")
+{
+    RawPath path;
+    path.moveTo(0, 0);
+    path.lineTo(10, 0);
+    path.moveTo(0, 5);
+    path.lineTo(0, 25);
+    PathMeasure measure(&path);
+    REQUIRE(measure.length() == 30);
+    auto result = measure.atDistance(100);
+    CHECK(result.pos == Vec2D(0, 25));
+    CHECK(result.tan == Vec2D(0, 1));
+    CHECK(result.distance == 100);
 }
