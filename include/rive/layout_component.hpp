@@ -425,6 +425,8 @@ public:
     {
         return AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height());
     }
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     virtual AABB worldBounds() const
     {
         auto transform = worldTransform();

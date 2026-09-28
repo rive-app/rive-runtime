@@ -770,6 +770,51 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
     restore();
 }
 
+void RiveRenderer::applyLayerMask(const RenderImage* renderImage,
+                                  ImageSampler imageSampler,
+                                  LayerMaskMode mode)
+{
+    RIVE_PROF_SCOPE_L(2)
+    if (!m_context->frameSupportsLayerMask())
+    {
+        // Leaves the layer unmasked. The alternative on a mode whose blend step
+        // has not been taught the op is worse than unmasked: find_paint_color
+        // would hand back the coverage texel and src-over would paint it over
+        // the content.
+        return;
+    }
+    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+    rcp<gpu::Texture> maskTexture = image->refTexture();
+    if (maskTexture == nullptr)
+    {
+        return;
+    }
+    if (m_renderStateStack.back().overallClipPixelBounds.empty())
+    {
+        return;
+    }
+
+    // Same shape as the image-paint branch of drawImage: a unit rect scaled to
+    // the mask's pixel extent. The caller has already put the renderer in the
+    // canvas's own space, so this covers exactly the target.
+    if (m_unitRectPath == nullptr)
+    {
+        m_unitRectPath = make_rcp<RiveRenderPath>();
+        m_unitRectPath->line({1, 0});
+        m_unitRectPath->line({1, 1});
+        m_unitRectPath->line({0, 1});
+    }
+
+    save();
+    scale(static_cast<float>(image->width()),
+          static_cast<float>(image->height()));
+    RiveRenderPaint paint;
+    paint.layerMask(std::move(maskTexture), mode);
+    paint.imageSampler(imageSampler);
+    drawPath(m_unitRectPath.get(), &paint);
+    restore();
+}
+
 void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  ImageSampler imageSampler,
                                  rcp<RenderBuffer> vertices_f32,

@@ -1966,3 +1966,14 @@ ShapePaintPath* LayoutComponent::localClockwisePath()
 }
 
 Component* LayoutComponent::pathBuilder() { return this; }
+
+BoundsFidelity LayoutComponent::paintedWorldBounds(AABB* out)
+{
+    // localBounds() through worldTransform(), deliberately NOT worldBounds():
+    // that one reads only transform[4] and [5], so it silently drops rotation
+    // and scale and would under-report a rotated layout.
+    //
+    // Corner radius and clip() only ever shrink what is painted, so ignoring
+    // both keeps this an over-estimate.
+    return paintedBoundsFromLocal(localBounds(), worldTransform(), this, out);
+}

@@ -236,6 +236,13 @@ public:
     void buildRenderStyles();
     const TextStylePaint* styleFromShaperId(uint16_t id) const;
     bool modifierRangesNeedShape() const;
+    // localBounds() is the LAYOUT box, not the ink. Glyphs escape it through
+    // negative side bearings, italic overhang, TextOverflow::visible,
+    // TextModifierGroup transforms, and per-TextStyle strokes and feathers. It
+    // is the right neighbourhood but not a bound, so it is approximate -- a
+    // caller sizing a surface must pad it.
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     AABB localBounds() const override;
     AABB constraintBounds() const override { return localBounds(); }
     void originXChanged() override;

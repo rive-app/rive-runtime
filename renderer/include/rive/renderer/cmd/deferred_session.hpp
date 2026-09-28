@@ -123,6 +123,20 @@ public:
         m_renderContext = renderContext;
     }
     Factory* renderContext() override { return m_renderContext; }
+
+    // Forwarded to the bound context, because that is the device this stream
+    // will replay against and only it knows whether the mask op exists there.
+    // Unbound (web, mid-import) keeps the optimistic default.
+    //
+    // Through Factory's virtual, deliberately, and not the static_cast to
+    // gpu::RenderContext that makeContentCanvas gets away with: that one only
+    // null-tests the result, while this dereferences it, and a Canvas-2D build
+    // binds something here that is not a render context at all.
+    bool supportsLayerMask() const override
+    {
+        return m_renderContext == nullptr ||
+               m_renderContext->supportsLayerMask();
+    }
     cmd::DeferredCanvasHost* deferredCanvasHost() override { return this; }
 
     // Recording: the stream only names the canvas, and whoever replays
@@ -291,12 +305,28 @@ public:
                                                           this,
                                                           id);
         }
+        // Stacked, not a single slot: a canvas bracket can open inside another
+        // one -- a layer mask nested in a masked subtree, or any mask inside a
+        // bitmap-cached artboard -- and the inner end has to resume the outer
+        // canvas rather than jumping back to the screen, which would credit the
+        // rest of the outer content to the wrong target.
+        m_canvasStack.push_back(id);
         // Open the range now so a clear-only frame still clears at replay.
         routeTo(id);
         return recorder.get();
     }
     void endCanvasContent(gpu::RenderCanvas*) override
     {
+        if (!m_canvasStack.empty())
+        {
+            m_canvasStack.pop_back();
+        }
+        if (!m_canvasStack.empty())
+        {
+            // Resume the canvas this one interrupted.
+            routeTo(m_canvasStack.back());
+            return;
+        }
         // Back to the screen whose recording the canvas interrupted, so the
         // bytes that follow are not credited to a target that drew nothing.
         if (m_hasOpenScreen)
@@ -350,6 +380,9 @@ public:
         m_activeBegin = 0;
         m_openScreen = 0;
         m_hasOpenScreen = false;
+        // A host that stopped mid frame must not leave brackets pinned open
+        // into the next one.
+        m_canvasStack.clear();
         m_hasOreMarker = false;
         m_segments.clear();
         // Screen recorders are kept across frames (FFI hosts hold a raw
@@ -529,6 +562,8 @@ private:
     // until a screen actually records.
     uint64_t m_openScreen = 0;
     bool m_hasOpenScreen = false;
+    // Canvas content brackets currently open, innermost last.
+    std::vector<uint64_t> m_canvasStack;
     // Render targets attached to this session, and the ones still recording
     // this frame.
     uint64_t m_nextScreenTarget = 0;

@@ -1808,3 +1808,16 @@ void Text::buildTextStylePaints()
     }
 }
 #endif
+
+BoundsFidelity Text::paintedWorldBounds(AABB* out)
+{
+    const BoundsFidelity fidelity =
+        paintedBoundsFromLocal(localBounds(), worldTransform(), nullptr, out);
+    if (fidelity == BoundsFidelity::none)
+    {
+        return fidelity;
+    }
+    // Never better than approximate: see the note on the declaration. The ink
+    // can reach past the layout box, so an exact claim here would crop glyphs.
+    return BoundsFidelity::approximate;
+}

@@ -18,6 +18,7 @@
 #include "rive/renderer/triangulation_controller.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <unordered_map>
 
@@ -183,6 +184,27 @@ public:
     // use pushImageRect(); it should draw images as rectangular paths with an
     // image paint.
     bool frameSupportsImagePaintForPaths() const;
+
+    // Whether this frame can apply a layer mask in-shader. The op replaces
+    // src-over with "multiply the destination by a factor" at each interlock
+    // mode's blend step, and only rasterOrdering's is taught it so far -- there
+    // the destination is already read for every draw, so it costs nothing.
+    // A frame that says no composites the layer unmasked, which is visible but
+    // not wrong; drawing the coverage texture over the content would be.
+    bool frameSupportsLayerMask() const;
+
+    // The device's answer, and the one a recording session asks of the context
+    // it will replay against -- it reads only state settled at construction, so
+    // it is safe from the producer thread while the render thread is in a
+    // frame. Strictly weaker than frameSupportsLayerMask(): that one knows the
+    // frame.
+    //
+    // A Factory override rather than a plain method: DeferredSession holds only
+    // a Factory*, and in a Canvas-2D build that is not a RenderContext at all,
+    // so it has to dispatch rather than cast. Out of line is fine for the same
+    // reason -- a build that never instantiates a RenderContext emits no vtable
+    // and needs no definition.
+    bool supportsLayerMask() const override;
 
     const gpu::InterlockMode frameInterlockMode() const
     {
@@ -431,7 +453,22 @@ private:
 
     // Per-frame state.
     FrameDescriptor m_frameDescriptor;
-    gpu::InterlockMode m_frameInterlockMode;
+    // Initialized rather than left indeterminate. Only ever touched on the
+    // thread that opened the frame; a recording thread reads the atomic below
+    // instead.
+    gpu::InterlockMode m_frameInterlockMode =
+        gpu::InterlockMode::rasterOrdering;
+
+    // Whether the frame most recently opened can apply the layer-mask op,
+    // republished as an atomic because supportsLayerMask() is asked by a
+    // recording session on the producer thread while the render thread may be
+    // inside beginFrame. Reading m_frameInterlockMode from there was a data
+    // race; this is the same value, read safely.
+    //
+    // True until the first beginFrame so a recording made before any frame
+    // exists is not vetoed by a mode that has not been chosen yet -- the device
+    // check in supportsLayerMask() still applies.
+    std::atomic<bool> m_frameCanApplyLayerMask{true};
     gpu::ShaderFeatures m_frameShaderFeaturesMask;
     RIVE_DEBUG_CODE(bool m_didBeginFrame = false;)
 

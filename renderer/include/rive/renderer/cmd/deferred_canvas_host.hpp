@@ -37,6 +37,28 @@ public:
     virtual rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width,
                                                      uint32_t height) = 0;
 
+    // Whether a layer mask can actually be applied to a canvas this host hands
+    // out. Asked here rather than of the Factory or the Renderer because this
+    // is the one party that is always resolved: the renderer that records is
+    // not the renderer that draws, and a factory may delegate its host away to
+    // a session bound to a different device.
+    //
+    // A "no" is load bearing. Renderer::applyLayerMask no-ops rather than
+    // drawing something wrong, but by then the mask has already sized its
+    // rasters to the content-and-coverage intersection, so the layer would come
+    // back unmasked *and* cropped to a box that only made sense if the mask had
+    // been applied. The caller has to know before it rasterizes, so it can draw
+    // the range inline instead -- both truly unmasked and free of two canvases
+    // and a composite.
+    //
+    // Defaults to NO, and deliberately: Renderer::applyLayerMask is itself a
+    // no-op by default, so a host that has not thought about the question is
+    // exactly the host whose renderer will silently drop the op -- and a
+    // yes-by-default would have it crop the layer to the mask box on the way.
+    // A capability is opted into by the hosts that can honour it; there are
+    // three in tree, and each says so.
+    virtual bool supportsLayerMask() const { return false; }
+
     // The image a composite should sample to get this canvas's pixels.
     // Usually the canvas's own render image, but not always: GL renders into a
     // canvas bottom-up and keeps a Y-flipped companion for anything that wants

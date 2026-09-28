@@ -97,8 +97,13 @@ inline CanvasSchedule scheduleCanvases(
                 break; // corrupt range; the decoder will warn at replay
             }
             uint32_t payload = static_cast<uint32_t>(payloadSizeOf(c));
+            // applyLayerMask belongs here as much as the draws do: layer
+            // masking samples a coverage canvas from inside the content canvas
+            // it masks, so leaving it out means that edge never registers and
+            // the schedule only works by accident of record order.
             if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh ||
-                c == RenderCmd::drawImageMeshInstanced)
+                c == RenderCmd::drawImageMeshInstanced ||
+                c == RenderCmd::applyLayerMask)
             {
                 RenderHandle h = drawnImageHandle(commands.data() + pos + 1);
                 if (h != kInvalidRenderHandle && (h & kCanvasHandleFlag))

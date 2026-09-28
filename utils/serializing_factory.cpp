@@ -60,6 +60,8 @@ static const char* opToName(SerializeOp op)
             return "drawPath";
         case SerializeOp::clipPath:
             return "clipPath";
+        case SerializeOp::applyLayerMask:
+            return "applyLayerMask";
         case SerializeOp::drawImage:
             return "drawImage";
         case SerializeOp::drawImageMesh:
@@ -691,6 +693,15 @@ public:
         }
     }
 
+    void applyLayerMask(const RenderImage* mask,
+                        ImageSampler,
+                        LayerMaskMode mode) override
+    {
+        m_writer->writeVarUint((uint32_t)SerializeOp::applyLayerMask);
+        m_writer->writeVarUint(m_factory->imageId(mask));
+        m_writer->writeVarUint((uint32_t)mode);
+    }
+
     virtual void drawImageMesh(const RenderImage* image,
                                ImageSampler samplerOptions,
                                rcp<RenderBuffer> positions,
@@ -1282,6 +1293,16 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 break;
             case SerializeOp::clipPath:
                 if (!varUintMatches(opA, "clippath_id", readerA, readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::applyLayerMask:
+                if (!varUintMatches(opA, "layermask_id", readerA, readerB))
+                {
+                    return false;
+                }
+                if (!varUintMatches(opA, "layermask_mode", readerA, readerB))
                 {
                     return false;
                 }

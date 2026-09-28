@@ -71,6 +71,20 @@ void RiveRenderPaint::image(rcp<gpu::Texture> imageTexture, float opacity)
     m_data.m_imageTexture = std::move(imageTexture);
 }
 
+void RiveRenderPaint::layerMask(rcp<gpu::Texture> maskTexture,
+                                LayerMaskMode mode)
+{
+    // Reuses the single image-texture slot: the mask is the only thing sampled,
+    // and the content it multiplies is the render target, not a second input.
+    // That is what keeps this off the per-backend texture-binding path.
+    m_data.m_paintType = gpu::PaintType::solidColor;
+    m_data.m_simpleValue.color = 0xFFFFFFFF;
+    m_data.m_gradient.reset();
+    m_data.m_imageTexture = std::move(maskTexture);
+    m_data.m_isLayerMask = true;
+    m_data.m_layerMaskMode = mode;
+}
+
 void RiveRenderPaint::clipUpdate(uint32_t outerClipID)
 {
     m_data.m_paintType = gpu::PaintType::clipUpdate;
@@ -81,6 +95,12 @@ void RiveRenderPaint::clipUpdate(uint32_t outerClipID)
 
 bool RiveRenderPaint::getIsOpaque() const
 {
+    if (m_data.m_isLayerMask)
+    {
+        // It multiplies the destination rather than replacing it, so it can
+        // never be treated as covering what is underneath.
+        return false;
+    }
     if (m_data.m_feather != 0)
     {
         return false;

@@ -5,6 +5,7 @@
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/parametric_path.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/shapes/paint/paint_outset.hpp"
 #include "rive/layout/layout_participant.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -417,6 +418,32 @@ void Shape::pathCollapseChanged()
     // is deferred for a transparent, non-clipping shape.
     m_LocalBoundsClean = false;
     m_PathComposer.pathCollapseChanged();
+}
+
+BoundsFidelity Shape::paintedWorldBounds(AABB* out)
+{
+    AABB bounds = worldBounds();
+    if (bounds.isEmptyOrNaN())
+    {
+        // Every path collapsed, so worldBounds() is still the forExpansion()
+        // sentinel -- (+FLT_MAX, +FLT_MAX, -FLT_MAX, -FLT_MAX). Hand back an
+        // empty box instead: nothing is painted, and letting the sentinel out
+        // would blow any union it lands in out to the float range.
+        *out = AABB();
+        return BoundsFidelity::exact;
+    }
+
+    // worldBounds() is geometry. A stroke straddles it, a miter join overshoots
+    // the corners, a feather blurs outward past all of it -- so pad by the
+    // furthest-reaching paint.
+    const PaintReach reach = shapePaintsWorldReach(this, worldTransform());
+    if (reach.worldOutset > 0.0f)
+    {
+        bounds = bounds.outset(reach.worldOutset, reach.worldOutset);
+    }
+    *out = bounds;
+    return reach.trustworthy ? BoundsFidelity::exact
+                             : BoundsFidelity::approximate;
 }
 
 AABB Shape::computeWorldBounds(const Mat2D* xform) const

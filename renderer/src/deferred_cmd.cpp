@@ -113,6 +113,7 @@ void replayRenderCommands(Factory* factory,
             case RenderCmd::drawImage:
             case RenderCmd::drawImageMesh:
             case RenderCmd::drawImageMeshInstanced:
+            case RenderCmd::applyLayerMask:
             case RenderCmd::modulateOpacity:
             case RenderCmd::modulateColor:
             case RenderCmd::canvasContentBegin:
@@ -733,6 +734,31 @@ void replayRenderCommands(Factory* factory,
                 {
                     hooks.stats->droppedDraws = hooks.stats->droppedDraws + 1;
                     replay_detail::logDroppedDraw(type, c.image, 0);
+                }
+                break;
+            }
+            case RenderCmd::applyLayerMask:
+            {
+                auto c = reader.read<ApplyLayerMaskPOD>();
+                // The mask is nearly always a canvas image (layer masking
+                // rasterizes its coverage into one), so the canvas hook is the
+                // expected path here rather than the exception.
+                RenderImage* im =
+                    (c.mask & kCanvasHandleFlag)
+                        ? (hooks.canvasImage
+                               ? hooks.canvasImage(c.mask & kCanvasHandleMask)
+                               : nullptr)
+                        : image(c.mask);
+                if (cur && im)
+                {
+                    cur->applyLayerMask(im,
+                                        sampler(c.wrapX, c.wrapY, c.filter),
+                                        static_cast<LayerMaskMode>(c.mode));
+                }
+                else if (cur != nullptr && hooks.stats != nullptr)
+                {
+                    hooks.stats->droppedDraws = hooks.stats->droppedDraws + 1;
+                    replay_detail::logDroppedDraw(type, c.mask, 0);
                 }
                 break;
             }

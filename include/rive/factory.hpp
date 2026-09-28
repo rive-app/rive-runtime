@@ -105,6 +105,26 @@ public:
         return deferredCanvasHost();
     }
 
+    // Whether THIS device can apply a layer mask. Distinct from the hook of the
+    // same name on DeferredCanvasHost, which is the one a caller about to
+    // rasterize asks: that one is about the canvas being handed out, this one
+    // is about the device, and the two are different objects whenever a factory
+    // delegates its host elsewhere.
+    //
+    // It exists for exactly one caller. A recording session has to ask the
+    // context it will replay against, and all it holds is a Factory* -- which
+    // in a Canvas-2D build is not a render context at all, so it must dispatch
+    // rather than cast.
+    //
+    // No by default, matching the host hook and for the same reason: the
+    // default Renderer::applyLayerMask is itself a no-op, so a factory that has
+    // not answered is one whose renderer will drop the op -- and a yes here
+    // reaches a session, which reports support, which has the caller crop to
+    // the mask box on the way to dropping it. That is exactly the Canvas-2D
+    // case: its factory is not a render context and its renderer cannot apply
+    // the op. RenderContext and SerializingFactory opt in.
+    virtual bool supportsLayerMask() const { return false; }
+
     rcp<Font> decodeFont(Span<const uint8_t>);
 
     rcp<AudioSource> decodeAudio(Span<const uint8_t>);

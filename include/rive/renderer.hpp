@@ -13,6 +13,7 @@
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/layer_mask_mode.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
@@ -364,6 +365,25 @@ public:
                                         uint32_t vertexCount,
                                         uint32_t indexCount,
                                         rcp<ImageMeshInstances>);
+
+    // Multiplies everything already drawn into the current render target by a
+    // factor derived from `mask`, over the rect [0,0,1,1] under the current
+    // transform. Premultiplied-correct: all four channels scale, so this is
+    // exactly "scale the layer's opacity, per pixel".
+    //
+    // Must be the last draw issued into the target before it is composited, and
+    // `mask` must be the same pixel size as that target -- layer masking
+    // rasterizes content and coverage with one shared raster plan precisely so
+    // the two correspond texel for texel with no resampling.
+    //
+    // Luminance is computed on the *premultiplied* mask, which is not an
+    // approximation: luma(rgb/a) * a == dot(rgb, coeffs) identically for a > 0,
+    // and it stays correct at a == 0 where unmultiplying would be 0/0.
+    //
+    // Default no-op, so a renderer that cannot express it leaves the layer
+    // unmasked -- visible, but not destructive.
+    virtual void applyLayerMask(const RenderImage*, ImageSampler, LayerMaskMode)
+    {}
 
     // Modulate the opacity of subsequent draw calls. The opacity is stacked
     // multiplicatively (e.g., modulateOpacity(0.5) followed by

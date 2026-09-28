@@ -79,6 +79,11 @@ enum class SerializeOp : uint32_t
     setImageMeshInstancesData = 40, // id, instances[count]
     // image, positions, uvs, indices, instances
     drawImageMeshInstanced = 41,
+
+    // Layer masking: multiply the current target by a factor derived from the
+    // named image. Recorded inside the masked layer's canvas bracket, as the
+    // last op before it closes.
+    applyLayerMask = 42, // imageId, mode
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

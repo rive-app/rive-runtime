@@ -190,41 +190,71 @@ PLS_MAIN(@drawFragmentMain)
 #endif
         }
 
-        // Blend with the framebuffer color.
+        bool isLayerMask = false;
+#ifdef @ENABLE_MODULATED_IMAGE
+        isLayerMask = @ENABLE_MODULATED_IMAGE && v_image.z < .0;
+#endif
+        if (isLayerMask)
+        {
+#ifdef @ENABLE_MODULATED_IMAGE
+            // Layer mask: scale what is already here instead of compositing
+            // over it. `color` is the mask's premultiplied texel (see
+            // find_paint_color), and all four channels scale together, which is
+            // exactly "change this layer's opacity, per pixel".
+            //
+            // No dither: dithering is for quantizing a *new* color, and this
+            // only attenuates one that is already quantized. Hardware blending
+            // is off in rasterOrdering (the color plane is stored directly), so
+            // this really is the final value.
+            uint maskMode = uint(-v_image.z - 1.);
+            half f = layer_mask_factor(color, maskMode);
+            // coverage lerps the factor in across the quad's antialiased edge;
+            // it is 1 everywhere inside, which is where the mask applies.
+            color = dstColorPremul * mix(make_half(1.), f, coverage);
+            PLS_STORE4F(colorBuffer, color);
+            PLS_PRESERVE_UI(clipBuffer);
+#endif
+        }
+        else
+        {
+            // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (@ENABLE_ADVANCED_BLEND &&
-            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
-        {
-            color.rgb = advanced_color_blend(color.rgb,
-                                             dstColorPremul,
-                                             cast_half_to_ushort(v_blendMode)) *
-                        color.a;
-        }
+            if (@ENABLE_ADVANCED_BLEND &&
+                v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+            {
+                color.rgb =
+                    advanced_color_blend(color.rgb,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode)) *
+                    color.a;
+            }
 #endif
-        color *= coverage;
+            color *= coverage;
 
-        // Certain platforms give us less control of the format of what we are
-        // rendering too. Specifically, we are auto converted from linear ->
-        // sRGB on render target writes in unreal. In those cases we made need
-        // to end up in linear color space
+            // Certain platforms give us less control of the format of what we
+            // are rendering too. Specifically, we are auto converted from
+            // linear -> sRGB on render target writes in unreal. In those cases
+            // we made need to end up in linear color space
 #ifdef @NEEDS_GAMMA_CORRECTION
-        if (@NEEDS_GAMMA_CORRECTION)
-        {
-            color = gamma_to_linear(color);
-        }
+            if (@NEEDS_GAMMA_CORRECTION)
+            {
+                color = gamma_to_linear(color);
+            }
 #endif
 
-        // Save paint alpha before destructively updating it with the dstColor.
-        half paintAlpha = color.a;
-        color += dstColorPremul * (1. - paintAlpha);
-        color.rgb = add_dither_if_alpha_nonzero(color.rgb,
-                                                paintAlpha,
-                                                _fragCoord.xy,
-                                                uniforms.ditherScale,
-                                                uniforms.ditherBias);
+            // Save paint alpha before destructively updating it with the
+            // dstColor.
+            half paintAlpha = color.a;
+            color += dstColorPremul * (1. - paintAlpha);
+            color.rgb = add_dither_if_alpha_nonzero(color.rgb,
+                                                    paintAlpha,
+                                                    _fragCoord.xy,
+                                                    uniforms.ditherScale,
+                                                    uniforms.ditherBias);
 
-        PLS_STORE4F(colorBuffer, color);
-        PLS_PRESERVE_UI(clipBuffer);
+            PLS_STORE4F(colorBuffer, color);
+            PLS_PRESERVE_UI(clipBuffer);
+        }
     }
 
 #if !defined(@DRAW_INTERIOR_TRIANGLES)

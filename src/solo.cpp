@@ -1,6 +1,7 @@
 #include "rive/solo.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/shapes/clipping_shape.hpp"
+#include "rive/layer_mask.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/semantic/semantic_data.hpp"
 #include "rive/artboard.hpp"
@@ -14,14 +15,15 @@ using namespace rive;
 
 // Some child components shouldn't be considered as part of the solo set as they
 // are more akin to properties/metadata of the solo itself (constraints,
-// clipping shapes, focus and semantic data) rather than selectable solo
-// options. These are excluded both from collapse propagation and from
+// clipping shapes, layer masks, focus and semantic data) rather than selectable
+// solo options. These are excluded both from collapse propagation and from
 // index/name based selection so that data binding targets only the real solo
 // options.
 static bool isSoloSetMember(Component* child)
 {
     return !(child->is<Constraint>() || child->is<ClippingShape>() ||
-             child->is<FocusData>() || child->is<SemanticData>());
+             child->is<LayerMask>() || child->is<FocusData>() ||
+             child->is<SemanticData>());
 }
 
 Component* Solo::activeComponent()

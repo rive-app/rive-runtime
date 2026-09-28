@@ -64,6 +64,10 @@ public:
                         ImageSampler,
                         const Mat2D&) override;
     void image(rcp<gpu::Texture>, float opacity);
+    // A layer-mask apply: samples `maskTexture` like an image paint, but the
+    // blend step multiplies the destination by a factor derived from it rather
+    // than compositing over.
+    void layerMask(rcp<gpu::Texture> maskTexture, LayerMaskMode mode);
     void imageSampler(ImageSampler imageSampler)
     {
         m_data.m_imageSampler = imageSampler;
@@ -85,6 +89,8 @@ public:
     float getOuterClipID() const { return m_data.m_simpleValue.outerClipID; }
     float getThickness() const { return m_data.m_thickness; }
     const Mat2D& getImageTransform() const { return m_data.m_imageTransform; }
+    bool getIsLayerMask() const { return m_data.m_isLayerMask; }
+    LayerMaskMode getLayerMaskMode() const { return m_data.m_layerMaskMode; }
     StrokeJoin getJoin() const
     {
         // Feathers ignore the join and always use round.
@@ -136,6 +142,8 @@ private:
         float m_additiveness = 0;
         BlendMode m_blendMode = BlendMode::srcOver;
         bool m_stroked = false;
+        bool m_isLayerMask = false;
+        LayerMaskMode m_layerMaskMode = LayerMaskMode::alpha;
         Mat2D m_imageTransform;
         bool m_forceClosed = false;
     };

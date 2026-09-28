@@ -362,6 +362,22 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 active->clipPath(path);
                 break;
             }
+            case SerializeOp::applyLayerMask:
+            {
+                uint64_t maskId = reader.readVarUint64();
+                auto mode = static_cast<LayerMaskMode>(reader.readVarUint64());
+                // Null when a decode failed or when the host declined the
+                // canvas this id names. Skipping leaves the layer unmasked,
+                // which is the same degradation the feature falls back to
+                // everywhere else, and the rest of the frame still replays.
+                if (RenderImage* mask = find(images, maskId))
+                {
+                    active->applyLayerMask(mask,
+                                           ImageSampler::LinearClamp(),
+                                           mode);
+                }
+                break;
+            }
             case SerializeOp::drawImage:
             case SerializeOp::drawImageAdditive:
             {

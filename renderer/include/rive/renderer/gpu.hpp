@@ -11,6 +11,7 @@
 #include "rive/math/vec2d.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/layer_mask_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
@@ -51,6 +52,14 @@ enum class DitherMode;
 // Global MipMap LOD Bias to apply to samplers. Going lower leads to sharper
 // filtering at the expense of potential shimmering.
 constexpr static float MIP_MAP_LOD_BIAS = -.5f;
+// A layer-mask draw signals itself to the fragment shader by making v_image.z
+// negative (see draw_path.vert). That only works because an ordinary image
+// draw's z is 1 + LOD, and LOD is never below MIP_MAP_LOD_BIAS, so its z stays
+// strictly positive. Lowering the bias past -1 would silently turn every
+// minified image draw into a layer mask.
+static_assert(MIP_MAP_LOD_BIAS > -1.f,
+              "v_image.z < 0 is the layer-mask sentinel; an image draw's "
+              "1 + LOD must stay positive");
 
 // Tessellate in parametric space until each segment is within 1/4 pixel of the
 // true curve.
@@ -1769,7 +1778,9 @@ public:
              bool hasImage,
              BlendMode,
              bool solidUnmultiplied,
-             float additiveness);
+             float additiveness,
+             bool isLayerMask = false,
+             LayerMaskMode layerMaskMode = LayerMaskMode::alpha);
 
 private:
     WRITEONLY uint32_t m_params; // [clipID, flags, paintType]

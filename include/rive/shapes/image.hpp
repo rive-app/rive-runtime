@@ -110,6 +110,7 @@ public:
     float computedWidth() override { return width() * renderScaleX(); }
     float computedHeight() override { return height() * renderScaleY(); }
     void assetUpdated() override;
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
     AABB localBounds() const override;
     void updateTransform() override;
 

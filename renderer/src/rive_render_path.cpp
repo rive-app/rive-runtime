@@ -11,6 +11,7 @@
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
+#include "rive/shapes/paint/paint_outset.hpp"
 
 namespace rive
 {
@@ -449,31 +450,24 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     return make_rcp<RiveRenderPath>(m_fillRule, featheredPath);
 }
 
+// This is the only translation unit that sees both the shader constants and
+// core's mirrors of them, so it is where they get checked. Core cannot include
+// constants.glsl -- it lives under renderer/src/shaders/ and is on no public
+// include path -- and a silent divergence would size a raster too small for its
+// own feather, cropping it at the edge.
+static_assert(kMiterLimit == RIVE_MITER_LIMIT,
+              "core's kMiterLimit has drifted from RIVE_MITER_LIMIT");
+static_assert(kGaussianIntegralStdDevs == GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS,
+              "core's kGaussianIntegralStdDevs has drifted from "
+              "GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS");
+
 float RiveRenderPath::calculateBoundsOutset(
     const std::optional<StrokeParams>& stroke,
     float feather)
 {
-    float outset = 0.0f;
-    if (stroke.has_value())
-    {
-        outset = stroke->thickness * .5f;
-        if (stroke->join == StrokeJoin::miter)
-        {
-            // Miter joins may be longer than the stroke radius.
-            outset *= RIVE_MITER_LIMIT;
-        }
-        else if (stroke->cap == StrokeCap::square)
-        {
-            // The diagonal of a square cap is longer than the stroke
-            // radius.
-            outset *= math::SQRT2;
-        }
-    }
-    if (feather != 0.0f)
-    {
-        outset += gpu::featherRadiusFromFeather(feather);
-    }
-    return outset;
+    // Hoisted into core so raster sizing (offscreen surfaces for layer masks
+    // and cache-as-bitmap) and this culling path share one definition.
+    return paintBoundsOutset(stroke, feather);
 }
 
 IAABB RiveRenderPath::calculatePixelBounds(

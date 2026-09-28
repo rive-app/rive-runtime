@@ -68,6 +68,7 @@ enum class RenderCmd : uint8_t
     drawImageMeshInstanced, // DrawImageMeshInstancedPOD
     modulateOpacity,        // OpacityPOD
     modulateColor,          // ModulateColorPOD
+    applyLayerMask,         // ApplyLayerMaskPOD
 
     // ---- render target scheduling ----
     // Canvas content records inline between these brackets; replay redirects
@@ -292,6 +293,15 @@ struct DrawImagePOD
     float additiveness;
 };
 
+// A layer-mask apply: multiply the current target by a factor derived from
+// `mask`. Pointer-free and padding-free, matching the DrawImagePOD convention.
+struct ApplyLayerMaskPOD
+{
+    RenderHandle mask;
+    uint8_t wrapX, wrapY, filter; // ImageSampler
+    uint8_t mode;                 // LayerMaskMode
+};
+
 struct DrawImageMeshPOD
 {
     RenderHandle image;
@@ -389,6 +399,7 @@ struct CanvasContentPOD
     X(drawImageMeshInstanced, DrawImageMeshInstancedPOD)                       \
     X(modulateOpacity, OpacityPOD)                                             \
     X(modulateColor, ModulateColorPOD)                                         \
+    X(applyLayerMask, ApplyLayerMaskPOD)                                       \
     X(canvasContentBegin, CanvasContentPOD)                                    \
     X(canvasContentEnd, ResIdPOD)                                              \
     X(resourceNewVersion, ResourceVersionPOD)

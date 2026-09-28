@@ -1110,3 +1110,25 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
     nest(artboard);
     tryScheduleBindStateful();
 }
+
+BoundsFidelity NestedArtboard::paintedWorldBounds(AABB* out)
+{
+    ArtboardInstance* nested = artboardInstance();
+    if (nested == nullptr)
+    {
+        return BoundsFidelity::none;
+    }
+    const BoundsFidelity fidelity = paintedBoundsFromLocal(nested->bounds(),
+                                                           worldTransform(),
+                                                           nullptr,
+                                                           out);
+    if (fidelity == BoundsFidelity::none)
+    {
+        return fidelity;
+    }
+    // A nested artboard that clips cannot paint outside its own bounds. One
+    // that does not can paint arbitrarily far past them, and finding out how
+    // far means measuring its whole draw list -- so say "about here" and let
+    // the caller pad.
+    return nested->clip() ? fidelity : BoundsFidelity::approximate;
+}

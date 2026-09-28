@@ -5,6 +5,7 @@
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/clip_result.hpp"
+#include "rive/shapes/paint/paint_outset.hpp"
 
 using namespace rive;
 
@@ -77,6 +78,13 @@ void Drawable::addClippingShape(ClippingShape* shape)
     m_ClippingShapes.push_back(shape);
 }
 
+void Drawable::addLayerMask(LayerMask* mask) { m_layerMasks.push_back(mask); }
+
+void Drawable::addSourceOfLayerMask(LayerMask* mask)
+{
+    m_sourceOfLayerMasks.push_back(mask);
+}
+
 bool Drawable::willDraw() { return !isHidden(); }
 
 bool Drawable::isChildOfLayout(LayoutComponent* layout)
@@ -119,4 +127,64 @@ Drawable* DrawableProxy::hittableComponent()
 bool DrawableProxy::isTargetOpaque()
 {
     return hittableComponent()->isTargetOpaque();
+}
+
+BoundsFidelity Drawable::paintedBoundsFromLocal(
+    const AABB& local,
+    const Mat2D& world,
+    const ShapePaintContainer* paints,
+    AABB* out)
+{
+    if (local.isEmptyOrNaN())
+    {
+        return BoundsFidelity::none;
+    }
+    AABB bounds = world.mapBoundingBox(local);
+    if (bounds.isEmptyOrNaN())
+    {
+        // A degenerate transform -- scale 0, or a collapsed layout fold --
+        // flattens the box to nothing. That is a real answer, not a failure:
+        // nothing is painted there.
+        *out = AABB();
+        return BoundsFidelity::exact;
+    }
+    bool trustworthy = true;
+    if (paints != nullptr)
+    {
+        const PaintReach reach = shapePaintsWorldReach(paints, world);
+        if (reach.worldOutset > 0.0f)
+        {
+            bounds = bounds.outset(reach.worldOutset, reach.worldOutset);
+        }
+        trustworthy = reach.trustworthy;
+    }
+    *out = bounds;
+    return trustworthy ? BoundsFidelity::exact : BoundsFidelity::approximate;
+}
+
+BoundsFidelity DrawableProxy::paintedWorldBounds(AABB* out)
+{
+    Drawable* target = hittableComponent();
+    // hittableComponent() returns `this` on the base Drawable, and a proxy that
+    // stands in for nothing has nothing to measure. Guarding also keeps this
+    // from recursing forever if that ever changes.
+    if (target == nullptr || target == this)
+    {
+        return BoundsFidelity::none;
+    }
+    return target->paintedWorldBounds(out);
+}
+
+const std::vector<LayerMask*>& DrawableProxy::layerMasks() const
+{
+    // const_cast because hittableComponent() is non-const; it is a pure
+    // downcast of proxyDrawing() and mutates nothing.
+    return const_cast<DrawableProxy*>(this)->hittableComponent()->layerMasks();
+}
+
+const std::vector<LayerMask*>& DrawableProxy::sourceOfLayerMasks() const
+{
+    return const_cast<DrawableProxy*>(this)
+        ->hittableComponent()
+        ->sourceOfLayerMasks();
 }

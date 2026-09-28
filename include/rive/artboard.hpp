@@ -50,6 +50,13 @@ namespace cmd
 {
 class DeferredCanvasHost;
 } // namespace cmd
+namespace offscreen
+{
+struct RasterPlan;
+} // namespace offscreen
+class LayerMask;
+class LayerMaskProxyDrawable;
+enum class LayerMaskOp : uint8_t;
 class BitmapCache;
 class Node;
 class DrawTarget;
@@ -111,6 +118,7 @@ private:
     std::vector<Component*> m_DependencyOrder;
     std::vector<Drawable*> m_Drawables;
     std::vector<ClippingShape*> m_clippingShapes;
+    std::vector<LayerMask*> m_layerMasks;
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<ArtboardComponentList*> m_ComponentLists;
@@ -243,6 +251,20 @@ private:
     mutable RecipeState m_RecipeState = RecipeState::unbuilt;
     void sortDrawOrder();
     void clearRedundantOperations();
+    // Splices layer-mask brackets into the flat draw list. Runs after the
+    // clipping interleave so a mask bracket nests inside a clip bracket: an
+    // ancestor clip has to constrain the composite rather than live inside the
+    // raster.
+    void interleaveLayerMasks();
+    // Finds the contiguous draw-order span covered by `members` and wraps it in
+    // start/end markers. False when the span is not contiguous -- a DrawTarget
+    // can relocate part of a subtree, and bracketing a range holding a
+    // non-member would mask that non-member too.
+    bool spliceLayerMaskBracket(LayerMask* mask,
+                                const std::vector<Drawable*>& members,
+                                LayerMaskOp startOp,
+                                LayerMaskOp endOp,
+                                LayerMaskProxyDrawable** startOut);
     void updateRenderPath() override;
     void update(ComponentDirt value) override;
 
@@ -404,6 +426,24 @@ public:
     BitmapCache* bitmapCache() const { return m_BitmapCache; }
 
     Core* resolve(Id id) const override;
+
+    // Every LayerMask in this artboard, populated by initialize().
+    // LayerMask::invalidate walks it to reach the masks whose cached rasters
+    // contain its output: a mask on an ancestor caches it as content, and a
+    // mask whose SOURCE encloses it caches it as coverage -- and that one can
+    // live anywhere in the tree, so no walk from the inner mask finds it.
+    //
+    // Deliberately NOT named layerMasks(). Artboard is a Drawable and
+    // Drawable::layerMasks() is virtual, meaning "the masks applied to me", so
+    // that name here would override it and hand every caller holding an
+    // Artboard as a Drawable the wrong list. (The first attempt did exactly
+    // that, and landed in the editor-only block below besides, where the
+    // runtime could not see it at all and the call silently resolved to the
+    // base's version.)
+    const std::vector<LayerMask*>& allLayerMasks() const
+    {
+        return m_layerMasks;
+    }
 #ifdef WITH_RIVE_EDITOR
     // Install / remove an auxiliary resolver for CoopId-backed
     // references (see `m_editorResolver`). `editor_native::EditorFile`
@@ -592,6 +632,37 @@ public:
     void drawContent(Renderer* renderer,
                      DrawVisitor visitor = nullptr,
                      void* visitorContext = nullptr);
+    // The drawable-walking body of drawContent, over the half-open range
+    // [first, stop). Split out so a layer mask can re-run it over its own
+    // bracketed span against an offscreen renderer. Reads the active visitor
+    // off m_drawVisitor, which drawContent has already installed, so the visit
+    // survives the recursion through drawMasked.
+    void drawDrawableRange(Renderer* renderer, Drawable* first, Drawable* stop);
+    // Union of paintedWorldBounds() over everything the half-open range
+    // [first, stop) would actually draw, using the same skip rules
+    // drawDrawableRange applies -- so what is measured is exactly what is
+    // drawn.
+    //
+    // `rasterScale` is the texels-per-local-unit the caller will rasterize at,
+    // used to express the slop margin an `approximate` member needs in device
+    // pixels. `*anyDrawn` reports whether anything in the range would draw at
+    // all, which replaces the cheaper probe it used to be.
+    //
+    // Returns `none` when no tight box is available, either because a member
+    // could not bound itself or because nothing measurable was painted; the
+    // caller must then fall back to a box it knows covers everything.
+    // *out is only written when the answer is not `none`.
+    BoundsFidelity rangeDrawBounds(Drawable* first,
+                                   Drawable* stop,
+                                   float rasterScale,
+                                   AABB* out,
+                                   bool* anyDrawn) const;
+    // Rasterizes a masked range and its mask source, composites the two, and
+    // draws the result through `renderer`. False means "I did nothing" and the
+    // caller draws the range inline.
+    bool drawMasked(Renderer* renderer,
+                    Drawable* startMarker,
+                    Drawable* endMarker);
 
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
     void addToRawPath(RawPath& path, const Mat2D* transform);
@@ -961,9 +1032,7 @@ public:
     // falls back to drawContent.
     bool drawCachedAsBitmap(Renderer* renderer);
     void renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
-                          uint32_t widthPx,
-                          uint32_t heightPx,
-                          float rasterScale);
+                          const offscreen::RasterPlan& plan);
 #endif
 
 private:

@@ -481,3 +481,18 @@ ImageSampler Image::imageSampler() const
 #include "rive/shapes/mesh.hpp"
 Mesh* Image::mesh() const { return static_cast<Mesh*>(m_Mesh); };
 #endif
+
+BoundsFidelity Image::paintedWorldBounds(AABB* out)
+{
+    if (m_Mesh != nullptr)
+    {
+        // A mesh re-maps the image's corners onto arbitrary vertices, and an
+        // NSlicer -- which shares this pointer -- stretches them per slice. The
+        // image's own box says nothing about where the result lands.
+        return BoundsFidelity::none;
+    }
+    return paintedBoundsFromLocal(localBounds(),
+                                  worldTransform(),
+                                  nullptr,
+                                  out);
+}

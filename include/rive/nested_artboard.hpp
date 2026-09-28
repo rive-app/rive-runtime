@@ -135,6 +135,8 @@ public:
     {
         return m_Instance.get();
     }
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     Artboard* sourceArtboard() { return m_referencedArtboard; }
 
     // Pushes the optional ComponentOrigin child's origin (if any) onto the

@@ -88,3 +88,19 @@ ShapePaintPath* ForegroundLayoutDrawable::localClockwisePath()
 {
     return parent()->as<LayoutComponent>()->localClockwisePath();
 }
+
+BoundsFidelity ForegroundLayoutDrawable::paintedWorldBounds(AABB* out)
+{
+    // It has no box of its own: it paints the parent layout's outline, at the
+    // layout's transform, with its own paints.
+    ContainerComponent* container = parent();
+    if (container == nullptr || !container->is<LayoutComponent>())
+    {
+        return BoundsFidelity::none;
+    }
+    return paintedBoundsFromLocal(
+        container->as<LayoutComponent>()->localBounds(),
+        worldTransform(),
+        this,
+        out);
+}

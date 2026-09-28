@@ -163,6 +163,19 @@
 #define PAINT_FLAG_EVEN_ODD_FILL 0x200u
 #define PAINT_FLAG_HAS_CLIP_RECT 0x400u
 #define PAINT_FLAG_HAS_IMAGE 0x800u
+// A layer-mask apply: the sampled image is coverage, not color, and the blend
+// step multiplies the destination by a factor derived from it. Bits 13-14 hold
+// which factor (rive::LayerMaskMode). Bits 12-15 of paintData.x were free; 8-11
+// are the flags above and 16-31 are the clipID.
+#define PAINT_FLAG_LAYER_MASK 0x1000u
+#define PAINT_LAYER_MASK_MODE_SHIFT 13u
+#define PAINT_LAYER_MASK_MODE_MASK 0x6000u
+
+// rive::LayerMaskMode
+#define LAYER_MASK_MODE_ALPHA 0u
+#define LAYER_MASK_MODE_INVERTED_ALPHA 1u
+#define LAYER_MASK_MODE_LUMINANCE 2u
+#define LAYER_MASK_MODE_INVERTED_LUMINANCE 3u
 
 // PLS draw resources are either updated per flush or per draw. They go into set
 // 0 or set 1, depending on how often they are updated.

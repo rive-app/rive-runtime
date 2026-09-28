@@ -218,6 +218,7 @@
 #include "rive/inputs/semantic_input.hpp"
 #include "rive/inputs/user_input.hpp"
 #include "rive/joystick.hpp"
+#include "rive/layer_mask.hpp"
 #include "rive/layout/artboard_component_list_override.hpp"
 #include "rive/layout/axis.hpp"
 #include "rive/layout/axis_x.hpp"
@@ -450,6 +451,8 @@ public:
                 return new ScriptInputTrigger();
             case DrawTargetBase::typeKey:
                 return new DrawTarget();
+            case LayerMaskBase::typeKey:
+                return new LayerMask();
             case CustomPropertyNumberBase::typeKey:
                 return new CustomPropertyNumber();
             case ScriptInputViewModelPropertyBase::typeKey:
@@ -1000,6 +1003,9 @@ public:
             case DrawTargetBase::drawableIdPropertyKey:
                 object->as<DrawTargetBase>()->drawableId(value);
                 break;
+            case LayerMaskBase::sourceIdPropertyKey:
+                object->as<LayerMaskBase>()->sourceId(value);
+                break;
             case TargetedConstraintBase::targetIdPropertyKey:
                 object->as<TargetedConstraintBase>()->targetId(value);
                 break;
@@ -1341,6 +1347,12 @@ public:
                 break;
             case DrawTargetBase::placementValuePropertyKey:
                 object->as<DrawTargetBase>()->placementValue(value);
+                break;
+            case LayerMaskBase::maskFlagsPropertyKey:
+                object->as<LayerMaskBase>()->maskFlags(value);
+                break;
+            case LayerMaskBase::maskModeValuePropertyKey:
+                object->as<LayerMaskBase>()->maskModeValue(value);
                 break;
             case DistanceConstraintBase::modeValuePropertyKey:
                 object->as<DistanceConstraintBase>()->modeValue(value);
@@ -2015,6 +2027,9 @@ public:
             case DrawTargetBase::drawableIdPropertyKey:
                 object->as<DrawTargetBase>()->drawableId(value);
                 break;
+            case LayerMaskBase::sourceIdPropertyKey:
+                object->as<LayerMaskBase>()->sourceId(value);
+                break;
             case TargetedConstraintBase::targetIdPropertyKey:
                 object->as<TargetedConstraintBase>()->targetId(value);
                 break;
@@ -2281,6 +2296,15 @@ public:
                 object->as<ViewModelInstanceBooleanBase>()->propertyValue(
                     value);
                 break;
+            case LayerMaskBase::isVisiblePropertyKey:
+                object->as<LayerMaskBase>()->isVisible(value);
+                break;
+            case LayerMaskBase::sourceDrawsPropertyKey:
+                object->as<LayerMaskBase>()->sourceDraws(value);
+                break;
+            case LayerMaskBase::useCustomBoundsPropertyKey:
+                object->as<LayerMaskBase>()->useCustomBounds(value);
+                break;
             case FollowPathConstraintBase::orientPropertyKey:
                 object->as<FollowPathConstraintBase>()->orient(value);
                 break;
@@ -2523,6 +2547,21 @@ public:
         {
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceNumberBase>()->propertyValue(value);
+                break;
+            case LayerMaskBase::resolutionPropertyKey:
+                object->as<LayerMaskBase>()->resolution(value);
+                break;
+            case LayerMaskBase::boundsXPropertyKey:
+                object->as<LayerMaskBase>()->boundsX(value);
+                break;
+            case LayerMaskBase::boundsYPropertyKey:
+                object->as<LayerMaskBase>()->boundsY(value);
+                break;
+            case LayerMaskBase::boundsWidthPropertyKey:
+                object->as<LayerMaskBase>()->boundsWidth(value);
+                break;
+            case LayerMaskBase::boundsHeightPropertyKey:
+                object->as<LayerMaskBase>()->boundsHeight(value);
                 break;
             case CustomPropertyNumberBase::propertyValuePropertyKey:
                 object->as<CustomPropertyNumberBase>()->propertyValue(value);
@@ -3317,6 +3356,8 @@ public:
                     ->propertyValue();
             case DrawTargetBase::drawableIdPropertyKey:
                 return object->as<DrawTargetBase>()->drawableId();
+            case LayerMaskBase::sourceIdPropertyKey:
+                return object->as<LayerMaskBase>()->sourceId();
             case TargetedConstraintBase::targetIdPropertyKey:
                 return object->as<TargetedConstraintBase>()->targetId();
             case ScrollPhysicsBase::constraintIdPropertyKey:
@@ -3562,6 +3603,10 @@ public:
                 return object->as<CustomPropertyTriggerBase>()->propertyValue();
             case DrawTargetBase::placementValuePropertyKey:
                 return object->as<DrawTargetBase>()->placementValue();
+            case LayerMaskBase::maskFlagsPropertyKey:
+                return object->as<LayerMaskBase>()->maskFlags();
+            case LayerMaskBase::maskModeValuePropertyKey:
+                return object->as<LayerMaskBase>()->maskModeValue();
             case DistanceConstraintBase::modeValuePropertyKey:
                 return object->as<DistanceConstraintBase>()->modeValue();
             case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
@@ -4044,6 +4089,8 @@ public:
                     ->propertyValue();
             case DrawTargetBase::drawableIdPropertyKey:
                 return object->as<DrawTargetBase>()->drawableId();
+            case LayerMaskBase::sourceIdPropertyKey:
+                return object->as<LayerMaskBase>()->sourceId();
             case TargetedConstraintBase::targetIdPropertyKey:
                 return object->as<TargetedConstraintBase>()->targetId();
             case ScrollPhysicsBase::constraintIdPropertyKey:
@@ -4236,6 +4283,12 @@ public:
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceBooleanBase>()
                     ->propertyValue();
+            case LayerMaskBase::isVisiblePropertyKey:
+                return object->as<LayerMaskBase>()->isVisible();
+            case LayerMaskBase::sourceDrawsPropertyKey:
+                return object->as<LayerMaskBase>()->sourceDraws();
+            case LayerMaskBase::useCustomBoundsPropertyKey:
+                return object->as<LayerMaskBase>()->useCustomBounds();
             case FollowPathConstraintBase::orientPropertyKey:
                 return object->as<FollowPathConstraintBase>()->orient();
             case FollowPathConstraintBase::offsetPropertyKey:
@@ -4407,6 +4460,16 @@ public:
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceNumberBase>()
                     ->propertyValue();
+            case LayerMaskBase::resolutionPropertyKey:
+                return object->as<LayerMaskBase>()->resolution();
+            case LayerMaskBase::boundsXPropertyKey:
+                return object->as<LayerMaskBase>()->boundsX();
+            case LayerMaskBase::boundsYPropertyKey:
+                return object->as<LayerMaskBase>()->boundsY();
+            case LayerMaskBase::boundsWidthPropertyKey:
+                return object->as<LayerMaskBase>()->boundsWidth();
+            case LayerMaskBase::boundsHeightPropertyKey:
+                return object->as<LayerMaskBase>()->boundsHeight();
             case CustomPropertyNumberBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyNumberBase>()->propertyValue();
             case ConstraintBase::strengthPropertyKey:
@@ -4932,6 +4995,7 @@ public:
             case ViewModelInstanceListBase::listSourcePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
+            case LayerMaskBase::sourceIdPropertyKey:
             case TargetedConstraintBase::targetIdPropertyKey:
             case ScrollPhysicsBase::constraintIdPropertyKey:
             case ScrollConstraintBase::physicsIdPropertyKey:
@@ -5041,6 +5105,8 @@ public:
             case CustomPropertyBase::nameIdPropertyKey:
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
+            case LayerMaskBase::maskFlagsPropertyKey:
+            case LayerMaskBase::maskModeValuePropertyKey:
             case DistanceConstraintBase::modeValuePropertyKey:
             case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
             case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
@@ -5243,6 +5309,9 @@ public:
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return CoreColorType::id;
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
+            case LayerMaskBase::isVisiblePropertyKey:
+            case LayerMaskBase::sourceDrawsPropertyKey:
+            case LayerMaskBase::useCustomBoundsPropertyKey:
             case FollowPathConstraintBase::orientPropertyKey:
             case FollowPathConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::offsetPropertyKey:
@@ -5322,6 +5391,11 @@ public:
             case BitmapCacheBase::ditherPropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
+            case LayerMaskBase::resolutionPropertyKey:
+            case LayerMaskBase::boundsXPropertyKey:
+            case LayerMaskBase::boundsYPropertyKey:
+            case LayerMaskBase::boundsWidthPropertyKey:
+            case LayerMaskBase::boundsHeightPropertyKey:
             case CustomPropertyNumberBase::propertyValuePropertyKey:
             case ConstraintBase::strengthPropertyKey:
             case DistanceConstraintBase::distancePropertyKey:
@@ -5653,6 +5727,8 @@ public:
                 return object->is<ViewModelInstanceViewModelBase>();
             case DrawTargetBase::drawableIdPropertyKey:
                 return object->is<DrawTargetBase>();
+            case LayerMaskBase::sourceIdPropertyKey:
+                return object->is<LayerMaskBase>();
             case TargetedConstraintBase::targetIdPropertyKey:
                 return object->is<TargetedConstraintBase>();
             case ScrollPhysicsBase::constraintIdPropertyKey:
@@ -5867,6 +5943,10 @@ public:
                 return object->is<CustomPropertyTriggerBase>();
             case DrawTargetBase::placementValuePropertyKey:
                 return object->is<DrawTargetBase>();
+            case LayerMaskBase::maskFlagsPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::maskModeValuePropertyKey:
+                return object->is<LayerMaskBase>();
             case DistanceConstraintBase::modeValuePropertyKey:
                 return object->is<DistanceConstraintBase>();
             case TransformSpaceConstraintBase::sourceSpaceValuePropertyKey:
@@ -6261,6 +6341,12 @@ public:
                 return object->is<BindablePropertyColorBase>();
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceBooleanBase>();
+            case LayerMaskBase::isVisiblePropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::sourceDrawsPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::useCustomBoundsPropertyKey:
+                return object->is<LayerMaskBase>();
             case FollowPathConstraintBase::orientPropertyKey:
                 return object->is<FollowPathConstraintBase>();
             case FollowPathConstraintBase::offsetPropertyKey:
@@ -6417,6 +6503,16 @@ public:
                 return object->is<BitmapCacheBase>();
             case ViewModelInstanceNumberBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceNumberBase>();
+            case LayerMaskBase::resolutionPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::boundsXPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::boundsYPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::boundsWidthPropertyKey:
+                return object->is<LayerMaskBase>();
+            case LayerMaskBase::boundsHeightPropertyKey:
+                return object->is<LayerMaskBase>();
             case CustomPropertyNumberBase::propertyValuePropertyKey:
                 return object->is<CustomPropertyNumberBase>();
             case ConstraintBase::strengthPropertyKey:

@@ -104,6 +104,11 @@ public:
         }
         return m_WorldBounds;
     }
+    // worldBounds() padded by what the paints actually reach. `exact` unless a
+    // paint carries a stroke effect that can displace geometry outside the raw
+    // path these bounds were measured from.
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     void markBoundsDirty()
     {
         markWorldBoundsDirty();

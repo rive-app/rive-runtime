@@ -3,6 +3,7 @@
  */
 
 #include "shaders/constants.glsl"
+#include "rive/shapes/paint/paint_outset.hpp"
 #include "rive/math/bitwise.hpp"
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/render_context.hpp"
@@ -1129,7 +1130,9 @@ void PaintData::set(DrawContents singleDrawContents,
                     bool hasImage,
                     BlendMode blendMode,
                     bool solidUnmultiplied,
-                    float additiveness)
+                    float additiveness,
+                    bool isLayerMask,
+                    LayerMaskMode layerMaskMode)
 {
     uint32_t shiftedClipID = clipID << 16;
     uint32_t shiftedBlendMode = ConvertBlendModeToPLSBlendMode(blendMode) << 4;
@@ -1199,6 +1202,12 @@ void PaintData::set(DrawContents singleDrawContents,
     if (hasImage)
     {
         localParams |= PAINT_FLAG_HAS_IMAGE;
+    }
+    if (isLayerMask)
+    {
+        localParams |= PAINT_FLAG_LAYER_MASK;
+        localParams |= static_cast<uint32_t>(layerMaskMode)
+                       << PAINT_LAYER_MASK_MODE_SHIFT;
     }
     m_params = localParams;
 }
@@ -2416,9 +2425,12 @@ uint16x4 cast_f32_to_f16(float4 x)
 
 float featherRadiusFromFeather(float feather)
 {
-    // Blur magnitudes in design tools are customarily the width of two standard
-    // deviations, or, the length of the range -1stddev .. +1stddev.
-    return feather * (GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS / 2);
+    // Core owns this now, so the radius a raster is sized for and the radius a
+    // draw is culled against cannot drift apart. Kept as a gpu:: symbol because
+    // draw.cpp calls it on the hot path; rive_render_path.cpp static_asserts
+    // that the constant behind it still matches
+    // GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS.
+    return ::rive::featherRadiusFromFeather(feather);
 }
 
 // Code to generate g_gaussianIntegralTableF16.

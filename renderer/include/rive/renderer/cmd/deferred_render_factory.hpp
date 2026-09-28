@@ -474,6 +474,31 @@ public:
                                       opacity,
                                       additiveness});
     }
+    void applyLayerMask(const RenderImage* mask,
+                        ImageSampler s,
+                        LayerMaskMode mode) override
+    {
+        RenderHandle id = idOfImage(mask);
+        if (id == kInvalidRenderHandle && m_canvases)
+        {
+            id = m_canvases->imageDrawId(const_cast<RenderImage*>(mask));
+        }
+        if (id == kInvalidRenderHandle)
+        {
+            // A mask we cannot name at replay would silently drop, leaving the
+            // layer unmasked rather than wrong -- the same degradation the
+            // whole feature falls back to.
+            warnForeign("applyLayerMask");
+            return;
+        }
+        route();
+        m_buffer->append(static_cast<uint8_t>(RenderCmd::applyLayerMask),
+                         ApplyLayerMaskPOD{id,
+                                           static_cast<uint8_t>(s.wrapX),
+                                           static_cast<uint8_t>(s.wrapY),
+                                           static_cast<uint8_t>(s.filter),
+                                           static_cast<uint8_t>(mode)});
+    }
     void drawImageMesh(const RenderImage* image,
                        ImageSampler s,
                        rcp<RenderBuffer> vertices,

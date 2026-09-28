@@ -33,6 +33,13 @@ public:
     void markShapeDirty() override;
     StatusCode onAddedClean(CoreContext* context) override;
 
+    // localBounds() is the LAYOUT box, not the ink. Glyphs escape it through
+    // negative side bearings, italic overhang, TextOverflow::visible,
+    // TextModifierGroup transforms, and per-TextStyle strokes and feathers. It
+    // is the right neighbourhood but not a bound, so it is approximate -- a
+    // caller sizing a surface must pad it.
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     AABB localBounds() const override;
     void update(ComponentDirt value) override;
 

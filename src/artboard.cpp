@@ -74,7 +74,9 @@
 #endif
 #include "rive/async/work_pool.hpp"
 #include "rive/bitmap_cache.hpp"
+#include "rive/layer_mask.hpp"
 #ifdef RIVE_CANVAS
+#include "rive/offscreen_raster.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/cmd/deferred_canvas_host.hpp"
@@ -569,6 +571,10 @@ StatusCode Artboard::initialize()
         {
             m_clippingShapes.push_back(object->as<ClippingShape>());
         }
+        else if (object->is<LayerMask>())
+        {
+            m_layerMasks.push_back(object->as<LayerMask>());
+        }
     }
     // A layout only needs a DrawableProxy if it paints, clips, can gain a clip
     // at runtime, or is an interaction/listener hit target. Those deferred
@@ -900,7 +906,269 @@ void Artboard::sortDrawOrder()
             nextDrawable = proxyDrawable;
         }
     }
+    interleaveLayerMasks();
     clearRedundantOperations();
+}
+
+// True when `d` belongs inside a bracket whose members are `members`. Pure
+// bracket operations (clip and mask markers) are always allowed: they are
+// nested structure, not content. A DrawableProxy is allowed when the component
+// it stands in for is a member -- a LayoutComponent's proxy is injected by the
+// artboard and so never appears in a subtree walk, but its save()+clipPath()
+// has to sit inside the same bracket as the restore() in its draw().
+static bool spansMember(Drawable* d,
+                        const std::unordered_set<Drawable*>& members)
+{
+    if (members.count(d) != 0)
+    {
+        return true;
+    }
+    if (!d->isProxy())
+    {
+        return false;
+    }
+    if (d->isClipStart() || d->isClipEnd() || d->isMaskStart() ||
+        d->isMaskEnd())
+    {
+        return true;
+    }
+    Drawable* stands = d->hittableComponent();
+    return stands != nullptr && members.count(stands) != 0;
+}
+
+bool Artboard::spliceLayerMaskBracket(LayerMask* mask,
+                                      const std::vector<Drawable*>& members,
+                                      LayerMaskOp startOp,
+                                      LayerMaskOp endOp,
+                                      LayerMaskProxyDrawable** startOut)
+{
+    if (startOut != nullptr)
+    {
+        *startOut = nullptr;
+    }
+    if (members.empty())
+    {
+        return false;
+    }
+    std::unordered_set<Drawable*> memberSet(members.begin(), members.end());
+
+    // `next` is earlier in draw order, `prev` later: the walk from
+    // m_FirstDrawable follows prev, so first/last here are in draw order.
+    Drawable* first = nullptr;
+    Drawable* last = nullptr;
+    for (auto d = m_FirstDrawable; d != nullptr; d = d->prev)
+    {
+        if (memberSet.count(d) != 0)
+        {
+            if (first == nullptr)
+            {
+                first = d;
+            }
+            last = d;
+        }
+    }
+    if (first == nullptr)
+    {
+        // The members are not in this artboard's draw list at all (all hidden
+        // behind a collapsed parent, say).
+        return false;
+    }
+
+    // Our markers have to nest with every bracket already in the list, never
+    // interleave: the draw walk is handed a [start, end) range and would run
+    // off the list if an inner end marker escaped our outer one. The member
+    // extremes are not necessarily balanced -- a mask processed before us may
+    // have bracketed our first or last member -- so grow the range outward
+    // until it is. Bracket markers are always allowed inside a span, so growing
+    // can only make the contiguity check below easier.
+    bool grew = true;
+    while (grew)
+    {
+        grew = false;
+        // Starts whose end is inside the range, and ends whose start is before
+        // it.
+        int clipDepth = 0, maskDepth = 0;
+        int clipDeficit = 0, maskDeficit = 0;
+        for (auto d = first;; d = d->prev)
+        {
+            if (d->isClipStart())
+            {
+                ++clipDepth;
+            }
+            else if (d->isClipEnd())
+            {
+                clipDepth > 0 ? --clipDepth : ++clipDeficit;
+            }
+            else if (d->isMaskStart())
+            {
+                ++maskDepth;
+            }
+            else if (d->isMaskEnd())
+            {
+                maskDepth > 0 ? --maskDepth : ++maskDeficit;
+            }
+            if (d == last)
+            {
+                break;
+            }
+        }
+        // Pull the start back over the openers whose closers we contain.
+        while (clipDeficit > 0 || maskDeficit > 0)
+        {
+            Drawable* before = first->next;
+            if (before == nullptr)
+            {
+                break;
+            }
+            if (maskDeficit > 0 && before->isMaskStart())
+            {
+                --maskDeficit;
+            }
+            else if (clipDeficit > 0 && before->isClipStart())
+            {
+                --clipDeficit;
+            }
+            else
+            {
+                break;
+            }
+            first = before;
+            grew = true;
+        }
+        // Push the end forward over the closers whose openers we contain.
+        while (clipDepth > 0 || maskDepth > 0)
+        {
+            Drawable* after = last->prev;
+            if (after == nullptr)
+            {
+                break;
+            }
+            if (maskDepth > 0 && after->isMaskEnd())
+            {
+                --maskDepth;
+            }
+            else if (clipDepth > 0 && after->isClipEnd())
+            {
+                --clipDepth;
+            }
+            else
+            {
+                break;
+            }
+            last = after;
+            grew = true;
+        }
+        if (!grew && (clipDeficit > 0 || maskDeficit > 0 || clipDepth > 0 ||
+                      maskDepth > 0))
+        {
+            // Could not balance: some bracket genuinely half-overlaps this
+            // range, and no placement of our markers avoids crossing it.
+            return false;
+        }
+    }
+
+    // Contiguity. A draw rule can lift an unrelated drawable into the middle of
+    // a subtree's span; masking it too would be silently wrong, and splitting
+    // into two brackets would composite the mask twice. Refuse instead, and let
+    // the caller draw the content unmasked.
+    for (auto d = first;; d = d->prev)
+    {
+        if (!spansMember(d, memberSet))
+        {
+            return false;
+        }
+        if (d == last)
+        {
+            break;
+        }
+    }
+
+    auto* startMarker = mask->createProxyDrawable(startOp);
+    auto* endMarker = mask->createProxyDrawable(endOp);
+
+    // Insert startMarker immediately before `first` in draw order.
+    Drawable* before = first->next;
+    startMarker->next = before;
+    startMarker->prev = first;
+    if (before != nullptr)
+    {
+        before->prev = startMarker;
+    }
+    else
+    {
+        m_FirstDrawable = startMarker;
+    }
+    first->next = startMarker;
+
+    // Insert endMarker immediately after `last` in draw order.
+    Drawable* after = last->prev;
+    endMarker->prev = after;
+    endMarker->next = last;
+    if (after != nullptr)
+    {
+        after->next = endMarker;
+    }
+    last->prev = endMarker;
+
+    startMarker->pairedEnd(endMarker);
+    if (startOut != nullptr)
+    {
+        *startOut = startMarker;
+    }
+    return true;
+}
+
+void Artboard::interleaveLayerMasks()
+{
+    if (m_layerMasks.empty())
+    {
+        return;
+    }
+    for (auto& mask : m_layerMasks)
+    {
+        mask->resetDrawables();
+    }
+    for (auto& mask : m_layerMasks)
+    {
+        // A self-referential mask is inert: its source sits inside the range it
+        // would rasterize, so bracketing it would recurse forever.
+        if (mask->isSelfReferential())
+        {
+            continue;
+        }
+        // Collect the drawables this mask applies to. Done per mask rather than
+        // from one shared index because each splice shifts the list.
+        std::vector<Drawable*> masked;
+        for (auto d = m_FirstDrawable; d != nullptr; d = d->prev)
+        {
+            const auto& masks = d->layerMasks();
+            if (std::find(masks.begin(), masks.end(), mask) != masks.end())
+            {
+                masked.push_back(d);
+            }
+        }
+        LayerMaskProxyDrawable* start = nullptr;
+        if (!spliceLayerMaskBracket(mask,
+                                    masked,
+                                    LayerMaskOp::maskStart,
+                                    LayerMaskOp::maskEnd,
+                                    &start))
+        {
+            continue;
+        }
+        // Only bracket the source once the masked range is genuinely bracketed:
+        // suppressing the source while the content draws unmasked would just
+        // make the mask art vanish for nothing.
+        LayerMaskProxyDrawable* sourceStart = nullptr;
+        if (spliceLayerMaskBracket(mask,
+                                   mask->sourceDrawables(),
+                                   LayerMaskOp::sourceStart,
+                                   LayerMaskOp::sourceEnd,
+                                   &sourceStart))
+        {
+            mask->sourceBracket(sourceStart, sourceStart->pairedEnd());
+        }
+    }
 }
 
 // Look for drawables that are preceeding and succeeding drawables that call
@@ -2172,16 +2440,28 @@ void Artboard::drawContent(Renderer* renderer,
         }
         shapePaint->draw(renderer, shapePaintPath, worldTransform());
     }
+    drawDrawableRange(renderer, m_FirstDrawable, nullptr);
+    if (save)
+    {
+        renderer->restore();
+    }
+}
+
+void Artboard::drawDrawableRange(Renderer* renderer,
+                                 Drawable* first,
+                                 Drawable* stop)
+{
     // Empty clips is a counter for clipping shapes that are empty, for
     // example because they are hidden in a solo. If emptyClips > 0, the
-    // drawables should not be drawn.
+    // drawables should not be drawn. A layer mask's source bracket rides the
+    // same counter to suppress the source in the normal pass.
     int emptyClips = 0;
     // We stack clip operations to avoid calling a save + clip + restore on
     // clipping that don't have any drawables in between. this is a common
     // case with drawables in solos where the drawables are not drawn.
+    // Deliberately a local: this function recurses through drawMasked.
     std::vector<Drawable*> pendingClipOperations;
-    for (auto drawable = m_FirstDrawable; drawable != nullptr;
-         drawable = drawable->prev)
+    for (auto drawable = first; drawable != stop; drawable = drawable->prev)
     {
         auto prevClips = emptyClips;
         emptyClips += drawable->emptyClipCount();
@@ -2213,11 +2493,31 @@ void Artboard::drawContent(Renderer* renderer,
                 pendingClipOperations.clear();
             }
         }
-        if (visitor != nullptr && drawable->hasCustomProperties())
+        if (drawable->isMaskStart())
+        {
+            // Pending clips have already been flushed above, so the ancestor
+            // clips are live on `renderer` and will constrain the composite.
+            auto* startMarker = static_cast<LayerMaskProxyDrawable*>(drawable);
+            Drawable* end = startMarker->pairedEnd();
+            if (drawMasked(renderer, startMarker, end))
+            {
+                // Consumed: skip to the closing marker. `continue` runs the
+                // for-increment, so the next iteration starts at end->prev.
+                drawable = end;
+            }
+            // Otherwise fall through and let the range draw inline; the marker
+            // itself draws nothing either way.
+            continue;
+        }
+        if (drawable->isMaskEnd())
+        {
+            continue;
+        }
+        if (m_drawVisitor != nullptr && drawable->hasCustomProperties())
         {
             // Whatever the visitor sets on the renderer ends with the visit.
             renderer->save();
-            visitor(visitorContext, drawable, renderer);
+            m_drawVisitor(m_drawVisitorContext, drawable, renderer);
             renderer->restore();
         }
         else
@@ -2225,11 +2525,556 @@ void Artboard::drawContent(Renderer* renderer,
             drawable->draw(renderer);
         }
     }
-    if (save)
-    {
-        renderer->restore();
-    }
 }
+
+#ifdef RIVE_CANVAS
+namespace
+{
+// How much to pad a drawable that reported `approximate` bounds. Generous on
+// purpose: the mask box is intersected with the artboard's own bounds, so the
+// worst case of an over-wide margin is a raster no bigger than the one this
+// whole change replaces -- while the worst case of an under-wide one is a hard
+// crop through the middle of someone's artwork.
+constexpr float kApproximateSlopDevicePx = 8.0f;
+constexpr float kApproximateSlopFraction = 0.25f;
+
+AABB padApproximate(const AABB& box, float rasterScale)
+{
+    const float relative =
+        kApproximateSlopFraction * std::max(box.width(), box.height());
+    const float absolute = rasterScale > 0.0f
+                               ? kApproximateSlopDevicePx / rasterScale
+                               : kApproximateSlopDevicePx;
+    const float slop = std::max(relative, absolute);
+    if (!std::isfinite(slop) || slop <= 0.0f)
+    {
+        return box;
+    }
+    return box.outset(slop, slop);
+}
+
+// Float AABB has no intersect helper, and AABB::overlaps is wrong (it compares
+// maxX against b.minY), so this is written out. False for an empty result.
+bool intersectBoxes(const AABB& a, const AABB& b, AABB* out)
+{
+    const AABB r(std::max(a.left(), b.left()),
+                 std::max(a.top(), b.top()),
+                 std::min(a.right(), b.right()),
+                 std::min(a.bottom(), b.bottom()));
+    if (r.isEmptyOrNaN())
+    {
+        return false;
+    }
+    *out = r;
+    return true;
+}
+} // namespace
+
+BoundsFidelity Artboard::rangeDrawBounds(Drawable* first,
+                                         Drawable* stop,
+                                         float rasterScale,
+                                         AABB* out,
+                                         bool* anyDrawn) const
+{
+    // The skip rules mirror drawDrawableRange deliberately, which is what buys
+    // the awkward cases for free: a drawable inside a nested empty clip is
+    // excluded, and so is a nested mask's source range -- its markers push the
+    // same empty-clip counter -- while a nested mask's own members are
+    // included, which is correct because a mask only ever attenuates what is
+    // already there.
+    int emptyClips = 0;
+    AABB accumulated = AABB::forExpansion();
+    BoundsFidelity worst = BoundsFidelity::exact;
+    bool drew = false;
+
+    for (auto* d = first; d != stop; d = d->prevDrawable())
+    {
+        const int prevClips = emptyClips;
+        emptyClips += d->emptyClipCount();
+        if (!d->willDraw() || emptyClips != prevClips || emptyClips > 0)
+        {
+            continue;
+        }
+        // Bracket markers paint nothing of their own: a clip only constrains
+        // what follows it, and a mask marker is consumed by drawMasked.
+        if (d->isClipStart() || d->isClipEnd() || d->isMaskStart() ||
+            d->isMaskEnd())
+        {
+            continue;
+        }
+        drew = true;
+
+        AABB painted;
+        const BoundsFidelity fidelity = d->paintedWorldBounds(&painted);
+        if (fidelity == BoundsFidelity::none)
+        {
+            // Not "pad it harder": there is no measurement to pad. Give up on a
+            // tight box for this range rather than inventing one.
+            *anyDrawn = true;
+            return BoundsFidelity::none;
+        }
+        if (fidelity == BoundsFidelity::approximate)
+        {
+            worst = BoundsFidelity::approximate;
+            painted = padApproximate(painted, rasterScale);
+        }
+        // A drawable can legitimately paint nothing -- a shape whose paths all
+        // collapsed reports an empty box. Filtering here also keeps
+        // AABB::forExpansion()'s +/-FLT_MAX sentinel out of the union.
+        if (!painted.isEmptyOrNaN())
+        {
+            accumulated.expand(painted);
+        }
+    }
+
+    *anyDrawn = drew;
+    if (!drew)
+    {
+        return BoundsFidelity::exact;
+    }
+    if (accumulated.isEmptyOrNaN())
+    {
+        // Something drew but nothing measurable came of it. Rare, and not worth
+        // reasoning about further: fall back.
+        return BoundsFidelity::none;
+    }
+    *out = accumulated;
+    return worst;
+}
+
+bool Artboard::drawMasked(Renderer* renderer,
+                          Drawable* startMarker,
+                          Drawable* endMarker)
+{
+    LayerMask& mask =
+        *static_cast<LayerMaskProxyDrawable*>(startMarker)->mask();
+    if (!mask.isVisible())
+    {
+        return false;
+    }
+
+    // Re-entry guard, and defence in depth rather than a fix for anything
+    // reachable today.
+    //
+    // onAddedClean rejects a mask whose source sits under its own parent, which
+    // only catches a mask pointing at itself. Two masks naming each other's
+    // subtrees pass that test, and the coverage pass draws a RANGE that
+    // drawDrawableRange dispatches from, so in principle A could rasterize B
+    // which rasterizes A without bound.
+    //
+    // In practice spliceLayerMaskBracket grows every range outward until it is
+    // balanced with the brackets already in the list, so brackets nest and
+    // never interleave: if B's members sit inside A's source bracket, B's range
+    // grows to enclose the whole of A, which puts A's source range INSIDE B
+    // rather than the other way round, and walking it never reaches B's start
+    // marker. A mutual pair therefore terminates today -- there is a
+    // [layer-mask] test pinning exactly that -- and this costs a bool and a
+    // branch against the day the nesting invariant is relaxed, or a longer
+    // cycle is reached some other way.
+    //
+    // Per mask, so legitimate nesting -- a different LayerMask inside a masked
+    // subtree -- is unaffected.
+    if (mask.m_isDrawing)
+    {
+        return false;
+    }
+    // Cleared however this returns, and there are many exits below.
+    struct DrawingGuard
+    {
+        LayerMask& mask;
+        DrawingGuard(LayerMask& m) : mask(m) { mask.m_isDrawing = true; }
+        ~DrawingGuard() { mask.m_isDrawing = false; }
+    } drawingGuard(mask);
+
+    // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
+    // rasterize into. No host means nobody can give us an offscreen frame (a
+    // plain non-GPU or test factory), so the content draws unmasked -- the
+    // permanent fallback, and the reason a mask degrades rather than vanishing.
+    Factory* f = factory();
+    auto* host = f ? f->canvasContentHost() : nullptr;
+    if (host == nullptr)
+    {
+        return false;
+    }
+
+    // The same fallback, one step earlier, for a host that can rasterize but
+    // cannot apply the mask. Renderer::applyLayerMask already no-ops there, but
+    // finding out that late is too late: the rasters below are sized to the
+    // content-and-coverage intersection, so the layer would come back unmasked
+    // and *cropped* to a box that only made sense if the mask had been applied.
+    // Bailing here draws the range inline -- unmasked for real, and two
+    // canvases and a composite cheaper.
+    if (!host->supportsLayerMask())
+    {
+        return false;
+    }
+
+    // The raster scale before anything is measured: it depends only on the
+    // renderer's transform, and it is the unit the slop margin for an
+    // approximately-bounded drawable is expressed against.
+    offscreen::RasterPlan plan;
+    if (!offscreen::planRasterScale(renderer, mask.resolution(), &plan))
+    {
+        return false;
+    }
+
+    // mask.m_dirty alone. LayerMask sits on the dependency graph as a dependent
+    // of everything in its own range and its own source, so its update() raises
+    // this when -- and only when -- something it actually rasterizes changed.
+    //
+    // This used to also read the artboard-wide "something moved" flag, which
+    // meant every mask re-rasterized both of its canvases whenever anything
+    // anywhere in the artboard moved, however unrelated. That flag was captured
+    // into a separate field just for this read, and both are now gone.
+    const bool contentChanged = mask.m_contentCanvas == nullptr ||
+                                mask.m_maskCanvas == nullptr || mask.m_dirty;
+
+    AABB tight;
+    if (contentChanged)
+    {
+        // Measuring both ranges also answers "would anything draw at all",
+        // which is what the two cheap probes that used to live here did on
+        // their own.
+        bool contentDraws = false;
+        AABB contentBox;
+        const BoundsFidelity contentFidelity =
+            rangeDrawBounds(startMarker->prevDrawable(),
+                            endMarker,
+                            plan.rasterScale,
+                            &contentBox,
+                            &contentDraws);
+        if (!contentDraws)
+        {
+            // Nothing in the range would have drawn, so consume the bracket
+            // rather than rasterizing two empty textures.
+            return true;
+        }
+
+        bool coverageDraws = false;
+        AABB sourceBox;
+        BoundsFidelity sourceFidelity = BoundsFidelity::none;
+        if (mask.sourceStart() == nullptr)
+        {
+            // No source bracket. Two very different situations arrive here and
+            // the mode-switch below is only right for one of them.
+            //
+            // interleaveLayerMasks splices the masked range first and the
+            // source second, and the second can fail on its own -- a draw rule
+            // can scatter the source subtree so it is not contiguous. The
+            // masked bracket is already in the list by then, so this mask is
+            // live with no source bracket, and the source subtree is NOT
+            // suppressed: it draws in its natural position. Treating coverage
+            // as absent would erase the whole masked range in alpha/luminance
+            // while the mask art itself stayed on screen -- the content gone
+            // and the mask visible, which is the worst of both.
+            //
+            // So only take the empty-coverage path when the source genuinely
+            // draws nothing. If anything in it would draw, the bracket is the
+            // thing that is missing, and the mask goes inert: return false and
+            // the range draws inline, unmasked.
+            for (Drawable* d : mask.sourceDrawables())
+            {
+                if (d->willDraw())
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            // Over the source bracket rather than sourceDrawables(), matching
+            // what the coverage pass below actually draws -- so a clipping
+            // shape nested inside the source is accounted for the same way.
+            sourceFidelity = rangeDrawBounds(mask.sourceStart()->prevDrawable(),
+                                             mask.sourceEnd(),
+                                             plan.rasterScale,
+                                             &sourceBox,
+                                             &coverageDraws);
+        }
+        if (!coverageDraws)
+        {
+            // Coverage is zero everywhere -- the mask source is hidden, or sits
+            // in an inactive solo. Which way that falls depends on the mode,
+            // and both answers avoid the GPU entirely.
+            switch (mask.maskMode())
+            {
+                case MaskMode::alpha:
+                case MaskMode::luminance:
+                    return true; // content fully masked out
+                case MaskMode::invertedAlpha:
+                case MaskMode::invertedLuminance:
+                    return false; // content fully visible; draw it inline
+            }
+        }
+
+        // One box and one scale for both canvases, so a content texel and a
+        // coverage texel at the same coordinate correspond with no resampling
+        // and no second transform.
+        bool authoredBox = false;
+        const AABB authored = mask.customBounds();
+        if (mask.useCustomBounds() && !authored.isEmptyOrNaN())
+        {
+            // The author drew this rectangle, in artboard space. Taken
+            // verbatim: no slop margin, and deliberately no intersect with the
+            // artboard box either, because cropping a mask to a region that
+            // reaches outside the artboard is intent rather than an error.
+            // kMaxDim still caps it.
+            //
+            // The ranges above were still walked, which is what keeps the
+            // "nothing draws" and "no coverage" shortcuts working; only the box
+            // comes from here. The mode-aware intersect is skipped on purpose
+            // -- the author has already said which region matters.
+            //
+            // A degenerate rectangle -- zero or negative extent, which is what
+            // a half-drawn one looks like -- falls through to measuring rather
+            // than collapsing the raster and dropping the layer.
+            tight = authored;
+            authoredBox = true;
+        }
+        else if (contentFidelity == BoundsFidelity::none)
+        {
+            // Something in the range could not say where it paints. Fall back
+            // to the box that is always big enough.
+            tight = bounds();
+        }
+        else
+        {
+            tight = contentBox;
+            // In the un-inverted modes the coverage texel is zero outside the
+            // source, so content out there is erased anyway: intersecting costs
+            // nothing and it is where the win lives, because a small mask over
+            // a full-stage layer now rasterizes only the small mask. The
+            // inverted modes are the opposite -- absent coverage means a factor
+            // of 1, so the content box has to stand on its own.
+            const bool intersectsSource =
+                mask.maskMode() == MaskMode::alpha ||
+                mask.maskMode() == MaskMode::luminance;
+            if (sourceFidelity != BoundsFidelity::none)
+            {
+                // sourceBox is a superset of where coverage actually lands, so
+                // "these do not overlap" is a claim that holds: no coverage
+                // reaches the content at all.
+                AABB overlap;
+                const bool overlaps =
+                    intersectBoxes(tight, sourceBox, &overlap);
+                if (intersectsSource)
+                {
+                    if (!overlaps)
+                    {
+                        // Every content texel would be multiplied by zero
+                        // coverage. Consume the bracket and draw nothing at
+                        // all.
+                        return true;
+                    }
+                    tight = overlap;
+                }
+                else if (!overlaps)
+                {
+                    // Inverted, so absent coverage means a factor of one: the
+                    // layer is fully visible. Decline the bracket and let it
+                    // draw inline, exactly as a source that draws nothing at
+                    // all does.
+                    return false;
+                }
+            }
+        }
+
+        // Clamped to the artboard only when the artboard actually clips.
+        //
+        // When it does, content reaching past the edge is cropped at composite
+        // time anyway, so rasterizing it would be wasted texels -- and the
+        // clamp keeps the raster no larger than the artboard-sized one this
+        // replaced, which is what makes the common case monotone: kMaxDim's
+        // coarsening can only bite less than before, never more.
+        //
+        // When it does not clip, that content is genuinely visible, and
+        // clamping would crop it inside the mask while it draws fine everywhere
+        // else. The artboard-sized rasters had that bug too; this is where it
+        // is fixed.
+        //
+        // The cost is that the monotone guarantee does not hold for an
+        // unclipped artboard whose content sprawls far past it: a bigger box
+        // can hit kMaxDim and coarsen. Blurrier beats cropped.
+        //
+        // Skipped entirely for an authored box, where reaching outside the
+        // artboard is a decision rather than an accident.
+        if (!authoredBox && clip() && !intersectBoxes(tight, bounds(), &tight))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        // Nothing changed, so re-measuring would land in the same place. Re-fit
+        // the box that was measured, never the box that was fitted -- feeding a
+        // fitted box back through the guard band would grow the raster a few
+        // texels on every frame.
+        tight = mask.m_tightBox;
+    }
+
+    // A guard band of transparent texels on every side. Without it the content
+    // reaches the raster edge, and the composite's LinearClamp then replicates
+    // that edge texel outward under rotation: a one-texel smear along the seam.
+    // It is added after the artboard clamp above, so the band can sit a couple
+    // of texels outside the artboard -- where the composite is itself clipped
+    // when the artboard clips, and where showing those texels is the more
+    // correct answer when it does not.
+    constexpr uint32_t kGuardTexels = 2;
+    if (!offscreen::fitRasterToBox(tight,
+                                   kGuardTexels,
+                                   offscreen::RasterFit::stableGrid,
+                                   &plan))
+    {
+        return false;
+    }
+
+    // Growth is immediate, shrinking waits. Anything rotating or scaling
+    // changes the size of its own bounding box every frame, and re-allocating
+    // two GPU textures that often costs far more than carrying one bucket of
+    // slack.
+    const offscreen::RasterResize resize =
+        offscreen::decideRasterResize(plan.widthPx,
+                                      plan.heightPx,
+                                      mask.m_widthPx,
+                                      mask.m_heightPx,
+                                      &mask.m_shrinkStreak);
+    // Hold whatever allocation was settled on, growing the box right and bottom
+    // to span it so the composite's inverse still maps exactly onto the pixels.
+    offscreen::holdRasterAllocation(resize.widthPx, resize.heightPx, &plan);
+
+    // New textures hold nothing, and the cap inside fitRasterToBox can lower
+    // the scale out from under a cached raster, so either forces a rebuild even
+    // on a frame that had decided it could reuse what it had.
+    const bool mustRaster = contentChanged || resize.reallocate ||
+                            plan.rasterScale != mask.m_rasterScale;
+
+    if (mustRaster)
+    {
+        if (resize.reallocate || mask.m_contentCanvas == nullptr ||
+            mask.m_maskCanvas == nullptr)
+        {
+            mask.m_contentCanvas =
+                host->makeContentCanvas(plan.widthPx, plan.heightPx);
+            mask.m_maskCanvas =
+                host->makeContentCanvas(plan.widthPx, plan.heightPx);
+#ifdef TESTING
+            mask.testAllocations++;
+#endif
+        }
+        if (mask.m_contentCanvas == nullptr || mask.m_maskCanvas == nullptr)
+        {
+            mask.releaseCanvases();
+            return false;
+        }
+
+        // Sequentially, never nested: DeferredSession::endCanvasContent routes
+        // back to the screen rather than to an enclosing canvas, so an inner
+        // bracket closing inside an outer one would misroute the rest of the
+        // outer content. Finishing the coverage canvas before opening the
+        // content one keeps the recorded stream two independent segments.
+        bool opened = true;
+        {
+            offscreen::CanvasContentScope scope(host,
+                                                mask.m_maskCanvas.get(),
+                                                plan,
+                                                0);
+            if (Renderer* r = scope.renderer())
+            {
+                // Over the source bracket, not sourceDrawables() directly, so a
+                // clipping shape nested inside the source still brackets its
+                // own drawables. Starting past the opening marker keeps its
+                // own +1 suppression from hiding the very range we want.
+                drawDrawableRange(r,
+                                  mask.sourceStart()->prevDrawable(),
+                                  mask.sourceEnd());
+            }
+            else
+            {
+                opened = false;
+            }
+        }
+        if (opened)
+        {
+            offscreen::CanvasContentScope scope(host,
+                                                mask.m_contentCanvas.get(),
+                                                plan,
+                                                0);
+            if (Renderer* r = scope.renderer())
+            {
+                drawDrawableRange(r, startMarker->prevDrawable(), endMarker);
+                // The mask apply has to be the last draw into this canvas: it
+                // multiplies everything already there, so anything drawn after
+                // it would land unmasked. Issued in the canvas's own pixel
+                // space (the scope's transform is still in effect, so undo it)
+                // because the coverage texture is the same size as the target
+                // and has to line up texel for texel.
+                if (rcp<RenderImage> coverage =
+                        host->contentCanvasImage(mask.m_maskCanvas.get()))
+                {
+                    r->save();
+                    const float inv = 1.0f / plan.rasterScale;
+                    r->translate(plan.box.left(), plan.box.top());
+                    r->transform(Mat2D::fromScale(inv, inv));
+                    r->applyLayerMask(
+                        coverage.get(),
+                        ImageSampler::LinearClamp(),
+                        static_cast<LayerMaskMode>(mask.maskModeValue()));
+                    r->restore();
+                }
+            }
+            else
+            {
+                opened = false;
+            }
+        }
+        if (!opened)
+        {
+            // The host could not open an offscreen frame. Nothing was drawn, so
+            // drop the canvases and stay dirty: a later frame retries, and in
+            // the meantime the content draws unmasked rather than as a hole.
+            mask.releaseCanvases();
+            mask.m_dirty = true;
+            return false;
+        }
+
+        // Commit what the pixels now are. m_tightBox is what a later frame
+        // re-fits from; m_box is where these pixels live, which is what the
+        // composite has to place them at even after the plan moves on.
+        mask.m_tightBox = tight;
+        mask.m_box = plan.box;
+        mask.m_widthPx = plan.widthPx;
+        mask.m_heightPx = plan.heightPx;
+        mask.m_rasterScale = plan.rasterScale;
+        mask.m_dirty = false;
+    }
+
+    rcp<RenderImage> contentImage =
+        host->contentCanvasImage(mask.m_contentCanvas.get());
+    rcp<RenderImage> coverageImage =
+        host->contentCanvasImage(mask.m_maskCanvas.get());
+    if (contentImage == nullptr || coverageImage == nullptr)
+    {
+        return false;
+    }
+
+    // mask.m_box, not plan.box: on a frame that reused the cached rasters the
+    // plan was re-fitted from scratch, and the pixels being composited belong
+    // to whatever box they were rasterized for.
+    auto placement = offscreen::beginComposite(renderer,
+                                               host,
+                                               plan,
+                                               mask.m_rasterScale,
+                                               mask.m_box);
+    placement.renderer->drawImage(contentImage.get(),
+                                  ImageSampler::LinearClamp(),
+                                  BlendMode::srcOver,
+                                  placement.opacity);
+    offscreen::endComposite(placement);
+    return true;
+}
+#else
+bool Artboard::drawMasked(Renderer*, Drawable*, Drawable*) { return false; }
+#endif
 
 #ifdef RIVE_CANVAS
 bool Artboard::drawCachedAsBitmap(Renderer* renderer)
@@ -2300,80 +3145,27 @@ bool Artboard::drawCachedAsBitmap(Renderer* renderer)
         return false;
     }
 
-    // How many device pixels one artboard unit covers right now: viewport zoom
-    // times window density times whatever scale the mount transform adds. This
-    // is the number the old sizing ignored -- it rasterized in artboard units,
-    // so on a 2x display at 100% zoom a resolution-1 cache was already a
-    // half-resolution image being magnified, which is what softens text.
-    // Reading it here (rather than at replay) is why DeferredRenderer shadows
-    // its CTM: the raster size has to be chosen while recording.
-    Mat2D ctm;
-    const bool haveCtm = renderer->currentTransform(&ctm);
-    // Read before rasterizing, for the same reason as the CTM: if the host
-    // hands back a fresh renderer to composite through, that renderer starts
-    // at opacity 1 and the enclosing modulateOpacity() scope has to be carried
-    // over by hand.
-    float modulatedOpacity = 1.0f;
-    const bool haveOpacity =
-        renderer->currentModulatedOpacity(&modulatedOpacity);
-    float deviceScale = 1.0f;
-    if (haveCtm)
-    {
-        const float s = ctm.findMaxScale();
-        if (std::isfinite(s) && s > 0.0f)
-        {
-            // Quantize to sixteenths so scrubbing zoom does not re-raster and
-            // re-allocate on every frame. Rounding up keeps the raster at least
-            // as fine as the screen, and the scales a user actually rests at
-            // (1, 1.5, 2, 3, 4) are already multiples of 1/16, so the cases
-            // that matter stay pixel exact rather than merely close.
-            constexpr float kScaleQuantum = 16.0f;
-            deviceScale = std::ceil(s * kScaleQuantum) / kScaleQuantum;
-        }
-    }
-
-    constexpr float kMinRes = 0.01f;
-    constexpr float kMaxRes = 8.0f;
-    float res =
-        std::min<float>(std::max<float>(cache.resolution(), kMinRes), kMaxRes);
-
-    // Texels per artboard unit. resolution 1 means one texel per screen pixel,
-    // so the composite is a 1:1 blit; 2 is a genuine 2x supersample of what the
-    // screen shows. A renderer that cannot report a transform leaves
-    // deviceScale at 1, which is the old artboard-unit meaning.
-    float rasterScale = res * deviceScale;
-
-    // Cap by shrinking the scale, not by clamping one axis: clamping a single
-    // dimension would make the two axes disagree about the mapping, and the
-    // composite below inverts one scale for both. Uniform coarsening at least
-    // keeps the image undistorted.
-    constexpr uint32_t kMaxDim = 2048;
-    const float maxScale = std::min<float>(static_cast<float>(kMaxDim) / w,
-                                           static_cast<float>(kMaxDim) / h);
-    rasterScale = std::min<float>(rasterScale, maxScale);
-    if (!(rasterScale > 0.0f) || !std::isfinite(rasterScale))
+    // Chooses the raster size from the scale the artboard is actually viewed
+    // at, and captures the CTM and modulated opacity the composite below needs.
+    // See offscreen_raster.hpp for why each of those has to be read here,
+    // while recording, rather than at replay.
+    offscreen::RasterPlan plan;
+    if (!offscreen::planRaster(renderer, box, cache.resolution(), &plan))
     {
         return false;
     }
-
-    uint32_t widthPx = static_cast<uint32_t>(
-        std::min<float>(std::max<float>(std::ceil(w * rasterScale), 1.0f),
-                        static_cast<float>(kMaxDim)));
-    uint32_t heightPx = static_cast<uint32_t>(
-        std::min<float>(std::max<float>(std::ceil(h * rasterScale), 1.0f),
-                        static_cast<float>(kMaxDim)));
 
     // Rebuild when there is no cache, it was explicitly invalidated (resolution
     // changed), the target size or raster scale changed (artboard resized, or
     // the artboard is being viewed at a different zoom), or the content changed
     // this frame.
-    bool geomChanged = widthPx != cache.m_widthPx ||
-                       heightPx != cache.m_heightPx ||
-                       rasterScale != cache.m_rasterScale;
+    bool geomChanged = plan.widthPx != cache.m_widthPx ||
+                       plan.heightPx != cache.m_heightPx ||
+                       plan.rasterScale != cache.m_rasterScale;
     if (cache.m_canvas == nullptr || cache.m_dirty || geomChanged ||
         didChange())
     {
-        renderIntoCanvas(deferredHost, widthPx, heightPx, rasterScale);
+        renderIntoCanvas(deferredHost, plan);
     }
     if (cache.m_canvas == nullptr)
     {
@@ -2397,94 +3189,60 @@ bool Artboard::drawCachedAsBitmap(Renderer* renderer)
     {
         return false;
     }
-    // Some hosts cannot composite through the renderer that was drawing when
-    // the offscreen frame interrupted it, and hand back a clean one instead.
-    // It shares no state, so the current transform and the modulated opacity
-    // both have to be re-applied by hand -- and it inherits no clip. Known
-    // limitation: on that path (WebGL today) an ancestor's clip does not
-    // constrain the composite, so a cached artboard under a clipping shape can
-    // paint outside it where the vector draw would have been cropped.
-    Renderer* composite = renderer;
-    // The opacity the composite has to supply itself. Stays 1 on the in-place
-    // path, where the interrupted renderer still carries its own modulated
-    // opacity and folds it into the draw below.
-    float compositeOpacity = 1.0f;
-    if (Renderer* fresh = deferredHost->compositeRenderer())
-    {
-        if (haveCtm && haveOpacity)
-        {
-            composite = fresh;
-            compositeOpacity = modulatedOpacity;
-        }
-    }
-    composite->save();
-    if (composite != renderer)
-    {
-        composite->transform(ctm);
-    }
-    // Pixel snap. Even at a perfectly matched scale, an origin that lands on a
-    // half pixel makes every bilinear tap a blend of two texels -- a box blur
-    // over the whole image, and the reason cache-as-bitmap has historically
-    // needed a pixelSnapping switch. Only meaningful when the transform is axis
-    // aligned; under rotation or skew there is no pixel grid to snap to.
-    if (haveCtm && ctm.xy() == 0.0f && ctm.yx() == 0.0f && ctm.xx() != 0.0f &&
-        ctm.yy() != 0.0f)
-    {
-        const Vec2D deviceOrigin = ctm * Vec2D(box.left(), box.top());
-        const Vec2D delta = {std::round(deviceOrigin.x) - deviceOrigin.x,
-                             std::round(deviceOrigin.y) - deviceOrigin.y};
-        // The nudge is in device space but transform() concatenates in local
-        // space, so push it back through the (diagonal) linear part.
-        composite->translate(delta.x / ctm.xx(), delta.y / ctm.yy());
-    }
-    composite->translate(box.left(), box.top());
-    // The exact inverse of the scale the content was rasterized at. Deriving it
-    // from w / m_widthPx instead would fold ceil()'s rounding into the mapping,
-    // leaving a fractional-width artboard permanently resampled at ~0.995x --
-    // a blur on every pixel for nothing. The cost is that the quad reaches up
-    // to one texel past the box on the right and bottom, which is the sliver
-    // that rounding allocated anyway.
-    const float invScale = 1.0f / cache.m_rasterScale;
-    composite->transform(Mat2D::fromScale(invScale, invScale));
-    composite->drawImage(image.get(),
-                         ImageSampler::LinearClamp(),
-                         BlendMode::srcOver,
-                         compositeOpacity);
-    composite->restore();
+    // Picks the renderer to composite through, saves, pixel snaps, and maps the
+    // raster's pixel span back onto the box. m_rasterScale, not
+    // plan.rasterScale: the raster being composited may have been built on an
+    // earlier frame, and the mapping has to invert the scale it was actually
+    // drawn at.
+    auto placement = offscreen::beginComposite(renderer,
+                                               deferredHost,
+                                               plan,
+                                               cache.m_rasterScale);
+    placement.renderer->drawImage(image.get(),
+                                  ImageSampler::LinearClamp(),
+                                  BlendMode::srcOver,
+                                  placement.opacity);
+    offscreen::endComposite(placement);
     return true;
 }
 
 void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
-                                uint32_t widthPx,
-                                uint32_t heightPx,
-                                float rasterScale)
+                                const offscreen::RasterPlan& plan)
 {
-    const AABB box = bounds();
     BitmapCache& cache = *m_BitmapCache;
     // Reuse the texture whenever it is already the right size. This runs on
     // every frame the artboard changes, and on an immediate host each of these
     // is a real GPU allocation -- re-minting one per frame both defeats the
     // point of a cache and thrashes the driver.
-    if (cache.m_canvas == nullptr || cache.m_widthPx != widthPx ||
-        cache.m_heightPx != heightPx)
+    if (cache.m_canvas == nullptr || cache.m_widthPx != plan.widthPx ||
+        cache.m_heightPx != plan.heightPx)
     {
         // The host decides whether this needs real pixels now or can defer
         // them to whoever replays.
-        cache.m_canvas = deferredHost->makeContentCanvas(widthPx, heightPx);
+        cache.m_canvas =
+            deferredHost->makeContentCanvas(plan.widthPx, plan.heightPx);
     }
     if (cache.m_canvas == nullptr)
     {
         return;
     }
 
-    // beginCanvasContent hands back a recording renderer whose frame targets
-    // the canvas texture. Draw our content into it at exactly rasterScale
-    // texels per artboard unit -- not widthPx/w, which would bake ceil()'s
-    // rounding into the mapping. Curve flattening and feathering read this
-    // transform, so this is also what decides how finely the content is
-    // tessellated. clearColor is transparent black.
-    Renderer* r = deferredHost->beginCanvasContent(cache.m_canvas.get(), 0);
-    if (r == nullptr)
+    // The scope opens the content bracket and applies the raster transform;
+    // drawContent (not drawInternal) so we never re-enter the cache hook.
+    // clearColor is transparent black.
+    bool opened = false;
+    {
+        offscreen::CanvasContentScope scope(deferredHost,
+                                            cache.m_canvas.get(),
+                                            plan,
+                                            0);
+        if (Renderer* r = scope.renderer())
+        {
+            opened = true;
+            drawContent(r);
+        }
+    }
+    if (!opened)
     {
         // The host could not open an offscreen frame (an unbacked canvas, or a
         // host that cannot nest one). Nothing was drawn, so the canvas holds
@@ -2498,17 +3256,10 @@ void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
         cache.m_dirty = true;
         return;
     }
-    r->save();
-    r->transform(Mat2D::fromScale(rasterScale, rasterScale));
-    r->translate(-box.left(), -box.top());
-    // drawContent (not drawInternal) so we never re-enter the cache hook.
-    drawContent(r);
-    r->restore();
-    deferredHost->endCanvasContent(cache.m_canvas.get());
 
-    cache.m_widthPx = widthPx;
-    cache.m_heightPx = heightPx;
-    cache.m_rasterScale = rasterScale;
+    cache.m_widthPx = plan.widthPx;
+    cache.m_heightPx = plan.heightPx;
+    cache.m_rasterScale = plan.rasterScale;
     cache.m_dirty = false;
 }
 #endif

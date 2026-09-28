@@ -47,6 +47,10 @@ public:
     Factory* renderContext() override;
     cmd::DeferredCanvasHost* deferredCanvasHost() override;
     cmd::DeferredCanvasHost* canvasContentHost() override;
+    // The op is recorded by applyLayerMask below and applied at replay by
+    // serialized_replay.cpp, so this host does honour it. Explicit because the
+    // capability now defaults to no.
+    bool supportsLayerMask() const override { return true; }
 
     // ---- DeferredCanvasHost ----
     Renderer* beginCanvasContent(gpu::RenderCanvas* canvas,

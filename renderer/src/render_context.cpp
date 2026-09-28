@@ -446,6 +446,10 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
         }();
         m_frameDescriptor.msaaSampleCount = 4;
     }
+    // Republished for the producer thread; see the member's comment.
+    m_frameCanApplyLayerMask.store(m_frameInterlockMode ==
+                                       gpu::InterlockMode::rasterOrdering,
+                                   std::memory_order_relaxed);
     m_frameShaderFeaturesMask =
         gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);
     m_triangulationController.beginFrame(
@@ -479,6 +483,62 @@ bool RenderContext::frameSupportsImagePaintForPaths() const
 {
     assert(m_didBeginFrame);
     return m_frameInterlockMode != gpu::InterlockMode::atomics;
+}
+
+bool RenderContext::frameSupportsLayerMask() const
+{
+    assert(m_didBeginFrame);
+    // The precise answer, and no longer the same question as
+    // supportsLayerMask(): this one decides whether to EMIT the op, so it has
+    // to be this frame's mode. Emitting on a mode whose blend step has not been
+    // taught it is worse than skipping -- find_paint_color would hand back the
+    // coverage texel and src-over would paint it over the content. Safe to read
+    // the mode here because this runs on the thread that opened the frame.
+    return m_frameInterlockMode == gpu::InterlockMode::rasterOrdering;
+}
+
+bool RenderContext::supportsLayerMask() const
+{
+    // Device capability only, and deliberately nothing per-frame.
+    //
+    // This is asked by a recording session, on the producer thread, while the
+    // render thread may be inside beginFrame on this same context -- the whole
+    // point of the DeferredFrame snapshot is that recording the next frame
+    // overlaps replaying the last one. Reading m_frameInterlockMode here was
+    // therefore a data race, and it answered with whichever frame happened to
+    // have started last: after one MSAA frame chose depthStencil, later
+    // recordings would report no support and quietly stop masking.
+    //
+    // platformFeatures() is settled in the backend's constructor and never
+    // written again, so reading it across threads is safe. The mask rides the
+    // modulated-image path to get its texel, which rasterOrdering always has,
+    // and select_interlock_mode cannot choose that mode without this flag.
+    //
+    // What this cannot know is the descriptor of the frame that will replay the
+    // recording. A capable device whose next frame asks for MSAA lands on
+    // depthStencil, where applyLayerMask no-ops -- and by then the rasters are
+    // already sized to the content-and-coverage intersection, so that layer
+    // comes back unmasked and cropped. Closing that needs the capability handed
+    // in from the target before recording, or an uncropped box whenever the
+    // answer is a guess; frameSupportsLayerMask() below is the precise form,
+    // but it is only answerable on the replay thread inside the frame, which is
+    // too late to choose a box.
+    // The frame half comes from an atomic that beginFrame publishes rather than
+    // from m_frameInterlockMode directly, which is what made this racy. Same
+    // value, read safely.
+    //
+    // It can still be the PREVIOUS frame's answer, and that is inherent: a
+    // recording is made before the frame that will replay it exists, so the
+    // last one is the only evidence there is. Being wrong that way costs a
+    // layer that comes back unmasked and cropped, since the rasters were sized
+    // to the content-and-coverage intersection by then. Closing it properly
+    // means the replay target handing the capability in before recording
+    // starts, or keeping an uncropped box whenever the answer is a guess -- and
+    // that second option gives up the tight bounds this whole change is for.
+    // frameSupportsLayerMask() is exact but is only answerable on the replay
+    // thread inside the frame, far too late to pick a box.
+    return platformFeatures().supportsRasterOrderingMode &&
+           m_frameCanApplyLayerMask.load(std::memory_order_relaxed);
 }
 
 uint32_t RenderContext::generateClipID(IAABB contentBounds,
@@ -3165,7 +3225,9 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
         draw->blendMode() != BlendMode::srcOver &&
             !(m_ctx->frameInterlockMode() == gpu::InterlockMode::depthStencil &&
               m_ctx->platformFeatures().supportsBlendAdvancedKHR),
-        draw->additiveness());
+        draw->additiveness(),
+        draw->isLayerMask(),
+        draw->layerMaskMode());
     m_ctx->m_paintAuxData.set_back(draw->paintMatrix(),
                                    draw->imageMatrix(),
                                    draw->paintType(),

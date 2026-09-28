@@ -22,6 +22,8 @@ public:
         return worldTransform();
     }
 
+    BoundsFidelity paintedWorldBounds(AABB* out) override;
+
     Component* pathBuilder() override;
     ShapePaintPath* worldPath() override;
     ShapePaintPath* localPath() override;

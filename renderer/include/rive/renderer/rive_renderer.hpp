@@ -43,6 +43,10 @@ public:
                    BlendMode,
                    float opacity,
                    float additiveness) override;
+
+    void applyLayerMask(const RenderImage*,
+                        ImageSampler,
+                        LayerMaskMode) override;
     void clipStroke(RenderPath*, const StrokeParams&) override;
     void drawImageMesh(const RenderImage*,
                        ImageSampler,
