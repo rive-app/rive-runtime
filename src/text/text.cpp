@@ -472,7 +472,7 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
             // Nothing to lay out: trivially fits.
             return true;
         }
-        auto runs = styledText.runs();
+        const auto& runs = styledText.runs();
         auto shape = runs[0].font->shapeText(styledText.unichars(), runs);
         auto lines = BreakLines(shape, boxWidth, align(), wrap(), wordBreak());
 
@@ -1310,7 +1310,7 @@ void Text::update(ComponentDirt value)
         if (precomputeModifierCoverage &&
             makeStyled(m_modifierStyledText, false, fontScale))
         {
-            auto runs = m_modifierStyledText.runs();
+            const auto& runs = m_modifierStyledText.runs();
             m_modifierShape =
                 runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
             m_modifierLines =
@@ -1337,7 +1337,7 @@ void Text::update(ComponentDirt value)
         }
         if (makeStyled(m_styledText, true, fontScale))
         {
-            auto runs = m_styledText.runs();
+            const auto& runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
 
             m_lines = BreakLines(m_shape,
@@ -1454,7 +1454,7 @@ Vec2D Text::measure(Vec2D maxSize)
     if (makeStyled(m_styledText, true, fontScale))
     {
         const float paragraphSpace = paragraphSpacing() * fontScale;
-        auto runs = m_styledText.runs();
+        const auto& runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
         auto measuringWrap = maxSize.x == std::numeric_limits<float>::max() &&
                                      effectiveSizing() != TextSizing::autoHeight

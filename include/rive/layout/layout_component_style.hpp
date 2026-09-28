@@ -78,6 +78,7 @@ public:
 #endif
     void markLayoutNodeDirty();
     void markLayoutStyleDirty();
+    void markRenderPathDirty();
     void scaleTypeChanged();
     void displayChanged();
 

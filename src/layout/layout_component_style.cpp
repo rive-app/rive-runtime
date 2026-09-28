@@ -432,6 +432,14 @@ void LayoutComponentStyle::markLayoutStyleDirty()
     }
 }
 
+void LayoutComponentStyle::markRenderPathDirty()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->addDirt(ComponentDirt::Path);
+    }
+}
+
 void LayoutComponentStyle::scaleTypeChanged()
 {
     if (parent()->is<LayoutComponent>())
@@ -490,6 +498,7 @@ StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 #else
 void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
+void LayoutComponentStyle::markRenderPathDirty() {}
 void LayoutComponentStyle::scaleTypeChanged() {}
 void LayoutComponentStyle::displayChanged() {}
 void LayoutComponentStyle::positionTypeValueChanged() {}
@@ -659,11 +668,15 @@ void LayoutComponentStyle::positionBottomUnitsValueChanged()
 {
     markLayoutNodeDirty();
 }
-// Which of the four radiuses updateRenderPath reads depends on this flag, so a
-// change to it has to rebuild the path exactly like a radius change does. It
-// matters most when the flag is data bound and flips mid-playback.
-void LayoutComponentStyle::linkCornerRadiusChanged() { markLayoutStyleDirty(); }
-void LayoutComponentStyle::cornerRadiusTLChanged() { markLayoutStyleDirty(); }
-void LayoutComponentStyle::cornerRadiusTRChanged() { markLayoutStyleDirty(); }
-void LayoutComponentStyle::cornerRadiusBLChanged() { markLayoutStyleDirty(); }
-void LayoutComponentStyle::cornerRadiusBRChanged() { markLayoutStyleDirty(); }
+// The corner radiuses are read only by LayoutComponent::updateRenderPath, to
+// round the layout's background, so a change just rebuilds that path.
+// markLayoutStyleDirty would also re-cascade styles through the artboard's
+// whole layout tree, and until that cascade ran, an inherit-style layout would
+// lose its interpolation and skip that frame's tween step. linkCornerRadius
+// decides which of the four radiuses the path uses, so it rebuilds the path
+// too; that matters most when the flag is data bound and flips mid-playback.
+void LayoutComponentStyle::linkCornerRadiusChanged() { markRenderPathDirty(); }
+void LayoutComponentStyle::cornerRadiusTLChanged() { markRenderPathDirty(); }
+void LayoutComponentStyle::cornerRadiusTRChanged() { markRenderPathDirty(); }
+void LayoutComponentStyle::cornerRadiusBLChanged() { markRenderPathDirty(); }
+void LayoutComponentStyle::cornerRadiusBRChanged() { markRenderPathDirty(); }

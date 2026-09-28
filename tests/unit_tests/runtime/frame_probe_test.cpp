@@ -17,6 +17,9 @@
 #include "rive/artboard.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/file.hpp"
+#include "rive/layout_component.hpp"
+#include "rive/layout/layout_component_style.hpp"
+#include "rive/layout/layout_enums.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
@@ -256,4 +259,55 @@ TEST_CASE("a participant whose path rebuilds in place does not re-solve",
         artboard->advance(kFrameSeconds);
     }
     CHECK(Artboard::layoutPassCount() == settled);
+}
+
+// A layout tween moves the layout toward a target its last solve already
+// produced, and nothing Yoga reads changes while it runs, so it needs no more
+// solves until it ends.
+TEST_CASE("a layout tween runs without re-solving the layout", "[layout]")
+{
+    // A container with a custom layout animation holding six 100x100 layouts
+    // that inherit it. The file binds the container's interpolation time,
+    // which reads 0 while unbound, so give it a one second linear tween.
+    auto file = ReadRiveFile("assets/layout/layout_anim_bound.riv");
+    auto artboard = file->artboardDefault();
+    LayoutComponent* container = nullptr;
+    LayoutComponent* layout = nullptr;
+    for (auto* candidate : artboard->find<LayoutComponent>())
+    {
+        if (candidate->is<Artboard>() || candidate->style() == nullptr)
+        {
+            continue;
+        }
+        auto style = candidate->animationStyle();
+        if (container == nullptr && style == LayoutAnimationStyle::custom)
+        {
+            container = candidate;
+        }
+        if (layout == nullptr && style == LayoutAnimationStyle::inherit)
+        {
+            layout = candidate;
+        }
+    }
+    REQUIRE(container != nullptr);
+    REQUIRE(layout != nullptr);
+    container->style()->interpolationType(
+        (uint8_t)LayoutStyleInterpolation::linear);
+    container->style()->interpolationTime(1.0f);
+    artboard->advance(0.0f);
+    REQUIRE(layout->layoutWidth() == 100.0f);
+
+    // Shrinking the layout solves once, which starts the tween.
+    layout->width(50.0f);
+    artboard->advance(kFrameSeconds);
+    uint64_t retargeted = Artboard::layoutPassCount();
+    int frames = 0;
+    while (layout->layoutWidth() > 50.0f && frames < 2 * kProbeFrames)
+    {
+        artboard->advance(kFrameSeconds);
+        frames++;
+    }
+    CHECK(layout->layoutWidth() == 50.0f);
+    CHECK(frames > 1);
+    CHECK(Artboard::layoutPassCount() == retargeted);
 }

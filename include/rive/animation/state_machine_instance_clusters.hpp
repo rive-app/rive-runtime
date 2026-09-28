@@ -25,6 +25,7 @@
 #include "rive/input/gamepad_snapshot.hpp"
 #include "rive/semantic/semantic_manager.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -61,13 +62,116 @@ struct SMIReporting
     std::vector<ListenerViewModel*> reportingListenerViewModels;
 };
 
+/// Shared BindableProperty -> an instance's clone of it. Transition conditions
+/// and blend states look their clone up every time they are evaluated, so this
+/// is a flat open-addressing table keyed by the pointer: one multiply to hash,
+/// and the entry sits in a contiguous array, where an unordered_map also
+/// divides and chases a separately allocated node for every lookup.
+class BindablePropertyInstances
+{
+public:
+    BindableProperty* find(const BindableProperty* shared) const
+    {
+        if (m_entries.empty())
+        {
+            return nullptr;
+        }
+        const size_t mask = m_entries.size() - 1;
+        for (size_t i = slotOf(shared) & mask;; i = (i + 1) & mask)
+        {
+            const Entry& entry = m_entries[i];
+            if (entry.shared == shared)
+            {
+                return entry.instance;
+            }
+            if (entry.shared == nullptr)
+            {
+                return nullptr;
+            }
+        }
+    }
+
+    /// Adds [shared] -> [instance]; [shared] must not be in the table yet.
+    void insert(BindableProperty* shared, BindableProperty* instance)
+    {
+        // Keep at least half the entries empty so probes stay short.
+        if ((m_count + 1) * 2 > m_entries.size())
+        {
+            grow();
+        }
+        place(shared, instance);
+        m_count++;
+    }
+
+    template <typename F> void forEachInstance(F&& visit) const
+    {
+        for (const Entry& entry : m_entries)
+        {
+            if (entry.shared != nullptr)
+            {
+                visit(entry.instance);
+            }
+        }
+    }
+
+    void clear()
+    {
+        m_entries.clear();
+        m_count = 0;
+    }
+
+private:
+    struct Entry
+    {
+        BindableProperty* shared = nullptr;
+        BindableProperty* instance = nullptr;
+    };
+
+    // Fibonacci hashing: the multiply spreads the pointer's bits, so
+    // neighbouring allocations still land far apart.
+    static size_t slotOf(const BindableProperty* shared)
+    {
+        return (size_t)(((uint64_t)(uintptr_t)shared *
+                         UINT64_C(0x9E3779B97F4A7C15)) >>
+                        32);
+    }
+
+    void place(BindableProperty* shared, BindableProperty* instance)
+    {
+        const size_t mask = m_entries.size() - 1;
+        size_t i = slotOf(shared) & mask;
+        while (m_entries[i].shared != nullptr)
+        {
+            i = (i + 1) & mask;
+        }
+        m_entries[i] = {shared, instance};
+    }
+
+    void grow()
+    {
+        std::vector<Entry> old = std::move(m_entries);
+        m_entries.assign(old.empty() ? 8 : old.size() * 2, Entry{});
+        for (const Entry& entry : old)
+        {
+            if (entry.shared != nullptr)
+            {
+                place(entry.shared, entry.instance);
+            }
+        }
+    }
+
+    // Power-of-two size; a null shared pointer marks an empty entry.
+    std::vector<Entry> m_entries;
+    size_t m_count = 0;
+};
+
 /// Per-instance clones of the BindableProperty / StateTransition values a data
 /// bind writes to, so instances never write through to shared file data.
 /// Allocated only when a state machine data bind targets one of them.
 struct SMIBindables
 {
     /// Shared BindableProperty -> this instance's owned clone.
-    std::unordered_map<BindableProperty*, BindableProperty*> propertyInstances;
+    BindablePropertyInstances propertyInstances;
     std::unordered_map<BindableProperty*, DataBind*> dataBindsToTarget;
     std::unordered_map<BindableProperty*, DataBind*> dataBindsToSource;
     /// Map from shared StateTransition* to per-instance BindablePropertyNumber

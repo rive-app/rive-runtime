@@ -121,6 +121,12 @@ TransformComponents FollowPathConstraint::constrainHelper(
 
 void FollowPathConstraint::update(ComponentDirt value)
 {
+    // Render opacity alone, a fade reaching us through the target, doesn't
+    // move the path we follow.
+    if (value == ComponentDirt::RenderOpacity)
+    {
+        return;
+    }
     auto* tgt = target();
     std::vector<Path*> paths;
     if (tgt->is<Shape>())

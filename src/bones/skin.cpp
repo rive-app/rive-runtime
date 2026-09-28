@@ -210,6 +210,13 @@ void Skin::sortTendonsForEditor()
 
 void Skin::onDirty(ComponentDirt dirt)
 {
+    // Render opacity alone, a fade reaching us through our bones, can't move a
+    // bone, so the skinned vertices stay where they are. Collapsed is a state
+    // this dirt keeps while we are hidden, not work.
+    if ((dirt & ~ComponentDirt::Collapsed) == ComponentDirt::RenderOpacity)
+    {
+        return;
+    }
     if (m_Skinnable != nullptr)
     {
         m_Skinnable->markSkinDirty();

@@ -234,7 +234,9 @@ void ScrollConstraint::constrainVirtualized(bool force)
 {
     if (virtualize() && m_virtualizer != nullptr)
     {
-        auto children = scrollChildren();
+        // By reference: this runs for every constrained child, and the list
+        // only changes in buildDependencies.
+        auto& children = scrollChildren();
         if (m_childConstraintAppliedCount < children.size() && !force)
         {
             return;

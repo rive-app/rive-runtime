@@ -36,12 +36,16 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/file.hpp"
+#include "rive/generated/layout/layout_component_style_base.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/layout/layout_enums.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/scene.hpp"
+#include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "utils/no_op_renderer.hpp"
@@ -257,6 +261,12 @@ enum class Scenario
     fade,
     // Every scroll constraint sweeps its full range.
     scroll,
+    // One layout's corner radius animates: a style change that only reshapes
+    // that layout's background.
+    round,
+    // One layout keeps tweening: its width flips every half second and
+    // animates to the new width over half a second.
+    tween,
 };
 
 enum class RendererKind
@@ -394,6 +404,11 @@ private:
         m_scene = nullptr;
         m_movers.clear();
         m_scrolls.clear();
+        m_roundedStyle = nullptr;
+        m_roundedLayoutDraws = false;
+        m_tweenStyle = nullptr;
+        m_tweenLayout = nullptr;
+        m_tweenLayoutNested = false;
         m_artboard = m_file->artboardDefault();
         m_viewModelInstance =
             m_file->createDefaultViewModelInstance(m_artboard.get());
@@ -462,6 +477,109 @@ private:
             case Scenario::scroll:
                 m_scrolls = m_artboard->find<ScrollConstraint>();
                 break;
+            case Scenario::round:
+            {
+                // Prefer a layout that draws, so its own background path
+                // rebuilds too; otherwise take the first one with a style.
+                // Styles are found through the object list:
+                // LayoutComponent::style() returns a type this target can't
+                // include.
+                std::vector<ContainerComponent*> painted;
+                for (auto object : m_artboard->objects())
+                {
+                    if (object != nullptr && object->is<ShapePaint>())
+                    {
+                        painted.push_back(object->as<ShapePaint>()->parent());
+                    }
+                }
+                for (auto object : m_artboard->objects())
+                {
+                    if (object == nullptr ||
+                        !object->is<LayoutComponentStyleBase>())
+                    {
+                        continue;
+                    }
+                    auto style = object->as<LayoutComponentStyleBase>();
+                    auto layout = style->parent();
+                    if (layout == m_artboard.get())
+                    {
+                        continue;
+                    }
+                    bool draws =
+                        std::find(painted.begin(), painted.end(), layout) !=
+                        painted.end();
+                    if (m_roundedStyle == nullptr || draws)
+                    {
+                        m_roundedStyle = style;
+                        m_roundedLayoutDraws = draws;
+                    }
+                    if (draws)
+                    {
+                        break;
+                    }
+                }
+                if (m_roundedStyle != nullptr)
+                {
+                    // One radius for all four corners.
+                    m_roundedStyle->linkCornerRadius(true);
+                }
+                break;
+            }
+            case Scenario::tween:
+            {
+                // The last styled layout in file order, likely a leaf (a card
+                // or a button) rather than the page it sits in. UI files tend
+                // to build those in nested artboards, so look in those before
+                // the artboard itself. Styles are found through the object
+                // list, as for round.
+                std::vector<Artboard*> artboards;
+                for (auto nested : m_artboard->find<NestedArtboard>())
+                {
+                    if (nested->artboardInstance() != nullptr)
+                    {
+                        artboards.push_back(nested->artboardInstance());
+                    }
+                }
+                artboards.push_back(m_artboard.get());
+                for (auto artboard : artboards)
+                {
+                    for (auto object : artboard->objects())
+                    {
+                        if (object == nullptr ||
+                            !object->is<LayoutComponentStyleBase>())
+                        {
+                            continue;
+                        }
+                        auto layout =
+                            object->as<LayoutComponentStyleBase>()->parent();
+                        if (layout != artboard && layout->is<LayoutComponent>())
+                        {
+                            m_tweenStyle =
+                                object->as<LayoutComponentStyleBase>();
+                            m_tweenLayout = layout->as<LayoutComponent>();
+                            m_tweenLayoutNested = artboard != m_artboard.get();
+                        }
+                    }
+                    if (m_tweenLayout != nullptr)
+                    {
+                        break;
+                    }
+                }
+                if (m_tweenStyle != nullptr)
+                {
+                    // Its own linear half-second tween, and a width fixed in
+                    // points so the flips below resize it.
+                    m_tweenStyle->animationStyleType(
+                        (uint8_t)LayoutAnimationStyle::custom);
+                    m_tweenStyle->interpolationType(
+                        (uint8_t)LayoutStyleInterpolation::linear);
+                    m_tweenStyle->interpolationTime(0.5f);
+                    m_tweenStyle->layoutWidthScaleType(
+                        (uint8_t)LayoutScaleType::fixed);
+                    m_tweenStyle->widthUnitsValue(1); // YGUnitPoint
+                }
+                break;
+            }
             case Scenario::idle:
             case Scenario::fade:
                 break;
@@ -479,6 +597,24 @@ private:
         if (m_scenario == Scenario::scroll && m_scrolls.empty())
         {
             fprintf(stderr, "artboard_frame_bench: no scroll constraint\n");
+        }
+        if (m_scenario == Scenario::tween)
+        {
+            fprintf(stderr,
+                    "artboard_frame_bench: %s\n",
+                    m_tweenLayout == nullptr ? "no styled layout"
+                    : m_tweenLayoutNested
+                        ? "tweening a layout in a nested artboard"
+                        : "tweening a layout in the artboard");
+        }
+        if (m_scenario == Scenario::round)
+        {
+            fprintf(stderr,
+                    "artboard_frame_bench: %s\n",
+                    m_roundedStyle == nullptr ? "no styled layout"
+                    : m_roundedLayoutDraws
+                        ? "rounding a layout that draws"
+                        : "rounding a layout that draws nothing");
         }
     }
 
@@ -510,6 +646,22 @@ private:
                     float t = 0.5f - 0.5f * std::cos(phase);
                     scroll->scrollOffsetX(scroll->maxOffsetX() * t);
                     scroll->scrollOffsetY(scroll->maxOffsetY() * t);
+                }
+                break;
+            case Scenario::tween:
+                // m_frame already counts this frame. Every 30 frames, the
+                // length of the tween, so one is always running.
+                if (m_tweenLayout != nullptr && (m_frame - 1) % 30 == 0)
+                {
+                    m_tweenLayout->width((m_frame - 1) % 60 == 0 ? 60.0f
+                                                                 : 100.0f);
+                }
+                break;
+            case Scenario::round:
+                if (m_roundedStyle != nullptr)
+                {
+                    m_roundedStyle->cornerRadiusTL(8.0f +
+                                                   8.0f * std::sin(phase));
                 }
                 break;
             case Scenario::idle:
@@ -609,6 +761,11 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     std::vector<Mover> m_movers;
     std::vector<ScrollConstraint*> m_scrolls;
+    LayoutComponentStyleBase* m_roundedStyle = nullptr;
+    bool m_roundedLayoutDraws = false;
+    LayoutComponentStyleBase* m_tweenStyle = nullptr;
+    LayoutComponent* m_tweenLayout = nullptr;
+    bool m_tweenLayoutNested = false;
     mutable uint64_t m_frame = 0;
     bool m_skipped = false;
 };
@@ -634,7 +791,17 @@ ARTBOARD_FRAME_BENCH(db_health_tracker_idle_rive,
                      "db_health_tracker.riv",
                      idle,
                      rive)
+ARTBOARD_FRAME_BENCH(db_health_tracker_round,
+                     "db_health_tracker.riv",
+                     round,
+                     counting)
 ARTBOARD_FRAME_BENCH(data_viz_demo_idle, "data_viz_demo.riv", idle, counting)
+ARTBOARD_FRAME_BENCH(data_viz_demo_round, "data_viz_demo.riv", round, counting)
+ARTBOARD_FRAME_BENCH(db_health_tracker_tween,
+                     "db_health_tracker.riv",
+                     tween,
+                     counting)
+ARTBOARD_FRAME_BENCH(data_viz_demo_tween, "data_viz_demo.riv", tween, counting)
 ARTBOARD_FRAME_BENCH(layout_paint_idle,
                      "layout/layout_paint.riv",
                      idle,
@@ -650,6 +817,10 @@ ARTBOARD_FRAME_BENCH(layout_paint_move_rive,
 ARTBOARD_FRAME_BENCH(layout_animation_nested_idle,
                      "layout/layout_animation_nested.riv",
                      idle,
+                     counting)
+ARTBOARD_FRAME_BENCH(layout_animation_nested_round,
+                     "layout/layout_animation_nested.riv",
+                     round,
                      counting)
 ARTBOARD_FRAME_BENCH(layout_animation_component_list_idle,
                      "layout/layout_animation_component_list.riv",
@@ -692,6 +863,10 @@ ARTBOARD_FRAME_BENCH(trim_path_move, "trim_path.riv", move, counting)
 ARTBOARD_FRAME_BENCH(planets_grid_idle,
                      "layoutstest_8-planets-grid.riv",
                      idle,
+                     counting)
+ARTBOARD_FRAME_BENCH(planets_grid_tween,
+                     "layoutstest_8-planets-grid.riv",
+                     tween,
                      counting)
 ARTBOARD_FRAME_BENCH(superbowl_idle, "superbowl.riv", idle, counting)
 ARTBOARD_FRAME_BENCH(echo_show_idle, "echo_show_demo.riv", idle, counting)

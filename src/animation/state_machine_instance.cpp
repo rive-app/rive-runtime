@@ -1959,19 +1959,14 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             auto& bindables = ensureBindables();
             auto bindableProperty = dataBind->target()->as<BindableProperty>();
-            auto bindablePropertyInstance =
+            BindableProperty* bindablePropertyClone =
                 bindables.propertyInstances.find(bindableProperty);
-            BindableProperty* bindablePropertyClone;
-            if (bindablePropertyInstance == bindables.propertyInstances.end())
+            if (bindablePropertyClone == nullptr)
             {
                 bindablePropertyClone =
                     bindableProperty->clone()->as<BindableProperty>();
-                bindables.propertyInstances[bindableProperty] =
-                    bindablePropertyClone;
-            }
-            else
-            {
-                bindablePropertyClone = bindablePropertyInstance->second;
+                bindables.propertyInstances.insert(bindableProperty,
+                                                   bindablePropertyClone);
             }
             dataBindClone->target(bindablePropertyClone);
             // We are only storing in this unordered map data binds that are
@@ -2402,10 +2397,8 @@ StateMachineInstance::~StateMachineInstance()
     // so they are deleted here rather than by the cluster's destructor.
     if (auto* bindables = m_bindables.get())
     {
-        for (auto& pair : bindables->propertyInstances)
-        {
-            delete pair.second;
-        }
+        bindables->propertyInstances.forEachInstance(
+            [](BindableProperty* instance) { delete instance; });
         for (auto& outer : bindables->transitionPropertyInstances)
         {
             for (auto& inner : outer.second)
@@ -3591,13 +3584,7 @@ BindableProperty* StateMachineInstance::bindablePropertyInstance(
     {
         return nullptr;
     }
-    auto bindablePropertyInstance =
-        bindables->propertyInstances.find(bindableProperty);
-    if (bindablePropertyInstance == bindables->propertyInstances.end())
-    {
-        return nullptr;
-    }
-    return bindablePropertyInstance->second;
+    return bindables->propertyInstances.find(bindableProperty);
 }
 
 DataBind* StateMachineInstance::bindableDataBindToSource(

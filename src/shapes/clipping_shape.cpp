@@ -216,8 +216,6 @@ void ClippingShape::buildDependencies()
 #endif
 }
 
-static Mat2D identity;
-
 // Strokes are skipped: their effect output is a centerline, meaningless filled.
 bool ClippingShape::addFillPaths(Shape* shape)
 {
@@ -240,7 +238,7 @@ bool ClippingShape::addFillPaths(Shape* shape)
         if (!effected->empty())
         {
             const Mat2D& world = shape->worldTransform();
-            m_path.addPath(effected, effected->isLocal() ? &world : &identity);
+            m_path.addPath(effected, effected->isLocal() ? &world : nullptr);
         }
         addedEffected = true;
     }
@@ -254,7 +252,7 @@ bool ClippingShape::addFillPaths(Shape* shape)
     {
         return addedEffected;
     }
-    m_path.addPath(path, &identity);
+    m_path.addPath(path);
     return true;
 }
 

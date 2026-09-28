@@ -38,8 +38,17 @@ void Constraint::buildDependencies()
 
 void Constraint::onDirty(ComponentDirt dirt)
 {
-    // Whenever the constraint gets any dirt, make sure to mark the constrained
-    // component dirty.
+    // Whenever the constraint gets dirt that can move something, make sure to
+    // mark the constrained component dirty. Render opacity alone can't. A fade
+    // reaches every constraint through the component it constrains, and
+    // re-constraining for it re-dirtied that component and everything under
+    // it on every frame. Collapsed is a state this dirt keeps while we are
+    // hidden, not work: we only collapse along with the component we
+    // constrain, which doesn't update while collapsed either.
+    if ((dirt & ~ComponentDirt::Collapsed) == ComponentDirt::RenderOpacity)
+    {
+        return;
+    }
     markConstraintDirty();
 }
 

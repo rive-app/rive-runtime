@@ -49,6 +49,27 @@ TEST_CASE("ScrollConstraint vertical offset", "[layoutscroll]")
     REQUIRE(scroll->clampedOffsetY() == -220.0f);
 }
 
+// Every scroll child's constraint runs once per update. LayoutComponent used
+// to compose its world transform and apply its constraints a second time after
+// its transform pass, so each layout child counted twice: the virtualizer
+// fired halfway through the children, then again on every child after that.
+TEST_CASE("ScrollConstraint constrains each layout child once per update",
+          "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+    auto artboard = file->artboard();
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+    artboard->advance(0.0f);
+
+    // Scrolling moves the content, which constrains every child again.
+    scroll->scrollOffsetY(-100.0f);
+    artboard->advance(0.0f);
+
+    REQUIRE(scroll->scrollChildren().size() > 1);
+    CHECK(scroll->childConstraintAppliedCount() ==
+          (int)scroll->scrollChildren().size());
+}
+
 TEST_CASE("ScrollConstraint vertical offset manual", "[layoutscroll]")
 {
     auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");

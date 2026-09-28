@@ -140,6 +140,14 @@ public:
     float maxOffsetY();
     float clampedOffsetX();
     float clampedOffsetY();
+#ifdef TESTING
+    // Children constrained since the content last was: one per child per
+    // update once they have all run, which is when virtualization kicks in.
+    int childConstraintAppliedCount() const
+    {
+        return m_childConstraintAppliedCount;
+    }
+#endif
 
     float offsetX() { return m_offsetX; }
     float offsetY() { return m_offsetY; }

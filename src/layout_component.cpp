@@ -377,25 +377,28 @@ void LayoutComponent::composeWorldTransform()
 
 void LayoutComponent::update(ComponentDirt value)
 {
-    Super::update(value);
 #ifdef WITH_RIVE_LAYOUT
     if (value == ComponentDirt::Filthy)
     {
-        // Use this to prevent layout animation on startup
+        // First update: jump straight to the layout's target instead of
+        // animating in from zero. Done before Super's pass below, which
+        // composes our world transform from m_layout.
         interruptAnimation();
     }
 #endif
+    // m_Transform rotates and scales us about our origin, which sits at a
+    // fraction of our solved size (see buildOwnTransform). A new layout solve
+    // marks only WorldTransform dirty, so also pass Transform dirt: Super then
+    // rebuilds m_Transform before it composes the world transform and applies
+    // our constraints. Don't add a second pass after it -- ScrollConstraint
+    // counts the children it constrains to decide when to virtualize.
+    Super::update(parent() != nullptr &&
+                          hasDirt(value, ComponentDirt::WorldTransform)
+                      ? value | ComponentDirt::Transform
+                      : value);
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
         propagateOpacity(childOpacity());
-    }
-    if (parent() != nullptr && hasDirt(value, ComponentDirt::WorldTransform))
-    {
-        // Not left to Super's Transform-dirt pass: the pivot scales by the
-        // solved size, so a re-solve alone can stale it.
-        m_Transform = buildOwnTransform();
-        composeWorldTransform();
-        updateConstraints();
     }
     if (hasDirt(value,
                 ComponentDirt::Path | ComponentDirt::WorldTransform |
@@ -752,9 +755,21 @@ void LayoutComponent::updateRenderPath()
         tr,
         br,
         bl);
+    // Drop empty segments, such as the zero-length sides of a pill. local's
+    // addPath would drop them anyway; doing it here makes local an exact copy
+    // of the background, so the two can be compared below.
+    renderPaths.background.pruneEmptySegments();
 
-    renderPaths.local.rewind();
-    renderPaths.local.addPath(renderPaths.background);
+    // Moving a layout leaves its background as it was. Keep local then:
+    // rewinding it would hand the renderer identical geometry and discard the
+    // tessellation it cached for it. Compare rather than trust the dirt that
+    // got us here: a layout tween resizes with only WorldTransform dirt. world
+    // always rebuilds, since it bakes in the world transform.
+    if (!(*renderPaths.local.rawPath() == renderPaths.background))
+    {
+        renderPaths.local.rewind();
+        renderPaths.local.addPath(renderPaths.background);
+    }
 
     renderPaths.world.rewind(false, FillRule::clockwise);
     renderPaths.world.addPath(renderPaths.background, &m_WorldTransform);
@@ -1763,8 +1778,15 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
     animationData->elapsedSeconds += elapsedSeconds;
     if (f != 1)
     {
-        // Do we really need to mark the layout node dirty!!??
-        markLayoutNodeDirty();
+        // The tween moves m_layout toward a target the last solve already
+        // produced, and changes nothing Yoga reads, so a layout needs no new
+        // solve while it runs. An artboard is the exception: a host that lays
+        // it out (a list, a nested artboard layout) only learns its new size
+        // through markLayoutDirty, which markLayoutNodeDirty calls.
+        if (is<Artboard>())
+        {
+            markLayoutNodeDirty();
+        }
         return true;
     }
     return false;

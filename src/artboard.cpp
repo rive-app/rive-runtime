@@ -805,7 +805,7 @@ void Artboard::sortDrawOrder()
     while (currentDrawable)
     {
         currentDrawable->needsSaveOperation(true);
-        auto drawableClippingShapes = currentDrawable->clippingShapes();
+        const auto& drawableClippingShapes = currentDrawable->clippingShapes();
         // Remove all clippings that are not part of the current drawable. Since
         // they are applied as a stack, if one clipping is removed, all
         // subsequent clippings from the stack need to be removed as well
