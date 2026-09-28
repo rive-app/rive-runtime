@@ -243,7 +243,7 @@ TEST_CASE("trim keeps coincident control points", "[contourmeasure]")
 TEST_CASE("PosTanDistance default-constructs to a zero position and tangent",
           "[pathmeasure]")
 {
-    // Construct over NaN-filled storage so an uninitialised member shows up
+    // Construct over NaN-filled storage so an uninitialized member shows up
     // as NaN rather than whatever the stack happened to hold.
     alignas(ContourMeasure::PosTanDistance) unsigned char
         storage[sizeof(ContourMeasure::PosTanDistance)];
