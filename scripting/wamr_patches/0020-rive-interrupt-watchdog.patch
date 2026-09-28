@@ -1,0 +1,464 @@
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -1512,7 +1512,19 @@
+ }
+ #endif
+ 
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR == 0 && WASM_ENABLE_RIVE_INTERRUPT != 0
++/* rive: a host watchdog sets the terminate bit when a call overruns its
++   budget; the interpreter traps at the next branch instead of paying for
++   fuel counters in the module */
++#define CHECK_SUSPEND_FLAGS()                                             \
++    do {                                                                  \
++        if (WASM_SUSPEND_FLAGS_GET(exec_env->suspend_flags)               \
++            & WASM_SUSPEND_FLAG_TERMINATE) {                              \
++            wasm_set_exception(module, "execution budget exceeded");      \
++            goto got_exception;                                           \
++        }                                                                 \
++    } while (0)
++#elif WASM_ENABLE_THREAD_MGR != 0
+ #define CHECK_SUSPEND_FLAGS()                               \
+     do {                                                    \
+         WASM_SUSPEND_FLAGS_LOCK(exec_env->wait_lock);       \
+@@ -1778,7 +1790,7 @@
+ 
+             HANDLE_OP(WASM_OP_BR)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+             recover_br_info:
+@@ -1788,7 +1800,7 @@
+ 
+             HANDLE_OP(WASM_OP_BR_IF)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 cond = frame_lp[GET_OFFSET()];
+@@ -1814,7 +1826,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR0)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 frame_ip = (uint8 *)LOAD_PTR(frame_ip);
+@@ -1823,7 +1835,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF0)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 cond = frame_lp[GET_OFFSET()];
+@@ -1837,7 +1849,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_EQZ)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 if (GET_OPERAND(uint32, I32, 0) == 0)
+@@ -1849,7 +1861,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_EQ)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, ==);
+@@ -1858,7 +1870,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_NE)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, !=);
+@@ -1867,7 +1879,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_LT_S)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(int32, <);
+@@ -1876,7 +1888,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_LT_U)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, <);
+@@ -1885,7 +1897,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_GT_S)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(int32, >);
+@@ -1894,7 +1906,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_GT_U)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, >);
+@@ -1903,7 +1915,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_LE_S)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(int32, <=);
+@@ -1912,7 +1924,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_LE_U)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, <=);
+@@ -1921,7 +1933,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_GE_S)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(int32, >=);
+@@ -2018,7 +2030,7 @@
+ 
+             HANDLE_OP(EXT_OP_BR_IF_I32_GE_U)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 DEF_OP_FUSED_BR_IF_CMP(uint32, >=);
+@@ -2029,7 +2041,7 @@
+             {
+                 uint32 arity, br_item_size;
+ 
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 count = read_uint32(frame_ip);
+@@ -2122,7 +2134,7 @@
+ #if WASM_ENABLE_TAIL_CALL != 0
+                 GET_OPCODE();
+ #endif
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+ 
+@@ -2404,7 +2416,7 @@
+ #if WASM_ENABLE_GC != 0
+             HANDLE_OP(WASM_OP_CALL_REF)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 func_obj = POP_REF();
+@@ -2419,7 +2431,7 @@
+             }
+             HANDLE_OP(WASM_OP_RETURN_CALL_REF)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 func_obj = POP_REF();
+@@ -2453,7 +2465,7 @@
+             }
+             HANDLE_OP(WASM_OP_BR_ON_NULL)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 opnd_off = GET_OFFSET();
+@@ -2469,7 +2481,7 @@
+             }
+             HANDLE_OP(WASM_OP_BR_ON_NON_NULL)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 opnd_off = GET_OFFSET();
+@@ -3070,7 +3082,7 @@
+                         uint8 castflags;
+                         uint16 opnd_off_br;
+ 
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                         CHECK_SUSPEND_FLAGS();
+ #endif
+                         castflags = *frame_ip++;
+@@ -5921,7 +5933,7 @@
+                         if (ret == (uint32)-1)
+                             goto got_exception;
+ 
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                         CHECK_SUSPEND_FLAGS();
+ #endif
+ 
+@@ -5945,7 +5957,7 @@
+                         if (ret == (uint32)-1)
+                             goto got_exception;
+ 
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                         CHECK_SUSPEND_FLAGS();
+ #endif
+ 
+@@ -7802,7 +7814,7 @@
+ 
+             HANDLE_OP(WASM_OP_CALL)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 fidx = read_uint32(frame_ip);
+@@ -7819,7 +7831,7 @@
+ #if WASM_ENABLE_TAIL_CALL != 0
+             HANDLE_OP(WASM_OP_RETURN_CALL)
+             {
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+                 CHECK_SUSPEND_FLAGS();
+ #endif
+                 fidx = read_uint32(frame_ip);
+@@ -8148,7 +8160,7 @@
+ 
+             wasm_exec_env_set_cur_frame(exec_env, (WASMRuntimeFrame *)frame);
+         }
+-#if WASM_ENABLE_THREAD_MGR != 0
++#if WASM_ENABLE_THREAD_MGR != 0 || WASM_ENABLE_RIVE_INTERRUPT != 0
+         CHECK_SUSPEND_FLAGS();
+ #endif
+         HANDLE_OP_END();
+--- a/core/iwasm/include/wasm_export.h
++++ b/core/iwasm/include/wasm_export.h
+@@ -1329,6 +1329,19 @@
+ wasm_runtime_terminate(wasm_module_inst_t module_inst);
+ 
+ /**
++ * rive: ask the interpreter running on exec_env to trap at its next branch
++ * or call. Safe from any thread; the flag stays set until cleared.
++ */
++WASM_RUNTIME_API_EXTERN void
++wasm_runtime_rive_interrupt(wasm_exec_env_t exec_env);
++
++/**
++ * rive: clear a pending interrupt before the next call into the module.
++ */
++WASM_RUNTIME_API_EXTERN void
++wasm_runtime_rive_clear_interrupt(wasm_exec_env_t exec_env);
++
++/**
+  * Set custom data to WASM module instance.
+  * Note:
+  *  If WAMR_BUILD_LIB_PTHREAD is enabled, this API
+--- a/core/iwasm/common/wasm_runtime_common.c
++++ b/core/iwasm/common/wasm_runtime_common.c
+@@ -3267,6 +3267,20 @@
+     bh_assert(module_inst_comm->module_type == Wasm_Module_Bytecode
+               || module_inst_comm->module_type == Wasm_Module_AoT);
+     wasm_runtime_set_exception(module_inst_comm, NULL);
++}
++
++void
++wasm_runtime_rive_interrupt(WASMExecEnv *exec_env)
++{
++    WASM_SUSPEND_FLAGS_FETCH_OR(exec_env->suspend_flags,
++                                WASM_SUSPEND_FLAG_TERMINATE);
++}
++
++void
++wasm_runtime_rive_clear_interrupt(WASMExecEnv *exec_env)
++{
++    WASM_SUSPEND_FLAGS_FETCH_AND(exec_env->suspend_flags,
++                                 ~WASM_SUSPEND_FLAG_TERMINATE);
+ }
+ 
+ void
+--- a/core/iwasm/include/aot_comp_option.h
++++ b/core/iwasm/include/aot_comp_option.h
+@@ -97,6 +97,8 @@
+     const char *stack_usage_file;
+     const char *llvm_passes;
+     const char *builtin_intrinsics;
++    /* rive: loop back-edges trap on the host watchdog's terminate flag */
++    bool rive_interrupt;
+ } AOTCompOption, *aot_comp_option_t;
+ 
+ #ifdef __cplusplus
+--- a/core/iwasm/compilation/aot_llvm.h
++++ b/core/iwasm/compilation/aot_llvm.h
+@@ -443,6 +443,9 @@
+     /* Thread Manager */
+     bool enable_thread_mgr;
+ 
++    /* rive: loop back-edges trap on the host watchdog's terminate flag */
++    bool rive_interrupt;
++
+     /* Tail Call */
+     bool enable_tail_call;
+ 
+--- a/core/iwasm/compilation/aot_llvm.c
++++ b/core/iwasm/compilation/aot_llvm.c
+@@ -2767,6 +2767,9 @@
+     if (option->enable_thread_mgr)
+         comp_ctx->enable_thread_mgr = true;
+ 
++    if (option->rive_interrupt)
++        comp_ctx->rive_interrupt = true;
++
+     if (option->enable_tail_call)
+         comp_ctx->enable_tail_call = true;
+ 
+--- a/core/iwasm/compilation/aot_emit_control.c
++++ b/core/iwasm/compilation/aot_emit_control.c
+@@ -886,7 +886,7 @@
+ 
+     /* Only need to check the suspend flags when memory is shared since
+        shared memory must be enabled for multi-threading */
+-    if (!is_shared_memory) {
++    if (!is_shared_memory && !comp_ctx->rive_interrupt) {
+         return true;
+     }
+ 
+@@ -933,7 +933,13 @@
+ 
+     /* Move builder to terminate block */
+     SET_BUILDER_POS(terminate_block);
+-    if (!aot_build_zero_function_ret(comp_ctx, func_ctx, aot_func_type)) {
++    if (comp_ctx->rive_interrupt && !comp_ctx->enable_thread_mgr) {
++        if (!aot_emit_exception(comp_ctx, func_ctx, EXCE_UNREACHABLE, false,
++                                NULL, NULL)) {
++            goto fail;
++        }
++    }
++    else if (!aot_build_zero_function_ret(comp_ctx, func_ctx, aot_func_type)) {
+         goto fail;
+     }
+ 
+@@ -978,7 +984,7 @@
+     }
+ 
+     /* Terminate or suspend current thread only when this is a backward jump */
+-    if (comp_ctx->enable_thread_mgr
++    if ((comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt)
+         && block_dst->label_type == LABEL_TYPE_LOOP) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+@@ -1060,7 +1066,7 @@
+ 
+     /* Terminate or suspend current thread only when this is
+        a backward jump */
+-    if (comp_ctx->enable_thread_mgr
++    if ((comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt)
+         && block_dst->label_type == LABEL_TYPE_LOOP) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+@@ -1266,7 +1272,7 @@
+             }
+         }
+ 
+-        if (comp_ctx->enable_thread_mgr) {
++        if (comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt) {
+             for (i = 0; i <= br_count; i++) {
+                 target_block = get_target_block(func_ctx, br_depths[i]);
+                 if (!target_block)
+@@ -1508,7 +1514,7 @@
+ 
+     /* Terminate or suspend current thread only when this is
+        a backward jump */
+-    if (comp_ctx->enable_thread_mgr
++    if ((comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt)
+         && block_dst->label_type == LABEL_TYPE_LOOP) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+--- a/wamr-compiler/main.c
++++ b/wamr-compiler/main.c
+@@ -531,6 +531,9 @@
+             option.enable_bulk_memory = true;
+             option.enable_thread_mgr = true;
+         }
++        else if (!strcmp(argv[0], "--rive-interrupt")) {
++            option.rive_interrupt = true;
++        }
+         else if (!strcmp(argv[0], "--enable-tail-call")) {
+             option.enable_tail_call = true;
+         }
+--- a/core/iwasm/compilation/aot_emit_function.c
++++ b/core/iwasm/compilation/aot_emit_function.c
+@@ -1449,8 +1449,15 @@
+             return false;
+     }
+ 
+-    /* Insert suspend check point */
+-    if (comp_ctx->enable_thread_mgr) {
++    /* Insert suspend check point; rive: also where the watchdog can end
++       recursion that never reaches a loop back-edge. A host import or a
++       callee that makes no calls cannot lengthen the call chain, and its
++       loops check on their own, so those calls skip it */
++    if (comp_ctx->enable_thread_mgr
++        || (comp_ctx->rive_interrupt && func_idx >= import_func_count
++            && comp_ctx->comp_data->wasm_module
++                   ->functions[func_idx - import_func_count]
++                   ->has_op_func_call)) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+     }
+@@ -2150,8 +2157,9 @@
+             return false;
+     }
+ 
+-    /* Insert suspend check point */
+-    if (comp_ctx->enable_thread_mgr) {
++    /* Insert suspend check point; rive: also where the watchdog can end
++       recursion that never reaches a loop back-edge */
++    if (comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+     }
+@@ -2882,8 +2890,9 @@
+             return false;
+     }
+ 
+-    /* Insert suspend check point */
+-    if (comp_ctx->enable_thread_mgr) {
++    /* Insert suspend check point; rive: also where the watchdog can end
++       recursion that never reaches a loop back-edge */
++    if (comp_ctx->enable_thread_mgr || comp_ctx->rive_interrupt) {
+         if (!check_suspend_flags(comp_ctx, func_ctx, true))
+             return false;
+     }

@@ -129,6 +129,9 @@ private:
     std::string m_cacheDir;
     std::string m_wamrcVersion;
     bool m_versionProbed = false;
+    // The wamrc accepts our --rive-interrupt flag; true on platforms that
+    // cannot probe.
+    bool m_wamrcUsable = true;
     ArrivalCallback m_arrival;
     std::deque<Job> m_queue;
     std::vector<Job*> m_running;

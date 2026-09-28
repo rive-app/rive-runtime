@@ -454,6 +454,12 @@ uint32_t rive_web_data_string_get(uint32_t vmHandle, uint32_t property, char* bu
     return dataStringGetImpl(vm, property, buffer, capacity);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_data_string_changed(uint32_t vmHandle, uint32_t property)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataStringChangedImpl(vm, property);
+}
+EMSCRIPTEN_KEEPALIVE
 void rive_web_data_string_set(uint32_t vmHandle, uint32_t property, const char* value, uint32_t length)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -1302,6 +1308,18 @@ void rive_web_gpu_pipeline_release(uint32_t vmHandle, uint32_t pipeline)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     gpuPipelineReleaseImpl(vm, pipeline);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_mat4_multiply(uint32_t vmHandle, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    mat4MultiplyImpl(vm, out, outBytes, a, aBytes, b, bBytes);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_mat4_invert(uint32_t vmHandle, uint8_t* out, uint32_t outBytes, const uint8_t* src, uint32_t srcBytes)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return mat4InvertImpl(vm, out, outBytes, src, srcBytes);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_buffer_new(uint32_t vmHandle, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes)

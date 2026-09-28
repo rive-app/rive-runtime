@@ -132,18 +132,24 @@ public:
     Factory* factory() const { return m_factory; }
 
     /// Brackets one call into the module. Calls nest, so the exit reclaims
-    /// only the render passes and canvas frames this call left open.
+    /// only the render passes and canvas frames this call left open. The
+    /// outermost budgeted scope arms the timeout watchdog.
     class ScriptCallScope
     {
     public:
-        explicit ScriptCallScope(WasmScriptingVM* vm);
+        explicit ScriptCallScope(WasmScriptingVM* vm, bool budgeted = true);
         ~ScriptCallScope();
 
     private:
         WasmScriptingVM* m_vm;
         uint64_t m_passToken = 0;
         uint64_t m_frameToken = 0;
+        bool m_budgeted = false;
     };
+
+    /// The deadline of this VM's current budgeted call, polled by the
+    /// watchdog thread; 0 when disarmed.
+    struct BudgetSlot;
 
     /// Tokens start at 1, so 0 takes every open frame.
     uint64_t nextCanvasFrameToken() const { return m_nextCanvasFrameToken; }
@@ -209,6 +215,10 @@ public:
     // ScriptBackend.
     bool valid() const override;
     bool utf16Strings() const { return m_utf16Strings; }
+    bool utf16HostStrings() const { return m_utf16HostStrings; }
+    // An init that read data the host had not bound yet fails so it reruns,
+    // as the Luau context's missingRequestedData does.
+    void noteMissingRequestedData() { m_missingRequestedData = true; }
     void releaseRef(int ref) override;
     int instantiate(int generatorRef,
                     ScriptedObject* object,
@@ -468,8 +478,21 @@ protected:
 
 private:
     bool init(Span<const uint8_t> module);
-    uint32_t guestString(const char* text);
+    uint32_t guestString(const char* text, const char* allocator = "malloc");
     void guestFree(uint32_t ptr);
+    // A method name in guest memory: made once per instance when the module
+    // can keep it past the frame, else copied for this call alone.
+    class GuestName
+    {
+    public:
+        GuestName(WasmScriptingVM* vm, const char* name);
+        ~GuestName();
+        uint32_t ptr = 0;
+
+    private:
+        WasmScriptingVM* m_vm;
+        bool m_owned = false;
+    };
     // The module's slot for an input name, resolved once per instance; -1
     // when the instance declares no such input.
     int32_t inputSlot(int selfRef, const char* name);
@@ -528,10 +551,22 @@ private:
         std::string error;
     };
     void deliverDecodeResult(const DecodeResult& result);
+    // Logs the pending trap and clears it so later calls can run.
+    void reportTrap(const char* where);
     bool m_advancedOnce = false;
+    bool m_missingRequestedData = false;
+    std::unique_ptr<BudgetSlot> m_budgetSlot;
     /// Module exports __riveUtf16Strings: its string arguments arrive as
     /// UTF-16. Modules baked before that, and the Luau one, pass UTF-8.
     bool m_utf16Strings = false;
+    /// Module exports __riveUtf16HostStrings: strings the host hands it are
+    /// written as UTF-16 too.
+    bool m_utf16HostStrings = false;
+    /// Module exports __riveHostBudget: the watchdog bounds its calls. The
+    /// rest meter themselves or are trusted to run unbounded.
+    bool m_hostBudget = false;
+    /// Set once the watchdog interrupts a call; the module never runs again.
+    bool m_poisoned = false;
     VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;

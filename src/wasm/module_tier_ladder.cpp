@@ -9,6 +9,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <fcntl.h>
 #include <cstdlib>
 #include <cstring>
@@ -58,6 +60,7 @@ void ModuleTierLadder::configure(const std::string& wamrcPath,
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     m_wamrcPath = wamrcPath;
+    m_versionProbed = false;
     if (m_wamrcPath.empty())
     {
         if (const char* env = getenv("RIVE_WAMRC"))
@@ -93,7 +96,12 @@ bool ModuleTierLadder::enabled()
                       .string();
 #endif
     }
-    return !m_wamrcPath.empty() && !m_cacheDir.empty();
+    if (m_wamrcPath.empty() || m_cacheDir.empty())
+    {
+        return false;
+    }
+    wamrcVersion();
+    return m_wamrcUsable;
 }
 
 void ModuleTierLadder::onArrival(ArrivalCallback callback)
@@ -136,9 +144,32 @@ const std::string& ModuleTierLadder::wamrcVersion()
             }
             pclose(pipe);
         }
+        // Every compile passes --rive-interrupt, which an unpatched wamrc
+        // rejects; say so once rather than fail each compile quietly.
+        std::string probe =
+            m_wamrcPath + " --rive-interrupt --version >/dev/null 2>&1";
+        m_wamrcUsable = system(probe.c_str()) == 0;
+        if (!m_wamrcUsable)
+        {
+            fprintf(stderr,
+                    "wasm aot: %s lacks --rive-interrupt; build wamrc from "
+                    "our patched WAMR (runtime/scripting/wamr_patches). AOT "
+                    "is off.\n",
+                    m_wamrcPath.c_str());
+        }
 #endif
     }
     return m_wamrcVersion;
+}
+
+// The module exports __riveHostBudget. A byte search suffices: a false
+// hit only adds interrupt checks.
+static bool asksHostBudget(const std::string& wasmPath)
+{
+    std::ifstream in(wasmPath, std::ios::binary);
+    std::string bytes((std::istreambuf_iterator<char>(in)),
+                      std::istreambuf_iterator<char>());
+    return bytes.find("__riveHostBudget") != std::string::npos;
 }
 
 std::string ModuleTierLadder::keyedCacheDir()
@@ -146,7 +177,7 @@ std::string ModuleTierLadder::keyedCacheDir()
     // The revision folds our wamrc flag choices into the cache key; bump
     // it whenever species flags change or stale artifacts get served on a
     // cache hit.
-    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r4";
+    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r8";
     mkdir(m_cacheDir.c_str(), 0755);
     mkdir(dir.c_str(), 0755);
     return dir;
@@ -484,6 +515,12 @@ bool ModuleTierLadder::runWamrc(Job& job)
     args.push_back("--cpu=generic");
     args.push_back("--cpu-features=+reserve-x18");
 #endif
+    // Loop back-edges and calls check the watchdog only in modules that ask
+    // for it; the module bytes, and so its cache key, decide.
+    if (asksHostBudget(job.wasmPath))
+    {
+        args.push_back("--rive-interrupt");
+    }
     args.push_back("-o");
     args.push_back(tmpPath);
     args.push_back(job.wasmPath);

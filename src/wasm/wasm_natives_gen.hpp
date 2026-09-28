@@ -259,6 +259,7 @@ void dataNumberSetImpl(WasmScriptingVM* vm, uint32_t property, float value);
 uint32_t dataBooleanGetImpl(WasmScriptingVM* vm, uint32_t property);
 void dataBooleanSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t value);
 uint32_t dataStringGetImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
+uint32_t dataStringChangedImpl(WasmScriptingVM* vm, uint32_t property);
 void dataStringSetImpl(WasmScriptingVM* vm, uint32_t property, const char* value, uint32_t length);
 void dataWatchImpl(WasmScriptingVM* vm, uint32_t property, uint32_t token);
 void dataUnwatchImpl(WasmScriptingVM* vm, uint32_t property);
@@ -401,6 +402,8 @@ uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm, uint32_t layout, const rive_gp
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t bindGroup);
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 void gpuPipelineReleaseImpl(WasmScriptingVM* vm, uint32_t pipeline);
+void mat4MultiplyImpl(WasmScriptingVM* vm, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes);
+uint32_t mat4InvertImpl(WasmScriptingVM* vm, uint8_t* out, uint32_t outBytes, const uint8_t* src, uint32_t srcBytes);
 uint32_t bufferNewImpl(WasmScriptingVM* vm, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes);
 void bufferUpdateImpl(WasmScriptingVM* vm, uint32_t buffer, const uint8_t* bytes, uint32_t byteCount);
 void bufferReleaseImpl(WasmScriptingVM* vm, uint32_t buffer);
@@ -801,6 +804,11 @@ uint32_t dataStringGet(wasm_exec_env_t env, uint32_t property, char* buffer, uin
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return dataStringGetImpl(vm, property, buffer, capacity);
+}
+uint32_t dataStringChanged(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataStringChangedImpl(vm, property);
 }
 void dataStringSet(wasm_exec_env_t env, uint32_t property, const char* value, uint32_t length)
 {
@@ -1592,6 +1600,16 @@ void gpuPipelineRelease(wasm_exec_env_t env, uint32_t pipeline)
     WasmScriptingVM* vm = vmFromEnv(env);
     gpuPipelineReleaseImpl(vm, pipeline);
 }
+void mat4Multiply(wasm_exec_env_t env, uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    mat4MultiplyImpl(vm, out, outBytes, a, aBytes, b, bBytes);
+}
+uint32_t mat4Invert(wasm_exec_env_t env, uint8_t* out, uint32_t outBytes, const uint8_t* src, uint32_t srcBytes)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return mat4InvertImpl(vm, out, outBytes, src, srcBytes);
+}
 uint32_t bufferNew(wasm_exec_env_t env, uint32_t bufferType, uint32_t flags, uint32_t sizeInBytes)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1754,22 +1772,22 @@ NativeSymbol kDataNatives[] = {
     {"has_view_model", (void*)dataHasViewModel, "(*~)i", nullptr},
     {"new_view_model", (void*)dataNewViewModel, "(*~*~)i", nullptr},
     {"vmi_release", (void*)dataVmiRelease, "(i)", nullptr},
-    {"vmi_number", (void*)dataVmiNumber, "(i*~)i", nullptr},
-    {"vmi_boolean", (void*)dataVmiBoolean, "(i*~)i", nullptr},
-    {"vmi_string", (void*)dataVmiString, "(i*~)i", nullptr},
-    {"vmi_trigger", (void*)dataVmiTrigger, "(i*~)i", nullptr},
-    {"vmi_color", (void*)dataVmiColor, "(i*~)i", nullptr},
-    {"vmi_view_model", (void*)dataVmiViewModel, "(i*~)i", nullptr},
+    {"vmi_number", (void*)dataVmiNumber, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_boolean", (void*)dataVmiBoolean, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_string", (void*)dataVmiString, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_trigger", (void*)dataVmiTrigger, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_color", (void*)dataVmiColor, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_view_model", (void*)dataVmiViewModel, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_property", (void*)dataVmiProperty, "(i*~*~)i", nullptr},
     {"vmi_instance", (void*)dataVmiInstance, "(i*~)i", nullptr},
     {"vmi_symbol_index", (void*)dataVmiSymbolIndex, "(i)i", nullptr},
     {"vmi_equal", (void*)dataVmiEqual, "(ii)i", nullptr},
-    {"view_model_get", (void*)dataViewModelGet, "(i)i", nullptr},
-    {"vmi_list", (void*)dataVmiList, "(i*~)i", nullptr},
-    {"vmi_enum", (void*)dataVmiEnum, "(i*~)i", nullptr},
-    {"vmi_image", (void*)dataVmiImage, "(i*~)i", nullptr},
-    {"vmi_font", (void*)dataVmiFont, "(i*~)i", nullptr},
-    {"vmi_blob", (void*)dataVmiBlob, "(i*~)i", nullptr},
+    {"view_model_get", (void*)dataViewModelGet, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_list", (void*)dataVmiList, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_enum", (void*)dataVmiEnum, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_image", (void*)dataVmiImage, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_font", (void*)dataVmiFont, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_blob", (void*)dataVmiBlob, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"image_get", (void*)dataImageGet, "(i)i", nullptr},
     {"image_set", (void*)dataImageSet, "(ii)", nullptr},
     {"font_get", (void*)dataFontGet, "(i)i", nullptr},
@@ -1780,12 +1798,12 @@ NativeSymbol kDataNatives[] = {
     {"blob_name", (void*)dataBlobName, "(i*~)i", nullptr},
     {"blob_set", (void*)dataBlobSet, "(i*~)", nullptr},
     {"blob_clear", (void*)dataBlobClear, "(i)", nullptr},
-    {"enum_get", (void*)dataEnumGet, "(i*~)i", nullptr},
+    {"enum_get", (void*)dataEnumGet, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"enum_set", (void*)dataEnumSet, "(i*~)", nullptr},
     {"enum_values", (void*)dataEnumValues, "(i*~)i", nullptr},
     {"prop_release", (void*)dataPropRelease, "(i)", nullptr},
     {"trigger_fire", (void*)dataTriggerFire, "(i)", nullptr},
-    {"list_length", (void*)dataListLength, "(i)i", nullptr},
+    {"list_length", (void*)dataListLength, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"list_push", (void*)dataListPush, "(ii)", nullptr},
     {"list_pop", (void*)dataListPop, "(i)i", nullptr},
     {"list_shift", (void*)dataListShift, "(i)i", nullptr},
@@ -1795,15 +1813,16 @@ NativeSymbol kDataNatives[] = {
     {"list_remove", (void*)dataListRemove, "(ii)", nullptr},
     {"list_remove_at", (void*)dataListRemoveAt, "(ii)", nullptr},
     {"list_remove_all_of", (void*)dataListRemoveAllOf, "(ii)", nullptr},
-    {"list_get", (void*)dataListGet, "(ii)i", nullptr},
+    {"list_get", (void*)dataListGet, "(ii)i", (void*)&wasm_runtime_rive_leaf_native},
     {"view_model_set", (void*)dataViewModelSet, "(ii)", nullptr},
-    {"color_get", (void*)dataColorGet, "(i)i", nullptr},
+    {"color_get", (void*)dataColorGet, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"color_set", (void*)dataColorSet, "(ii)", nullptr},
-    {"number_get", (void*)dataNumberGet, "(i)f", nullptr},
+    {"number_get", (void*)dataNumberGet, "(i)f", (void*)&wasm_runtime_rive_leaf_native},
     {"number_set", (void*)dataNumberSet, "(if)", nullptr},
-    {"boolean_get", (void*)dataBooleanGet, "(i)i", nullptr},
+    {"boolean_get", (void*)dataBooleanGet, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"boolean_set", (void*)dataBooleanSet, "(ii)", nullptr},
-    {"string_get", (void*)dataStringGet, "(i*~)i", nullptr},
+    {"string_get", (void*)dataStringGet, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"string_changed", (void*)dataStringChanged, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
     {"string_set", (void*)dataStringSet, "(i*~)", nullptr},
     {"watch", (void*)dataWatch, "(ii)", nullptr},
     {"unwatch", (void*)dataUnwatch, "(i)", nullptr},
@@ -1816,13 +1835,13 @@ NativeSymbol kArtboardNatives[] = {
     {"draw", (void*)artboardDraw, "(ii)", nullptr},
     {"instance", (void*)artboardInstance, "(ii)i", nullptr},
     {"data", (void*)artboardData, "(i)i", nullptr},
-    {"width", (void*)artboardWidth, "(i)f", nullptr},
-    {"height", (void*)artboardHeight, "(i)f", nullptr},
+    {"width", (void*)artboardWidth, "(i)f", (void*)&wasm_runtime_rive_leaf_native},
+    {"height", (void*)artboardHeight, "(i)f", (void*)&wasm_runtime_rive_leaf_native},
     {"set_width", (void*)artboardSetWidth, "(if)", nullptr},
     {"set_height", (void*)artboardSetHeight, "(if)", nullptr},
     {"frame_origin", (void*)artboardFrameOrigin, "(i)i", nullptr},
     {"set_frame_origin", (void*)artboardSetFrameOrigin, "(ii)", nullptr},
-    {"bounds", (void*)artboardBounds, "(i*~)", nullptr},
+    {"bounds", (void*)artboardBounds, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"pointer_event", (void*)artboardPointerEvent, "(iiiff)i", nullptr},
     {"animation", (void*)artboardAnimation, "(i*~)i", nullptr},
     {"animation_release", (void*)artboardAnimationRelease, "(i)", nullptr},
@@ -1831,9 +1850,9 @@ NativeSymbol kArtboardNatives[] = {
     {"animation_set_time", (void*)artboardAnimationSetTime, "(ifi)", nullptr},
     {"node", (void*)artboardNode, "(i*~)i", nullptr},
     {"node_release", (void*)artboardNodeRelease, "(i)", nullptr},
-    {"node_transform", (void*)artboardNodeTransform, "(i*~)", nullptr},
+    {"node_transform", (void*)artboardNodeTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"node_set", (void*)artboardNodeSet, "(iiff)", nullptr},
-    {"node_world_transform", (void*)artboardNodeWorldTransform, "(i*~)", nullptr},
+    {"node_world_transform", (void*)artboardNodeWorldTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"node_set_world_transform", (void*)artboardNodeSetWorldTransform, "(i*~)", nullptr},
     {"node_decompose", (void*)artboardNodeDecompose, "(i*~)", nullptr},
     {"node_path_verbs", (void*)artboardNodePathVerbs, "(i*~)i", nullptr},
@@ -1881,36 +1900,36 @@ NativeSymbol kAudioNatives[] = {
 };
 
 NativeSymbol kPathNatives[] = {
-    {"new", (void*)pathNew, "()i", nullptr},
-    {"update", (void*)pathUpdate, "(i*~*~i)", nullptr},
-    {"release", (void*)pathRelease, "(i)", nullptr},
-    {"effect_result", (void*)pathEffectResult, "(*~*~)", nullptr},
+    {"new", (void*)pathNew, "()i", (void*)&wasm_runtime_rive_leaf_native},
+    {"update", (void*)pathUpdate, "(i*~*~i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"release", (void*)pathRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"effect_result", (void*)pathEffectResult, "(*~*~)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kMeasureNatives[] = {
-    {"path_new", (void*)measurePathNew, "(*~*~)i", nullptr},
-    {"contours_new", (void*)measureContoursNew, "(*~*~)i", nullptr},
-    {"contour_next", (void*)measureContourNext, "(i)i", nullptr},
-    {"length", (void*)measureLength, "(i)f", nullptr},
-    {"is_closed", (void*)measureIsClosed, "(i)i", nullptr},
-    {"pos_tan", (void*)measurePosTan, "(if*~)", nullptr},
-    {"warp", (void*)measureWarp, "(iff*~)", nullptr},
-    {"extract", (void*)measureExtract, "(iffi)i", nullptr},
-    {"extract_read", (void*)measureExtractRead, "(i*~*~)i", nullptr},
-    {"release", (void*)measureRelease, "(i)", nullptr},
+    {"path_new", (void*)measurePathNew, "(*~*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"contours_new", (void*)measureContoursNew, "(*~*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"contour_next", (void*)measureContourNext, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"length", (void*)measureLength, "(i)f", (void*)&wasm_runtime_rive_leaf_native},
+    {"is_closed", (void*)measureIsClosed, "(i)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"pos_tan", (void*)measurePosTan, "(if*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"warp", (void*)measureWarp, "(iff*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"extract", (void*)measureExtract, "(iffi)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"extract_read", (void*)measureExtractRead, "(i*~*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"release", (void*)measureRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kPaintNatives[] = {
-    {"new", (void*)paintNew, "()i", nullptr},
-    {"release", (void*)paintRelease, "(i)", nullptr},
-    {"style", (void*)paintStyle, "(ii)", nullptr},
-    {"color", (void*)paintColor, "(ii)", nullptr},
-    {"thickness", (void*)paintThickness, "(if)", nullptr},
-    {"join", (void*)paintJoin, "(ii)", nullptr},
-    {"cap", (void*)paintCap, "(ii)", nullptr},
-    {"blend_mode", (void*)paintBlendMode, "(ii)", nullptr},
-    {"feather", (void*)paintFeather, "(if)", nullptr},
-    {"shader", (void*)paintShader, "(ii)", nullptr},
+    {"new", (void*)paintNew, "()i", (void*)&wasm_runtime_rive_leaf_native},
+    {"release", (void*)paintRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"style", (void*)paintStyle, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"color", (void*)paintColor, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"thickness", (void*)paintThickness, "(if)", (void*)&wasm_runtime_rive_leaf_native},
+    {"join", (void*)paintJoin, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"cap", (void*)paintCap, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"blend_mode", (void*)paintBlendMode, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"feather", (void*)paintFeather, "(if)", (void*)&wasm_runtime_rive_leaf_native},
+    {"shader", (void*)paintShader, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kCanvasNatives[] = {
@@ -1932,21 +1951,21 @@ NativeSymbol kGpuNatives[] = {
     {"canvas_image", (void*)gpuCanvasImage, "(i)i", nullptr},
     {"canvas_resize", (void*)gpuCanvasResize, "(iii*~)i", nullptr},
     {"pass_begin", (void*)gpuPassBegin, "(*~*~)i", nullptr},
-    {"pass_set_pipeline", (void*)gpuPassSetPipeline, "(ii)", nullptr},
-    {"pass_set_vertex_buffer", (void*)gpuPassSetVertexBuffer, "(iiii)", nullptr},
-    {"pass_set_index_buffer", (void*)gpuPassSetIndexBuffer, "(iiii)", nullptr},
-    {"pass_set_bind_group", (void*)gpuPassSetBindGroup, "(iii*~)", nullptr},
-    {"pass_set_viewport", (void*)gpuPassSetViewport, "(iffffff)", nullptr},
-    {"pass_set_scissor", (void*)gpuPassSetScissor, "(iiiii)", nullptr},
-    {"pass_set_stencil_reference", (void*)gpuPassSetStencilReference, "(ii)", nullptr},
-    {"pass_set_blend_color", (void*)gpuPassSetBlendColor, "(iffff)", nullptr},
-    {"pass_draw", (void*)gpuPassDraw, "(iiiii)", nullptr},
-    {"pass_draw_indexed", (void*)gpuPassDrawIndexed, "(iiiiii)", nullptr},
+    {"pass_set_pipeline", (void*)gpuPassSetPipeline, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_vertex_buffer", (void*)gpuPassSetVertexBuffer, "(iiii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_index_buffer", (void*)gpuPassSetIndexBuffer, "(iiii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_bind_group", (void*)gpuPassSetBindGroup, "(iii*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_viewport", (void*)gpuPassSetViewport, "(iffffff)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_scissor", (void*)gpuPassSetScissor, "(iiiii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_stencil_reference", (void*)gpuPassSetStencilReference, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_set_blend_color", (void*)gpuPassSetBlendColor, "(iffff)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_draw", (void*)gpuPassDraw, "(iiiii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"pass_draw_indexed", (void*)gpuPassDrawIndexed, "(iiiiii)", (void*)&wasm_runtime_rive_leaf_native},
     {"pass_finish", (void*)gpuPassFinish, "(i)", nullptr},
     {"pass_release", (void*)gpuPassRelease, "(i)", nullptr},
     {"image_view", (void*)gpuImageView, "(iii)i", nullptr},
     {"buffer_new", (void*)gpuBufferNew, "(iii*~)i", nullptr},
-    {"buffer_update", (void*)gpuBufferUpdate, "(ii*~)", nullptr},
+    {"buffer_update", (void*)gpuBufferUpdate, "(ii*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"buffer_release", (void*)gpuBufferRelease, "(i)", nullptr},
     {"texture_new", (void*)gpuTextureNew, "(*~)i", nullptr},
     {"texture_upload", (void*)gpuTextureUpload, "(i*~*~)", nullptr},
@@ -1969,10 +1988,15 @@ NativeSymbol kGpuNatives[] = {
     {"pipeline_release", (void*)gpuPipelineRelease, "(i)", nullptr},
 };
 
+NativeSymbol kMat4Natives[] = {
+    {"multiply", (void*)mat4Multiply, "(*~*~*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"invert", (void*)mat4Invert, "(*~*~)i", (void*)&wasm_runtime_rive_leaf_native},
+};
+
 NativeSymbol kBufferNatives[] = {
-    {"new", (void*)bufferNew, "(iii)i", nullptr},
-    {"update", (void*)bufferUpdate, "(i*~)", nullptr},
-    {"release", (void*)bufferRelease, "(i)", nullptr},
+    {"new", (void*)bufferNew, "(iii)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"update", (void*)bufferUpdate, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
+    {"release", (void*)bufferRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kMeshInstancesNatives[] = {
@@ -1996,22 +2020,22 @@ NativeSymbol kImageNatives[] = {
 };
 
 NativeSymbol kShaderNatives[] = {
-    {"linear", (void*)shaderLinear, "(ffffiii)i", nullptr},
-    {"radial", (void*)shaderRadial, "(fffiii)i", nullptr},
-    {"release", (void*)shaderRelease, "(i)", nullptr},
+    {"linear", (void*)shaderLinear, "(ffffiii)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"radial", (void*)shaderRadial, "(fffiii)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"release", (void*)shaderRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kRendererNatives[] = {
-    {"save", (void*)rendererSave, "(i)", nullptr},
-    {"restore", (void*)rendererRestore, "(i)", nullptr},
-    {"transform", (void*)rendererTransform, "(iffffff)", nullptr},
-    {"draw_path", (void*)rendererDrawPath, "(iii)", nullptr},
-    {"clip_path", (void*)rendererClipPath, "(ii)", nullptr},
-    {"modulate_opacity", (void*)rendererModulateOpacity, "(if)", nullptr},
-    {"modulate_color", (void*)rendererModulateColor, "(iii)", nullptr},
-    {"draw_image", (void*)rendererDrawImage, "(iiiif)", nullptr},
-    {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", nullptr},
-    {"draw_image_mesh_instanced", (void*)rendererDrawImageMeshInstanced, "(iiiiiii)", nullptr},
+    {"save", (void*)rendererSave, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"restore", (void*)rendererRestore, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"transform", (void*)rendererTransform, "(iffffff)", (void*)&wasm_runtime_rive_leaf_native},
+    {"draw_path", (void*)rendererDrawPath, "(iii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"clip_path", (void*)rendererClipPath, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"modulate_opacity", (void*)rendererModulateOpacity, "(if)", (void*)&wasm_runtime_rive_leaf_native},
+    {"modulate_color", (void*)rendererModulateColor, "(iii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"draw_image", (void*)rendererDrawImage, "(iiiif)", (void*)&wasm_runtime_rive_leaf_native},
+    {"draw_image_mesh", (void*)rendererDrawImageMesh, "(iiiiiiif)", (void*)&wasm_runtime_rive_leaf_native},
+    {"draw_image_mesh_instanced", (void*)rendererDrawImageMeshInstanced, "(iiiiiii)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 inline bool registerRiveBindingNatives()
@@ -2052,6 +2076,10 @@ inline bool registerRiveBindingNatives()
                "rive_gpu_v1",
                kGpuNatives,
                sizeof(kGpuNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_mat4_v1",
+               kMat4Natives,
+               sizeof(kMat4Natives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_buffer_v1",
                kBufferNatives,

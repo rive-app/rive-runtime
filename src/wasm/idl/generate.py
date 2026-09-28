@@ -336,9 +336,11 @@ def emit_host():
         table = 'k%sNatives' % pascal(namespace['short'])
         lines.append('NativeSymbol %s[] = {' % table)
         for op in namespace['ops']:
-            lines += guarded(op, ['    {"%s", (void*)%s, "%s", nullptr},' %
+            attachment = ('(void*)&wasm_runtime_rive_leaf_native'
+                          if op.get('leaf') else 'nullptr')
+            lines += guarded(op, ['    {"%s", (void*)%s, "%s", %s},' %
                                   (op['name'], impl_name(namespace, op),
-                                   wamr_signature(op))])
+                                   wamr_signature(op), attachment)])
         lines.append('};')
         lines.append('')
     lines.append('inline bool registerRiveBindingNatives()')

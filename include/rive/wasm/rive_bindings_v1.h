@@ -344,6 +344,8 @@ RIVE_BINDING_IMPORT("rive_data_v1", "boolean_set")
 void rive_data_boolean_set(uint32_t property, uint32_t value);
 RIVE_BINDING_IMPORT("rive_data_v1", "string_get")
 uint32_t rive_data_string_get(uint32_t property, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_data_v1", "string_changed")
+uint32_t rive_data_string_changed(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "string_set")
 void rive_data_string_set(uint32_t property, const char* value, uint32_t length);
 RIVE_BINDING_IMPORT("rive_data_v1", "watch")
@@ -638,6 +640,12 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "pipeline_new")
 uint32_t rive_gpu_pipeline_new(const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pipeline_release")
 void rive_gpu_pipeline_release(uint32_t pipeline);
+
+// rive_mat4_v1
+RIVE_BINDING_IMPORT("rive_mat4_v1", "multiply")
+void rive_mat4_multiply(uint8_t* out, uint32_t outBytes, const uint8_t* a, uint32_t aBytes, const uint8_t* b, uint32_t bBytes);
+RIVE_BINDING_IMPORT("rive_mat4_v1", "invert")
+uint32_t rive_mat4_invert(uint8_t* out, uint32_t outBytes, const uint8_t* src, uint32_t srcBytes);
 
 // rive_buffer_v1
 RIVE_BINDING_IMPORT("rive_buffer_v1", "new")

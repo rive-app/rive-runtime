@@ -243,6 +243,7 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(buffer_p, buffer, capacity);
                 return ret;
             },
+            string_changed: calls.rive_data_string_changed,
             string_set: (property, value, length) => {
                 stackReset();
                 const value_p = stageIn(value, length);
@@ -628,6 +629,24 @@ export function createRiveModuleImports(host, moduleMemory) {
                 return ret;
             },
             pipeline_release: calls.rive_gpu_pipeline_release,
+        },
+        rive_mat4_v1: {
+            multiply: (out, outBytes, a, aBytes, b, bBytes) => {
+                stackReset();
+                const out_p = stageIn(out, outBytes);
+                const a_p = stageIn(a, aBytes);
+                const b_p = stageIn(b, bBytes);
+                calls.rive_mat4_multiply(out_p, outBytes, a_p, aBytes, b_p, bBytes);
+                copyOut(out_p, out, outBytes);
+            },
+            invert: (out, outBytes, src, srcBytes) => {
+                stackReset();
+                const out_p = stageIn(out, outBytes);
+                const src_p = stageIn(src, srcBytes);
+                const ret = calls.rive_mat4_invert(out_p, outBytes, src_p, srcBytes);
+                copyOut(out_p, out, outBytes);
+                return ret;
+            },
         },
         rive_buffer_v1: {
             new: calls.rive_buffer_new,

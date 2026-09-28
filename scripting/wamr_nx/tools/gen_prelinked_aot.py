@@ -32,6 +32,8 @@ WAMRC_FLAGS = [
     "--cpu=generic",
     "--cpu-features=+reserve-x18",
     "--opt-level=1",
+    # Loop back-edges and call sites check the watchdog's terminate flag.
+    "--rive-interrupt",
 ]
 
 

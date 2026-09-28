@@ -372,6 +372,9 @@ NAMESPACES = [
         # a larger buffer when truncated.
         op('string_get', [handle('property'),
                           mutbuf('char', 'buffer', 'capacity')], ret='u32'),
+        # ~0 while the value matches the last string_get on this handle,
+        # else its byte length, so a module can keep its copy.
+        op('string_changed', [handle('property')], ret='u32'),
         op('string_set', [handle('property'), string('value', 'length')]),
         # Value change delivery: the host calls the module's exported
         # host_data_value_changed(token) whenever a watched property's value
@@ -786,6 +789,18 @@ NAMESPACES = [
         ], ret='u32'),
         op('pipeline_release', [handle('pipeline')]),
     ]),
+    # Column major 4x4 products the interpreter lanes would otherwise run
+    # op by op; out may alias an input.
+    ns('rive_mat4_v1', 'mat4', [
+        # 64 byte column-major matrices as byte buffers, so WAMR bounds
+        # checks all of each, even while the module is starting.
+        op('multiply', [mutbuf('uint8_t', 'out', 'outBytes'),
+                        buf('uint8_t', 'a', 'aBytes'),
+                        buf('uint8_t', 'b', 'bBytes')]),
+        op('invert', [mutbuf('uint8_t', 'out', 'outBytes'),
+                      buf('uint8_t', 'src', 'srcBytes')],
+           ret='u32', stub='zero'),
+    ]),
     ns('rive_buffer_v1', 'buffer', [
         # type and flags are the RenderBufferType/RenderBufferFlags enums.
         op('new', [u32('bufferType'), u32('flags'), u32('sizeInBytes')],
@@ -911,3 +926,45 @@ NAMESPACES = [
         ]),
     ]),
 ]
+
+# Leaf ops never call back into a module (no listeners, no nested scripts),
+# so the interpreter runs them without a frame of its own. Setters, triggers
+# and list edits notify listeners synchronously and must stay out.
+ALL_OPS = None
+LEAF_OPS = {
+    'rive_data_v1': {
+        'vmi_number', 'vmi_boolean', 'vmi_string', 'vmi_trigger', 'vmi_color',
+        'vmi_view_model', 'vmi_list', 'vmi_enum', 'vmi_image', 'vmi_font',
+        'vmi_blob', 'number_get', 'boolean_get', 'string_get',
+        'string_changed', 'color_get', 'enum_get', 'list_length', 'list_get',
+        'view_model_get',
+    },
+    'rive_artboard_v1': {
+        'width', 'height', 'bounds', 'node_transform', 'node_world_transform',
+    },
+    'rive_gpu_v1': {
+        'pass_set_pipeline', 'pass_set_vertex_buffer', 'pass_set_index_buffer',
+        'pass_set_bind_group', 'pass_set_viewport', 'pass_set_scissor',
+        'pass_set_stencil_reference', 'pass_set_blend_color', 'pass_draw',
+        'pass_draw_indexed', 'buffer_update',
+    },
+    'rive_mat4_v1': ALL_OPS,
+    'rive_path_v1': ALL_OPS,
+    'rive_measure_v1': ALL_OPS,
+    'rive_paint_v1': ALL_OPS,
+    'rive_shader_v1': ALL_OPS,
+    'rive_buffer_v1': ALL_OPS,
+    'rive_renderer_v1': ALL_OPS,
+}
+
+# A misspelled module would silently mark nothing leaf.
+assert set(LEAF_OPS) <= {n['module'] for n in NAMESPACES}, (
+    set(LEAF_OPS) - {n['module'] for n in NAMESPACES})
+
+for _namespace in NAMESPACES:
+    _names = {o['name'] for o in _namespace['ops']}
+    _leaf = LEAF_OPS.get(_namespace['module'], set())
+    _leaf = _names if _leaf is ALL_OPS else _leaf
+    assert _leaf <= _names, (_namespace['module'], _leaf - _names)
+    for _op in _namespace['ops']:
+        _op['leaf'] = _op['name'] in _leaf

@@ -26,6 +26,8 @@ local wamrConfigDefines = {
     'WASM_ENABLE_LIBC_WASI=1',
     'WASM_ENABLE_MODULE_INST_CONTEXT=1',
     'WASM_ENABLE_BULK_MEMORY=1',
+    -- A host watchdog, not module fuel, bounds how long a call may run.
+    'WASM_ENABLE_RIVE_INTERRUPT=1',
     -- Simde-backed v128 in the fast interpreter; scalar modules
     -- translate the same as before, simd modules stop being refused.
     'WASM_ENABLE_SIMD=1',

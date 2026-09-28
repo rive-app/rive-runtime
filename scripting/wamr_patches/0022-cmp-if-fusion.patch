@@ -1,0 +1,147 @@
+--- a/core/iwasm/interpreter/wasm_loader.c
++++ b/core/iwasm/interpreter/wasm_loader.c
+@@ -11127,6 +11127,52 @@
+         return block_type_get_param_types(&target_block->block_type, &types)
+                == 0;
+     return block_type_get_result_types(&target_block->block_type, &types) == 0;
++}
++
++/* Replaces the just-emitted i32 compare and the branch label after it with
++   fused_opcode reading the compare's operands, and consumes the compare's
++   result slot without emitting a pop. The caller pops its type. */
++static void
++wasm_loader_fuse_cmp_branch(WASMLoaderContext *loader_ctx, uint8 cmp_opcode,
++                            uint8 fused_opcode)
++{
++    uint32 opnd_bytes = cmp_opcode == WASM_OP_I32_EQZ ? 2 : 4;
++    int16 opnd[2] = { 0, 0 };
++
++    if (loader_ctx->p_code_compiled) {
++        /* the compare's source operands sit right before its result slot
++           and the branch label */
++        uint8 *opnd_end = loader_ctx->p_code_compiled - EMIT_LABEL_SIZE - 2;
++        bh_memcpy_s(opnd, (uint32)sizeof(opnd), opnd_end - opnd_bytes,
++                    opnd_bytes);
++    }
++    skip_label();
++    wasm_loader_emit_backspace(loader_ctx, 2 + opnd_bytes);
++    skip_label();
++    emit_label(fused_opcode);
++    emit_operand(loader_ctx, opnd[0]);
++    if (opnd_bytes == 4)
++        emit_operand(loader_ctx, opnd[1]);
++    /* mirrors wasm_loader_pop_frame_offset */
++    loader_ctx->frame_offset--;
++    if ((*(loader_ctx->frame_offset) > loader_ctx->start_dynamic_offset)
++        && (*(loader_ctx->frame_offset) < loader_ctx->max_dynamic_offset))
++        loader_ctx->dynamic_offset--;
++}
++
++/* An if is a branch to its else when the condition is false, so a compare
++   feeding it fuses into the inverted compare branch; eqz inverts to a plain
++   nonzero test */
++static uint8
++wasm_loader_inverted_cmp_branch(uint8 cmp_opcode)
++{
++    static const uint8 inverted[] = {
++        EXT_OP_BR_IF0,         EXT_OP_BR_IF_I32_NE,   EXT_OP_BR_IF_I32_EQ,
++        EXT_OP_BR_IF_I32_GE_S, EXT_OP_BR_IF_I32_GE_U, EXT_OP_BR_IF_I32_LE_S,
++        EXT_OP_BR_IF_I32_LE_U, EXT_OP_BR_IF_I32_GT_S, EXT_OP_BR_IF_I32_GT_U,
++        EXT_OP_BR_IF_I32_LT_S, EXT_OP_BR_IF_I32_LT_U,
++    };
++    return inverted[cmp_opcode - WASM_OP_I32_EQZ];
+ }
+ #endif
+ 
+@@ -11710,6 +11756,9 @@
+     bool fuse_suppress = false;
+ #endif
+     bool disable_emit, preserve_local = false, if_condition_available = true;
++#if WASM_LOADER_FUSE_BR != 0
++    bool fused_if = false;
++#endif
+     float32 f32_const;
+     float64 f64_const;
+     /*
+@@ -11913,7 +11962,30 @@
+                 else
+                     if_condition_available = true;
+ 
++#if WASM_LOADER_FUSE_BR != 0
++                uint8 *code_before = loader_ctx->p_code_compiled;
++                uint32 size_before = loader_ctx->code_compiled_size;
++#endif
+                 PRESERVE_LOCAL_FOR_BLOCK();
++#if WASM_LOADER_FUSE_BR != 0
++                /* fuse only when the compare is still adjacent after local
++                   preservation and the if takes no params, which a single
++                   byte block type rules out */
++                fused_if = last_op >= WASM_OP_I32_EQZ
++                           && last_op <= WASM_OP_I32_GE_U
++                           && available_stack_cell > 0
++                           && !parent_block->is_stack_polymorphic
++                           && loader_ctx->p_code_compiled == code_before
++                           && loader_ctx->code_compiled_size == size_before
++                           && p < p_end && *p >= 0x40 && *p <= 0x7f;
++                if (fused_if) {
++                    wasm_loader_fuse_cmp_branch(
++                        loader_ctx, last_op,
++                        wasm_loader_inverted_cmp_branch(last_op));
++                    POP_TYPE(VALUE_TYPE_I32);
++                    goto handle_op_block_and_loop;
++                }
++#endif
+ #endif
+ #if WASM_ENABLE_GC == 0
+                 POP_I32();
+@@ -12222,7 +12294,14 @@
+                     block->start_dynamic_offset = loader_ctx->dynamic_offset;
+ 
+                     emit_empty_label_addr_and_frame_ip(PATCH_ELSE);
+-                    emit_empty_label_addr_and_frame_ip(PATCH_END);
++#if WASM_LOADER_FUSE_BR != 0
++                    /* every if gets an else, so the fused branch needs only
++                       the else target */
++                    if (fused_if)
++                        fused_if = false;
++                    else
++#endif
++                        emit_empty_label_addr_and_frame_ip(PATCH_END);
+                 }
+ #endif
+                 break;
+@@ -12682,32 +12761,8 @@
+                 }
+ 
+                 if (fused_opcode) {
+-                    uint32 opnd_bytes = last_op == WASM_OP_I32_EQZ ? 2 : 4;
+-                    int16 opnd[2] = { 0, 0 };
+-
+-                    if (loader_ctx->p_code_compiled) {
+-                        /* the compare's source operands sit right before its
+-                           result slot and the just-emitted br_if label */
+-                        uint8 *opnd_end =
+-                            loader_ctx->p_code_compiled - EMIT_LABEL_SIZE - 2;
+-                        bh_memcpy_s(opnd, (uint32)sizeof(opnd),
+-                                    opnd_end - opnd_bytes, opnd_bytes);
+-                    }
+-                    skip_label();
+-                    wasm_loader_emit_backspace(loader_ctx, 2 + opnd_bytes);
+-                    skip_label();
+-                    emit_label(fused_opcode);
+-                    emit_operand(loader_ctx, opnd[0]);
+-                    if (opnd_bytes == 4)
+-                        emit_operand(loader_ctx, opnd[1]);
+-                    /* consume the compare's result without emitting a pop,
+-                       mirroring wasm_loader_pop_frame_offset */
+-                    loader_ctx->frame_offset--;
+-                    if ((*(loader_ctx->frame_offset)
+-                         > loader_ctx->start_dynamic_offset)
+-                        && (*(loader_ctx->frame_offset)
+-                            < loader_ctx->max_dynamic_offset))
+-                        loader_ctx->dynamic_offset--;
++                    wasm_loader_fuse_cmp_branch(loader_ctx, last_op,
++                                                fused_opcode);
+                     POP_TYPE(VALUE_TYPE_I32);
+                 }
+                 else if (compact_br_if) {
