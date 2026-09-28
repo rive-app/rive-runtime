@@ -19,6 +19,20 @@
 extern "C" {
 #endif
 
+typedef struct rive_text_layout_desc_v1
+{
+    uint32_t sizing;
+    uint32_t overflow;
+    uint32_t align;
+    uint32_t wrap;
+    uint32_t wordBreak;
+    uint32_t origin;
+    uint32_t direction;
+    float maxWidth;
+    float maxHeight;
+    float paragraphSpacing;
+} rive_text_layout_desc_v1;
+
 typedef struct rive_gpu_texture_desc_v1
 {
     uint32_t width;
@@ -490,6 +504,12 @@ RIVE_BINDING_IMPORT("rive_path_v1", "update")
 void rive_path_update(uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule);
 RIVE_BINDING_IMPORT("rive_path_v1", "release")
 void rive_path_release(uint32_t path);
+RIVE_BINDING_IMPORT("rive_path_v1", "add")
+void rive_path_add(uint32_t path, uint32_t other, float xx, float xy, float yx, float yy, float tx, float ty);
+RIVE_BINDING_IMPORT("rive_path_v1", "verbs")
+uint32_t rive_path_verbs(uint32_t path, uint8_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_path_v1", "points")
+uint32_t rive_path_points(uint32_t path, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_path_v1", "effect_result")
 void rive_path_effect_result(const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
 
@@ -682,6 +702,66 @@ RIVE_BINDING_IMPORT("rive_image_v1", "decode")
 uint32_t rive_image_decode(const uint8_t* bytes, uint32_t byteCount, uint32_t token);
 RIVE_BINDING_IMPORT("rive_image_v1", "decode_cancel")
 void rive_image_decode_cancel(uint32_t token);
+
+// rive_font_v1
+RIVE_BINDING_IMPORT("rive_font_v1", "from_asset")
+uint32_t rive_font_from_asset(uint32_t object, const char* name, uint32_t length);
+RIVE_BINDING_IMPORT("rive_font_v1", "decode")
+uint32_t rive_font_decode(const uint8_t* bytes, uint32_t byteCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "release")
+void rive_font_release(uint32_t font);
+RIVE_BINDING_IMPORT("rive_font_v1", "metrics")
+void rive_font_metrics(uint32_t font, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "weight")
+uint32_t rive_font_weight(uint32_t font);
+RIVE_BINDING_IMPORT("rive_font_v1", "is_italic")
+uint32_t rive_font_is_italic(uint32_t font);
+RIVE_BINDING_IMPORT("rive_font_v1", "axis_count")
+uint32_t rive_font_axis_count(uint32_t font);
+RIVE_BINDING_IMPORT("rive_font_v1", "axis")
+void rive_font_axis(uint32_t font, uint32_t index, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "axis_value")
+float rive_font_axis_value(uint32_t font, uint32_t tag);
+RIVE_BINDING_IMPORT("rive_font_v1", "features")
+uint32_t rive_font_features(uint32_t font, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "has_glyph")
+uint32_t rive_font_has_glyph(uint32_t font, uint32_t codepoint);
+RIVE_BINDING_IMPORT("rive_font_v1", "with_options")
+uint32_t rive_font_with_options(uint32_t font, const uint32_t* coords, uint32_t coordCount, const uint32_t* features, uint32_t featureCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "glyph_verbs")
+uint32_t rive_font_glyph_verbs(uint32_t font, uint32_t glyph, uint8_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_font_v1", "glyph_points")
+uint32_t rive_font_glyph_points(uint32_t font, uint32_t glyph, float* out, uint32_t outCount);
+
+// rive_text_v1
+RIVE_BINDING_IMPORT("rive_text_v1", "new")
+uint32_t rive_text_new(void);
+RIVE_BINDING_IMPORT("rive_text_v1", "release")
+void rive_text_release(uint32_t text);
+RIVE_BINDING_IMPORT("rive_text_v1", "append")
+void rive_text_append(uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground);
+RIVE_BINDING_IMPORT("rive_text_v1", "clear")
+void rive_text_clear(uint32_t text);
+RIVE_BINDING_IMPORT("rive_text_v1", "layout")
+void rive_text_layout(uint32_t text, const rive_text_layout_desc_v1* desc, uint32_t descByteCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "draw")
+void rive_text_draw(uint32_t text, uint32_t renderer, uint32_t paint);
+RIVE_BINDING_IMPORT("rive_text_v1", "bounds")
+void rive_text_bounds(uint32_t text, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "length")
+uint32_t rive_text_length(uint32_t text);
+RIVE_BINDING_IMPORT("rive_text_v1", "lines")
+uint32_t rive_text_lines(uint32_t text, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "runs")
+uint32_t rive_text_runs(uint32_t text, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "glyphs")
+uint32_t rive_text_glyphs(uint32_t text, uint32_t* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "hit_test")
+uint32_t rive_text_hit_test(uint32_t text, float x, float y);
+RIVE_BINDING_IMPORT("rive_text_v1", "caret")
+uint32_t rive_text_caret(uint32_t text, uint32_t index, float* out, uint32_t outCount);
+RIVE_BINDING_IMPORT("rive_text_v1", "selection_rects")
+uint32_t rive_text_selection_rects(uint32_t text, uint32_t from, uint32_t to, float* out, uint32_t outCount);
 
 // rive_shader_v1
 RIVE_BINDING_IMPORT("rive_shader_v1", "linear")

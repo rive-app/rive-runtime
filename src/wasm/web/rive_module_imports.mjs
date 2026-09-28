@@ -417,6 +417,21 @@ export function createRiveModuleImports(host, moduleMemory) {
                 calls.rive_path_update(path, verbs_p, verbCount, points_p, floatCount, fillRule);
             },
             release: calls.rive_path_release,
+            add: calls.rive_path_add,
+            verbs: (path, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount);
+                const ret = calls.rive_path_verbs(path, out_p, outCount);
+                copyOut(out_p, out, outCount);
+                return ret;
+            },
+            points: (path, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_path_points(path, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
             effect_result: (verbs, verbCount, points, floatCount) => {
                 stackReset();
                 const verbs_p = stageIn(verbs, verbCount);
@@ -694,6 +709,125 @@ export function createRiveModuleImports(host, moduleMemory) {
                 return ret;
             },
             decode_cancel: calls.rive_image_decode_cancel,
+        },
+        rive_font_v1: {
+            from_asset: (object, name, length) => {
+                stackReset();
+                const name_p = stageIn(name, length);
+                const ret = calls.rive_font_from_asset(object, name_p, length);
+                return ret;
+            },
+            decode: (bytes, byteCount) => {
+                stackReset();
+                const bytes_p = stageIn(bytes, byteCount);
+                const ret = calls.rive_font_decode(bytes_p, byteCount);
+                return ret;
+            },
+            release: calls.rive_font_release,
+            metrics: (font, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                calls.rive_font_metrics(font, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+            },
+            weight: calls.rive_font_weight,
+            is_italic: calls.rive_font_is_italic,
+            axis_count: calls.rive_font_axis_count,
+            axis: (font, index, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                calls.rive_font_axis(font, index, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+            },
+            axis_value: calls.rive_font_axis_value,
+            features: (font, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_font_features(font, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            has_glyph: calls.rive_font_has_glyph,
+            with_options: (font, coords, coordCount, features, featureCount) => {
+                stackReset();
+                const coords_p = stageIn(coords, coordCount * 4);
+                const features_p = stageIn(features, featureCount * 4);
+                const ret = calls.rive_font_with_options(font, coords_p, coordCount, features_p, featureCount);
+                return ret;
+            },
+            glyph_verbs: (font, glyph, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount);
+                const ret = calls.rive_font_glyph_verbs(font, glyph, out_p, outCount);
+                copyOut(out_p, out, outCount);
+                return ret;
+            },
+            glyph_points: (font, glyph, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_font_glyph_points(font, glyph, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+        },
+        rive_text_v1: {
+            new: calls.rive_text_new,
+            release: calls.rive_text_release,
+            append: (text, chars, length, font, paint, size, lineHeight, letterSpacing, foreground) => {
+                stackReset();
+                const chars_p = stageIn(chars, length);
+                calls.rive_text_append(text, chars_p, length, font, paint, size, lineHeight, letterSpacing, foreground);
+            },
+            clear: calls.rive_text_clear,
+            layout: (text, desc, descByteCount) => {
+                stackReset();
+                const desc_p = stageIn(desc, descByteCount);
+                calls.rive_text_layout(text, desc_p, descByteCount);
+            },
+            draw: calls.rive_text_draw,
+            bounds: (text, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                calls.rive_text_bounds(text, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+            },
+            length: calls.rive_text_length,
+            lines: (text, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_text_lines(text, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            runs: (text, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_text_runs(text, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            glyphs: (text, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_text_glyphs(text, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            hit_test: calls.rive_text_hit_test,
+            caret: (text, index, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_text_caret(text, index, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
+            selection_rects: (text, from, to, out, outCount) => {
+                stackReset();
+                const out_p = stageIn(out, outCount * 4);
+                const ret = calls.rive_text_selection_rects(text, from, to, out_p, outCount);
+                copyOut(out_p, out, outCount * 4);
+                return ret;
+            },
         },
         rive_shader_v1: {
             linear: unsupported('rive_shader_linear'),

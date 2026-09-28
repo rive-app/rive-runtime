@@ -3,6 +3,12 @@
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/wamr_state_transplant.hpp"
 #include "rive/wasm/wasm_scripting_vm.hpp"
+#include <unordered_map>
+#ifdef WITH_RIVE_TEXT
+#include "rive/text/raw_text.hpp"
+#include "rive/text/cursor.hpp"
+#include "rive/text/font_hb.hpp"
+#endif
 #include "rive/wasm/prelinked_aot.hpp"
 #if WASM_ENABLE_PRELINKED_AOT != 0
 // AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation; same
@@ -1343,10 +1349,70 @@ NativeSymbol kWasiNatives[] = {
 
 // The module's ModuleRenderPath mirror; geometry arrives through update and
 // rebuilds the real render path.
+// Size then fill: copies when it fits, always answers the full count.
+template <typename T>
+uint32_t fillOut(Span<const T> words, T* out, uint32_t outCount)
+{
+    if (out != nullptr && words.size() <= outCount)
+    {
+        memcpy(out, words.data(), words.size() * sizeof(T));
+    }
+    return (uint32_t)words.size();
+}
+
+template <typename T>
+uint32_t fillOut(const std::vector<T>& words, T* out, uint32_t outCount)
+{
+    return fillOut(Span<const T>(words.data(), words.size()), out, outCount);
+}
+
+// A RawPath's points as the flat float stream the modules read.
+Span<const float> pathFloats(const RawPath& path)
+{
+    return Span<const float>((const float*)path.points().data(),
+                             path.points().size() * 2);
+}
+
+Span<const uint8_t> pathVerbBytes(const RawPath& path)
+{
+    return Span<const uint8_t>((const uint8_t*)path.verbs().data(),
+                               path.verbs().size());
+}
+
+// The geometry stays host side so paths composed from other paths never
+// cross back; the render path rebuilds lazily after a host side append.
 struct HostPath
 {
+    RawPath raw;
+    FillRule fillRule = FillRule::clockwise;
     rcp<RenderPath> path;
+    bool renderDirty = false;
 };
+
+HostPath* resolvePath(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostPath*>(
+        vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::path));
+}
+
+RenderPath* hostRenderPath(WasmScriptingVM* vm, HostPath* hostPath)
+{
+    if (hostPath == nullptr)
+    {
+        return nullptr;
+    }
+    if (hostPath->renderDirty)
+    {
+        hostPath->path =
+            vm->factory()->makeRenderPath(hostPath->raw, hostPath->fillRule);
+        hostPath->renderDirty = false;
+    }
+    return hostPath->path.get();
+}
 
 struct HostPaint
 {
@@ -1381,9 +1447,60 @@ void pathUpdateImpl(WasmScriptingVM* vm,
     {
         return;
     }
-    RawPath rawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
-                    Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
-    hostPath->path = vm->factory()->makeRenderPath(rawPath, (FillRule)fillRule);
+    hostPath->raw =
+        RawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
+                Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
+    hostPath->fillRule = (FillRule)fillRule;
+    hostPath->path =
+        vm->factory()->makeRenderPath(hostPath->raw, hostPath->fillRule);
+    hostPath->renderDirty = false;
+}
+
+void pathAddImpl(WasmScriptingVM* vm,
+                 uint32_t handle,
+                 uint32_t otherHandle,
+                 float xx,
+                 float xy,
+                 float yx,
+                 float yy,
+                 float tx,
+                 float ty)
+{
+    auto hostPath = resolvePath(vm, handle);
+    auto other = resolvePath(vm, otherHandle);
+    if (hostPath == nullptr || other == nullptr)
+    {
+        return;
+    }
+    Mat2D transform(xx, xy, yx, yy, tx, ty);
+    hostPath->raw.addPath(other->raw, &transform);
+    hostPath->renderDirty = true;
+}
+
+uint32_t pathVerbsImpl(WasmScriptingVM* vm,
+                       uint32_t handle,
+                       uint8_t* out,
+                       uint32_t outCount)
+{
+    auto hostPath = resolvePath(vm, handle);
+    if (hostPath == nullptr)
+    {
+        return 0;
+    }
+    return fillOut(pathVerbBytes(hostPath->raw), out, outCount);
+}
+
+uint32_t pathPointsImpl(WasmScriptingVM* vm,
+                        uint32_t handle,
+                        float* out,
+                        uint32_t outCount)
+{
+    auto hostPath = resolvePath(vm, handle);
+    if (hostPath == nullptr)
+    {
+        return 0;
+    }
+    return fillOut(pathFloats(hostPath->raw), out, outCount);
 }
 
 void pathEffectResultImpl(WasmScriptingVM* vm,
@@ -3957,14 +4074,12 @@ void rendererDrawPathImpl(WasmScriptingVM* vm,
     {
         return;
     }
-    auto hostPath = static_cast<HostPath*>(
-        vm->handles().resolve(pathHandle,
-                              WasmScriptingVM::HandleTable::Tag::path));
-    if (hostPath == nullptr || hostPath->path == nullptr)
+    RenderPath* path = hostRenderPath(vm, resolvePath(vm, pathHandle));
+    if (path == nullptr)
     {
         return;
     }
-    renderer->drawPath(hostPath->path.get(), paint);
+    renderer->drawPath(path, paint);
 }
 void rendererDrawImageImpl(WasmScriptingVM* vm,
                            uint32_t rendererHandle,
@@ -4057,14 +4172,12 @@ void rendererClipPathImpl(WasmScriptingVM* vm,
     {
         return;
     }
-    auto hostPath = static_cast<HostPath*>(
-        vm->handles().resolve(pathHandle,
-                              WasmScriptingVM::HandleTable::Tag::path));
-    if (hostPath == nullptr || hostPath->path == nullptr)
+    RenderPath* path = hostRenderPath(vm, resolvePath(vm, pathHandle));
+    if (path == nullptr)
     {
         return;
     }
-    renderer->clipPath(hostPath->path.get());
+    renderer->clipPath(path);
 }
 
 void rendererModulateOpacityImpl(WasmScriptingVM* vm,
@@ -5964,13 +6077,9 @@ uint32_t artboardNodePathVerbsImpl(WasmScriptingVM* vm,
     {
         return ~0u;
     }
-    const RawPath& raw = host->component->as<Path>()->rawPath();
-    size_t count = raw.verbs().size();
-    if (count <= outCount)
-    {
-        memcpy(out, raw.verbs().data(), count);
-    }
-    return (uint32_t)count;
+    return fillOut(pathVerbBytes(host->component->as<Path>()->rawPath()),
+                   out,
+                   outCount);
 }
 
 uint32_t artboardNodePathPointsImpl(WasmScriptingVM* vm,
@@ -5983,13 +6092,9 @@ uint32_t artboardNodePathPointsImpl(WasmScriptingVM* vm,
     {
         return ~0u;
     }
-    const RawPath& raw = host->component->as<Path>()->rawPath();
-    size_t count = raw.points().size() * 2;
-    if (count <= outCount)
-    {
-        memcpy(out, raw.points().data(), count * sizeof(float));
-    }
-    return (uint32_t)count;
+    return fillOut(pathFloats(host->component->as<Path>()->rawPath()),
+                   out,
+                   outCount);
 }
 
 uint32_t artboardNodePaintImpl(WasmScriptingVM* vm,
@@ -6098,6 +6203,11 @@ uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
 struct HostFont
 {
     rcp<Font> font;
+#ifdef WITH_RIVE_TEXT
+    RawPath glyphPath;
+    uint32_t glyphPathId = 0;
+    bool hasGlyphPath = false;
+#endif
 };
 
 uint32_t dataVmiImageImpl(WasmScriptingVM* vm,
@@ -6217,16 +6327,565 @@ void dataFontSetImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t fontHandle)
     value->value(host != nullptr ? host->font.get() : nullptr);
 }
 
+HostFont* resolveFont(WasmScriptingVM* vm, uint32_t handle);
+
 void dataFontReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
-    if (vm == nullptr)
+    // A font the teardown sweep already freed resolves to nothing here.
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr)
     {
         return;
     }
-    delete static_cast<HostFont*>(
-        vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::font));
+    delete host;
     vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::font);
 }
+
+// --- rive_font_v1 / rive_text_v1
+// ----------------------------------------------
+
+HostFont* resolveFont(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostFont*>(
+        vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::font));
+}
+
+uint32_t mintFont(WasmScriptingVM* vm, rcp<Font> font)
+{
+    if (font == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::font,
+                              new HostFont{std::move(font)});
+}
+
+uint32_t floatBits(float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+float bitsFloat(uint32_t bits)
+{
+    float value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+uint32_t fontFromAssetImpl(WasmScriptingVM* vm,
+                           uint32_t objectHandle,
+                           const char* name,
+                           uint32_t length)
+{
+    auto asset = findFileAsset<FontAsset>(vm, objectHandle, name, length);
+    return asset == nullptr ? 0 : mintFont(vm, asset->font());
+}
+
+void fontReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    dataFontReleaseImpl(vm, handle);
+}
+
+void fontMetricsImpl(WasmScriptingVM* vm,
+                     uint32_t handle,
+                     float* out,
+                     uint32_t outCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr || out == nullptr || outCount < 4)
+    {
+        return;
+    }
+    const Font::LineMetrics& metrics = host->font->lineMetrics();
+    out[0] = metrics.ascent;
+    out[1] = metrics.descent;
+    out[2] = metrics.capHeight;
+    out[3] = metrics.xHeight;
+}
+
+uint32_t fontWeightImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveFont(vm, handle);
+    return host == nullptr ? 0 : host->font->getWeight();
+}
+
+uint32_t fontIsItalicImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveFont(vm, handle);
+    return host != nullptr && host->font->isItalic() ? 1 : 0;
+}
+
+uint32_t fontAxisCountImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveFont(vm, handle);
+    return host == nullptr ? 0 : host->font->getAxisCount();
+}
+
+void fontAxisImpl(WasmScriptingVM* vm,
+                  uint32_t handle,
+                  uint32_t index,
+                  float* out,
+                  uint32_t outCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr || out == nullptr || outCount < 4 ||
+        index >= host->font->getAxisCount())
+    {
+        return;
+    }
+    Font::Axis axis = host->font->getAxis((uint16_t)index);
+    out[0] = bitsFloat(axis.tag);
+    out[1] = axis.min;
+    out[2] = axis.def;
+    out[3] = axis.max;
+}
+
+float fontAxisValueImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t tag)
+{
+    auto host = resolveFont(vm, handle);
+    return host == nullptr ? 0.0f : host->font->getAxisValue(tag);
+}
+
+uint32_t fontFeaturesImpl(WasmScriptingVM* vm,
+                          uint32_t handle,
+                          uint32_t* out,
+                          uint32_t outCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    SimpleArray<uint32_t> features = host->font->features();
+    return fillOut(Span<const uint32_t>(features.data(), features.size()),
+                   out,
+                   outCount);
+}
+
+uint32_t fontHasGlyphImpl(WasmScriptingVM* vm,
+                          uint32_t handle,
+                          uint32_t codepoint)
+{
+    auto host = resolveFont(vm, handle);
+    return host != nullptr && host->font->hasGlyph(codepoint) ? 1 : 0;
+}
+
+uint32_t fontWithOptionsImpl(WasmScriptingVM* vm,
+                             uint32_t handle,
+                             const uint32_t* coords,
+                             uint32_t coordCount,
+                             const uint32_t* features,
+                             uint32_t featureCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    std::vector<Font::Coord> axes;
+    for (uint32_t i = 0; i + 1 < coordCount; i += 2)
+    {
+        axes.push_back({coords[i], bitsFloat(coords[i + 1])});
+    }
+    std::vector<Font::Feature> settings;
+    for (uint32_t i = 0; i + 1 < featureCount; i += 2)
+    {
+        settings.push_back({features[i], features[i + 1]});
+    }
+    return mintFont(vm, host->font->withOptions(axes, settings));
+}
+
+#ifdef WITH_RIVE_TEXT
+uint32_t fontDecodeImpl(WasmScriptingVM* vm,
+                        const uint8_t* bytes,
+                        uint32_t byteCount)
+{
+    if (vm == nullptr || bytes == nullptr)
+    {
+        return 0;
+    }
+    return mintFont(vm, HBFont::Decode(Span<const uint8_t>(bytes, byteCount)));
+}
+
+// The outline crosses in two calls, so the last one is kept for the second.
+const RawPath& fontGlyph(HostFont* host, uint32_t glyph)
+{
+    if (!host->hasGlyphPath || host->glyphPathId != glyph)
+    {
+        host->glyphPath = RawText::glyphPath(*host->font, (GlyphID)glyph);
+        host->glyphPathId = glyph;
+        host->hasGlyphPath = true;
+    }
+    return host->glyphPath;
+}
+
+uint32_t fontGlyphVerbsImpl(WasmScriptingVM* vm,
+                            uint32_t handle,
+                            uint32_t glyph,
+                            uint8_t* out,
+                            uint32_t outCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    return fillOut(pathVerbBytes(fontGlyph(host, glyph)), out, outCount);
+}
+
+uint32_t fontGlyphPointsImpl(WasmScriptingVM* vm,
+                             uint32_t handle,
+                             uint32_t glyph,
+                             float* out,
+                             uint32_t outCount)
+{
+    auto host = resolveFont(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    return fillOut(pathFloats(fontGlyph(host, glyph)), out, outCount);
+}
+
+// A Text builtin: the layout plus the flat records the module reads it
+// through, rebuilt after any change.
+struct HostText
+{
+    HostText(Factory* factory) : text(factory) {}
+    RawText text;
+    std::vector<const GlyphRun*> runs;
+    std::vector<uint32_t> lineWords;
+    std::vector<uint32_t> runWords;
+    std::vector<uint32_t> glyphWords;
+    // Fonts the layout produced, fallbacks included, handed to the module as
+    // handles this text owns.
+    std::unordered_map<const Font*, uint32_t> fontHandles;
+    // RawText revision the records were built from; ~0u before the first.
+    uint32_t snapshotRevision = ~0u;
+};
+
+HostText* resolveText(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostText*>(
+        vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::text));
+}
+
+void deleteHostText(WasmScriptingVM* vm, HostText* host)
+{
+    if (host == nullptr)
+    {
+        return;
+    }
+    for (auto& pair : host->fontHandles)
+    {
+        dataFontReleaseImpl(vm, pair.second);
+    }
+    delete host;
+}
+
+void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
+{
+    if (host->snapshotRevision == host->text.revision())
+    {
+        return;
+    }
+    host->snapshotRevision = host->text.revision();
+    host->runs.clear();
+    host->lineWords.clear();
+    host->runWords.clear();
+    host->glyphWords.clear();
+
+    RawText& text = host->text;
+    const GlyphLookup& lookup = text.layoutView().glyphLookup();
+    std::unordered_map<const GlyphRun*, uint32_t> runIndices;
+    uint32_t glyphCount = 0;
+    for (uint32_t line = 0; line < text.lineCount(); line++)
+    {
+        const OrderedLine& orderedLine = text.orderedLines()[line];
+        uint32_t glyphStart = glyphCount;
+        text.forEachGlyph(
+            line,
+            [&](const GlyphRun& run, uint32_t glyphIndex, Vec2D position) {
+                auto indexed =
+                    runIndices.emplace(&run, (uint32_t)host->runs.size());
+                if (indexed.second)
+                {
+                    host->runs.push_back(&run);
+                }
+                glyphCount++;
+                GlyphID glyphId = run.glyphs[glyphIndex];
+                uint32_t flags =
+                    (run.level & 1) | (run.font->isColorGlyph(glyphId) ? 2 : 0);
+                host->glyphWords.insert(host->glyphWords.end(),
+                                        {glyphId,
+                                         run.textIndices[glyphIndex],
+                                         indexed.first->second,
+                                         flags,
+                                         floatBits(position.x),
+                                         floatBits(position.y),
+                                         floatBits(run.advances[glyphIndex])});
+                return true;
+            });
+        host->lineWords.insert(host->lineWords.end(),
+                               {glyphStart,
+                                glyphCount - glyphStart,
+                                (uint32_t)text.lineDirection(line),
+                                orderedLine.firstCodePointIndex(lookup),
+                                orderedLine.lastCodePointIndex(lookup),
+                                floatBits(orderedLine.glyphLine().startX),
+                                floatBits(text.lineTop(line)),
+                                floatBits(orderedLine.y()),
+                                floatBits(orderedLine.bottom())});
+    }
+    for (const GlyphRun* run : host->runs)
+    {
+        auto found = host->fontHandles.find(run->font.get());
+        if (found == host->fontHandles.end())
+        {
+            found = host->fontHandles
+                        .emplace(run->font.get(), mintFont(vm, run->font))
+                        .first;
+        }
+        host->runWords.insert(host->runWords.end(),
+                              {found->second,
+                               (uint32_t)(run->level & 1),
+                               floatBits(run->size),
+                               floatBits(run->lineHeight),
+                               floatBits(run->letterSpacing)});
+    }
+}
+
+uint32_t textNewImpl(WasmScriptingVM* vm)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::text,
+                              new HostText(vm->factory()));
+}
+
+void textReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    deleteHostText(vm, resolveText(vm, handle));
+    if (vm != nullptr)
+    {
+        vm->handles().release(handle, WasmScriptingVM::HandleTable::Tag::text);
+    }
+}
+
+void textAppendImpl(WasmScriptingVM* vm,
+                    uint32_t handle,
+                    const char* chars,
+                    uint32_t length,
+                    uint32_t fontHandle,
+                    uint32_t paintHandle,
+                    float size,
+                    float lineHeight,
+                    float letterSpacing,
+                    uint32_t foreground)
+{
+    auto host = resolveText(vm, handle);
+    auto font = resolveFont(vm, fontHandle);
+    if (host == nullptr || font == nullptr)
+    {
+        return;
+    }
+    RenderPaint* paint = resolvePaint(vm, paintHandle);
+    host->text.append(std::string(chars, length),
+                      paint != nullptr ? ref_rcp(paint) : nullptr,
+                      font->font,
+                      size,
+                      lineHeight,
+                      letterSpacing,
+                      foreground);
+}
+
+void textClearImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (auto host = resolveText(vm, handle))
+    {
+        host->text.clear();
+    }
+}
+
+void textLayoutImpl(WasmScriptingVM* vm,
+                    uint32_t handle,
+                    const rive_text_layout_desc_v1* desc,
+                    uint32_t descByteCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr || desc == nullptr ||
+        descByteCount < sizeof(rive_text_layout_desc_v1))
+    {
+        return;
+    }
+    RawText& text = host->text;
+    text.sizingIndex((int)desc->sizing);
+    text.overflowIndex((int)desc->overflow);
+    text.alignIndex((int)desc->align);
+    text.wrapIndex((int)desc->wrap);
+    text.wordBreakIndex((int)desc->wordBreak);
+    text.originIndex((int)desc->origin);
+    text.directionIndex((int)desc->direction);
+    text.maxWidth(desc->maxWidth);
+    text.maxHeight(desc->maxHeight);
+    text.paragraphSpacing(desc->paragraphSpacing);
+}
+
+void textDrawImpl(WasmScriptingVM* vm,
+                  uint32_t handle,
+                  uint32_t rendererHandle,
+                  uint32_t paintHandle)
+{
+    auto host = resolveText(vm, handle);
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (host == nullptr || renderer == nullptr)
+    {
+        return;
+    }
+    RenderPaint* paint = resolvePaint(vm, paintHandle);
+    host->text.render(renderer, paint != nullptr ? ref_rcp(paint) : nullptr);
+}
+
+void textBoundsImpl(WasmScriptingVM* vm,
+                    uint32_t handle,
+                    float* out,
+                    uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr || out == nullptr || outCount < 4)
+    {
+        return;
+    }
+    AABB bounds = host->text.bounds();
+    out[0] = bounds.minX;
+    out[1] = bounds.minY;
+    out[2] = bounds.maxX;
+    out[3] = bounds.maxY;
+}
+
+uint32_t textLengthImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto host = resolveText(vm, handle);
+    return host == nullptr ? 0 : (uint32_t)host->text.length();
+}
+
+uint32_t textLinesImpl(WasmScriptingVM* vm,
+                       uint32_t handle,
+                       uint32_t* out,
+                       uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    buildTextSnapshot(vm, host);
+    return fillOut(host->lineWords, out, outCount);
+}
+
+uint32_t textRunsImpl(WasmScriptingVM* vm,
+                      uint32_t handle,
+                      uint32_t* out,
+                      uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    buildTextSnapshot(vm, host);
+    return fillOut(host->runWords, out, outCount);
+}
+
+uint32_t textGlyphsImpl(WasmScriptingVM* vm,
+                        uint32_t handle,
+                        uint32_t* out,
+                        uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    buildTextSnapshot(vm, host);
+    return fillOut(host->glyphWords, out, outCount);
+}
+
+uint32_t textHitTestImpl(WasmScriptingVM* vm, uint32_t handle, float x, float y)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    TextLayoutView view = host->text.layoutView();
+    return CursorPosition::fromTranslation(Vec2D(x, y), view).codePointIndex();
+}
+
+uint32_t textCaretImpl(WasmScriptingVM* vm,
+                       uint32_t handle,
+                       uint32_t index,
+                       float* out,
+                       uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr || out == nullptr || outCount < 3)
+    {
+        return 0;
+    }
+    TextLayoutView view = host->text.layoutView();
+    auto visual = CursorPosition::atIndex(index, view).visualPosition(view);
+    if (!visual.found())
+    {
+        return 0;
+    }
+    out[0] = visual.x();
+    out[1] = visual.top();
+    out[2] = visual.bottom();
+    return 1;
+}
+
+uint32_t textSelectionRectsImpl(WasmScriptingVM* vm,
+                                uint32_t handle,
+                                uint32_t from,
+                                uint32_t to,
+                                float* out,
+                                uint32_t outCount)
+{
+    auto host = resolveText(vm, handle);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    TextLayoutView view = host->text.layoutView();
+    Cursor cursor(CursorPosition::atIndex(from, view),
+                  CursorPosition::atIndex(to, view));
+    std::vector<AABB> rects;
+    cursor.selectionRects(rects, view);
+    std::vector<float> words;
+    for (const AABB& rect : rects)
+    {
+        words.insert(words.end(), {rect.minX, rect.minY, rect.maxX, rect.maxY});
+    }
+    return fillOut(words, out, outCount);
+}
+#else
+struct HostText
+{};
+void deleteHostText(WasmScriptingVM*, HostText*) {}
+#endif
 
 // Mirrors ScriptedPropertyBlob::pushValue: a non-null instance asset (even
 // empty) wins, else the id-bound asset through the file registry.
@@ -6948,6 +7607,9 @@ WasmScriptingVM::~WasmScriptingVM()
                 break;
             case HandleTable::Tag::font:
                 delete static_cast<HostFont*>(slot.object);
+                break;
+            case HandleTable::Tag::text:
+                deleteHostText(this, static_cast<HostText*>(slot.object));
                 break;
             case HandleTable::Tag::buffer:
                 delete static_cast<HostBuffer*>(slot.object);
@@ -7978,6 +8640,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "image";
         case Tag::font:
             return "font";
+        case Tag::text:
+            return "text";
         case Tag::buffer:
             return "buffer";
         case Tag::meshInstances:

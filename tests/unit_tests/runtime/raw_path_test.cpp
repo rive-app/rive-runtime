@@ -657,3 +657,26 @@ TEST_CASE("coarse area measured from a nearby origin ignores position",
         CHECK(area == Approx(curvedAtOrigin));
     }
 }
+
+TEST_CASE("RawPath appends itself with and without a transform", "[rawpath]")
+{
+    RawPath path;
+    path.moveTo(1, 2);
+    path.lineTo(3, 4);
+    path.close();
+
+    path.addPath(path, nullptr);
+    REQUIRE(path.verbs().size() == 6);
+    REQUIRE(path.points().size() == 4);
+    CHECK(path.points()[2] == Vec2D(1, 2));
+    CHECK(path.points()[3] == Vec2D(3, 4));
+    CHECK(path.verbs()[3] == PathVerb::move);
+
+    Mat2D shift = Mat2D::fromTranslate(10, 20);
+    path.addPath(path, &shift);
+    REQUIRE(path.verbs().size() == 12);
+    REQUIRE(path.points().size() == 8);
+    CHECK(path.points()[4] == Vec2D(11, 22));
+    CHECK(path.points()[7] == Vec2D(13, 24));
+    CHECK(path.verbs()[9] == PathVerb::move);
+}

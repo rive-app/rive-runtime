@@ -103,6 +103,7 @@ public:
             audioSource,
             audioSound,
             drawable,
+            text,
             count,
         };
         struct Slot

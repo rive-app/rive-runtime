@@ -882,6 +882,24 @@ void rive_web_path_release(uint32_t vmHandle, uint32_t path)
     pathReleaseImpl(vm, path);
 }
 EMSCRIPTEN_KEEPALIVE
+void rive_web_path_add(uint32_t vmHandle, uint32_t path, uint32_t other, float xx, float xy, float yx, float yy, float tx, float ty)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    pathAddImpl(vm, path, other, xx, xy, yx, yy, tx, ty);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_path_verbs(uint32_t vmHandle, uint32_t path, uint8_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return pathVerbsImpl(vm, path, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_path_points(uint32_t vmHandle, uint32_t path, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return pathPointsImpl(vm, path, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
 void rive_web_path_effect_result(uint32_t vmHandle, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -1407,6 +1425,210 @@ void rive_web_image_decode_cancel(uint32_t vmHandle, uint32_t token)
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     imageDecodeCancelImpl(vm, token);
 }
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_from_asset(uint32_t vmHandle, uint32_t object, const char* name, uint32_t length)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return fontFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size());
+}
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_decode(uint32_t vmHandle, const uint8_t* bytes, uint32_t byteCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontDecodeImpl(vm, bytes, byteCount);
+}
+#endif
+EMSCRIPTEN_KEEPALIVE
+void rive_web_font_release(uint32_t vmHandle, uint32_t font)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    fontReleaseImpl(vm, font);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_font_metrics(uint32_t vmHandle, uint32_t font, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    fontMetricsImpl(vm, font, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_weight(uint32_t vmHandle, uint32_t font)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontWeightImpl(vm, font);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_is_italic(uint32_t vmHandle, uint32_t font)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontIsItalicImpl(vm, font);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_axis_count(uint32_t vmHandle, uint32_t font)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontAxisCountImpl(vm, font);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_font_axis(uint32_t vmHandle, uint32_t font, uint32_t index, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    fontAxisImpl(vm, font, index, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+float rive_web_font_axis_value(uint32_t vmHandle, uint32_t font, uint32_t tag)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontAxisValueImpl(vm, font, tag);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_features(uint32_t vmHandle, uint32_t font, uint32_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontFeaturesImpl(vm, font, out, outCount);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_has_glyph(uint32_t vmHandle, uint32_t font, uint32_t codepoint)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontHasGlyphImpl(vm, font, codepoint);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_with_options(uint32_t vmHandle, uint32_t font, const uint32_t* coords, uint32_t coordCount, const uint32_t* features, uint32_t featureCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontWithOptionsImpl(vm, font, coords, coordCount, features, featureCount);
+}
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_glyph_verbs(uint32_t vmHandle, uint32_t font, uint32_t glyph, uint8_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontGlyphVerbsImpl(vm, font, glyph, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_font_glyph_points(uint32_t vmHandle, uint32_t font, uint32_t glyph, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fontGlyphPointsImpl(vm, font, glyph, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_new(uint32_t vmHandle)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textNewImpl(vm);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_release(uint32_t vmHandle, uint32_t text)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    textReleaseImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_append(uint32_t vmHandle, uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg charsUtf8(vm, chars, length);
+    textAppendImpl(vm, text, charsUtf8.data(), charsUtf8.size(), font, paint, size, lineHeight, letterSpacing, foreground);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_clear(uint32_t vmHandle, uint32_t text)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    textClearImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_layout(uint32_t vmHandle, uint32_t text, const rive_text_layout_desc_v1* desc, uint32_t descByteCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    textLayoutImpl(vm, text, desc, descByteCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_draw(uint32_t vmHandle, uint32_t text, uint32_t renderer, uint32_t paint)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    textDrawImpl(vm, text, renderer, paint);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+void rive_web_text_bounds(uint32_t vmHandle, uint32_t text, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    textBoundsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_length(uint32_t vmHandle, uint32_t text)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textLengthImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_lines(uint32_t vmHandle, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textLinesImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_runs(uint32_t vmHandle, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textRunsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_glyphs(uint32_t vmHandle, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textGlyphsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_hit_test(uint32_t vmHandle, uint32_t text, float x, float y)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textHitTestImpl(vm, text, x, y);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_caret(uint32_t vmHandle, uint32_t text, uint32_t index, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textCaretImpl(vm, text, index, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_text_selection_rects(uint32_t vmHandle, uint32_t text, uint32_t from, uint32_t to, float* out, uint32_t outCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return textSelectionRectsImpl(vm, text, from, to, out, outCount);
+}
+#endif
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_shader_linear(uint32_t vmHandle, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count)
 {

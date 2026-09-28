@@ -4,6 +4,7 @@
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/assets/image_asset.hpp"
 #include "rive/assets/blob_asset.hpp"
+#include "rive/assets/font_asset.hpp"
 #include "rive/file.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/view_model_type.hpp"
@@ -281,6 +282,42 @@ int ScriptedContext::pushDataContext(lua_State* state)
     return 0;
 }
 
+// The file's best asset of type T for a scoped reference, skipping assets
+// accept turns down, the way the wasm side's findFileAsset does.
+template <typename T, typename Accept>
+static T* findFileAsset(ScriptingContext::ScopedAssetReference& reference,
+                        File* file,
+                        Accept accept)
+{
+    T* found = nullptr;
+    int bestRank = 0;
+    if (file == nullptr)
+    {
+        return nullptr;
+    }
+    for (const auto& asset : file->assets())
+    {
+        if (!asset->is<T>())
+        {
+            continue;
+        }
+        T* candidate = asset->template as<T>();
+        int rank = reference.match(candidate->name(), candidate->name());
+        if (rank > bestRank && accept(candidate))
+        {
+            bestRank = rank;
+            found = candidate;
+        }
+    }
+    return found;
+}
+
+static File* scriptedFile(ScriptedContext* scriptedContext)
+{
+    auto scriptAsset = scriptedContext->scriptedObject()->scriptAsset();
+    return scriptAsset != nullptr ? scriptAsset->file() : nullptr;
+}
+
 static int context_namecall(lua_State* L)
 {
     int atom;
@@ -323,87 +360,55 @@ static int context_namecall(lua_State* L)
             }
             case (int)LuaAtoms::image:
             {
-                const char* imageName = luaL_checkstring(L, 2);
-
-                // First, try to find the image from the file's assets (runtime)
-                auto scriptedObject = scriptedContext->scriptedObject();
-                auto scriptAsset = scriptedObject->scriptAsset();
-                if (scriptAsset != nullptr)
+                ScriptingContext::ScopedAssetReference reference(
+                    L,
+                    luaL_checkstring(L, 2));
+                auto found = findFileAsset<ImageAsset>(
+                    reference,
+                    scriptedFile(scriptedContext),
+                    [](ImageAsset* asset) {
+                        return asset->renderImage() != nullptr;
+                    });
+                if (found == nullptr)
                 {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        // Find ImageAsset by name
-                        auto assets = file->assets();
-                        for (const auto& asset : assets)
-                        {
-                            if (asset->is<ImageAsset>())
-                            {
-                                ImageAsset* imageAsset =
-                                    asset->as<ImageAsset>();
-                                if (imageAsset->name() == imageName)
-                                {
-                                    RenderImage* renderImage =
-                                        imageAsset->renderImage();
-                                    if (renderImage != nullptr)
-                                    {
-                                        auto scriptedImage =
-                                            lua_newrive<ScriptedImage>(L);
-                                        // ref_rcp properly refs the RenderImage
-                                        // for the rcp<>. When ScriptedImage is
-                                        // GC'd, rcp<> destructor will deref()
-                                        scriptedImage->image =
-                                            ref_rcp(renderImage);
-                                        return 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    return 0;
                 }
-
-                return 0; // return nil if not found
+                lua_newrive<ScriptedImage>(L)->image =
+                    ref_rcp(found->renderImage());
+                return 1;
             }
             case (int)LuaAtoms::blob:
             {
-                const char* blobName = luaL_checkstring(L, 2);
-                ScriptingContext::ScopedAssetReference reference(L, blobName);
-
-                auto scriptedObject = scriptedContext->scriptedObject();
-                auto scriptAsset = scriptedObject->scriptAsset();
-                if (scriptAsset != nullptr)
+                ScriptingContext::ScopedAssetReference reference(
+                    L,
+                    luaL_checkstring(L, 2));
+                auto found = findFileAsset<BlobAsset>(
+                    reference,
+                    scriptedFile(scriptedContext),
+                    [](BlobAsset* asset) { return !asset->bytes().empty(); });
+                if (found == nullptr)
                 {
-                    File* file = scriptAsset->file();
-                    if (file != nullptr)
-                    {
-                        BlobAsset* found = nullptr;
-                        int bestRank = 0;
-                        for (const auto& asset : file->assets())
-                        {
-                            if (!asset->is<BlobAsset>())
-                            {
-                                continue;
-                            }
-                            BlobAsset* blobAsset = asset->as<BlobAsset>();
-                            int rank = reference.match(blobAsset->name(),
-                                                       blobAsset->name());
-                            if (rank > bestRank && !blobAsset->bytes().empty())
-                            {
-                                bestRank = rank;
-                                found = blobAsset;
-                            }
-                        }
-                        if (found != nullptr)
-                        {
-                            auto scriptedBlob = lua_newrive<ScriptedBlob>(L);
-                            scriptedBlob->asset =
-                                ref_rcp(static_cast<FileAsset*>(found));
-                            return 1;
-                        }
-                    }
+                    return 0;
                 }
-
-                return 0; // return nil if not found
+                lua_newrive<ScriptedBlob>(L)->asset =
+                    ref_rcp(static_cast<FileAsset*>(found));
+                return 1;
+            }
+            case (int)LuaAtoms::font:
+            {
+                ScriptingContext::ScopedAssetReference reference(
+                    L,
+                    luaL_checkstring(L, 2));
+                auto found = findFileAsset<FontAsset>(
+                    reference,
+                    scriptedFile(scriptedContext),
+                    [](FontAsset* asset) { return asset->font() != nullptr; });
+                if (found == nullptr)
+                {
+                    return 0;
+                }
+                lua_pushfont(L, found->font());
+                return 1;
             }
             case (int)LuaAtoms::dataContext:
             {

@@ -305,10 +305,106 @@ constexpr LuaAtomName atoms[] = {
 #ifdef WITH_RIVE_TOOLS
     {"properties", (int16_t)LuaAtoms::properties},
 #endif
+    {"append", (int16_t)LuaAtoms::append},
+    {"line", (int16_t)LuaAtoms::line},
+    {"lines", (int16_t)LuaAtoms::lines},
+    {"hitTest", (int16_t)LuaAtoms::hitTest},
+    {"caret", (int16_t)LuaAtoms::caret},
+    {"selectionRects", (int16_t)LuaAtoms::selectionRects},
+    {"glyph", (int16_t)LuaAtoms::glyph},
+    {"glyphs", (int16_t)LuaAtoms::glyphs},
+    {"path", (int16_t)LuaAtoms::path},
+    {"glyphPath", (int16_t)LuaAtoms::glyphPath},
+    {"withOptions", (int16_t)LuaAtoms::withOptions},
+    {"hasGlyph", (int16_t)LuaAtoms::hasGlyph},
+    {"axisValue", (int16_t)LuaAtoms::axisValue},
+    {"lineHeight", (int16_t)LuaAtoms::lineHeight},
+    {"decode", (int16_t)LuaAtoms::decode},
+    {"font", (int16_t)LuaAtoms::font},
+    {"ascent", (int16_t)LuaAtoms::ascent},
+    {"descent", (int16_t)LuaAtoms::descent},
+    {"capHeight", (int16_t)LuaAtoms::capHeight},
+    {"xHeight", (int16_t)LuaAtoms::xHeight},
+    {"weight", (int16_t)LuaAtoms::weight},
+    {"isItalic", (int16_t)LuaAtoms::isItalic},
+    {"sizing", (int16_t)LuaAtoms::sizing},
+    {"overflow", (int16_t)LuaAtoms::overflow},
+    {"align", (int16_t)LuaAtoms::align},
+    {"wrap", (int16_t)LuaAtoms::wrap},
+    {"wordBreak", (int16_t)LuaAtoms::wordBreak},
+    {"origin", (int16_t)LuaAtoms::origin},
+    {"direction", (int16_t)LuaAtoms::direction},
+    {"maxWidth", (int16_t)LuaAtoms::maxWidth},
+    {"maxHeight", (int16_t)LuaAtoms::maxHeight},
+    {"paragraphSpacing", (int16_t)LuaAtoms::paragraphSpacing},
+    {"lineCount", (int16_t)LuaAtoms::lineCount},
+    {"glyphCount", (int16_t)LuaAtoms::glyphCount},
+    {"baseline", (int16_t)LuaAtoms::baseline},
+    {"bottom", (int16_t)LuaAtoms::bottom},
+    {"top", (int16_t)LuaAtoms::top},
+    {"textIndex", (int16_t)LuaAtoms::textIndex},
+    {"firstIndex", (int16_t)LuaAtoms::firstIndex},
+    {"lastIndex", (int16_t)LuaAtoms::lastIndex},
+    {"x", (int16_t)LuaAtoms::x},
+    {"y", (int16_t)LuaAtoms::y},
+    {"isEmpty", (int16_t)LuaAtoms::isEmpty},
+    {"index", (int16_t)LuaAtoms::index},
+    {"ltr", (int16_t)LuaAtoms::ltr},
+    {"rtl", (int16_t)LuaAtoms::rtl},
+    {"auto", (int16_t)LuaAtoms::autoDetect},
+    {"left", (int16_t)LuaAtoms::left},
+    {"right", (int16_t)LuaAtoms::right},
+    {"center", (int16_t)LuaAtoms::center},
+    {"end", (int16_t)LuaAtoms::end},
+    {"autoWidth", (int16_t)LuaAtoms::autoWidth},
+    {"autoHeight", (int16_t)LuaAtoms::autoHeight},
+    {"fixed", (int16_t)LuaAtoms::fixed},
+    {"visible", (int16_t)LuaAtoms::visible},
+    {"hidden", (int16_t)LuaAtoms::hidden},
+    {"clipped", (int16_t)LuaAtoms::clipped},
+    {"ellipsis", (int16_t)LuaAtoms::ellipsis},
+    {"noWrap", (int16_t)LuaAtoms::noWrap},
+    {"breakWord", (int16_t)LuaAtoms::breakWord},
+    {"normal", (int16_t)LuaAtoms::normal},
+    {"breakAll", (int16_t)LuaAtoms::breakAll},
+    {"letterSpacing", (int16_t)LuaAtoms::letterSpacing},
+    {"foregroundColor", (int16_t)LuaAtoms::foregroundColor},
+    {"min", (int16_t)LuaAtoms::min},
+    {"max", (int16_t)LuaAtoms::max},
+    {"default", (int16_t)LuaAtoms::defaultValue},
 };
 
 constexpr size_t atomCount = std::size(atoms);
 // Power of two so the modulo is a mask, and roomy enough to keep probes short.
+constexpr bool hasAtom(LuaAtoms atom)
+{
+    for (const LuaAtomName& row : atoms)
+    {
+        if (row.atom == (int16_t)atom)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+constexpr bool hasAtomRange(LuaAtoms first, LuaAtoms last)
+{
+    for (int16_t atom = (int16_t)first; atom <= (int16_t)last; atom++)
+    {
+        if (!hasAtom((LuaAtoms)atom))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The text atoms follow the tools only ones; a guard swallowing them only
+// shows in a runtime build, which the test binaries never are.
+static_assert(hasAtomRange(LuaAtoms::append, LuaAtoms::defaultValue),
+              "text atoms must register in every build");
+
 constexpr size_t atomSlotCount = 1024;
 static_assert(atomCount < atomSlotCount,
               "atomSlotCount must exceed the number of atoms");

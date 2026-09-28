@@ -7,6 +7,20 @@
 // cores share with the browser lane's generated C shims.
 // clang-format off
 
+typedef struct rive_text_layout_desc_v1
+{
+    uint32_t sizing;
+    uint32_t overflow;
+    uint32_t align;
+    uint32_t wrap;
+    uint32_t wordBreak;
+    uint32_t origin;
+    uint32_t direction;
+    float maxWidth;
+    float maxHeight;
+    float paragraphSpacing;
+} rive_text_layout_desc_v1;
+
 typedef struct rive_gpu_texture_desc_v1
 {
     uint32_t width;
@@ -331,6 +345,9 @@ void audioSoundSetVolumeImpl(WasmScriptingVM* vm, uint32_t sound, float value);
 uint32_t pathNewImpl(WasmScriptingVM* vm);
 void pathUpdateImpl(WasmScriptingVM* vm, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule);
 void pathReleaseImpl(WasmScriptingVM* vm, uint32_t path);
+void pathAddImpl(WasmScriptingVM* vm, uint32_t path, uint32_t other, float xx, float xy, float yx, float yy, float tx, float ty);
+uint32_t pathVerbsImpl(WasmScriptingVM* vm, uint32_t path, uint8_t* out, uint32_t outCount);
+uint32_t pathPointsImpl(WasmScriptingVM* vm, uint32_t path, float* out, uint32_t outCount);
 void pathEffectResultImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
 uint32_t measurePathNewImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
 uint32_t measureContoursNewImpl(WasmScriptingVM* vm, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount);
@@ -418,6 +435,68 @@ uint32_t imageHeightImpl(WasmScriptingVM* vm, uint32_t image);
 void imageReleaseImpl(WasmScriptingVM* vm, uint32_t image);
 uint32_t imageDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount, uint32_t token);
 void imageDecodeCancelImpl(WasmScriptingVM* vm, uint32_t token);
+uint32_t fontFromAssetImpl(WasmScriptingVM* vm, uint32_t object, const char* name, uint32_t length);
+#ifdef WITH_RIVE_TEXT
+uint32_t fontDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount);
+#endif
+void fontReleaseImpl(WasmScriptingVM* vm, uint32_t font);
+void fontMetricsImpl(WasmScriptingVM* vm, uint32_t font, float* out, uint32_t outCount);
+uint32_t fontWeightImpl(WasmScriptingVM* vm, uint32_t font);
+uint32_t fontIsItalicImpl(WasmScriptingVM* vm, uint32_t font);
+uint32_t fontAxisCountImpl(WasmScriptingVM* vm, uint32_t font);
+void fontAxisImpl(WasmScriptingVM* vm, uint32_t font, uint32_t index, float* out, uint32_t outCount);
+float fontAxisValueImpl(WasmScriptingVM* vm, uint32_t font, uint32_t tag);
+uint32_t fontFeaturesImpl(WasmScriptingVM* vm, uint32_t font, uint32_t* out, uint32_t outCount);
+uint32_t fontHasGlyphImpl(WasmScriptingVM* vm, uint32_t font, uint32_t codepoint);
+uint32_t fontWithOptionsImpl(WasmScriptingVM* vm, uint32_t font, const uint32_t* coords, uint32_t coordCount, const uint32_t* features, uint32_t featureCount);
+#ifdef WITH_RIVE_TEXT
+uint32_t fontGlyphVerbsImpl(WasmScriptingVM* vm, uint32_t font, uint32_t glyph, uint8_t* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t fontGlyphPointsImpl(WasmScriptingVM* vm, uint32_t font, uint32_t glyph, float* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textNewImpl(WasmScriptingVM* vm);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textReleaseImpl(WasmScriptingVM* vm, uint32_t text);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textAppendImpl(WasmScriptingVM* vm, uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textClearImpl(WasmScriptingVM* vm, uint32_t text);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textLayoutImpl(WasmScriptingVM* vm, uint32_t text, const rive_text_layout_desc_v1* desc, uint32_t descByteCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textDrawImpl(WasmScriptingVM* vm, uint32_t text, uint32_t renderer, uint32_t paint);
+#endif
+#ifdef WITH_RIVE_TEXT
+void textBoundsImpl(WasmScriptingVM* vm, uint32_t text, float* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textLengthImpl(WasmScriptingVM* vm, uint32_t text);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textLinesImpl(WasmScriptingVM* vm, uint32_t text, uint32_t* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textRunsImpl(WasmScriptingVM* vm, uint32_t text, uint32_t* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textGlyphsImpl(WasmScriptingVM* vm, uint32_t text, uint32_t* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textHitTestImpl(WasmScriptingVM* vm, uint32_t text, float x, float y);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textCaretImpl(WasmScriptingVM* vm, uint32_t text, uint32_t index, float* out, uint32_t outCount);
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textSelectionRectsImpl(WasmScriptingVM* vm, uint32_t text, uint32_t from, uint32_t to, float* out, uint32_t outCount);
+#endif
 uint32_t shaderLinearImpl(WasmScriptingVM* vm, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count);
 uint32_t shaderRadialImpl(WasmScriptingVM* vm, float cx, float cy, float radius, uint32_t colors, uint32_t stops, uint32_t count);
 void shaderReleaseImpl(WasmScriptingVM* vm, uint32_t shader);
@@ -1203,6 +1282,25 @@ void pathRelease(wasm_exec_env_t env, uint32_t path)
     WasmScriptingVM* vm = vmFromEnv(env);
     pathReleaseImpl(vm, path);
 }
+void pathAdd(wasm_exec_env_t env, uint32_t path, uint32_t other, float xx, float xy, float yx, float yy, float tx, float ty)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    pathAddImpl(vm, path, other, xx, xy, yx, yy, tx, ty);
+}
+uint32_t pathVerbs(wasm_exec_env_t env, uint32_t path, uint8_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return pathVerbsImpl(vm, path, out, outCount);
+}
+uint32_t pathPoints(wasm_exec_env_t env, uint32_t path, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return pathPointsImpl(vm, path, out, outCount);
+}
 void pathEffectResult(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1682,6 +1780,230 @@ void imageDecodeCancel(wasm_exec_env_t env, uint32_t token)
     WasmScriptingVM* vm = vmFromEnv(env);
     imageDecodeCancelImpl(vm, token);
 }
+uint32_t fontFromAsset(wasm_exec_env_t env, uint32_t object, const char* name, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return fontFromAssetImpl(vm, object, nameUtf8.data(), nameUtf8.size());
+}
+#ifdef WITH_RIVE_TEXT
+uint32_t fontDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontDecodeImpl(vm, bytes, byteCount);
+}
+#endif
+void fontRelease(wasm_exec_env_t env, uint32_t font)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    fontReleaseImpl(vm, font);
+}
+void fontMetrics(wasm_exec_env_t env, uint32_t font, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
+    fontMetricsImpl(vm, font, out, outCount);
+}
+uint32_t fontWeight(wasm_exec_env_t env, uint32_t font)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontWeightImpl(vm, font);
+}
+uint32_t fontIsItalic(wasm_exec_env_t env, uint32_t font)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontIsItalicImpl(vm, font);
+}
+uint32_t fontAxisCount(wasm_exec_env_t env, uint32_t font)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontAxisCountImpl(vm, font);
+}
+void fontAxis(wasm_exec_env_t env, uint32_t font, uint32_t index, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
+    fontAxisImpl(vm, font, index, out, outCount);
+}
+float fontAxisValue(wasm_exec_env_t env, uint32_t font, uint32_t tag)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontAxisValueImpl(vm, font, tag);
+}
+uint32_t fontFeatures(wasm_exec_env_t env, uint32_t font, uint32_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return fontFeaturesImpl(vm, font, out, outCount);
+}
+uint32_t fontHasGlyph(wasm_exec_env_t env, uint32_t font, uint32_t codepoint)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontHasGlyphImpl(vm, font, codepoint);
+}
+uint32_t fontWithOptions(wasm_exec_env_t env, uint32_t font, const uint32_t* coords, uint32_t coordCount, const uint32_t* features, uint32_t featureCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (coordCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)coords, (uint64_t)coordCount * 4))
+    {
+        return {};
+    }
+    if (featureCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)features, (uint64_t)featureCount * 4))
+    {
+        return {};
+    }
+    return fontWithOptionsImpl(vm, font, coords, coordCount, features, featureCount);
+}
+#ifdef WITH_RIVE_TEXT
+uint32_t fontGlyphVerbs(wasm_exec_env_t env, uint32_t font, uint32_t glyph, uint8_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fontGlyphVerbsImpl(vm, font, glyph, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t fontGlyphPoints(wasm_exec_env_t env, uint32_t font, uint32_t glyph, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return fontGlyphPointsImpl(vm, font, glyph, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textNew(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return textNewImpl(vm);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textRelease(wasm_exec_env_t env, uint32_t text)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textReleaseImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textAppend(wasm_exec_env_t env, uint32_t text, const char* chars, uint32_t length, uint32_t font, uint32_t paint, float size, float lineHeight, float letterSpacing, uint32_t foreground)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg charsUtf8(vm, chars, length);
+    textAppendImpl(vm, text, charsUtf8.data(), charsUtf8.size(), font, paint, size, lineHeight, letterSpacing, foreground);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textClear(wasm_exec_env_t env, uint32_t text)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textClearImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textLayout(wasm_exec_env_t env, uint32_t text, const rive_text_layout_desc_v1* desc, uint32_t descByteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textLayoutImpl(vm, text, desc, descByteCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textDraw(wasm_exec_env_t env, uint32_t text, uint32_t renderer, uint32_t paint)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    textDrawImpl(vm, text, renderer, paint);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+void textBounds(wasm_exec_env_t env, uint32_t text, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
+    textBoundsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textLength(wasm_exec_env_t env, uint32_t text)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return textLengthImpl(vm, text);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textLines(wasm_exec_env_t env, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return textLinesImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textRuns(wasm_exec_env_t env, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return textRunsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textGlyphs(wasm_exec_env_t env, uint32_t text, uint32_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return textGlyphsImpl(vm, text, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textHitTest(wasm_exec_env_t env, uint32_t text, float x, float y)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return textHitTestImpl(vm, text, x, y);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textCaret(wasm_exec_env_t env, uint32_t text, uint32_t index, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return textCaretImpl(vm, text, index, out, outCount);
+}
+#endif
+#ifdef WITH_RIVE_TEXT
+uint32_t textSelectionRects(wasm_exec_env_t env, uint32_t text, uint32_t from, uint32_t to, float* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
+    return textSelectionRectsImpl(vm, text, from, to, out, outCount);
+}
+#endif
 uint32_t shaderLinear(wasm_exec_env_t env, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1903,6 +2225,9 @@ NativeSymbol kPathNatives[] = {
     {"new", (void*)pathNew, "()i", (void*)&wasm_runtime_rive_leaf_native},
     {"update", (void*)pathUpdate, "(i*~*~i)", (void*)&wasm_runtime_rive_leaf_native},
     {"release", (void*)pathRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
+    {"add", (void*)pathAdd, "(iiffffff)", (void*)&wasm_runtime_rive_leaf_native},
+    {"verbs", (void*)pathVerbs, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"points", (void*)pathPoints, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"effect_result", (void*)pathEffectResult, "(*~*~)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
@@ -2019,6 +2344,74 @@ NativeSymbol kImageNatives[] = {
     {"decode_cancel", (void*)imageDecodeCancel, "(i)", nullptr},
 };
 
+NativeSymbol kFontNatives[] = {
+    {"from_asset", (void*)fontFromAsset, "(i*~)i", nullptr},
+#ifdef WITH_RIVE_TEXT
+    {"decode", (void*)fontDecode, "(*~)i", nullptr},
+#endif
+    {"release", (void*)fontRelease, "(i)", nullptr},
+    {"metrics", (void*)fontMetrics, "(i*~)", nullptr},
+    {"weight", (void*)fontWeight, "(i)i", nullptr},
+    {"is_italic", (void*)fontIsItalic, "(i)i", nullptr},
+    {"axis_count", (void*)fontAxisCount, "(i)i", nullptr},
+    {"axis", (void*)fontAxis, "(ii*~)", nullptr},
+    {"axis_value", (void*)fontAxisValue, "(ii)f", nullptr},
+    {"features", (void*)fontFeatures, "(i*~)i", nullptr},
+    {"has_glyph", (void*)fontHasGlyph, "(ii)i", nullptr},
+    {"with_options", (void*)fontWithOptions, "(i*~*~)i", nullptr},
+#ifdef WITH_RIVE_TEXT
+    {"glyph_verbs", (void*)fontGlyphVerbs, "(ii*~)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"glyph_points", (void*)fontGlyphPoints, "(ii*~)i", nullptr},
+#endif
+};
+
+NativeSymbol kTextNatives[] = {
+#ifdef WITH_RIVE_TEXT
+    {"new", (void*)textNew, "()i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"release", (void*)textRelease, "(i)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"append", (void*)textAppend, "(i*~iifffi)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"clear", (void*)textClear, "(i)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"layout", (void*)textLayout, "(i*~)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"draw", (void*)textDraw, "(iii)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"bounds", (void*)textBounds, "(i*~)", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"length", (void*)textLength, "(i)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"lines", (void*)textLines, "(i*~)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"runs", (void*)textRuns, "(i*~)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"glyphs", (void*)textGlyphs, "(i*~)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"hit_test", (void*)textHitTest, "(iff)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"caret", (void*)textCaret, "(ii*~)i", nullptr},
+#endif
+#ifdef WITH_RIVE_TEXT
+    {"selection_rects", (void*)textSelectionRects, "(iii*~)i", nullptr},
+#endif
+};
+
 NativeSymbol kShaderNatives[] = {
     {"linear", (void*)shaderLinear, "(ffffiii)i", (void*)&wasm_runtime_rive_leaf_native},
     {"radial", (void*)shaderRadial, "(fffiii)i", (void*)&wasm_runtime_rive_leaf_native},
@@ -2096,6 +2489,14 @@ inline bool registerRiveBindingNatives()
                "rive_image_v1",
                kImageNatives,
                sizeof(kImageNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_font_v1",
+               kFontNatives,
+               sizeof(kFontNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_text_v1",
+               kTextNatives,
+               sizeof(kTextNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_shader_v1",
                kShaderNatives,

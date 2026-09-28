@@ -410,6 +410,75 @@ enum class LuaAtoms : int16_t
     boolean,
     string,
     properties,
+
+    // Text
+    append,
+    line,
+    lines,
+    hitTest,
+    caret,
+    selectionRects,
+    glyph,
+    glyphs,
+    path,
+    glyphPath,
+    withOptions,
+    hasGlyph,
+    axisValue,
+    lineHeight,
+    decode,
+    font,
+    ascent,
+    descent,
+    capHeight,
+    xHeight,
+    weight,
+    isItalic,
+    sizing,
+    overflow,
+    align,
+    wrap,
+    wordBreak,
+    origin,
+    direction,
+    maxWidth,
+    maxHeight,
+    paragraphSpacing,
+    lineCount,
+    glyphCount,
+    baseline,
+    bottom,
+    top,
+    textIndex,
+    firstIndex,
+    lastIndex,
+    x,
+    y,
+    isEmpty,
+    index,
+    ltr,
+    rtl,
+    autoDetect,
+    left,
+    right,
+    center,
+    end,
+    autoWidth,
+    autoHeight,
+    fixed,
+    visible,
+    hidden,
+    clipped,
+    ellipsis,
+    noWrap,
+    breakWord,
+    normal,
+    breakAll,
+    letterSpacing,
+    foregroundColor,
+    min,
+    max,
+    defaultValue,
 };
 
 struct ScriptedMat2D
@@ -1519,7 +1588,7 @@ public:
     rcp<Font> font;
     static constexpr uint8_t luaTag = LUA_T_COUNT + 65;
     static constexpr const char* luaName = "Font";
-    static constexpr bool hasMetatable = false;
+    static constexpr bool hasMetatable = true;
 };
 
 class ViewModelInstanceAssetFont;
@@ -1586,6 +1655,11 @@ static T* lua_torive(lua_State* L, int idx, bool allowNil = false)
     return riveObject;
 }
 
+inline void lua_pushfont(lua_State* L, rcp<Font> font)
+{
+    lua_newrive<ScriptedFont>(L)->font = std::move(font);
+}
+
 template <typename T> static void lua_register_rive(lua_State* L)
 {
     if (T::hasMetatable)
@@ -1606,6 +1680,40 @@ template <typename T> static void lua_register_rive(lua_State* L)
             ((T*)data)->~T();
         });
     }
+}
+
+// Registers T's metatable with the metamethods given, nullptr for none, and
+// seals it.
+template <typename T>
+static void lua_register_rive_type(lua_State* L,
+                                   lua_CFunction index,
+                                   lua_CFunction namecall,
+                                   lua_CFunction newindex = nullptr,
+                                   lua_CFunction iter = nullptr)
+{
+    lua_register_rive<T>(L);
+    if (index != nullptr)
+    {
+        lua_pushcfunction(L, index, nullptr);
+        lua_setfield(L, -2, "__index");
+    }
+    if (namecall != nullptr)
+    {
+        lua_pushcfunction(L, namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+    }
+    if (newindex != nullptr)
+    {
+        lua_pushcfunction(L, newindex, nullptr);
+        lua_setfield(L, -2, "__newindex");
+    }
+    if (iter != nullptr)
+    {
+        lua_pushcfunction(L, iter, nullptr);
+        lua_setfield(L, -2, "__iter");
+    }
+    lua_setreadonly(L, -1, true);
+    lua_pop(L, 1);
 }
 
 inline const Vec2D* lua_checkvec2d(lua_State* L, int stack)

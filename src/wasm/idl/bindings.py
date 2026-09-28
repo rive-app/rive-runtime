@@ -62,6 +62,20 @@ def podref(podname, name):
 
 
 PODS = [
+    # The Text builtin's box settings, one struct so the op stays inside the
+    # argument budget. align 3 and 4 are start and end, direction 0 detects.
+    pod('text_layout_desc', [
+        u32('sizing'),
+        u32('overflow'),
+        u32('align'),
+        u32('wrap'),
+        u32('wordBreak'),
+        u32('origin'),
+        u32('direction'),
+        f32('maxWidth'),
+        f32('maxHeight'),
+        f32('paragraphSpacing'),
+    ]),
     pod('gpu_texture_desc', [
         u32('width'),
         u32('height'),
@@ -537,6 +551,15 @@ NAMESPACES = [
             u32('fillRule'),
         ]),
         op('release', [handle('path')]),
+        # Appends other's host geometry through the affine values, so a path
+        # built from many paths never copies points inside the module.
+        op('add', [handle('path'), handle('other'), f32('xx'), f32('xy'),
+                   f32('yx'), f32('yy'), f32('tx'), f32('ty')]),
+        # Host composed geometry read back, size then fill.
+        op('verbs', [handle('path'), mutbuf('uint8_t', 'out', 'outCount')],
+           ret='u32'),
+        op('points', [handle('path'), mutbuf('float', 'out', 'outCount')],
+           ret='u32'),
         # The geometry the script's effect update produced, appended into the
         # RawPath the pending callPathEffectUpdate points at; the inverse of
         # update's module-to-host crossing.
@@ -848,6 +871,71 @@ NAMESPACES = [
         op('decode', [buf('uint8_t', 'bytes', 'byteCount'), u32('token')],
            ret='u32', stub='hook'),
         op('decode_cancel', [u32('token')]),
+    ]),
+    # The Luau Font builtin: metrics, variable instances and glyph outlines.
+    ns('rive_font_v1', 'font', [
+        op('from_asset', [handle('object'), string('name', 'length')],
+           ret='u32'),
+        op('decode', [buf('uint8_t', 'bytes', 'byteCount')], ret='u32', guard='WITH_RIVE_TEXT'),
+        op('release', [handle('font')]),
+        # ascent, descent, capHeight, xHeight for a 1 point font.
+        op('metrics', [handle('font'), mutbuf('float', 'out', 'outCount')]),
+        op('weight', [handle('font')], ret='u32'),
+        op('is_italic', [handle('font')], ret='u32'),
+        op('axis_count', [handle('font')], ret='u32'),
+        # tag bits, min, default, max
+        op('axis', [handle('font'), u32('index'),
+                    mutbuf('float', 'out', 'outCount')]),
+        op('axis_value', [handle('font'), u32('tag')], ret='f32'),
+        # Feature tags; returns the count whatever the capacity.
+        op('features', [handle('font'),
+                        mutbuf('uint32_t', 'out', 'outCount')], ret='u32'),
+        op('has_glyph', [handle('font'), u32('codepoint')], ret='u32'),
+        # Axis coords and features as (tag, value bits) pairs.
+        op('with_options', [handle('font'),
+                            buf('uint32_t', 'coords', 'coordCount'),
+                            buf('uint32_t', 'features', 'featureCount')],
+           ret='u32'),
+        # A glyph outline wound for a clockwise fill, size then fill.
+        op('glyph_verbs', [handle('font'), u32('glyph'),
+                           mutbuf('uint8_t', 'out', 'outCount')], ret='u32',
+           guard='WITH_RIVE_TEXT'),
+        op('glyph_points', [handle('font'), u32('glyph'),
+                            mutbuf('float', 'out', 'outCount')], ret='u32',
+           guard='WITH_RIVE_TEXT'),
+    ]),
+    # The Luau Text builtin: styled runs laid out by the runtime shaper, drawn
+    # whole or read back as lines of glyphs in visual order.
+    ns('rive_text_v1', 'text', [
+        op('new', ret='u32', guard='WITH_RIVE_TEXT'),
+        op('release', [handle('text')], guard='WITH_RIVE_TEXT'),
+        # paint 0 draws nothing for the run unless draw is given a paint.
+        op('append', [handle('text'), string('chars', 'length'),
+                      handle('font'), handle('paint'), f32('size'),
+                      f32('lineHeight'), f32('letterSpacing'),
+                      u32('foreground')], guard='WITH_RIVE_TEXT'),
+        op('clear', [handle('text')], guard='WITH_RIVE_TEXT'),
+        op('layout', [handle('text'), podref('text_layout_desc', 'desc')], guard='WITH_RIVE_TEXT'),
+        op('draw', [handle('text'), handle('renderer'), handle('paint')], guard='WITH_RIVE_TEXT'),
+        # minX, minY, maxX, maxY
+        op('bounds', [handle('text'), mutbuf('float', 'out', 'outCount')], guard='WITH_RIVE_TEXT'),
+        op('length', [handle('text')], ret='u32', guard='WITH_RIVE_TEXT'),
+        # Flat four byte word records, size then fill; text.as names the
+        # words. Glyphs come line by line in visual order.
+        op('lines', [handle('text'), mutbuf('uint32_t', 'out', 'outCount')],
+           ret='u32', guard='WITH_RIVE_TEXT'),
+        op('runs', [handle('text'), mutbuf('uint32_t', 'out', 'outCount')],
+           ret='u32', guard='WITH_RIVE_TEXT'),
+        op('glyphs', [handle('text'), mutbuf('uint32_t', 'out', 'outCount')],
+           ret='u32', guard='WITH_RIVE_TEXT'),
+        op('hit_test', [handle('text'), f32('x'), f32('y')], ret='u32', guard='WITH_RIVE_TEXT'),
+        # x, top, bottom; returns 0 when the text has no layout.
+        op('caret', [handle('text'), u32('index'),
+                     mutbuf('float', 'out', 'outCount')], ret='u32', guard='WITH_RIVE_TEXT'),
+        # minX, minY, maxX, maxY per rect; returns the float count.
+        op('selection_rects', [handle('text'), u32('from'), u32('to'),
+                               mutbuf('float', 'out', 'outCount')],
+           ret='u32', guard='WITH_RIVE_TEXT'),
     ]),
     ns('rive_shader_v1', 'shader', [
         op('linear', [

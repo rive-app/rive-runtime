@@ -254,6 +254,12 @@ void RawPath::addPoints(std::vector<Vec2D>::const_reverse_iterator& ptIter,
 
 RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
 {
+    if (&src == this)
+    {
+        // The vectors grow while src is read, so a self append copies first.
+        RawPath copy(src);
+        return addPath(copy, mat);
+    }
     size_t initialVerbCount = m_Verbs.size();
     size_t initialPointCount = m_Points.size();
 

@@ -522,6 +522,8 @@ AS_HANDLE_KINDS = {
     'image': 'image',
     'artboard': 'artboard',
     'measure': 'measure',
+    'font': 'font',
+    'text': 'text',
 }
 
 # Static ops that mint a handle of the namespace's own kind; their wrappers
@@ -536,6 +538,10 @@ AS_OWNING_FACTORIES = {
     ('shader', 'radial'),
     ('measure', 'path_new'),
     ('measure', 'contours_new'),
+    ('font', 'from_asset'),
+    ('font', 'decode'),
+    ('font', 'with_options'),
+    ('text', 'new'),
 }
 
 

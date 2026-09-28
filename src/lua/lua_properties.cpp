@@ -2292,12 +2292,6 @@ int luaopen_rive_properties(lua_State* L)
     }
 
     {
-        // No metatable, but the rcp<Font> member needs its destructor run
-        // when the userdata is collected.
-        lua_register_rive<ScriptedFont>(L);
-    }
-
-    {
         lua_register_rive<ScriptedPropertyFont>(L);
 
         lua_pushcfunction(L, property_namecall, nullptr);
