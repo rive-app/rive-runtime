@@ -12,6 +12,8 @@
 #include "image_draw_attributes.hpp"
 #include "rive_render_paint.hpp"
 
+#include <limits>
+
 #include "generated/shaders/draw_path.vert.exports.h"
 
 namespace rive::gpu
@@ -21,6 +23,28 @@ static_assert(kTessTextureWidth == TESS_TEXTURE_WIDTH);
 static_assert(kTessTextureWidthLog2 == TESS_TEXTURE_WIDTH_LOG2);
 static_assert(kMidpointFanPatchSegmentSpan == MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
 static_assert(OuterCubicPatchSegmentSpan == OUTER_CUBIC_PATCH_SEGMENT_SPAN);
+static_assert(OuterCubicPatchSegmentSpanPlusBowtie ==
+              OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE);
+
+static_assert(DSMidpointFanFillPatchStrideLog2 == DS_MIDPOINT_FAN_STRIDE_LOG2);
+static_assert(DSOuterCubicFillPatchStrideLog2 == DS_OUTER_CUBIC_STRIDE_LOG2);
+static_assert(DSFillVertexFlagsShift == VERTEX_FLAGS_SHIFT);
+static_assert(DSFillVertexFlagDisableColorWrite ==
+              VERTEX_FLAG_DISABLE_COLOR_WRITE);
+static_assert(DSFillVertexFlagOuterCubic == VERTEX_FLAG_OUTER_CUBIC);
+
+static_assert(DS_MIDPOINT_VERTEX_ID == MIDPOINT_FAN_PATCH_SEGMENT_SPAN + 1);
+static_assert(DS_MIDPOINT_VERTEX_ID < DS_PATCH_STRIDE(/*outerCubic=*/false));
+static_assert(OUTER_CUBIC_PATCH_SEGMENT_SPAN <
+              DS_PATCH_STRIDE(/*outerCubic=*/true));
+// Since index patterns use a pow2 vertex stride, their vertex IDs span the
+// entire uint16 range.
+static_assert(DS_PATCH_STRIDE(/*outerCubic=*/false) *
+                  DSMidpointFanFillPatchMaxReps ==
+              1u << 16);
+static_assert(DS_PATCH_STRIDE(/*outerCubic=*/true) *
+                  DSOuterCubicFillPatchMaxReps ==
+              1u << 16);
 
 static_assert(sizeof(PaintAuxData) / StorageBufferElementSizeInBytes(
                                          PaintAuxData::kBufferStructure) ==
@@ -210,16 +234,7 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
             {
                 outFlags |= ShaderMiscFlags::msaaDstRead;
             }
-            if (drawTypeHasPipelineDynamicState(drawType))
-            {
-                outFlags |= ShaderMiscFlags::emulateDynamicColorWriteDisable;
-            }
             break;
-    }
-
-    if (drawTypeHasPipelineDynamicState(drawType))
-    {
-        outFlags |= ShaderMiscFlags::emulateDynamicColorWriteDisable;
     }
 
     return outFlags;
@@ -261,7 +276,6 @@ constexpr static ShaderMiscFlags shaderMiscFlagKeyMask(InterlockMode mode)
 
         case InterlockMode::depthStencil:
             return ShaderMiscFlags::fixedFunctionColorOutput |
-                   ShaderMiscFlags::emulateDynamicColorWriteDisable |
                    ShaderMiscFlags::msaaDstRead;
     }
     RIVE_UNREACHABLE();
@@ -428,6 +442,9 @@ static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::depthStrokes:
+            return 0;
+        // depthStencil fills have their own, attribute-free vertex
+        // shader, so they can't share a key with the patch draws above.
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -440,29 +457,30 @@ static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
-            return 0;
-        case DrawType::interiorTriangulation:
+            assert(interlockMode == InterlockMode::depthStencil);
             return 1;
-        case DrawType::featherAtlasBlit:
+        case DrawType::interiorTriangulation:
             return 2;
-        case DrawType::imageRect:
+        case DrawType::featherAtlasBlit:
             return 3;
-        case DrawType::imageMesh:
+        case DrawType::imageRect:
             return 4;
+        case DrawType::imageMesh:
+            return 5;
         case DrawType::clipReset:
             assert(interlockMode == InterlockMode::clockwiseAtomic ||
                    interlockMode == InterlockMode::depthStencil);
-            return 7;
+            return 6;
         case DrawType::renderPassInitialize:
             assert(interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil ||
                    interlockMode == InterlockMode::clockwiseAtomic);
-            return 5;
+            return 7;
         case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::rasterOrdering ||
                    interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil);
-            return 6;
+            return 8;
     }
     RIVE_UNREACHABLE();
 }
@@ -563,7 +581,7 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     // without a fan triangle whose purpose is to be a bowtie join.
     size_t vertexCount = 0;
     int32_t patchSegmentSpan = patchType == PatchType::outerCurves
-                                   ? OuterCubicPatchSegmentSpanPlusJoin
+                                   ? OuterCubicPatchSegmentSpanPlusBowtie
                                    : kMidpointFanPatchSegmentSpan;
     for (int i = 0; i < patchSegmentSpan; ++i)
     {
@@ -777,6 +795,66 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     }
 }
 
+// Writes one patch type's depthStencil fill region, at its own base within the
+// shared patch index buffer.
+static void generateDepthStencilFillIndices(
+    PatchType patchType,
+    uint16_t indices[kPatchIndexBufferCount])
+{
+    const bool isOuterCubic = patchType == PatchType::outerCurves;
+    assert(isOuterCubic || patchType == PatchType::midpointFan);
+    const uint32_t patchCount = dsFillPatchMaxReps(isOuterCubic);
+    indices += dsFillBaseIndex(isOuterCubic);
+    const uint32_t fanSegmentSpan = isOuterCubic ? OuterCubicPatchSegmentSpan
+                                                 : kMidpointFanPatchSegmentSpan;
+
+    // Per-patch vertex IDs are aligned on pow2 strides, specifically so the
+    // shader can decode gl_VertexID without divides and mods. (Using integer
+    // division costs 10% total framerate on PowerVR and 3% on Adreno.)
+    // NOTE: The patches don't actually have pow2 numbers of vertices; the index
+    // buffers just never reference those vertex IDs between the end of one
+    // patch and the beginning of another.
+    const uint32_t patchStrideLog2 = DS_PATCH_STRIDE_LOG2(isOuterCubic);
+
+    size_t indexCount = 0;
+    for (uint32_t patch = 0; patch < patchCount; ++patch)
+    {
+        const uint32_t patchBaseVertex = patch << patchStrideLog2;
+        const auto emitPatchVertex = [&](uint32_t patchVertexID) {
+            indices[indexCount++] = math::lossless_numeric_cast<uint16_t>(
+                patchBaseVertex + patchVertexID);
+        };
+        // Middle-out fan topology, matching the fan half of
+        // generate_buffer_data_for_patch_type().
+        for (uint32_t step = 1; step < fanSegmentSpan; step <<= 1)
+        {
+            for (uint32_t i = 0; i < fanSegmentSpan; i += step * 2)
+            {
+                emitPatchVertex(i);
+                emitPatchVertex(i + step);
+                emitPatchVertex(i + step * 2);
+            }
+        }
+        if (!isOuterCubic)
+        {
+            // Triangle to the contour midpoint.
+            emitPatchVertex(0);
+            emitPatchVertex(fanSegmentSpan);
+            emitPatchVertex(DS_MIDPOINT_VERTEX_ID);
+        }
+        else
+        {
+            // outerCubics tessellate a bowtie vertex at the end of each patch,
+            // but it is completely unused by depthStencil fills, so just don't
+            // reference it in the index buffer.
+        }
+    }
+
+    assert(indexCount == patchCount * (isOuterCubic
+                                           ? DSOuterCubicFillPatchIndexCount
+                                           : DSMidpointFanFillPatchIndexCount));
+}
+
 void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount])
 {
@@ -795,6 +873,11 @@ void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
         indices + kMidpointFanPatchIndexCount +
             kMidpointFanCenterAAPatchIndexCount,
         kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount);
+
+    for (auto patchType : {PatchType::midpointFan, PatchType::outerCurves})
+    {
+        generateDepthStencilFillIndices(patchType, indices);
+    }
 }
 
 void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
@@ -2015,18 +2098,15 @@ static BlendEquation get_blend_equation(
         case InterlockMode::depthStencil:
             if (enums::is_flag_set(drawContents, DrawContents::opaquePaint))
             {
-                // ShaderMiscFlags::emulateDynamicColorWriteDisable suppresses
-                // color writes by outputting color == 0, which only works if
-                // blending is ENABLED (if you output "color == 0" with blending
-                // enabled, it's a no-op like we want; if you output "color ==
-                // 0" with blending DISABLED, the pixel turns blank and erases
-                // whatever used to be there).
-                // NOTE: Other than disabling color write, the output is
+                // A dynamic-state draw may suppress color writes by outputting
+                // color == 0, which only works if blending is ENABLED (if you
+                // output "color == 0" with blending enabled, it's a no-op like
+                // we want; if you output "color == 0" with blending DISABLED,
+                // the pixel turns blank and erases whatever used to be there).
+                // NOTE: Other than disabling color write, this output is
                 // equivalent with or without blend, since opaquePaint emits
                 // alpha == 1.
-                return enums::is_flag_set(
-                           shaderMiscFlags,
-                           ShaderMiscFlags::emulateDynamicColorWriteDisable)
+                return drawTypeHasPipelineDynamicState(drawType)
                            ? BlendEquation::srcOver
                            : BlendEquation::none;
             }

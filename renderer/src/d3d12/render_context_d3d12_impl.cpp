@@ -705,9 +705,9 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     }
 
     PatchVertex patchVertices[kPatchVertexBufferCount];
-    uint16_t patchIndices[kPatchIndexBufferCount];
+    std::vector<uint16_t> patchIndices(kPatchIndexBufferCount);
 
-    GeneratePatchBufferData(patchVertices, patchIndices);
+    GeneratePatchBufferData(patchVertices, patchIndices.data());
 
     // advance to ensure that safe frame does not equal current frame so that
     // our temp upload buffers do not get released automatically
@@ -718,7 +718,9 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
                                                  patchVertices);
     NAME_D3D12_OBJECT(m_pathPatchVertexBuffer);
     m_pathPatchIndexBuffer =
-        m_resourceManager->makeImmutableBuffer<>(copyCommandList, patchIndices);
+        m_resourceManager->makeImmutableBuffer<>(copyCommandList,
+                                                 patchIndices.data(),
+                                                 patchIndices.size());
     NAME_D3D12_OBJECT(m_pathPatchIndexBuffer);
     m_tessSpanIndexBuffer =
         m_resourceManager->makeImmutableBuffer<>(copyCommandList,

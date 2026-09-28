@@ -430,11 +430,26 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::stencilMidpointFanReset:
                 case DrawType::stencilMidpointFanWinding:
                 case DrawType::stencilMidpointFanCover:
-                    vertCode =
+                {
+                    const bool clipRect =
                         enums::is_flag_set(shaderFeatures,
-                                           ShaderFeatures::ENABLE_CLIP_RECT)
-                            ? spirv::draw_depthstencil_path_vert
-                            : spirv::draw_depthstencil_path_noclipdistance_vert;
+                                           ShaderFeatures::ENABLE_CLIP_RECT);
+                    if (drawType == DrawType::depthStrokes)
+                    {
+                        vertCode =
+                            clipRect
+                                ? spirv::draw_depthstencil_path_vert
+                                : spirv::
+                                      draw_depthstencil_path_noclipdistance_vert;
+                    }
+                    else
+                    {
+                        vertCode =
+                            clipRect
+                                ? spirv::draw_depthstencil_fill_vert
+                                : spirv::
+                                      draw_depthstencil_fill_noclipdistance_vert;
+                    }
                     if (fixedFunctionColorOutput)
                     {
                         fragCode =
@@ -449,6 +464,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                         fragCode = spirv::draw_depthstencil_path_frag;
                     }
                     break;
+                }
 
                 case DrawType::clipReset:
                     vertCode = spirv::draw_depthstencil_triangles_nocolor_vert;

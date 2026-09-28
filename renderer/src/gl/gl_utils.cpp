@@ -254,6 +254,8 @@ GLuint CompileShader(GLuint type,
     {
         shaderSource << "#define " << defines[i] << " true\n";
     }
+    shaderSource << "#define " << GLSL_BASE_VERTEX_UNIFORM_NAME << ' '
+                 << BASE_VERTEX_UNIFORM_NAME << '\n';
     if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '

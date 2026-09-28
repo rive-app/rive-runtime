@@ -345,3 +345,31 @@ TEST_CASE("insert - in middle", "[stack_vector]")
     CHECK(vec[3] == test_values[3]);
     CHECK(vec[4] == test_values[2]);
 }
+
+TEST_CASE("empty()", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    CHECK(vec.empty());
+    CHECK(constify(vec).empty());
+
+    vec.push_back(test_values[0]);
+    CHECK(!vec.empty());
+    CHECK(!constify(vec).empty());
+
+    // Still empty after clearing, and after filling to capacity in between.
+    vec.clear();
+    CHECK(vec.empty());
+    vec.push_back_n(NUM_TEST_VALUES, &test_values[0]);
+    CHECK(!vec.empty());
+    vec.clear();
+    CHECK(vec.empty());
+
+    // empty() agrees with size().
+    for (uint32_t i = 0; i < NUM_TEST_VALUES; ++i)
+    {
+        CHECK(vec.empty() == (vec.size() == 0));
+        vec.push_back(test_values[i]);
+        CHECK(vec.empty() == (vec.size() == 0));
+        CHECK(!vec.empty());
+    }
+}

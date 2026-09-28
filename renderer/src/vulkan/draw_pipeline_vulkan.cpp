@@ -269,9 +269,6 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                            gpu::ShaderMiscFlags::nestedClipUpdateOnly),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::borrowedCoveragePass),
-        enums::is_flag_set(
-            props.shaderMiscFlags,
-            gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable),
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::storeColorClear),
         enums::is_flag_set(props.shaderMiscFlags,
@@ -291,11 +288,10 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
     static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
     static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
-    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 12);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
-    static_assert(SPECIALIZATION_COUNT == 16);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
+    static_assert(SPECIALIZATION_COUNT == 15);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -515,8 +511,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_WRITE_MASK);
         dynamicStates.push_back(VK_DYNAMIC_STATE_STENCIL_OP);
         dynamicStates.push_back(VK_DYNAMIC_STATE_CULL_MODE);
-        // NOTE: if VK_EXT_color_write_enable is NOT supported, the shader will
-        // emulate it. See ShaderMiscFlags::emulateDynamicColorWriteDisable.
+        // NOTE: if VK_EXT_color_write_enable is NOT supported, the draw call
+        // suppresses color via VERTEX_FLAG_DISABLE_COLOR_WRITE.
         if (m_vk->features.colorWriteEnable)
         {
             dynamicStates.push_back(VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT);
@@ -550,12 +546,18 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
+        case DrawType::depthStrokes:
+            pipelineCreateInfo.pVertexInputState =
+                &layout::PATH_VERTEX_INPUT_STATE;
+            pipelineCreateInfo.pInputAssemblyState =
+                &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+            break;
+
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::stencilOuterCubics:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -563,8 +565,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::stencilMidpointFanReset:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
+            // depthStencil fills derive everything from the vertex index.
             pipelineCreateInfo.pVertexInputState =
-                &layout::PATH_VERTEX_INPUT_STATE;
+                &layout::EMPTY_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =
                 &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
             break;

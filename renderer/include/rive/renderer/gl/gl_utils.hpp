@@ -12,6 +12,10 @@
 
 namespace glutils
 {
+// GL has no base vertex for indexed draws, so draws that need one set this
+// uniform instead.
+constexpr static char BASE_VERTEX_UNIFORM_NAME[] = "_baseVertex";
+
 // Used when the driver doesn't support gl_BaseInstance
 // (GLCapabilities::ANGLE_base_vertex_base_instance_shader_builtin is false).
 //

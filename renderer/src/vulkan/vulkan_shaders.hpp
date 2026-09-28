@@ -116,6 +116,9 @@ extern rive::Span<const uint32_t> draw_depthstencil_path_noclipdistance_vert;
 extern rive::Span<const uint32_t> draw_depthstencil_path_frag;
 extern rive::Span<const uint32_t> draw_depthstencil_path_fixedcolor_frag;
 extern rive::Span<const uint32_t> draw_depthstencil_path_msaa_frag;
+// Fills replace the vertex stage above; they share its fragment stages.
+extern rive::Span<const uint32_t> draw_depthstencil_fill_vert;
+extern rive::Span<const uint32_t> draw_depthstencil_fill_noclipdistance_vert;
 extern rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_vert;
 extern rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_frag;
 extern rive::Span<const uint32_t>

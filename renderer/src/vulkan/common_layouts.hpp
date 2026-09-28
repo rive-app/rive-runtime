@@ -14,6 +14,12 @@ namespace rive::gpu::layout
 // more resolve target.
 constexpr static uint32_t MAX_RENDER_PASS_ATTACHMENTS = PLS_PLANE_COUNT + 1;
 
+constexpr VkPipelineVertexInputStateCreateInfo EMPTY_VERTEX_INPUT_STATE = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+    .vertexBindingDescriptionCount = 0,
+    .vertexAttributeDescriptionCount = 0,
+};
+
 constexpr VkVertexInputBindingDescription PATH_INPUT_BINDINGS[] = {{
     .binding = 0,
     .stride = sizeof(rive::gpu::PatchVertex),
@@ -223,11 +229,7 @@ constexpr VkPipelineVertexInputStateCreateInfo IMAGE_MESH_VERTEX_INPUT_STATE = {
     .pVertexAttributeDescriptions = ImageMeshVertexAttribs.data(),
 };
 
-constexpr VkPipelineVertexInputStateCreateInfo EMPTY_VERTEX_INPUT_STATE = {
-    .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-    .vertexBindingDescriptionCount = 0,
-    .vertexAttributeDescriptionCount = 0,
-};
+constexpr uint32_t MaxVertexBinding = ImageMeshImageAttribBufferBinding;
 
 constexpr VkPipelineInputAssemblyStateCreateInfo INPUT_ASSEMBLY_TRIANGLE_STRIP =
     {

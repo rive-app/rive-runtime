@@ -2409,7 +2409,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                             {0, 0},
                             OuterCubicPatchSegmentSpan,
                             1,
-                            OuterCubicPatchJoinSegmentCount,
+                            /*bowtieSegmentCount=*/1,
                             contourIDWithFlags |
                                 CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
@@ -2438,7 +2438,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                             {0, 0},
                             OuterCubicPatchSegmentSpan,
                             1,
-                            OuterCubicPatchJoinSegmentCount,
+                            /*bowtieSegmentCount=*/1,
                             contourIDWithFlags |
                                 CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
@@ -2477,7 +2477,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                             {0, 0},
                             OuterCubicPatchSegmentSpan,
                             1,
-                            OuterCubicPatchJoinSegmentCount,
+                            /*bowtieSegmentCount=*/1,
                             contourIDWithFlags |
                                 CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
@@ -2499,7 +2499,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                                 {0, 0},
                                 OuterCubicPatchSegmentSpan,
                                 1,
-                                OuterCubicPatchJoinSegmentCount,
+                                /*bowtieSegmentCount=*/1,
                                 contourIDWithFlags |
                                     CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                             chop += 3;
@@ -2553,7 +2553,7 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
                 {0, 0},
                 OuterCubicPatchSegmentSpan,
                 1,
-                OuterCubicPatchJoinSegmentCount,
+                /*bowtieSegmentCount=*/1,
                 contourIDWithFlags |
                     CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
         }
@@ -2586,8 +2586,8 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
             // forward and once mirrored.
             m_resourceCounts.outerCubicTessVertexCount =
                 gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
-                    ? patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2
-                    : patchCount * OuterCubicPatchSegmentSpanPlusJoin;
+                    ? patchCount * OuterCubicPatchSegmentSpanPlusBowtie * 2
+                    : patchCount * OuterCubicPatchSegmentSpanPlusBowtie;
             if (m_coverageType != CoverageType::depthStencil)
             {
                 // In depthStencil, the interior triangles are smuggled in with
@@ -2625,9 +2625,9 @@ void PathDraw::iterateOuterCubics(RenderContext::TessellationWriter* tessWriter)
         }
         assert(contourCount == m_resourceCounts.contourCount);
         assert(patchCount == m_resourceCounts.maxTessellatedSegmentCount);
-        assert(patchCount * OuterCubicPatchSegmentSpanPlusJoin * 2 ==
+        assert(patchCount * OuterCubicPatchSegmentSpanPlusBowtie * 2 ==
                    m_resourceCounts.outerCubicTessVertexCount ||
-               patchCount * OuterCubicPatchSegmentSpanPlusJoin ==
+               patchCount * OuterCubicPatchSegmentSpanPlusBowtie ==
                    m_resourceCounts.outerCubicTessVertexCount);
     }
 }

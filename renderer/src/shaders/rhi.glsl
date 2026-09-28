@@ -96,17 +96,6 @@ $typedef $uint ushort;
     NAME;                                                                      \
     }
 
-#define PUSH_CONSTANT_BLOCK_BEGIN(NAME)                                        \
-    struct NAME                                                                \
-    {
-
-#define PUSH_CONSTANT(TYPE, NAME) TYPE NAME;
-
-#define PUSH_CONSTANT_BLOCK_END(NAME)                                          \
-    }                                                                          \
-    ;                                                                          \
-    [[$vk::$push_constant]] $ConstantBuffer<PushConstants> NAME;
-
 #define VARYING_BLOCK_BEGIN                                                    \
     struct Varyings                                                            \
     {
@@ -337,17 +326,28 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     ((_instanceIDWithoutBase) + $baseInstance)
 #endif
 
+#if defined(@ENABLE_BASE_VERTEX) && !defined(@SV_VERTEX_ID_INCLUDES_BASE)
+#define BASE_VERTEX_DECL uint $baseVertex;
+#define RESOLVE_VERTEX_ID(_vertexIDWithoutBase)                                \
+    ((_vertexIDWithoutBase) + $baseVertex)
+#else
+#define BASE_VERTEX_DECL
+#define RESOLVE_VERTEX_ID(_vertexIDWithoutBase) (_vertexIDWithoutBase)
+#endif
+
 #ifdef @NO_VARYING
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
                                                                                \
     BASE_INSTANCE_DECL                                                         \
+    BASE_VERTEX_DECL                                                           \
                                                                                \
     float4 NAME(Attrs attrs,                                                   \
-                uint _vertexID : $SV_VertexID,                                 \
+                uint _vertexIDWithoutBase : $SV_VertexID,                      \
                 uint _instanceIDWithoutBase : $SV_InstanceID) :                \
         $SV_Position                                                           \
     {                                                                          \
+        uint _vertexID = RESOLVE_VERTEX_ID(_vertexIDWithoutBase);              \
         uint _instanceID = RESOLVE_INSTANCE_ID(_instanceIDWithoutBase);
 
 #define EMIT_VERTEX(POSITION)                                                  \
@@ -359,11 +359,13 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
                                                                                \
     BASE_INSTANCE_DECL                                                         \
+    BASE_VERTEX_DECL                                                           \
                                                                                \
     Varyings NAME(Attrs attrs,                                                 \
-                  uint _vertexID : $SV_VertexID,                               \
+                  uint _vertexIDWithoutBase : $SV_VertexID,                    \
                   uint _instanceIDWithoutBase : $SV_InstanceID)                \
     {                                                                          \
+        uint _vertexID = RESOLVE_VERTEX_ID(_vertexIDWithoutBase);              \
         uint _instanceID = RESOLVE_INSTANCE_ID(_instanceIDWithoutBase);        \
         Varyings _varyings;
 

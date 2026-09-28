@@ -63,17 +63,6 @@ VARYING_BLOCK_END
 
 #ifdef @VERTEX
 
-#ifdef @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE
-// Emulation for VK_EXT_color_write_enable.
-// 1 writes color normally; 0 suppresses it by outputting v_paint == 0 (which
-// then gets discarded at the blend step).
-// NOTE: This is intentionally declared inside "#ifdef @VERTEX" so it doesn't
-// get needlessly added to fragment shaders.
-PUSH_CONSTANT_BLOCK_BEGIN(PushConstants)
-PUSH_CONSTANT(float, colorWriteEnable)
-PUSH_CONSTANT_BLOCK_END(pushConstants)
-#endif
-
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
 #if defined(@DRAW_INTERIOR_TRIANGLES) || defined(@FEATHER_ATLAS_BLIT)
@@ -276,15 +265,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // gradient
         v_paint.a = -v_paint.a;
     }
-#ifdef @EMULATE_DYNAMIC_COLOR_WRITE_DISABLE
-    if (@EMULATE_DYNAMIC_COLOR_WRITE_DISABLE)
-    {
-        // Zeroing v_paint is all we need to disable color write; float4(0) gets
-        // interpreted by the fragment shader as a fully transparent
-        // SOLID_COLOR_PAINT_TYPE, and then discarded at the blend step.
-        v_paint *= pushConstants.colorWriteEnable;
-    }
-#endif
 
 #if defined(@ENABLE_MODULATED_IMAGE)
     if (@ENABLE_MODULATED_IMAGE && (paintData.x & PAINT_FLAG_HAS_IMAGE) != 0u)

@@ -134,13 +134,6 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
                               : VULKAN_BINDINGS_SET_COUNT - 1u,
         .pSetLayouts = pipelineDescriptorSetLayouts,
     };
-    if (hasColorWriteDisablePushConstant())
-    {
-        pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
-        pipelineLayoutCreateInfo.pPushConstantRanges =
-            &vkutil::ColorWriteEnablePushConstant;
-    }
-
     VK_ABORT_ON_FAIL(m_vk->CreatePipelineLayout(m_vk->device,
                                                 &pipelineLayoutCreateInfo,
                                                 nullptr,

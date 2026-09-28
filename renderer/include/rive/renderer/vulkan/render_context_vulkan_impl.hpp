@@ -33,8 +33,7 @@ public:
         // mode.
         bool disableClockwiseFixedFunctionMode = false;
 
-        /** Whether optional Vulkan debug names may be assigned to GPU objects.
-         */
+        // Whether optional Vulkan debug names may be assigned to GPU objects.
         bool enableDebugNames = true;
 
         ShaderCompilationMode shaderCompilationMode =

@@ -412,6 +412,10 @@ private:
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
+        GLint baseVertexUniformLocation() const
+        {
+            return m_baseVertexUniformLocation;
+        }
         GLint baseInstanceUniformLocation() const
         {
             return m_baseInstanceUniformLocation;
@@ -431,6 +435,7 @@ private:
         const DrawShader* m_vertexShader = nullptr;
         PipelineStatus m_pipelineStatus = PipelineStatus::notReady;
         GLuint m_id = 0;
+        GLint m_baseVertexUniformLocation = -1;
         GLint m_baseInstanceUniformLocation = -1;
         const rcp<GLState> m_state;
 #ifdef WITH_RIVE_TOOLS

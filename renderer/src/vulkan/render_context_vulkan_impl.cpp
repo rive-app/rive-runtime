@@ -11,9 +11,10 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_context_vulkan.hpp"
 #endif
+#include "rive/renderer/range_chunker.hpp"
+#include "rive/renderer/rive_render_buffer.hpp"
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
-#include "rive/renderer/rive_render_buffer.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "shaders/constants.glsl"
 #include "common_layouts.hpp"
@@ -22,7 +23,6 @@
 #include "draw_shader_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
-#include "instance_chunker.hpp"
 #include <sstream>
 
 #ifdef RIVE_ANDROID
@@ -1204,13 +1204,9 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         physicalDeviceProps.limits.maxClipDistances >= 4;
     m_platformFeatures.supportsPipelineDynamicState =
         // Dynamic depth/stencil/cull are all core in 1.3. Color-write is not,
-        // but a device without VK_EXT_color_write_enable emulates it in the
-        // shader instead (ShaderMiscFlags::emulateDynamicColorWriteDisable), so
-        // the extension isn't required here.
-        m_vk->features.apiVersion >= VK_API_VERSION_1_3 &&
-        // Chunking would split a combined pass's draws across render passes and
-        // corrupt the stencil.
-        !m_workarounds.needsInterruptibleRenderPasses();
+        // but a device without VK_EXT_color_write_enable emulates it with
+        // VERTEX_FLAG_DISABLE_COLOR_WRITE.
+        m_vk->features.apiVersion >= VK_API_VERSION_1_3;
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     // Vulkan can't load color from a different texture into the transient MSAA
@@ -2787,9 +2783,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                               m_colorRampPipeline->renderPipeline());
 
         for (auto [chunkInstanceCount, chunkFirstInstance] :
-             InstanceChunker(desc.gradSpanCount,
-                             0,
-                             m_workarounds.maxInstancesPerRenderPass))
+             RangeChunker(desc.gradSpanCount,
+                          0,
+                          m_workarounds.maxInstancesPerRenderPass))
 
         {
             m_colorRampPipeline->interruptRenderPassIfNeeded(
@@ -2870,9 +2866,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                               m_tessellatePipeline->renderPipeline());
 
         for (auto [chunkInstanceCount, chunkFirstInstance] :
-             InstanceChunker(desc.tessVertexSpanCount,
-                             0,
-                             m_workarounds.maxInstancesPerRenderPass))
+             RangeChunker(desc.tessVertexSpanCount,
+                          0,
+                          m_workarounds.maxInstancesPerRenderPass))
 
         {
             m_tessellatePipeline->interruptRenderPassIfNeeded(
@@ -3014,9 +3010,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 };
                 m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
                 for (auto [chunkPatchCount, chunkFirstPatch] :
-                     InstanceChunker(fillBatch.patchCount,
-                                     fillBatch.basePatch,
-                                     m_workarounds.maxInstancesPerRenderPass))
+                     RangeChunker(fillBatch.patchCount,
+                                  fillBatch.basePatch,
+                                  m_workarounds.maxInstancesPerRenderPass))
 
                 {
                     m_featherAtlasPipeline->interruptRenderPassIfNeeded(
@@ -3053,9 +3049,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 };
                 m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
                 for (auto [chunkPatchCount, chunkFirstPatch] :
-                     InstanceChunker(strokeBatch.patchCount,
-                                     strokeBatch.basePatch,
-                                     m_workarounds.maxInstancesPerRenderPass))
+                     RangeChunker(strokeBatch.patchCount,
+                                  strokeBatch.basePatch,
+                                  m_workarounds.maxInstancesPerRenderPass))
 
                 {
                     m_featherAtlasPipeline->interruptRenderPassIfNeeded(
@@ -3755,14 +3751,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 }
 
-// Binds pipelines and pushes dynamic state for one draw-list submission. Caches
-// the currently-bound pipeline and scissor and skips redundant sets -- both are
-// safe to cache: the same VkPipeline handle is identical baked state, and the
-// scissor is dynamic in every layout so no bind ever clobbers it. Dynamic
-// depth/stencil/cull/color state is pushed UNCONDITIONALLY: binding a static
-// pipeline leaves those states undefined, so a cache would need
-// invalidate-on-bind bookkeeping that isn't worth its complexity for a handful
-// of cheap vkCmdSet* calls. Must be a fresh instance per command buffer.
+// Binds Vulkan pipelines and state associated with them. Caches state that
+// persists across pipelines in order to drop redundant binds.
+// NOTE: We don't cache dynamic state. Our current belief is that it's quicker
+// to just re-push this state every time, rather than building the complex
+// machinery to check and invalidate it.
 class PipelineBinder
 {
 public:
@@ -3770,8 +3763,7 @@ public:
 
     void bind(VkCommandBuffer commandBuffer,
               VkPipeline pipeline,
-              const IAABB& scissorRect,
-              const DrawPipelineLayoutVulkan& pipelineLayout)
+              const IAABB& scissorRect)
     {
         if (pipeline != m_pipeline)
         {
@@ -3779,17 +3771,6 @@ public:
                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   pipeline);
             m_pipeline = pipeline;
-
-            if (pipelineLayout.hasColorWriteDisablePushConstant())
-            {
-                // Every push constant is required to have a defined value; seed
-                // the color-write disable with "enabled", even if this pipeline
-                // will never actually use it. It's only 4 bytes anyway, which
-                // is far cheaper than the pipeline bind we just did.
-                setEmulatedColorWriteEnable(commandBuffer,
-                                            pipelineLayout,
-                                            true);
-            }
         }
         if (!m_haveScissor || scissorRect != m_scissorRect)
         {
@@ -3800,11 +3781,41 @@ public:
         }
     }
 
+    void bindVertexBuffer(VkCommandBuffer commandBuffer,
+                          uint32_t binding,
+                          VkBuffer buffer)
+    {
+        assert(binding < std::size(m_vertexBuffers));
+        if (buffer != m_vertexBuffers[binding])
+        {
+            m_vk->CmdBindVertexBuffers(commandBuffer,
+                                       binding,
+                                       1,
+                                       &buffer,
+                                       ZERO_OFFSET);
+            m_vertexBuffers[binding] = buffer;
+        }
+    }
+
+    void bindIndexBufferU16(VkCommandBuffer commandBuffer,
+                            VkBuffer buffer,
+                            VkDeviceSize offset = 0)
+    {
+        if (buffer != m_indexBufferU16 || offset != m_indexBufferU16Offset)
+        {
+            m_vk->CmdBindIndexBuffer(commandBuffer,
+                                     buffer,
+                                     offset,
+                                     VK_INDEX_TYPE_UINT16);
+            m_indexBufferU16 = buffer;
+            m_indexBufferU16Offset = offset;
+        }
+    }
+
     // Applies one constituent pass's dynamic depth/stencil/cull/color to the
     // currently-bound dynamic-state pipeline.
     void setDynamicState(VkCommandBuffer commandBuffer,
-                         const gpu::PipelineState& ps,
-                         const DrawPipelineLayoutVulkan& pipelineLayout)
+                         const gpu::PipelineState& ps)
     {
         // Depth.
         m_vk->CmdSetDepthWriteEnable(commandBuffer, ps.depthWriteEnabled);
@@ -3836,42 +3847,23 @@ public:
         // Cull.
         m_vk->CmdSetCullMode(commandBuffer, vkutil::vkCullMode(ps.cullFace));
 
-        // Color.
+        // Color. (Without VK_EXT_color_write_enable, the draw call suppresses
+        // color via VERTEX_FLAG_DISABLE_COLOR_WRITE.)
         if (m_vk->features.colorWriteEnable)
         {
             VkBool32 colorWrite = ps.colorWriteEnabled ? VK_TRUE : VK_FALSE;
             m_vk->CmdSetColorWriteEnableEXT(commandBuffer, 1, &colorWrite);
         }
-        else
-        {
-            // No VK_EXT_color_write_enable: the shader outputs color == 0
-            // instead, which gets discarded at the blend step.
-            setEmulatedColorWriteEnable(commandBuffer,
-                                        pipelineLayout,
-                                        ps.colorWriteEnabled);
-        }
     }
 
 private:
-    void setEmulatedColorWriteEnable(
-        VkCommandBuffer commandBuffer,
-        const DrawPipelineLayoutVulkan& pipelineLayout,
-        bool enabled)
-    {
-        assert(pipelineLayout.hasColorWriteDisablePushConstant());
-        const float colorWriteEnable = enabled ? 1.f : .0f;
-        m_vk->CmdPushConstants(commandBuffer,
-                               *pipelineLayout,
-                               vkutil::ColorWriteEnablePushConstant.stageFlags,
-                               vkutil::ColorWriteEnablePushConstant.offset,
-                               vkutil::ColorWriteEnablePushConstant.size,
-                               &colorWriteEnable);
-    }
-
     VulkanContext* const m_vk;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
     IAABB m_scissorRect;
     bool m_haveScissor = false;
+    VkBuffer m_vertexBuffers[layout::MaxVertexBinding + 1] = {};
+    VkBuffer m_indexBufferU16 = VK_NULL_HANDLE;
+    VkDeviceSize m_indexBufferU16Offset = 0;
 };
 
 void RenderContextVulkanImpl::submitDrawList(
@@ -3948,12 +3940,6 @@ void RenderContextVulkanImpl::submitDrawList(
                 : batch.shaderFeatures;
 
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (gpu::drawTypeHasPipelineDynamicState(drawType) &&
-            !m_vk->features.colorWriteEnable)
-        {
-            shaderMiscFlags |=
-                gpu::ShaderMiscFlags::emulateDynamicColorWriteDisable;
-        }
         if (enums::is_flag_set(drawRenderPass->renderPassOptions(),
                                RenderPassOptionsVulkan::msaa) &&
             !enums::is_flag_set(
@@ -4079,8 +4065,7 @@ void RenderContextVulkanImpl::submitDrawList(
 
             pipelineBinder.bind(commandBuffer,
                                 *drawPipeline,
-                                desiredScissorRect,
-                                drawRenderPass->pipelineLayout());
+                                desiredScissorRect);
         }
 
         switch (drawType)
@@ -4088,33 +4073,18 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::stencilOuterCubicBorrowedCoverage:
-            case DrawType::stencilOuterCubicReset:
-            case DrawType::stencilOuterCubicWinding:
-            case DrawType::stencilOuterCubicCover:
-            case DrawType::stencilOuterCubics:
             case DrawType::depthStrokes:
-            case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilMidpointFans:
-            case DrawType::stencilMidpointFanReset:
-            case DrawType::stencilMidpointFanWinding:
-            case DrawType::stencilMidpointFanCover:
             {
                 // Draw patches that connect the tessellation vertices.
-                m_vk->CmdBindVertexBuffers(
-                    commandBuffer,
-                    0,
-                    1,
-                    m_pathPatchVertexBuffer->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindIndexBuffer(commandBuffer,
-                                         *m_pathPatchIndexBuffer,
-                                         0,
-                                         VK_INDEX_TYPE_UINT16);
+                pipelineBinder.bindVertexBuffer(commandBuffer,
+                                                0,
+                                                *m_pathPatchVertexBuffer);
+                pipelineBinder.bindIndexBufferU16(commandBuffer,
+                                                  *m_pathPatchIndexBuffer);
                 for (auto [chunkPatchCount, chunkFirstPatch] :
-                     InstanceChunker(batch.elementCount,
-                                     batch.baseElement,
-                                     m_workarounds.maxInstancesPerRenderPass))
+                     RangeChunker(batch.elementCount,
+                                  batch.baseElement,
+                                  m_workarounds.maxInstancesPerRenderPass))
                 {
                     drawRenderPass->interruptIfNeeded(chunkPatchCount,
                                                       pendingTessPatchCount);
@@ -4128,6 +4098,47 @@ void RenderContextVulkanImpl::submitDrawList(
                                              0,
                                              chunkFirstPatch);
                     }
+                }
+                break;
+            }
+
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                pendingTessPatchCount -= batch.elementCount;
+                if (drawPipeline == nullptr)
+                {
+                    break;
+                }
+
+                const bool outerCubic =
+                    gpu::drawTypeSubmitsOuterCubicPatches(drawType);
+                pipelineBinder.bindIndexBufferU16(
+                    commandBuffer,
+                    *m_pathPatchIndexBuffer,
+                    gpu::dsFillIndexOffset(outerCubic));
+                // No vertex buffer. (depthStencil fills derive their vertex
+                // data from gl_VertexID.)
+                for (auto [chunkIndexCount, chunkBaseVertex] :
+                     gpu::DSIndexRangeChunker(drawType,
+                                              batch.elementCount,
+                                              batch.baseElement))
+                {
+                    m_vk->CmdDrawIndexed(commandBuffer,
+                                         chunkIndexCount,
+                                         1,
+                                         0,
+                                         chunkBaseVertex,
+                                         0);
                 }
                 break;
             }
@@ -4151,20 +4162,16 @@ void RenderContextVulkanImpl::submitDrawList(
                 //
                 // The combine is gated to GPUs that don't need the "renderpass
                 // interrupt" workaround, so a single draw covers the whole
-                // batch -- no InstanceChunker needed (its per-chunk
+                // batch -- no RangeChunker needed (its per-chunk
                 // interruptIfNeeded would split the three passes across render
                 // passes, which the transient stencil buffer can't survive).
                 assert(!m_workarounds.needsInterruptibleRenderPasses());
-                m_vk->CmdBindVertexBuffers(
+                const bool outerCubic =
+                    gpu::drawTypeSubmitsOuterCubicPatches(drawType);
+                pipelineBinder.bindIndexBufferU16(
                     commandBuffer,
-                    0,
-                    1,
-                    m_pathPatchVertexBuffer->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindIndexBuffer(commandBuffer,
-                                         *m_pathPatchIndexBuffer,
-                                         0,
-                                         VK_INDEX_TYPE_UINT16);
+                    *m_pathPatchIndexBuffer,
+                    gpu::dsFillIndexOffset(outerCubic));
                 // The outer-cubic passes use identical dynamic state to their
                 // midpoint-fan counterparts, so drive both modes from the
                 // midpoint-fan types.
@@ -4182,16 +4189,29 @@ void RenderContextVulkanImpl::submitDrawList(
                                                 batch.firstBlendMode,
                                                 m_platformFeatures);
                     assert(gpu::drawTypeHasPipelineDynamicState(drawType));
-                    pipelineBinder.setDynamicState(
-                        commandBuffer,
-                        pipelineState,
-                        drawRenderPass->pipelineLayout());
-                    m_vk->CmdDrawIndexed(commandBuffer,
-                                         batch.indexCountPerInstance,
-                                         batch.elementCount,
-                                         batch.baseIndex,
-                                         0,
-                                         batch.baseElement);
+                    pipelineBinder.setDynamicState(commandBuffer,
+                                                   pipelineState);
+                    for (auto [chunkIndexCount, chunkBaseVertex] :
+                         gpu::DSIndexRangeChunker(
+                             drawType,
+                             batch.elementCount,
+                             batch.baseElement,
+                             // The color-write bit stands in for
+                             // VK_EXT_color_write_enable where we lack it;
+                             // where we have it, setDynamicState() just
+                             // handled color.
+                             !pipelineState.colorWriteEnabled &&
+                                     !m_vk->features.colorWriteEnable
+                                 ? VERTEX_FLAG_DISABLE_COLOR_WRITE
+                                 : 0))
+                    {
+                        m_vk->CmdDrawIndexed(commandBuffer,
+                                             chunkIndexCount,
+                                             1,
+                                             0,
+                                             chunkBaseVertex,
+                                             0);
+                    }
                 }
                 break;
             }
@@ -4200,12 +4220,9 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::interiorTriangulation:
             case DrawType::featherAtlasBlit:
             {
-                VkBuffer buffer = *m_triangleBuffer;
-                m_vk->CmdBindVertexBuffers(commandBuffer,
-                                           0,
-                                           1,
-                                           &buffer,
-                                           ZERO_OFFSET);
+                pipelineBinder.bindVertexBuffer(commandBuffer,
+                                                0,
+                                                *m_triangleBuffer);
                 if (drawPipeline != nullptr)
                 {
                     m_vk->CmdDraw(commandBuffer,
@@ -4220,22 +4237,16 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::imageRect:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                m_vk->CmdBindVertexBuffers(
+                pipelineBinder.bindVertexBuffer(
                     commandBuffer,
                     layout::ImageRectGeometryBufferBinding,
-                    1,
-                    m_imageRectVertexBuffer->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindVertexBuffers(
+                    *m_imageRectVertexBuffer);
+                pipelineBinder.bindVertexBuffer(
                     commandBuffer,
                     layout::ImageRectImageAttribBufferBinding,
-                    1,
-                    m_imageRectInstanceBuffer->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindIndexBuffer(commandBuffer,
-                                         *m_imageRectIndexBuffer,
-                                         0,
-                                         VK_INDEX_TYPE_UINT16);
+                    *m_imageRectInstanceBuffer);
+                pipelineBinder.bindIndexBufferU16(commandBuffer,
+                                                  *m_imageRectIndexBuffer);
                 if (drawPipeline != nullptr)
                 {
                     m_vk->CmdDrawIndexed(commandBuffer,
@@ -4259,28 +4270,21 @@ void RenderContextVulkanImpl::submitDrawList(
                 LITE_RTTI_CAST_OR_BREAK(indexBuffer,
                                         RenderBufferVulkanImpl*,
                                         batch.indexBuffer);
-                m_vk->CmdBindVertexBuffers(
+                pipelineBinder.bindVertexBuffer(
                     commandBuffer,
                     layout::ImageMeshVertexBufferBinding,
-                    1,
-                    vertexBuffer->currentBuffer()->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindVertexBuffers(
+                    *vertexBuffer->currentBuffer());
+                pipelineBinder.bindVertexBuffer(
                     commandBuffer,
                     layout::ImageMeshUVBufferBinding,
-                    1,
-                    uvBuffer->currentBuffer()->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindVertexBuffers(
+                    *uvBuffer->currentBuffer());
+                pipelineBinder.bindVertexBuffer(
                     commandBuffer,
                     layout::ImageMeshImageAttribBufferBinding,
-                    1,
-                    m_imageMeshInstanceBuffer->vkBufferAddressOf(),
-                    ZERO_OFFSET);
-                m_vk->CmdBindIndexBuffer(commandBuffer,
-                                         *indexBuffer->currentBuffer(),
-                                         0,
-                                         VK_INDEX_TYPE_UINT16);
+                    *m_imageMeshInstanceBuffer);
+                pipelineBinder.bindIndexBufferU16(
+                    commandBuffer,
+                    *indexBuffer->currentBuffer());
                 if (drawPipeline != nullptr)
                 {
                     m_vk->CmdDrawIndexed(commandBuffer,

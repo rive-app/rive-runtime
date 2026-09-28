@@ -597,17 +597,14 @@ constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
 // # of tessellation segments spanned by the outer cubic patch, NOT counting the
 // additional bowtie-join segment (zero length, no fan triangle) that is just
-// part of the AA border. Use OuterCubicPatchSegmentSpanPlusJoin where the join
-// segment is included.
+// part of the AA border. Use OuterCubicPatchSegmentSpanPlusBowtie where the
+// join segment is included.
 constexpr static uint32_t OuterCubicPatchSegmentSpan = 16;
 
-// The final segment in an outer cubic patch is a zero-length bowtie join.
-constexpr static uint32_t OuterCubicPatchJoinSegmentCount = 1;
-
 // Full tessellation stride of an outer cubic patch: the curve segments plus the
-// trailing bowtie-join segment.
-constexpr static uint32_t OuterCubicPatchSegmentSpanPlusJoin =
-    OuterCubicPatchSegmentSpan + OuterCubicPatchJoinSegmentCount;
+// trailing zero-length bowtie-join segment.
+constexpr static uint32_t OuterCubicPatchSegmentSpanPlusBowtie =
+    OuterCubicPatchSegmentSpan + 1;
 
 // Define vertex and index buffers that contain all the triangles in every
 // PatchType.
@@ -639,10 +636,10 @@ constexpr static uint32_t kMidpointFanCenterAAPatchBaseIndex =
 static_assert((kMidpointFanCenterAAPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
 constexpr static uint32_t kOuterCurvePatchVertexCount =
-    OuterCubicPatchSegmentSpanPlusJoin * 8 /*AA center ramp with bowtie*/ +
-    OuterCubicPatchSegmentSpanPlusJoin /*Curve fan*/;
+    OuterCubicPatchSegmentSpanPlusBowtie * 8 /*AA center ramp with bowtie*/ +
+    OuterCubicPatchSegmentSpanPlusBowtie /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBorderIndexCount =
-    OuterCubicPatchSegmentSpanPlusJoin * 12 /*AA center ramp with bowtie*/;
+    OuterCubicPatchSegmentSpanPlusBowtie * 12 /*AA center ramp with bowtie*/;
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
     (OuterCubicPatchSegmentSpan - 1) * 3 /*Curve fan*/;
@@ -650,12 +647,81 @@ constexpr static uint32_t kOuterCurvePatchBaseIndex =
     kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
+// depthStencil fills use repeating index patterns instead of instancing. They
+// otherwise draw the same basic patch geometry as other modes, but without the
+// AA border. (And rather than input attribs, the shader derives its vertex
+// attributes from gl_VertexID.)
+constexpr static uint32_t DSMidpointFanFillPatchIndexCount =
+    kMidpointFanPatchIndexCount - kMidpointFanPatchBorderIndexCount;
+// A single midpointFan patch is repeated multiple times in the index buffer,
+// with increasing vertex IDs.
+constexpr static uint32_t DSMidpointFanFillPatchMaxReps = 4096;
+// depthStencil draws may bind the index buffer at an offset rather than using
+// baseIndex, and Metal's indexBufferOffset has to be a multiple of 4 bytes.
+constexpr static uint32_t DSMidpointFanFillBaseIndex =
+    math::round_up_to_multiple_of<4 / sizeof(uint16_t)>(
+        kOuterCurvePatchBaseIndex + kOuterCurvePatchIndexCount);
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSMidpointFanFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
+constexpr static uint32_t DSOuterCubicFillPatchIndexCount =
+    kOuterCurvePatchIndexCount - kOuterCurvePatchBorderIndexCount;
+// A single outerCubic patch is repeated multiple times in the index buffer,
+// with increasing vertex IDs.
+constexpr static uint32_t DSOuterCubicFillPatchMaxReps = 2048;
+// depthStencil draws may bind the index buffer at an offset rather than using
+// baseIndex, and Metal's indexBufferOffset has to be a multiple of 4 bytes.
+constexpr static uint32_t DSOuterCubicFillBaseIndex =
+    math::round_up_to_multiple_of<4 / sizeof(uint16_t)>(
+        DSMidpointFanFillBaseIndex +
+        DSMidpointFanFillPatchMaxReps * DSMidpointFanFillPatchIndexCount);
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSOuterCubicFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
+constexpr static uint32_t dsFillPatchIndexCount(bool outerCubic)
+{
+    return outerCubic ? DSOuterCubicFillPatchIndexCount
+                      : DSMidpointFanFillPatchIndexCount;
+}
+constexpr static uint32_t dsFillPatchMaxReps(bool outerCubic)
+{
+    return outerCubic ? DSOuterCubicFillPatchMaxReps
+                      : DSMidpointFanFillPatchMaxReps;
+}
+constexpr static uint32_t dsFillBaseIndex(bool outerCubic)
+{
+    return outerCubic ? DSOuterCubicFillBaseIndex : DSMidpointFanFillBaseIndex;
+}
+
+// depthStencil vertex IDs are spaced on pow2 strides per patch so the shader
+// can decode them with shifts instead of divides. (DS_PATCH_STRIDE_LOG2 in
+// constants.glsl.)
+constexpr static uint32_t DSMidpointFanFillPatchStrideLog2 = 4;
+constexpr static uint32_t DSOuterCubicFillPatchStrideLog2 = 5;
+
+// depthStencil fills encode some attributes as flags on gl_VertexID, in order
+// to avoid input attribs. (DS_PATCH_STRIDE_LOG2 in constants.glsl.)
+constexpr static int32_t DSFillVertexFlagsShift = 29;
+constexpr static int32_t DSFillVertexFlagDisableColorWrite =
+    1 << DSFillVertexFlagsShift;
+constexpr static int32_t DSFillVertexFlagOuterCubic =
+    1 << (DSFillVertexFlagsShift + 1);
+
+// Byte offset to bind the index buffer for a depthStencil fill. Every backend
+// that may see Adreno should use this rather than baseIndex. Using baseIndex on
+// Adreno drops the total framerate by 26%.
+constexpr static uint32_t dsFillIndexOffset(bool outerCubic)
+{
+    return static_cast<uint32_t>(dsFillBaseIndex(outerCubic) *
+                                 sizeof(uint16_t));
+}
+
 constexpr static uint32_t kPatchVertexBufferCount =
     kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount +
     kOuterCurvePatchVertexCount;
 constexpr static uint32_t kPatchIndexBufferCount =
-    kMidpointFanPatchIndexCount + kMidpointFanCenterAAPatchIndexCount +
-    kOuterCurvePatchIndexCount;
+    DSOuterCubicFillBaseIndex +
+    DSOuterCubicFillPatchIndexCount * DSOuterCubicFillPatchMaxReps;
 void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount]);
 
@@ -756,6 +822,39 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
+constexpr static bool drawTypeSubmitsOuterCubicPatches(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::outerCurvePatches:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+            return true;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::depthStrokes:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -905,10 +1004,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
 
 // Miscellaneous switches that *do* affect the behavior of the shaders. The
 // renderContext may add some of these, and a backend may also add them to a
-// shader key if it wants to implement the behavior.
-// Most only reach the fragment shader. emulateDynamicColorWriteDisable also
-// reaches the vertex shader, so a backend that sets it must key its vertex
-// shaders on it as well.
+// shader key if it wants to implement the behavior. So far these only affect
+// the fragment shader.
 enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
@@ -942,34 +1039,27 @@ enum class ShaderMiscFlags : uint32_t
     // reading the buffer and subtracting.
     borrowedCoveragePass = 1 << 4,
 
-    // The backend can't turn color writes off via dynamic state
-    // (e.g., VK_EXT_color_write_enable), so the vertex shader emulates it by
-    // zeroing its paint, which the fragment shader reads as color == 0.
-    // NOTE: "color == 0" doesn't work with blending disabled (opaquePaint), so
-    // this flag also forces blend on for opaque content.
-    emulateDynamicColorWriteDisable = 1 << 5,
-
     // InterlockMode::depthStencil only. The shader determines dstColor for
     // advanced blend by fetching every sample the fragment covers and
     // averaging them.
-    msaaDstRead = 1 << 6,
+    msaaDstRead = 1 << 5,
 
     // InterlockMode::atomics, DrawType::renderPassInitialize only. Also store
     // the color clear value to PLS when drawing a clear, in addition to
     // clearing the other PLS planes.
-    storeColorClear = 1 << 7,
+    storeColorClear = 1 << 6,
 
     // InterlockMode::atomics, DrawType::renderPassInitialize only. Seed the
     // color PLS plane by sampling the framebuffer contents (previously copied
     // into a dst color texture bound at IMAGE_TEXTURE_IDX). Used for
     // LoadAction::preserveRenderTarget on backends that can't directly copy
     // a texture into a storage buffer (e.g. WebGPU).
-    loadColorFromDstTexture = 1 << 8,
+    loadColorFromDstTexture = 1 << 7,
 
     // InterlockMode::atomics, DrawType::renderPassInitialize only. Swizzle the
     // existing framebuffer contents from BGRA to RGBA. (For when this data had
     // to get copied from a BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 9,
+    swizzleColorBGRAToRGBA = 1 << 8,
 
     // InterlockMode::atomics, DrawType::renderPassResolve only. Optimization
     // for when rendering to an offscreen texture.
@@ -977,10 +1067,10 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 10,
+    coalescedResolveAndTransfer = 1 << 9,
 };
 
-constexpr static size_t ShaderMiscFlagCount = 11;
+constexpr static size_t ShaderMiscFlagCount = 10;
 static_assert(
     static_cast<uint32_t>(ShaderMiscFlags::coalescedResolveAndTransfer) ==
     1 << (ShaderMiscFlagCount - 1));
@@ -1137,14 +1227,14 @@ uint32_t ShaderUniqueKey(DrawType,
                          InterlockMode,
                          ShaderMiscFlags);
 
-// ShaderUniqueKey() is currently 20 bits. Be careful when adding to it because
+// ShaderUniqueKey() is currently 21 bits. Be careful when adding to it because
 // some backends pack their own private state into keys, and still need to fit
 // in 64 bits.
-constexpr static uint32_t DrawTypeKeyBitCount = 3;
+constexpr static uint32_t DrawTypeKeyBitCount = 4;
 constexpr static uint32_t ShaderUniqueKeyBitCount =
     ShaderMiscFlagKeyBitCount + InterlockModeBitCount + ShaderFeatureCount +
     DrawTypeKeyBitCount;
-static_assert(ShaderUniqueKeyBitCount == 20);
+static_assert(ShaderUniqueKeyBitCount == 21);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
@@ -2199,7 +2289,7 @@ uint64_t getPipelineUniqueKey(DrawType,
                               rive::BlendMode,
                               const PlatformFeatures&);
 
-// getPipelineUniqueKey() is currently 39 bits. Be careful when adding to it
+// getPipelineUniqueKey() is currently 40 bits. Be careful when adding to it
 // because some backends pack their own private state into keys, and still need
 // to fit in 64 bits.
 constexpr static uint32_t PipelineUniqueKeyBitCount =
@@ -2207,7 +2297,7 @@ constexpr static uint32_t PipelineUniqueKeyBitCount =
     math::count_set_bits(uint32_t(DrawContentsForDepthStencilPipelineState)) +
     BLEND_MODE_BIT_COUNT + StencilTypeBitCount +
     3 /*colorWrite, depthTest, depthWrite*/ + CullFaceBitCount;
-static_assert(PipelineUniqueKeyBitCount == 39);
+static_assert(PipelineUniqueKeyBitCount == 40);
 
 PipelineState get_pipeline_state(DrawType,
                                  InterlockMode,

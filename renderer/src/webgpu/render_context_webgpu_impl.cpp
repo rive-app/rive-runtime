@@ -14,6 +14,7 @@
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/gpu_texture_format.hpp"
 #include "shaders/constants.glsl"
+#include "rive/renderer/range_chunker.hpp"
 
 #include <sstream>
 #include <string>
@@ -55,6 +56,10 @@
 #include "generated/shaders/wgsl/atomic_init.webgpu_fixedcolor_frag.hpp"
 
 // InterlockMode::depthStencil shaders.
+#include "generated/shaders/wgsl/draw_depthstencil_fill.webgpu_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_fill.webgpu_noclipdistance_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_fill.webgpu_nossbo_vert.hpp"
+#include "generated/shaders/wgsl/draw_depthstencil_fill.webgpu_nossbo_noclipdistance_vert.hpp"
 #include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_vert.hpp"
 #include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_noclipdistance_vert.hpp"
 #include "generated/shaders/wgsl/draw_depthstencil_path.webgpu_nossbo_vert.hpp"
@@ -1601,7 +1606,6 @@ public:
                     case DrawType::stencilOuterCubicWinding:
                     case DrawType::stencilOuterCubicCover:
                     case DrawType::stencilOuterCubics:
-                    case DrawType::depthStrokes:
                     case DrawType::stencilMidpointFanBorrowedCoverage:
                     case DrawType::stencilDynamicMidpointFans:
                     case DrawType::stencilDynamicOuterCubics:
@@ -1609,6 +1613,36 @@ public:
                     case DrawType::stencilMidpointFanReset:
                     case DrawType::stencilMidpointFanWinding:
                     case DrawType::stencilMidpointFanCover:
+                        if (context->m_capabilities
+                                .polyfillVertexStorageBuffers)
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::
+                                          draw_depthstencil_fill_webgpu_nossbo_vert
+                                    : &wgsl::
+                                          draw_depthstencil_fill_webgpu_nossbo_noclipdistance_vert;
+                        }
+                        else
+                        {
+                            vertexShader =
+                                enums::is_flag_set(
+                                    shaderFeatures,
+                                    ShaderFeatures::ENABLE_CLIP_RECT)
+                                    ? &wgsl::draw_depthstencil_fill_webgpu_vert
+                                    : &wgsl::
+                                          draw_depthstencil_fill_webgpu_noclipdistance_vert;
+                        }
+                        fragmentShader =
+                            fixedFunctionColorOutput
+                                ? &wgsl::
+                                      draw_depthstencil_path_webgpu_fixedcolor_frag
+                                : &wgsl::draw_depthstencil_path_webgpu_frag;
+                        break;
+
+                    case DrawType::depthStrokes:
                         if (context->m_capabilities
                                 .polyfillVertexStorageBuffers)
                         {
@@ -3205,15 +3239,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     WGPUPrimitiveTopology topology;
     switch (drawType)
     {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::stencilOuterCubics:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -3221,6 +3251,18 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::stencilMidpointFanReset:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
+        {
+            // depthStencil fills don't have attributes (everything is derived
+            // from the vertex index). Leave the attributes empty.
+            assert(attrs.empty());
+            assert(vertexBufferLayouts.empty());
+            topology = WGPUPrimitiveTopology_TriangleList;
+            break;
+        }
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::depthStrokes:
         {
             attrs.push_back({
                 .format = WGPUVertexFormat_Float32x4,
@@ -3436,7 +3478,6 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::borrowedCoveragePass)),
-        0.0, // EMULATE_DYNAMIC_COLOR_WRITE_DISABLE — ignored for now.
         static_cast<double>(
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::storeColorClear)),
@@ -3460,11 +3501,10 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 9);
     static_assert(NESTED_CLIP_UPDATE_ONLY_SPECIALIZATION_IDX == 10);
     static_assert(BORROWED_COVERAGE_PASS_SPECIALIZATION_IDX == 11);
-    static_assert(EMULATE_DYNAMIC_COLOR_WRITE_DISABLE_SPECIALIZATION_IDX == 12);
-    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 13);
-    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 14);
-    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 15);
-    static_assert(SPECIALIZATION_COUNT == 16);
+    static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
+    static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
+    static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
+    static_assert(SPECIALIZATION_COUNT == 15);
 
     // Build a per-stage WGPUConstantEntry[] from the shader's own override
     // list.
@@ -3491,7 +3531,6 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             "12",
             "13",
             "14",
-            "15",
         };
         static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
 
@@ -4819,15 +4858,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
         switch (drawType)
         {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
             case DrawType::stencilOuterCubicBorrowedCoverage:
             case DrawType::stencilOuterCubicReset:
             case DrawType::stencilOuterCubicWinding:
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -4835,6 +4870,30 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
             case DrawType::stencilMidpointFanCover:
+            {
+                const bool outerCubic =
+                    gpu::drawTypeSubmitsOuterCubicPatches(drawType);
+                drawEncoder.SetIndexBuffer(m_pathPatchIndexBuffer,
+                                           wgpu::IndexFormat::Uint16,
+                                           gpu::dsFillIndexOffset(outerCubic));
+                for (auto [chunkIndexCount, chunkBaseVertex] :
+                     gpu::DSIndexRangeChunker(drawType,
+                                              batch.elementCount,
+                                              batch.baseElement))
+                {
+                    drawEncoder.DrawIndexed(chunkIndexCount,
+                                            1,
+                                            0,
+                                            chunkBaseVertex,
+                                            0);
+                }
+                break;
+            }
+
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+            case DrawType::depthStrokes:
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 drawEncoder.SetVertexBuffer(0, m_pathPatchVertexBuffer);

@@ -48,6 +48,7 @@ constexpr size_t kDefaultDrawCapacity = 2048;
 constexpr uint32_t kMaxTextureHeight = 2048;
 constexpr size_t kMaxTessellationVertexCount =
     kMaxTextureHeight * kTessTextureWidth;
+
 constexpr size_t kMaxTessellationPaddingVertexCount =
     gpu::kMidpointFanPatchSegmentSpan + // Padding at the beginning of the
                                         // tessellation texture
@@ -1182,9 +1183,9 @@ void RenderContext::LogicalFlush::layoutResources(
 
         // outerCubic tessellation vertices reside after the midpointFan
         // vertices, aligned on a multiple of the outerCubic patch size.
-        uint32_t interiorPadding =
-            math::padding_to_align_up<gpu::OuterCubicPatchSegmentSpanPlusJoin>(
-                m_midpointFanTessEndLocation);
+        uint32_t interiorPadding = math::padding_to_align_up<
+            gpu::OuterCubicPatchSegmentSpanPlusBowtie>(
+            m_midpointFanTessEndLocation);
         m_outerCubicTessVertexIdx =
             m_midpointFanTessEndLocation + interiorPadding;
         m_outerCubicTessEndLocation =
@@ -3569,14 +3570,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushOuterCubicsDraw(
     assert(m_hasDoneLayout);
 
     uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
-        tessLocation / OuterCubicPatchSegmentSpanPlusJoin);
+        tessLocation / OuterCubicPatchSegmentSpanPlusBowtie);
     // flush() is responsible for alignment.
-    assert(baseInstance * OuterCubicPatchSegmentSpanPlusJoin == tessLocation);
+    assert(baseInstance * OuterCubicPatchSegmentSpanPlusBowtie == tessLocation);
 
     uint32_t instanceCount =
-        tessVertexCount / OuterCubicPatchSegmentSpanPlusJoin;
+        tessVertexCount / OuterCubicPatchSegmentSpanPlusBowtie;
     // flush() is responsible for alignment.
-    assert(instanceCount * OuterCubicPatchSegmentSpanPlusJoin ==
+    assert(instanceCount * OuterCubicPatchSegmentSpanPlusBowtie ==
            tessVertexCount);
 
     return pushPathDraw(draw,

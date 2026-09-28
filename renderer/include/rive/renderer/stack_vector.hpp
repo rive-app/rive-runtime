@@ -97,7 +97,8 @@ public:
     const T* dataOrNull() const { return m_size != 0 ? m_data : nullptr; }
     T* dataOrNull() { return m_size != 0 ? m_data : nullptr; }
 
-    const uint32_t size() const { return m_size; }
+    uint32_t size() const { return m_size; }
+    bool empty() const { return m_size == 0; }
 
     T* begin() { return m_data; }
     T* end() { return m_data + m_size; }

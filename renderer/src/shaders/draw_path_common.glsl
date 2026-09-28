@@ -258,7 +258,7 @@ INLINE half eval_feathered_stroke(float4 coverages TEXTURE_CONTEXT_DECL)
 }
 #endif // @ENABLE_FEATHER
 
-#if defined(@VERTEX) && defined(@DRAW_PATH)
+#ifdef @VERTEX
 INLINE int2 tess_texel_coord(int texelIndex)
 {
     return int2(texelIndex & ((1 << TESS_TEXTURE_WIDTH_LOG2) - 1),
@@ -281,7 +281,9 @@ INLINE float unpackTessMiterJoinRatio(uint z)
     // Miter ratio is 0..1, so divide by 65535.
     return float(z & 0xffffu) * (1. / 65535.);
 }
+#endif
 
+#if defined(@VERTEX) && defined(@DRAW_PATH)
 INLINE float manhattan_pixel_width(float2x2 M, float2 normalized)
 {
 

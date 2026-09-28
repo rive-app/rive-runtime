@@ -157,6 +157,8 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_depthstencil_path.frag.spv",
         riveSpirvPath / "draw_depthstencil_path.fixedcolor_frag.spv",
         riveSpirvPath / "draw_depthstencil_path.msaa_frag.spv",
+        riveSpirvPath / "draw_depthstencil_fill.vert.spv",
+        riveSpirvPath / "draw_depthstencil_fill.noclipdistance_vert.spv",
         riveSpirvPath / "draw_depthstencil_triangles_nocolor.vert.spv",
         riveSpirvPath / "draw_depthstencil_triangles_nocolor.frag.spv",
         riveSpirvPath /

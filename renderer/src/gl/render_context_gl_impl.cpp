@@ -13,11 +13,13 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_context_gl.hpp"
 #endif
+#include "rive/renderer/range_chunker.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
-#include "instance_chunker.hpp"
+
+#include <vector>
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
@@ -30,6 +32,7 @@
 #include "generated/shaders/draw_depthstencil_object.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
+#include "generated/shaders/draw_depthstencil_fill.vert.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
@@ -366,8 +369,8 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_state->bindVAO(m_drawVAO);
 
     PatchVertex patchVertices[kPatchVertexBufferCount];
-    uint16_t patchIndices[kPatchIndexBufferCount];
-    GeneratePatchBufferData(patchVertices, patchIndices);
+    std::vector<uint16_t> patchIndices(kPatchIndexBufferCount);
+    GeneratePatchBufferData(patchVertices, patchIndices.data());
 
     m_state->bindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
     glBufferData(GL_ARRAY_BUFFER,
@@ -377,8 +380,8 @@ RenderContextGLImpl::RenderContextGLImpl(
 
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sizeof(patchIndices),
-                 patchIndices,
+                 patchIndices.size() * sizeof(uint16_t),
+                 patchIndices.data(),
                  GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
@@ -1483,6 +1486,12 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
         case gpu::DrawType::depthStrokes:
+            if (shaderType == GL_VERTEX_SHADER)
+            {
+                defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
+            }
+            defines.push_back(GLSL_DRAW_PATH);
+            break;
         case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
         case gpu::DrawType::stencilDynamicMidpointFans:
         case gpu::DrawType::stencilDynamicOuterCubics:
@@ -1497,7 +1506,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::stencilOuterCubics:
             if (shaderType == GL_VERTEX_SHADER)
             {
-                defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
+                defines.push_back(GLSL_ENABLE_BASE_VERTEX);
             }
             defines.push_back(GLSL_DRAW_PATH);
             break;
@@ -1618,7 +1627,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::InterlockMode::depthStencil:
             switch (drawType)
             {
-                case gpu::DrawType::depthStrokes:
                 case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
                 case gpu::DrawType::stencilDynamicMidpointFans:
                 case gpu::DrawType::stencilDynamicOuterCubics:
@@ -1631,6 +1639,15 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::stencilOuterCubicWinding:
                 case gpu::DrawType::stencilOuterCubicCover:
                 case gpu::DrawType::stencilOuterCubics:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
+                    sources.push_back(
+                        shaderType == GL_VERTEX_SHADER
+                            ? gpu::glsl::draw_depthstencil_fill_vert
+                            : gpu::glsl::draw_path_vert);
+                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
+                    break;
+                case gpu::DrawType::depthStrokes:
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::gradient_packing_common);
@@ -1770,7 +1787,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
         renderContextImpl->capabilities().KHR_parallel_shader_compile)
     {
         // Like above, this is async creation so verify the program is linked
-        //  before continuing.
+        // before continuing.
 
         GLint completed = 0;
         glGetProgramiv(m_id, GL_COMPLETION_STATUS_KHR, &completed);
@@ -1901,6 +1918,8 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
                                  GLSL_dstColorTexture,
                                  DST_COLOR_TEXTURE_IDX);
     }
+    m_baseVertexUniformLocation =
+        glGetUniformLocation(m_id, glutils::BASE_VERTEX_UNIFORM_NAME);
     if (!renderContextImpl->m_capabilities
              .ANGLE_base_vertex_base_instance_shader_builtin)
     {
@@ -2222,7 +2241,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindVAO(m_colorRampVAO);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        for (auto [chunkInstanceCount, chunkBaseInstance] : InstanceChunker(
+        for (auto [chunkInstanceCount, chunkBaseInstance] : RangeChunker(
                  desc.gradSpanCount,
                  math::lossless_numeric_cast<uint32_t>(desc.firstGradSpan),
                  m_capabilities.maxSupportedInstancesPerFlush))
@@ -2256,10 +2275,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
         for (auto [chunkInstanceCount, chunkBaseInstance] :
-             InstanceChunker(desc.tessVertexSpanCount,
-                             math::lossless_numeric_cast<uint32_t>(
-                                 desc.firstTessVertexSpan),
-                             m_capabilities.maxSupportedInstancesPerFlush))
+             RangeChunker(desc.tessVertexSpanCount,
+                          math::lossless_numeric_cast<uint32_t>(
+                              desc.firstTessVertexSpan),
+                          m_capabilities.maxSupportedInstancesPerFlush))
 
         {
             size_t tessSpanOffsetInBytes =
@@ -2792,16 +2811,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             case DrawType::depthStrokes:
-            case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilMidpointFans:
-            case DrawType::stencilMidpointFanReset:
-            case DrawType::stencilMidpointFanWinding:
-            case DrawType::stencilMidpointFanCover:
-            case DrawType::stencilOuterCubicBorrowedCoverage:
-            case DrawType::stencilOuterCubicReset:
-            case DrawType::stencilOuterCubicWinding:
-            case DrawType::stencilOuterCubicCover:
-            case DrawType::stencilOuterCubics:
             {
                 m_state->bindVAO(m_drawVAO);
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
@@ -2816,6 +2825,38 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     batch.baseElement,
                     drawProgram->baseInstanceUniformLocation(),
                     &flushInjector);
+                break;
+            }
+
+            case DrawType::stencilMidpointFanBorrowedCoverage:
+            case DrawType::stencilMidpointFans:
+            case DrawType::stencilMidpointFanReset:
+            case DrawType::stencilMidpointFanWinding:
+            case DrawType::stencilMidpointFanCover:
+            case DrawType::stencilOuterCubicBorrowedCoverage:
+            case DrawType::stencilOuterCubicReset:
+            case DrawType::stencilOuterCubicWinding:
+            case DrawType::stencilOuterCubicCover:
+            case DrawType::stencilOuterCubics:
+            {
+                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                m_state->bindVAO(m_drawVAO);
+                for (auto [chunkIndexCount, chunkBaseVertex] :
+                     gpu::DSIndexRangeChunker(drawType,
+                                              batch.elementCount,
+                                              batch.baseElement))
+                {
+                    const uintptr_t indexOffset = gpu::dsFillIndexOffset(
+                        gpu::drawTypeSubmitsOuterCubicPatches(drawType));
+                    // GL doesn't have a base vertex for indexed draws, so
+                    // emulate it with a uniform.
+                    glUniform1i(drawProgram->baseVertexUniformLocation(),
+                                chunkBaseVertex);
+                    glDrawElements(GL_TRIANGLES,
+                                   chunkIndexCount,
+                                   GL_UNSIGNED_SHORT,
+                                   reinterpret_cast<const void*>(indexOffset));
+                }
                 break;
             }
 
@@ -2843,26 +2884,33 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                 m_platformFeatures);
                     // The scissor was already decided before the switch, so
                     // don't let a per-pass state change disturb it.
-                    //
-                    // NOTE on ShaderMiscFlags::emulateDynamicColorWriteDisable:
-                    // If we were to emulate colorWrite disables via a uniform,
-                    // right here would be the place to set that uniform.
-                    // On Vulkan, we emulate colorWrite disables for Adreno and
-                    // PowerVR instead of turning off the color mask. (We do
-                    // this for correctness and possible performance reasons.)
-                    // glColorMask seems to work though on GL, and performance
-                    // of the emulated path looks empirically worse on PowerVR,
-                    // so we just use glColorMask for now on GL, instead of the
-                    // emulated path.
                     m_state->setPipelineState(passState, ScissorAction::ignore);
-                    drawIndexedInstancedNoInstancedAttribs(
-                        GL_TRIANGLES,
-                        batch.indexCountPerInstance,
-                        batch.baseIndex,
-                        batch.elementCount,
-                        batch.baseElement,
-                        drawProgram->baseInstanceUniformLocation(),
-                        &flushInjector);
+                    for (auto [chunkIndexCount, chunkBaseVertex] :
+                         // NOTE: Some backends use
+                         // VERTEX_FLAG_DISABLE_COLOR_WRITE instead of
+                         // explicitly disabling color writes, for performance
+                         // and/or support reasons.
+                         // However, glColorMask() seems to work great on GL,
+                         // even on the problem devices, so we just let the
+                         // above setPipelineState() handle it instead of
+                         // passing VERTEX_FLAG_DISABLE_COLOR_WRITE into the
+                         // DSIndexRangeChunker here.
+                         gpu::DSIndexRangeChunker(drawType,
+                                                  batch.elementCount,
+                                                  batch.baseElement))
+                    {
+                        const uintptr_t indexOffset = gpu::dsFillIndexOffset(
+                            gpu::drawTypeSubmitsOuterCubicPatches(drawType));
+                        // GL doesn't have a base vertex for indexed draws, so
+                        // emulate it with a uniform.
+                        glUniform1i(drawProgram->baseVertexUniformLocation(),
+                                    chunkBaseVertex);
+                        glDrawElements(
+                            GL_TRIANGLES,
+                            chunkIndexCount,
+                            GL_UNSIGNED_SHORT,
+                            reinterpret_cast<const void*>(indexOffset));
+                    }
                 }
                 break;
             }
@@ -3071,9 +3119,9 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
     const void* indexOffset =
         reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
     for (auto [chunkInstanceCount, chunkBaseInstance] :
-         InstanceChunker(instanceCount,
-                         baseInstance,
-                         m_capabilities.maxSupportedInstancesPerFlush))
+         RangeChunker(instanceCount,
+                      baseInstance,
+                      m_capabilities.maxSupportedInstancesPerFlush))
     {
         flushInjector->flushBeforeInstancedDrawIfNeeded(chunkInstanceCount);
 #ifndef RIVE_WEBGL

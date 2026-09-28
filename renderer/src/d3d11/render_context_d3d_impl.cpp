@@ -15,6 +15,7 @@
 #include "rive/profiler/profiler_macros.h"
 
 #include <D3DCompiler.h>
+#include <vector>
 
 #include "generated/shaders/tessellate.glsl.exports.h"
 
@@ -691,14 +692,15 @@ RenderContextD3DImpl::RenderContextD3DImpl(
 
     // Set up the path patch rendering buffers.
     PatchVertex patchVertices[kPatchVertexBufferCount];
-    uint16_t patchIndices[kPatchIndexBufferCount];
-    GeneratePatchBufferData(patchVertices, patchIndices);
+    std::vector<uint16_t> patchIndices(kPatchIndexBufferCount);
+    GeneratePatchBufferData(patchVertices, patchIndices.data());
     m_patchVertexBuffer = makeSimpleImmutableBuffer(sizeof(patchVertices),
                                                     D3D11_BIND_VERTEX_BUFFER,
                                                     patchVertices);
-    m_patchIndexBuffer = makeSimpleImmutableBuffer(sizeof(patchIndices),
-                                                   D3D11_BIND_INDEX_BUFFER,
-                                                   patchIndices);
+    m_patchIndexBuffer =
+        makeSimpleImmutableBuffer(patchIndices.size() * sizeof(uint16_t),
+                                  D3D11_BIND_INDEX_BUFFER,
+                                  patchIndices.data());
 
     // Set up the imageRect rendering buffers. (gpu::InterlockMode::atomics
     // only.)

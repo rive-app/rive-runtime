@@ -89,9 +89,9 @@ public:
         m_resourceCounts.maxTessellatedSegmentCount = std::size(TriangleStrips);
         m_resourceCounts.outerCubicTessVertexCount =
             context->frameInterlockMode() != gpu::InterlockMode::depthStencil
-                ? gpu::OuterCubicPatchSegmentSpanPlusJoin *
+                ? gpu::OuterCubicPatchSegmentSpanPlusBowtie *
                       std::size(TriangleStrips) * 2
-                : gpu::OuterCubicPatchSegmentSpanPlusJoin *
+                : gpu::OuterCubicPatchSegmentSpanPlusBowtie *
                       std::size(TriangleStrips);
         m_triangulator = context->make<GrInnerFanTriangulator>(
             RawPath(),

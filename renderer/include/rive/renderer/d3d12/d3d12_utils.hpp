@@ -3,6 +3,7 @@
  */
 #pragma once
 
+#include "rive/math/math_types.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/renderer/d3d12/d3d12.hpp"
@@ -493,7 +494,18 @@ public:
     rcp<D3D12Buffer> makeImmutableBuffer(ID3D12GraphicsCommandList* cmdList,
                                          const DataType (&data)[N])
     {
-        constexpr size_t sizeInBytes = N * sizeof(DataType);
+        return makeImmutableBuffer(cmdList, data, N);
+    }
+
+    // Overload for data that's too big for the stack, and therefore doesn't
+    // come in a fixed-size array.
+    template <typename DataType>
+    rcp<D3D12Buffer> makeImmutableBuffer(ID3D12GraphicsCommandList* cmdList,
+                                         const DataType* data,
+                                         size_t count)
+    {
+        const UINT sizeInBytes =
+            math::lossless_numeric_cast<UINT>(count * sizeof(DataType));
         rcp<D3D12Buffer> uploadBuffer =
             makeUploadBuffer(sizeInBytes,
                              D3D12_RESOURCE_FLAG_NONE,
