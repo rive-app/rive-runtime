@@ -573,6 +573,10 @@ uint32_t dataVmiViewModel(wasm_exec_env_t env, uint32_t vmi, const char* name, u
 uint32_t dataVmiProperty(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length, uint32_t* kindOut, uint32_t kindCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (kindCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)kindOut, (uint64_t)kindCount * 4))
+    {
+        return {};
+    }
     WasmStringArg nameUtf8(vm, name, length);
     return dataVmiPropertyImpl(vm, vmi, nameUtf8.data(), nameUtf8.size(), kindOut, kindCount);
 }
@@ -878,6 +882,10 @@ void artboardSetFrameOrigin(wasm_exec_env_t env, uint32_t artboard, uint32_t val
 void artboardBounds(wasm_exec_env_t env, uint32_t artboard, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
     artboardBoundsImpl(vm, artboard, out, outCount);
 }
 uint32_t artboardPointerEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y)
@@ -925,6 +933,10 @@ void artboardNodeRelease(wasm_exec_env_t env, uint32_t node)
 void artboardNodeTransform(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
     artboardNodeTransformImpl(vm, node, out, outCount);
 }
 void artboardNodeSet(wasm_exec_env_t env, uint32_t node, uint32_t field, float v0, float v1)
@@ -935,16 +947,28 @@ void artboardNodeSet(wasm_exec_env_t env, uint32_t node, uint32_t field, float v
 void artboardNodeWorldTransform(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
     artboardNodeWorldTransformImpl(vm, node, out, outCount);
 }
 void artboardNodeSetWorldTransform(wasm_exec_env_t env, uint32_t node, const float* values, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)values, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
     artboardNodeSetWorldTransformImpl(vm, node, values, floatCount);
 }
 void artboardNodeDecompose(wasm_exec_env_t env, uint32_t node, const float* values, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)values, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
     artboardNodeDecomposeImpl(vm, node, values, floatCount);
 }
 uint32_t artboardNodePathVerbs(wasm_exec_env_t env, uint32_t node, uint8_t* out, uint32_t outCount)
@@ -955,16 +979,28 @@ uint32_t artboardNodePathVerbs(wasm_exec_env_t env, uint32_t node, uint8_t* out,
 uint32_t artboardNodePathPoints(wasm_exec_env_t env, uint32_t node, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
     return artboardNodePathPointsImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodePaint(wasm_exec_env_t env, uint32_t node, uint32_t* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
     return artboardNodePaintImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodeChildren(wasm_exec_env_t env, uint32_t node, uint32_t* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
     return artboardNodeChildrenImpl(vm, node, out, outCount);
 }
 uint32_t artboardNodeParent(wasm_exec_env_t env, uint32_t node)
@@ -996,6 +1032,10 @@ void artboardDrawableDraw(wasm_exec_env_t env, uint32_t drawable, uint32_t rende
 uint32_t artboardDrawableValue(wasm_exec_env_t env, uint32_t drawable, uint32_t key, uint32_t* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
     return artboardDrawableValueImpl(vm, drawable, key, out, outCount);
 }
 uint32_t artboardDrawableString(wasm_exec_env_t env, uint32_t drawable, uint32_t key, char* out, uint32_t outCount)
@@ -1144,6 +1184,10 @@ uint32_t pathNew(wasm_exec_env_t env)
 void pathUpdate(wasm_exec_env_t env, uint32_t path, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount, uint32_t fillRule)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)points, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
     pathUpdateImpl(vm, path, verbs, verbCount, points, floatCount, fillRule);
 }
 void pathRelease(wasm_exec_env_t env, uint32_t path)
@@ -1154,16 +1198,28 @@ void pathRelease(wasm_exec_env_t env, uint32_t path)
 void pathEffectResult(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)points, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
     pathEffectResultImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measurePathNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)points, (uint64_t)floatCount * 4))
+    {
+        return {};
+    }
     return measurePathNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measureContoursNew(wasm_exec_env_t env, const uint8_t* verbs, uint32_t verbCount, const float* points, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)points, (uint64_t)floatCount * 4))
+    {
+        return {};
+    }
     return measureContoursNewImpl(vm, verbs, verbCount, points, floatCount);
 }
 uint32_t measureContourNext(wasm_exec_env_t env, uint32_t measure)
@@ -1184,11 +1240,19 @@ uint32_t measureIsClosed(wasm_exec_env_t env, uint32_t measure)
 void measurePosTan(wasm_exec_env_t env, uint32_t measure, float distance, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
     measurePosTanImpl(vm, measure, distance, out, outCount);
 }
 void measureWarp(wasm_exec_env_t env, uint32_t measure, float x, float y, float* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return;
+    }
     measureWarpImpl(vm, measure, x, y, out, outCount);
 }
 uint32_t measureExtract(wasm_exec_env_t env, uint32_t measure, float startDistance, float endDistance, uint32_t startWithMove)
@@ -1199,6 +1263,10 @@ uint32_t measureExtract(wasm_exec_env_t env, uint32_t measure, float startDistan
 uint32_t measureExtractRead(wasm_exec_env_t env, uint32_t measure, uint8_t* verbs, uint32_t verbCount, float* points, uint32_t floatCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)points, (uint64_t)floatCount * 4))
+    {
+        return {};
+    }
     return measureExtractReadImpl(vm, measure, verbs, verbCount, points, floatCount);
 }
 void measureRelease(wasm_exec_env_t env, uint32_t measure)
@@ -1299,6 +1367,10 @@ void canvasEndFrame(wasm_exec_env_t env, uint32_t canvas)
 uint32_t gpuFeatures(wasm_exec_env_t env, uint32_t* out, uint32_t outCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (outCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)out, (uint64_t)outCount * 4))
+    {
+        return {};
+    }
     return gpuFeaturesImpl(vm, out, outCount);
 }
 uint32_t gpuCanvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
@@ -1314,6 +1386,10 @@ void gpuCanvasRelease(wasm_exec_env_t env, uint32_t canvas)
 uint32_t gpuCanvasColorView(wasm_exec_env_t env, uint32_t canvas, uint32_t* props, uint32_t propCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (propCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)props, (uint64_t)propCount * 4))
+    {
+        return {};
+    }
     return gpuCanvasColorViewImpl(vm, canvas, props, propCount);
 }
 uint32_t gpuCanvasImage(wasm_exec_env_t env, uint32_t canvas)
@@ -1324,6 +1400,10 @@ uint32_t gpuCanvasImage(wasm_exec_env_t env, uint32_t canvas)
 uint32_t gpuCanvasResize(wasm_exec_env_t env, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (propCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)props, (uint64_t)propCount * 4))
+    {
+        return {};
+    }
     return gpuCanvasResizeImpl(vm, canvas, width, height, props, propCount);
 }
 uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
@@ -1486,6 +1566,10 @@ void gpuBindGroupLayoutRelease(wasm_exec_env_t env, uint32_t layout)
 uint32_t gpuBindGroupLayoutFromShader(wasm_exec_env_t env, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
+    if (dynamicUBOCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)dynamicUBOs, (uint64_t)dynamicUBOCount * 4))
+    {
+        return {};
+    }
     return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
 uint32_t gpuBindGroupNew(wasm_exec_env_t env, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)

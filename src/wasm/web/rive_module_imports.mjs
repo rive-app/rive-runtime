@@ -515,7 +515,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             pass_begin: (desc, descByteCount, colors, colorByteCount) => {
                 stackReset();
                 const desc_p = stageIn(desc, descByteCount);
-                const colors_p = stageIn(colors, colorByteCount * 32);
+                const colors_p = stageIn(colors, colorByteCount);
                 const ret = calls.rive_gpu_pass_begin(desc_p, descByteCount, colors_p, colorByteCount);
                 return ret;
             },
@@ -524,7 +524,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             pass_set_index_buffer: calls.rive_gpu_pass_set_index_buffer,
             pass_set_bind_group: (pass, groupIndex, bindGroup, dynamicOffsets, dynamicOffsetByteCount) => {
                 stackReset();
-                const dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount * 4);
+                const dynamicOffsets_p = stageIn(dynamicOffsets, dynamicOffsetByteCount);
                 calls.rive_gpu_pass_set_bind_group(pass, groupIndex, bindGroup, dynamicOffsets_p, dynamicOffsetByteCount);
             },
             pass_set_viewport: calls.rive_gpu_pass_set_viewport,
@@ -600,7 +600,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             shader_module_release: calls.rive_gpu_shader_module_release,
             bind_group_layout_new: (groupIndex, entries, entryByteCount) => {
                 stackReset();
-                const entries_p = stageIn(entries, entryByteCount * 48);
+                const entries_p = stageIn(entries, entryByteCount);
                 const ret = calls.rive_gpu_bind_group_layout_new(groupIndex, entries_p, entryByteCount);
                 return ret;
             },
@@ -613,9 +613,9 @@ export function createRiveModuleImports(host, moduleMemory) {
             },
             bind_group_new: (layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount) => {
                 stackReset();
-                const ubos_p = stageIn(ubos, uboByteCount * 16);
-                const textures_p = stageIn(textures, textureByteCount * 8);
-                const samplers_p = stageIn(samplers, samplerByteCount * 8);
+                const ubos_p = stageIn(ubos, uboByteCount);
+                const textures_p = stageIn(textures, textureByteCount);
+                const samplers_p = stageIn(samplers, samplerByteCount);
                 const ret = calls.rive_gpu_bind_group_new(layout, ubos_p, uboByteCount, textures_p, textureByteCount, samplers_p, samplerByteCount);
                 return ret;
             },

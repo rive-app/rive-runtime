@@ -166,6 +166,31 @@ def host_string_prologue(params):
             for p in params if p['kind'] == 'str']
 
 
+# A count named in bytes is WAMR's own `~` length; any other buffer count is
+# in elements, so WAMR has checked only count bytes of it.
+def count_is_bytes(p):
+    return p['count'].endswith('ByteCount') or p['count'].endswith('Bytes')
+
+
+def host_bounds_prologue(op):
+    # Widens WAMR's check to the whole buffer; a failed check traps.
+    lines = []
+    for p in op['params']:
+        if p['kind'] not in ('buf', 'mutbuf') or count_is_bytes(p):
+            continue
+        size = elem_size(p['elem'])
+        if size == 1:
+            continue
+        lines += ['    if (%s != 0 && !wasm_runtime_validate_native_addr('
+                  'wasm_runtime_get_module_inst(env), (void*)%s, '
+                  '(uint64_t)%s * %d))' % (p['count'], p['name'], p['count'],
+                                           size),
+                  '    {',
+                  '        return%s;' % ('' if op['ret'] is None else ' {}'),
+                  '    }']
+    return lines
+
+
 def guarded(op, lines):
     if not op.get('guard'):
         return lines
@@ -300,6 +325,7 @@ def emit_host():
             body = ['%s %s(%s)' % (ret_ctype(op), name, ', '.join(params)),
                     '{',
                     '    WasmScriptingVM* vm = vmFromEnv(env);']
+            body += host_bounds_prologue(op)
             body += host_string_prologue(op['params'])
             body += ['    %s%s;' %
                      ('' if op['ret'] is None else 'return ', call),
@@ -684,8 +710,9 @@ def web_op(namespace, op):
             count = camel(p['count'])
             js_params.append(name)
             js_params.append(count)
-            # Counts are elements; staging copies bytes.
-            size = 1 if kind == 'str' else elem_size(p['elem'])
+            # Staging copies bytes.
+            size = (1 if kind == 'str' or count_is_bytes(p) else
+                    elem_size(p['elem']))
             byte_count = count if size == 1 else '%s * %d' % (count, size)
             pre.append('const %s_p = stageIn(%s, %s);' %
                        (name, name, byte_count))
