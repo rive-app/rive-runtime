@@ -9306,8 +9306,13 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
                                        const char* method,
                                        int pointerId,
                                        Vec2D localPosition,
+                                       ListenerType hitType,
+                                       float timeStamp,
                                        HitResult* outResult)
 {
+    // Not forwarded yet: host_obj_pointer_event's guest ABI has no slots.
+    (void)hitType;
+    (void)timeStamp;
     if (!valid())
     {
         return false;

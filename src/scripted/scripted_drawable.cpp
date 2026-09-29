@@ -118,6 +118,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                   mName.c_str(),
                                   pointerId,
                                   localPos,
+                                  canHit ? hitType : ListenerType::exit,
+                                  timeStamp,
                                   &hitResult))
     {
         m_drawable->wakeAdvance();

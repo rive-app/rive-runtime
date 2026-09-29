@@ -524,6 +524,8 @@ bool ScriptingVM::callPointerEvent(ScriptedObject* object,
                                    const char* method,
                                    int pointerId,
                                    Vec2D localPosition,
+                                   ListenerType hitType,
+                                   float timeStamp,
                                    HitResult* outResult)
 {
     lua_State* L = m_state;
@@ -537,8 +539,12 @@ bool ScriptingVM::callPointerEvent(ScriptedObject* object,
         return false;
     }
     lua_pushvalue(L, -2);
-    auto pointerEvent =
-        lua_newrive<ScriptedPointerEvent>(L, pointerId, localPosition);
+    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(L,
+                                                          pointerId,
+                                                          localPosition,
+                                                          Vec2D(),
+                                                          (int)hitType,
+                                                          timeStamp);
     if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 0)) !=
         LUA_OK)
     {

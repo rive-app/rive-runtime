@@ -275,6 +275,8 @@ public:
                           const char* method,
                           int pointerId,
                           Vec2D localPosition,
+                          ListenerType hitType,
+                          float timeStamp,
                           HitResult* outResult) override;
     bool callKeyboardEvent(ScriptedObject* object,
                            int selfRef,

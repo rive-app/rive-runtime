@@ -5,6 +5,7 @@
 
 #include "rive/hit_result.hpp"
 #include "rive/input/focusable.hpp"
+#include "rive/listener_type.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 
@@ -162,6 +163,8 @@ public:
                                   const char* method,
                                   int pointerId,
                                   Vec2D localPosition,
+                                  ListenerType hitType,
+                                  float timeStamp,
                                   HitResult* outResult) = 0;
     /// Drawable protocol: self.keyboardEvent(self, invocation) -> stop
     /// propagation.
