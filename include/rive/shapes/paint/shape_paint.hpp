@@ -24,6 +24,9 @@ class ShapePaint : public ShapePaintBase,
 protected:
     rcp<RenderPaint> m_RenderPaint;
     ShapePaintMutator* m_PaintMutator = nullptr;
+    // update() skipped measuring the effects because this paint was fully
+    // transparent. Showing the paint again owes them a run.
+    bool m_effectsDeferred = false;
 
 public:
     StatusCode onAddedClean(CoreContext* context) override;
@@ -33,7 +36,7 @@ public:
     virtual void invalidateRendering();
 
     float renderOpacity() const { return m_PaintMutator->renderOpacity(); }
-    void renderOpacity(float value) { m_PaintMutator->renderOpacity(value); }
+    void renderOpacity(float value);
 
     /// Syncs this paint's blend mode onto its RenderPaint. A ShapePaint whose
     /// blendModeValue is 127 inherits both the mode and the additive amount

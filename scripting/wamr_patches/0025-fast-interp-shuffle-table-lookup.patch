@@ -1,0 +1,65 @@
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -23,6 +23,11 @@
+ 
+ #if WASM_ENABLE_SIMDE != 0
+ #include "simde/wasm/simd128.h"
++#endif
++#if defined(__aarch64__) && defined(__ARM_NEON)
++#include <arm_neon.h>
++#elif defined(__SSSE3__)
++#include <tmmintrin.h>
+ #endif
+ 
+ /* rive patch: sw-bounds artifacts (Luau) must never unwind through hardware
+@@ -6666,9 +6671,10 @@
+                     /* TODO: Add a faster SIMD implementation */
+                     HANDLE_SIMD_OP(SIMD_v8x16_shuffle)
+                     {
++                        /* rive patch: one table lookup over both operands;
++                           lane indices were validated to 0..31 at load */
+                         V128 indices;
+-                        bh_memcpy_s(&indices, sizeof(V128), frame_ip,
+-                                    sizeof(V128));
++                        memcpy(&indices, frame_ip, sizeof(V128));
+                         frame_ip += sizeof(V128);
+ 
+                         V128 v2 = POP_V128();
+@@ -6676,6 +6682,29 @@
+                         addr_ret = GET_OFFSET();
+ 
+                         V128 result;
++#if defined(__aarch64__) && defined(__ARM_NEON)
++                        {
++                            uint8x16x2_t table;
++                            table.val[0] = vld1q_u8((const uint8_t *)&v1);
++                            table.val[1] = vld1q_u8((const uint8_t *)&v2);
++                            vst1q_u8((uint8_t *)&result,
++                                     vqtbl2q_u8(table, vld1q_u8((const uint8_t *)&indices)));
++                        }
++#elif defined(__SSSE3__)
++                        {
++                            __m128i idx = _mm_loadu_si128((const __m128i *)&indices);
++                            __m128i a = _mm_loadu_si128((const __m128i *)&v1);
++                            __m128i b = _mm_loadu_si128((const __m128i *)&v2);
++                            /* pshufb zeroes lanes whose index has bit 7 set */
++                            __m128i from_b = _mm_cmpgt_epi8(idx, _mm_set1_epi8(15));
++                            __m128i pick_a = _mm_shuffle_epi8(a, _mm_or_si128(idx, from_b));
++                            __m128i pick_b = _mm_shuffle_epi8(
++                                b, _mm_or_si128(
++                                       _mm_andnot_si128(from_b, _mm_set1_epi8((char)0x80)),
++                                       _mm_sub_epi8(idx, _mm_set1_epi8(16))));
++                            _mm_storeu_si128((__m128i *)&result, _mm_or_si128(pick_a, pick_b));
++                        }
++#else
+                         for (int i = 0; i < 16; i++) {
+                             uint8_t index = indices.i8x16[i];
+                             if (index < 16) {
+@@ -6685,6 +6714,7 @@
+                                 result.i8x16[i] = v2.i8x16[index - 16];
+                             }
+                         }
++#endif
+ 
+                         PUT_V128_TO_ADDR(frame_lp + addr_ret, result);
+                         HANDLE_SIMD_OP_END();

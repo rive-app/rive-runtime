@@ -43,6 +43,19 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
+void ShapePaint::renderOpacity(float value)
+{
+    m_PaintMutator->renderOpacity(value);
+    // A transparent shape usually defers its path too, and rebuilding that
+    // path when the shape shows is what brings Path dirt back here. Shapes
+    // that never defer (skinned ones, or ones following a path) build while
+    // hidden, so nothing else would re-run the effects this paint skipped.
+    if (m_effectsDeferred && value != 0)
+    {
+        addDirt(ComponentDirt::Path);
+    }
+}
+
 void ShapePaint::update(ComponentDirt value)
 {
     Super::update(value);
@@ -50,13 +63,15 @@ void ShapePaint::update(ComponentDirt value)
     if (hasDirt(value, ComponentDirt::Path) && shapeEffects->size() > 0)
     {
         auto container = ShapePaintContainer::from(parent());
-        // Hidden paints are re-invalidated when shown, so measuring now is
-        // wasted, unless a clip still reads the result.
+        // Hidden paints are re-invalidated when shown (see renderOpacity), so
+        // measuring now is wasted, unless a clip still reads the result.
         if (renderOpacity() == 0 &&
             (container->pathFlags() & PathFlags::clipping) == PathFlags::none)
         {
+            m_effectsDeferred = true;
             return;
         }
+        m_effectsDeferred = false;
         auto path = pickPath(container);
         for (auto& effect : *shapeEffects)
         {

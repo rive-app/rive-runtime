@@ -1,0 +1,33 @@
+--- a/core/iwasm/interpreter/wasm_interp_fast.c
++++ b/core/iwasm/interpreter/wasm_interp_fast.c
+@@ -6264,18 +6264,20 @@
+                 goto call_func_from_entry;
+             }
+ #if WASM_ENABLE_SIMDE != 0
+-#define SIMD_V128_TO_SIMDE_V128(s_v)                                    \
+-    ({                                                                  \
+-        bh_assert(sizeof(V128) == sizeof(simde_v128_t));                \
+-        simde_v128_t se_v;                                              \
+-        bh_memcpy_s(&se_v, sizeof(simde_v128_t), &(s_v), sizeof(V128)); \
+-        se_v;                                                           \
++/* rive patch: a constant sized memcpy folds to a register move, where the
++   checked bh_memcpy_s was an out of line call on every operand and result */
++#define SIMD_V128_TO_SIMDE_V128(s_v)                       \
++    ({                                                     \
++        bh_assert(sizeof(V128) == sizeof(simde_v128_t));   \
++        simde_v128_t se_v;                                 \
++        memcpy(&se_v, &(s_v), sizeof(simde_v128_t));       \
++        se_v;                                              \
+     })
+ 
+-#define SIMDE_V128_TO_SIMD_V128(sv, v)                                \
+-    do {                                                              \
+-        bh_assert(sizeof(V128) == sizeof(simde_v128_t));              \
+-        bh_memcpy_s(&(v), sizeof(V128), &(sv), sizeof(simde_v128_t)); \
++#define SIMDE_V128_TO_SIMD_V128(sv, v)                     \
++    do {                                                   \
++        bh_assert(sizeof(V128) == sizeof(simde_v128_t));   \
++        memcpy(&(v), &(sv), sizeof(V128));                 \
+     } while (0)
+ 
+             HANDLE_OP(WASM_OP_SIMD_PREFIX)

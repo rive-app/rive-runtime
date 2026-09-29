@@ -1,7 +1,13 @@
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/bones/skin.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/constraints/targeted_constraint.hpp"
+#include "rive/shapes/paint/stroke.hpp"
+#include "rive/shapes/paint/trim_path.hpp"
+#include "rive/shapes/points_path.hpp"
+#include "rive/shapes/shape.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/transform_component.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -86,5 +92,66 @@ TEST_CASE("constrained parts hidden during a fade come back constrained",
         shown->advance(0.0f);
 
         CHECK(constrained->worldTransform() == reference->worldTransform());
+    }
+}
+
+static bool hasSkinnedPath(rive::Shape* shape)
+{
+    for (auto path : shape->paths())
+    {
+        if (path->is<rive::PointsPath>() &&
+            path->as<rive::PointsPath>()->skin() != nullptr)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+TEST_CASE("a skinned shape measures its trim path when it fades in",
+          "[opacity]")
+{
+    // electrified_button_simple hides skinned shapes, stroked with an animated
+    // trim path, at zero opacity and fades them in on hover. A paint skips its
+    // effects while it is transparent and relies on being re-invalidated when
+    // it shows. A transparent shape normally defers its path, and rebuilding
+    // it on show is what re-invalidates the paint. Skinned shapes never defer,
+    // and once a fade stopped re-skinning them nothing re-invalidated their
+    // paints, so they faded in with an empty trim path.
+    auto file = ReadRiveFile("assets/electrified_button_simple.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto machine = artboard->stateMachineNamed("button");
+    REQUIRE(machine != nullptr);
+    machine->advanceAndApply(0.0f);
+
+    std::vector<std::pair<rive::TrimPath*, rive::Stroke*>> hidden;
+    for (auto trim : artboard->find<rive::TrimPath>())
+    {
+        auto parent = trim->parent();
+        if (parent == nullptr || !parent->is<rive::Stroke>())
+        {
+            continue;
+        }
+        auto stroke = parent->as<rive::Stroke>();
+        auto shape = stroke->parent();
+        if (shape != nullptr && shape->is<rive::Shape>() &&
+            hasSkinnedPath(shape->as<rive::Shape>()) &&
+            stroke->renderOpacity() == 0)
+        {
+            hidden.emplace_back(trim, stroke);
+        }
+    }
+    REQUIRE(!hidden.empty());
+
+    machine->pointerMove(rive::Vec2D(250.0f, 250.0f));
+    machine->advanceAndApply(0.0f);
+
+    for (auto [trim, stroke] : hidden)
+    {
+        REQUIRE(stroke->renderOpacity() != 0);
+        auto effectPath = trim->effectPath(stroke);
+        REQUIRE(effectPath != nullptr);
+        CHECK(!effectPath->rawPath()->empty());
     }
 }
