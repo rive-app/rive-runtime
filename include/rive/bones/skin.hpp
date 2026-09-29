@@ -32,6 +32,9 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     void buildDependencies() override;
     void deform(Span<Vertex*> vertices);
+    // The skinnable's world transform when it was bound. With every bone at
+    // its bind transform, deform maps a vertex through this alone.
+    const Mat2D& worldTransform() const { return m_WorldTransform; }
     void onDirty(ComponentDirt dirt) override;
     void update(ComponentDirt value) override;
 #ifdef WITH_RIVE_EDITOR

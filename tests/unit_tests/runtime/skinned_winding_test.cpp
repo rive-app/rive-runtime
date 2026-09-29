@@ -31,7 +31,9 @@ struct QuadRig
     rive::Skin* skin = new rive::Skin();
     std::vector<rive::StraightVertex*> vertices;
 
-    QuadRig(bool clockwise)
+    // The top bone is bound at y = 0 but starts at [topStartY], so a value
+    // past the bottom bone loads the path folded inside out.
+    QuadRig(bool clockwise, float topStartY = 0.0f)
     {
         artboard.addObject(&artboard);
         auto add = [&](rive::Component* component, rive::Core* parent) {
@@ -77,6 +79,7 @@ struct QuadRig
             tendon->ty(bone->y());
             add(tendon, skin);
         }
+        top->y(topStartY);
         REQUIRE(artboard.initialize() == rive::StatusCode::Ok);
     }
 
@@ -263,6 +266,26 @@ TEST_CASE("a fold without mirroring keeps the measured winding",
     CHECK(rig.skin->windingSign() == 1);
     CHECK(rig.deformedArea() < 0);
     CHECK(composed < 0);
+}
+
+// The winding is taken from the path as bound, not from whatever pose the first
+// frame shows: a rig that loads folded (say a data bound size that starts
+// narrow) must still fill once its bones unfold it.
+TEST_CASE("a folded first frame is not cached as the winding", "[skinwinding]")
+{
+    for (bool clockwise : {true, false})
+    {
+        QuadRig rig(clockwise, 200.0f);
+        float folded = rig.composedArea();
+        CHECK(rig.skin->windingSign() == 1);
+        CHECK((rig.deformedArea() < 0) == clockwise);
+        // Folded without mirroring, as in the test above.
+        CHECK(folded < 0);
+
+        rig.top->y(0.0f);
+        CHECK(rig.composedArea() > 0);
+        CHECK((rig.deformedArea() > 0) == clockwise);
+    }
 }
 
 TEST_CASE("a real rig stays clockwise when its bones mirror", "[skinwinding]")

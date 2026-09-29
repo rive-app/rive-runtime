@@ -19,8 +19,10 @@ public:
 #endif
 
 private:
-    // Measured winding with the bones' mirroring divided out, 0 when unknown.
+    // Winding with the bones' mirroring divided out, 0 when unknown.
     int m_windingReference = 0;
+    // Winding of the path as bound, 0 when it has no area there.
+    int bindWinding();
 };
 } // namespace rive
 
