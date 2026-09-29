@@ -381,8 +381,17 @@ ViewModelInstanceValue* ViewModelInstance::propertyFromPath(
 
 void ViewModelInstance::advanced()
 {
-    for (auto value : m_PropertyValues)
+    // Walked by index: a value's changed callback (tools builds only) runs
+    // inside its advanced() and can remove values, which would invalidate an
+    // iterator. A removal at worst leaves the value after it for next frame.
+    for (size_t i = 0; i < m_PropertyValues.size(); i++)
     {
+#ifdef WITH_RIVE_TOOLS
+        // The callback can free this value too, so it is held meanwhile.
+        auto value = m_PropertyValues[i];
+#else
+        const auto& value = m_PropertyValues[i];
+#endif
         value->advanced();
     }
 }

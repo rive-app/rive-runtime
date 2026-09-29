@@ -65,6 +65,11 @@ enum class LayoutComponentFlags : uint16_t
     // when drawProxy() never ran (e.g. a pure container whose proxy isn't in
     // the draw order but whose clip() turned on at runtime).
     ClipSaved = 1 << 13,
+    // Whether the style's display is none, kept here because isCollapsed() and
+    // isHidden() run for every layout on every advance and draw, and reading
+    // it from the style chases a pointer each time. Refreshed wherever the
+    // style or its display changes (see refreshStyleDisplayHidden).
+    StyleDisplayHidden = 1 << 14,
 };
 
 class Layout
@@ -322,6 +327,7 @@ protected:
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
     bool styleDisplayHidden() const;
+    void refreshStyleDisplayHidden();
 #endif
 
 public:
@@ -335,7 +341,13 @@ public:
     Core* clone() const override;
 
     LayoutComponentStyle* style() { return m_style; }
-    void style(LayoutComponentStyle* style) { m_style = style; }
+    void style(LayoutComponentStyle* style)
+    {
+        m_style = style;
+#ifdef WITH_RIVE_LAYOUT
+        refreshStyleDisplayHidden();
+#endif
+    }
 
     void draw(Renderer* renderer) override;
     void drawProxy(Renderer* renderer) override;

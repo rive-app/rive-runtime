@@ -238,8 +238,17 @@ Core* ViewModelInstanceList::clone() const
 
 void ViewModelInstanceList::advanced()
 {
-    for (auto item : m_ListItems)
+    // Walked by index: a changed callback in an item's values (tools builds
+    // only) can remove items while they advance, which would invalidate an
+    // iterator. A removal at worst leaves the item after it for next frame.
+    for (size_t i = 0; i < m_ListItems.size(); i++)
     {
+#ifdef WITH_RIVE_TOOLS
+        // The callback can free this item too, so it is held meanwhile.
+        auto item = m_ListItems[i];
+#else
+        const auto& item = m_ListItems[i];
+#endif
         if (item->viewModelInstance() != nullptr)
         {
             item->viewModelInstance()->advanced();

@@ -1555,3 +1555,120 @@ TEST_CASE("Component List rows without an artboard", "[component_list]")
     REQUIRE(scroll->offsetX() == 0);
     REQUIRE(scroll->offsetY() == 0);
 }
+
+// A virtualized list reaches a row's instances by the row's index, but they
+// belong to the row's item: they follow the item when the list reorders, rows
+// showing the same item share them, and they leave every such row once the
+// item scrolls away.
+TEST_CASE("Component List Virtualized rows follow their items",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(list->virtualizationEnabled() == true);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+    rive::ViewModelInstanceList* items = nullptr;
+    for (auto& value : viewModelInstance->propertyValues())
+    {
+        if (value->is<rive::ViewModelInstanceList>())
+        {
+            items = value->as<rive::ViewModelInstanceList>();
+            break;
+        }
+    }
+    REQUIRE(items != nullptr);
+
+    // Rows 0-4 are on screen.
+    artboard->advance(0.0f);
+    auto first = list->artboardInstance(0);
+    auto second = list->artboardInstance(1);
+    auto firstMachine = list->stateMachineInstance(0);
+    auto secondMachine = list->stateMachineInstance(1);
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(first != second);
+
+    items->swap(0, 1);
+    artboard->advance(0.0f);
+    CHECK(list->artboardInstance(0) == second);
+    CHECK(list->artboardInstance(1) == first);
+    CHECK(list->stateMachineInstance(0) == secondMachine);
+    CHECK(list->stateMachineInstance(1) == firstMachine);
+
+    // Show row 3's item on row 2 too, which moves it to rows 2 and 4.
+    auto shared = list->artboardInstance(3);
+    REQUIRE(shared != nullptr);
+    items->addItemAt(items->listItems()[3], 2);
+    artboard->advance(0.0f);
+    CHECK(list->artboardInstance(2) == shared);
+    CHECK(list->artboardInstance(4) == shared);
+    CHECK(list->stateMachineInstance(2) != nullptr);
+    CHECK(list->stateMachineInstance(2) == list->stateMachineInstance(4));
+
+    scroll->setScrollIndex(10);
+    artboard->advance(0.0f);
+    for (int i = 0; i < 5; i++)
+    {
+        CHECK(list->artboardInstance(i) == nullptr);
+        CHECK(list->stateMachineInstance(i) == nullptr);
+    }
+}
+
+// Inserting items at the front of a virtualized list realizes the new rows
+// while the list updates. The list's focus scope must still end up with one
+// row node per item and nothing else.
+TEST_CASE("Component List Virtualized keeps one focus row per item",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(viewModelInstance);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(list->virtualizationEnabled() == true);
+    auto scope = list->listScopeFocusNode();
+    REQUIRE(scope != nullptr);
+    CHECK(scope->children().size() == list->artboardCount());
+
+    rive::ViewModelInstanceList* items = nullptr;
+    for (auto& value : viewModelInstance->propertyValues())
+    {
+        if (value->is<rive::ViewModelInstanceList>())
+        {
+            items = value->as<rive::ViewModelInstanceList>();
+            break;
+        }
+    }
+    REQUIRE(items != nullptr);
+    auto viewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+    for (int i = 0; i < 3; i++)
+    {
+        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+        item->viewModelInstance(
+            file->createDefaultViewModelInstance(viewModel));
+        items->addItemAt(item, 0);
+    }
+    stateMachine->advanceAndApply(0.016f);
+
+    REQUIRE(list->artboardCount() == 23);
+    CHECK(scope->children().size() == 23);
+}

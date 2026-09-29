@@ -29,14 +29,14 @@ class ArtboardListMapRule;
 class ArtboardListDrawIndexDependent;
 class FocusManager;
 
-class ArtboardComponentList : public ArtboardComponentListBase,
-                              public ArtboardHost,
-                              public AdvancingComponent,
-                              public ResettingComponent,
-                              public LayoutNodeProvider,
-                              public DataBindListItemConsumer,
-                              public VirtualizingComponent,
-                              public ConstrainableList
+class ArtboardComponentList final : public ArtboardComponentListBase,
+                                    public ArtboardHost,
+                                    public AdvancingComponent,
+                                    public ResettingComponent,
+                                    public LayoutNodeProvider,
+                                    public DataBindListItemConsumer,
+                                    public VirtualizingComponent,
+                                    public ConstrainableList
 {
 private:
     std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
@@ -210,9 +210,17 @@ private:
     std::unordered_map<ArtboardInstance*, Mat2D> m_artboardTransforms;
     Vec2D artboardPosition(ArtboardInstance* artboard);
 
-    // Vectors used for access in non-virtualized mode
+    // Each row's instances, or null for a row that isn't realized. They mirror
+    // the maps above, which own the instances, so per-row loops can reach a
+    // row without hashing its item.
     std::vector<ArtboardInstance*> m_artboardInstancesByIndex;
     std::vector<StateMachineInstance*> m_stateMachinesByIndex;
+    // Points the row at index, and any other row showing the same item, at
+    // the item's instances.
+    void setRowsForItem(int index,
+                        const rcp<ViewModelInstanceListItem>& item,
+                        ArtboardInstance* artboard,
+                        StateMachineInstance* stateMachine);
 
     File* m_file = nullptr;
     std::vector<Vec2D> m_artboardSizes;
@@ -238,6 +246,11 @@ private:
         const std::vector<rcp<FocusNode>>& previousRowNodes);
     rcp<FocusNode> makeListRowFocusNode() const;
     void reparentListRowsInScope(FocusManager* fm);
+    // Whether the scope's children are exactly the rows, in order.
+    bool listRowNodesInPlace() const;
+    // Wires each realized row's state machine to the manager and builds the
+    // row's focus tree under it when needed.
+    void buildListRowFocusTrees(FocusManager* fm);
     bool listItemNeedsBuildUnderRow(FocusManager* parentFM,
                                     ArtboardInstance* inst,
                                     rcp<FocusNode> row) const;
@@ -245,6 +258,8 @@ private:
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);
     bool m_shouldResetInstances = false;
+    // Whether some item shows on more than one row.
+    bool m_listHasDuplicateItems = false;
     bool listsAreEqual(std::vector<rcp<ViewModelInstanceListItem>>* list,
                        std::vector<rcp<ViewModelInstanceListItem>>* compared);
 
@@ -257,6 +272,8 @@ private:
 
     bool m_listUsesDrawIndexSort = false;
     bool m_orderedListIndicesCacheValid = false;
+    // Set while updateList runs, which syncs the focus rows once at its end.
+    bool m_updatingList = false;
     /// Always paint / scroll order (ascending drawIndex when enabled).
     std::vector<int> m_cachedOrderedListIndices;
     std::unordered_map<rcp<ViewModelInstanceListItem>,

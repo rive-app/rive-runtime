@@ -643,6 +643,7 @@ StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
     m_style = static_cast<LayoutComponentStyle*>(coreStyle);
     addChild(m_style);
 #ifdef WITH_RIVE_LAYOUT
+    refreshStyleDisplayHidden();
     // We contribute sizing the style cannot see; it contributes the rest.
     addLayoutStyleApplier(this);
     addLayoutStyleApplier(m_style);
@@ -1318,11 +1319,19 @@ void LayoutComponent::calculateLayoutInternal(float availableWidth,
 
 bool LayoutComponent::styleDisplayHidden() const
 {
-    if (m_style == nullptr)
-    {
-        return false;
-    }
-    return m_style->display() == YGDisplayNone;
+#ifdef WITH_RIVE_EDITOR
+    // The editor can change a style under us without telling this layout, so
+    // read it every time there.
+    return m_style != nullptr && m_style->display() == YGDisplayNone;
+#else
+    return hasLayoutFlag(LayoutComponentFlags::StyleDisplayHidden);
+#endif
+}
+
+void LayoutComponent::refreshStyleDisplayHidden()
+{
+    setLayoutFlag(LayoutComponentFlags::StyleDisplayHidden,
+                  m_style != nullptr && m_style->display() == YGDisplayNone);
 }
 
 LayoutDirection LayoutComponent::actualDirection()
@@ -1883,6 +1892,7 @@ void LayoutComponent::displayChanged()
     {
         return;
     }
+    refreshStyleDisplayHidden();
     propagateCollapse(isCollapsed());
     markLayoutNodeDirty();
 }

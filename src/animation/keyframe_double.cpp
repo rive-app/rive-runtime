@@ -1,6 +1,7 @@
 #include "rive/animation/keyframe_double.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/blend_accumulator.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 
 using namespace rive;
@@ -52,6 +53,14 @@ void KeyFrameDouble::apply(Core* object,
                            float mix,
                            const LinearAnimationInstance* context)
 {
+    if (context != nullptr && context->blendAccumulator() != nullptr)
+    {
+        context->blendAccumulator()->applyDouble(object,
+                                                 propertyKey,
+                                                 mix,
+                                                 effectiveValue(context));
+        return;
+    }
     applyDouble(object, propertyKey, mix, effectiveValue(context));
 }
 
@@ -80,5 +89,13 @@ void KeyFrameDouble::applyInterpolation(Core* object,
         frameValue = fromValue + (toValue - fromValue) * f;
     }
 
+    if (context != nullptr && context->blendAccumulator() != nullptr)
+    {
+        context->blendAccumulator()->applyDouble(object,
+                                                 propertyKey,
+                                                 mix,
+                                                 frameValue);
+        return;
+    }
     applyDouble(object, propertyKey, mix, frameValue);
 }

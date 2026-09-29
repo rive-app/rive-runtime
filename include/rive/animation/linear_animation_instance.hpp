@@ -18,6 +18,7 @@ class ScriptedInterpolator;
 class DataBind;
 class KeyFrame;
 class BindableProperty;
+class BlendAccumulator;
 struct LAIBindingExtras;
 
 class LinearAnimationInstance : public Scene, public NestedEventNotifier
@@ -51,6 +52,14 @@ public:
     // standalone), mirroring the scripted-interpolator mechanism below. Holders
     // and clones are owned by this LAI and torn down in the destructor.
     BindableProperty* keyFrameValueHolder(const KeyFrame* keyframe) const;
+
+    // Where this instance's number and color writes go instead of straight to
+    // the objects, when a blend state owns it; see BlendAccumulator.
+    BlendAccumulator* blendAccumulator() const { return m_blendAccumulator; }
+    void blendAccumulator(BlendAccumulator* value)
+    {
+        m_blendAccumulator = value;
+    }
 
     // Returns the current point in time at which this instance has advance
     // to
@@ -142,6 +151,7 @@ public:
     void reportEvent(Event* event, float secondsDelay = 0.0f) override;
 
 private:
+    BlendAccumulator* m_blendAccumulator = nullptr;
     const LinearAnimation* m_animation = nullptr;
     float m_time;
     float m_speedDirection;

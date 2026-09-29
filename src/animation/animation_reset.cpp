@@ -1,4 +1,5 @@
 #include "rive/animation/animation_reset.hpp"
+#include "rive/animation/blend_accumulator.hpp"
 #include "rive/core/vector_binary_writer.hpp"
 #include "rive/generated/core_registry.hpp"
 
@@ -38,7 +39,8 @@ void AnimationReset::complete()
     }
 }
 
-void AnimationReset::apply(Artboard* artboard)
+template <typename Visit>
+void AnimationReset::forEachValue(Artboard* artboard, Visit&& visit)
 {
     if (m_WriteBuffer.empty())
     {
@@ -55,6 +57,17 @@ void AnimationReset::apply(Artboard* artboard)
         {
             auto propertyKey = m_binaryReader.readVarUint32();
             auto propertyValue = m_binaryReader.readFloat32();
+            visit(object, propertyKey, propertyValue);
+            currentPropertyIndex++;
+        }
+    }
+}
+
+void AnimationReset::apply(Artboard* artboard)
+{
+    forEachValue(
+        artboard,
+        [](Core* object, uint32_t propertyKey, float propertyValue) {
             switch (CoreRegistry::propertyFieldId(propertyKey))
             {
                 case CoreDoubleType::id:
@@ -64,7 +77,25 @@ void AnimationReset::apply(Artboard* artboard)
                     CoreRegistry::setColor(object, propertyKey, propertyValue);
                     break;
             }
-            currentPropertyIndex++;
-        }
-    }
+        });
+}
+
+void AnimationReset::seed(Artboard* artboard, BlendAccumulator& accumulator)
+{
+    forEachValue(
+        artboard,
+        [&](Core* object, uint32_t propertyKey, float propertyValue) {
+            switch (CoreRegistry::propertyFieldId(propertyKey))
+            {
+                case CoreDoubleType::id:
+                    accumulator.seedDouble(object, propertyKey, propertyValue);
+                    break;
+                case CoreColorType::id:
+                    // The same conversion apply() makes through setColor.
+                    accumulator.seedColor(object,
+                                          propertyKey,
+                                          (ColorInt)(int)propertyValue);
+                    break;
+            }
+        });
 }

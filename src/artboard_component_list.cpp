@@ -75,6 +75,25 @@ private:
 };
 } // namespace rive
 
+// Rows that show the same item share its instances, and keeping them in step
+// takes a scan of every row. Most lists show each item once.
+static bool hasDuplicateItems(
+    const std::vector<rcp<ViewModelInstanceListItem>>& items)
+{
+    if (items.size() < 2)
+    {
+        return false;
+    }
+    std::vector<const ViewModelInstanceListItem*> sorted;
+    sorted.reserve(items.size());
+    for (const auto& item : items)
+    {
+        sorted.push_back(item.get());
+    }
+    std::sort(sorted.begin(), sorted.end());
+    return std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end();
+}
+
 ArtboardComponentList::ArtboardComponentList() {}
 ArtboardComponentList::~ArtboardComponentList() { clear(); }
 
@@ -141,6 +160,7 @@ void ArtboardComponentList::clear()
     m_stateMachinesByIndex.clear();
     m_artboardInstancesMap.clear();
     m_listItems.clear();
+    m_listHasDuplicateItems = false;
     m_artboardsMap.clear();
     m_resourcePool.clear();
     m_stateMachinesPool.clear();
@@ -157,22 +177,9 @@ rcp<ViewModelInstanceListItem> ArtboardComponentList::listItem(int index)
 }
 ArtboardInstance* ArtboardComponentList::artboardInstance(int index)
 {
-    if (!virtualizationEnabled())
+    if (index >= 0 && index < m_artboardInstancesByIndex.size())
     {
-        if (index >= 0 && index < m_artboardInstancesByIndex.size())
-        {
-            return m_artboardInstancesByIndex[index];
-        }
-        return nullptr;
-    }
-    if (index >= 0 && index < m_listItems.size())
-    {
-        auto item = listItem(index);
-        auto itr = m_artboardInstancesMap.find(item);
-        if (itr != m_artboardInstancesMap.end())
-        {
-            return itr->second.get();
-        }
+        return m_artboardInstancesByIndex[index];
     }
     return nullptr;
 }
@@ -196,24 +203,37 @@ int ArtboardComponentList::indexOfArtboardInstance(
 }
 StateMachineInstance* ArtboardComponentList::stateMachineInstance(int index)
 {
-    if (!virtualizationEnabled())
+    if (index >= 0 && index < m_stateMachinesByIndex.size())
     {
-        if (index >= 0 && index < m_stateMachinesByIndex.size())
-        {
-            return m_stateMachinesByIndex[index];
-        }
-        return nullptr;
-    }
-    if (index >= 0 && index < m_listItems.size())
-    {
-        auto item = listItem(index);
-        auto itr = m_stateMachinesMap.find(item);
-        if (itr != m_stateMachinesMap.end())
-        {
-            return itr->second.get();
-        }
+        return m_stateMachinesByIndex[index];
     }
     return nullptr;
+}
+
+void ArtboardComponentList::setRowsForItem(
+    int index,
+    const rcp<ViewModelInstanceListItem>& item,
+    ArtboardInstance* artboard,
+    StateMachineInstance* stateMachine)
+{
+    if (!m_listHasDuplicateItems)
+    {
+        if (index >= 0 && static_cast<size_t>(index) < m_listItems.size() &&
+            m_listItems[index] == item)
+        {
+            m_artboardInstancesByIndex[index] = artboard;
+            m_stateMachinesByIndex[index] = stateMachine;
+        }
+        return;
+    }
+    for (size_t i = 0; i < m_listItems.size(); i++)
+    {
+        if (m_listItems[i] == item)
+        {
+            m_artboardInstancesByIndex[i] = artboard;
+            m_stateMachinesByIndex[i] = stateMachine;
+        }
+    }
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -576,6 +596,15 @@ void ArtboardComponentList::syncListRowNodesWithList(FocusManager* fm)
         }
         return;
     }
+    if (fm != nullptr && listRowNodesInPlace())
+    {
+        // The list hasn't changed and its rows already sit under the scope in
+        // order, so matching them to the list (O(n^2)) and re-parenting them
+        // would rebuild the same tree. This runs whenever a virtualized list
+        // realizes rows, so only the realized rows' focus trees get work.
+        buildListRowFocusTrees(fm);
+        return;
+    }
     std::vector<rcp<ViewModelInstanceListItem>> listCopy = m_listItems;
     std::vector<rcp<FocusNode>> rowCopy = m_listRowFocusNodes;
     syncListRowNodesWithList(fm, listCopy, rowCopy);
@@ -651,6 +680,35 @@ void ArtboardComponentList::syncListRowNodesWithList(
         }
     }
     reparentListRowsInScope(fm);
+    buildListRowFocusTrees(fm);
+}
+
+bool ArtboardComponentList::listRowNodesInPlace() const
+{
+    if (m_listScopeFocusNode == nullptr ||
+        m_listRowFocusNodes.size() != m_listItems.size())
+    {
+        return false;
+    }
+    const auto& children = m_listScopeFocusNode->children();
+    if (children.size() != m_listRowFocusNodes.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < children.size(); i++)
+    {
+        if (m_listRowFocusNodes[i] == nullptr ||
+            children[i] != m_listRowFocusNodes[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void ArtboardComponentList::buildListRowFocusTrees(FocusManager* fm)
+{
+    const int n = static_cast<int>(m_listItems.size());
     for (int i = 0; i < n; i++)
     {
         ArtboardInstance* inst = artboardInstance(i);
@@ -747,21 +805,23 @@ void ArtboardComponentList::updateList(
     const std::vector<rcp<ViewModelInstanceListItem>> preListItems =
         m_listItems;
     const std::vector<rcp<FocusNode>> preRowNodes = m_listRowFocusNodes;
+    // Laying out a virtualized list below realizes rows, which would sync the
+    // focus rows against the new list with rows still matching the old one;
+    // the sync at the end, against the rows the update started from, covers
+    // those rows too.
+    const bool wasUpdatingList = m_updatingList;
+    m_updatingList = true;
     m_oldItems.clear();
     m_oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();
     m_listItems.assign(list->begin(), list->end());
+    m_listHasDuplicateItems = hasDuplicateItems(m_listItems);
     invalidateOrderedListIndicesCache();
     m_artboardSizes.clear();
 
     // Clear the index vectors - they'll be rebuilt as artboards are created
-    m_artboardInstancesByIndex.clear();
-    m_stateMachinesByIndex.clear();
-    if (!virtualizationEnabled())
-    {
-        m_artboardInstancesByIndex.resize(m_listItems.size(), nullptr);
-        m_stateMachinesByIndex.resize(m_listItems.size(), nullptr);
-    }
+    m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
+    m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
 
     auto p = layoutParent();
     if (p != nullptr)
@@ -792,22 +852,19 @@ void ArtboardComponentList::updateList(
                 Vec2D(artboard->width(), artboard->height()));
         }
         auto itr = m_artboardInstancesMap.find(item);
-        if (!virtualizationEnabled())
+        if (itr != m_artboardInstancesMap.end())
         {
-            if (itr == m_artboardInstancesMap.end())
+            // Existing artboard - update index vectors
+            m_artboardInstancesByIndex[index] = itr->second.get();
+            auto smItr = m_stateMachinesMap.find(item);
+            if (smItr != m_stateMachinesMap.end())
             {
-                createArtboardAt(index, false);
+                m_stateMachinesByIndex[index] = smItr->second.get();
             }
-            else
-            {
-                // Existing artboard - update index vectors
-                m_artboardInstancesByIndex[index] = itr->second.get();
-                auto smItr = m_stateMachinesMap.find(item);
-                if (smItr != m_stateMachinesMap.end())
-                {
-                    m_stateMachinesByIndex[index] = smItr->second.get();
-                }
-            }
+        }
+        else if (!virtualizationEnabled())
+        {
+            createArtboardAt(index, false);
         }
         index++;
     }
@@ -818,6 +875,7 @@ void ArtboardComponentList::updateList(
     addDirt(ComponentDirt::Components);
     recomputeListUsesDrawIndexSort();
     syncDrawIndexListeners();
+    m_updatingList = wasUpdatingList;
     auto* parentAb = artboard();
     if (parentAb != nullptr && parentAb->focusManager() != nullptr &&
         m_listScopeFocusNode != nullptr)
@@ -902,19 +960,19 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
 
 void ArtboardComponentList::reset()
 {
-    for (auto& item : m_listItems)
+    for (size_t i = 0; i < m_listItems.size(); i++)
     {
-        auto itr = m_artboardInstancesMap.find(item);
+        auto artboard = m_artboardInstancesByIndex[i];
         if (m_shouldResetInstances)
         {
-            auto viewModelInstance = item->viewModelInstance();
+            auto viewModelInstance = m_listItems[i]->viewModelInstance();
             if (viewModelInstance != nullptr)
             {
                 viewModelInstance->advanced();
             }
-            if (itr != m_artboardInstancesMap.end() && itr->second != nullptr)
+            if (artboard != nullptr)
             {
-                auto dataContext = itr->second->dataContext();
+                auto dataContext = artboard->dataContext();
                 if (dataContext != nullptr)
                 {
                     auto boundInstance = dataContext->mainViewModelInstance();
@@ -926,9 +984,9 @@ void ArtboardComponentList::reset()
                 }
             }
         }
-        if (itr != m_artboardInstancesMap.end())
+        if (artboard != nullptr)
         {
-            itr->second->reset();
+            artboard->reset();
         }
     }
 }
@@ -978,15 +1036,14 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
 void ArtboardComponentList::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {
-    // TODO: Should optimize this
-    for (int i = 0; i < artboardCount(); i++)
+    // Only an artboard showing in a row joins the parent's layout. Artboards
+    // in the pools get here too, whenever reusing one resets its properties.
+    if (artboardInstance != nullptr &&
+        std::find(m_artboardInstancesByIndex.begin(),
+                  m_artboardInstancesByIndex.end(),
+                  artboardInstance) != m_artboardInstancesByIndex.end())
     {
-        auto artboard = this->artboardInstance(i);
-        if (artboard != nullptr && artboard == artboardInstance)
-        {
-            this->artboard()->markLayoutDirty(artboardInstance);
-            break;
-        }
+        this->artboard()->markLayoutDirty(artboardInstance);
     }
     markWorldTransformDirty();
 }
@@ -1509,6 +1566,15 @@ void ArtboardComponentList::addArtboardAt(
     {
         auto artboardInstance = artboard.get();
         m_artboardInstancesMap[item] = std::move(artboard);
+        // In a virtualized list, the rows showing the item get each new
+        // instance right away: hosting it and syncing the layout below look it
+        // up by row. A list can show one item on several rows, and those rows
+        // share its instances.
+        const bool virtualized = virtualizationEnabled();
+        if (virtualized)
+        {
+            setRowsForItem(index, item, artboardInstance, nullptr);
+        }
         bindArtboard(artboardInstance, item);
         if (artboardInstance != nullptr)
         {
@@ -1535,6 +1601,10 @@ void ArtboardComponentList::addArtboardAt(
                 sm->resetState();
                 applyRecorders(sm, artboard);
                 m_stateMachinesMap[item] = std::move(smPool.back());
+                if (virtualized)
+                {
+                    setRowsForItem(index, item, artboardInstance, sm);
+                }
                 linkStateMachineToArtboard(sm, artboardInstance);
                 stateMachineInstance = sm;
                 smPool.pop_back();
@@ -1546,15 +1616,19 @@ void ArtboardComponentList::addArtboardAt(
                 createStateMachineInstance(this, artboardInstance);
             stateMachineInstance = stateMachineCopy.get();
             m_stateMachinesMap[item] = std::move(stateMachineCopy);
+            if (virtualized)
+            {
+                setRowsForItem(index,
+                               item,
+                               artboardInstance,
+                               stateMachineInstance);
+            }
         }
 
-        if (!virtualizationEnabled())
+        if (!virtualized)
         {
-            if (index >= m_artboardInstancesByIndex.size())
-            {
-                m_artboardInstancesByIndex.resize(index + 1, nullptr);
-                m_stateMachinesByIndex.resize(index + 1, nullptr);
-            }
+            // updateList builds a non-virtualized list's rows in order and
+            // gives an item's later rows the instances made for its first.
             m_artboardInstancesByIndex[index] = artboardInstance;
             m_stateMachinesByIndex[index] = stateMachineInstance;
         }
@@ -1584,13 +1658,9 @@ void ArtboardComponentList::bindArtboard(
 
 void ArtboardComponentList::removeArtboardAt(int index)
 {
-    if (!virtualizationEnabled() && index >= 0 &&
-        index < m_artboardInstancesByIndex.size())
-    {
-        m_artboardInstancesByIndex[index] = nullptr;
-        m_stateMachinesByIndex[index] = nullptr;
-    }
     auto item = listItem(index);
+    // The rows let go of the item's instances before they are destroyed.
+    setRowsForItem(index, item, nullptr, nullptr);
     removeArtboard(item);
 }
 
@@ -1728,6 +1798,10 @@ void ArtboardComponentList::addVirtualizable(int index)
 
 void ArtboardComponentList::virtualizableChanged()
 {
+    if (m_updatingList)
+    {
+        return;
+    }
     auto* parentArtboard = this->artboard();
     if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
     {
@@ -1744,6 +1818,9 @@ void ArtboardComponentList::removeVirtualizable(int index)
     auto listItem = this->listItem(index);
     if (listItem != nullptr)
     {
+        // The rows let go of the item's instances before they move to the
+        // pools.
+        setRowsForItem(index, listItem, nullptr, nullptr);
         auto artboard = findArtboard(listItem);
         auto artboardInstance = std::move(m_artboardInstancesMap[listItem]);
         if (artboard != nullptr && artboardInstance != nullptr)

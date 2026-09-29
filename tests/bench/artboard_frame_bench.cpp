@@ -48,6 +48,8 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "utils/no_op_renderer.hpp"
 
 #include <algorithm>
@@ -267,7 +269,16 @@ enum class Scenario
     // One layout keeps tweening: its width flips every half second and
     // animates to the new width over half a second.
     tween,
+    // Every view model list grows to kLongListItems rows, each a default
+    // instance of its first item's view model, then the scene idles: in a
+    // virtualized list most rows stay unrealized, so this is what each per-row
+    // pass costs.
+    longList,
+    // As longList, then the lists' scroll constraints sweep a tenth of their
+    // content back and forth, so rows keep being realized and recycled.
+    longListScroll,
 };
+constexpr size_t kLongListItems = 1000;
 
 enum class RendererKind
 {
@@ -409,6 +420,7 @@ private:
         m_tweenStyle = nullptr;
         m_tweenLayout = nullptr;
         m_tweenLayoutNested = false;
+        m_longLists = 0;
         m_artboard = m_file->artboardDefault();
         m_viewModelInstance =
             m_file->createDefaultViewModelInstance(m_artboard.get());
@@ -580,9 +592,47 @@ private:
                 }
                 break;
             }
+            case Scenario::longList:
+                growLists();
+                break;
+            case Scenario::longListScroll:
+                growLists();
+                m_scrolls = m_artboard->find<ScrollConstraint>();
+                break;
             case Scenario::idle:
             case Scenario::fade:
                 break;
+        }
+    }
+
+    void growLists()
+    {
+        if (m_viewModelInstance == nullptr)
+        {
+            return;
+        }
+        for (auto& value : m_viewModelInstance->propertyValues())
+        {
+            if (!value->is<ViewModelInstanceList>())
+            {
+                continue;
+            }
+            auto list = value->as<ViewModelInstanceList>();
+            const size_t count = list->listItems().size();
+            if (count == 0)
+            {
+                continue;
+            }
+            auto viewModel =
+                list->listItems()[0]->viewModelInstance()->viewModel();
+            for (size_t i = count; i < kLongListItems; i++)
+            {
+                auto item = make_rcp<ViewModelInstanceListItem>();
+                item->viewModelInstance(
+                    m_file->createDefaultViewModelInstance(viewModel));
+                list->addItem(item);
+            }
+            m_longLists++;
         }
     }
 
@@ -606,6 +656,18 @@ private:
                     : m_tweenLayoutNested
                         ? "tweening a layout in a nested artboard"
                         : "tweening a layout in the artboard");
+        }
+        if (m_scenario == Scenario::longList ||
+            m_scenario == Scenario::longListScroll)
+        {
+            fprintf(stderr,
+                    "artboard_frame_bench: %d lists grown to %zu rows\n",
+                    m_longLists,
+                    kLongListItems);
+        }
+        if (m_scenario == Scenario::longListScroll && m_scrolls.empty())
+        {
+            fprintf(stderr, "artboard_frame_bench: no scroll constraint\n");
         }
         if (m_scenario == Scenario::round)
         {
@@ -664,7 +726,24 @@ private:
                                                    8.0f * std::sin(phase));
                 }
                 break;
+            case Scenario::longListScroll:
+                for (auto scroll : m_scrolls)
+                {
+                    float t = 0.5f - 0.5f * std::cos(phase);
+                    if (scroll->constrainsHorizontal())
+                    {
+                        scroll->scrollOffsetX(-0.1f * scroll->contentWidth() *
+                                              t);
+                    }
+                    if (scroll->constrainsVertical())
+                    {
+                        scroll->scrollOffsetY(-0.1f * scroll->contentHeight() *
+                                              t);
+                    }
+                }
+                break;
             case Scenario::idle:
+            case Scenario::longList:
                 break;
         }
 
@@ -766,6 +845,7 @@ private:
     LayoutComponentStyleBase* m_tweenStyle = nullptr;
     LayoutComponent* m_tweenLayout = nullptr;
     bool m_tweenLayoutNested = false;
+    int m_longLists = 0;
     mutable uint64_t m_frame = 0;
     bool m_skipped = false;
 };
@@ -860,6 +940,14 @@ ARTBOARD_FRAME_BENCH(trim_path_idle, "trim_path.riv", idle, counting)
 ARTBOARD_FRAME_BENCH(trim_path_move, "trim_path.riv", move, counting)
 
 // Nested artboards and lists.
+ARTBOARD_FRAME_BENCH(component_list_virtualized_long,
+                     "component_list_virtualized.riv",
+                     longList,
+                     counting)
+ARTBOARD_FRAME_BENCH(component_list_virtualized_long_scroll,
+                     "component_list_virtualized.riv",
+                     longListScroll,
+                     counting)
 ARTBOARD_FRAME_BENCH(planets_grid_idle,
                      "layoutstest_8-planets-grid.riv",
                      idle,

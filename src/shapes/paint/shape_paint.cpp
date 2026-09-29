@@ -12,6 +12,11 @@ using namespace rive;
 
 StatusCode ShapePaint::onAddedClean(CoreContext* context)
 {
+    // Every child has registered with us by now (onAddedDirty runs for all
+    // objects first).
+    m_hasPaintImage = firstChild<PaintImage>() != nullptr;
+    m_isFill = is<Fill>();
+
     auto container = ShapePaintContainer::from(parent());
     if (container == nullptr)
     {
@@ -231,7 +236,12 @@ void ShapePaint::draw(Renderer* renderer,
     if (renderPath != nullptr)
     {
         // Ugh, can't we make fillRule part of the Paint?
-        if (!usePathFillRule && is<Fill>())
+#ifdef WITH_RIVE_EDITOR
+        const bool isFill = is<Fill>();
+#else
+        const bool isFill = m_isFill;
+#endif
+        if (!usePathFillRule && isFill)
         {
             renderPath->fillRule((FillRule)as<Fill>()->fillRule());
         }
@@ -257,7 +267,11 @@ void ShapePaint::draw(Renderer* renderer,
 
 void ShapePaint::applyModulatedImage(const ShapePaintPath* path)
 {
+#ifdef WITH_RIVE_EDITOR
     PaintImage* image = firstChild<PaintImage>();
+#else
+    PaintImage* image = m_hasPaintImage ? firstChild<PaintImage>() : nullptr;
+#endif
     if (image != nullptr &&
         image->applyTo(renderPaint(), path->rawPath()->bounds()))
     {

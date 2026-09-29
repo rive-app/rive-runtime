@@ -126,6 +126,14 @@ private:
     void applyModulatedImage(const ShapePaintPath* path);
 
     Feather* m_feather = nullptr;
+    /// Whether this paint has a PaintImage child, and whether it is a Fill,
+    /// both found once all children are known (onAddedClean): draw() needs
+    /// them on every call, and at runtime neither changes after import. They
+    /// sit in padding, so they cost no memory, and only a paint that has the
+    /// child looks it up. The editor can add or remove the child, so it checks
+    /// both on every draw instead.
+    bool m_hasPaintImage = false;
+    bool m_isFill = false;
     /// Whether the last draw installed a modulating image on m_RenderPaint. The
     /// paint persists across draws, so we track this to clear it once the
     /// PaintImage child (or its asset) goes away.
