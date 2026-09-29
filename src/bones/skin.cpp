@@ -94,25 +94,25 @@ int Skin::windingSign() const
 #else
         (void)tendon;
 #endif
-        float xxyy = transform[0] * transform[3];
-        float xyyx = transform[1] * transform[2];
-        float determinant = xxyy - xyyx;
-        // A collapsed bone carries no orientation, and its determinant is
-        // only zero up to the rounding of the two products.
-        if (std::abs(determinant) <= 1e-6f * (std::abs(xxyy) + std::abs(xyyx)))
-        {
-            continue;
-        }
-        if (determinant < 0)
-        {
-            anyMirrored = true;
-        }
-        else
-        {
-            anyUpright = true;
-        }
+        int sign =
+            orientation(transform[0], transform[1], transform[2], transform[3]);
+        anyMirrored |= sign < 0;
+        anyUpright |= sign > 0;
     }
     return anyMirrored == anyUpright ? 0 : (anyMirrored ? -1 : 1);
+}
+
+int Skin::orientation(float xx, float xy, float yx, float yy)
+{
+    float xxyy = xx * yy;
+    float xyyx = xy * yx;
+    float determinant = xxyy - xyyx;
+    // The determinant is only zero up to the rounding of the two products.
+    if (std::abs(determinant) <= 1e-6f * (std::abs(xxyy) + std::abs(xyyx)))
+    {
+        return 0;
+    }
+    return determinant < 0 ? -1 : 1;
 }
 
 void Skin::buildDependencies()

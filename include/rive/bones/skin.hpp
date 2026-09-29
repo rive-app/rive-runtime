@@ -34,7 +34,7 @@ public:
     void deform(Span<Vertex*> vertices);
     // The skinnable's world transform when it was bound. With every bone at
     // its bind transform, deform maps a vertex through this alone.
-    const Mat2D& worldTransform() const { return m_WorldTransform; }
+    const Mat2D& bindTransform() const { return m_WorldTransform; }
     void onDirty(ComponentDirt dirt) override;
     void update(ComponentDirt value) override;
 #ifdef WITH_RIVE_EDITOR
@@ -61,6 +61,9 @@ public:
     // 1 when no bone mirrors, -1 when every bone mirrors, 0 when they
     // disagree or none carries an orientation.
     int windingSign() const;
+    // 1 when a transform keeps orientation, -1 when it mirrors, 0 when it
+    // collapses.
+    static int orientation(float xx, float xy, float yx, float yy);
 
 #ifdef TESTING
     std::vector<Tendon*>& tendons() { return m_Tendons; }

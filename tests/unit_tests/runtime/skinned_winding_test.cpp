@@ -1,10 +1,13 @@
 #include <rive/artboard.hpp>
 #include <rive/bones/bone.hpp>
+#include <rive/bones/cubic_weight.hpp>
 #include <rive/bones/root_bone.hpp>
 #include <rive/bones/skin.hpp>
 #include <rive/bones/tendon.hpp>
 #include <rive/bones/weight.hpp>
 #include <rive/file.hpp>
+#include <rive/math/math_types.hpp>
+#include <rive/shapes/cubic_detached_vertex.hpp>
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/points_path.hpp>
@@ -18,8 +21,10 @@
 
 namespace
 {
-// A 100x100 quad with a clockwise fill, its top edge bound to one root bone
-// and its bottom edge to another.
+// A [size] wide square quad with a clockwise fill, its top edge bound to one
+// root bone and its bottom edge to another. A lens spans the same box with two
+// curved points on the bottom bone, so only its handles, one pair per bone,
+// give it area.
 struct QuadRig
 {
     rive::NoOpFactory factory;
@@ -29,11 +34,14 @@ struct QuadRig
     rive::Shape* shape = new rive::Shape();
     rive::PointsPath* path = new rive::PointsPath();
     rive::Skin* skin = new rive::Skin();
-    std::vector<rive::StraightVertex*> vertices;
+    std::vector<rive::PathVertex*> vertices;
 
     // The top bone is bound at y = 0 but starts at [topStartY], so a value
     // past the bottom bone loads the path folded inside out.
-    QuadRig(bool clockwise, float topStartY = 0.0f)
+    QuadRig(bool clockwise,
+            float topStartY = 0.0f,
+            bool lens = false,
+            float size = 100.0f)
     {
         artboard.addObject(&artboard);
         auto add = [&](rive::Component* component, rive::Core* parent) {
@@ -41,7 +49,7 @@ struct QuadRig
             component->parentId(artboard.idOf(parent));
         };
         add(top, &artboard);
-        bottom->y(100.0f);
+        bottom->y(size);
         add(bottom, &artboard);
         add(shape, &artboard);
         auto fill = new rive::Fill();
@@ -55,13 +63,36 @@ struct QuadRig
         }
         add(path, shape);
 
+        // The first point's out handle and the second's in handle sit on the
+        // top edge, the other two on the bottom edge.
+        for (int i = 0; lens && i < 2; i++)
+        {
+            auto vertex = new rive::CubicDetachedVertex();
+            vertex->x((i == 0) == clockwise ? 0.0f : size);
+            vertex->y(size / 2);
+            vertex->outRotation((i == 0 ? -0.5f : 0.5f) * rive::math::PI);
+            vertex->inRotation((i == 0 ? 0.5f : -0.5f) * rive::math::PI);
+            vertex->outDistance(size / 2);
+            vertex->inDistance(size / 2);
+            add(vertex, path);
+            auto weight = new rive::CubicWeight();
+            weight->values(255);
+            weight->indices(2);
+            weight->outValues(255);
+            weight->outIndices(i == 0 ? 1 : 2);
+            weight->inValues(255);
+            weight->inIndices(i == 0 ? 2 : 1);
+            add(weight, vertex);
+            vertices.push_back(vertex);
+        }
+
         float corners[4][2] = {{0, 0}, {100, 0}, {100, 100}, {0, 100}};
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; !lens && i < 4; i++)
         {
             auto corner = corners[clockwise ? i : 3 - i];
             auto vertex = new rive::StraightVertex();
-            vertex->x(corner[0]);
-            vertex->y(corner[1]);
+            vertex->x(corner[0] * size / 100);
+            vertex->y(corner[1] * size / 100);
             add(vertex, path);
             auto weight = new rive::Weight();
             weight->values(255);
@@ -254,9 +285,8 @@ TEST_CASE("moving a vertex measures the winding again", "[skinwinding]")
 }
 
 // Pins a known limitation so that changing it is deliberate: bones that fold
-// the path inside out without mirroring keep the winding measured before.
-TEST_CASE("a fold without mirroring keeps the measured winding",
-          "[skinwinding]")
+// the path inside out without mirroring keep the winding it was bound with.
+TEST_CASE("a fold without mirroring keeps the bound winding", "[skinwinding]")
 {
     QuadRig rig(true);
     CHECK(rig.composedArea() > 0);
@@ -285,6 +315,43 @@ TEST_CASE("a folded first frame is not cached as the winding", "[skinwinding]")
         rig.top->y(0.0f);
         CHECK(rig.composedArea() > 0);
         CHECK((rig.deformedArea() > 0) == clockwise);
+    }
+}
+
+// Its straight edges would enclose nothing, so a bind pose that dropped the
+// handles would fall back to caching the folded pose.
+TEST_CASE("a curved path takes its bound winding from its handles",
+          "[skinwinding]")
+{
+    for (bool clockwise : {true, false})
+    {
+        QuadRig rig(clockwise, 200.0f, true);
+        CHECK(rig.composedArea() < 0);
+        CHECK((rig.deformedArea() < 0) == clockwise);
+
+        rig.top->y(0.0f);
+        CHECK(rig.composedArea() > 0);
+        CHECK((rig.deformedArea() > 0) == clockwise);
+    }
+}
+
+// Small enough that a measure linearizing curves by pixel tolerance would only
+// see the chords, which enclose nothing.
+TEST_CASE("a small curved path follows mirroring from its handles",
+          "[skinwinding]")
+{
+    for (bool clockwise : {true, false})
+    {
+        QuadRig rig(clockwise, 0.0f, true, 8.0f);
+        int authored = clockwise ? 1 : -1;
+        rig.artboard.advance(0.0f);
+        CHECK(rig.path->winding() == authored);
+
+        rig.scale(rig.top, -1.0f, 1.0f);
+        rig.scale(rig.bottom, -1.0f, 1.0f);
+        rig.artboard.advance(0.0f);
+        CHECK(rig.skin->windingSign() == -1);
+        CHECK(rig.path->winding() == -authored);
     }
 }
 

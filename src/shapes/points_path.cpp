@@ -76,42 +76,57 @@ int measureWinding(const RawPath& path)
 }
 } // namespace
 
-// With every bone at its bind transform the tendons' inverse binds cancel them,
-// so deform leaves each point at the skin's world transform applied to it.
-// Corner radii are left out, they round a corner without turning it around.
+// With every bone at its bind transform the tendons' inverse binds cancel,
+// leaving each point at the bind transform applied to it. That map is affine,
+// so it scales the local area by its determinant.
 int PointsPath::bindWinding()
 {
     const auto& points = m_Vertices;
     size_t count = points.size();
-    if (count < 2)
+    const Mat2D& bind = skin()->bindTransform();
+    int orientation =
+        Skin::orientation(bind.xx(), bind.xy(), bind.yx(), bind.yy());
+    if (count < 2 || orientation == 0)
     {
         return 0;
     }
-    const Mat2D& world = skin()->worldTransform();
-    RawPath bound;
-    bound.move(world * Vec2D(points[0]->x(), points[0]->y()));
+    // Measured from the first point, so an open path closes on it for free.
+    Vec2D origin(points[0]->x(), points[0]->y());
+    Vec2D p0(0, 0);
+    float area = 0, minX = 0, minY = 0, maxX = 0, maxY = 0;
     size_t segments = isPathClosed() ? count : count - 1;
     for (size_t i = 0; i < segments; i++)
     {
         auto from = points[i];
         auto to = points[(i + 1) % count];
-        Vec2D end = world * Vec2D(to->x(), to->y());
-        if (from->is<CubicVertex>() || to->is<CubicVertex>())
+        Vec2D p3 = Vec2D(to->x(), to->y()) - origin;
+        Vec2D p1 = from->is<CubicVertex>()
+                       ? from->as<CubicVertex>()->outPoint() - origin
+                       : p0;
+        Vec2D p2 = to->is<CubicVertex>()
+                       ? to->as<CubicVertex>()->inPoint() - origin
+                       : p3;
+        // Exact area of a cubic, a line being one with its handles on its ends.
+        area += 6 * Vec2D::cross(p0, p1) + 3 * Vec2D::cross(p0, p2) +
+                Vec2D::cross(p0, p3) + 3 * Vec2D::cross(p1, p2) +
+                3 * Vec2D::cross(p1, p3) + 6 * Vec2D::cross(p2, p3);
+        for (Vec2D p : {p1, p2, p3})
         {
-            Vec2D out = from->is<CubicVertex>()
-                            ? from->as<CubicVertex>()->outPoint()
-                            : Vec2D(from->x(), from->y());
-            Vec2D in = to->is<CubicVertex>() ? to->as<CubicVertex>()->inPoint()
-                                             : Vec2D(to->x(), to->y());
-            bound.cubic(world * out, world * in, end);
+            minX = std::min(minX, p.x);
+            minY = std::min(minY, p.y);
+            maxX = std::max(maxX, p.x);
+            maxY = std::max(maxY, p.y);
         }
-        else
-        {
-            bound.line(end);
-        }
+        p0 = p3;
     }
-    bound.close();
-    return measureWinding(bound);
+    area /= 20;
+    float extent = std::max(maxX - minX, maxY - minY);
+    // Same tolerance as measureWinding.
+    if (std::abs(area) <= 1e-5f * extent * extent)
+    {
+        return 0;
+    }
+    return (area < 0 ? -1 : 1) * orientation;
 }
 
 // Taken from the path as bound, then follows the bones' mirroring. Bones that
