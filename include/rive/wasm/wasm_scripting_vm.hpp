@@ -572,7 +572,7 @@ private:
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
     /// Module exports __riveHeapUsed; the leak watch reads bump bytes
-    /// instead of page counts, which pregrown aot memory freezes.
+    /// instead of page counts.
     bool m_heapUsedProbe = false;
     /// Collected runtimes warn only on a second consecutive growth window.
     bool m_leakArmedCollected = false;

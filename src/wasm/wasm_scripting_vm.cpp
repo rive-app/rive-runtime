@@ -166,8 +166,6 @@ struct rive::WasmScriptingVMNatives
 // instance of the same content reloads identical bytes. Entries live for
 // the process; the byte buffer must outlive the module (wasm_runtime_load
 // keeps referencing it).
-static void pregrowAotMemory(wasm_module_inst_t instance);
-
 struct SharedWasmModule
 {
     // The buffer WAMR loads from and references for the module's lifetime;
@@ -7431,6 +7429,25 @@ bool ensureRuntime()
     {
         return false;
     }
+    // Memory grows on demand, so a failed grow is the only sign of a
+    // ceiling or device limit before the module traps.
+    wasm_runtime_set_enlarge_mem_error_callback(
+        [](uint32_t incPages,
+           uint64_t currentBytes,
+           uint32_t,
+           enlarge_memory_error_reason_t reason,
+           wasm_module_inst_t,
+           wasm_exec_env_t,
+           void*) {
+            fprintf(stderr,
+                    "wasm memory: growing %llu MB by %u pages failed: %s\n",
+                    (unsigned long long)(currentBytes >> 20),
+                    incPages,
+                    reason == MAX_SIZE_REACHED
+                        ? "the module hit its wasmMaxPages ceiling"
+                        : "the device could not provide the memory");
+        },
+        nullptr);
     wasm_runtime_register_natives("env",
                                   kEnvNatives,
                                   sizeof(kEnvNatives) / sizeof(NativeSymbol));
@@ -8349,10 +8366,6 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_lastError = std::string("module instantiate failed: ") + error;
         return false;
     }
-    if (m_tier != ExecutionTier::interp && !haveHwAot)
-    {
-        pregrowAotMemory(m_state->instance);
-    }
     m_state->execEnv =
         wasm_runtime_create_exec_env(m_state->instance, 512 * 1024);
     if (m_state->execEnv == nullptr)
@@ -8382,8 +8395,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     m_frameMajorsProbe =
         wasm_runtime_lookup_function(m_state->instance, "__riveFrameMajors") !=
         nullptr;
-    // Stub modules report their bump position; page counts go blind once
-    // the aot lanes pregrow to wasmMaxPages.
+    // Stub modules report their bump position, finer than page counts.
     m_heapUsedProbe = wasm_runtime_lookup_function(m_state->instance,
                                                    "__riveHeapUsed") != nullptr;
 
@@ -8530,8 +8542,7 @@ const char* WasmScriptingVM::heapGrowthWarning()
     {
         return nullptr;
     }
-    // The stub bump position beats page counts when available: pregrown
-    // aot memory never grows.
+    // The stub bump position beats page counts when available.
     uint32_t pages =
         m_heapUsedProbe
             ? std::max(1u, callModule("__riveHeapUsed", 0, nullptr) >> 16)
@@ -8689,40 +8700,6 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
     return "unknown";
 }
 
-// Growing linear memory reallocs it, which in-flight AOT frames do not
-// tolerate (fields root cause #3): on an artifact, take the module's whole
-// declared ceiling up front, while no frames are live, so it never grows
-// again. Modules without a declared ceiling keep growth-on-demand.
-static void pregrowAotMemory(wasm_module_inst_t instance)
-{
-    wasm_memory_inst_t memory = wasm_runtime_get_default_memory(instance);
-    if (memory == nullptr)
-    {
-        return;
-    }
-    uint32_t pages = (uint32_t)wasm_memory_get_cur_page_count(memory);
-    uint32_t maxPages = (uint32_t)wasm_memory_get_max_page_count(memory);
-    constexpr uint32_t kUnboundedPages = 65536;
-    if (maxPages >= kUnboundedPages)
-    {
-        fprintf(stderr,
-                "wasm aot: module declares no wasmMaxPages; memory cannot be "
-                "reserved up front, so growth during frames may trap\n");
-        return;
-    }
-    if (maxPages <= pages)
-    {
-        return;
-    }
-    if (!wasm_runtime_enlarge_memory(instance, maxPages - pages))
-    {
-        fprintf(stderr,
-                "wasm aot: pregrow to %u pages failed; growth during frames "
-                "may trap\n",
-                maxPages);
-    }
-}
-
 uint32_t WasmScriptingVM::memoryPages() const
 {
     if (m_state == nullptr || m_state->instance == nullptr)
@@ -8868,12 +8845,6 @@ bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
         return false;
     }
     wasm_runtime_set_user_data(next->execEnv, this);
-    if (!hwBounds)
-    {
-        // Guard-page memory never moves on growth; only the sw lane needs
-        // the ceiling reserved up front.
-        pregrowAotMemory(next->instance);
-    }
     next->guestNames = std::move(m_state->guestNames);
     m_state = std::move(next);
     m_tier = tier;
