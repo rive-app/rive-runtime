@@ -99,21 +99,27 @@ do
     -- The tail-dup knobs need llvm 19; older clangs build correct but
     -- slower dispatch, still caught by the dispatch-site guard where it runs.
     -- The probe runs host clang; cross toolchains (the NDK's) may reject
-    -- the knobs the host accepts, so cross builds keep default dispatch.
+    -- the knobs the host accepts, and iOS embeds bitcode, which refuses
+    -- -mllvm, so those builds keep default dispatch.
     local devNull = os.ishost('windows') and 'NUL' or '/dev/null'
     local _, tailDupProbe = os.outputof(
         'clang -fsyntax-only -x c ' .. devNull ..
             ' -mllvm -tail-dup-pred-size=5000' ..
             ' -mllvm -tail-dup-succ-size=5000 2>&1'
     )
-    if tailDupProbe == 0 and _OPTIONS['for_android'] == nil and not isNx then
+    if
+        tailDupProbe == 0
+        and _OPTIONS['for_android'] == nil
+        and _OPTIONS['os'] ~= 'ios'
+        and not isNx
+    then
         buildoptions({
             '-mllvm -tail-dup-pred-size=5000',
             '-mllvm -tail-dup-succ-size=5000',
         })
     end
     defines(wamrConfigDefines)
-    filter({ 'system:macosx' })
+    filter({ 'system:macosx or system:ios' })
     defines({ 'BH_PLATFORM_DARWIN' })
     filter({ 'system:linux' })
     defines({ 'BH_PLATFORM_LINUX' })
@@ -131,10 +137,22 @@ do
     local archOption = _OPTIONS['arch']
     local machine = os.outputof('uname -m')
     local isArm64
+    local isUniversal = false
     -- 'host' is the option's default, not an explicit lane.
     if isNx then
         -- Windows hosted cross build, so neither the host arch nor --arch
         -- describes the target.
+        isArm64 = true
+    elseif archOption == 'universal' then
+        -- One compile for every slice, as the iOS simulator build does.
+        isUniversal = true
+    elseif
+        _OPTIONS['os'] == 'ios'
+        and _OPTIONS['variant'] ~= 'emulator'
+        and _OPTIONS['variant'] ~= 'xrsimulator'
+        and _OPTIONS['variant'] ~= 'appletvsimulator'
+    then
+        -- Every Apple device is arm64.
         isArm64 = true
     elseif archOption ~= nil and archOption ~= '' and archOption ~= 'host' then
         isArm64 = archOption == 'arm64' or archOption == 'aarch64'
@@ -154,6 +172,8 @@ do
             '-DBUILD_TARGET=\\"THUMBV7\\"',
             '-Wno-int-conversion',
         })
+    elseif isUniversal then
+        -- WAMR's config.h names the target per slice when nothing here does.
     elseif isArm64 then
         defines({ 'BUILD_TARGET_AARCH64' })
         buildoptions({ '-DBUILD_TARGET=\\"AARCH64\\"' })
@@ -167,13 +187,26 @@ do
     -- no simd invoke variant; its marshaling never widens. Windows takes
     -- the mingw shim: same Win64 ABI as MSVC targets, and GAS syntax that
     -- clang's integrated assembler handles without ml64.
-    local invokeNative = isArm32 and 'invokeNative_thumb_vfp.s'
-        or isArm64 and 'invokeNative_aarch64_simd.s'
-        or os.target() == 'windows' and 'invokeNative_mingw_x64_simd.s'
-        or 'invokeNative_em64_simd.s'
-    local aotReloc = isArm32 and 'aot_reloc_thumb.c'
-        or isArm64 and 'aot_reloc_aarch64.c'
-        or 'aot_reloc_x86_64.c'
+    local archDir = wamr .. '/core/iwasm/common/arch/'
+    local relocDir = wamr .. '/core/iwasm/aot/arch/'
+    local invokeNative = isUniversal and 'wamr_universal_invoke.S'
+        or archDir
+            .. (
+                isArm32 and 'invokeNative_thumb_vfp.s'
+                or isArm64 and 'invokeNative_aarch64_simd.s'
+                or os.target() == 'windows' and 'invokeNative_mingw_x64_simd.s'
+                or 'invokeNative_em64_simd.s'
+            )
+    local aotReloc = isUniversal and 'wamr_universal_reloc.c'
+        or relocDir
+            .. (
+                isArm32 and 'aot_reloc_thumb.c'
+                or isArm64 and 'aot_reloc_aarch64.c'
+                or 'aot_reloc_x86_64.c'
+            )
+    if isUniversal then
+        includedirs({ archDir, relocDir })
+    end
     includedirs({
         wamr .. '/core/iwasm/include',
         wamr .. '/core/iwasm/common',
@@ -195,12 +228,12 @@ do
     })
     files({
         wamr .. '/core/iwasm/common/*.c',
-        wamr .. '/core/iwasm/common/arch/' .. invokeNative,
+        invokeNative,
         wamr .. '/core/iwasm/interpreter/wasm_loader.c',
         wamr .. '/core/iwasm/interpreter/wasm_runtime.c',
         wamr .. '/core/iwasm/interpreter/wasm_interp_fast.c',
         wamr .. '/core/iwasm/aot/*.c',
-        wamr .. '/core/iwasm/aot/arch/' .. aotReloc,
+        aotReloc,
         wamr .. '/core/iwasm/libraries/libc-builtin/*.c',
         wamr .. '/core/iwasm/libraries/libc-wasi/**.c',
         platformPath .. '/*.c',

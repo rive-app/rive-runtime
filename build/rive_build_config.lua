@@ -243,6 +243,18 @@ do
     end
 end
 
+if _OPTIONS['arch'] == 'universal' then
+    -- ar updates an archive in place, which it refuses once the archive is
+    -- fat, so an incremental universal build writes each one afresh.
+    local base_gettoolname = premake.tools.clang.gettoolname
+    function premake.tools.clang.gettoolname(cfg, tool)
+        if tool == 'ar' then
+            return 'rm -f $out && ar'
+        end
+        return base_gettoolname(cfg, tool)
+    end
+end
+
 filter({ 'options:config=release', 'options:not no-lto', 'system:macosx or ios' })
 do
     -- The 'linktimeoptimization' command attempts to use llvm-ar, which doesn't always exist on macos.

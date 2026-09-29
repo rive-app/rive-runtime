@@ -148,7 +148,8 @@ const std::string& ModuleTierLadder::wamrcVersion()
         // rejects; say so once rather than fail each compile quietly.
         std::string probe =
             m_wamrcPath + " --rive-interrupt --version >/dev/null 2>&1";
-        m_wamrcUsable = system(probe.c_str()) == 0;
+        FILE* probePipe = popen(probe.c_str(), "r");
+        m_wamrcUsable = probePipe != nullptr && pclose(probePipe) == 0;
         if (!m_wamrcUsable)
         {
             fprintf(stderr,
