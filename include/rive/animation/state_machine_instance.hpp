@@ -49,6 +49,7 @@ class DataBind;
 class BindableProperty;
 class StateInstance;
 class HitDrawable;
+class DraggableProxy;
 class ListenerViewModel;
 class ScriptedListenerAction;
 class ScriptedDrawable;
@@ -90,6 +91,9 @@ private:
     void notifyEventListeners(const std::vector<EventReport>& events,
                               NestedArtboard* source);
     void sortHitComponents();
+    /// Maps a host-space position into artboard content space. False when a
+    /// degenerate self transform has collapsed the contents.
+    bool mapToContentSpace(Vec2D& position, Vec2D* delta = nullptr) const;
     double randomValue();
     StateTransition* findRandomTransition(
         StateInstance* stateFromInstance,
@@ -190,6 +194,24 @@ public:
                         bool disablePointer = true,
                         int pointerId = 0);
     HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
+    HitResult pointerScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp = 0,
+                            int pointerId = 0) override;
+    /// Whether anything under position would move for this scroll event. Lets
+    /// a caller chain outward without committing the event first.
+    bool wantsScroll(Vec2D position, const ScrollEvent& event);
+    /// Whether a scroll gesture is latched here or in a nested artboard.
+    bool hasScrollLatch();
+    /// Whether an interactive scroll view sits under position at all, even
+    /// one that cannot move. Keeps a gesture from escaping to the host.
+    bool hasScrollTargetAt(Vec2D position);
+    /// Whether an opaque hit that cannot scroll sits under position. It
+    /// blocks scroll to whatever lies behind it, as hitOpaque does for
+    /// pointer events.
+    bool scrollOccludedAt(Vec2D position);
+    /// Ends any scroll gesture in flight here, latch included.
+    void cancelScroll();
 
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
@@ -412,6 +434,9 @@ private:
     bool m_needsAdvance = false;
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     std::vector<std::unique_ptr<ListenerGroup>> m_listenerGroups;
+    // Owns the in-flight scroll gesture. Latched for the whole gesture:
+    // re-picking per event would hand a flick's tail to the outer view.
+    HitComponent* m_scrollLatch = nullptr;
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
 
@@ -495,6 +520,27 @@ public:
     }
     virtual void enablePointerEvents(int pointerId = 0) {}
     virtual void disablePointerEvents(int pointerId = 0) {}
+    /// Scroll dispatch. wantsScroll is the interest test; scrollGestureActive
+    /// keeps the latch alive between events.
+    virtual bool wantsScroll(Vec2D position, const ScrollEvent& event)
+    {
+        return false;
+    }
+    virtual bool scrollGestureActive() { return false; }
+    /// Ends any scroll gesture this component owns.
+    virtual void cancelScroll() {}
+    /// Whether an interactive scroll view sits under position at all, even
+    /// one that cannot move right now.
+    virtual bool hasScrollTarget(Vec2D position) { return false; }
+    /// Whether an opaque hit that cannot scroll sits under position. Ends
+    /// the walk: nothing behind it may take the event, as with hitOpaque.
+    virtual bool occludesScroll(Vec2D position) { return false; }
+    virtual HitResult processScroll(Vec2D position,
+                                    const ScrollEvent& event,
+                                    float timeStamp)
+    {
+        return HitResult::none;
+    }
 #ifdef TESTING
     int earlyOutCount = 0;
 #endif

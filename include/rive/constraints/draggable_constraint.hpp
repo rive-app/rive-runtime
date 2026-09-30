@@ -6,6 +6,7 @@
 #include "rive/listener_group.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/process_event_result.hpp"
+#include "rive/scroll_event.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -29,6 +30,23 @@ public:
     virtual bool startDrag(Vec2D mousePosition, float timeStamp = 0) = 0;
     virtual bool drag(Vec2D mousePosition, float timeStamp = 0) = 0;
     virtual bool endDrag(Vec2D mousePosition, float timeStamp = 0) = 0;
+    /// Whether this proxy would move for the event. One at its edge declines,
+    /// handing the gesture to the next candidate under the cursor.
+    virtual bool wantsScroll(const ScrollEvent& event) { return false; }
+    /// Whether this proxy takes part in scroll gestures at all, even when it
+    /// cannot move. Stops a gesture escaping to the host at the edges.
+    virtual bool acceptsScroll() { return false; }
+
+    /// Ends any scroll gesture on this proxy outright.
+    virtual void cancelScroll() {}
+
+    /// Whether a gesture still owns this proxy; the dispatcher latches on it.
+    virtual bool isScrollGestureActive() { return false; }
+    /// Applies a scroll event. Returns true when it moved.
+    virtual bool scroll(const ScrollEvent& event, float timeStamp)
+    {
+        return false;
+    }
     Drawable* hittable() { return m_hittable; }
 };
 
@@ -82,6 +100,7 @@ public:
     void disable(int pointerId = 0) override {}
 
     DraggableConstraint* constraint() { return m_constraint; }
+    DraggableProxy* scrollProxy() override { return m_draggable; }
 
     bool canEarlyOut(Component* drawable) override { return false; }
 

@@ -39,6 +39,9 @@ protected:
 public:
     virtual bool enabled() { return isRunning(); }
     virtual bool isRunning() { return m_isRunning; }
+    /// False once a settle has torn down state that only prepare() rebuilds.
+    /// A gesture still in flight re-primes when it sees this.
+    virtual bool isPrimed() { return true; }
     virtual void prepare(DraggableConstraintDirection dir)
     {
         reset();

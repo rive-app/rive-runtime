@@ -11,6 +11,9 @@
 
 using namespace rive;
 
+// A wheel reports no end, so its gesture closes by going quiet.
+static const float scrollIdleSeconds = 0.1f;
+
 ScrollConstraint::~ScrollConstraint()
 {
     if (m_virtualizer != nullptr)
@@ -254,13 +257,18 @@ void ScrollConstraint::addLayoutChild(LayoutNodeProvider* child)
     m_layoutChildren.push_back(child);
 }
 
-void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
+void ScrollConstraint::dragView(Vec2D delta,
+                                float timeStamp,
+                                bool trackVelocity)
 {
     // Scale once so the inertial release phase matches the drag feel.
     Vec2D scaledDelta(delta.x * dragMultiplier(), delta.y * dragMultiplier());
     if (m_physics != nullptr)
     {
-        m_physics->accumulate(scaledDelta, timeStamp);
+        if (trackVelocity)
+        {
+            m_physics->accumulate(scaledDelta, timeStamp);
+        }
         scrollOffsetX(offsetX() + scaledDelta.x);
         scrollOffsetY(offsetY() + scaledDelta.y);
         return;
@@ -276,6 +284,109 @@ void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
     }
     scrollOffsetX(x);
     scrollOffsetY(y);
+}
+
+// dragMultiplier is bindable and unclamped, so interest has to be judged on
+// the delta as applied: zero moves nothing, negative moves the other way.
+Vec2D ScrollConstraint::scaledDelta(Vec2D delta)
+{
+    return Vec2D(delta.x * dragMultiplier(), delta.y * dragMultiplier());
+}
+
+// dragView writes unclamped, so only the elastic clamp hides the excess.
+bool ScrollConstraint::isOverscrolled()
+{
+    if (infinite())
+    {
+        return false;
+    }
+    return (constrainsHorizontal() &&
+            offsetX() != clampResolvedOffset(offsetX(), true)) ||
+           (constrainsVertical() &&
+            offsetY() != clampResolvedOffset(offsetY(), false));
+}
+
+// An elastic view stretches at its edge instead of chaining, so this tests
+// range on the delta's axes rather than available movement.
+bool ScrollConstraint::canStretch(Vec2D rawDelta)
+{
+    Vec2D delta = scaledDelta(rawDelta);
+    if (!wheelEnabled() || !hasLayoutParent() ||
+        parent()->parent() == nullptr ||
+        !parent()->parent()->is<LayoutComponent>() || m_physics == nullptr ||
+        physicsType() != ScrollPhysicsType::elastic)
+    {
+        return false;
+    }
+    bool wantsX = constrainsHorizontal() && delta.x != 0;
+    bool wantsY = constrainsVertical() && delta.y != 0;
+    if (infinite())
+    {
+        return wantsX || wantsY;
+    }
+    return (wantsX && maxOffsetX() < 0) || (wantsY && maxOffsetY() < 0);
+}
+
+bool ScrollConstraint::canConsume(Vec2D rawDelta)
+{
+    Vec2D delta = scaledDelta(rawDelta);
+    if (!wheelEnabled() || !hasLayoutParent() ||
+        parent()->parent() == nullptr ||
+        !parent()->parent()->is<LayoutComponent>())
+    {
+        return false;
+    }
+    bool wantsX = constrainsHorizontal() && delta.x != 0;
+    bool wantsY = constrainsVertical() && delta.y != 0;
+    if (infinite())
+    {
+        // Wraps forever, so any delta on a constrained axis moves.
+        return wantsX || wantsY;
+    }
+    if (wantsX && clampResolvedOffset(offsetX() + delta.x, true) !=
+                      clampResolvedOffset(offsetX(), true))
+    {
+        return true;
+    }
+    return wantsY && clampResolvedOffset(offsetY() + delta.y, false) !=
+                         clampResolvedOffset(offsetY(), false);
+}
+
+void ScrollConstraint::scrollBy(Vec2D delta)
+{
+    // Shares dragMultiplier with the drag path: it is the view's sensitivity.
+    Vec2D scaled(delta.x * dragMultiplier(), delta.y * dragMultiplier());
+    if (constrainsHorizontal())
+    {
+        scrollOffsetX(clampResolvedOffset(offsetX() + scaled.x, true));
+    }
+    if (constrainsVertical())
+    {
+        scrollOffsetY(clampResolvedOffset(offsetY() + scaled.y, false));
+    }
+}
+
+bool ScrollConstraint::beginScrollGesture()
+{
+    markScrollActivity();
+    if (m_isScrolling)
+    {
+        return false;
+    }
+    m_isScrolling = true;
+    // User interaction supersedes held intents.
+    clearScrollIntents();
+    m_lastFrameOffsetX = scrollOffsetX();
+    m_lastFrameOffsetY = scrollOffsetY();
+    return true;
+}
+
+void ScrollConstraint::endScrollGesture()
+{
+    m_isScrolling = false;
+    m_scrollIdleSeconds = 0;
+    // m_isDragging belongs to the pointer path; a pointer drag can overlap
+    // this gesture and must outlive it.
 }
 
 std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
@@ -308,6 +419,11 @@ std::vector<Vec2D> ScrollConstraint::collectSnapPoints()
 void ScrollConstraint::runPhysics()
 {
     m_isDragging = false;
+    startPhysics();
+}
+
+void ScrollConstraint::startPhysics()
+{
     std::vector<Vec2D> snappingPoints =
         snap() ? collectSnapPoints() : std::vector<Vec2D>();
     if (m_physics != nullptr)
@@ -324,16 +440,44 @@ void ScrollConstraint::runPhysics()
 bool ScrollConstraint::advanceComponent(float elapsedSeconds,
                                         AdvanceFlags flags)
 {
-    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested ||
-        isCollapsed())
+    if (isCollapsed())
     {
         // offsetX(0);
         // offsetY(0);
+        // A collapsed view never reaches the idle timer below, so a gesture
+        // left on it would hold the state machine's latch forever.
+        if (m_isScrolling)
+        {
+            stopPhysics();
+            clearVelocity();
+            endScrollGesture();
+        }
         return false;
+    }
+    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
+    {
+        return false;
+    }
+    if (m_isScrolling &&
+        (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame)
+    {
+        m_scrollIdleSeconds += elapsedSeconds;
+        if (m_scrollIdleSeconds >= scrollIdleSeconds)
+        {
+            // A gesture that reports no end settles here instead.
+            if (snap() || isOverscrolled())
+            {
+                // The wheel path never primed, so the helpers may not exist.
+                // prepare also zeroes velocity, so nothing flings from here.
+                primePhysics();
+                startPhysics();
+            }
+            endScrollGesture();
+        }
     }
     if (m_physics == nullptr)
     {
-        return false;
+        return m_isScrolling;
     }
     if (m_physics->isRunning())
     {
@@ -341,14 +485,15 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
         scrollOffsetX(offset.x);
         scrollOffsetY(offset.y);
     }
-    // Detect a paused pointer during drag: if scrollOffset hasn't changed
-    // since the last new-frame advance, accumulate() didn't fire and speed
-    // is stale.
+    // Detect a paused pointer during a drag, or paused fingers during a
+    // trackpad gesture: if scrollOffset hasn't changed since the last
+    // new-frame advance, accumulate() didn't fire and speed is stale.
     if ((flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame)
     {
         bool hasMoved = scrollOffsetX() != m_lastFrameOffsetX ||
                         scrollOffsetY() != m_lastFrameOffsetY;
-        if ((m_isScrollBarDragging || m_isDragging) && !hasMoved)
+        if ((m_isScrollBarDragging || m_isDragging || m_isScrolling) &&
+            !hasMoved)
         {
             clearVelocity();
         }
@@ -357,7 +502,9 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
     }
     // Keep advancing while a drag is active so the next new-frame advance can
     // detect a paused pointer and clear velocity when the pointer holds still.
-    return m_physics->enabled() || m_isScrollBarDragging || m_isDragging;
+    // A live scroll gesture keeps frames coming for its idle timer.
+    return m_physics->enabled() || m_isScrollBarDragging || m_isDragging ||
+           m_isScrolling;
 }
 
 std::vector<DraggableProxy*> ScrollConstraint::draggables()
@@ -443,9 +590,31 @@ StatusCode ScrollConstraint::onAddedDirty(CoreContext* context)
     return result;
 }
 
+// A finished settle calls reset(), which destroys the elastic helpers, so a
+// live gesture can lose them mid-flight. Without them the elastic clamp is
+// gone and the view renders pinned at its edge while dragView still
+// accumulates -- the stretch reappears in one jump on the next run().
+// Asked of the physics, not of enabled(): for clamped physics enabled() is
+// just isRunning(), which would re-prime on every event and never let
+// velocity accumulate.
+bool ScrollConstraint::ensurePhysicsPrimed()
+{
+    if (m_physics != nullptr && !m_physics->isPrimed())
+    {
+        primePhysics();
+        return true;
+    }
+    return false;
+}
+
 void ScrollConstraint::initPhysics()
 {
     m_isDragging = true;
+    primePhysics();
+}
+
+void ScrollConstraint::primePhysics()
+{
     // User interaction supersedes held intents.
     clearScrollIntents();
     m_lastFrameOffsetX = scrollOffsetX();
@@ -494,7 +663,7 @@ float ScrollConstraint::velocityY()
 
 bool ScrollConstraint::scrollActive()
 {
-    return m_isDragging || m_isScrollBarDragging ||
+    return m_isDragging || m_isScrollBarDragging || m_isScrolling ||
            (m_physics != nullptr && m_physics->isRunning());
 }
 

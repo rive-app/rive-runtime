@@ -25,6 +25,11 @@ public:
     bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
     bool drag(Vec2D mousePosition, float timeStamp = 0) override;
     bool endDrag(Vec2D mousePosition, float timeStamp = 0) override;
+    bool wantsScroll(const ScrollEvent& event) override;
+    bool acceptsScroll() override;
+    void cancelScroll() override;
+    bool isScrollGestureActive() override;
+    bool scroll(const ScrollEvent& event, float timeStamp) override;
 };
 } // namespace rive
 

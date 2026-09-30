@@ -53,6 +53,9 @@ public:
     static const uint16_t dragMultiplierPropertyKey = 1029;
     static const uint16_t computedContentWidthPropertyKey = 1069;
     static const uint16_t computedContentHeightPropertyKey = 1070;
+    static const uint16_t scrollFlagsPropertyKey = 466;
+    static const uint16_t wheelInteractivePropertyKey = 467;
+    static const uint32_t wheelInteractiveBitmask = 1u << 0;
 
 protected:
     float m_ScrollOffsetX = 0.0f;
@@ -66,6 +69,7 @@ protected:
     bool m_Interactive = true;
     float m_Threshold = 0.0f;
     float m_DragMultiplier = 1.0f;
+    uint8_t m_ScrollFlags = 1;
 
 public:
     inline float scrollOffsetX() const { return m_ScrollOffsetX; }
@@ -325,6 +329,36 @@ public:
         notifyPropertyChanged(computedContentHeightPropertyKey);
     }
 
+    inline uint8_t scrollFlags() const { return m_ScrollFlags; }
+    void scrollFlags(uint8_t value)
+    {
+        if (m_ScrollFlags == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(scrollFlagsPropertyKey, &m_ScrollFlags, &value);
+        m_ScrollFlags = value;
+        RIVE_EDITOR_CHANGED(scrollFlagsChanged());
+        notifyPropertyChanged(scrollFlagsPropertyKey);
+    }
+
+    inline bool wheelInteractive() const
+    {
+        return (m_ScrollFlags & wheelInteractiveBitmask) != 0;
+    }
+    void wheelInteractive(bool value)
+    {
+        const bool prev = (m_ScrollFlags & wheelInteractiveBitmask) != 0;
+        if (prev == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(wheelInteractivePropertyKey, &prev, &value);
+        m_ScrollFlags = value ? (m_ScrollFlags | wheelInteractiveBitmask)
+                              : (m_ScrollFlags & ~wheelInteractiveBitmask);
+        RIVE_EDITOR_CHANGED(scrollFlagsChanged());
+        notifyPropertyChanged(scrollFlagsPropertyKey);
+    }
     Core* clone() const override;
     void copy(const ScrollConstraintBase& object)
     {
@@ -339,6 +373,7 @@ public:
         m_Interactive = object.m_Interactive;
         m_Threshold = object.m_Threshold;
         m_DragMultiplier = object.m_DragMultiplier;
+        m_ScrollFlags = object.m_ScrollFlags;
         DraggableConstraint::copy(object);
     }
 
@@ -379,6 +414,9 @@ public:
             case dragMultiplierPropertyKey:
                 m_DragMultiplier = CoreDoubleType::deserialize(reader);
                 return true;
+            case scrollFlagsPropertyKey:
+                m_ScrollFlags = CoreUintType::deserialize(reader);
+                return true;
         }
         return DraggableConstraint::deserialize(propertyKey, reader);
     }
@@ -403,6 +441,7 @@ protected:
     virtual void dragMultiplierChanged() {}
     virtual void computedContentWidthChanged() {}
     virtual void computedContentHeightChanged() {}
+    virtual void scrollFlagsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/scrolling/scroll_constraint_ext.inl"
 #endif

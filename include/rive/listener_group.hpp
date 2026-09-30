@@ -13,6 +13,7 @@
 namespace rive
 {
 class Component;
+class DraggableProxy;
 class HitComponent;
 class StateMachineListener;
 
@@ -59,6 +60,11 @@ public:
     virtual bool canEarlyOut(Component* drawable);
     virtual bool needsDownListener(Component* drawable);
     virtual bool needsUpListener(Component* drawable);
+
+    /// The scroll proxy this group drives, or nullptr. Only draggable groups
+    /// answer; scroll dispatch uses it to find a target without walking
+    /// listeners it can't drive.
+    virtual DraggableProxy* scrollProxy() { return nullptr; }
 
     virtual ProcessEventResult processEvent(
         Component* component,

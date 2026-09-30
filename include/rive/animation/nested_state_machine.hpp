@@ -30,6 +30,15 @@ public:
     HitResult pointerDown(Vec2D position, int pointerId = 0);
     HitResult pointerUp(Vec2D position, int pointerId = 0);
     HitResult pointerExit(Vec2D position, int pointerId = 0);
+    HitResult pointerScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp = 0,
+                            int pointerId = 0);
+    bool wantsScroll(Vec2D position, const ScrollEvent& event);
+    bool hasScrollLatch();
+    bool hasScrollTargetAt(Vec2D position);
+    bool scrollOccludedAt(Vec2D position);
+    void cancelScroll();
     HitResult dragStart(Vec2D position, float timeStamp = 0, int pointerId = 0);
     HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
     bool tryChangeState();

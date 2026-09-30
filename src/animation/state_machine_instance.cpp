@@ -766,6 +766,103 @@ public:
 
     bool hitTest(Vec2D position) const override { return false; }
 
+    DraggableProxy* scrollProxyFor(const ScrollEvent& event)
+    {
+        // A live gesture keeps the view it started on, even once that view
+        // can't move; only then does an idle proxy get a chance at the delta.
+        for (auto listenerGroup : listeners)
+        {
+            auto proxy = listenerGroup->scrollProxy();
+            if (proxy != nullptr && proxy->isScrollGestureActive())
+            {
+                return proxy;
+            }
+        }
+        for (auto listenerGroup : listeners)
+        {
+            auto proxy = listenerGroup->scrollProxy();
+            if (proxy != nullptr && proxy->wantsScroll(event))
+            {
+                return proxy;
+            }
+        }
+        return nullptr;
+    }
+
+    bool wantsScroll(Vec2D position, const ScrollEvent& event) override
+    {
+        return hitTest(position) && scrollProxyFor(event) != nullptr;
+    }
+
+    bool hasScrollTarget(Vec2D position) override
+    {
+        if (!hitTest(position))
+        {
+            return false;
+        }
+        for (auto listenerGroup : listeners)
+        {
+            auto proxy = listenerGroup->scrollProxy();
+            if (proxy != nullptr && proxy->acceptsScroll())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool occludesScroll(Vec2D position) override
+    {
+        // A scroll view never occludes: at its edge it declines and the
+        // gesture chains outward.
+        for (auto listenerGroup : listeners)
+        {
+            if (listenerGroup->scrollProxy() != nullptr)
+            {
+                return false;
+            }
+        }
+        // Same opacity test as processEvent's hitOpaque.
+        return (isOpaque || m_drawable->isTargetOpaque()) && hitTest(position);
+    }
+
+    bool scrollGestureActive() override
+    {
+        for (auto listenerGroup : listeners)
+        {
+            auto proxy = listenerGroup->scrollProxy();
+            if (proxy != nullptr && proxy->isScrollGestureActive())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void cancelScroll() override
+    {
+        for (auto listenerGroup : listeners)
+        {
+            auto proxy = listenerGroup->scrollProxy();
+            if (proxy != nullptr)
+            {
+                proxy->cancelScroll();
+            }
+        }
+    }
+
+    HitResult processScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp) override
+    {
+        auto proxy = scrollProxyFor(event);
+        if (proxy == nullptr || !proxy->scroll(event, timeStamp))
+        {
+            return HitResult::none;
+        }
+        return isOpaque ? HitResult::hitOpaque : HitResult::hit;
+    }
+
     void prepareEvent(Vec2D position,
                       ListenerType hitType,
                       int pointerId) override
@@ -990,6 +1087,183 @@ public:
         }
         return false;
     }
+    /// Maps a parent-space delta into the nested artboard. A delta is a
+    /// vector, so it takes the mapping's linear part only.
+    bool nestedDelta(NestedArtboard* nestedArtboard,
+                     Vec2D position,
+                     Vec2D nestedPosition,
+                     Vec2D delta,
+                     Vec2D& out)
+    {
+        Vec2D shifted;
+        if (!nestedArtboard->worldToLocal(position + delta, &shifted))
+        {
+            return false;
+        }
+        out = shifted - nestedPosition;
+        return true;
+    }
+
+    bool wantsScroll(Vec2D position, const ScrollEvent& event) override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        ScrollEvent mapped = event;
+        if (!nestedDelta(nestedArtboard,
+                         position,
+                         nestedPosition,
+                         event.delta,
+                         mapped.delta))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->wantsScroll(
+                    nestedPosition,
+                    mapped))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool hasScrollTarget(Vec2D position) override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->hasScrollTargetAt(
+                    nestedPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool occludesScroll(Vec2D position) override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->scrollOccludedAt(
+                    nestedPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool scrollGestureActive() override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isPaused())
+        {
+            // A paused machine never advances, so its idle timer can never
+            // clear the latch. End it outright, or unpausing resurrects it.
+            for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+            {
+                if (nestedAnimation->is<NestedStateMachine>())
+                {
+                    nestedAnimation->as<NestedStateMachine>()->cancelScroll();
+                }
+            }
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->hasScrollLatch())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    HitResult processScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp) override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return HitResult::none;
+        }
+        ScrollEvent mapped = event;
+        if (!nestedDelta(nestedArtboard,
+                         position,
+                         nestedPosition,
+                         event.delta,
+                         mapped.delta))
+        {
+            return HitResult::none;
+        }
+        // A latched machine gets the event first; only then can another
+        // take it.
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->hasScrollLatch())
+            {
+                return nestedAnimation->as<NestedStateMachine>()->pointerScroll(
+                    nestedPosition,
+                    mapped,
+                    timeStamp);
+            }
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (!nestedAnimation->is<NestedStateMachine>())
+            {
+                continue;
+            }
+            auto result =
+                nestedAnimation->as<NestedStateMachine>()->pointerScroll(
+                    nestedPosition,
+                    mapped,
+                    timeStamp);
+            if (result != HitResult::none)
+            {
+                return result;
+            }
+        }
+        return HitResult::none;
+    }
+
     HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) override
@@ -1182,6 +1456,224 @@ public:
         }
         return false;
     }
+
+    /// Maps a parent-space delta into item i. A delta is a vector, so it
+    /// takes the mapping's linear part only.
+    bool itemDelta(ArtboardComponentList* componentList,
+                   int i,
+                   Vec2D position,
+                   Vec2D listPosition,
+                   Vec2D delta,
+                   Vec2D& out)
+    {
+        Vec2D shifted;
+        if (!componentList->worldToLocal(position + delta, &shifted, i))
+        {
+            return false;
+        }
+        out = shifted - listPosition;
+        return true;
+    }
+
+    // Items walk top-most first, like processEvent, and an opaque item blocks
+    // the items behind it the way hitOpaque clears runningCanHit there.
+    bool wantsScroll(Vec2D position, const ScrollEvent& event) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine == nullptr)
+            {
+                continue;
+            }
+            ScrollEvent mapped = event;
+            if (!itemDelta(componentList,
+                           i,
+                           position,
+                           listPosition,
+                           event.delta,
+                           mapped.delta))
+            {
+                continue;
+            }
+            if (stateMachine->wantsScroll(listPosition, mapped))
+            {
+                return true;
+            }
+            if (stateMachine->scrollOccludedAt(listPosition))
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool hasScrollTarget(Vec2D position) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine == nullptr)
+            {
+                continue;
+            }
+            if (stateMachine->hasScrollTargetAt(listPosition))
+            {
+                return true;
+            }
+            if (stateMachine->scrollOccludedAt(listPosition))
+            {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    bool occludesScroll(Vec2D position) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr &&
+                stateMachine->scrollOccludedAt(listPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool scrollGestureActive() override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        const auto& order = componentList->orderedListIndices();
+        if (componentList->isCollapsed())
+        {
+            // A collapsed list never advances its items, so an idle timer
+            // there can never clear the latch. End it outright.
+            for (int i : order)
+            {
+                auto stateMachine = componentList->stateMachineInstance(i);
+                if (stateMachine != nullptr)
+                {
+                    stateMachine->cancelScroll();
+                }
+            }
+            return false;
+        }
+        for (int i : order)
+        {
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr && stateMachine->hasScrollLatch())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void cancelScroll() override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        for (int i : componentList->orderedListIndices())
+        {
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr)
+            {
+                stateMachine->cancelScroll();
+            }
+        }
+    }
+
+    HitResult processScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return HitResult::none;
+        }
+        const auto& order = componentList->orderedListIndices();
+        // A latched item gets the event first; only then can another take it.
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (auto it = order.rbegin(); it != order.rend(); ++it)
+            {
+                const int i = *it;
+                auto stateMachine = componentList->stateMachineInstance(i);
+                if (stateMachine == nullptr ||
+                    (pass == 0 && !stateMachine->hasScrollLatch()))
+                {
+                    continue;
+                }
+                Vec2D listPosition;
+                if (!componentList->worldToLocal(position, &listPosition, i))
+                {
+                    continue;
+                }
+                ScrollEvent mapped = event;
+                if (!itemDelta(componentList,
+                               i,
+                               position,
+                               listPosition,
+                               event.delta,
+                               mapped.delta))
+                {
+                    continue;
+                }
+                auto result = stateMachine->pointerScroll(listPosition,
+                                                          mapped,
+                                                          timeStamp);
+                if (pass == 0 || result != HitResult::none)
+                {
+                    return result;
+                }
+                if (stateMachine->scrollOccludedAt(listPosition))
+                {
+                    return HitResult::none;
+                }
+            }
+        }
+        return HitResult::none;
+    }
+
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
@@ -1585,34 +2077,16 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
                                                 int pointerId,
                                                 float timeStamp)
 {
-    if (m_artboardInstance->frameOrigin())
-    {
-        position -= Vec2D(
-            m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
-            m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
-    }
-    // Invert the artboard's own rotation/scale (applied in drawInternal after
-    // the frame-origin translation) so listener hit-testing maps into content
-    // space. Mirrors the adjustment in hitTest(Vec2D).
+    // Listener hit-testing runs in content space, so undo the frame origin and
+    // the artboard's own rotation/scale first.
     //
     // A degenerate (0 scale) self transform has no inverse: the contents
     // collapse to nothing, so nothing in them can be hit. We still run the pass
     // with every group forced to miss rather than returning early, so hover
     // unwinds and pending exits fire, and we cancel any gesture in flight so a
     // press held across the collapse can't resume when the scale comes back.
-    bool contentsCollapsed = false;
-    if (m_artboardInstance->hasSelfTransform())
-    {
-        Mat2D inverse;
-        if (m_artboardInstance->selfTransform().invert(&inverse))
-        {
-            position = inverse * position;
-        }
-        else
-        {
-            contentsCollapsed = true;
-        }
-    }
+    bool contentsCollapsed = !mapToContentSpace(position);
+
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
     {
@@ -1772,6 +2246,162 @@ HitResult StateMachineInstance::dragEnd(Vec2D position,
     auto hit = updateListeners(position, ListenerType::dragEnd, pointerId);
     pointerMove(position, timeStamp, pointerId);
     return hit;
+}
+bool StateMachineInstance::mapToContentSpace(Vec2D& position,
+                                             Vec2D* delta) const
+{
+    if (m_artboardInstance->frameOrigin())
+    {
+        position -= Vec2D(
+            m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
+            m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
+    }
+    if (m_artboardInstance->hasSelfTransform())
+    {
+        Mat2D inverse;
+        if (!m_artboardInstance->selfTransform().invert(&inverse))
+        {
+            return false;
+        }
+        position = inverse * position;
+        if (delta != nullptr)
+        {
+            // A delta is a vector: linear part only, no translation.
+            *delta = inverse * *delta - inverse * Vec2D();
+        }
+    }
+    return true;
+}
+
+HitResult StateMachineInstance::pointerScroll(Vec2D position,
+                                              const ScrollEvent& event,
+                                              float timeStamp,
+                                              int pointerId)
+{
+    ScrollEvent mapped = event;
+    if (!mapToContentSpace(position, &mapped.delta))
+    {
+        // Nothing can map through a singular transform, so no later event
+        // could close this gesture.
+        cancelScroll();
+        return HitResult::none;
+    }
+    if (m_scrollLatch != nullptr && !m_scrollLatch->scrollGestureActive())
+    {
+        m_scrollLatch = nullptr;
+    }
+    HitComponent* target = m_scrollLatch;
+    if (target == nullptr)
+    {
+        // Sorted top-most first, so the innermost view that can move wins.
+        // An opaque hit that cannot scroll ends the walk, as it would for a
+        // pointer: nothing behind it may take the event.
+        for (const auto& hitShape : m_hitComponents)
+        {
+            if (hitShape->wantsScroll(position, mapped))
+            {
+                target = hitShape.get();
+                break;
+            }
+            if (hitShape->occludesScroll(position))
+            {
+                break;
+            }
+        }
+    }
+    if (target == nullptr)
+    {
+        return HitResult::none;
+    }
+    auto result = target->processScroll(position, mapped, timeStamp);
+    m_scrollLatch = target->scrollGestureActive() ? target : nullptr;
+    return result;
+}
+
+bool StateMachineInstance::wantsScroll(Vec2D position, const ScrollEvent& event)
+{
+    if (hasScrollLatch())
+    {
+        return true;
+    }
+    ScrollEvent mapped = event;
+    if (!mapToContentSpace(position, &mapped.delta))
+    {
+        return false;
+    }
+    for (const auto& hitShape : m_hitComponents)
+    {
+        if (hitShape->wantsScroll(position, mapped))
+        {
+            return true;
+        }
+        if (hitShape->occludesScroll(position))
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
+bool StateMachineInstance::hasScrollTargetAt(Vec2D position)
+{
+    if (hasScrollLatch())
+    {
+        return true;
+    }
+    if (!mapToContentSpace(position))
+    {
+        return false;
+    }
+    for (const auto& hitShape : m_hitComponents)
+    {
+        if (hitShape->hasScrollTarget(position))
+        {
+            return true;
+        }
+        if (hitShape->occludesScroll(position))
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
+bool StateMachineInstance::scrollOccludedAt(Vec2D position)
+{
+    if (!mapToContentSpace(position))
+    {
+        // Collapsed contents hit nothing, so they hide nothing either.
+        return false;
+    }
+    // Only asked once nothing here wanted the event, so the first opaque hit
+    // decides.
+    for (const auto& hitShape : m_hitComponents)
+    {
+        if (hitShape->occludesScroll(position))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void StateMachineInstance::cancelScroll()
+{
+    if (m_scrollLatch != nullptr)
+    {
+        m_scrollLatch->cancelScroll();
+        m_scrollLatch = nullptr;
+    }
+}
+
+bool StateMachineInstance::hasScrollLatch()
+{
+    if (m_scrollLatch != nullptr && !m_scrollLatch->scrollGestureActive())
+    {
+        m_scrollLatch = nullptr;
+    }
+    return m_scrollLatch != nullptr;
 }
 
 #ifdef TESTING

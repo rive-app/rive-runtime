@@ -59,6 +59,8 @@ public:
     {
         return m_physicsX != nullptr || m_physicsY != nullptr;
     }
+    // reset() destroys the helpers, and only prepare() rebuilds them.
+    bool isPrimed() override { return enabled(); }
     bool isRunning() override
     {
         return (m_physicsX != nullptr && m_physicsX->isRunning()) ||

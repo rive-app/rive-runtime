@@ -1381,6 +1381,9 @@ public:
             case ScrollConstraintBase::virtualizeBufferPropertyKey:
                 object->as<ScrollConstraintBase>()->virtualizeBuffer(value);
                 break;
+            case ScrollConstraintBase::scrollFlagsPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollFlags(value);
+                break;
             case DrawableBase::blendModeValuePropertyKey:
                 object->as<DrawableBase>()->blendModeValue(value);
                 break;
@@ -2350,6 +2353,9 @@ public:
                 break;
             case ScrollConstraintBase::scrollActivePropertyKey:
                 object->as<ScrollConstraintBase>()->scrollActive(value);
+                break;
+            case ScrollConstraintBase::wheelInteractivePropertyKey:
+                object->as<ScrollConstraintBase>()->wheelInteractive(value);
                 break;
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 object->as<ScrollBarConstraintBase>()->autoSize(value);
@@ -3626,6 +3632,8 @@ public:
                 return object->as<ScrollConstraintBase>()->physicsTypeValue();
             case ScrollConstraintBase::virtualizeBufferPropertyKey:
                 return object->as<ScrollConstraintBase>()->virtualizeBuffer();
+            case ScrollConstraintBase::scrollFlagsPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollFlags();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->as<DrawableBase>()->blendModeValue();
             case DrawableBase::additiveAmountPropertyKey:
@@ -4321,6 +4329,8 @@ public:
                 return object->as<ScrollConstraintBase>()->interactive();
             case ScrollConstraintBase::scrollActivePropertyKey:
                 return object->as<ScrollConstraintBase>()->scrollActive();
+            case ScrollConstraintBase::wheelInteractivePropertyKey:
+                return object->as<ScrollConstraintBase>()->wheelInteractive();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case NestedArtboardBase::isPausedPropertyKey:
@@ -5115,6 +5125,7 @@ public:
             case DraggableConstraintBase::directionValuePropertyKey:
             case ScrollConstraintBase::physicsTypeValuePropertyKey:
             case ScrollConstraintBase::virtualizeBufferPropertyKey:
+            case ScrollConstraintBase::scrollFlagsPropertyKey:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::additiveAmountPropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
@@ -5327,6 +5338,7 @@ public:
             case ScrollConstraintBase::infinitePropertyKey:
             case ScrollConstraintBase::interactivePropertyKey:
             case ScrollConstraintBase::scrollActivePropertyKey:
+            case ScrollConstraintBase::wheelInteractivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case NestedArtboardBase::isPausedPropertyKey:
             case NestedArtboardBase::isStatefulPropertyKey:
@@ -5963,6 +5975,8 @@ public:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::virtualizeBufferPropertyKey:
                 return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollFlagsPropertyKey:
+                return object->is<ScrollConstraintBase>();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->is<DrawableBase>();
             case DrawableBase::additiveAmountPropertyKey:
@@ -6376,6 +6390,8 @@ public:
             case ScrollConstraintBase::interactivePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::scrollActivePropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::wheelInteractivePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();
