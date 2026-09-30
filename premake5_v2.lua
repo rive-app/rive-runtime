@@ -376,7 +376,7 @@ newoption({
 newoption({
     trigger = 'wasm_hw_bounds',
     description = 'WAMR hardware bounds checks for wasm modules compiled '
-        .. 'without sw bounds (AssemblyScript); Luau artifacts stay sw. '
+        .. 'without sw bounds (AnimaScript); Luau artifacts stay sw. '
         .. '64-bit desktop/mobile only: reserves 8GB address space per '
         .. 'module memory and installs a SIGSEGV/SIGBUS handler.',
 })

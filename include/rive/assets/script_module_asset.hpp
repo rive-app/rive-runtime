@@ -15,7 +15,7 @@ public:
     enum class Language : uint32_t
     {
         luau = 0,
-        assemblyScript = 1,
+        animaScript = 1,
     };
 
     bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
