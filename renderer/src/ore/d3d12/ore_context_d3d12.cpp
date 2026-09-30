@@ -538,6 +538,7 @@ std::unique_ptr<ContextD3D12> ContextD3D12::Make(
     // --- Features ---
     Features& f = ctx->m_features;
     f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
     f.textureViewSampling = true;

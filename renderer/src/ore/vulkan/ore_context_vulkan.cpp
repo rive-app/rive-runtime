@@ -342,6 +342,7 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
 
     Features& f = ctx->m_features;
     f.colorBufferFloat = true; // All Vulkan 1.1+ support rgba16f attachments.
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = enabled.independentBlend;
     f.perTargetWriteMask = enabled.independentBlend;
     f.textureViewSampling = true;

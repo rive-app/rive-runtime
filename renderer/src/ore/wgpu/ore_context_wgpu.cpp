@@ -454,6 +454,7 @@ std::unique_ptr<ContextWGPU> ContextWGPU::Make(wgpu::Device device,
     // Populate features with WebGPU-level capabilities.
     Features& f = ctx->m_features;
     f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
     f.textureViewSampling = true;

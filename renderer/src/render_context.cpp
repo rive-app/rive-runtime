@@ -883,7 +883,11 @@ void RenderContext::flush(const FlushResources& flushResources)
         .tessSpanBufferCount =
             totalFrameResourceCounts.maxTessellatedSegmentCount,
         .triangleVertexBufferCount =
-            totalFrameResourceCounts.maxTriangleVertexCount,
+            totalFrameResourceCounts.maxTriangleVertexCount > 0
+                ? totalFrameResourceCounts.maxTriangleVertexCount +
+                      (m_logicalFlushes.size() + 1) *
+                          (kTriangleVertexGroupSize - 1)
+                : 0,
         .imageRectInstanceBufferCount = totalFrameResourceCounts.imageRectCount,
         .imageMeshInstanceBufferCount = totalFrameResourceCounts.imageMeshCount,
         .gradTextureHeight = layoutCounts.maxGradTextureHeight,
@@ -1079,7 +1083,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         assert(m_tessSpanData.elementsWritten() <=
                totalFrameResourceCounts.maxTessellatedSegmentCount);
         assert(m_triangleVertexData.elementsWritten() <=
-               totalFrameResourceCounts.maxTriangleVertexCount);
+               totalFrameResourceCounts.maxTriangleVertexCount +
+                   m_logicalFlushes.size() * (kTriangleVertexGroupSize - 1));
 
         unmapResourceBuffers(resourceRequirements);
 
@@ -1533,6 +1538,18 @@ void RenderContext::LogicalFlush::writeResources()
     // Exact tessSpan/triangleVertex counts aren't known until after their data
     // is written out.
     size_t firstTessVertexSpan = m_ctx->m_tessSpanData.elementsWritten();
+    if (m_ctx->m_triangleVertexData)
+    {
+        // Start on a vertex group, so neither this flush nor the one before it
+        // shades the other's vertices through the wrong path offsets.
+        const size_t groupPadding =
+            math::padding_to_align_up<kTriangleVertexGroupSize>(
+                m_ctx->m_triangleVertexData.elementsWritten());
+        for (size_t i = 0; i < groupPadding; ++i)
+        {
+            m_ctx->m_triangleVertexData.emplace_back(Vec2D{}, 0, 0);
+        }
+    }
     size_t initialTriangleVertexDataSize =
         m_ctx->m_triangleVertexData.bytesWritten();
 
@@ -3136,6 +3153,7 @@ void RenderContext::unmapResourceBuffers(
     }
     if (m_triangleVertexData)
     {
+        m_triangleVertexData.zero_unwritten();
         m_triangleVertexData.unmapElements(
             m_impl.get(),
             &RenderContextImpl::unmapTriangleVertexBuffer,

@@ -88,6 +88,13 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
         device.getSurfaceCapabilities(surface, &surfaceCaps),
         "Failed to get Vulkan device surface capabilities");
 
+    // We never draw prerotated, so the compositor has to rotate our frames.
+    VkSurfaceTransformFlagBitsKHR preTransform =
+        (surfaceCaps.supportedTransforms &
+         VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+            ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+            : surfaceCaps.currentTransform;
+
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface = surface,
@@ -98,7 +105,7 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
         .imageExtent = surfaceCaps.currentExtent,
         .imageArrayLayers = 1,
         .imageUsage = opts.imageUsageFlags,
-        .preTransform = surfaceCaps.currentTransform,
+        .preTransform = preTransform,
         .compositeAlpha = compositeAlphaFlags,
         .presentMode = presentMode.value(),
         .clipped = true,

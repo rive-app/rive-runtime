@@ -1527,6 +1527,7 @@ std::unique_ptr<ContextD3D11> ContextD3D11::Make(ID3D11Device* device,
     // Populate features for D3D11 feature level 11.0.
     Features& f = ctx->m_features;
     f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
     f.perTargetBlend = true;
     f.perTargetWriteMask = true;
     f.textureViewSampling = true;

@@ -1886,6 +1886,10 @@ private:
 };
 static_assert(sizeof(TriangleVertex) == sizeof(float) * 3);
 
+// Mali shades vertices in index aligned groups of this size, loads included, so
+// a draw also runs up to 3 vertices on either side of its range.
+constexpr static size_t kTriangleVertexGroupSize = 4;
+
 enum class BoundVertexInstanceType
 {
     none,
@@ -2154,6 +2158,12 @@ public:
         }
     }
     void skip_back() { push(); }
+    void zero_unwritten()
+    {
+        memset(static_cast<void*>(m_nextMappedItem),
+               0,
+               (m_mappingEnd - m_nextMappedItem) * sizeof(T));
+    }
 
 private:
     RIVE_ALWAYS_INLINE T& push()
