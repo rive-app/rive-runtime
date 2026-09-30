@@ -138,6 +138,19 @@ public:
             ANGLERenderer::vk;
 #endif
         std::string gpuNameFilter;
+
+        // How a window presents: fifo waits for vblank, relaxed tears when
+        // late, mailbox and immediate run uncapped. Only the Artemis window
+        // reads this today, and it falls back to fifo when the surface lacks
+        // the mode.
+        enum class PresentMode
+        {
+            fifo,
+            fifoRelaxed,
+            mailbox,
+            immediate,
+        };
+        PresentMode presentMode = PresentMode::fifo;
     };
 
     enum class Visibility

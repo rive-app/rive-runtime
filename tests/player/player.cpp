@@ -7,6 +7,7 @@
 
 #include "player.hpp"
 
+#include <optional>
 #include <sstream>
 #include "common/test_harness.hpp"
 #include "common/testing_window.hpp"
@@ -279,6 +280,8 @@ bool Player::parseArgs(int argc,
                        FrameRunner::LaunchOptions& options)
 {
     bool onlyUbershaders = false;
+    // Applied after parsing, since --backend resets the backend params.
+    std::optional<TestingWindow::BackendParams::PresentMode> presentMode;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -331,6 +334,35 @@ bool Player::parseArgs(int argc,
                     : strcmp(fit, "fill") == 0  ? rive::Fit::fill
                                                 : rive::Fit::contain;
         }
+        else if (strcmp(argv[i], "--present") == 0 && i + 1 < argc)
+        {
+            using PM = TestingWindow::BackendParams::PresentMode;
+            const char* mode = argv[++i];
+            if (strcmp(mode, "fifo") == 0)
+            {
+                presentMode = PM::fifo;
+            }
+            else if (strcmp(mode, "relaxed") == 0)
+            {
+                presentMode = PM::fifoRelaxed;
+            }
+            else if (strcmp(mode, "mailbox") == 0)
+            {
+                presentMode = PM::mailbox;
+            }
+            else if (strcmp(mode, "immediate") == 0)
+            {
+                presentMode = PM::immediate;
+            }
+            else
+            {
+                fprintf(stderr,
+                        "--present must be fifo, relaxed, mailbox or "
+                        "immediate, not %s\n",
+                        mode);
+                abort();
+            }
+        }
         else if (strcmp(argv[i], "--threaded") == 0)
         {
             m_threaded = true;
@@ -370,6 +402,10 @@ bool Player::parseArgs(int argc,
         }
     }
 
+    if (presentMode)
+    {
+        options.backendParams.presentMode = *presentMode;
+    }
     if (onlyUbershaders)
     {
         options.backendParams.shaderCompilationMode =

@@ -355,6 +355,21 @@ TEST_CASE("a small curved path follows mirroring from its handles",
     }
 }
 
+// Folding the lens and mirroring only its top bone leaves the pose to be
+// measured, at a size where a pixel tolerance would only see the chords.
+TEST_CASE("a small curved path measures its pose from its handles",
+          "[skinwinding]")
+{
+    for (bool clockwise : {true, false})
+    {
+        QuadRig rig(clockwise, 8.0f, true, 4.0f);
+        rig.scale(rig.top, 1.0f, -1.0f);
+        rig.artboard.advance(0.0f);
+        CHECK(rig.skin->windingSign() == 0);
+        CHECK(rig.path->winding() == (clockwise ? -1 : 1));
+    }
+}
+
 TEST_CASE("a real rig stays clockwise when its bones mirror", "[skinwinding]")
 {
     auto file = ReadRiveFile("assets/zombie_skins.riv");

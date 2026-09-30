@@ -21,8 +21,9 @@ public:
 private:
     // Winding with the bones' mirroring divided out, 0 when unknown.
     int m_windingReference = 0;
-    // Winding of the path as bound, 0 when it has no area there.
-    int bindWinding();
+    // 1 when the vertices wind clockwise, -1 the other way, 0 when they enclose
+    // too little area to tell. Reads where the bones put them when [deformed].
+    int measureWinding(bool deformed);
 };
 } // namespace rive
 
