@@ -301,6 +301,16 @@ TEST_CASE("a self-referential mask is dropped rather than recursing",
     REQUIRE(renderer.drawPaths == 1);
 }
 
+TEST_CASE("an unknown mask mode falls back to alpha", "[layer-mask]")
+{
+    // A number bound to the mode can carry any value.
+    rive::LayerMask mask;
+    mask.maskModeValue(8);
+    CHECK(mask.maskMode() == rive::MaskMode::alpha);
+    mask.maskModeValue(3);
+    CHECK(mask.maskMode() == rive::MaskMode::invertedLuminance);
+}
+
 TEST_CASE("a mask is not a solo option", "[layer-mask]")
 {
     // A LayerMask is metadata of its parent, like a ClippingShape. If it

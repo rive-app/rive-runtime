@@ -1206,8 +1206,10 @@ void PaintData::set(DrawContents singleDrawContents,
     if (isLayerMask)
     {
         localParams |= PAINT_FLAG_LAYER_MASK;
-        localParams |= static_cast<uint32_t>(layerMaskMode)
-                       << PAINT_LAYER_MASK_MODE_SHIFT;
+        // Masked so an unknown mode can't spill into the clipID bits above.
+        localParams |= (static_cast<uint32_t>(layerMaskMode)
+                        << PAINT_LAYER_MASK_MODE_SHIFT) &
+                       PAINT_LAYER_MASK_MODE_MASK;
     }
     m_params = localParams;
 }

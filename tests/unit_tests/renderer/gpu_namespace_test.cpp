@@ -247,4 +247,36 @@ TEST_CASE("shader_unique_keys_do_not_collide", "[gpu]")
     }
 }
 
+TEST_CASE("layer_mask_mode_stays_out_of_the_clip_id", "[gpu]")
+{
+    auto params = [](LayerMaskMode mode) {
+        gpu::PaintData data;
+        data.set(gpu::DrawContents::none,
+                 gpu::PaintType::solidColor,
+                 gpu::SimplePaintValue{},
+                 gpu::GradTextureLayout{},
+                 /*clipID=*/2,
+                 /*hasClipRect=*/false,
+                 /*hasImage=*/true,
+                 BlendMode::srcOver,
+                 /*solidUnmultiplied=*/false,
+                 /*additiveness=*/0.f,
+                 /*isLayerMask=*/true,
+                 mode);
+        uint32_t out;
+        memcpy(&out, &data, sizeof(out));
+        return out;
+    };
+
+    uint32_t valid = params(LayerMaskMode::invertedLuminance);
+    CHECK((valid >> 16) == 2);
+    CHECK(((valid & PAINT_LAYER_MASK_MODE_MASK) >>
+           PAINT_LAYER_MASK_MODE_SHIFT) == LAYER_MASK_MODE_INVERTED_LUMINANCE);
+
+    // A number bound to the mode can carry any value. 8 used to land on the
+    // low bit of the clipID.
+    uint32_t outOfRange = params(static_cast<LayerMaskMode>(8));
+    CHECK((outOfRange >> 16) == 2);
+}
+
 } // namespace rive

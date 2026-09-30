@@ -3018,7 +3018,7 @@ bool Artboard::drawMasked(Renderer* renderer,
                     r->applyLayerMask(
                         coverage.get(),
                         ImageSampler::LinearClamp(),
-                        static_cast<LayerMaskMode>(mask.maskModeValue()));
+                        static_cast<LayerMaskMode>(mask.maskMode()));
                     r->restore();
                 }
             }

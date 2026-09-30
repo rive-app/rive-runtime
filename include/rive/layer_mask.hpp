@@ -122,7 +122,14 @@ public:
     LayerMask();
     ~LayerMask() override;
 
-    MaskMode maskMode() const { return static_cast<MaskMode>(maskModeValue()); }
+    // A number bound to the mode can carry any value; an unknown one falls
+    // back to alpha, as the editor does.
+    MaskMode maskMode() const
+    {
+        return maskModeValue() <= (uint32_t)MaskMode::invertedLuminance
+                   ? static_cast<MaskMode>(maskModeValue())
+                   : MaskMode::alpha;
+    }
 
 #ifdef WITH_RIVE_EDITOR
     // Dual storage, as every other editor-mutable cross-reference has:
