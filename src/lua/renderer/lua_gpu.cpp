@@ -2166,14 +2166,17 @@ static int gpupipeline_namecall(lua_State* L)
 // GPURenderPass
 // ============================================================================
 
-static void validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
+// False for a pass that drops its commands, like one begun on a frame with no
+// target.
+static bool validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
 {
     // The pass finishes without the wrapper when the pass it was begun
     // inside finishes first, or when the script call that began it returns.
-    if (self->m_finished || !self->pass || self->pass->isFinished())
+    if (self->m_finished || (self->pass && self->pass->isFinished()))
     {
         luaL_error(L, "render pass expired: it was already finished");
     }
+    return self->pass != nullptr;
 }
 
 static void validate_pipeline_set(lua_State* L, ScriptedGPURenderPass* self)
@@ -2187,7 +2190,10 @@ static void validate_pipeline_set(lua_State* L, ScriptedGPURenderPass* self)
 static int gpurenderpass_setpipeline(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     auto* pipeline = lua_torive<ScriptedGPUPipeline>(L, 2);
     if (pipeline->sampleCount != self->sampleCount)
     {
@@ -2216,7 +2222,10 @@ static int gpurenderpass_setpipeline(lua_State* L)
 static int gpurenderpass_setvertexbuffer(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     // Note: WebGPU / Metal / Vulkan / D3D11 all permit `setVertexBuffer`
     // before `setPipeline` — vertex-buffer state is layered onto whatever
     // pipeline is current at draw time. Don't gate on `m_pipelineSet`.
@@ -2236,7 +2245,10 @@ static int gpurenderpass_setvertexbuffer(lua_State* L)
 static int gpurenderpass_setindexbuffer(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     auto* buffer = lua_torive<ScriptedGPUBuffer>(L, 2);
     IndexFormat fmt = IndexFormat::uint16;
     if (lua_isstring(L, 3))
@@ -2252,7 +2264,10 @@ static int gpurenderpass_setindexbuffer(lua_State* L)
 static int gpurenderpass_setbindgroup(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     uint32_t groupIndex = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
     if (groupIndex >= ore::kMaxBindGroups)
     {
@@ -2325,7 +2340,10 @@ static int gpurenderpass_setbindgroup(lua_State* L)
 static int gpurenderpass_setviewport(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     float x = static_cast<float>(luaL_checknumber(L, 2));
     float y = static_cast<float>(luaL_checknumber(L, 3));
     float w = static_cast<float>(luaL_checknumber(L, 4));
@@ -2337,7 +2355,10 @@ static int gpurenderpass_setviewport(lua_State* L)
 static int gpurenderpass_setscissorrect(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     uint32_t x = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
     uint32_t y = static_cast<uint32_t>(luaL_checkunsigned(L, 3));
     uint32_t w = static_cast<uint32_t>(luaL_checkunsigned(L, 4));
@@ -2349,7 +2370,10 @@ static int gpurenderpass_setscissorrect(lua_State* L)
 static int gpurenderpass_setstencilreference(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     uint32_t ref = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
     self->pass->setStencilReference(ref);
     return 0;
@@ -2358,7 +2382,10 @@ static int gpurenderpass_setstencilreference(lua_State* L)
 static int gpurenderpass_setblendcolor(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     float r = static_cast<float>(luaL_checknumber(L, 2));
     float g = static_cast<float>(luaL_checknumber(L, 3));
     float b = static_cast<float>(luaL_checknumber(L, 4));
@@ -2372,7 +2399,10 @@ static int gpurenderpass_setblendcolor(lua_State* L)
 static int gpurenderpass_draw(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     validate_pipeline_set(L, self);
     uint32_t vertexCount = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
     uint32_t instanceCount =
@@ -2396,7 +2426,10 @@ static int gpurenderpass_draw(lua_State* L)
 static int gpurenderpass_drawindexed(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
+    if (!validate_render_pass(L, self))
+    {
+        return 0;
+    }
     validate_pipeline_set(L, self);
     uint32_t indexCount = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
     uint32_t instanceCount =
@@ -2432,8 +2465,10 @@ static int gpurenderpass_drawindexed(lua_State* L)
 static int gpurenderpass_finish(lua_State* L)
 {
     auto* self = lua_torive<ScriptedGPURenderPass>(L, 1);
-    validate_render_pass(L, self);
-    self->pass->finish();
+    if (validate_render_pass(L, self))
+    {
+        self->pass->finish();
+    }
     self->m_finished = true;
     return 0;
 }
@@ -2523,25 +2558,23 @@ static StoreOp lua_tostoreop_str(const char* s)
     return StoreOp::store;
 }
 
-// canvas:beginRenderPass(desc) — open a render pass against this canvas.
+// target:beginRenderPass(desc) — open a render pass against a GPUTarget.
 //
 // `desc` is required: at least one color attachment or a depthStencil
 // attachment must be supplied. Every attachment carries its own view, and
 // sampleCount is derived from those views (all attachments must share one
 // sampleCount, matching WebGPU validation).
 //
-// Color attachment `view` is optional: when omitted it defaults to the
-// receiving canvas's own colorView. Provide an explicit view for cases
+// Color attachment `view` is optional: when omitted it defaults to
+// targetView, the receiver's own view. Provide an explicit view for cases
 // where the target differs (e.g. MSAA: view = msaa:view(),
 // resolveTarget = canvas:colorView()).
-int gpucanvas_beginrenderpass(lua_State* L)
+static Context* check_beginrenderpass(lua_State* L, const char* typeName)
 {
-    auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
-
     Context* oreCtx = getOreContext(L);
     if (oreCtx == nullptr)
     {
-        luaL_error(L, "GPUCanvas:beginRenderPass() requires a GPU context");
+        luaL_error(L, "%s:beginRenderPass() requires a GPU context", typeName);
     }
 
     auto* scriptingContext =
@@ -2551,14 +2584,26 @@ int gpucanvas_beginrenderpass(lua_State* L)
     if (scriptingContext == nullptr || !oreCtx->isRecording())
     {
         luaL_error(L,
-                   "GPUCanvas:beginRenderPass() requires the deferred "
-                   "recorder");
+                   "%s:beginRenderPass() requires the deferred recorder",
+                   typeName);
     }
 
     luaL_checktype(L, 2, LUA_TTABLE);
+    return oreCtx;
+}
+
+// A host target that is hidden this frame has no view, so a pass that omits
+// one drops after validating, as the module lane does.
+static int gputarget_beginrenderpass(lua_State* L,
+                                     const char* typeName,
+                                     ore::TextureView* targetView,
+                                     bool hostTarget = false)
+{
+    Context* oreCtx = check_beginrenderpass(L, typeName);
 
     RenderPassDesc passDesc{};
     passDesc.colorCount = 0;
+    bool dropped = false;
 
     // Tracks the first attachment we see (any color slot or depth) and
     // becomes the pass's authoritative sampleCount. Subsequent attachments
@@ -2605,10 +2650,14 @@ int gpucanvas_beginrenderpass(lua_State* L)
             ore::TextureView* viewPtr = nullptr;
             if (lua_isnil(L, -1))
             {
-                // Sugar: omitting `view` defaults to the receiving canvas's
-                // own colorView. Errors only if the canvas is deferred
-                // (zero-sized — no backing texture).
-                if (!self->oreColorView)
+                // Sugar: omitting `view` defaults to the receiver's own
+                // view. Errors only if a canvas is deferred (zero-sized — no
+                // backing texture).
+                if (targetView == nullptr && hostTarget)
+                {
+                    dropped = true;
+                }
+                else if (targetView == nullptr)
                 {
                     luaL_error(L,
                                "beginRenderPass: color[%d].view omitted but "
@@ -2617,7 +2666,7 @@ int gpucanvas_beginrenderpass(lua_State* L)
                                "before drawing, or pass an explicit view.",
                                slot + 1);
                 }
-                viewPtr = self->oreColorView.get();
+                viewPtr = targetView;
             }
             else
             {
@@ -2632,9 +2681,13 @@ int gpucanvas_beginrenderpass(lua_State* L)
                 viewPtr = tv->view.get();
             }
             passDesc.colorAttachments[slot].view = viewPtr;
-            char colorLabel[32];
-            snprintf(colorLabel, sizeof(colorLabel), "color[%d]", slot + 1);
-            recordSampleCount(viewPtr->texture()->sampleCount(), colorLabel);
+            if (viewPtr != nullptr)
+            {
+                char colorLabel[32];
+                snprintf(colorLabel, sizeof(colorLabel), "color[%d]", slot + 1);
+                recordSampleCount(viewPtr->texture()->sampleCount(),
+                                  colorLabel);
+            }
             lua_pop(L, 1); // view
 
             // resolveTarget (optional — for MSAA). Source view must be
@@ -2799,14 +2852,117 @@ int gpucanvas_beginrenderpass(lua_State* L)
                    "color attachment or a depthStencil attachment");
     }
 
+    if (dropped)
+    {
+        lua_newrive<ScriptedGPURenderPass>(L);
+        return 1;
+    }
+    oreCtx->clearLastError();
+    auto pass = ore::cmd::beginRecordedRenderPass(*oreCtx, passDesc);
+    // A pass refused without an error drops, like one with no target.
+    if (pass == nullptr && !oreCtx->lastError().empty())
+    {
+        luaL_error(L, "beginRenderPass: %s", oreCtx->lastError().c_str());
+    }
     auto* rp = lua_newrive<ScriptedGPURenderPass>(L);
-    rp->pass = ore::cmd::beginRecordedRenderPass(*oreCtx, passDesc);
+    rp->pass = std::move(pass);
     rp->m_finished = false;
     rp->sampleCount =
         passSampleCount < 1 ? 1u : static_cast<uint32_t>(passSampleCount);
     rp->label = passDesc.label ? passDesc.label : "";
     rp->drawCallCount = 0;
     return 1;
+}
+
+static int gpucanvas_beginrenderpass(lua_State* L)
+{
+    auto* self = lua_torive<ScriptedGPUCanvas>(L, 1);
+    return gputarget_beginrenderpass(L,
+                                     ScriptedGPUCanvas::luaName,
+                                     self->oreColorView.get());
+}
+
+static int hosttarget_beginrenderpass(lua_State* L)
+{
+    lua_torive<ScriptedGPUTarget>(L, 1);
+    Context* oreCtx = check_beginrenderpass(L, ScriptedGPUTarget::luaName);
+    // A Lua error longjmps past any rcp still on the stack, so drop ours before
+    // the pass can raise; the context keeps the view alive.
+    TextureView* view = oreCtx->targetView().get();
+    return gputarget_beginrenderpass(L, ScriptedGPUTarget::luaName, view, true);
+}
+
+// The fields every GPUTarget answers from the view it renders into, or 0 when
+// the atom is not one of them.
+static int gputarget_pushfield(lua_State* L,
+                               int atom,
+                               const rcp<TextureView>& view)
+{
+    Texture* texture = view != nullptr ? view->texture() : nullptr;
+    switch (atom)
+    {
+        case (int)LuaAtoms::width:
+            lua_pushnumber(L, texture != nullptr ? texture->width() : 0);
+            return 1;
+        case (int)LuaAtoms::height:
+            lua_pushnumber(L, texture != nullptr ? texture->height() : 0);
+            return 1;
+        case (int)LuaAtoms::format:
+            // A deferred canvas reports the format makeRenderCanvas allocates.
+            lua_pushstring(L,
+                           lua_totextureformatstring(
+                               texture != nullptr ? texture->format()
+                                                  : TextureFormat::rgba8unorm));
+            return 1;
+        case (int)LuaAtoms::sampleCount:
+            lua_pushnumber(L, texture != nullptr ? texture->sampleCount() : 1);
+            return 1;
+        case (int)LuaAtoms::view:
+            if (view == nullptr)
+            {
+                lua_pushnil(L);
+                return 1;
+            }
+            lua_newrive<ScriptedGPUTextureView>(L)->view = view;
+            return 1;
+    }
+    return 0;
+}
+
+static int hosttarget_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+    }
+    lua_torive<ScriptedGPUTarget>(L, 1);
+    Context* oreCtx = getOreContext(L);
+    if (int pushed = gputarget_pushfield(
+            L,
+            atom,
+            oreCtx != nullptr ? oreCtx->targetView() : nullptr))
+    {
+        return pushed;
+    }
+    luaL_error(L, "'%s' is not a valid index of GPUTarget", key);
+    return 0;
+}
+
+static int hosttarget_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+    if (str != nullptr && atom == (int)LuaAtoms::beginRenderPass)
+    {
+        return hosttarget_beginrenderpass(L);
+    }
+    luaL_error(L,
+               "%s is not a valid method of %s",
+               str,
+               ScriptedGPUTarget::luaName);
+    return 0;
 }
 
 rcp<gpu::RenderCanvas> rive::allocScriptRenderCanvas(gpu::RenderContext* rc,
@@ -3033,18 +3189,10 @@ static int gpucanvashandle_index(lua_State* L)
                            self->canvas ? self->canvas->height()
                                         : self->pendingHeight);
             return 1;
-        case (int)LuaAtoms::format:
-            // Realized canvas reports its texture format. Deferred canvas
-            // reports the format makeRenderCanvas always allocates.
-            if (self->oreColorView && self->oreColorView->texture())
-                lua_pushstring(L,
-                               lua_totextureformatstring(
-                                   self->oreColorView->texture()->format()));
-            else
-                lua_pushstring(
-                    L,
-                    lua_totextureformatstring(TextureFormat::rgba8unorm));
-            return 1;
+    }
+    if (int pushed = gputarget_pushfield(L, atom, self->oreColorView))
+    {
+        return pushed;
     }
     luaL_error(L, "'%s' is not a valid index of GPUCanvas", key);
     return 0;
@@ -3585,6 +3733,18 @@ int luaopen_rive_gpu(lua_State* L)
                                            ScriptedGPUCanvas::luaTag,
                                            "height",
                                            gpucanvashandle_direct_height);
+    }
+
+    // GPUTarget (no public constructor — created via context:gpuTarget())
+    {
+        luaL_register(L, ScriptedGPUTarget::luaName, empty);
+        lua_register_rive<ScriptedGPUTarget>(L);
+        lua_pushcfunction(L, hosttarget_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+        lua_pushcfunction(L, hosttarget_index, nullptr);
+        lua_setfield(L, -2, "__index");
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1);
     }
 
     // Canvas (no public constructor — created via context:canvas())

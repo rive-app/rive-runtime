@@ -1347,17 +1347,20 @@ std::unique_ptr<RenderPass> ContextD3D11::d3d11BeginRenderPass(
 }
 
 // ============================================================================
-// d3d11WrapCanvasTexture
+// d3d11WrapTarget
 // ============================================================================
 
-rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextD3D11::d3d11WrapTarget(gpu::RenderTarget* target,
+                                               bool canvas)
 {
-    assert(canvas != nullptr);
+    assert(target != nullptr);
 
-    auto* d3dTarget =
-        static_cast<gpu::RenderTargetD3D*>(canvas->renderTarget());
+    auto* d3dTarget = static_cast<gpu::RenderTargetD3D*>(target);
     ID3D11Texture2D* d3dTex = d3dTarget->targetTexture();
-    assert(d3dTex != nullptr);
+    if (d3dTex == nullptr)
+    {
+        return nullptr;
+    }
 
     D3D11_TEXTURE2D_DESC d3dDesc{};
     d3dTex->GetDesc(&d3dDesc);
@@ -1379,8 +1382,8 @@ rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
     }
 
     TextureDesc texDesc{};
-    texDesc.width = canvas->width();
-    texDesc.height = canvas->height();
+    texDesc.width = target->width();
+    texDesc.height = target->height();
     texDesc.format = oreFormat;
     texDesc.type = TextureType::texture2D;
     texDesc.renderTarget = true;
@@ -1403,6 +1406,11 @@ rcp<TextureView> ContextD3D11::d3d11WrapCanvasTexture(gpu::RenderCanvas* canvas)
         new TextureViewD3D11(std::move(texture), viewDesc));
     // Borrow the existing RTV from the D3D render target (AddRefs via ComPtr).
     view->m_d3dRTV = d3dTarget->targetRTV();
+
+    if (!canvas)
+    {
+        return view;
+    }
 
     // SRV so a later pass can sample the canvas after rendering into it;
     // without it a bind group samples an unbound view and reads black.
@@ -1603,7 +1611,13 @@ std::unique_ptr<RenderPass> ContextD3D11::beginRenderPass(
 
 rcp<TextureView> ContextD3D11::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
-    return d3d11WrapCanvasTexture(canvas);
+    assert(canvas != nullptr);
+    return d3d11WrapTarget(canvas->renderTarget(), true);
+}
+
+rcp<TextureView> ContextD3D11::wrapRenderTarget(gpu::RenderTarget* target)
+{
+    return target != nullptr ? d3d11WrapTarget(target, false) : nullptr;
 }
 
 rcp<TextureView> ContextD3D11::wrapRiveTexture(gpu::Texture* gpuTex,

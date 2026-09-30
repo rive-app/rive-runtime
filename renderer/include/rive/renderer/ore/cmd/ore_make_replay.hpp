@@ -108,6 +108,18 @@ struct OreResident
         return id < objects.size() && objects[id] != nullptr &&
                generations[id] == generation;
     }
+
+    // A wrapped host target must not outlive its frame: the host may resize
+    // or present the image once the frame ends.
+    std::vector<ResourceHandle> frameTargets;
+    void releaseFrameTargets()
+    {
+        for (ResourceHandle id : frameTargets)
+        {
+            objects[id] = nullptr;
+        }
+        frameTargets.clear();
+    }
 };
 
 // A flagged id is an already real resource; any other id indexes the resident
@@ -550,6 +562,30 @@ inline bool replayOreLifecycle(Context& ctx,
         {
             // The consumer performs the real wrap reserved at record time.
             auto pod = reader.read<WrapCanvasViewPOD>();
+            if (pod.mode ==
+                static_cast<uint32_t>(WrapCanvasViewMode::targetView))
+            {
+                rive::gpu::RenderTarget* target = ctx.renderTarget();
+                rcp<TextureView> wrapped =
+                    target != nullptr &&
+                            packTargetSize(target->width(), target->height()) ==
+                                pod.canvasId
+                        ? ctx.wrapRenderTarget(target)
+                        : nullptr;
+                if (wrapped == nullptr)
+                {
+                    return skipUnresolvedMake(pod.id,
+                                              pod.generation,
+                                              "targetView",
+                                              nullptr);
+                }
+                table.set(pod.id,
+                          std::move(wrapped),
+                          pod.generation,
+                          OreKind::textureView);
+                table.frameTargets.push_back(pod.id);
+                return true;
+            }
             if (table.alive(pod.id, pod.generation))
             {
                 return true;

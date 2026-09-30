@@ -663,6 +663,13 @@ NAMESPACES = [
             u32('height'),
             mutbuf('uint32_t', 'props', 'propCount'),
         ], ret='u32'),
+        # A view over the host render target, which renders under Rive's
+        # content; props mirror canvas_color_view. Returns current while it
+        # still names the target, 0 when the host exposes none.
+        op('target_view', [
+            u32('current'),
+            mutbuf('uint32_t', 'props', 'propCount'),
+        ], ret='u32'),
         op('pass_begin', [
             podref('gpu_pass_desc', 'desc'),
             buf('rive_gpu_pass_color_attachment_v1', 'colors',

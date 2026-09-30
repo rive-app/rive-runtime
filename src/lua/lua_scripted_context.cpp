@@ -658,6 +658,33 @@ static int context_namecall(lua_State* L)
                 return 1;
 #endif
             }
+            case (int)LuaAtoms::gpuTarget:
+            {
+#if defined(RIVE_CANVAS) && defined(RIVE_ORE)
+                auto* oreCtx = static_cast<ore::Context*>(
+                    static_cast<ScriptingContext*>(lua_getthreaddata(L))
+                        ->oreContext());
+                // Available whenever a host could expose its target, so
+                // init can hold it before the first frame declares one.
+                if (oreCtx != nullptr && oreCtx->isRecording())
+                {
+                    // The target holds no state, so one userdata serves
+                    // every call.
+                    static const char* kTargetKey = "rive.gpuTarget";
+                    lua_rawgetfield(L, LUA_REGISTRYINDEX, kTargetKey);
+                    if (lua_isnil(L, -1))
+                    {
+                        lua_pop(L, 1);
+                        lua_newrive<ScriptedGPUTarget>(L);
+                        lua_pushvalue(L, -1);
+                        lua_rawsetfield(L, LUA_REGISTRYINDEX, kTargetKey);
+                    }
+                    return 1;
+                }
+#endif
+                lua_pushnil(L);
+                return 1;
+            }
             case (int)LuaAtoms::features:
                 return lua_push_gpu_features(L);
 

@@ -382,6 +382,16 @@ public:
     virtual void beginOreFrame() {}
     virtual void endOreFrame() {}
 
+    // Whether scripts may draw into renderTarget() under Rive's content, and
+    // its format, answered without touching it so the recording thread can
+    // declare it.
+    struct OreTarget
+    {
+        bool exposed = false;
+        bool bgra = false;
+    };
+    virtual OreTarget oreTarget() const { return {}; }
+
     // Whether beginFrame through endFrame may run off the thread that made the
     // window. A current GL context or GLFW event polling in endFrame says no.
     virtual bool supportsRenderThread() const { return false; }

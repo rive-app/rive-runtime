@@ -169,16 +169,7 @@ public:
     {
         auto oreContext =
             static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
-        if (!m_swapchain->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
-
-            m_renderTarget->setTargetImageView(
-                m_swapchain->currentVkImageView(),
-                m_swapchain->currentVkImage(),
-                m_swapchain->currentLastAccess());
-        }
-
+        beginSwapchainFrame();
         oreContext->beginFrame(
             {.externalCommandBuffer = m_swapchain->currentCommandBuffer(),
              .safeFrameNumber = m_swapchain->safeFrameNumber(),
@@ -280,27 +271,41 @@ public:
                 m_backendParams.clockwise || options.clockwiseFillOverride};
     }
 
+    // Ore and Rive must bind the same image, since scripts draw into it too.
+    void beginSwapchainFrame()
+    {
+        if (m_swapchain->isFrameStarted())
+        {
+            return;
+        }
+        VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
+        if (m_overflowTexture != nullptr)
+        {
+            m_renderTarget->setTargetImageView(m_overflowTexture->vkImageView(),
+                                               m_overflowTexture->vkImage(),
+                                               m_overflowTexture->lastAccess());
+        }
+        else
+        {
+            m_renderTarget->setTargetImageView(
+                m_swapchain->currentVkImageView(),
+                m_swapchain->currentVkImage(),
+                m_swapchain->currentLastAccess());
+        }
+    }
+
+    // An srgb swapchain would not match the unorm format Ore reports.
+    OreTarget oreTarget() const override
+    {
+        VkFormat format = m_swapchain->imageFormat();
+        return {format == VK_FORMAT_R8G8B8A8_UNORM ||
+                    format == VK_FORMAT_B8G8R8A8_UNORM,
+                format == VK_FORMAT_B8G8R8A8_UNORM};
+    }
+
     void flushPLSContext(RenderTarget* offscreenRenderTarget) override
     {
-        if (!m_swapchain->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
-
-            if (m_overflowTexture != nullptr)
-            {
-                m_renderTarget->setTargetImageView(
-                    m_overflowTexture->vkImageView(),
-                    m_overflowTexture->vkImage(),
-                    m_overflowTexture->lastAccess());
-            }
-            else
-            {
-                m_renderTarget->setTargetImageView(
-                    m_swapchain->currentVkImageView(),
-                    m_swapchain->currentVkImage(),
-                    m_swapchain->currentLastAccess());
-            }
-        }
+        beginSwapchainFrame();
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr
                                 ? offscreenRenderTarget

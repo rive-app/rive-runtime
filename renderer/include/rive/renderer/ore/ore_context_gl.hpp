@@ -8,6 +8,11 @@
 
 #include <unordered_map>
 
+namespace rive::gpu
+{
+class TextureRenderTargetGL;
+} // namespace rive::gpu
+
 // Note: load_gles_extensions.hpp (glad) is intentionally NOT included here.
 // The private GL state only needs 'int' (GLint is always int), keeping this
 // header free of glad so it can be included without glad in the search path.
@@ -60,6 +65,7 @@ public:
     bool usesDeferredFrameReplay() const override { return false; }
 
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget* target) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;
@@ -75,6 +81,8 @@ private:
     friend class TextureGL;
 
     ContextGL() : Context(nullptr) {}
+
+    rcp<TextureView> glWrapTarget(gpu::TextureRenderTargetGL* target);
 
     // An incomplete framebuffer repeats every frame; print each message once.
     std::string m_lastReportedError;

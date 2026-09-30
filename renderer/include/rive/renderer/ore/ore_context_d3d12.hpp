@@ -51,6 +51,7 @@ public:
     uint64_t safeFrameNumber() const { return m_safeFrameNumber; }
 
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget* target) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;
@@ -89,7 +90,7 @@ private:
         const BindGroupLayoutDesc& desc);
     std::unique_ptr<RenderPass> d3d12BeginRenderPass(const RenderPassDesc& desc,
                                                      std::string* outError);
-    rcp<TextureView> d3d12WrapCanvasTexture(gpu::RenderCanvas* canvas);
+    rcp<TextureView> d3d12WrapTarget(gpu::RenderTarget* target, bool canvas);
     rcp<TextureView> d3d12WrapRiveTexture(gpu::Texture* gpuTex,
                                           uint32_t w,
                                           uint32_t h);
@@ -125,6 +126,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_d3dCpuSamplerHeap;
     UINT m_d3dCpuSrvAllocated = 0;
     UINT m_d3dCpuRtvAllocated = 0;
+    // Host targets are wrapped anew every frame, so they share one RTV slot.
+    UINT m_d3dTargetRtvIndex = UINT_MAX;
     UINT m_d3dCpuDsvAllocated = 0;
     UINT m_d3dCpuSamplerAllocated = 0;
     UINT m_d3dSrvDescSize = 0;

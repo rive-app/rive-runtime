@@ -58,6 +58,10 @@ public:
     // GL, Metal), where zero serials also disable backing reuse.
     virtual rive::ore::Context::FrameDescriptor oreFrame() { return {}; }
     void afterOreFrame() override;
+    void setTargetPreserved(bool preserved) override
+    {
+        m_targetPreserved = preserved;
+    }
     // The interlock choice a frame is opened with. A canvas frame takes the
     // screen's unless canvasMode says otherwise, so a canvas never lands in a
     // mode the host did not choose.
@@ -94,6 +98,7 @@ protected:
 
 private:
     bool m_clear;
+    bool m_targetPreserved = false;
     uint32_t m_color;
     uint64_t m_target;
     // One sink serves every target of one replayed frame, so whether Ore runs
@@ -128,8 +133,12 @@ public:
                                     : m_session->screenRenderer(m_target);
     }
 
-    // Frame open: stash the clear policy and mark the Ore replay point.
-    void beginRecord(bool clear, uint32_t color);
+    // Frame open: stash the clear policy, declare the render target scripts
+    // may draw into, and mark the Ore replay point. A zero width target keeps
+    // it hidden.
+    void beginRecord(bool clear,
+                     uint32_t color,
+                     const ore::Context::TargetDesc& target = {});
 
     bool doClear() const { return m_doClear; }
     uint32_t clearColor() const { return m_color; }

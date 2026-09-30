@@ -180,6 +180,15 @@ public:
         }
         for (uint32_t i = 0; i < desc.textureCount; ++i)
         {
+            // The target is rewrapped every frame and may not be sampleable.
+            auto* d = rive::lite_rtti_cast<DeferredTextureView*>(
+                desc.textures[i].view);
+            if (d != nullptr && d->hostTarget)
+            {
+                setLastError("makeBindGroup: the target view cannot be "
+                             "sampled");
+                return nullptr;
+            }
             texs[i] = handleFor(desc.textures[i].view);
         }
         for (uint32_t i = 0; i < desc.samplerCount; ++i)
@@ -207,7 +216,83 @@ public:
         const RenderPassDesc& desc,
         std::string* /*outError*/ = nullptr) override
     {
+        bool drawsTarget = false;
+        for (uint32_t i = 0; i < desc.colorCount; ++i)
+        {
+            const ColorAttachment& c = desc.colorAttachments[i];
+            for (TextureView* view : {c.view, c.resolveTarget})
+            {
+                auto* d = rive::lite_rtti_cast<DeferredTextureView*>(view);
+                if (d == nullptr || !d->hostTarget)
+                {
+                    continue;
+                }
+                // A retired target view names an image that may be gone.
+                if (d != m_targetView.get())
+                {
+                    setLastError("beginRenderPass: stale target view");
+                    return nullptr;
+                }
+                // Like a frame with no target, the pass drops without error.
+                if (m_targetHidden)
+                {
+                    return nullptr;
+                }
+                drawsTarget = true;
+            }
+        }
+        if (drawsTarget && !m_targetWrapped)
+        {
+            // The host may hand over a different image every frame.
+            recordWrapTargetView();
+        }
+        m_targetDrawn = m_targetDrawn || drawsTarget;
         return std::make_unique<RenderPassRecording>(this, &m_render, desc);
+    }
+
+    // The host declares its target before scripts record. A changed target
+    // gets a new view, since the view carries its size and format. A host
+    // that hides its target for a frame keeps the view for when it returns.
+    void setTarget(const TargetDesc& desc)
+    {
+        m_targetHidden = desc.width == 0;
+        if (!m_targetHidden && desc != m_target)
+        {
+            m_target = desc;
+            m_targetView = nullptr;
+        }
+    }
+
+    rcp<TextureView> targetView() override
+    {
+        if (m_targetHidden)
+        {
+            return nullptr;
+        }
+        if (m_targetView == nullptr)
+        {
+            auto a = m_ids.alloc();
+            m_targetView = makeProxyView(a.id,
+                                         a.generation,
+                                         m_target.width,
+                                         m_target.height,
+                                         m_target.format,
+                                         m_target.sampleCount);
+            m_targetView->hostTarget = true;
+            // Replay fills ids in mint order, so the slot is claimed now.
+            recordWrapTargetView();
+        }
+        return m_targetView;
+    }
+
+    // Script GPU work drew into the target this frame, so Rive's frame must
+    // load it rather than clear it.
+    bool targetDrawn() const { return m_targetDrawn; }
+    // The packed size scripts drew the target at this frame, or 0.
+    uint32_t drawnTargetSize() const
+    {
+        return m_targetDrawn ? packTargetSize(m_target.width, m_target.height)
+                             : 0;
     }
 
     // Maps a canvas to its shared canvas id for replay. Set by the
@@ -262,14 +347,28 @@ public:
                                             uint32_t width,
                                             uint32_t height)
     {
+        return makeProxyView(id,
+                             generation,
+                             width,
+                             height,
+                             m_caps.canvasTargetFormat,
+                             1);
+    }
+    rcp<DeferredTextureView> makeProxyView(ResourceHandle id,
+                                           uint32_t generation,
+                                           uint32_t width,
+                                           uint32_t height,
+                                           TextureFormat format,
+                                           uint32_t sampleCount)
+    {
         TextureDesc texDesc{};
         texDesc.width = width;
         texDesc.height = height;
-        texDesc.format = m_caps.canvasTargetFormat;
+        texDesc.format = format;
         texDesc.type = TextureType::texture2D;
         texDesc.renderTarget = true;
         texDesc.numMipmaps = 1;
-        texDesc.sampleCount = 1;
+        texDesc.sampleCount = sampleCount;
         auto proxyTex =
             make_rcp<DeferredTexture>(0u, 0u, nullptr, nullptr, texDesc);
         TextureViewDesc viewDesc{};
@@ -482,6 +581,8 @@ public:
         // A pass still open would append its finish into the next frame.
         finishOpenRenderPassesFrom(0);
         m_render.reset();
+        m_targetWrapped = false;
+        m_targetDrawn = false;
         // Cross thread destroys drain on the recording thread, landing at the
         // new frame's stream head.
         m_render.drainDestroys();
@@ -539,6 +640,16 @@ private:
                     static_cast<unsigned>(m_caps.canvasTargetFormat));
             assert(false && "late bind changed the recorded canvas format");
         }
+    }
+
+    void recordWrapTargetView()
+    {
+        recordWrapCanvasView(m_render,
+                             m_targetView->clientHandle(),
+                             m_targetView->generation(),
+                             packTargetSize(m_target.width, m_target.height),
+                             WrapCanvasViewMode::targetView);
+        m_targetWrapped = true;
     }
 
     // Resolves a flagged real id to its retained real object.
@@ -602,6 +713,12 @@ private:
     // addressed by flagged id. Cleared every resetFrame.
     PtrHandleMap m_realPtrToHandle;
     std::vector<rcp<rive::gpu::GPUResource>> m_realResources;
+    TargetDesc m_target;
+    rcp<DeferredTextureView> m_targetView;
+    // This frame's stream already wraps the target.
+    bool m_targetWrapped = false;
+    bool m_targetDrawn = false;
+    bool m_targetHidden = true;
 };
 
 } // namespace rive::ore::cmd

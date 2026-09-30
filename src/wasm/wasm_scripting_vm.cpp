@@ -2258,6 +2258,42 @@ uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm,
                               new HostGpuTextureView{host->colorView});
 }
 
+uint32_t gpuTargetViewImpl(WasmScriptingVM* vm,
+                           uint32_t current,
+                           uint32_t* props,
+                           uint32_t propCount)
+{
+    ore::Context* oreContext = gpuOreContext(vm);
+    // Props stay unwritten where no host could ever expose a target.
+    if (vm == nullptr || oreContext == nullptr || !oreContext->isRecording() ||
+        propCount < 4)
+    {
+        return 0;
+    }
+    rcp<ore::TextureView> view = oreContext->targetView();
+    if (view == nullptr)
+    {
+        props[0] = 0;
+        props[1] = 0;
+        props[2] = (uint32_t)ore::TextureFormat::rgba8unorm;
+        props[3] = 1;
+        return 0;
+    }
+    props[0] = view->width();
+    props[1] = view->height();
+    props[2] = (uint32_t)view->texture()->format();
+    props[3] = view->texture()->sampleCount();
+    auto host = static_cast<HostGpuTextureView*>(vm->handles().resolve(
+        current,
+        WasmScriptingVM::HandleTable::Tag::gpuTextureView));
+    if (host != nullptr && host->view == view)
+    {
+        return current;
+    }
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuTextureView,
+                              new HostGpuTextureView{std::move(view)});
+}
+
 uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount)
 {
     ore::Context* oreContext = gpuOreContext(vm);
@@ -2349,10 +2385,14 @@ uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
     desc.depthStencil.stencilLoadOp = (ore::LoadOp)podDesc->stencilLoadOp;
     desc.depthStencil.stencilStoreOp = (ore::StoreOp)podDesc->stencilStoreOp;
     desc.depthStencil.stencilClearValue = podDesc->stencilClearValue;
+    oreContext->clearLastError();
     auto pass = ore::cmd::beginRecordedRenderPass(*oreContext, desc);
     if (pass == nullptr)
     {
-        return 0;
+        // A pass refused without an error drops, like one with no target.
+        return oreContext->lastError().empty()
+                   ? 0
+                   : gpuRejected(vm, oreContext, "beginRenderPass");
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::gpuPass,
                               new HostGpuPass{std::move(pass)});
@@ -3470,6 +3510,10 @@ uint32_t gpuCanvasResizeImpl(WasmScriptingVM*,
                              uint32_t,
                              uint32_t*,
                              uint32_t)
+{
+    return 0;
+}
+uint32_t gpuTargetViewImpl(WasmScriptingVM*, uint32_t, uint32_t*, uint32_t)
 {
     return 0;
 }

@@ -9,13 +9,12 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
-#include "ore_gm_helper.hpp"
+#include "ore_gm_sink.hpp"
 #if ORE_GM_HAS_BACKEND
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
 #include "rive/renderer/cmd/deferred_session.hpp"
-#include "rive/renderer/cmd/deferred_replayer.hpp"
 #endif
 
 using namespace rivegm;
@@ -24,38 +23,6 @@ using namespace rive::gpu;
 #if ORE_GM_HAS_BACKEND
 using namespace rive::ore;
 // Disambiguates from rive::cmd.
-
-// The GM is handed an already open screen renderer, so beginScreenFrame just
-// returns it.
-class GMCanvasSink : public rive::cmd::DeferredFrameSink
-{
-public:
-    GMCanvasSink(rive::gpu::RenderContext* rc,
-                 rive::Renderer* screen,
-                 ore_gm::OreGMContext* oreCtx) :
-        m_rc(rc), m_screen(screen), m_ore(oreCtx)
-    {}
-    rive::Factory* factory() override
-    {
-        return TestingWindow::Get()->factory();
-    }
-    rive::gpu::RenderContext* renderContext() override { return m_rc; }
-    // The GM hands over one already open screen renderer, so there is nothing
-    // to dispatch on.
-    rive::Renderer* beginScreenFrame(uint64_t target) override
-    {
-        assert(target == 0);
-        return m_screen;
-    }
-    void beginOreFrame() override { m_ore->beginFrame(m_rc); }
-    void endOreFrame() override { m_ore->endFrame(m_rc); }
-    void afterOreFrame() override { ore_gm::invalidateGLStateAfterOre(m_rc); }
-
-private:
-    rive::gpu::RenderContext* m_rc;
-    rive::Renderer* m_screen;
-    ore_gm::OreGMContext* m_ore;
-};
 #endif
 
 class RenderDeferredCanvasGM : public GM
@@ -129,7 +96,7 @@ public:
 
             // Snapshot replay is the same path a threaded consumer takes.
             rive::cmd::DeferredFrame frame = rive::cmd::snapshotFrame(session);
-            GMCanvasSink sink(renderContext, originalRenderer, &m_ore);
+            ore_gm::GMFrameSink sink(renderContext, originalRenderer, &m_ore);
             rive::cmd::DeferredReplayer replayer;
             replayer.replayFrame(frame, sink);
         }

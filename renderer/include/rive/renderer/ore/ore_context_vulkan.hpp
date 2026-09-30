@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <functional>
 #include <utility>
@@ -13,6 +14,23 @@
 namespace rive::ore
 {
 class TextureVulkan;
+
+// What a host exposes of a Vulkan target to scripts, hidden unless its format
+// is one Ore reports.
+inline Context::TargetDesc targetDescFor(const gpu::RenderTargetVulkan& target)
+{
+    switch (target.framebufferFormat())
+    {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+            return Context::TargetDesc::color8(target.width(),
+                                               target.height(),
+                                               target.framebufferFormat() ==
+                                                   VK_FORMAT_B8G8R8A8_UNORM);
+        default:
+            return {};
+    }
+}
 
 // Refcounted VkDescriptorPool. Dies in one shot when its last ref
 // (ContextVulkan or any BindGroupVulkan) is released.
@@ -109,6 +127,7 @@ public:
     void waitForGPU() override;
 
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget*) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;
@@ -132,6 +151,11 @@ private:
     ContextVulkan(const rcp<rive::gpu::VulkanContext> vk) :
         Context(vk), m_vk(vk)
     {}
+
+    rcp<TextureView> wrapTargetImage(gpu::RenderTarget*,
+                                     uint32_t width,
+                                     uint32_t height,
+                                     VkImageLayout layout);
 
     const rcp<rive::gpu::VulkanContext> m_vk;
 

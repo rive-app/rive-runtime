@@ -1155,9 +1155,16 @@ std::unique_ptr<RenderPass> ContextWGPU::beginRenderPass(
 rcp<TextureView> ContextWGPU::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
     assert(canvas != nullptr);
+    return wrapRenderTarget(canvas->renderTarget());
+}
 
-    auto* wgpuTarget =
-        static_cast<gpu::RenderTargetWebGPU*>(canvas->renderTarget());
+rcp<TextureView> ContextWGPU::wrapRenderTarget(gpu::RenderTarget* target)
+{
+    auto* wgpuTarget = static_cast<gpu::RenderTargetWebGPU*>(target);
+    if (wgpuTarget == nullptr || !wgpuTarget->targetTextureView())
+    {
+        return nullptr;
+    }
 
     // Derive the ore format from the actual WebGPU surface format so any MSAA
     // texture created from this descriptor matches the resolve target exactly.
@@ -1180,8 +1187,8 @@ rcp<TextureView> ContextWGPU::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     }
 
     TextureDesc texDesc{};
-    texDesc.width = canvas->width();
-    texDesc.height = canvas->height();
+    texDesc.width = target->width();
+    texDesc.height = target->height();
     texDesc.format = oreFormat;
     texDesc.type = TextureType::texture2D;
     texDesc.renderTarget = true;

@@ -61,32 +61,20 @@ public:
             .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
+        // Ore replays into the target before the first flush.
+        ensureRenderTarget();
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
+    rive::gpu::RenderTarget* renderTarget() const override
+    {
+        return m_renderTarget.get();
+    }
+
+    OreTarget oreTarget() const override { return {true, true}; }
+
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        if (!m_renderTarget || m_renderTarget->height() != m_height ||
-            m_renderTarget->width() != m_width)
-        {
-            m_renderTarget =
-                m_renderContext->static_impl_cast<RenderContextMetalImpl>()
-                    ->makeRenderTarget(
-                        MTLPixelFormatBGRA8Unorm, m_width, m_height);
-            MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
-            desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
-            desc.width = m_width;
-            desc.height = m_height;
-            desc.usage = MTLTextureUsageRenderTarget;
-            desc.textureType = MTLTextureType2D;
-            desc.mipmapLevelCount = 1;
-            desc.storageMode = MTLStorageModePrivate;
-            m_renderTarget->setTargetTexture(
-                [m_gpu newTextureWithDescriptor:desc]);
-            m_pixelReadBuff =
-                [m_gpu newBufferWithLength:m_height * m_width * 4
-                                   options:MTLResourceStorageModeShared];
-        }
         // A deferred replay flushes canvases before beginFrame, so the buffer
         // may not exist yet.
         if (m_flushCommandBuffer == nil)
@@ -194,6 +182,31 @@ public:
     }
 
 private:
+    void ensureRenderTarget()
+    {
+        if (!m_renderTarget || m_renderTarget->height() != m_height ||
+            m_renderTarget->width() != m_width)
+        {
+            m_renderTarget =
+                m_renderContext->static_impl_cast<RenderContextMetalImpl>()
+                    ->makeRenderTarget(
+                        MTLPixelFormatBGRA8Unorm, m_width, m_height);
+            MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+            desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
+            desc.width = m_width;
+            desc.height = m_height;
+            desc.usage = MTLTextureUsageRenderTarget;
+            desc.textureType = MTLTextureType2D;
+            desc.mipmapLevelCount = 1;
+            desc.storageMode = MTLStorageModePrivate;
+            m_renderTarget->setTargetTexture(
+                [m_gpu newTextureWithDescriptor:desc]);
+            m_pixelReadBuff =
+                [m_gpu newBufferWithLength:m_height * m_width * 4
+                                   options:MTLResourceStorageModeShared];
+        }
+    }
+
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
     std::unique_ptr<RenderContext> m_renderContext;

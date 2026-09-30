@@ -279,6 +279,8 @@ constexpr LuaAtomName atoms[] = {
     {"features", (int16_t)LuaAtoms::features},
     {"shader", (int16_t)LuaAtoms::shader},
     {"format", (int16_t)LuaAtoms::format},
+    {"gpuTarget", (int16_t)LuaAtoms::gpuTarget},
+    {"sampleCount", (int16_t)LuaAtoms::sampleCount},
     {"andThen", (int16_t)LuaAtoms::andThen},
     {"catch", (int16_t)LuaAtoms::catch_},
     {"finally", (int16_t)LuaAtoms::finally_},

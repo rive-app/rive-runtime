@@ -52,6 +52,7 @@ public:
     // recycling: an address only names this handle for as long as this object
     // occupies it.
     ResourceHandle clientHandle() const { return m_clientHandle; }
+    uint32_t generation() const { return m_generation; }
 
     // A handle resolves against the table this resource's stream feeds, so a
     // reader that writes a different stream must not use it.
@@ -159,6 +160,9 @@ public:
                                                              desc),
         DeferredResource(handle, generation, stream, allocator)
     {}
+
+    // Stands in for the host render target, wrapped anew each frame.
+    bool hostTarget = false;
 };
 
 class DeferredSampler : public LITE_RTTI_OVERRIDE(Sampler, DeferredSampler),

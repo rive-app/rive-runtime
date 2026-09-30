@@ -57,7 +57,7 @@ rive::Renderer* HostFrameSink::beginScreenFrame(uint64_t target)
     }
     if (m_screen == nullptr)
     {
-        m_screen = beginScreen(target, m_clear, m_color);
+        m_screen = beginScreen(target, m_clear && !m_targetPreserved, m_color);
     }
     return m_screen;
 }
@@ -130,10 +130,13 @@ void HostFrameSink::endCanvasContent()
     m_activeCanvas = nullptr;
 }
 
-void DeferredInlineHost::beginRecord(bool clear, uint32_t color)
+void DeferredInlineHost::beginRecord(bool clear,
+                                     uint32_t color,
+                                     const ore::Context::TargetDesc& target)
 {
     m_doClear = clear;
     m_color = color;
+    m_session->oreContext().setTarget(target);
     m_session->recordOreReplayMarker();
 }
 

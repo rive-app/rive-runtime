@@ -27,6 +27,9 @@ private:
     VkImage m_vkImage = VK_NULL_HANDLE;
     VmaAllocation m_vmaAllocation = VK_NULL_HANDLE;
     VkImageLayout m_vkLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // A host's render target may lack sampled usage, so passes leave it an
+    // attachment.
+    bool m_vkSampleable = true;
     // One flag per mip and layer, set once anything gives that subresource
     // contents, pending uploads included.
     std::vector<bool> m_vkWritten;

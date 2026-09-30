@@ -342,15 +342,18 @@ public:
         return m_renderContext->static_impl_cast<RenderContextD3D12Impl>();
     }
 
+    // Asked before this frame's flush refreshes m_frameIndex, which still
+    // names the buffer just presented.
     rive::gpu::RenderTarget* renderTargetOrNull() override
     {
-        return m_renderTargets[m_frameIndex].get();
+        return m_renderTargets[getFrameIndex()].get();
     }
 
     void* getCommandBuffer() override { return m_commandList.Get(); }
 
     void beginOreFrame(rive::ore::Context* oreContext) override
     {
+        m_frameIndex = getFrameIndex();
         beginFrame();
         oreContext->beginFrame({.externalCommandBuffer = m_commandList.Get(),
                                 .safeFrameNumber = m_safeFrame,

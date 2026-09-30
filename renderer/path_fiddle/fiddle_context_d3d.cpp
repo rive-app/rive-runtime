@@ -111,6 +111,25 @@ public:
 
     void toggleZoomWindow() override {}
 
+    void bindTargetTexture()
+    {
+        if (m_renderTarget->targetTexture() != nullptr)
+        {
+            return;
+        }
+        if (m_isHeadless)
+        {
+            m_renderTarget->setTargetTexture(m_headlessDrawTexture);
+            return;
+        }
+        ComPtr<ID3D11Texture2D> backbuffer;
+        VERIFY_OK(m_swapchain->GetBuffer(
+            0,
+            __uuidof(ID3D11Texture2D),
+            reinterpret_cast<void**>(backbuffer.ReleaseAndGetAddressOf())));
+        m_renderTarget->setTargetTexture(backbuffer);
+    }
+
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -122,27 +141,18 @@ public:
         m_renderContext->beginFrame(frameDescriptor);
     }
 
+    // Ore may draw into the target before Rive's first flush.
+    void beginOreFrame(rive::ore::Context* oreContext) override
+    {
+        bindTargetTexture();
+        FiddleContext::beginOreFrame(oreContext);
+    }
+
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         RIVE_PROF_SCOPE_L(0)
 
-        if (m_renderTarget->targetTexture() == nullptr)
-        {
-            if (m_isHeadless)
-            {
-                m_renderTarget->setTargetTexture(m_headlessDrawTexture);
-            }
-            else
-            {
-                ComPtr<ID3D11Texture2D> backbuffer;
-                VERIFY_OK(m_swapchain->GetBuffer(
-                    0,
-                    __uuidof(ID3D11Texture2D),
-                    reinterpret_cast<void**>(
-                        backbuffer.ReleaseAndGetAddressOf())));
-                m_renderTarget->setTargetTexture(backbuffer);
-            }
-        }
+        bindTargetTexture();
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr
                                 ? offscreenRenderTarget

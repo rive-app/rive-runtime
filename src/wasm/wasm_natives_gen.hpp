@@ -383,6 +383,7 @@ void gpuCanvasReleaseImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t gpuCanvasColorViewImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t* props, uint32_t propCount);
 uint32_t gpuCanvasImageImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount);
+uint32_t gpuTargetViewImpl(WasmScriptingVM* vm, uint32_t current, uint32_t* props, uint32_t propCount);
 uint32_t gpuPassBeginImpl(WasmScriptingVM* vm, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
 void gpuPassSetPipelineImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t pipeline);
 void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t slot, uint32_t buffer, uint32_t offset);
@@ -1512,6 +1513,15 @@ uint32_t gpuCanvasResize(wasm_exec_env_t env, uint32_t canvas, uint32_t width, u
     }
     return gpuCanvasResizeImpl(vm, canvas, width, height, props, propCount);
 }
+uint32_t gpuTargetView(wasm_exec_env_t env, uint32_t current, uint32_t* props, uint32_t propCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (propCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)props, (uint64_t)propCount * 4))
+    {
+        return {};
+    }
+    return gpuTargetViewImpl(vm, current, props, propCount);
+}
 uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2275,6 +2285,7 @@ NativeSymbol kGpuNatives[] = {
     {"canvas_color_view", (void*)gpuCanvasColorView, "(i*~)i", nullptr},
     {"canvas_image", (void*)gpuCanvasImage, "(i)i", nullptr},
     {"canvas_resize", (void*)gpuCanvasResize, "(iii*~)i", nullptr},
+    {"target_view", (void*)gpuTargetView, "(i*~)i", nullptr},
     {"pass_begin", (void*)gpuPassBegin, "(*~*~)i", nullptr},
     {"pass_set_pipeline", (void*)gpuPassSetPipeline, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
     {"pass_set_vertex_buffer", (void*)gpuPassSetVertexBuffer, "(iiii)", (void*)&wasm_runtime_rive_leaf_native},

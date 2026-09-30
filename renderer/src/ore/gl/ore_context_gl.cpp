@@ -1338,17 +1338,16 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
 // wrapCanvasTexture
 // ============================================================================
 
-rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+rcp<TextureView> ContextGL::glWrapTarget(gpu::TextureRenderTargetGL* target)
 {
-    assert(canvas != nullptr);
-
-    auto* glTarget =
-        static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget());
-    GLuint texID = glTarget->externalTextureID();
-    assert(texID != 0);
+    GLuint texID = target->externalTextureID();
+    if (texID == 0)
+    {
+        return nullptr;
+    }
     TextureDesc texDesc{};
-    texDesc.width = canvas->width();
-    texDesc.height = canvas->height();
+    texDesc.width = target->width();
+    texDesc.height = target->height();
     texDesc.format = TextureFormat::rgba8unorm;
     texDesc.type = TextureType::texture2D;
     texDesc.renderTarget = true;
@@ -1356,7 +1355,7 @@ rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     texDesc.sampleCount = 1;
 
     auto texture = rcp<TextureGL>(new TextureGL(texDesc));
-    texture->m_glTexture = texID; // Borrow — RenderCanvas owns it.
+    texture->m_glTexture = texID; // Borrow — the host owns it.
     texture->m_glTarget = GL_TEXTURE_2D;
     texture->m_glOwnsTexture = false;
 
@@ -1369,6 +1368,23 @@ rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
     viewDesc.layerCount = 1;
 
     return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
+}
+
+rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
+{
+    assert(canvas != nullptr);
+    return glWrapTarget(
+        static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget()));
+}
+
+rcp<TextureView> ContextGL::wrapRenderTarget(gpu::RenderTarget* target)
+{
+    // Our GLSL flips Y at bake time, so passes land upright only in top down
+    // textures. Framebuffers and bottom up textures wait for an offscreen copy.
+    auto* glTarget = lite_rtti_cast<gpu::TextureRenderTargetGL*>(
+        static_cast<gpu::RenderTargetGL*>(target));
+    return glTarget != nullptr && !glTarget->bottomUp() ? glWrapTarget(glTarget)
+                                                        : nullptr;
 }
 
 rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,

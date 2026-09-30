@@ -1596,9 +1596,15 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         RIVE_PROF_GPUNAME_L(1, "clearPLSTextures");
         if (desc.fixedFunctionColorOutput)
         {
-            m_resourceManager->transition(cmdList,
-                                          targetTexture,
-                                          D3D12_RESOURCE_STATE_RENDER_TARGET);
+            // Ore leaves a host target it drew into as a render target.
+            if (targetTexture->lastState() !=
+                D3D12_RESOURCE_STATE_RENDER_TARGET)
+            {
+                m_resourceManager->transition(
+                    cmdList,
+                    targetTexture,
+                    D3D12_RESOURCE_STATE_RENDER_TARGET);
+            }
 
             auto rtvHandle =
                 m_rtvHeap->cpuHandleForIndex(TARGET_RTV_HEAP_OFFSET);
@@ -1724,9 +1730,12 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
     if (renderPassHasCoalescedResolveAndTransfer)
     {
-        m_resourceManager->transition(cmdList,
-                                      targetTexture,
-                                      D3D12_RESOURCE_STATE_RENDER_TARGET);
+        if (targetTexture->lastState() != D3D12_RESOURCE_STATE_RENDER_TARGET)
+        {
+            m_resourceManager->transition(cmdList,
+                                          targetTexture,
+                                          D3D12_RESOURCE_STATE_RENDER_TARGET);
+        }
 
         auto rtvHandle = m_rtvHeap->cpuHandleForIndex(TARGET_RTV_HEAP_OFFSET);
         cmdList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);

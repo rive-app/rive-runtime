@@ -341,6 +341,8 @@ enum class LuaAtoms : int16_t
     features,
     shader,
     format,
+    gpuTarget,
+    sampleCount,
 
     // Promise
     andThen,
@@ -935,6 +937,15 @@ public:
     // a device appears. Zero once satisfied.
     uint32_t pendingWidth = 0;
     uint32_t pendingHeight = 0;
+};
+
+// Rive's render target, read live from the Ore context on every access.
+class ScriptedGPUTarget
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 73;
+    static constexpr const char* luaName = "GPUTarget";
+    static constexpr bool hasMetatable = true;
 };
 
 #endif // RIVE_ORE

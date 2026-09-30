@@ -1110,6 +1110,12 @@ uint32_t rive_web_gpu_canvas_resize(uint32_t vmHandle, uint32_t canvas, uint32_t
     return gpuCanvasResizeImpl(vm, canvas, width, height, props, propCount);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_gpu_target_view(uint32_t vmHandle, uint32_t current, uint32_t* props, uint32_t propCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return gpuTargetViewImpl(vm, current, props, propCount);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_pass_begin(uint32_t vmHandle, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;

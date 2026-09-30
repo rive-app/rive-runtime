@@ -38,11 +38,22 @@ public:
     rive::Renderer* beginScreenFrame(uint64_t target) override
     {
         assert(target == 0);
-        m_screen = TestingWindow::Get()->beginFrame(m_options);
+        FrameOptions options = m_options;
+        options.doClear = options.doClear && !m_targetPreserved;
+        m_screen = TestingWindow::Get()->beginFrame(options);
         return m_screen.get();
     }
     void beginOreFrame() override { TestingWindow::Get()->beginOreFrame(); }
     void endOreFrame() override { TestingWindow::Get()->endOreFrame(); }
+    rive::gpu::RenderTarget* targetRenderTarget() override
+    {
+        TestingWindow* window = TestingWindow::Get();
+        return window->oreTarget().exposed ? window->renderTarget() : nullptr;
+    }
+    void setTargetPreserved(bool preserved) override
+    {
+        m_targetPreserved = preserved;
+    }
 
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override
@@ -82,6 +93,7 @@ private:
     std::unique_ptr<rive::Renderer> m_screen;
     std::unique_ptr<rive::RiveRenderer> m_canvasRenderer;
     rive::gpu::RenderCanvas* m_activeCanvas = nullptr;
+    bool m_targetPreserved = false;
 };
 
 #endif // RIVE_CANVAS

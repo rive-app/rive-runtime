@@ -32,6 +32,7 @@ class RenderImage;
 namespace rive::gpu
 {
 class RenderCanvas;
+class RenderTarget;
 class Texture;
 } // namespace rive::gpu
 
@@ -183,6 +184,48 @@ public:
     virtual void waitForGPU() = 0;
 
     virtual rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) = 0;
+
+    // What a script sees of the host's render target; it builds its
+    // pipelines against these. Zero width means no target is exposed.
+    struct TargetDesc
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        TextureFormat format = TextureFormat::rgba8unorm;
+        uint32_t sampleCount = 1;
+
+        bool operator==(const TargetDesc& o) const
+        {
+            return width == o.width && height == o.height &&
+                   format == o.format && sampleCount == o.sampleCount;
+        }
+        bool operator!=(const TargetDesc& o) const { return !(*this == o); }
+
+        // The single sampled 8 bit target a window host exposes.
+        static TargetDesc color8(uint32_t width, uint32_t height, bool bgra)
+        {
+            return {width,
+                    height,
+                    bgra ? TextureFormat::bgra8unorm
+                         : TextureFormat::rgba8unorm,
+                    1};
+        }
+    };
+
+    // Backends that cannot render into a host's own render target return
+    // null, which drops the passes into it.
+    virtual rcp<TextureView> wrapRenderTarget(gpu::RenderTarget*)
+    {
+        return nullptr;
+    }
+
+    // The host render target scripts draw into under Rive's content. Only the
+    // recording context hands one out, wrapped again each frame at replay.
+    virtual rcp<TextureView> targetView() { return nullptr; }
+
+    // Set by the host around each Ore frame it replays.
+    void setRenderTarget(gpu::RenderTarget* target) { m_renderTarget = target; }
+    gpu::RenderTarget* renderTarget() const { return m_renderTarget; }
 
     // Color format makeRenderCanvas allocates. A backend that allocates
     // anything other than rgba8 must override or canvas draws fail the
@@ -426,6 +469,8 @@ protected:
     std::string m_lastError;
 
     bool m_deferredRecording = false;
+
+    gpu::RenderTarget* m_renderTarget = nullptr;
 
     std::unordered_map<uint64_t, rcp<BindGroupLayout>> m_internedLayouts;
 

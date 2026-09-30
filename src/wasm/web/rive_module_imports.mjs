@@ -528,6 +528,13 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(props_p, props, propCount * 4);
                 return ret;
             },
+            target_view: (current, props, propCount) => {
+                stackReset();
+                const props_p = stageIn(props, propCount * 4);
+                const ret = calls.rive_gpu_target_view(current, props_p, propCount);
+                copyOut(props_p, props, propCount * 4);
+                return ret;
+            },
             pass_begin: (desc, descByteCount, colors, colorByteCount) => {
                 stackReset();
                 const desc_p = stageIn(desc, descByteCount);

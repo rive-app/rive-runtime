@@ -438,6 +438,7 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
                 // Bound before import so registration scripts that reach for
                 // the device find it, like a real host.
                 m_session->bindRenderContext(rc);
+                declareTarget();
                 m_replayer = std::make_unique<rive::cmd::DeferredReplayer>();
                 m_factory = m_session.get();
             }
@@ -565,6 +566,20 @@ void Player::submitGamepad(const TestingWindow::InputEventData& event)
     m_stateMachine->submitGamepadsFromBuffer(buffer.data(), buffer.size());
 }
 
+#ifdef RIVE_CANVAS
+void Player::declareTarget()
+{
+    TestingWindow* window = TestingWindow::Get();
+    TestingWindow::OreTarget target = window->oreTarget();
+    m_session->oreContext().setTarget(
+        target.exposed
+            ? rive::ore::Context::TargetDesc::color8(window->width(),
+                                                     window->height(),
+                                                     target.bgra)
+            : rive::ore::Context::TargetDesc{});
+}
+#endif
+
 void Player::presentFrame(FrameJob& job)
 {
 #ifdef RIVE_CANVAS
@@ -679,6 +694,7 @@ bool Player::doFrame()
 #ifdef RIVE_CANVAS
     if (m_session != nullptr)
     {
+        declareTarget();
         m_session->recordOreReplayMarker();
         renderer = m_session->makeScreenRenderer();
     }

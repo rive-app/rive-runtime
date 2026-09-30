@@ -113,6 +113,8 @@ private:
     std::unique_ptr<rive::cmd::DeferredSession> m_session;
     std::unique_ptr<rive::cmd::DeferredReplayer> m_replayer;
     uint32_t m_lastDroppedDraws = 0;
+    // Tells the recording what target scripts may render into.
+    void declareTarget();
 #endif
 
     std::string m_rivName;

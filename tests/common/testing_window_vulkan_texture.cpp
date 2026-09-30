@@ -103,6 +103,17 @@ public:
         return m_renderContext.get();
     }
 
+    rive::gpu::RenderTarget* renderTarget() const override
+    {
+        return m_renderTarget.get();
+    }
+
+    // An srgb view would not match the unorm format Ore reports.
+    OreTarget oreTarget() const override
+    {
+        return {!m_backendParams.srgb, !m_backendParams.core};
+    }
+
     rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
         uint32_t width,
         uint32_t height,

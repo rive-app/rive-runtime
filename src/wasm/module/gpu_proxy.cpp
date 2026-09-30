@@ -346,6 +346,24 @@ private:
     uint32_t m_handle;
 };
 
+// A view over a host color target, described by the props the host fills:
+// width, height, format and sample count. The texture is metadata only, so
+// attachment validation sees the real format and sample count.
+rcp<ore::TextureView> makeModuleColorView(uint32_t handle,
+                                          const uint32_t props[4])
+{
+    ore::TextureDesc textureDesc;
+    textureDesc.width = props[0];
+    textureDesc.height = props[1];
+    textureDesc.format = (ore::TextureFormat)props[2];
+    textureDesc.sampleCount = props[3];
+    textureDesc.renderTarget = true;
+    ore::TextureViewDesc viewDesc;
+    auto texture = make_rcp<ModuleOreTexture>(0, textureDesc);
+    viewDesc.texture = texture.get();
+    return make_rcp<ModuleOreTextureView>(handle, std::move(texture), viewDesc);
+}
+
 class ModuleOreContext : public ore::Context
 {
 public:
@@ -732,6 +750,24 @@ public:
     {
         return notPortedYet<ore::TextureView>("canvas wraps");
     }
+
+    // The host hands back the same handle until its target changes.
+    rcp<ore::TextureView> targetView() override
+    {
+        uint32_t current =
+            m_targetView != nullptr
+                ? static_cast<ModuleOreTextureView*>(m_targetView.get())
+                      ->handle()
+                : 0;
+        uint32_t props[4] = {};
+        uint32_t handle = rive_gpu_target_view(current, props, 4);
+        if (handle != current)
+        {
+            m_targetView =
+                handle != 0 ? makeModuleColorView(handle, props) : nullptr;
+        }
+        return m_targetView;
+    }
     rcp<ore::TextureView> wrapRiveTexture(gpu::Texture*,
                                           uint32_t,
                                           uint32_t) override
@@ -814,6 +850,7 @@ private:
 
     mutable ore::ShaderTarget m_shaderTarget = ore::ShaderTarget::wgsl;
     mutable bool m_shaderTargetKnown = false;
+    rcp<ore::TextureView> m_targetView;
 };
 
 } // namespace
@@ -858,17 +895,6 @@ WasmModuleCanvas wasmModuleWrapCanvas(uint32_t canvasHandle)
     {
         return {};
     }
-    ore::TextureDesc textureDesc;
-    textureDesc.width = props[0];
-    textureDesc.height = props[1];
-    textureDesc.format = (ore::TextureFormat)props[2];
-    textureDesc.sampleCount = props[3];
-    textureDesc.renderTarget = true;
-    ore::TextureViewDesc viewDesc;
-    // Metadata-only texture wrapper so attachment validation sees the
-    // canvas's real format and sample count.
-    auto texture = make_rcp<ModuleOreTexture>(0, textureDesc);
-    viewDesc.texture = texture.get();
     WasmModuleCanvas out;
     // Backing installs unbacked (null image texture, module semantics);
     // construction alone no longer carries the render target.
@@ -876,9 +902,7 @@ WasmModuleCanvas wasmModuleWrapCanvas(uint32_t canvasHandle)
     out.canvas->setBacking(
         nullptr,
         make_rcp<ModuleRenderTarget>(canvasHandle, props[0], props[1]));
-    out.colorView = make_rcp<ModuleOreTextureView>(viewHandle,
-                                                   std::move(texture),
-                                                   viewDesc);
+    out.colorView = makeModuleColorView(viewHandle, props);
     return out;
 }
 
@@ -898,24 +922,13 @@ WasmModuleCanvas wasmModuleResizeCanvas(const rcp<gpu::RenderCanvas>& canvas,
     {
         return {};
     }
-    ore::TextureDesc textureDesc;
-    textureDesc.width = props[0];
-    textureDesc.height = props[1];
-    textureDesc.format = (ore::TextureFormat)props[2];
-    textureDesc.sampleCount = props[3];
-    textureDesc.renderTarget = true;
-    ore::TextureViewDesc viewDesc;
-    auto texture = make_rcp<ModuleOreTexture>(0, textureDesc);
-    viewDesc.texture = texture.get();
     WasmModuleCanvas out;
     out.canvas = make_rcp<gpu::RenderCanvas>(props[0], props[1]);
     out.canvas->setBacking(nullptr,
                            make_rcp<ModuleRenderTarget>(target->disownHandle(),
                                                         props[0],
                                                         props[1]));
-    out.colorView = make_rcp<ModuleOreTextureView>(viewHandle,
-                                                   std::move(texture),
-                                                   viewDesc);
+    out.colorView = makeModuleColorView(viewHandle, props);
     return out;
 }
 

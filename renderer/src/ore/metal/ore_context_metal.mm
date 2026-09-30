@@ -1090,18 +1090,19 @@ inline std::unique_ptr<RenderPass> ContextMetal::mtlBeginRenderPass(
     return pass;
 }
 
-inline rcp<TextureView> ContextMetal::mtlWrapCanvasTexture(
-    gpu::RenderCanvas* canvas)
+inline rcp<TextureView> ContextMetal::mtlWrapTarget(gpu::RenderTarget* target)
 {
-    assert(canvas != nullptr);
+    assert(target != nullptr);
 
-    auto* metalTarget =
-        static_cast<gpu::RenderTargetMetal*>(canvas->renderTarget());
-    id<MTLTexture> mtlTexture = metalTarget->targetTexture();
-    assert(mtlTexture != nil);
+    id<MTLTexture> mtlTexture =
+        static_cast<gpu::RenderTargetMetal*>(target)->targetTexture();
+    if (mtlTexture == nil)
+    {
+        return nullptr;
+    }
 
-    uint32_t w = canvas->width();
-    uint32_t h = canvas->height();
+    uint32_t w = target->width();
+    uint32_t h = target->height();
 
     TextureDesc texDesc{};
     texDesc.width = w;
@@ -1311,7 +1312,13 @@ std::unique_ptr<RenderPass> ContextMetal::beginRenderPass(
 
 rcp<TextureView> ContextMetal::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
-    return mtlWrapCanvasTexture(canvas);
+    assert(canvas != nullptr);
+    return mtlWrapTarget(canvas->renderTarget());
+}
+
+rcp<TextureView> ContextMetal::wrapRenderTarget(gpu::RenderTarget* target)
+{
+    return target != nullptr ? mtlWrapTarget(target) : nullptr;
 }
 
 rcp<TextureView> ContextMetal::wrapRiveTexture(gpu::Texture* gpuTex,

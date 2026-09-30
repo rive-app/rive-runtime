@@ -213,6 +213,27 @@ void RenderPassVulkan::finish()
 
     m_vkContext->m_vk->CmdEndRenderPass(m_vkCmdBuf);
 
+    // A target that is never sampled stays in the layout the pass left it in,
+    // and Rive's tracker hears the write so its own barrier starts from there.
+    auto keepAsAttachment = [](Texture* texture,
+                               gpu::RenderTargetVulkan* renderTarget) {
+        auto* tex = lite_rtti_cast<TextureVulkan*>(texture);
+        if (tex == nullptr || tex->m_vkSampleable)
+        {
+            return false;
+        }
+        tex->m_vkLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (renderTarget != nullptr)
+        {
+            renderTarget->updateLastAccess({
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            });
+        }
+        return true;
+    };
+
     // Transition color attachments COLOR_ATTACHMENT_OPTIMAL →
     // SHADER_READ_ONLY_OPTIMAL so callers (e.g. Rive drawImage) can sample.
     //
@@ -232,6 +253,9 @@ void RenderPassVulkan::finish()
     for (uint32_t i = 0; i < m_vkColorCount; ++i)
     {
         if (m_vkColorImages[i] == VK_NULL_HANDLE)
+            continue;
+        if (keepAsAttachment(m_vkColorTextures[i].get(),
+                             m_vkColorRenderTargets[i]))
             continue;
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -275,7 +299,8 @@ void RenderPassVulkan::finish()
     // attachment in COLOR_ATTACHMENT_OPTIMAL.
     for (auto& resolve : m_vkResolveTargets)
     {
-        if (resolve.image == VK_NULL_HANDLE)
+        if (resolve.image == VK_NULL_HANDLE ||
+            keepAsAttachment(resolve.texture.get(), resolve.renderTarget))
         {
             continue;
         }

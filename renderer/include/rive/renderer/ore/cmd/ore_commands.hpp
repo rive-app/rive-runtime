@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_types.hpp"
 #include "rive/renderer/ore/cmd/ore_handle.hpp"
 #include "rive/renderer/ore/cmd/ore_resource_commands.hpp"
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 
@@ -88,14 +89,24 @@ enum class WrapCanvasViewMode : uint32_t
     colorView = 0,  // the canvas's own render target view
     sampleView = 1, // sampling wrap, on GL needs the top up mirror
     imageView = 2,  // decoded image, canvasId carries the 2D image id
+    targetView = 3, // the replaying context's renderTarget, wrapped per frame
 };
+
+// A script recorded against this size, so replay skips a target that differs.
+inline uint32_t packTargetSize(uint32_t width, uint32_t height)
+{
+    assert(width <= 0xffff && height <= 0xffff);
+    return width << 16 | height;
+}
 
 struct WrapCanvasViewPOD
 {
     ResourceHandle id;
     uint32_t generation;
-    uint32_t canvasId; // canvas id, or the 2D image id for imageView
-    uint32_t mode;     // WrapCanvasViewMode
+    // Canvas id, the 2D image id for imageView, or the recorded size packed
+    // by packTargetSize for targetView.
+    uint32_t canvasId;
+    uint32_t mode; // WrapCanvasViewMode
 };
 
 // The consumer clears the slot only when the generation matches, so a stale

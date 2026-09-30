@@ -484,14 +484,17 @@ void RenderPassD3D12::finish()
             }
         }
 
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Transition.pResource = m_d3dColorResources[i];
-        barrier.Transition.StateBefore = stateBefore;
-        barrier.Transition.StateAfter = m_d3dColorFinalStates[i];
-        barrier.Transition.Subresource =
-            D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        m_d3dCmdList->ResourceBarrier(1, &barrier);
+        if (stateBefore != m_d3dColorFinalStates[i])
+        {
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Transition.pResource = m_d3dColorResources[i];
+            barrier.Transition.StateBefore = stateBefore;
+            barrier.Transition.StateAfter = m_d3dColorFinalStates[i];
+            barrier.Transition.Subresource =
+                D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            m_d3dCmdList->ResourceBarrier(1, &barrier);
+        }
 
         if (m_d3dColorTextures[i] != nullptr)
             m_d3dColorTextures[i]->m_d3dCurrentState = m_d3dColorFinalStates[i];

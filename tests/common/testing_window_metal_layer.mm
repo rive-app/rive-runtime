@@ -108,11 +108,6 @@ public:
             .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
-    }
-
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
-    {
         if (!m_renderTarget || m_renderTarget->width() != m_width ||
             m_renderTarget->height() != m_height)
         {
@@ -123,7 +118,18 @@ public:
         }
         m_renderTarget->setTargetTexture(m_drawable != nil ? m_drawable.texture
                                                            : nil);
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
+    }
 
+    rive::gpu::RenderTarget* renderTarget() const override
+    {
+        return m_renderTarget.get();
+    }
+
+    OreTarget oreTarget() const override { return {true, true}; }
+
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+    {
         // A deferred replay flushes canvases before beginFrame, so the buffer
         // may not exist yet.
         if (m_flushCommandBuffer == nil)

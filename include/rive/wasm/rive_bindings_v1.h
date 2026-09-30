@@ -588,6 +588,8 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "canvas_image")
 uint32_t rive_gpu_canvas_image(uint32_t canvas);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "canvas_resize")
 uint32_t rive_gpu_canvas_resize(uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "target_view")
+uint32_t rive_gpu_target_view(uint32_t current, uint32_t* props, uint32_t propCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_begin")
 uint32_t rive_gpu_pass_begin(const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_set_pipeline")

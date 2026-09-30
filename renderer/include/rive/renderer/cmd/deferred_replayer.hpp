@@ -10,6 +10,7 @@
 #include "rive/renderer/cmd/render_replay.hpp"
 #include "rive/renderer/ore/cmd/ore_replay.hpp"
 #include "rive/renderer/render_context_impl.hpp"
+#include "rive/renderer/render_target.hpp"
 #include <algorithm>
 #include <deque>
 #include <mutex>
@@ -58,6 +59,13 @@ public:
     // Backend state fix up after an Ore frame, such as a GL state invalidate.
     virtual void afterOreFrame() {}
 
+    // The render target Ore's target view wraps this frame, null where the
+    // host exposes none to scripts.
+    virtual gpu::RenderTarget* targetRenderTarget() { return nullptr; }
+    // Script GPU work drew into the target under Rive's content, so the
+    // screen frame loads it rather than clearing. Told before it opens.
+    virtual void setTargetPreserved(bool) {}
+
     // Open the canvas's own frame and return the renderer its draws route
     // into, or null to drop them. endCanvasContent flushes it.
     virtual Renderer* beginCanvasContent(gpu::RenderCanvas* /*canvas*/,
@@ -92,6 +100,8 @@ struct DeferredFrame
     // The caps the recording answered with, so a replay far from the session
     // can still verify it runs on the device the stream was declared for.
     ore::ReplayCaps oreCaps;
+    // The packed size of the target scripts drew into, or 0.
+    uint32_t oreTargetSize = 0;
 };
 
 inline DeferredFrame snapshotFrame(DeferredSession& session)
@@ -113,6 +123,7 @@ inline DeferredFrame snapshotFrame(DeferredSession& session)
     f.oreReals = session.oreContext().realResources();
     f.segments = session.schedulerSegments();
     f.oreCaps = session.oreContext().caps();
+    f.oreTargetSize = session.oreContext().drawnTargetSize();
     return f;
 }
 
@@ -145,7 +156,8 @@ public:
             session.oreContext().realResources(),
             sink,
             session.schedulerSegments(),
-            session.oreContext().caps());
+            session.oreContext().caps(),
+            session.oreContext().drawnTargetSize());
     }
 
     // Snapshot form: replay an owned frame, independent of the session.
@@ -169,7 +181,8 @@ public:
             frame.oreReals,
             sink,
             frame.segments,
-            frame.oreCaps);
+            frame.oreCaps,
+            frame.oreTargetSize);
     }
 
     // Drop the resident tables so the next replay recreates everything.
@@ -202,9 +215,20 @@ private:
                 const std::vector<rcp<rive::gpu::GPUResource>>& oreReals,
                 DeferredFrameSink& sink,
                 const std::vector<DeferredSegment>& segments,
-                const ore::ReplayCaps& oreCaps)
+                const ore::ReplayCaps& oreCaps,
+                uint32_t oreTargetSize)
     {
         m_stats = ReplayStats{};
+        // With no Ore context or a target resized since recording the passes
+        // drop, and a load would show whatever the target held.
+        gpu::RenderTarget* target =
+            oreTargetSize != 0 && sink.oreContext() != nullptr
+                ? sink.targetRenderTarget()
+                : nullptr;
+        sink.setTargetPreserved(
+            target != nullptr &&
+            ore::cmd::packTargetSize(target->width(), target->height()) ==
+                oreTargetSize);
         m_2d.clearVersionAliases();
         ReplayHooks hooks;
         hooks.stats = &m_stats;
@@ -279,6 +303,7 @@ private:
                 assert(false && "replay device does not match declared caps");
             }
             sink.beginOreFrame();
+            realOre->setRenderTarget(sink.targetRenderTarget());
             ore::cmd::replayOreStream(
                 *realOre,
                 oreCommands,
@@ -310,7 +335,9 @@ private:
                     // or an earlier frame.
                     return m_2d.images.get(imageId);
                 });
+            realOre->setRenderTarget(nullptr);
             sink.endOreFrame();
+            m_ore.releaseFrameTargets();
             sink.afterOreFrame();
         };
 
@@ -353,12 +380,10 @@ private:
         }
         const std::vector<uint64_t>& canvasOrder = schedule.order;
         // Ore replays once for the whole session frame, inside the first
-        // screen frame opened. The scripting GPU surface is canvas scoped -
-        // render passes exist only as canvas:beginRenderPass, with no screen
-        // or frame target type - so a script writes canvases and never
-        // screens, and its output reaches a target indirectly through 2D
-        // draws that sample canvas textures. Running it in whichever screen
-        // frame opens first therefore orders it ahead of every target's draws
+        // screen frame opened. A script writes canvases, which reach a target
+        // through 2D draws that sample them, and the host's one target view,
+        // which lands under every draw. Running it in whichever screen frame
+        // opens first therefore orders it ahead of every target's draws
         // without attributing it to any one of them. The decision is owned
         // here, at session frame scope, so per target sinks cannot disagree
         // about whether Ore ran at all.

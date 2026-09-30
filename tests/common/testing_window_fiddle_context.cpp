@@ -556,6 +556,21 @@ public:
         return m_fiddleContext->renderTargetOrNull();
     }
 
+    OreTarget oreTarget() const override
+    {
+        switch (backend())
+        {
+            case Backend::d3d:
+            case Backend::d3d12:
+            case Backend::dawn:
+                return {true, false};
+            case Backend::metal:
+                return {true, true};
+            default:
+                return {};
+        }
+    }
+
     void flushPLSContext(RenderTarget* offscreenRenderTarget) override
     {
         m_fiddleContext->flushPLSContext(offscreenRenderTarget);

@@ -45,6 +45,7 @@ public:
     void waitForGPU() override;
 
     rcp<TextureView> wrapCanvasTexture(gpu::RenderCanvas* canvas) override;
+    rcp<TextureView> wrapRenderTarget(gpu::RenderTarget* target) override;
     rcp<TextureView> wrapRiveTexture(gpu::Texture* gpuTex,
                                      uint32_t width,
                                      uint32_t height) override;

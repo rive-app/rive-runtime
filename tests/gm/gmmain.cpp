@@ -262,6 +262,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(ore_pipeline_switch)
     MAKE_GM(ore_buffer_offsets)
     MAKE_GM(ore_mip_render_target)
+    MAKE_GM(ore_deferred_target)
     MAKE_PARITY_GM3(ore_deferred_replay,
                     ore_deferred_replay_immediate,
                     ore_deferred_replay,
@@ -283,6 +284,9 @@ extern "C" void gms_build_registry()
     MAKE_PARITY_GM2(render_deferred_canvas,
                     render_deferred_canvas_immediate,
                     render_deferred_canvas)
+    MAKE_PARITY_GM2(ore_deferred_target_parity,
+                    ore_deferred_target_immediate,
+                    ore_deferred_target)
 #endif
 #endif
     // 2D only so these are not gated on Ore.
