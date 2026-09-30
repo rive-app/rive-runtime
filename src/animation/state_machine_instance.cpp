@@ -3742,3 +3742,13 @@ bool StateMachineInstance::textInput(const std::string& text)
     auto* fm = focusManager();
     return fm->textInput(text);
 }
+
+std::string StateMachineInstance::selectedText() const
+{
+    const auto* fm = focusManager();
+    if (!fm)
+    {
+        return "";
+    }
+    return fm->selectedText();
+}

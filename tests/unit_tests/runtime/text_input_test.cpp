@@ -971,6 +971,48 @@ TEST_CASE("obscured text input stops selection lookup at itself",
 
     manager.setFocus(nullptr);
 }
+TEST_CASE("state machine selectedText reports the focused input's selection",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    textInput->rawTextInput()->text("hello world");
+    stateMachine->advanceAndApply(0.0f);
+
+    // Nothing focused yet.
+    CHECK(stateMachine->selectedText().empty());
+
+    stateMachine->setFocus(focusData);
+    textInput->rawTextInput()->clearSelection();
+    CHECK(stateMachine->selectedText().empty());
+
+    textInput->rawTextInput()->selectAll();
+    CHECK(stateMachine->selectedText() == "hello world");
+
+    // A partial selection reports just that range (2nd-4th characters).
+    textInput->rawTextInput()->cursor(
+        Cursor(CursorPosition(1), CursorPosition(4)));
+    CHECK(stateMachine->selectedText() == "ell");
+
+    // An obscured field keeps its selection off the clipboard.
+    textInput->obscured(true);
+    CHECK(stateMachine->selectedText().empty());
+    textInput->obscured(false);
+
+    stateMachine->clearFocus();
+    CHECK(stateMachine->selectedText().empty());
+}
+
 TEST_CASE("tab traversal into a text input selects all", "[text_input]")
 {
     auto file = ReadRiveFile("assets/text_input.riv");

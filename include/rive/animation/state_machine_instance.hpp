@@ -285,6 +285,10 @@ public:
     /// Returns true if the text was handled.
     bool textInput(const std::string& text);
 
+    /// The selected text of the focused element, via the active focus manager.
+    /// Empty when nothing with a selection is focused.
+    std::string selectedText() const;
+
     void clearDataContext();
     void relinkDataContext() override;
     void rebuildDataBind(DataBind*) override;
