@@ -199,3 +199,40 @@ TEST_CASE("fuzz_issue_7295", "[MetricsPath]")
     contour->getSegment(.0f, 168.389008f, &result, true);
     CHECK(math::nearly_equal(contour->length(), 168.389008f));
 }
+
+// A trim chop must keep P1 == P0 exact, or the stroker reads the fp32 residue
+// as the start tangent (fan + detached cap on a straight-vertex shoulder).
+TEST_CASE("trim keeps coincident control points", "[contourmeasure]")
+{
+    const Vec2D p0 = {244.19449f, 186.5583f};
+    const Vec2D p2 = {160.f, 90.f};
+    const Vec2D p3 = {330.f, 280.f};
+    for (int i = 1; i < 1000; ++i)
+    {
+        RawPath path;
+        path.move(p0);
+        path.cubic(p0, p2, p3);
+        ContourMeasureIter iter(&path);
+        auto cm = iter.next();
+        REQUIRE(cm != nullptr);
+
+        const float d = cm->length() * i / 1000.f;
+        RawPath head;
+        cm->getSegment(0, d, &head, true);
+        const Vec2D* hp = head.points().data();
+        REQUIRE(head.points().size() == 4);
+        CHECK(hp[1] == hp[0]);
+
+        // Mirror case: coincident end control points on the tail.
+        RawPath rpath;
+        rpath.move(p3);
+        rpath.cubic(p2, p0, p0);
+        ContourMeasureIter riter(&rpath);
+        auto rcm = riter.next();
+        RawPath tail;
+        rcm->getSegment(rcm->length() - d, rcm->length(), &tail, true);
+        const Vec2D* tp = tail.points().data();
+        REQUIRE(tail.points().size() == 4);
+        CHECK(tp[2] == tp[3]);
+    }
+}
