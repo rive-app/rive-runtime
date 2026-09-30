@@ -451,6 +451,11 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
         if (style != nullptr && style->font() != nullptr &&
             !valueRun->text().empty())
         {
+            // No scale turns inf finite (inf * 0 is NaN). std::max drops NaN.
+            if (std::isinf(style->fontSize()))
+            {
+                return 1.0f;
+            }
             maxSize = std::max(maxSize, style->fontSize());
         }
     }
@@ -514,10 +519,12 @@ float Text::fitFontScale(float boxWidth, float boxHeight)
         return widthFits && heightFits;
     };
 
+    // Above 2^24 floats skip integers, and hi + 1 must not overflow int.
+    constexpr float kMaxSearchSize = (float)(1 << 24);
     // Binary search for the largest integer top size in [1, floor(maxSize)]
     // that fits. If nothing fits we fall back to the minimum size (1).
     int lo = 1;
-    int hi = std::max(1, (int)maxSize);
+    int hi = (int)std::min(maxSize, kMaxSearchSize);
     int best = 1;
     while (lo <= hi)
     {

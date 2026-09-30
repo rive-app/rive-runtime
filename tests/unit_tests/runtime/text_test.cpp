@@ -313,6 +313,46 @@ TEST_CASE("fitFontSize shrinks the font to fit the bounds", "[text]")
     REQUIRE(text->m_transform.xx() == Approx(1.0f));
 }
 
+// Shapes ellipsis.riv at fontSize in a width x height fitFontSize box and
+// returns the shaped run size.
+static float fitRunSize(float fontSize, float width, float height)
+{
+    auto file = ReadRiveFile("assets/ellipsis.riv");
+    auto artboard = file->artboard();
+    auto text = artboard->find<rive::Text>()[0];
+    for (auto style : artboard->find<rive::TextStyle>())
+    {
+        style->fontSize(fontSize);
+    }
+    text->sizingValue((uint32_t)rive::TextSizing::fixed);
+    text->width(width);
+    text->height(height);
+    text->overflow(rive::TextOverflow::fitFontSize);
+    artboard->advance(0.0f);
+    rive::NoOpRenderer renderer;
+    artboard->draw(&renderer);
+    REQUIRE(!text->shape().empty());
+    REQUIRE(!text->shape()[0].runs.empty());
+    return text->shape()[0].runs[0].size;
+}
+
+TEST_CASE("fitFontSize keeps a non-finite font size", "[text]")
+{
+    // inf used to overflow the int search and never return.
+    CHECK(std::isinf(fitRunSize(INFINITY, 300.0f, 60.0f)));
+    CHECK(std::isnan(fitRunSize(NAN, 300.0f, 60.0f)));
+}
+
+TEST_CASE("fitFontSize caps the search at 2^24", "[text]")
+{
+    // Every size fits, so the search tops out at the cap.
+    CHECK(fitRunSize(3e9f, 1e38f, 1e38f) == Approx((float)(1 << 24)));
+    // Too big for a normal box: shrinks to the size a normal font fits at.
+    float fitted = fitRunSize(3e9f, 300.0f, 60.0f);
+    CHECK(fitted < 60.0f);
+    CHECK(fitted == Approx(fitRunSize(100.0f, 300.0f, 60.0f)));
+}
+
 TEST_CASE("fitFontSize scales custom line height and letter spacing "
           "proportionally",
           "[text]")
@@ -1250,6 +1290,35 @@ TEST_CASE("vertical trim does not shrink a fitFontSize hug text", "[text]")
     CHECK(trimmedHeight < untrimmedHeight);
     CHECK(untrimmedHeight == Approx(211.74f).margin(0.5f));
     CHECK(trimmedHeight == Approx(127.32f).margin(0.5f));
+}
+
+TEST_CASE("fitFontSize measure returns for a huge font size", "[text]")
+{
+    auto file = importTextWithMinorVersion(4);
+    auto artboard = file->artboardDefault();
+    rive::Text* title = nullptr;
+    for (auto text : artboard->find<rive::Text>())
+    {
+        if (!text->runs().empty() && !text->runs()[0]->text().empty())
+        {
+            title = text;
+            break;
+        }
+    }
+    REQUIRE(title != nullptr);
+    title->fitFontSizeResizesBox(true);
+    for (float size : {INFINITY, NAN, 3e9f})
+    {
+        for (auto style : artboard->find<rive::TextStyle>())
+        {
+            style->fontSize(size);
+        }
+        title->measureLayout(1e38f,
+                             rive::LayoutMeasureMode::atMost,
+                             1e38f,
+                             rive::LayoutMeasureMode::atMost);
+        artboard->advance(0.0f);
+    }
 }
 
 TEST_CASE("Text with fit font size correctly resizes its text box", "[silver]")
