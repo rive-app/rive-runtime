@@ -9,6 +9,8 @@
 #include "rive/constraints/list_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_context.hpp"
+#include "rive/math/bitwise.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/viewmodel/viewmodel_instance_number_base.hpp"
 #include "rive/generated/viewmodel/viewmodel_instance_string_base.hpp"
@@ -119,6 +121,8 @@ bool ArtboardComponentList::collapse(bool value)
 
 void ArtboardComponentList::clear()
 {
+    // Rows being destroyed must not call back into quiet-row bookkeeping.
+    resetQuietRows(0);
     // Clean up semantic trees before destroying artboards/state machines.
     for (auto& artboard : m_artboardInstancesMap)
     {
@@ -162,8 +166,10 @@ void ArtboardComponentList::clear()
     m_listItems.clear();
     m_listHasDuplicateItems = false;
     m_artboardsMap.clear();
-    m_resourcePool.clear();
+    // Pooled state machines go before the pooled artboards too, for the same
+    // reason as above.
     m_stateMachinesPool.clear();
+    m_resourcePool.clear();
     m_artboardOverridesMap.clear();
 }
 
@@ -221,6 +227,7 @@ void ArtboardComponentList::setRowsForItem(
         if (index >= 0 && static_cast<size_t>(index) < m_listItems.size() &&
             m_listItems[index] == item)
         {
+            resetQuietRow(index);
             m_artboardInstancesByIndex[index] = artboard;
             m_stateMachinesByIndex[index] = stateMachine;
         }
@@ -230,6 +237,7 @@ void ArtboardComponentList::setRowsForItem(
     {
         if (m_listItems[i] == item)
         {
+            resetQuietRow(i);
             m_artboardInstancesByIndex[i] = artboard;
             m_stateMachinesByIndex[i] = stateMachine;
         }
@@ -820,6 +828,7 @@ void ArtboardComponentList::updateList(
     m_artboardSizes.clear();
 
     // Clear the index vectors - they'll be rebuilt as artboards are created
+    resetQuietRows(m_listItems.size());
     m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
     m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
 
@@ -897,6 +906,270 @@ void ArtboardComponentList::syncLayoutChildren()
     }
 }
 
+#ifdef TESTING
+uint64_t ArtboardComponentList::sm_quietRowSkips = 0;
+bool ArtboardComponentList::sm_quietRowsEnabled = true;
+#endif
+
+static size_t lowestSetBit(uint64_t bits)
+{
+    return static_cast<size_t>(63 - math::clz64(bits & (~bits + 1)));
+}
+
+size_t ArtboardComponentList::nextAwakeRow(size_t row) const
+{
+    const size_t count = m_listItems.size();
+    while (row < count)
+    {
+        const size_t word = row >> 6;
+        const uint64_t quiet =
+            word < m_quietRows.size() ? m_quietRows[word] : 0;
+        const uint64_t awake = ~quiet & (~uint64_t(0) << (row & 63));
+        if (awake != 0)
+        {
+            return std::min(count, (word << 6) + lowestSetBit(awake));
+        }
+        row = (word + 1) << 6;
+    }
+    return count;
+}
+
+bool ArtboardComponentList::isRowQuiet(size_t row) const
+{
+    const size_t word = row >> 6;
+    return word < m_quietRows.size() &&
+           ((m_quietRows[word] >> (row & 63)) & 1) != 0;
+}
+
+AdvancingComponent::QuietState ArtboardComponentList::rowQuietState(size_t row)
+{
+    using QuietState = AdvancingComponent::QuietState;
+    auto artboard = m_artboardInstancesByIndex[row];
+    auto stateMachine = m_stateMachinesByIndex[row];
+    if (artboard == nullptr)
+    {
+        // An unrealized row has no work at all until it is realized, which
+        // resets it (setRowsForItem).
+        return stateMachine == nullptr ? QuietState::quiet : QuietState::busy;
+    }
+    // Pooled machines pair up with pooled artboards by pool order only.
+    if (stateMachine != nullptr && stateMachine->artboard() != artboard)
+    {
+        return QuietState::busy;
+    }
+    if (m_shouldResetInstances)
+    {
+        // reset() also advances a bound main instance that isn't the item's.
+        auto dataContext = artboard->dataContext();
+        if (dataContext != nullptr)
+        {
+            auto bound = dataContext->mainViewModelInstance();
+            if (bound != nullptr &&
+                bound.get() != m_listItems[row]->viewModelInstance().get())
+            {
+                return QuietState::busy;
+            }
+        }
+    }
+    auto state = artboard->rowQuietState();
+    if (state != QuietState::quiet || stateMachine == nullptr)
+    {
+        return state;
+    }
+    return stateMachine->rowQuietState();
+}
+
+bool ArtboardComponentList::tryQuietRow(size_t row)
+{
+    const size_t word = row >> 6;
+    const uint64_t bit = uint64_t(1) << (row & 63);
+    // A row sharing its item's instances with other rows can't be judged on
+    // its own.
+    if (m_listHasDuplicateItems || word >= m_quietRows.size() ||
+        (m_neverQuietRows[word] & bit) != 0)
+    {
+        return false;
+    }
+#ifdef TESTING
+    if (!sm_quietRowsEnabled)
+    {
+        return false;
+    }
+#endif
+    switch (rowQuietState(row))
+    {
+        case AdvancingComponent::QuietState::never:
+            m_neverQuietRows[word] |= bit;
+            return false;
+        case AdvancingComponent::QuietState::busy:
+            return false;
+        case AdvancingComponent::QuietState::quiet:
+            break;
+    }
+    m_quietRows[word] |= bit;
+    if (auto artboard = m_artboardInstancesByIndex[row])
+    {
+        artboard->quietHostRow(static_cast<uint32_t>(row));
+    }
+    return true;
+}
+
+void ArtboardComponentList::resetQuietRow(size_t row)
+{
+    const size_t word = row >> 6;
+    if (word >= m_quietRows.size())
+    {
+        return;
+    }
+    const uint64_t bit = uint64_t(1) << (row & 63);
+    if ((m_quietRows[word] & bit) != 0 &&
+        row < m_artboardInstancesByIndex.size() &&
+        m_artboardInstancesByIndex[row] != nullptr)
+    {
+        m_artboardInstancesByIndex[row]->quietHostRow(Artboard::kNoQuietRow);
+    }
+    m_quietRows[word] &= ~bit;
+    m_neverQuietRows[word] &= ~bit;
+}
+
+void ArtboardComponentList::resetQuietRows(size_t rowCount)
+{
+    for (size_t word = 0; word < m_quietRows.size(); word++)
+    {
+        for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
+        {
+            const size_t row = (word << 6) + lowestSetBit(quiet);
+            if (row < m_artboardInstancesByIndex.size() &&
+                m_artboardInstancesByIndex[row] != nullptr)
+            {
+                m_artboardInstancesByIndex[row]->quietHostRow(
+                    Artboard::kNoQuietRow);
+            }
+        }
+    }
+    const size_t words = (rowCount + 63) >> 6;
+    m_quietRows.assign(words, 0);
+    m_neverQuietRows.assign(words, 0);
+}
+
+void ArtboardComponentList::hostedRowWoke(Artboard* artboard, uint32_t row)
+{
+    // Rows are reset before their instances change, so the artboard is still
+    // the row's; checked anyway, since waking a row by mistake only costs a
+    // frame of its work.
+    if (row < m_artboardInstancesByIndex.size() &&
+        m_artboardInstancesByIndex[row] == artboard)
+    {
+        const size_t word = row >> 6;
+        if (word < m_quietRows.size())
+        {
+            m_quietRows[word] &= ~(uint64_t(1) << (row & 63));
+        }
+    }
+}
+
+void ArtboardComponentList::shouldResetInstances(bool value)
+{
+    if (value != m_shouldResetInstances)
+    {
+        // Rows were judged quiet with the other setting's reset work.
+        resetQuietRows(m_listItems.size());
+    }
+    m_shouldResetInstances = value;
+}
+
+#ifdef TESTING
+void ArtboardComponentList::verifyQuietRows(RowPass pass,
+                                            float elapsedSeconds,
+                                            AdvanceFlags flags,
+                                            bool advanceNested)
+{
+    for (size_t word = 0; word < m_quietRows.size(); word++)
+    {
+        for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
+        {
+            const size_t row = (word << 6) + lowestSetBit(quiet);
+            sm_quietRowSkips++;
+            auto artboard = m_artboardInstancesByIndex[row];
+            auto stateMachine = m_stateMachinesByIndex[row];
+            const char* problem = nullptr;
+            if (rowQuietState(row) != AdvancingComponent::QuietState::quiet)
+            {
+                problem = "stopped being quiet but nothing woke it";
+            }
+            else if (artboard == nullptr)
+            {
+                // Unrealized, so there is no work to check.
+            }
+            else if (artboard->quietHostRow() != row)
+            {
+                problem = "lost track of its artboard";
+            }
+            else
+            {
+                auto dirt = Artboard::sm_dirtNotifications;
+                auto updates = DataBindContainer::sm_dataBindUpdates;
+                bool didWork = false;
+                switch (pass)
+                {
+                    case RowPass::advance:
+                        if (advanceNested && stateMachine != nullptr)
+                        {
+                            didWork =
+                                stateMachine->advance(elapsedSeconds, true);
+                        }
+                        didWork =
+                            artboard->advanceInternal(elapsedSeconds, flags) ||
+                            didWork;
+                        break;
+                    case RowPass::settle:
+                        if (advanceNested && stateMachine != nullptr)
+                        {
+                            didWork = stateMachine->tryChangeState();
+                        }
+                        didWork =
+                            artboard->advanceInternal(elapsedSeconds, flags) ||
+                            didWork;
+                        break;
+                    case RowPass::updateDataBinds:
+                        if (stateMachine != nullptr)
+                        {
+                            stateMachine->updateDataBinds(false);
+                        }
+                        artboard->updateDataBinds();
+                        break;
+                    case RowPass::reset:
+                        artboard->reset();
+                        break;
+                    case RowPass::update:
+                        didWork = artboard->updatePass(false);
+                        break;
+                }
+                if (didWork || dirt != Artboard::sm_dirtNotifications ||
+                    updates != DataBindContainer::sm_dataBindUpdates ||
+                    artboard->hasDirt(ComponentDirt::Components) ||
+                    artboard->quietHostRow() != row ||
+                    (stateMachine != nullptr &&
+                     (stateMachine->needsAdvance() ||
+                      stateMachine->stateChangedCount() != 0)))
+                {
+                    problem = "did work while quiet";
+                }
+            }
+            if (problem != nullptr)
+            {
+                fprintf(stderr,
+                        "Quiet row %zu of list '%s' %s\n",
+                        row,
+                        name().c_str(),
+                        problem);
+                abort();
+            }
+        }
+    }
+}
+#endif
+
 bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
                                              AdvanceFlags flags)
 {
@@ -909,8 +1182,16 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
         (flags & AdvanceFlags::AdvanceNested) == AdvanceFlags::AdvanceNested;
     bool newFrame = (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
     auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
-    for (int i = 0; i < artboardCount(); i++)
+    const size_t count = m_listItems.size();
+    for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
     {
+        // A row whose work this frame would do nothing sleeps until something
+        // wakes it.
+        if (newFrame && tryQuietRow(row))
+        {
+            continue;
+        }
+        int i = static_cast<int>(row);
         if (advanceNested)
         {
             auto stateMachine = stateMachineInstance(i);
@@ -954,21 +1235,34 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
             }
         }
     }
-
+#ifdef TESTING
+    verifyQuietRows(newFrame ? RowPass::advance : RowPass::settle,
+                    elapsedSeconds,
+                    advancingFlags,
+                    advanceNested);
+#endif
     return keepGoing;
 }
 
 void ArtboardComponentList::reset()
 {
-    for (size_t i = 0; i < m_listItems.size(); i++)
+    const size_t count = m_listItems.size();
+    // Detached item view models (see shouldResetInstances) are advanced on
+    // every row, quiet or not; otherwise only awake rows have work here.
+    for (size_t i = m_shouldResetInstances ? 0 : nextAwakeRow(0); i < count;
+         i = m_shouldResetInstances ? i + 1 : nextAwakeRow(i + 1))
     {
         auto artboard = m_artboardInstancesByIndex[i];
         if (m_shouldResetInstances)
         {
-            auto viewModelInstance = m_listItems[i]->viewModelInstance();
+            auto& viewModelInstance = m_listItems[i]->viewModelInstance();
             if (viewModelInstance != nullptr)
             {
                 viewModelInstance->advanced();
+            }
+            if (isRowQuiet(i))
+            {
+                continue;
             }
             if (artboard != nullptr)
             {
@@ -989,6 +1283,9 @@ void ArtboardComponentList::reset()
             artboard->reset();
         }
     }
+#ifdef TESTING
+    verifyQuietRows(RowPass::reset, 0.0f, AdvanceFlags::None, false);
+#endif
 }
 
 AABB ArtboardComponentList::layoutBounds()
@@ -1360,14 +1657,19 @@ void ArtboardComponentList::update(ComponentDirt value)
     }
     if (hasDirt(value, ComponentDirt::Components))
     {
-        for (int i = 0; i < artboardCount(); i++)
+        const size_t count = m_listItems.size();
+        for (size_t row = nextAwakeRow(0); row < count;
+             row = nextAwakeRow(row + 1))
         {
-            auto artboard = artboardInstance(i);
+            auto artboard = m_artboardInstancesByIndex[row];
             if (artboard != nullptr)
             {
                 artboard->updatePass(false);
             }
         }
+#ifdef TESTING
+        verifyQuietRows(RowPass::update, 0.0f, AdvanceFlags::None, false);
+#endif
     }
 }
 
@@ -1477,19 +1779,23 @@ void ArtboardComponentList::updateDataBinds()
     {
         return;
     }
-    for (int i = 0; i < artboardCount(); i++)
+    const size_t count = m_listItems.size();
+    for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
     {
-        auto stateMachine = stateMachineInstance(i);
+        auto stateMachine = m_stateMachinesByIndex[row];
         if (stateMachine != nullptr)
         {
             stateMachine->updateDataBinds(false);
         }
-        auto artboard = artboardInstance(i);
+        auto artboard = m_artboardInstancesByIndex[row];
         if (artboard != nullptr)
         {
             artboard->updateDataBinds();
         }
     }
+#ifdef TESTING
+    verifyQuietRows(RowPass::updateDataBinds, 0.0f, AdvanceFlags::None, false);
+#endif
 }
 
 #ifdef WITH_RIVE_TOOLS
@@ -1629,6 +1935,7 @@ void ArtboardComponentList::addArtboardAt(
         {
             // updateList builds a non-virtualized list's rows in order and
             // gives an item's later rows the instances made for its first.
+            resetQuietRow(index);
             m_artboardInstancesByIndex[index] = artboardInstance;
             m_stateMachinesByIndex[index] = stateMachineInstance;
         }

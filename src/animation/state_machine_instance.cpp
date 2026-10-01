@@ -132,6 +132,14 @@ namespace rive
 class StateMachineLayerInstance
 {
 public:
+    StateMachineLayerInstance() :
+        m_transitionCompleted(false),
+        m_holdAnimationFrom(false),
+        m_stateMachineChangedOnAdvance(false),
+        m_waitingForExit(false),
+        m_settled(false)
+    {}
+
     ~StateMachineLayerInstance()
     {
         delete m_anyStateInstance;
@@ -170,6 +178,9 @@ public:
 
     void resetState(StateMachineInstance* smi)
     {
+        // The current state goes away below even when changeState then finds
+        // nothing to change to (no entry state).
+        m_settled = false;
         if (m_stateFrom != m_anyStateInstance && m_stateFrom != m_currentState)
         {
             delete m_stateFrom;
@@ -216,11 +227,56 @@ public:
         }
     }
 
+    // A settled layer that has finished mixing, in a state that keys nothing,
+    // has stopped keeping itself going and has no exit time to wait on: its
+    // advance would only move a clock nothing reads, apply nothing and skip a
+    // search that can't pass, so it returns what that advance would have.
+    bool isFrozen() const
+    {
+        if (!m_settled || m_mix != 1.0f || m_animationReset != nullptr ||
+            m_holdAnimation != nullptr ||
+            (m_transition != nullptr && !m_transitionCompleted) ||
+            m_currentState == nullptr || m_currentState->keepGoing())
+        {
+            return false;
+        }
+        auto state = m_currentState->state();
+        if (!state->transitionsIgnoreTime())
+        {
+            return false;
+        }
+        // Checked on the instance rather than classified with the state: a
+        // state's animation may not be resolved yet when that runs.
+        switch (state->coreType())
+        {
+            case EntryStateBase::typeKey:
+            case ExitStateBase::typeKey:
+            case AnyStateBase::typeKey:
+                return true;
+            case AnimationStateBase::typeKey:
+                // An animation state without an animation plays an empty one.
+                return static_cast<const AnimationStateInstance*>(
+                           m_currentState)
+                           ->animationInstance()
+                           ->animation()
+                           ->numKeyedObjects() == 0;
+            default:
+                return false;
+        }
+    }
+
     bool advance(StateMachineInstance* smi, float seconds, bool newFrame)
     {
         if (newFrame)
         {
             m_stateMachineChangedOnAdvance = false;
+        }
+        if (isFrozen())
+        {
+#ifdef TESTING
+            StateMachineInstance::sm_frozenLayerAdvances++;
+#endif
+            return false;
         }
         m_currentState->advance(seconds, smi);
         updateMix(smi, seconds);
@@ -349,13 +405,81 @@ public:
         m_waitingForExit = false;
 
         ensureAnyStateInstance(smi);
+        if (m_settled)
+        {
+#ifdef TESTING
+            verifySettled(smi);
+            StateMachineInstance::sm_settledLayerSkips++;
+#endif
+            return false;
+        }
         if (tryChangeState(smi, m_anyStateInstance))
         {
             return true;
         }
-
-        return tryChangeState(smi, m_currentState);
+        if (tryChangeState(smi, m_currentState))
+        {
+            return true;
+        }
+#ifndef WITH_RIVE_EDITOR
+        // Nothing to change to, and that holds until the current state changes
+        // or a value these transitions read does, provided they read only
+        // values whose changes reach this instance (transitionsSettleSafe),
+        // none is waiting on an exit time, and no bind is waiting to be
+        // applied (a condition may just have read a bindable's old value).
+        // StateMachineInstance::unsettleLayers undoes it.
+        if (!m_waitingForExit && !smi->m_bindsPending &&
+            isSettleSafe(m_anyStateInstance) && isSettleSafe(m_currentState))
+        {
+            m_settled = true;
+            smi->m_anySettled = true;
+        }
+#endif
+        return false;
     }
+
+    void unsettle() { m_settled = false; }
+
+    static bool isSettleSafe(const StateInstance* stateInstance)
+    {
+        return stateInstance == nullptr ||
+               stateInstance->state()->transitionsSettleSafe();
+    }
+
+#ifdef TESTING
+    // A settled layer's search must still come up empty. Repeats it without
+    // its side effects (random weights, used-layer marks, m_waitingForExit)
+    // and stops loudly if the settled answer went stale.
+    void verifySettled(StateMachineInstance* smi)
+    {
+        StateInstance* stateFromInstances[] = {m_anyStateInstance,
+                                               m_currentState};
+        for (StateInstance* stateFromInstance : stateFromInstances)
+        {
+            if (stateFromInstance == nullptr)
+            {
+                continue;
+            }
+            auto stateFrom = stateFromInstance->state();
+            for (size_t i = 0, count = stateFrom->transitionCount(); i < count;
+                 i++)
+            {
+                auto transition = stateFrom->transition(i);
+                if (canChangeState(transition->stateTo()) &&
+                    transition->allowed(stateFromInstance, smi, this) !=
+                        AllowTransition::no)
+                {
+                    fprintf(stderr,
+                            "Settled layer %s on artboard %s would have taken "
+                            "a transition\n",
+                            m_layer->name().c_str(),
+                            smi->artboard()->name().c_str());
+                    abort();
+                }
+            }
+        }
+    }
+#endif
 
     void fireEvents(StateMachineInstance* smi,
                     StateMachineFireOccurance occurs,
@@ -400,6 +524,8 @@ public:
         {
             return;
         }
+        // A different state has different transitions to search.
+        m_settled = false;
 
         // Fire end events for the state we're changing from.
         if (m_currentState != nullptr)
@@ -730,10 +856,16 @@ private:
     float m_mixFrom = 1.0f;
     float m_holdTime = 0.0f;
 
-    bool m_transitionCompleted = false;
-    bool m_holdAnimationFrom = false;
-    bool m_stateMachineChangedOnAdvance = false;
-    bool m_waitingForExit = false;
+    // One bit each, so m_settled shares the byte the four flags before it
+    // already take and sizeof stays 80. Bit-fields can't have default member
+    // initializers before C++20, so the constructor sets them.
+    bool m_transitionCompleted : 1;
+    bool m_holdAnimationFrom : 1;
+    bool m_stateMachineChangedOnAdvance : 1;
+    bool m_waitingForExit : 1;
+    // The last search found nothing and nothing it read has changed since,
+    // so the next one would find nothing too. See updateState.
+    bool m_settled : 1;
 };
 
 /// Representation of a Component from the Artboard Instance and all the
@@ -2405,6 +2537,9 @@ bool StateMachineInstance::hasScrollLatch()
 }
 
 #ifdef TESTING
+uint64_t StateMachineInstance::sm_settledLayerSkips = 0;
+uint64_t StateMachineInstance::sm_frozenLayerAdvances = 0;
+
 const LayerState* StateMachineInstance::layerState(size_t index)
 {
     if (index < m_machine->layerCount())
@@ -2505,7 +2640,11 @@ void StateMachineInstance::addToHitLookup(
 
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
-    Scene(instance), m_machine(machine)
+    Scene(instance),
+    m_machine(machine),
+    m_bindsPending(false),
+    m_anySettled(false),
+    m_destroying(false)
 {
     const auto count = machine->inputCount();
     m_inputInstances.resize(count);
@@ -2584,7 +2723,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             dataBindClone->converter(
                 dataBind->converter()->clone()->as<DataConverter>());
         }
-        addDataBind(dataBindClone);
         if (dataBind->target()->is<BindableProperty>())
         {
             auto& bindables = ensureBindables();
@@ -2634,6 +2772,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     BindablePropertyNumberBase::propertyValuePropertyKey);
             }
         }
+        // Added once its target is set: addDataBind decides from the target
+        // whether a toSource bind hears about changes or has to poll for them,
+        // and without one it would poll on every pass.
+        addDataBind(dataBindClone);
     }
 
     // Initialize listeners. Store a lookup table of shape id to hit shape
@@ -2999,6 +3141,7 @@ ScriptedObject* StateMachineInstance::scriptedObject(
 
 StateMachineInstance::~StateMachineInstance()
 {
+    m_destroying = true;
 
     // Clean up semantic tree BEFORE the internal SemanticManager is destroyed.
     // Only needed when we own the manager; if external, the parent cleans up.
@@ -3023,6 +3166,9 @@ StateMachineInstance::~StateMachineInstance()
     }
     deleteDataBinds();
     delete[] m_layers;
+    // What's torn down below can still dirty a bind, which unsettles layers.
+    m_layers = nullptr;
+    m_anySettled = false;
     // The bindable clones and per-transition property instances are raw-owning,
     // so they are deleted here rather than by the cluster's destructor.
     if (auto* bindables = m_bindables.get())
@@ -3282,7 +3428,7 @@ void StateMachineInstance::queueFocusEvent(FocusListenerGroup* group,
                                            bool isFocus)
 {
     ensureInputExtras().queuedFocusEvents.push_back({group, isFocus});
-    m_needsAdvance = true;
+    markNeedsAdvance();
 }
 
 void StateMachineInstance::setFocus(FocusData* focusData)
@@ -3347,7 +3493,7 @@ void StateMachineInstance::queueFocusTarget(FocusData* focusData)
         return;
     }
     focusManager()->requestFocus(focusData->focusNode(), rootArtboard());
-    m_needsAdvance = true;
+    markNeedsAdvance();
 }
 
 void StateMachineInstance::queueClearFocus()
@@ -3357,7 +3503,7 @@ void StateMachineInstance::queueClearFocus()
         return;
     }
     focusManager()->requestClearFocus(rootArtboard());
-    m_needsAdvance = true;
+    markNeedsAdvance();
 }
 
 void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
@@ -3367,7 +3513,7 @@ void StateMachineInstance::queueFocusTraversal(uint32_t traversalKind)
         return;
     }
     focusManager()->requestTraversal(traversalKind, rootArtboard());
-    m_needsAdvance = true;
+    markNeedsAdvance();
 }
 
 void StateMachineInstance::processFocusEvents()
@@ -3403,7 +3549,7 @@ void StateMachineInstance::queueSemanticEvent(SemanticListenerGroup* group,
                                               SemanticActionType actionType)
 {
     ensureInputExtras().queuedSemanticEvents.push_back({group, actionType});
-    m_needsAdvance = true;
+    markNeedsAdvance();
 }
 
 void StateMachineInstance::processSemanticEvents()
@@ -3621,11 +3767,16 @@ bool StateMachineInstance::advanceAndApply(float seconds,
     return keepGoing || hasPendingReports();
 }
 
-void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }
+void StateMachineInstance::markNeedsAdvance()
+{
+    m_needsAdvance = true;
+    wakeRow();
+}
 bool StateMachineInstance::needsAdvance() const { return m_needsAdvance; }
 
 void StateMachineInstance::resetState()
 {
+    wakeRow();
     for (size_t i = 0; i < m_layerCount; i++)
     {
         m_layers[i].resetState(this);
@@ -3912,10 +4063,108 @@ void StateMachineInstance::clearDataContext()
 
 void StateMachineInstance::mainViewModelInstanceChanged()
 {
+    unsettleLayers();
     if (m_artboardInstance != nullptr)
     {
         m_artboardInstance->mainViewModelInstanceChanged();
     }
+}
+
+void StateMachineInstance::unsettleLayers()
+{
+    // Whatever unsettles a layer can change a quiet row too.
+    wakeRow();
+    if (!m_anySettled)
+    {
+        return;
+    }
+    m_anySettled = false;
+    for (uint32_t i = 0; i < m_layerCount; i++)
+    {
+        m_layers[i].unsettle();
+    }
+}
+
+void StateMachineInstance::wakeRow()
+{
+    if (m_artboardInstance != nullptr && !m_destroying)
+    {
+        m_artboardInstance->wakeIfQuietRow();
+    }
+}
+
+AdvancingComponent::QuietState StateMachineInstance::rowQuietState()
+{
+    using QuietState = AdvancingComponent::QuietState;
+    // Scripts do work this can't see into.
+    if (m_scripting.get() != nullptr)
+    {
+        return QuietState::never;
+    }
+    // Cheapest first: a busy row is checked again every frame.
+    if (m_needsAdvance || m_bindsPending || hasDataBindWork() ||
+        m_drawOrderChangeCounter !=
+            m_artboardInstance->drawOrderChangeCounter())
+    {
+        return QuietState::busy;
+    }
+    if (auto* reporting = this->reporting())
+    {
+        if (!reporting->reportedEvents.empty() ||
+            !reporting->reportingEvents.empty() ||
+            !reporting->eventsAppliedDuringLoop.empty() ||
+            !reporting->reportedListenerViewModels.empty() ||
+            !reporting->reportingListenerViewModels.empty())
+        {
+            return QuietState::busy;
+        }
+    }
+    if (auto* extras = inputExtras())
+    {
+        if (!extras->queuedFocusEvents.empty() ||
+            !extras->queuedSemanticEvents.empty())
+        {
+            return QuietState::busy;
+        }
+    }
+    // Every layer frozen, and none changed state last frame (a new frame's
+    // advance clears that).
+    for (uint32_t i = 0; i < m_layerCount; i++)
+    {
+        if (!m_layers[i].isFrozen() || m_layers[i].stateChangedOnAdvance())
+        {
+            return QuietState::busy;
+        }
+    }
+    // Converters that advance can't say whether they would.
+    return mayAdvanceDataBinds() ? QuietState::never : QuietState::quiet;
+}
+
+void StateMachineInstance::addDirtyDataBind(DataBind* dataBind)
+{
+    // A bound value is about to change. Layers that settled on the old one
+    // must search again, and none may settle until it has been applied. Set
+    // before the base, which skips binds already queued or polled.
+    m_bindsPending = true;
+    unsettleLayers();
+    DataBindContainer::addDirtyDataBind(dataBind);
+}
+
+void StateMachineInstance::updateDataBinds(bool applyTargetToSource)
+{
+    // A nested call returns without applying anything, so only the outer pass
+    // clears this; binds dirtied while it runs set it again.
+    if (!isProcessingDataBinds())
+    {
+        m_bindsPending = false;
+    }
+    DataBindContainer::updateDataBinds(applyTargetToSource);
+}
+
+void StateMachineInstance::dataContextChanged()
+{
+    // View model conditions only evaluate with a data context.
+    unsettleLayers();
 }
 
 void StateMachineInstance::dropInstanceValueBindsTargeting(Core* target)
@@ -3929,6 +4178,7 @@ void StateMachineInstance::dropInstanceValueBindsTargeting(Core* target)
 
 void StateMachineInstance::relinkDataContext()
 {
+    unsettleLayers();
     m_artboardInstance->relinkDataContext();
 }
 
@@ -4018,6 +4268,7 @@ bool StateMachineInstance::hasPendingReports() const
 
 void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
 {
+    wakeRow();
     ensureReporting().reportedEvents.push_back(
         EventReport(event, delaySeconds));
 }
@@ -4025,6 +4276,7 @@ void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
 void StateMachineInstance::reportListenerViewModel(
     ListenerViewModel* listenerViewModel)
 {
+    wakeRow();
     ensureReporting().reportedListenerViewModels.push_back(listenerViewModel);
 }
 

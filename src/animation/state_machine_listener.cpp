@@ -150,6 +150,9 @@ void StateMachineListener::performChanges(
     StateMachineInstance* stateMachineInstance,
     const ListenerInvocation& invocation) const
 {
+    // Every listener kind acts through here, including keyboard and text ones
+    // that mark nothing else, so a quiet list row wakes up to what they do.
+    stateMachineInstance->wakeRow();
     for (auto& action : m_actions)
     {
         action->perform(stateMachineInstance, invocation);

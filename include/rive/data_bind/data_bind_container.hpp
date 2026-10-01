@@ -85,6 +85,19 @@ public:
     virtual void relinkDataContext() {};
     // The bound context swapped its main instance without a rebind.
     virtual void mainViewModelInstanceChanged() {};
+    // The context this container holds was set, replaced or cleared. Called
+    // after the change, and before any rebinding that follows it.
+    virtual void dataContextChanged() {};
+    // Whether updateDataBinds would process anything: a bind waiting in any
+    // queue, or one it polls on every pass.
+    bool hasDataBindWork() const;
+    // Whether advanceDataBinds could do anything: some bind's converter
+    // advances.
+    bool mayAdvanceDataBinds() const;
+#ifdef TESTING
+    // Binds processed by updateDataBinds, across every container.
+    static uint64_t sm_dataBindUpdates;
+#endif
     // Runs once an update pass has drained its deferred adds and removes.
     virtual void dataBindsProcessed() {};
     virtual void rebuildDataBind(DataBind*) {};

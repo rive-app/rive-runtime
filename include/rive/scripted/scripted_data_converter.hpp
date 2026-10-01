@@ -49,6 +49,7 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     bool advance(float elapsedSeconds) override;
+    bool mayAdvance() const override { return true; }
     StatusCode import(ImportStack& importStack) override;
     void addProperty(CustomProperty* prop) override;
     Core* clone() const override;

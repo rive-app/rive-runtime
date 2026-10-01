@@ -1485,6 +1485,18 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     setLayoutFlag(LayoutComponentFlags::ForceUpdateLayoutBounds, false);
 }
 
+AdvancingComponent::QuietState LayoutComponent::quietState()
+{
+    // The early outs of advanceComponent and applyInterpolation.
+    auto animationData = currentAnimationData();
+    if (isCollapsed() || animationData == nullptr || !animates() ||
+        m_style == nullptr || animationData->to == m_layout)
+    {
+        return QuietState::quiet;
+    }
+    return QuietState::busy;
+}
+
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     if ((flags & AdvanceFlags::NewFrame) != AdvanceFlags::NewFrame ||
@@ -1946,6 +1958,11 @@ Vec2D LayoutComponent::measureLayout(float width,
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     return false;
+}
+
+AdvancingComponent::QuietState LayoutComponent::quietState()
+{
+    return QuietState::quiet;
 }
 
 void LayoutComponent::markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds) {}

@@ -66,6 +66,7 @@ public:
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    QuietState quietState() override;
 #ifdef WITH_RIVE_LAYOUT
     bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
                             KeyFrameInterpolator* inheritedInterpolator,

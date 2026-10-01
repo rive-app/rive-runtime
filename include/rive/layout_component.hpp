@@ -512,6 +512,7 @@ public:
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    QuietState quietState() override;
     bool isHidden() const override;
     float forcedWidth() { return m_forcedWidth; }
     float forcedHeight() { return m_forcedHeight; }

@@ -132,6 +132,7 @@ private:
     // A resync asked for mid update waits for the pass to drain.
     bool m_instanceValueBindsPending = false;
     void syncInstanceValueBinds();
+    void wakeQuietRow();
 
 public:
     void mainViewModelInstanceChanged() override;
@@ -148,6 +149,8 @@ private:
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
     bool m_FrameOrigin = true;
+    // In the padding after the flags above; see quietHostRow.
+    uint32_t m_quietHostRow = kNoQuietRow;
     std::unordered_set<LayoutComponent*> m_dirtyLayout;
     bool m_isCleaningDirtyLayouts = false;
     std::unique_ptr<KeyFrameInterpolator> m_ownedInheritedInterpolator;
@@ -274,6 +277,8 @@ public:
     // Layout passes (calculateLayout calls) across every artboard, so a test
     // can tell a settled artboard from one that re-solves every frame.
     static uint64_t layoutPassCount() { return sm_layoutPassCount; }
+    // Dirt reported to any artboard (onComponentDirty and onDirty calls).
+    static uint64_t sm_dirtNotifications;
     static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
     static void incFrameId() { sm_frameId++; }
@@ -289,6 +294,28 @@ public:
     bool hasKeyFrameSourceBinds() const;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
+
+    /// While a host skips this row artboard's per-frame work (see
+    /// ArtboardComponentList's quiet rows), the row it is quiet at, else
+    /// kNoQuietRow. Whatever may change the row wakes it: its dirt, its data
+    /// binds and data context, its layout and host transform, and its state
+    /// machine (StateMachineInstance forwards its own wake-ups here).
+    static constexpr uint32_t kNoQuietRow = 0xFFFFFFFF;
+    uint32_t quietHostRow() const { return m_quietHostRow; }
+    void quietHostRow(uint32_t row) { m_quietHostRow = row; }
+    void wakeIfQuietRow()
+    {
+        if (m_quietHostRow != kNoQuietRow)
+        {
+            wakeQuietRow();
+        }
+    }
+    /// Whether this artboard's own per-frame work as a row (advanceInternal,
+    /// updateDataBinds, reset and updatePass) would currently do nothing.
+    /// `never` for artboards whose content can't say (hosted artboards,
+    /// scripts, joysticks, resettables, advancing converters, advancing
+    /// components that can't report).
+    AdvancingComponent::QuietState rowQuietState();
     void addedToHost()
     {
         setLayoutFlag(LayoutComponentFlags::JustAddedToHost, true);
@@ -565,6 +592,7 @@ public:
 
     void markLayoutDirty(LayoutComponent* layoutComponent);
     void markHostTransformDirty();
+    void dataContextChanged() override;
     void cleanLayout(LayoutComponent* layoutComponent);
 
     LayoutData* takeLayoutData();

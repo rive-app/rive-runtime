@@ -37,6 +37,7 @@ public:
     void unbind() override;
     void update() override;
     bool advance(float elapsedSeconds) override;
+    bool mayAdvance() const override;
     void reset() override;
 
 private:

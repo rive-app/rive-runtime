@@ -127,6 +127,7 @@ public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     bool advance(float elapsedTime) override;
+    bool mayAdvance() const override { return true; }
     void reset() override;
     void copy(const DataConverterInterpolatorBase& object);
     void durationChanged() override;

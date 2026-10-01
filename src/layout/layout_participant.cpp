@@ -542,6 +542,21 @@ KeyFrameInterpolator* LayoutParticipant::interpolator() const
     return m_animation != nullptr ? m_animation->interpolator : nullptr;
 }
 
+AdvancingComponent::QuietState LayoutParticipant::quietState()
+{
+#ifdef WITH_RIVE_LAYOUT
+    // The early outs of advanceComponent and applyInterpolation.
+    if (m_animation == nullptr ||
+        currentAnimationData()->to == m_animation->animatedLayout)
+    {
+        return QuietState::quiet;
+    }
+    return QuietState::busy;
+#else
+    return QuietState::quiet;
+#endif
+}
+
 bool LayoutParticipant::advanceComponent(float elapsedSeconds,
                                          AdvanceFlags flags)
 {

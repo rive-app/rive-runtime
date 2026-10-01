@@ -94,6 +94,7 @@ using namespace rive;
 uint64_t Artboard::sm_frameId = 0;
 #ifdef TESTING
 uint64_t Artboard::sm_layoutPassCount = 0;
+uint64_t Artboard::sm_dirtNotifications = 0;
 #endif
 
 Artboard::Artboard()
@@ -1516,6 +1517,10 @@ uint32_t Artboard::idOf(Core* object) const
 
 void Artboard::onComponentDirty(Component* component)
 {
+#ifdef TESTING
+    sm_dirtNotifications++;
+#endif
+    wakeIfQuietRow();
     m_didChange = true;
     m_Dirt |= ComponentDirt::Components;
 
@@ -1530,6 +1535,10 @@ void Artboard::onComponentDirty(Component* component)
 
 void Artboard::onDirty(ComponentDirt dirt)
 {
+#ifdef TESTING
+    sm_dirtNotifications++;
+#endif
+    wakeIfQuietRow();
     m_Dirt |= ComponentDirt::Components;
 }
 
@@ -1607,7 +1616,62 @@ void Artboard::syncInstanceValueBinds()
     }
 }
 
-void Artboard::mainViewModelInstanceChanged() { syncInstanceValueBinds(); }
+void Artboard::mainViewModelInstanceChanged()
+{
+    wakeIfQuietRow();
+    syncInstanceValueBinds();
+}
+
+void Artboard::dataContextChanged() { wakeIfQuietRow(); }
+
+void Artboard::wakeQuietRow()
+{
+    auto row = m_quietHostRow;
+    m_quietHostRow = kNoQuietRow;
+    if (m_host != nullptr)
+    {
+        m_host->hostedRowWoke(this, row);
+    }
+}
+
+AdvancingComponent::QuietState Artboard::rowQuietState()
+{
+    using QuietState = AdvancingComponent::QuietState;
+    // Work this check can't see into: hosted artboards and lists, joysticks,
+    // resettables and scripts.
+    if (!m_ArtboardHosts.empty() || !m_Joysticks.empty() ||
+        !m_Resettables.empty() || !m_ScriptedObjects.empty())
+    {
+        return QuietState::never;
+    }
+    // Cheapest first: a busy row is checked again every frame.
+    if (hasDirt(ComponentDirt::Components) || !m_dirtyLayout.empty() ||
+        m_hostTransformMarkedDirty || m_instanceValueBindsPending ||
+        hasDataBindWork())
+    {
+        return QuietState::busy;
+    }
+    auto state = QuietState::quiet;
+    for (auto advancing : m_advancingComponents)
+    {
+        switch (advancing->quietState())
+        {
+            case QuietState::never:
+                return QuietState::never;
+            case QuietState::busy:
+                state = QuietState::busy;
+                break;
+            case QuietState::quiet:
+                break;
+        }
+    }
+    if (state == QuietState::quiet && mayAdvanceDataBinds())
+    {
+        // Converters that advance can't say whether they would.
+        return QuietState::never;
+    }
+    return state;
+}
 
 void Artboard::dataBindsProcessed()
 {
@@ -1784,6 +1848,7 @@ void Artboard::update(ComponentDirt value)
 
 void Artboard::addDirtyDataBind(DataBind* dataBind)
 {
+    wakeIfQuietRow();
     // Most artboard data binds target Components and need the component graph
     // marked dirty. Keyframe value binds instead target transient
     // BindableProperty holders (see
@@ -1891,6 +1956,7 @@ void Artboard::cleanLayout(LayoutComponent* layoutComponent)
 
 void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 {
+    wakeIfQuietRow();
     assert(!m_isCleaningDirtyLayouts);
     if (m_isCleaningDirtyLayouts)
     {
@@ -1922,6 +1988,7 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 
 void Artboard::markHostTransformDirty()
 {
+    wakeIfQuietRow();
 #ifdef WITH_RIVE_TOOLS
     if (!m_hostTransformMarkedDirty && m_transformDirtyCallback != nullptr)
     {
@@ -4196,6 +4263,7 @@ void Artboard::rebind() { internalDataContext(dataBindContext()); }
 
 void Artboard::relinkDataContext()
 {
+    wakeIfQuietRow();
     if (dataBindContext() == nullptr)
     {
         return;

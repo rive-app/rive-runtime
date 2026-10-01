@@ -28,6 +28,9 @@ public:
     virtual void update();
     void copy(const DataConverter& object);
     virtual bool advance(float elapsedTime);
+    // Whether advance can do work: false for converters whose advance is the
+    // base no-op, so a bind using one never needs advancing.
+    virtual bool mayAdvance() const { return false; }
     void addDirtyDataBind(DataBind*) override;
     virtual void reset() {};
 

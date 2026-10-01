@@ -2,6 +2,7 @@
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -41,16 +42,19 @@ void DataBindContainer::unbindDataBinds()
         dataBind->unbind();
     }
     m_dataContext = nullptr;
+    dataContextChanged();
 }
 
 void DataBindContainer::dataBindContext(rcp<DataContext> dataContext)
 {
     m_dataContext = std::move(dataContext);
+    dataContextChanged();
 }
 
 void DataBindContainer::bindDataBindsFromContext(rcp<DataContext> dataContext)
 {
     m_dataContext = std::move(dataContext);
+    dataContextChanged();
     bindDataBindsFromContext();
 }
 
@@ -153,9 +157,45 @@ void DataBindContainer::addDataBind(DataBind* dataBind)
     }
 }
 
+#ifdef TESTING
+uint64_t DataBindContainer::sm_dataBindUpdates = 0;
+#endif
+
+bool DataBindContainer::hasDataBindWork() const
+{
+    if (!m_dirtyDataBinds.empty())
+    {
+        return true;
+    }
+    auto* queues = m_queues.get();
+    return queues != nullptr &&
+           (!queues->persisting.empty() || !queues->dirtyToSource.empty() ||
+            !queues->pendingDirtyToSource.empty() ||
+            !queues->pendingDirty.empty() ||
+            !queues->pendingAdditions.empty() ||
+            !queues->pendingRemovals.empty() ||
+            !queues->pendingDeletes.empty());
+}
+
+bool DataBindContainer::mayAdvanceDataBinds() const
+{
+    for (auto dataBind : m_dataBinds)
+    {
+        auto converter = dataBind->converter();
+        if (converter != nullptr && converter->mayAdvance())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void DataBindContainer::updateDataBind(DataBind* dataBind,
                                        bool applyTargetToSource)
 {
+#ifdef TESTING
+    sm_dataBindUpdates++;
+#endif
     auto d = dataBind->dirt();
 
     // Update dependents before applying both target to source and source to

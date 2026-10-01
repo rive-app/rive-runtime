@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <vector>
 #include <unordered_map>
+#include "rive/advancing_component.hpp"
 #include "rive/animation/gamepad_listener_group.hpp"
 #include "rive/animation/keyboard_listener_group.hpp"
 #include "rive/animation/semantic_listener_group.hpp"
@@ -317,6 +318,16 @@ public:
     // The artboard bound through this machine is not a dependent of the
     // context itself, so context hooks reach it from here.
     void mainViewModelInstanceChanged() override;
+    void updateDataBinds(bool applyTargetToSource = true) override;
+    void addDirtyDataBind(DataBind* dataBind) override;
+    void dataContextChanged() override;
+    /// Whether this machine's per-frame work as a list row (advance,
+    /// tryChangeState and updateDataBinds) would currently do nothing. See
+    /// Artboard::rowQuietState.
+    AdvancingComponent::QuietState rowQuietState();
+    // Something may have changed this machine: wake its artboard if a host
+    // had it quiet.
+    void wakeRow();
     void dropInstanceValueBindsTargeting(Core* target) override;
     void internalDataContext(rcp<DataContext> dataContext);
     ScriptedObject* scriptedObject(const ScriptedObject*) const;
@@ -417,6 +428,12 @@ public:
         return nullptr;
     }
     const LayerState* layerState(size_t index);
+    // Transition searches skipped because the layer had settled, across every
+    // instance (see StateMachineLayerInstance::updateState).
+    static uint64_t sm_settledLayerSkips;
+    // Layer advances skipped because the layer was frozen: settled in a state
+    // that keys nothing and waits on no exit time.
+    static uint64_t sm_frozenLayerAdvances;
 #endif
     void enablePointerEvents(int pointerId = 0);
     void disablePointerEvents(int pointerId = 0);
@@ -425,13 +442,23 @@ public:
 private:
     const StateMachine* m_machine;
     std::vector<SMIInput*> m_inputInstances; // we own each pointer
-    StateMachineLayerInstance* m_layers;
+    StateMachineLayerInstance* m_layers = nullptr;
     // Set once from machine->layerCount() and never mutated, so a uint32_t is
     // ample. Kept adjacent to the other scalars so they share one 8 B slot
     // instead of opening three.
     uint32_t m_layerCount = 0;
     uint8_t m_drawOrderChangeCounter = 0;
     bool m_needsAdvance = false;
+    // One bit each, sharing the byte after m_needsAdvance; bit-fields can't
+    // have default member initializers before C++20, so the constructor sets
+    // them. Settled layers, see StateMachineLayerInstance::updateState: a bind
+    // was dirtied and not yet applied, so bindables may still hold old values.
+    bool m_bindsPending : 1;
+    // Some layer is settled, so unsettleLayers has work to do.
+    bool m_anySettled : 1;
+    // Set as the destructor starts. The artboard may already be gone (a host
+    // can destroy it first), so nothing may wake its row from then on.
+    bool m_destroying : 1;
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     std::vector<std::unique_ptr<ListenerGroup>> m_listenerGroups;
     // Owns the in-flight scroll gesture. Latched for the whole gesture:
@@ -443,6 +470,9 @@ private:
     void unbind();
     void removeEventListeners();
     void initScriptedObjects();
+    // Something a settled layer's conditions read may have changed: search
+    // every layer again on its next update.
+    void unsettleLayers();
 
     // Cold clusters. See state_machine_instance_clusters.hpp.
     Sidecar<SMIReporting> m_reporting;

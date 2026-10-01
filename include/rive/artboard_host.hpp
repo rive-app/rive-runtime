@@ -24,6 +24,9 @@ public:
     virtual void unbind() = 0;
     virtual void updateDataBinds() = 0;
     virtual void markHostingLayoutDirty(ArtboardInstance* artboardInstance) {}
+    // A hosted artboard the host had marked quiet at `row` (see
+    // Artboard::quietHostRow) saw something that may change it.
+    virtual void hostedRowWoke(Artboard* artboard, uint32_t row) {}
     // The artboard that contains this ArtboardHost
     virtual Artboard* parentArtboard() = 0;
     virtual bool hitTestHost(const Vec2D& position,

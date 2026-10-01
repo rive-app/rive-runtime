@@ -77,6 +77,7 @@ public:
     void draw(Renderer* renderer) override;
     bool willDraw() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
+    void hostedRowWoke(Artboard* artboard, uint32_t row) override;
     void update(ComponentDirt value) override;
     void updateConstraints() override;
     void internalDataContext(rcp<DataContext> dataContext) override;
@@ -127,7 +128,7 @@ public:
         m_realizedEndIndex = end;
         invalidateOrderedListIndicesCache();
     }
-    void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
+    void shouldResetInstances(bool value);
     void setVirtualizablePosition(int index, Vec2D position) override;
     void createArtboardAt(int index, bool forceLayoutSync = true);
     void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard,
@@ -260,6 +261,53 @@ private:
     bool m_shouldResetInstances = false;
     // Whether some item shows on more than one row.
     bool m_listHasDuplicateItems = false;
+
+    // Quiet rows: rows whose per-frame work (their state machine's advance,
+    // tryChangeState and updateDataBinds, their artboard's advance, bind
+    // updates, reset and update pass) would do nothing are skipped until
+    // something wakes them (Artboard::quietHostRow). A bit per row, so a pass
+    // steps over 64 quiet rows at a time.
+    std::vector<uint64_t> m_quietRows;
+    // Rows whose content can't report being quiet, so they aren't checked
+    // again every frame.
+    std::vector<uint64_t> m_neverQuietRows;
+    // The first row at or after `row` that isn't quiet, or the row count.
+    size_t nextAwakeRow(size_t row) const;
+    bool isRowQuiet(size_t row) const;
+    // Marks the row quiet if its work would do nothing; true if it did.
+    bool tryQuietRow(size_t row);
+    // Whether the row's work would do nothing right now.
+    AdvancingComponent::QuietState rowQuietState(size_t row);
+    // Wakes the row and forgets it can't be quiet: its instances are about to
+    // change.
+    void resetQuietRow(size_t row);
+    // Wakes every row, then sizes the bits for `rowCount` rows.
+    void resetQuietRows(size_t rowCount);
+    enum class RowPass
+    {
+        advance,
+        settle,
+        updateDataBinds,
+        reset,
+        update,
+    };
+#ifdef TESTING
+    // Each quiet row's skipped work is still done in tests, after the pass,
+    // and must do nothing; a row still quiet must also still be quiet by
+    // rowQuietState, or a wake-up was missed.
+    void verifyQuietRows(RowPass pass,
+                         float elapsedSeconds,
+                         AdvanceFlags flags,
+                         bool advanceNested);
+
+public:
+    // Row passes skipped because the row was quiet, across every list.
+    static uint64_t sm_quietRowSkips;
+    // Lets a test run the same frames with and without quiet rows.
+    static bool sm_quietRowsEnabled;
+
+private:
+#endif
     bool listsAreEqual(std::vector<rcp<ViewModelInstanceListItem>>* list,
                        std::vector<rcp<ViewModelInstanceListItem>>* compared);
 

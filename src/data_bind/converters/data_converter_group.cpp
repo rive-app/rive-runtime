@@ -114,6 +114,19 @@ void DataConverterGroup::reset()
     }
 }
 
+bool DataConverterGroup::mayAdvance() const
+{
+    for (auto& item : m_items)
+    {
+        auto converter = item->converter();
+        if (converter != nullptr && converter->mayAdvance())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool DataConverterGroup::advance(float elapsedSeconds)
 {
     bool didUpdate = false;

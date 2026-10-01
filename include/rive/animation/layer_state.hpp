@@ -58,6 +58,22 @@ public:
     virtual std::unique_ptr<StateInstance> makeInstance(
         ArtboardInstance* instance) const;
 
+    /// Whether every condition on this state's transitions only reads values
+    /// whose changes reach the state machine instance (view model values it
+    /// binds, and its data context). A layer whose search found nothing from
+    /// such a state can skip searching again until one of them changes. Set
+    /// once by StateMachine::onAddedClean; never set in editor builds, whose
+    /// transitions change after import.
+    bool transitionsSettleSafe() const { return m_transitionsSettleSafe; }
+    void transitionsSettleSafe(bool value) { m_transitionsSettleSafe = value; }
+
+    /// Whether none of this state's transitions waits on an exit time, the only
+    /// thing that reads how long the state has been active. A settled layer in
+    /// such a state that keys nothing can skip advancing it. Set with
+    /// transitionsSettleSafe.
+    bool transitionsIgnoreTime() const { return m_transitionsIgnoreTime; }
+    void transitionsIgnoreTime(bool value) { m_transitionsIgnoreTime = value; }
+
 #ifdef WITH_RIVE_EDITOR
     // Editor-only parallel non-owning transition list. `m_Transitions`
     // is owned by `LayerState::~LayerState`. See
@@ -71,6 +87,8 @@ private:
 #ifdef WITH_RIVE_EDITOR
     std::vector<StateTransition*> m_editorTransitions;
 #endif
+    bool m_transitionsSettleSafe = false;
+    bool m_transitionsIgnoreTime = false;
 };
 } // namespace rive
 
