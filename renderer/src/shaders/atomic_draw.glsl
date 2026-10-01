@@ -720,15 +720,6 @@ INLINE void resolve_paint(uint pathID,
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
     fragColorOut *= coverage;
-
-// Certain platforms give us less control of the format of what we are
-// rendering too. Specifically, we are auto converted from linear -> sRGB on
-// render target writes in unreal. In those cases we made need to end up in
-// linear color space
-#if defined(@NEEDS_GAMMA_CORRECTION) &&                                        \
-    (defined(@FIXED_FUNCTION_COLOR_OUTPUT) || defined(@RESOLVE_PLS))
-    fragColorOut = gamma_to_linear(fragColorOut);
-#endif
 }
 
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) &&                                  \
@@ -1081,10 +1072,6 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
     imageColor *= imageCoverage;
-
-#if defined(@NEEDS_GAMMA_CORRECTION)
-    imageColor = gamma_to_linear(imageColor);
-#endif
 
     // Leverage the property that premultiplied src-over blending is associative
     // and blend the imageColor and fragColorOut before passing them on to the

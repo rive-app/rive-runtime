@@ -89,17 +89,6 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     color *= coverage;
 #endif
 
-    // Certain platforms give us less control of the format of what we are
-    // rendering too. Specifically, we are auto converted from linear -> sRGB on
-    // render target writes in unreal. In those cases we made need to end up in
-    // linear color space
-#ifdef @NEEDS_GAMMA_CORRECTION
-    if (@NEEDS_GAMMA_CORRECTION)
-    {
-        color = gamma_to_linear(color);
-    }
-#endif
-
     color.rgb = add_dither_if_alpha_nonzero(color.rgb,
                                             color.a,
                                             _fragCoord.xy,

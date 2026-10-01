@@ -818,7 +818,7 @@ def unreal_android_installer(stage_dir):
     name = ("Install_rive_unreal-arm64.bat" if config == "Development"
             else "Install_rive_unreal-Android-%s-arm64.bat" % config)
     if os.path.exists(os.path.join(stage_dir, name)):
-        return name
+        return os.path.abspath(os.path.join(stage_dir, name))
     staged = sorted(glob.glob(os.path.join(stage_dir, "Install_rive_unreal*.bat")))
     raise RuntimeError(
         "expected %s in %s for the %s config, found: %s" %

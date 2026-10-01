@@ -231,17 +231,6 @@ PLS_MAIN(@drawFragmentMain)
 #endif
             color *= coverage;
 
-            // Certain platforms give us less control of the format of what we
-            // are rendering too. Specifically, we are auto converted from
-            // linear -> sRGB on render target writes in unreal. In those cases
-            // we made need to end up in linear color space
-#ifdef @NEEDS_GAMMA_CORRECTION
-            if (@NEEDS_GAMMA_CORRECTION)
-            {
-                color = gamma_to_linear(color);
-            }
-#endif
-
             // Save paint alpha before destructively updating it with the
             // dstColor.
             half paintAlpha = color.a;
