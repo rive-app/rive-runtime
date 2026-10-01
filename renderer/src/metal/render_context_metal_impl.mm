@@ -531,7 +531,10 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
 #elif defined(RIVE_IOS_SIMULATOR)
     const NXArchInfo* hostArchitecture = NXGetLocalArchInfo();
-    if (strncmp(hostArchitecture->name, "arm64", 5) == 0)
+    // NXGetLocalArchInfo() returns null when the simulator runtime predates the
+    // host's CPU subtype, which only happens on newer Apple Silicon.
+    if (hostArchitecture == nullptr ||
+        strncmp(hostArchitecture->name, "arm64", 5) == 0)
     {
         // The simulator doesn't advertise support for raster order groups, but
         // they appear to work anyway on an Apple-Silicon-hosted simulator. Use
