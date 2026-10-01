@@ -9,7 +9,8 @@ void main(List<String> arguments) {
   Directory(defsPath).list(recursive: true).listen(
     (entity) {
       if (entity is File && entity.path.toLowerCase().endsWith('.json')) {
-        Definition.make(entity.path.substring(defsPath.length));
+        Definition.make(
+            entity.path.substring(defsPath.length).replaceAll('\\', '/'));
       }
     },
     onDone: Definition.generate,

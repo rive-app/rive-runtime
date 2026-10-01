@@ -8,6 +8,7 @@
 #include "rive/input/focusable.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/pointer_button.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/animation/semantic_listener_group.hpp"
 #include "rive/semantic/semantic_snapshot.hpp"
@@ -968,6 +969,8 @@ public:
         Vec2D position;      // the cursor position
         float scaleFactor = 1.0f; // scale factor for things like retina display
         int pointerId = 0;        // stable pointer identifier for multitouch
+        PointerButton button = PointerButton::primary; // mouse button for
+                                                       // down/up events
     };
 
     // All pointer events will automatically convert between artboard and screen

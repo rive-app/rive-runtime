@@ -52,6 +52,77 @@ bool StateMachineListener::hasListener(ListenerType listenerType) const
     return false;
 }
 
+static bool listenerTypeHasButton(ListenerType listenerType)
+{
+    switch (listenerType)
+    {
+        case ListenerType::down:
+        case ListenerType::up:
+        case ListenerType::click:
+        case ListenerType::drag:
+        case ListenerType::dragStart:
+        case ListenerType::dragEnd:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool StateMachineListener::hasListener(ListenerType listenerType,
+                                       PointerButton button) const
+{
+    if (!listenerTypeHasButton(listenerType))
+    {
+        return hasListener(listenerType);
+    }
+    for (auto& listenerInputType : m_listenerInputTypes)
+    {
+        if (listenerInputType->listenerTypeValue() == (int)listenerType &&
+            listenerInputType->pointerButton() == button)
+        {
+            return true;
+        }
+    }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* listenerInputType : m_editorListenerInputTypes)
+    {
+        if (listenerInputType != nullptr &&
+            listenerInputType->listenerTypeValue() == (int)listenerType &&
+            listenerInputType->pointerButton() == button)
+        {
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+bool StateMachineListener::listensToButton(PointerButton button) const
+{
+    for (auto& listenerInputType : m_listenerInputTypes)
+    {
+        if (listenerTypeHasButton(
+                (ListenerType)listenerInputType->listenerTypeValue()) &&
+            listenerInputType->pointerButton() == button)
+        {
+            return true;
+        }
+    }
+#ifdef WITH_RIVE_EDITOR
+    for (auto* listenerInputType : m_editorListenerInputTypes)
+    {
+        if (listenerInputType != nullptr &&
+            listenerTypeHasButton(
+                (ListenerType)listenerInputType->listenerTypeValue()) &&
+            listenerInputType->pointerButton() == button)
+        {
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
 bool StateMachineListener::hasListeners(
     Span<const ListenerType> listenerTypes) const
 {

@@ -57,16 +57,23 @@ ProcessEventResult DraggableConstraintListenerGroup::processEvent(
     Vec2D position,
     int pointerId,
     ListenerType hitEvent,
+    PointerButton button,
     bool canHit,
     float timeStamp,
     StateMachineInstance* stateMachineInstance)
 {
+    if ((hitEvent == ListenerType::down || hitEvent == ListenerType::up) &&
+        button != PointerButton::primary)
+    {
+        return ProcessEventResult::none;
+    }
     auto pointer = pointerData(pointerId);
     auto prevPhase = pointer->phase;
     ListenerGroup::processEvent(component,
                                 position,
                                 pointerId,
                                 hitEvent,
+                                button,
                                 canHit,
                                 timeStamp,
                                 stateMachineInstance);

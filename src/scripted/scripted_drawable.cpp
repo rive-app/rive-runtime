@@ -96,7 +96,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                             ListenerType hitType,
                                             bool canHit,
                                             float timeStamp,
-                                            int pointerId)
+                                            int pointerId,
+                                            PointerButton button)
 {
     HitResult hitResult = HitResult::none;
     auto scriptAsset = m_drawable->scriptAsset();
@@ -196,7 +197,8 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
                                             ListenerType hitType,
                                             bool canHit,
                                             float timeStamp,
-                                            int pointerId)
+                                            int pointerId,
+                                            PointerButton button)
 {
     return HitResult::none;
 }

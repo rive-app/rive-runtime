@@ -115,24 +115,44 @@ TEST_CASE("scripted drawable pointer events report their type and timestamp",
 
     HitScriptedDrawable hit(&drawable, nullptr);
 
-    hit.processEvent(Vec2D(1.0f, 1.0f), ListenerType::down, true, 1.5f, 0);
+    hit.processEvent(Vec2D(1.0f, 1.0f),
+                     ListenerType::down,
+                     true,
+                     1.5f,
+                     0,
+                     PointerButton::primary);
     CHECK(readString(L, "getLastHandler") == "pointerDown");
     CHECK(readString(L, "getLastType") == "pointerDown");
     CHECK(readNumber(L, "getLastTimeStamp") == 1.5f);
 
-    hit.processEvent(Vec2D(2.0f, 1.0f), ListenerType::move, true, 2.25f, 0);
+    hit.processEvent(Vec2D(2.0f, 1.0f),
+                     ListenerType::move,
+                     true,
+                     2.25f,
+                     0,
+                     PointerButton::primary);
     CHECK(readString(L, "getLastHandler") == "pointerMove");
     CHECK(readString(L, "getLastType") == "pointerMove");
     CHECK(readNumber(L, "getLastTimeStamp") == 2.25f);
 
-    hit.processEvent(Vec2D(2.0f, 1.0f), ListenerType::up, true, 3.0f, 0);
+    hit.processEvent(Vec2D(2.0f, 1.0f),
+                     ListenerType::up,
+                     true,
+                     3.0f,
+                     0,
+                     PointerButton::primary);
     CHECK(readString(L, "getLastHandler") == "pointerUp");
     CHECK(readString(L, "getLastType") == "pointerUp");
     CHECK(readNumber(L, "getLastTimeStamp") == 3.0f);
 
     // An occluded target is dispatched to pointerExit whatever the incoming
     // event was, and the type follows the handler.
-    hit.processEvent(Vec2D(2.0f, 1.0f), ListenerType::move, false, 4.0f, 0);
+    hit.processEvent(Vec2D(2.0f, 1.0f),
+                     ListenerType::move,
+                     false,
+                     4.0f,
+                     0,
+                     PointerButton::primary);
     CHECK(readString(L, "getLastHandler") == "pointerExit");
     CHECK(readString(L, "getLastType") == "pointerExit");
     CHECK(readNumber(L, "getLastTimeStamp") == 4.0f);

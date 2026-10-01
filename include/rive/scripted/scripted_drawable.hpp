@@ -105,7 +105,8 @@ public:
                            ListenerType hitType,
                            bool canHit,
                            float timeStamp,
-                           int pointerId) override;
+                           int pointerId,
+                           PointerButton button) override;
     HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) override;

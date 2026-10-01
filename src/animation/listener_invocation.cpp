@@ -10,7 +10,8 @@ ListenerInvocation ListenerInvocation::pointer(Vec2D position,
                                                Vec2D previousPosition,
                                                int pointerId,
                                                ListenerType hitEvent,
-                                               float timeStamp)
+                                               float timeStamp,
+                                               PointerButton button)
 {
     PointerInvocation p;
     p.position = position;
@@ -18,6 +19,7 @@ ListenerInvocation ListenerInvocation::pointer(Vec2D position,
     p.pointerId = pointerId;
     p.hitEvent = hitEvent;
     p.timeStamp = timeStamp;
+    p.button = button;
     return ListenerInvocation(ListenerInvocationStorage(std::move(p)));
 }
 

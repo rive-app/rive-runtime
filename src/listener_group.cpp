@@ -97,20 +97,22 @@ bool ListenerGroup::cancelPointer(int pointerId,
     return wasDragging;
 }
 
-void ListenerGroup::cancelPointers(Vec2D position,
-                                   float timeStamp,
-                                   std::vector<int>& dragEnded)
+void ListenerGroup::cancelPointers(
+    Vec2D position,
+    float timeStamp,
+    std::vector<std::pair<int, PointerButton>>& dragEnded)
 {
     for (auto& entry : m_pointers)
     {
+        auto button = entry.second->button;
         if (!cancelPointer(entry.first, position, timeStamp))
         {
             continue;
         }
         bool alreadyEnded = false;
-        for (auto id : dragEnded)
+        for (auto& ended : dragEnded)
         {
-            if (id == entry.first)
+            if (ended.first == entry.first)
             {
                 alreadyEnded = true;
                 break;
@@ -118,7 +120,7 @@ void ListenerGroup::cancelPointers(Vec2D position,
         }
         if (!alreadyEnded)
         {
-            dragEnded.push_back(entry.first);
+            dragEnded.emplace_back(entry.first, button);
         }
     }
 }
@@ -182,6 +184,7 @@ ProcessEventResult ListenerGroup::processEvent(
     Vec2D position,
     int pointerId,
     ListenerType hitEvent,
+    PointerButton button,
     bool canHit,
     float timeStamp,
     StateMachineInstance* stateMachineInstance)
@@ -219,17 +222,24 @@ ProcessEventResult ListenerGroup::processEvent(
     {
         if (hitEvent == ListenerType::down)
         {
-            pointer->phase = GestureClickPhase::down;
+            if (pointer->phase != GestureClickPhase::down)
+            {
+                pointer->phase = GestureClickPhase::down;
+                pointer->button = button;
+            }
         }
         else if (hitEvent == ListenerType::up &&
-                 pointer->phase == GestureClickPhase::down)
+                 pointer->phase == GestureClickPhase::down &&
+                 pointer->button == button)
         {
             pointer->phase = GestureClickPhase::clicked;
         }
     }
     else
     {
-        if (hitEvent == ListenerType::down || hitEvent == ListenerType::up)
+        if ((hitEvent == ListenerType::down || hitEvent == ListenerType::up) &&
+            (pointer->phase != GestureClickPhase::down ||
+             pointer->button == button))
         {
             pointer->phase = GestureClickPhase::out;
         }
@@ -239,12 +249,16 @@ ProcessEventResult ListenerGroup::processEvent(
          pointer->phase == GestureClickPhase::out) &&
         pointer->hasDragged)
     {
-        stateMachineInstance->dragEnd(position, timeStamp, pointerId);
+        stateMachineInstance->dragEnd(position,
+                                      timeStamp,
+                                      pointerId,
+                                      pointer->button);
         pointer->hasDragged = false;
     }
     auto _listener = listener();
     bool shouldPerformChanges = false;
     auto listenerTypeMatched = hitEvent;
+    auto buttonMatched = button;
     // Always update hover states regardless of which specific listener type
     // we're trying to trigger.
     // If hover has changed and:
@@ -269,12 +283,13 @@ ProcessEventResult ListenerGroup::processEvent(
     // - the event type matches the listener type and it is hovering the
     // group
     if (pointer->phase == GestureClickPhase::clicked &&
-        _listener->hasListener(ListenerType::click))
+        _listener->hasListener(ListenerType::click, pointer->button))
     {
         shouldPerformChanges = true;
         listenerTypeMatched = ListenerType::click;
+        buttonMatched = pointer->button;
     }
-    else if (isGroupHovered && _listener->hasListener(hitEvent))
+    else if (isGroupHovered && _listener->hasListener(hitEvent, button))
     {
         shouldPerformChanges = true;
     }
@@ -283,17 +298,19 @@ ProcessEventResult ListenerGroup::processEvent(
     // - the clickPhase is down
     // - the pointer type is move
     if (pointer->phase == GestureClickPhase::down &&
-        _listener->hasListener(ListenerType::drag) &&
+        _listener->hasListener(ListenerType::drag, pointer->button) &&
         hitEvent == ListenerType::move)
     {
         shouldPerformChanges = true;
         listenerTypeMatched = ListenerType::drag;
+        buttonMatched = pointer->button;
         if (!pointer->hasDragged)
         {
             stateMachineInstance->dragStart(position,
                                             timeStamp,
                                             false,
-                                            pointerId);
+                                            pointerId,
+                                            pointer->button);
             pointer->hasDragged = true;
         }
     }
@@ -306,7 +323,8 @@ ProcessEventResult ListenerGroup::processEvent(
                 Vec2D(previousPosition->x, previousPosition->y),
                 pointerId,
                 listenerTypeMatched,
-                timeStamp));
+                timeStamp,
+                buttonMatched));
         stateMachineInstance->markNeedsAdvance();
         consume();
 

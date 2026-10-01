@@ -3,6 +3,7 @@
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/generated/animation/state_machine_listener_base.hpp"
 #include "rive/listener_type.hpp"
+#include "rive/pointer_button.hpp"
 #include "rive/span.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
 
@@ -25,6 +26,9 @@ public:
     //     return (ListenerType)listenerTypeValue();
     // }
     virtual bool hasListener(ListenerType) const;
+    virtual bool hasListener(ListenerType, PointerButton) const;
+    // True if any pointer press listener type is bound to button.
+    virtual bool listensToButton(PointerButton) const;
     bool hasListeners(Span<const ListenerType> listenerTypes) const;
     // True if any listener type hit-tests a pointer against the target.
     bool hasPointerListeners() const;
@@ -73,6 +77,20 @@ public:
     size_t editorListenerInputTypeCount() const
     {
         return m_editorListenerInputTypes.size();
+    }
+#endif
+
+#ifdef TESTING
+    void replaceListenerInputTypeForTesting(
+        size_t index,
+        std::unique_ptr<ListenerInputType> inputType)
+    {
+        m_listenerInputTypes[index] = std::move(inputType);
+    }
+    void addListenerInputTypeForTesting(
+        std::unique_ptr<ListenerInputType> inputType)
+    {
+        m_listenerInputTypes.push_back(std::move(inputType));
     }
 #endif
 

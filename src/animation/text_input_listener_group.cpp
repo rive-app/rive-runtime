@@ -50,10 +50,16 @@ ProcessEventResult TextInputListenerGroup::processEvent(
     Vec2D position,
     int pointerId,
     ListenerType hitEvent,
+    PointerButton button,
     bool canHit,
     float timeStamp,
     StateMachineInstance* stateMachineInstance)
 {
+    if ((hitEvent == ListenerType::down || hitEvent == ListenerType::up) &&
+        button != PointerButton::primary)
+    {
+        return ProcessEventResult::none;
+    }
     // We implement our own click phase tracking instead of calling base class
     // because base class processEvent accesses m_listener which is nullptr
     auto* pData = pointerData(pointerId);

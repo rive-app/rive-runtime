@@ -7,6 +7,7 @@
 #include "rive/input/standard_gamepad.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/pointer_button.hpp"
 
 #include <string>
 #include <type_traits>
@@ -44,6 +45,7 @@ struct PointerInvocation
     int pointerId = 0;
     ListenerType hitEvent = ListenerType::move;
     float timeStamp = 0.f;
+    PointerButton button = PointerButton::primary;
 };
 
 struct KeyboardInvocation
@@ -130,11 +132,13 @@ using ListenerInvocationStorage = std::variant<PointerInvocation,
 class ListenerInvocation
 {
 public:
-    static ListenerInvocation pointer(Vec2D position,
-                                      Vec2D previousPosition,
-                                      int pointerId,
-                                      ListenerType hitEvent,
-                                      float timeStamp);
+    static ListenerInvocation pointer(
+        Vec2D position,
+        Vec2D previousPosition,
+        int pointerId,
+        ListenerType hitEvent,
+        float timeStamp,
+        PointerButton button = PointerButton::primary);
     static ListenerInvocation keyboard(Key key,
                                        KeyModifiers modifiers,
                                        bool isPressed,

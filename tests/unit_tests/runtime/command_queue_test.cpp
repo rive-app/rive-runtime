@@ -5714,6 +5714,43 @@ TEST_CASE("pointer input", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("pointer buttons", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    // A full-artboard shape with a secondary click listener that sets the
+    // "clicked" bool, exported by rive_core's pointer_button_export_test.dart.
+    std::ifstream stream("assets/pointer_button_secondary.riv",
+                         std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle smHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+    commandQueue->advanceStateMachine(smHandle, 0.0f);
+
+    Vec2D center(250.0f, 250.0f);
+    checkStateMachineBool(commandQueue, smHandle, "clicked", false);
+
+    // The default button is primary, which this listener ignores.
+    commandQueue->pointerDown(smHandle, {.position = center});
+    commandQueue->pointerUp(smHandle, {.position = center});
+    checkStateMachineBool(commandQueue, smHandle, "clicked", false);
+
+    commandQueue->pointerDown(
+        smHandle,
+        {.position = center, .button = PointerButton::secondary});
+    commandQueue->pointerUp(
+        smHandle,
+        {.position = center, .button = PointerButton::secondary});
+    checkStateMachineBool(commandQueue, smHandle, "clicked", true);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 // Captures the view model update emitted by rapid_pointer_events.riv when its
 // state machine reaches the down-driven state.
 class RapidPointerViewModelListener

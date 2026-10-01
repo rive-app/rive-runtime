@@ -8,6 +8,7 @@
 #include "rive/gesture_click_phase.hpp"
 #include "rive/listener_type.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/pointer_button.hpp"
 #include "rive/process_event_result.hpp"
 
 namespace rive
@@ -27,6 +28,7 @@ public:
     // so a group-wide flag lets one pointer end another's drag.
     bool hasDragged = false;
     GestureClickPhase phase = GestureClickPhase::out;
+    PointerButton button = PointerButton::primary;
     Vec2D* previousPosition() { return &m_previousPosition; }
 
 private:
@@ -50,10 +52,10 @@ public:
     /// once every group has been cancelled.
     virtual bool cancelPointer(int pointerId, Vec2D position, float timeStamp);
     /// Cancels every pointer this group is tracking, appending to dragEnded the
-    /// ids that still owe a dragEnd.
+    /// ids that still owe a dragEnd along with the button that dragged.
     void cancelPointers(Vec2D position,
                         float timeStamp,
-                        std::vector<int>& dragEnded);
+                        std::vector<std::pair<int, PointerButton>>& dragEnded);
     virtual void enable(int pointerId = 0);
     virtual void disable(int pointerId = 0);
     bool isConsumed() { return m_isConsumed; }
@@ -71,6 +73,7 @@ public:
         Vec2D position,
         int pointerId,
         ListenerType hitEvent,
+        PointerButton button,
         bool canHit,
         float timeStamp,
         StateMachineInstance* stateMachineInstance);

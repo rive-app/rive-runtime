@@ -13,6 +13,15 @@ public:
     {
         return listenerTypeValue() == (int)listenerType;
     }
+    bool hasListener(ListenerType listenerType,
+                     PointerButton button) const override
+    {
+        return button == PointerButton::primary && hasListener(listenerType);
+    }
+    bool listensToButton(PointerButton button) const override
+    {
+        return button == PointerButton::primary && hasPointerListeners();
+    }
     void decodeViewModelPathIds(Span<const uint8_t> value) override;
     void copyViewModelPathIds(
         const StateMachineListenerSingleBase& object) override;

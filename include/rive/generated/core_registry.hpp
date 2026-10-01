@@ -50,6 +50,7 @@
 #include "rive/animation/listener_types/listener_input_type_event.hpp"
 #include "rive/animation/listener_types/listener_input_type_gamepad.hpp"
 #include "rive/animation/listener_types/listener_input_type_keyboard.hpp"
+#include "rive/animation/listener_types/listener_input_type_pointer_button.hpp"
 #include "rive/animation/listener_types/listener_input_type_semantic.hpp"
 #include "rive/animation/listener_types/listener_input_type_text.hpp"
 #include "rive/animation/listener_types/listener_input_type_viewmodel.hpp"
@@ -659,6 +660,8 @@ public:
                 return new ListenerInputTypeGamepad();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
+            case ListenerInputTypePointerButtonBase::typeKey:
+                return new ListenerInputTypePointerButton();
             case ListenerInputTypeTextBase::typeKey:
                 return new ListenerInputTypeText();
             case ListenerInputTypeSemanticBase::typeKey:
@@ -1691,6 +1694,11 @@ public:
                 break;
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
                 object->as<ListenerInputTypeBase>()->listenerTypeValue(value);
+                break;
+            case ListenerInputTypePointerButtonBase::
+                pointerButtonValuePropertyKey:
+                object->as<ListenerInputTypePointerButtonBase>()
+                    ->pointerButtonValue(value);
                 break;
             case ShapePaintBase::blendModeValuePropertyKey:
                 object->as<ShapePaintBase>()->blendModeValue(value);
@@ -3861,6 +3869,10 @@ public:
                 return object->as<ElasticInterpolatorBase>()->easingValue();
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
                 return object->as<ListenerInputTypeBase>()->listenerTypeValue();
+            case ListenerInputTypePointerButtonBase::
+                pointerButtonValuePropertyKey:
+                return object->as<ListenerInputTypePointerButtonBase>()
+                    ->pointerButtonValue();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->as<ShapePaintBase>()->blendModeValue();
             case ShapePaintBase::additiveAmountPropertyKey:
@@ -5219,6 +5231,8 @@ public:
                 propertyKeyPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
+            case ListenerInputTypePointerButtonBase::
+                pointerButtonValuePropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
             case ShapePaintBase::additiveAmountPropertyKey:
             case ColorChannelsBase::colorRedPropertyKey:
@@ -6157,6 +6171,9 @@ public:
                 return object->is<ElasticInterpolatorBase>();
             case ListenerInputTypeBase::listenerTypeValuePropertyKey:
                 return object->is<ListenerInputTypeBase>();
+            case ListenerInputTypePointerButtonBase::
+                pointerButtonValuePropertyKey:
+                return object->is<ListenerInputTypePointerButtonBase>();
             case ShapePaintBase::blendModeValuePropertyKey:
                 return object->is<ShapePaintBase>();
             case ShapePaintBase::additiveAmountPropertyKey:

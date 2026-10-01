@@ -4280,7 +4280,8 @@ bool CommandServer::processCommands()
                         stateMachineWrapper->m_mutex);
                     auto hitResult = stateMachineWrapper->instance->pointerDown(
                         position,
-                        pointerEvent.pointerId);
+                        pointerEvent.pointerId,
+                        pointerEvent.button);
                     // Process down-driven state changes before a following
                     // pointer up.
                     if (hitResult != HitResult::none)
@@ -4319,7 +4320,8 @@ bool CommandServer::processCommands()
                         stateMachineWrapper->m_mutex);
                     auto hitResult = stateMachineWrapper->instance->pointerUp(
                         position,
-                        pointerEvent.pointerId);
+                        pointerEvent.pointerId,
+                        pointerEvent.button);
                     // Process up-driven state changes before any following
                     // pointer exit.
                     if (hitResult != HitResult::none)

@@ -114,7 +114,12 @@ TEST_CASE("pointer event re-arms an idle scripted drawable's advance loop",
 
     // Dispatch a pointer event through the hit component.
     HitScriptedDrawable hit(&drawable, nullptr);
-    hit.processEvent(Vec2D(1.0f, 1.0f), ListenerType::down, true, 0.0f, 0);
+    hit.processEvent(Vec2D(1.0f, 1.0f),
+                     ListenerType::down,
+                     true,
+                     0.0f,
+                     0,
+                     PointerButton::primary);
     CHECK(readCounter(L, "getPointerDownCount") == 1);
 
     // The event re-armed the loop: the next frame advances the script again.

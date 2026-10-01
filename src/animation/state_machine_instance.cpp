@@ -943,6 +943,28 @@ public:
         return false;
     }
 
+    bool listensToButtonAt(Vec2D position, PointerButton button) override
+    {
+        if (!hitTest(position))
+        {
+            return false;
+        }
+        for (auto listenerGroup : listeners)
+        {
+            auto listener = listenerGroup->listener();
+            if (listener != nullptr && listener->listensToButton(button))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool occludesPointer(Vec2D position) override
+    {
+        return (isOpaque || m_drawable->isTargetOpaque()) && hitTest(position);
+    }
+
     bool occludesScroll(Vec2D position) override
     {
         // A scroll view never occludes: at its edge it declines and the
@@ -1032,7 +1054,8 @@ public:
                            ListenerType hitType,
                            bool canHit,
                            float timeStamp,
-                           int pointerId) override
+                           int pointerId,
+                           PointerButton button) override
     {
         // If the shape doesn't have any ListenerType::move / enter / exit and
         // the event being processed is not of the type it needs to handle.
@@ -1056,6 +1079,7 @@ public:
                                             position,
                                             pointerId,
                                             hitType,
+                                            button,
                                             canHit,
                                             timeStamp,
                                             m_stateMachineInstance) ==
@@ -1294,6 +1318,32 @@ public:
         return false;
     }
 
+    bool listensToButtonAt(Vec2D position, PointerButton button) override
+    {
+        auto nestedArtboard = m_component->as<NestedArtboard>();
+        if (nestedArtboard->isCollapsed() || nestedArtboard->isHidden() ||
+            nestedArtboard->isPaused())
+        {
+            return false;
+        }
+        Vec2D nestedPosition;
+        if (!nestedArtboard->worldToLocal(position, &nestedPosition))
+        {
+            return false;
+        }
+        for (auto nestedAnimation : nestedArtboard->nestedAnimations())
+        {
+            if (nestedAnimation->is<NestedStateMachine>() &&
+                nestedAnimation->as<NestedStateMachine>()->listensToButtonAt(
+                    nestedPosition,
+                    button))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool occludesScroll(Vec2D position) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
@@ -1419,7 +1469,8 @@ public:
                            ListenerType hitType,
                            bool canHit,
                            float timeStamp,
-                           int pointerId) override
+                           int pointerId,
+                           PointerButton button) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         HitResult hitResult = HitResult::none;
@@ -1448,12 +1499,14 @@ public:
                         case ListenerType::down:
                             hitResult =
                                 nestedStateMachine->pointerDown(nestedPosition,
-                                                                pointerId);
+                                                                pointerId,
+                                                                button);
                             break;
                         case ListenerType::up:
                             hitResult =
                                 nestedStateMachine->pointerUp(nestedPosition,
-                                                              pointerId);
+                                                              pointerId,
+                                                              button);
                             break;
                         case ListenerType::move:
                             hitResult =
@@ -1464,12 +1517,14 @@ public:
                         case ListenerType::dragStart:
                             nestedStateMachine->dragStart(nestedPosition,
                                                           timeStamp,
-                                                          pointerId);
+                                                          pointerId,
+                                                          button);
                             break;
                         case ListenerType::dragEnd:
                             nestedStateMachine->dragEnd(nestedPosition,
                                                         timeStamp,
-                                                        pointerId);
+                                                        pointerId,
+                                                        button);
                             break;
                         case ListenerType::exit:
                             hitResult =
@@ -1685,6 +1740,32 @@ public:
         return false;
     }
 
+    bool listensToButtonAt(Vec2D position, PointerButton button) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed() || componentList->isHidden())
+        {
+            return false;
+        }
+        const auto& order = componentList->orderedListIndices();
+        for (auto it = order.rbegin(); it != order.rend(); ++it)
+        {
+            const int i = *it;
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr &&
+                stateMachine->listensToButtonAt(listPosition, button))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool occludesScroll(Vec2D position) override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
@@ -1810,7 +1891,8 @@ public:
                            ListenerType hitType,
                            bool canHit,
                            float timeStamp,
-                           int pointerId) override
+                           int pointerId,
+                           PointerButton button) override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
         HitResult hitResult = HitResult::none;
@@ -1840,12 +1922,14 @@ public:
                         case ListenerType::down:
                             itemHitResult =
                                 stateMachine->pointerDown(listPosition,
-                                                          pointerId);
+                                                          pointerId,
+                                                          button);
                             break;
                         case ListenerType::up:
                             itemHitResult =
                                 stateMachine->pointerUp(listPosition,
-                                                        pointerId);
+                                                        pointerId,
+                                                        button);
                             break;
                         case ListenerType::move:
                             itemHitResult =
@@ -1862,10 +1946,14 @@ public:
                             stateMachine->dragStart(listPosition,
                                                     0,
                                                     true,
-                                                    pointerId);
+                                                    pointerId,
+                                                    button);
                             break;
                         case ListenerType::dragEnd:
-                            stateMachine->dragEnd(listPosition, 0, pointerId);
+                            stateMachine->dragEnd(listPosition,
+                                                  0,
+                                                  pointerId,
+                                                  button);
                             break;
                         case ListenerType::enter:
                         case ListenerType::event:
@@ -2207,7 +2295,8 @@ ListenerViewModel::~ListenerViewModel() { clearDataContext(); }
 HitResult StateMachineInstance::updateListeners(Vec2D position,
                                                 ListenerType hitType,
                                                 int pointerId,
-                                                float timeStamp)
+                                                float timeStamp,
+                                                PointerButton button)
 {
     // Listener hit-testing runs in content space, so undo the frame origin and
     // the artboard's own rotation/scale first.
@@ -2226,7 +2315,7 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     }
     // Drag ends owed by cancellation, dispatched once the pass below has had a
     // chance to emit its hover exits.
-    std::vector<int> dragEnded;
+    std::vector<std::pair<int, PointerButton>> dragEnded;
     if (contentsCollapsed)
     {
         // canHit alone won't do this: it marks a target as occluded, and an
@@ -2266,7 +2355,8 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
                                    hitType,
                                    !hitOpaque && !contentsCollapsed,
                                    timeStamp,
-                                   pointerId);
+                                   pointerId,
+                                   button);
         if (hitResult != HitResult::none)
         {
             hitSomething = true;
@@ -2277,9 +2367,9 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
         }
     }
     // Hover exits have been emitted, so it's safe to let dragEnd re-enter now.
-    for (auto endedPointerId : dragEnded)
+    for (auto& ended : dragEnded)
     {
-        dragEnd(position, timeStamp, endedPointerId);
+        dragEnd(position, timeStamp, ended.first, ended.second);
     }
     // Finally release events that are complete
     if (hitType == ListenerType::exit)
@@ -2346,13 +2436,17 @@ HitResult StateMachineInstance::pointerMove(Vec2D position,
 {
     return updateListeners(position, ListenerType::move, id, timeStamp);
 }
-HitResult StateMachineInstance::pointerDown(Vec2D position, int id)
+HitResult StateMachineInstance::pointerDown(Vec2D position,
+                                            int id,
+                                            PointerButton button)
 {
-    return updateListeners(position, ListenerType::down, id);
+    return updateListeners(position, ListenerType::down, id, 0, button);
 }
-HitResult StateMachineInstance::pointerUp(Vec2D position, int id)
+HitResult StateMachineInstance::pointerUp(Vec2D position,
+                                          int id,
+                                          PointerButton button)
 {
-    return updateListeners(position, ListenerType::up, id);
+    return updateListeners(position, ListenerType::up, id, 0, button);
 }
 HitResult StateMachineInstance::pointerExit(Vec2D position, int id)
 {
@@ -2361,21 +2455,28 @@ HitResult StateMachineInstance::pointerExit(Vec2D position, int id)
 HitResult StateMachineInstance::dragStart(Vec2D position,
                                           float timeStamp,
                                           bool disablePointer,
-                                          int pointerId)
+                                          int pointerId,
+                                          PointerButton button)
 {
     if (disablePointer)
     {
         disablePointerEvents(pointerId);
     }
-    auto hit = updateListeners(position, ListenerType::dragStart, pointerId);
+    auto hit = updateListeners(position,
+                               ListenerType::dragStart,
+                               pointerId,
+                               0,
+                               button);
     return hit;
 }
 HitResult StateMachineInstance::dragEnd(Vec2D position,
                                         float timeStamp,
-                                        int pointerId)
+                                        int pointerId,
+                                        PointerButton button)
 {
     enablePointerEvents(pointerId);
-    auto hit = updateListeners(position, ListenerType::dragEnd, pointerId);
+    auto hit =
+        updateListeners(position, ListenerType::dragEnd, pointerId, 0, button);
     pointerMove(position, timeStamp, pointerId);
     return hit;
 }
@@ -2492,6 +2593,27 @@ bool StateMachineInstance::hasScrollTargetAt(Vec2D position)
             return true;
         }
         if (hitShape->occludesScroll(position))
+        {
+            return false;
+        }
+    }
+    return false;
+}
+
+bool StateMachineInstance::listensToButtonAt(Vec2D position,
+                                             PointerButton button)
+{
+    if (!mapToContentSpace(position))
+    {
+        return false;
+    }
+    for (const auto& hitShape : m_hitComponents)
+    {
+        if (hitShape->listensToButtonAt(position, button))
+        {
+            return true;
+        }
+        if (hitShape->occludesPointer(position))
         {
             return false;
         }

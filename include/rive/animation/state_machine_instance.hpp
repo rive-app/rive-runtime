@@ -85,7 +85,8 @@ private:
     HitResult updateListeners(Vec2D position,
                               ListenerType hitListener,
                               int pointerId = 0,
-                              float timeStamp = 0);
+                              float timeStamp = 0,
+                              PointerButton button = PointerButton::primary);
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
@@ -187,14 +188,23 @@ public:
     HitResult pointerMove(Vec2D position,
                           float timeStamp = 0,
                           int pointerId = 0) override;
-    HitResult pointerDown(Vec2D position, int pointerId = 0) override;
-    HitResult pointerUp(Vec2D position, int pointerId = 0) override;
+    HitResult pointerDown(
+        Vec2D position,
+        int pointerId = 0,
+        PointerButton button = PointerButton::primary) override;
+    HitResult pointerUp(Vec2D position,
+                        int pointerId = 0,
+                        PointerButton button = PointerButton::primary) override;
     HitResult pointerExit(Vec2D position, int pointerId = 0) override;
     HitResult dragStart(Vec2D position,
                         float timeStamp = 0,
                         bool disablePointer = true,
-                        int pointerId = 0);
-    HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
+                        int pointerId = 0,
+                        PointerButton button = PointerButton::primary);
+    HitResult dragEnd(Vec2D position,
+                      float timeStamp = 0,
+                      int pointerId = 0,
+                      PointerButton button = PointerButton::primary);
     HitResult pointerScroll(Vec2D position,
                             const ScrollEvent& event,
                             float timeStamp = 0,
@@ -213,6 +223,10 @@ public:
     bool scrollOccludedAt(Vec2D position);
     /// Ends any scroll gesture in flight here, latch included.
     void cancelScroll();
+    /// Whether a listener under position responds to presses of button,
+    /// looking through nested artboards. Lets a host keep a mouse button for
+    /// its own use wherever nothing in the scene wants it.
+    bool listensToButtonAt(Vec2D position, PointerButton button);
 
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
@@ -530,11 +544,13 @@ public:
         m_component(component), m_stateMachineInstance(stateMachineInstance)
     {}
     virtual ~HitComponent() {}
-    virtual HitResult processEvent(Vec2D position,
-                                   ListenerType hitType,
-                                   bool canHit,
-                                   float timeStamp = 0,
-                                   int pointerId = 0) = 0;
+    virtual HitResult processEvent(
+        Vec2D position,
+        ListenerType hitType,
+        bool canHit,
+        float timeStamp = 0,
+        int pointerId = 0,
+        PointerButton button = PointerButton::primary) = 0;
     virtual HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) = 0;
@@ -565,6 +581,14 @@ public:
     /// Whether an opaque hit that cannot scroll sits under position. Ends
     /// the walk: nothing behind it may take the event, as with hitOpaque.
     virtual bool occludesScroll(Vec2D position) { return false; }
+    /// Whether a listener under position responds to presses of button.
+    virtual bool listensToButtonAt(Vec2D position, PointerButton button)
+    {
+        return false;
+    }
+    /// Whether an opaque hit sits under position, blocking presses from
+    /// reaching whatever lies behind it, as hitOpaque does in processEvent.
+    virtual bool occludesPointer(Vec2D position) { return false; }
     virtual HitResult processScroll(Vec2D position,
                                     const ScrollEvent& event,
                                     float timeStamp)

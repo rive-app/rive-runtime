@@ -112,6 +112,7 @@ public:
         Vec2D position,
         int pointerId,
         ListenerType hitEvent,
+        PointerButton button,
         bool canHit,
         float timeStamp,
         StateMachineInstance* stateMachineInstance) override;
