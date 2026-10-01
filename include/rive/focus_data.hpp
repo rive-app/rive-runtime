@@ -23,6 +23,14 @@ public:
 
     rcp<FocusNode> focusNode();
 
+    void detachFocusable()
+    {
+        if (m_focusNode != nullptr)
+        {
+            m_focusNode->clearFocusable();
+        }
+    }
+
     /// Register a listener to be notified of focus/blur events.
     void addFocusListener(FocusListener* listener);
 
