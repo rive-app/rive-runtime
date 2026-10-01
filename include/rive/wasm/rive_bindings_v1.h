@@ -396,6 +396,8 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "bounds")
 void rive_artboard_bounds(uint32_t artboard, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "pointer_event")
 uint32_t rive_artboard_pointer_event(uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "gamepad_event")
+uint32_t rive_artboard_gamepad_event(uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation")
 uint32_t rive_artboard_animation(uint32_t artboard, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_release")
@@ -406,6 +408,8 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_advance")
 uint32_t rive_artboard_animation_advance(uint32_t animation, float seconds);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation_set_time")
 void rive_artboard_animation_set_time(uint32_t animation, float value, uint32_t mode);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "add_to_path")
+void rive_artboard_add_to_path(uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node")
 uint32_t rive_artboard_node(uint32_t artboard, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "node_release")
@@ -654,6 +658,8 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_release")
 void rive_gpu_bind_group_layout_release(uint32_t layout);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shader")
 uint32_t rive_gpu_bind_group_layout_from_shader(uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shaders")
+uint32_t rive_gpu_bind_group_layout_from_shaders(uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_new")
 uint32_t rive_gpu_bind_group_new(uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_release")
@@ -772,6 +778,18 @@ RIVE_BINDING_IMPORT("rive_shader_v1", "radial")
 uint32_t rive_shader_radial(float cx, float cy, float radius, const uint32_t* colors, const float* stops, uint32_t count);
 RIVE_BINDING_IMPORT("rive_shader_v1", "release")
 void rive_shader_release(uint32_t shader);
+
+// rive_test_v1
+RIVE_BINDING_IMPORT("rive_test_v1", "blob")
+uint32_t rive_test_blob(const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+
+// rive_transition_v1
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_draw")
+void rive_transition_child_draw(uint32_t child, uint32_t renderer);
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_width")
+float rive_transition_child_width(uint32_t child);
+RIVE_BINDING_IMPORT("rive_transition_v1", "child_height")
+float rive_transition_child_height(uint32_t child);
 
 // rive_renderer_v1
 RIVE_BINDING_IMPORT("rive_renderer_v1", "save")

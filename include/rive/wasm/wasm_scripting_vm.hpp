@@ -104,6 +104,7 @@ public:
             audioSound,
             drawable,
             text,
+            transitionChild,
             count,
         };
         struct Slot
@@ -121,6 +122,9 @@ public:
         void release(uint32_t handle, Tag tag);
     };
     HandleTable& handles() { return m_handles; }
+    /// Borrowed node handles, released when the path effect update that
+    /// minted them returns.
+    std::vector<uint32_t>& scopedNodes() { return m_scopedNodes; }
 
     // Saves the draw visit in flight has open on the renderer it was handed,
     // so a trap can close them before the rest of the frame draws.
@@ -441,6 +445,19 @@ public:
     void setTimeoutMs(int ms);
     int timeoutMs() const { return m_timeoutMs; }
 
+    /// Backs a Tests suite's blob(name); empty when the blob is missing,
+    /// which every blob is outside test runs.
+    using TestBlobLookup =
+        std::function<Span<const uint8_t>(const std::string&)>;
+    void setTestBlobs(TestBlobLookup lookup)
+    {
+        m_testBlobs = std::move(lookup);
+    }
+    Span<const uint8_t> testBlob(const std::string& name) const
+    {
+        return m_testBlobs ? m_testBlobs(name) : Span<const uint8_t>();
+    }
+
     /// Budget for VMs created after the call; the host's trust decision for
     /// files whose modules it baked itself (e.g. dangerouslyFast content).
     static void defaultTimeoutMs(int ms) { sm_defaultTimeoutMs = ms; }
@@ -483,6 +500,10 @@ private:
     bool init(Span<const uint8_t> module);
     uint32_t guestString(const char* text, const char* allocator = "malloc");
     void guestFree(uint32_t ptr);
+    // A call scoped handle over a transition child, 0 for an empty one.
+    uint32_t mintTransitionChild(const TransitionChildRef& ref);
+    void releaseTransitionChild(uint32_t handle);
+    void releaseScopedNodes(size_t from);
     // A method name in guest memory: made once per instance when the module
     // can keep it past the frame, else copied for this call alone.
     class GuestName
@@ -526,7 +547,9 @@ private:
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;
     int m_timeoutMs = sm_defaultTimeoutMs;
+    TestBlobLookup m_testBlobs;
     HandleTable m_handles;
+    std::vector<uint32_t> m_scopedNodes;
     /// Canvas frames begun and not ended, as handles with a monotonic token
     /// so a script call's exit reclaims only the frames it began.
     struct OpenCanvasFrame

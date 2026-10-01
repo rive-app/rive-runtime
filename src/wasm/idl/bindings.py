@@ -434,6 +434,11 @@ NAMESPACES = [
             f32('x'),
             f32('y'),
         ], ret='u32'),
+        # artboard:gamepad*: a GamepadWire payload with its button and axis
+        # floats; returns how many scripted drawables took the event.
+        op('gamepad_event', [handle('artboard'),
+                             buf('uint8_t', 'payload', 'byteCount')],
+           ret='u32'),
         op('animation', [handle('artboard'), string('name', 'length')],
            ret='u32'),
         op('animation_release', [handle('animation')]),
@@ -446,6 +451,10 @@ NAMESPACES = [
             f32('value'),
             u32('mode'),
         ]),
+        # artboard:addToPath: appends the visible shapes into a host path.
+        op('add_to_path', [handle('artboard'), handle('path'), f32('xx'),
+                           f32('xy'), f32('yx'), f32('yy'), f32('tx'),
+                           f32('ty')]),
         op('node', [handle('artboard'), string('name', 'length')], ret='u32'),
         op('node_release', [handle('node')]),
         # x, y, rotation, scaleX, scaleY.
@@ -804,6 +813,14 @@ NAMESPACES = [
             u32('groupIndex'),
             buf('uint32_t', 'dynamicUBOs', 'dynamicUBOCount'),
         ], ret='u32'),
+        # The same over a pipeline whose stages live in two modules, so the
+        # group covers what either stage binds.
+        op('bind_group_layout_from_shaders', [
+            handle('vertexModule'),
+            handle('fragmentModule'),
+            u32('groupIndex'),
+            buf('uint32_t', 'dynamicUBOs', 'dynamicUBOCount'),
+        ], ret='u32'),
         op('bind_group_new', [
             handle('layout'),
             buf('rive_gpu_bind_group_ubo_v1', 'ubos', 'uboByteCount'),
@@ -963,6 +980,20 @@ NAMESPACES = [
             u32('count'),
         ], ret='u32'),
         op('release', [handle('shader')]),
+    ]),
+    # Tests suites' blob(name): the full byte count, size then fill, 0 when
+    # the blob is missing or empty; outside test runs every blob is missing.
+    ns('rive_test_v1', 'test', [
+        op('blob', [string('name', 'nameLength'),
+                    mutbuf('uint8_t', 'out', 'outCount')], ret='u32',
+           stub='zero'),
+    ]),
+    # The children a Transition's changed and draw receive, valid for that
+    # call only.
+    ns('rive_transition_v1', 'transition', [
+        op('child_draw', [handle('child'), handle('renderer')]),
+        op('child_width', [handle('child')], ret='f32'),
+        op('child_height', [handle('child')], ret='f32'),
     ]),
     ns('rive_renderer_v1', 'renderer', [
         op('save', [handle('renderer')]),

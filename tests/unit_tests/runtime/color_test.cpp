@@ -1,3 +1,4 @@
+#include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/shapes/paint/color.hpp"
 
 #include <catch.hpp>
@@ -40,4 +41,15 @@ TEST_CASE("color lerp", "[color]")
     CHECK(rive::colorGreen(colorLerped) == 0);
     CHECK(rive::colorBlue(colorLerped) == 0);
     CHECK(rive::colorAlpha(colorLerped) == 0);
+}
+
+TEST_CASE("data value color channels keep their low byte", "[color]")
+{
+    rive::DataValueColor color(0x80102030);
+    color.red(-1);
+    CHECK((uint32_t)color.value() == 0x80FF2030);
+    color.blue(300);
+    CHECK((uint32_t)color.value() == 0x80FF202C);
+    color.alpha(0x1FF);
+    CHECK((uint32_t)color.value() == 0xFFFF202C);
 }

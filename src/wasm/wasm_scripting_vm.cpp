@@ -20,6 +20,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/input/focus_manager.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/blob_asset.hpp"
 #include "rive/custom_property_boolean.hpp"
@@ -67,6 +68,7 @@
 #include "rive/math/path_measure.hpp"
 #include "rive/renderer.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/scripted/transition_child_ref.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
@@ -3215,6 +3217,47 @@ uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM* vm,
         new HostGpuBindGroupLayout{std::move(layout)});
 }
 
+uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM* vm,
+                                           uint32_t vertexModule,
+                                           uint32_t fragmentModule,
+                                           uint32_t groupIndex,
+                                           const uint32_t* dynamicUBOs,
+                                           uint32_t dynamicUBOCount)
+{
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (oreContext == nullptr)
+    {
+        return 0;
+    }
+    auto resolveModule = [vm](uint32_t handle) -> ore::ShaderModule* {
+        auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
+            handle,
+            WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
+        return host != nullptr ? host->shaderModule.get() : nullptr;
+    };
+    ore::ShaderModule* vertex = resolveModule(vertexModule);
+    ore::ShaderModule* fragment = resolveModule(fragmentModule);
+    if (vertex == nullptr || (fragmentModule != 0 && fragment == nullptr))
+    {
+        return 0;
+    }
+    auto layout = ore::makeBindGroupLayoutFromBindingMap(
+        *oreContext,
+        ore::bindingMapForStages(vertex, fragment),
+        groupIndex,
+        dynamicUBOs,
+        dynamicUBOCount,
+        vertex,
+        fragment);
+    if (layout == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
+        new HostGpuBindGroupLayout{std::move(layout)});
+}
+
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm,
                              uint32_t layoutHandle,
                              const rive_gpu_bind_group_ubo_v1* ubos,
@@ -3675,6 +3718,15 @@ uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM*,
 {
     return 0;
 }
+uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM*,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           const uint32_t*,
+                                           uint32_t)
+{
+    return 0;
+}
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM*,
                              uint32_t,
                              const rive_gpu_bind_group_ubo_v1*,
@@ -4071,6 +4123,59 @@ Renderer* resolveRenderer(WasmScriptingVM* vm, uint32_t handle)
     return static_cast<Renderer*>(
         vm->handles().resolve(handle,
                               WasmScriptingVM::HandleTable::Tag::renderer));
+}
+
+uint32_t testBlobImpl(WasmScriptingVM* vm,
+                      const char* name,
+                      uint32_t nameLength,
+                      uint8_t* out,
+                      uint32_t outCount)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    return fillOut(vm->testBlob(std::string(name, nameLength)), out, outCount);
+}
+
+// A transition child handle points at the caller's TransitionChildRef and
+// is released when the call returns.
+const ScriptBackend::TransitionChildRef* resolveTransitionChild(
+    WasmScriptingVM* vm,
+    uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<const ScriptBackend::TransitionChildRef*>(
+        vm->handles().resolve(
+            handle,
+            WasmScriptingVM::HandleTable::Tag::transitionChild));
+}
+
+void transitionChildDrawImpl(WasmScriptingVM* vm,
+                             uint32_t child,
+                             uint32_t rendererHandle)
+{
+    auto ref = resolveTransitionChild(vm, child);
+    Renderer* renderer = resolveRenderer(vm, rendererHandle);
+    if (ref != nullptr && renderer != nullptr)
+    {
+        ref->draw(renderer);
+    }
+}
+
+float transitionChildWidthImpl(WasmScriptingVM* vm, uint32_t child)
+{
+    auto ref = resolveTransitionChild(vm, child);
+    return ref != nullptr ? ref->width() : 0.0f;
+}
+
+float transitionChildHeightImpl(WasmScriptingVM* vm, uint32_t child)
+{
+    auto ref = resolveTransitionChild(vm, child);
+    return ref != nullptr ? ref->height() : 0.0f;
 }
 
 void rendererSaveImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -5927,11 +6032,27 @@ void artboardAnimationSetTimeImpl(WasmScriptingVM* vm,
 }
 
 // Nodes pin their artboard; the component pointer lives inside its instance.
+// Without an owner the node borrows a path effect's shape for that update.
 struct HostNode
 {
     rcp<HostArtboard> owner;
     TransformComponent* component;
 };
+
+uint32_t mintNode(WasmScriptingVM* vm,
+                  rcp<HostArtboard> owner,
+                  TransformComponent* component)
+{
+    bool borrowed = owner == nullptr;
+    uint32_t handle =
+        vm->handles().mint(WasmScriptingVM::HandleTable::Tag::node,
+                           new HostNode{std::move(owner), component});
+    if (borrowed)
+    {
+        vm->scopedNodes().push_back(handle);
+    }
+    return handle;
+}
 
 uint32_t artboardNodeImpl(WasmScriptingVM* vm,
                           uint32_t handle,
@@ -5949,8 +6070,57 @@ uint32_t artboardNodeImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::node,
-                              new HostNode{ref_rcp(host), component});
+    return mintNode(vm, ref_rcp(host), component);
+}
+
+void artboardAddToPathImpl(WasmScriptingVM* vm,
+                           uint32_t handle,
+                           uint32_t pathHandle,
+                           float xx,
+                           float xy,
+                           float yx,
+                           float yy,
+                           float tx,
+                           float ty)
+{
+    auto host = resolveArtboard(vm, handle);
+    auto hostPath = resolvePath(vm, pathHandle);
+    if (host == nullptr || hostPath == nullptr)
+    {
+        return;
+    }
+    Mat2D transform(xx, xy, yx, yy, tx, ty);
+    host->artboard->addToRawPath(hostPath->raw, &transform);
+    hostPath->renderDirty = true;
+}
+
+uint32_t artboardGamepadEventImpl(WasmScriptingVM* vm,
+                                  uint32_t handle,
+                                  const uint8_t* payload,
+                                  uint32_t byteCount)
+{
+    auto host = resolveArtboard(vm, handle);
+    GamepadWire wire;
+    if (host == nullptr || host->stateMachine == nullptr ||
+        !decodeGamepadWire(payload, byteCount, wire))
+    {
+        return 0;
+    }
+    auto invocation = decodeGamepadInvocation(wire, payload);
+    if (!invocation)
+    {
+        return 0;
+    }
+    // The Luau artboard:gamepad* path: focus first, then every scripted
+    // drawable that did not already take it.
+    ScriptedDrawable* dispatched = nullptr;
+    if (auto* focus = host->stateMachine->focusManager())
+    {
+        (void)focus->gamepadDispatch(*invocation, &dispatched);
+    }
+    return (uint32_t)host->stateMachine->broadcastGamepadToScriptedDrawables(
+        *invocation,
+        dispatched);
 }
 
 HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
@@ -5966,7 +6136,8 @@ HostNode* resolveNode(WasmScriptingVM* vm, uint32_t handle)
 void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
     auto host = resolveNode(vm, handle);
-    if (vm == nullptr || host == nullptr)
+    // A borrowed node is released when its path effect update returns.
+    if (host == nullptr || host->owner == nullptr)
     {
         return;
     }
@@ -5979,9 +6150,16 @@ void artboardNodeTransformImpl(WasmScriptingVM* vm,
                                float* out,
                                uint32_t outCount)
 {
-    auto host = resolveNode(vm, handle);
-    if (host == nullptr || outCount < 5)
+    if (outCount < 5)
     {
+        return;
+    }
+    auto host = resolveNode(vm, handle);
+    // A stale node reads as the identity, the same on every lane.
+    if (host == nullptr)
+    {
+        const float identity[5] = {0, 0, 0, 1, 1};
+        memcpy(out, identity, sizeof(identity));
         return;
     }
     out[0] = host->component->x();
@@ -6061,12 +6239,12 @@ void artboardNodeWorldTransformImpl(WasmScriptingVM* vm,
                                     float* out,
                                     uint32_t outCount)
 {
-    auto host = resolveNode(vm, handle);
-    if (host == nullptr || outCount < 6)
+    if (outCount < 6)
     {
         return;
     }
-    const Mat2D& world = host->component->worldTransform();
+    auto host = resolveNode(vm, handle);
+    Mat2D world = host != nullptr ? host->component->worldTransform() : Mat2D();
     for (int i = 0; i < 6; i++)
     {
         out[i] = world[i];
@@ -6215,9 +6393,8 @@ uint32_t artboardNodeChildrenImpl(WasmScriptingVM* vm,
     {
         if (child->is<TransformComponent>())
         {
-            out[index++] = vm->handles().mint(
-                WasmScriptingVM::HandleTable::Tag::node,
-                new HostNode{host->owner, child->as<TransformComponent>()});
+            out[index++] =
+                mintNode(vm, host->owner, child->as<TransformComponent>());
         }
     }
     return count;
@@ -6235,9 +6412,7 @@ uint32_t artboardNodeParentImpl(WasmScriptingVM* vm, uint32_t handle)
     {
         return 0;
     }
-    return vm->handles().mint(
-        WasmScriptingVM::HandleTable::Tag::node,
-        new HostNode{host->owner, parent->as<TransformComponent>()});
+    return mintNode(vm, host->owner, parent->as<TransformComponent>());
 }
 
 // --- rive_data_v1 asset properties (image/font/blob) ------------------------
@@ -8731,6 +8906,8 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "animation";
         case Tag::node:
             return "node";
+        case Tag::transitionChild:
+            return "transitionChild";
         case Tag::audioSource:
             return "audioSource";
         case Tag::audioSound:
@@ -9268,17 +9445,47 @@ bool WasmScriptingVM::callPathEffectUpdate(ScriptedObject* object,
            sourcePath.verbs().data(),
            verbCount);
     m_pathEffectOut = outPath;
-    uint32_t args[7] = {m_L,
+    // _v2 also gets a node over the shape, the Luau lane's NodeData; modules
+    // built before it get the paint alone.
+    bool withNode =
+        wasm_runtime_lookup_function(m_state->instance,
+                                     "host_obj_path_effect_v2") != nullptr;
+    size_t scopeStart = m_scopedNodes.size();
+    uint32_t nodeHandle = 0;
+    TransformComponent* shape = shapePaint->parentTransformComponent();
+    if (withNode && shape != nullptr)
+    {
+        nodeHandle = mintNode(this, nullptr, shape);
+    }
+    uint32_t args[8] = {m_L,
                         (uint32_t)selfRef,
                         dataPtr + (uint32_t)sizeof(paint) + pointBytes,
                         verbCount,
                         dataPtr + (uint32_t)sizeof(paint),
                         floatCount,
-                        dataPtr};
-    uint32_t ok = callModule("host_obj_path_effect", 7, args);
+                        dataPtr,
+                        nodeHandle};
+    uint32_t ok = withNode ? callModule("host_obj_path_effect_v2", 8, args)
+                           : callModule("host_obj_path_effect", 7, args);
+    releaseScopedNodes(scopeStart);
     m_pathEffectOut = nullptr;
     guestFree(dataPtr);
     return ok != 0;
+}
+
+void WasmScriptingVM::releaseScopedNodes(size_t from)
+{
+    for (size_t i = from; i < m_scopedNodes.size(); i++)
+    {
+        uint32_t handle = m_scopedNodes[i];
+        if (auto node = static_cast<HostNode*>(
+                m_handles.resolve(handle, HandleTable::Tag::node)))
+        {
+            m_handles.release(handle, HandleTable::Tag::node);
+            delete node;
+        }
+    }
+    m_scopedNodes.resize(from);
 }
 
 bool WasmScriptingVM::callDataConvert(ScriptedObject* object,
@@ -9354,16 +9561,21 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
                                        float timeStamp,
                                        HitResult* outResult)
 {
-    // Not forwarded yet: host_obj_pointer_event's guest ABI has no slots.
-    (void)hitType;
-    (void)timeStamp;
     if (!valid())
     {
         return false;
     }
+    // _v2 carries the listener type and time stamp; modules built before it
+    // export only the six-argument name, which must be called as such.
     wasm_function_inst_t f =
         wasm_runtime_lookup_function(m_state->instance,
-                                     "host_obj_pointer_event");
+                                     "host_obj_pointer_event_v2");
+    bool legacy = f == nullptr;
+    if (legacy)
+    {
+        f = wasm_runtime_lookup_function(m_state->instance,
+                                         "host_obj_pointer_event");
+    }
     if (f == nullptr)
     {
         return false;
@@ -9374,7 +9586,7 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
     {
         return false;
     }
-    wasm_val_t args[6];
+    wasm_val_t args[8];
     args[0].kind = WASM_I32;
     args[0].of.i32 = (int32_t)m_L;
     args[1].kind = WASM_I32;
@@ -9387,10 +9599,19 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
     args[4].of.f64 = localPosition.x;
     args[5].kind = WASM_F64;
     args[5].of.f64 = localPosition.y;
+    args[6].kind = WASM_I32;
+    args[6].of.i32 = (int32_t)hitType;
+    args[7].kind = WASM_F64;
+    args[7].of.f64 = timeStamp;
     wasm_val_t results[1];
     results[0].kind = WASM_I32;
     ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm_a(m_state->execEnv, f, 1, results, 6, args))
+    if (!wasm_runtime_call_wasm_a(m_state->execEnv,
+                                  f,
+                                  1,
+                                  results,
+                                  legacy ? 6 : 8,
+                                  args))
     {
         reportTrap("host_obj_pointer_event");
         return false;
@@ -9451,76 +9672,6 @@ bool WasmScriptingVM::callTextEvent(ScriptedObject* object,
     return result != 0;
 }
 
-// Flattens the gamepad alternatives into the wire layout the module rebuilds
-// snapshots from; false for non-gamepad kinds. Shared by callGamepadEvent and
-// callListenerPerform.
-static bool packGamepadWire(const ListenerInvocation& invocation,
-                            GamepadWire& wire,
-                            const GamepadSnapshot*& snapshot)
-{
-    if (const GamepadConnectedInvocation* c = invocation.asGamepadConnected())
-    {
-        wire.kind = GamepadWire::kindConnected;
-        snapshot = &c->snapshot;
-    }
-    else if (const GamepadEventInvocation* e = invocation.asGamepadEvent())
-    {
-        wire.kind = GamepadWire::kindEvent;
-        snapshot = &e->fullState;
-        wire.changeKind = (uint32_t)e->change.kind;
-        wire.changeIndex = e->change.index;
-        wire.changeValue = e->change.value;
-        wire.hasStandardButtonIntent = e->hasStandardButtonIntent ? 1 : 0;
-        wire.standardButton = (uint32_t)e->standardButton;
-        wire.hasStandardAxisIntent = e->hasStandardAxisIntent ? 1 : 0;
-        wire.standardAxis = (uint32_t)e->standardAxis;
-    }
-    else if (const GamepadDisconnectedInvocation* d =
-                 invocation.asGamepadDisconnected())
-    {
-        wire.kind = GamepadWire::kindDisconnected;
-        wire.deviceId = d->deviceId;
-    }
-    else
-    {
-        return false;
-    }
-    if (snapshot != nullptr)
-    {
-        wire.deviceId = snapshot->deviceId;
-        wire.mapping = (uint32_t)snapshot->mapping;
-        wire.buttonMaskLo = (uint32_t)snapshot->buttonMask;
-        wire.buttonMaskHi = (uint32_t)(snapshot->buttonMask >> 32);
-        wire.buttonCount = (uint32_t)snapshot->buttonValues.size();
-        wire.axisCount = (uint32_t)snapshot->axes.size();
-    }
-    return true;
-}
-
-static void writeGamepadPayload(uint8_t* out,
-                                const GamepadWire& wire,
-                                const GamepadSnapshot* snapshot)
-{
-    memcpy(out, &wire, sizeof(wire));
-    if (snapshot == nullptr)
-    {
-        return;
-    }
-    float* values = (float*)(out + sizeof(wire));
-    if (wire.buttonCount != 0)
-    {
-        memcpy(values,
-               snapshot->buttonValues.data(),
-               wire.buttonCount * sizeof(float));
-    }
-    if (wire.axisCount != 0)
-    {
-        memcpy(values + wire.buttonCount,
-               snapshot->axes.data(),
-               wire.axisCount * sizeof(float));
-    }
-}
-
 bool WasmScriptingVM::callGamepadEvent(ScriptedObject* object,
                                        int selfRef,
                                        const char* method,
@@ -9542,9 +9693,7 @@ bool WasmScriptingVM::callGamepadEvent(ScriptedObject* object,
     {
         return false;
     }
-    uint32_t byteCount =
-        (uint32_t)(sizeof(wire) +
-                   (wire.buttonCount + wire.axisCount) * sizeof(float));
+    uint32_t byteCount = gamepadPayloadSize(wire);
     uint32_t sizeArgs[1] = {byteCount};
     uint32_t dataPtr = callModule("malloc", 1, sizeArgs);
     if (dataPtr == 0)
@@ -9616,13 +9765,9 @@ void WasmScriptingVM::callListenerPerform(ScriptedObject* object,
         // append their own payload.
         hasGamepad = packGamepadWire(invocation, gamepad, snapshot);
     }
-    uint32_t tailBytes =
-        text != nullptr
-            ? wire.textLength
-            : (hasGamepad ? (uint32_t)(sizeof(gamepad) + (gamepad.buttonCount +
-                                                          gamepad.axisCount) *
-                                                             sizeof(float))
-                          : 0);
+    uint32_t tailBytes = text != nullptr
+                             ? wire.textLength
+                             : (hasGamepad ? gamepadPayloadSize(gamepad) : 0);
     uint32_t byteCount = (uint32_t)sizeof(wire) + tailBytes;
     uint32_t sizeArgs[1] = {byteCount};
     uint32_t dataPtr = callModule("malloc", 1, sizeArgs);
@@ -9645,26 +9790,82 @@ void WasmScriptingVM::callListenerPerform(ScriptedObject* object,
     guestFree(dataPtr);
 }
 
-// The transition protocol has no module-lane wire type for TransitionChild
-// yet, so these hold the host-side defaults: the container composites nothing.
-// Because callTransitionDraw below is a no-op, we must NOT claim to manage the
-// incoming child -- otherwise it would be hidden from the normal draw loop for
-// the duration of every transition and nothing at all would render.
-bool WasmScriptingVM::transitionManagesTo(int selfRef) { return false; }
+// A module predating Transition cannot draw the incoming child, so the
+// runtime keeps drawing it.
+bool WasmScriptingVM::transitionManagesTo(int selfRef)
+{
+    if (!valid() || wasm_runtime_lookup_function(
+                        m_state->instance,
+                        "host_obj_transition_manages_to") == nullptr)
+    {
+        return false;
+    }
+    uint32_t args[2] = {m_L, (uint32_t)selfRef};
+    return callModule("host_obj_transition_manages_to", 2, args) != 0;
+}
+
+uint32_t WasmScriptingVM::mintTransitionChild(const TransitionChildRef& ref)
+{
+    return ref.artboard == nullptr
+               ? 0
+               : m_handles.mint(HandleTable::Tag::transitionChild,
+                                const_cast<TransitionChildRef*>(&ref));
+}
+
+void WasmScriptingVM::releaseTransitionChild(uint32_t handle)
+{
+    if (handle != 0)
+    {
+        m_handles.release(handle, HandleTable::Tag::transitionChild);
+    }
+}
 
 void WasmScriptingVM::callTransitionChanged(ScriptedObject* object,
                                             int selfRef,
                                             const TransitionChildRef& from,
                                             const TransitionChildRef& to,
                                             int direction)
-{}
+{
+    if (!valid())
+    {
+        return;
+    }
+    uint32_t fromHandle = mintTransitionChild(from);
+    uint32_t toHandle = mintTransitionChild(to);
+    uint32_t args[5] = {m_L,
+                        (uint32_t)selfRef,
+                        fromHandle,
+                        toHandle,
+                        (uint32_t)direction};
+    callModule("host_obj_transition_changed", 5, args);
+    releaseTransitionChild(fromHandle);
+    releaseTransitionChild(toHandle);
+}
 
 void WasmScriptingVM::callTransitionDraw(ScriptedObject* object,
                                          int selfRef,
                                          Renderer* renderer,
                                          const TransitionChildRef& from,
                                          const TransitionChildRef& to)
-{}
+{
+    if (!valid())
+    {
+        return;
+    }
+    uint32_t rendererHandle =
+        m_handles.mint(HandleTable::Tag::renderer, renderer);
+    uint32_t fromHandle = mintTransitionChild(from);
+    uint32_t toHandle = mintTransitionChild(to);
+    uint32_t args[5] = {m_L,
+                        (uint32_t)selfRef,
+                        rendererHandle,
+                        fromHandle,
+                        toHandle};
+    callModule("host_obj_transition_draw", 5, args);
+    releaseTransitionChild(fromHandle);
+    releaseTransitionChild(toHandle);
+    m_handles.release(rendererHandle, HandleTable::Tag::renderer);
+}
 
 void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
                                        int selfRef,
