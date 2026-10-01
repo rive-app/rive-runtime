@@ -34,6 +34,13 @@ void rive_web_rt_budget_exceeded(uint32_t vmHandle, uint32_t ms)
     rtBudgetExceededImpl(vm, ms);
 }
 EMSCRIPTEN_KEEPALIVE
+void rive_web_rt_error(uint32_t vmHandle, const char* message, uint32_t length)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg messageUtf8(vm, message, length);
+    rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
+}
+EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_debug_enter(uint32_t vmHandle, uint32_t func, uint32_t line)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;

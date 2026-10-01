@@ -41,6 +41,11 @@ export function createRiveModuleImports(host, moduleMemory) {
             },
             mark_needs_update: calls.rive_rt_mark_needs_update,
             budget_exceeded: calls.rive_rt_budget_exceeded,
+            error: (message, length) => {
+                stackReset();
+                const message_p = stageIn(message, length);
+                calls.rive_rt_error(message_p, length);
+            },
             debug_enter: calls.rive_rt_debug_enter,
             debug_line: calls.rive_rt_debug_line,
             debug_leave: calls.rive_rt_debug_leave,

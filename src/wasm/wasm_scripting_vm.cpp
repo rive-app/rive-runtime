@@ -152,7 +152,7 @@ WasmScriptingVM* vmFromEnv(wasm_exec_env_t env)
 // host still needs; the sink for that window is parked here.
 thread_local const std::function<void(const char*, size_t)>* s_bootPrint =
     nullptr;
-// The VM whose module is starting, for the debug probes its top level hits.
+// The VM whose module is starting, for the natives its top level reaches.
 thread_local WasmScriptingVM* s_booting = nullptr;
 thread_local WasmScriptingVM::BootHook s_bootHook;
 
@@ -161,6 +161,7 @@ thread_local WasmScriptingVM::BootHook s_bootHook;
 struct rive::WasmScriptingVMNatives
 {
     static void print(WasmScriptingVM* vm, const char* data, size_t size);
+    static WasmScriptingVM* adoptBooting(wasm_exec_env_t env);
 };
 
 // Loaded modules are immutable and shared: fast-interp translation costs
@@ -393,6 +394,9 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
     {
         return;
     }
+    // Paths that consume their own traps never reach reportTrap to clear it.
+    vm->m_budgetRaised = false;
+    vm->m_thrownRaised = false;
     // A debugger pauses mid call, so its sessions run unbudgeted.
     if (budgeted && vm->m_hostBudget && vm->m_timeoutMs > 0 &&
         vm->m_debugHooks == nullptr)
@@ -529,20 +533,29 @@ void WasmScriptingVM::reportTrap(const char* where)
     // A silent fold hides real traps; name them so a script that dies
     // mid-call is diagnosable instead of a mystery no-op.
     const char* exception = fullTrapMessage(wasm_runtime_get_exception(inst));
+    // AOT code traps as unreachable; both tiers name the timeout.
+    m_lastTrap.budget = m_budgetRaised ||
+                        (m_budgetSlot != nullptr && m_budgetSlot->fired.load());
+    m_lastTrap.thrown = m_thrownRaised && !m_lastTrap.budget;
+    m_budgetRaised = false;
+    m_thrownRaised = false;
+    if (m_lastTrap.budget)
+    {
+        exception = "execution exceeded timeout";
+    }
+    m_lastTrap.message = exception != nullptr ? exception : "";
     if (exception == nullptr)
     {
         return;
     }
-    // AOT code traps as unreachable; both tiers name the timeout.
-    if (m_budgetSlot != nullptr && m_budgetSlot->fired.load())
+    if (!m_quietTraps)
     {
-        exception = "execution exceeded timeout";
-    }
-    fprintf(stderr, "wasm call trapped in %s: %s\n", where, exception);
+        fprintf(stderr, "wasm call trapped in %s: %s\n", where, exception);
 #if WASM_ENABLE_DUMP_CALL_STACK != 0
-    wasm_runtime_dump_call_stack(m_state->execEnv);
+        wasm_runtime_dump_call_stack(m_state->execEnv);
 #endif
-    if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted)
+    }
+    if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted && !m_quietTraps)
     {
         // A bare trap after leak warnings is almost always the memory
         // ceiling; say so once for hosts that dropped the warning strings.
@@ -598,6 +611,18 @@ void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
     return wasm_runtime_addr_app_to_native(inst, appAddr);
 }
 
+void WasmScriptingVM::raiseBudgetExceeded()
+{
+    m_budgetRaised = true;
+    raiseModuleError("execution exceeded timeout");
+}
+
+void WasmScriptingVM::raiseThrown(const char* message)
+{
+    m_thrownRaised = true;
+    raiseModuleError(message);
+}
+
 void WasmScriptingVM::raiseModuleError(const char* message)
 {
     // The runtime's exception buffer truncates long messages (shader
@@ -608,9 +633,9 @@ void WasmScriptingVM::raiseModuleError(const char* message)
 
 const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
 {
-    if (exception == nullptr || m_moduleErrorDetail.empty())
+    if (exception == nullptr)
     {
-        return exception;
+        return nullptr;
     }
     const char* text = exception;
     constexpr char kPrefix[] = "Exception: ";
@@ -621,12 +646,22 @@ const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
     // Substitute only when the exception is a truncation of the detail, so
     // an unrelated later trap keeps its own message. An empty remainder
     // matches every prefix and must not adopt stale detail.
-    if (*text != '\0' &&
+    if (*text != '\0' && !m_moduleErrorDetail.empty() &&
         m_moduleErrorDetail.compare(0, strlen(text), text) == 0)
     {
         return m_moduleErrorDetail.c_str();
     }
-    return exception;
+    return text;
+}
+
+WasmScriptingVM* WasmScriptingVMNatives::adoptBooting(wasm_exec_env_t env)
+{
+    // Instantiate assigns the same instance on success and null on failure.
+    if (s_booting != nullptr)
+    {
+        s_booting->m_state->instance = wasm_runtime_get_module_inst(env);
+    }
+    return s_booting;
 }
 
 void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
@@ -811,6 +846,14 @@ uint32_t fillModuleString(WasmScriptingVM* vm,
                                  value.size(),
                                  reinterpret_cast<uint8_t*>(buffer),
                                  capacity);
+}
+
+// Module start runs inside wasm_runtime_instantiate, before the exec env
+// carries the vm, so a native that traps there adopts the booting one.
+WasmScriptingVM* bootVmFromEnv(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return vm != nullptr ? vm : WasmScriptingVMNatives::adoptBooting(env);
 }
 
 // Prototypes, descriptor PODs, and registration tables for the rive_*_v1
@@ -4366,7 +4409,12 @@ void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms)
             ms);
     // Terminates like a trap when the native returns, so the caller's
     // failed-op handling engages.
-    vm->raiseModuleError("execution exceeded timeout");
+    vm->raiseBudgetExceeded();
+}
+
+void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length)
+{
+    vm->raiseThrown(std::string(message, length).c_str());
 }
 
 // Unfused multiply-add keeps these bit identical to the module's own f32
@@ -8582,7 +8630,10 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     s_bootPrint = nullptr;
     if (m_state->instance == nullptr)
     {
-        m_lastError = std::string("module instantiate failed: ") + error;
+        // The runtime's exception buffer truncates what start threw.
+        m_lastError = std::string("module instantiate failed: ") +
+                      (m_moduleErrorDetail.empty() ? std::string(error)
+                                                   : m_moduleErrorDetail);
         return false;
     }
     m_state->execEnv =

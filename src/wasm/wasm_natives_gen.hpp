@@ -206,6 +206,7 @@ typedef struct rive_gpu_pipeline_desc_v1
 void rtLogImpl(WasmScriptingVM* vm, int32_t level, const char* message, uint32_t length);
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t object);
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
+void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
@@ -532,8 +533,24 @@ void rtMarkNeedsUpdate(wasm_exec_env_t env, uint32_t object)
 }
 void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "execution exceeded timeout");
+        return;
+    }
     rtBudgetExceededImpl(vm, ms);
+}
+void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "script threw");
+        return;
+    }
+    WasmStringArg messageUtf8(vm, message, length);
+    rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
@@ -2131,6 +2148,7 @@ NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
     {"mark_needs_update", (void*)rtMarkNeedsUpdate, "(i)", nullptr},
     {"budget_exceeded", (void*)rtBudgetExceeded, "(i)", nullptr},
+    {"error", (void*)rtError, "(*~)", nullptr},
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},

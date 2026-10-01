@@ -428,8 +428,30 @@ public:
     /// Ends module execution like a trap once the current native returns.
     virtual void raiseModuleError(const char* message);
 
-    /// The full raiseModuleError text when `exception` is its truncation
-    /// (the runtime's exception buffer is small), otherwise `exception`.
+    /// raiseModuleError for a spent execution budget, which lastTrap marks.
+    void raiseBudgetExceeded();
+
+    /// raiseModuleError for a message the script threw, which lastTrap marks.
+    void raiseThrown(const char* message);
+
+    /// What ended the last call that trapped: the message the script threw,
+    /// else the runtime's own trap text. A test takes only a thrown trap for
+    /// the error it expected.
+    struct Trap
+    {
+        std::string message;
+        bool budget = false;
+        bool thrown = false;
+    };
+    const Trap& lastTrap() const { return m_lastTrap; }
+
+    /// Traps still land in lastTrap but print nothing, for callers that
+    /// expect them.
+    void setQuietTraps(bool quiet) { m_quietTraps = quiet; }
+
+    /// The trap text without the runtime's "Exception: " prefix: the full
+    /// raiseModuleError text when `exception` is its truncation (the
+    /// runtime's exception buffer is small), otherwise `exception`.
     const char* fullTrapMessage(const char* exception) const;
 
     /// Function imports the module declares that no host native resolves.
@@ -593,6 +615,10 @@ private:
     bool m_hostBudget = false;
     /// Set once the watchdog interrupts a call; the module never runs again.
     bool m_poisoned = false;
+    bool m_budgetRaised = false;
+    bool m_thrownRaised = false;
+    bool m_quietTraps = false;
+    Trap m_lastTrap;
     VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
