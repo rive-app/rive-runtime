@@ -569,7 +569,8 @@ rive::HitResult CommandServer::pointerDownSynchronized(
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
             auto hitResult =
                 stateMachine->instance->pointerDown(pos,
-                                                    pointerEvent.pointerId);
+                                                    pointerEvent.pointerId,
+                                                    pointerEvent.button);
             // Process down-driven state changes before a following pointer up.
             if (hitResult != HitResult::none)
             {
@@ -620,7 +621,9 @@ rive::HitResult CommandServer::pointerUpSynchronized(
         {
             std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
             auto hitResult =
-                stateMachine->instance->pointerUp(pos, pointerEvent.pointerId);
+                stateMachine->instance->pointerUp(pos,
+                                                  pointerEvent.pointerId,
+                                                  pointerEvent.button);
             // Process up-driven state changes before any following pointer
             // exit.
             if (hitResult != HitResult::none)
@@ -632,6 +635,29 @@ rive::HitResult CommandServer::pointerUpSynchronized(
     }
 
     return rive::HitResult::none;
+}
+
+bool CommandServer::listensToButtonAtSynchronized(
+    StateMachineHandle handle,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+    auto it = m_stateMachines.find(handle);
+    if (it != m_stateMachines.end())
+    {
+        auto stateMachine = it->second;
+        accesLock.unlock();
+        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
+                                            pointerEvent);
+        {
+            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+            return stateMachine->instance->listensToButtonAt(
+                pos,
+                pointerEvent.button);
+        }
+    }
+
+    return false;
 }
 
 File* CommandServer::getFile(FileHandle handle) const
