@@ -198,6 +198,18 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 paint->additiveness(reader.readFloat32());
                 break;
             }
+            case SerializeOp::strokePosition:
+            {
+                uint64_t id = reader.readVarUint64();
+                uint64_t position = reader.readVarUint64();
+                RenderPaint* paint = find(paints, id);
+                // Renderers assert on a position they don't know.
+                if (paint == nullptr ||
+                    position > (uint64_t)StrokePosition::outside)
+                    return false;
+                paint->strokePosition(static_cast<StrokePosition>(position));
+                break;
+            }
             case SerializeOp::shader:
             {
                 uint64_t id = reader.readVarUint64();

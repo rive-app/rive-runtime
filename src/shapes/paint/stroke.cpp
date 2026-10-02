@@ -2,6 +2,7 @@
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
+#include "rive/shapes/paint/stroke_position.hpp"
 
 using namespace rive;
 
@@ -16,6 +17,7 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
     renderPaint->thickness(thickness());
     renderPaint->cap((StrokeCap)cap());
     renderPaint->join((StrokeJoin)join());
+    renderPaint->strokePosition(strokePosition());
     return renderPaint;
 }
 
@@ -25,6 +27,7 @@ void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier)
     renderPaint->thickness(thickness());
     renderPaint->cap((StrokeCap)cap());
     renderPaint->join((StrokeJoin)join());
+    renderPaint->strokePosition(strokePosition());
     renderPaint->shader(nullptr);
     m_PaintMutator->applyTo(renderPaint, opacityModifier);
 }
@@ -39,6 +42,19 @@ void Stroke::thicknessChanged() { addDirt(ComponentDirt::Paint); }
 void Stroke::capChanged() { addDirt(ComponentDirt::Paint); }
 
 void Stroke::joinChanged() { addDirt(ComponentDirt::Paint); }
+
+void Stroke::positionChanged() { addDirt(ComponentDirt::Paint); }
+
+StrokePosition Stroke::strokePosition() const
+{
+    // An unknown value (e.g. from a newer file) draws centered, which is also
+    // what renderers without stroke position support do.
+    if (position() > (uint8_t)StrokePosition::outside)
+    {
+        return StrokePosition::center;
+    }
+    return (StrokePosition)position();
+}
 
 void Stroke::update(ComponentDirt value)
 {
@@ -66,6 +82,7 @@ void Stroke::update(ComponentDirt value)
         m_RenderPaint->thickness(thickness());
         m_RenderPaint->cap((StrokeCap)cap());
         m_RenderPaint->join((StrokeJoin)join());
+        m_RenderPaint->strokePosition(strokePosition());
     }
 }
 

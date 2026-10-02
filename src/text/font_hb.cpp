@@ -13,6 +13,7 @@
 
 #include "hb.h"
 #include "hb-ot.h"
+#include <algorithm>
 #include <unordered_set>
 
 // harfbuzz's own file loader is compiled out (HB_NO_OPEN/HB_NO_MMAP keep it
@@ -237,13 +238,11 @@ struct PaintState
     hb_font_t* font;
     hb_draw_funcs_t* drawFuncs;
     std::vector<rive::Font::ColorGlyphLayer>* layers;
-    rive::GlyphID clipGlyph = 0;
+    rive::RawPath clipPath;
     bool hasClip = false;
     rive::ColorInt foreground = 0xFF000000;
 
-    // Transform stack for gradient coordinates.
-    // HarfBuzz gives gradient coords in the local space of the paint;
-    // transforms map them to glyph space.
+    // HarfBuzz transforms conjugated into Rive glyph space (scaled, Y down).
     std::vector<rive::Mat2D> transformStack;
 
     void pushTransform(float xx,
@@ -253,21 +252,9 @@ struct PaintState
                        float dx,
                        float dy)
     {
-        rive::Mat2D m;
-        m[0] = xx;
-        m[1] = yx;
-        m[2] = xy;
-        m[3] = yy;
-        m[4] = dx * gInvScale;
-        m[5] = -dy * gInvScale;
-        if (transformStack.empty())
-        {
-            transformStack.push_back(m);
-        }
-        else
-        {
-            transformStack.push_back(transformStack.back() * m);
-        }
+        rive::Mat2D m(xx, -yx, -xy, yy, dx * gInvScale, -dy * gInvScale);
+        transformStack.push_back(
+            transformStack.empty() ? m : transformStack.back() * m);
     }
 
     void popTransform()
@@ -278,33 +265,37 @@ struct PaintState
         }
     }
 
+    rive::Mat2D glyphTransform() const
+    {
+        rive::Mat2D scale = rive::Mat2D::fromScale(gInvScale, -gInvScale);
+        return transformStack.empty() ? scale : transformStack.back() * scale;
+    }
+
     rive::Vec2D mapPoint(float x, float y) const
     {
-        // Scale from HB font units to Rive glyph units, and flip Y.
-        float rx = x * gInvScale;
-        float ry = -y * gInvScale;
-        if (!transformStack.empty())
-        {
-            // The transform stack already incorporates gInvScale + Y flip
-            // in pushTransform, so just apply raw coords.
-            const auto& m = transformStack.back();
-            return rive::Vec2D(m[0] * x + m[2] * y + m[4],
-                               m[1] * x + m[3] * y + m[5]);
-        }
-        return rive::Vec2D(rx, ry);
+        return glyphTransform() * rive::Vec2D(x, y);
     }
 
     float mapRadius(float r) const
     {
         float scaled = r * gInvScale;
+        if (transformStack.empty())
+        {
+            return scaled;
+        }
+        const auto& m = transformStack.back();
+        return scaled * std::sqrt(m[0] * m[0] + m[1] * m[1]);
+    }
+
+    void pushClipGlyph(hb_codepoint_t glyph)
+    {
+        clipPath.rewind();
+        hb_font_draw_glyph(font, glyph, drawFuncs, &clipPath);
         if (!transformStack.empty())
         {
-            // Use the geometric mean of the scale factors.
-            const auto& m = transformStack.back();
-            float sx = std::sqrt(m[0] * m[0] + m[1] * m[1]);
-            return r * sx; // Don't double-apply gInvScale; it's in the matrix.
+            clipPath.transformInPlace(transformStack.back());
         }
-        return scaled;
+        hasClip = true;
     }
 
     // Helper: extract color stops from hb_color_line_t.
@@ -312,8 +303,8 @@ struct PaintState
         hb_color_line_t* colorLine,
         rive::ColorInt foreground)
     {
-        unsigned int count = 0;
-        hb_color_line_get_color_stops(colorLine, 0, &count, nullptr);
+        unsigned int count =
+            hb_color_line_get_color_stops(colorLine, 0, nullptr, nullptr);
         std::vector<hb_color_stop_t> hbStops(count);
         hb_color_line_get_color_stops(colorLine, 0, &count, hbStops.data());
         std::vector<rive::Font::GradientStop> stops;
@@ -322,16 +313,21 @@ struct PaintState
         {
             rive::ColorInt c =
                 s.is_foreground ? foreground : hbColorToColorInt(s.color);
-            stops.push_back({s.offset, c});
+            stops.push_back(
+                {std::clamp(s.offset, 0.0f, 1.0f), c, (bool)s.is_foreground});
         }
+        // Variations can reorder stops and renderers expect them ascending.
+        std::stable_sort(
+            stops.begin(),
+            stops.end(),
+            [](const auto& a, const auto& b) { return a.offset < b.offset; });
         return stops;
     }
 
-    // Helper: emit a layer with the current clip glyph path.
     rive::Font::ColorGlyphLayer makeClipLayer() const
     {
         rive::Font::ColorGlyphLayer layer;
-        hb_font_draw_glyph(font, clipGlyph, drawFuncs, &layer.path);
+        layer.path = clipPath;
         return layer;
     }
 };
@@ -360,9 +356,7 @@ static void paint_push_clip_glyph(hb_paint_funcs_t*,
                                   hb_font_t*,
                                   void*)
 {
-    auto* state = (PaintState*)paint_data;
-    state->clipGlyph = (rive::GlyphID)glyph;
-    state->hasClip = true;
+    ((PaintState*)paint_data)->pushClipGlyph(glyph);
 }
 
 static void paint_push_clip_rectangle(hb_paint_funcs_t*,
@@ -464,6 +458,9 @@ static void paint_radial_gradient(hb_paint_funcs_t*,
     layer.y1 = sp1.y;
     layer.r0 = state->mapRadius(radius0);
     layer.r1 = state->mapRadius(radius1);
+    layer.radialTransform =
+        state->glyphTransform() *
+        rive::Mat2D::fromScaleAndTranslation(radius1, radius1, x1, y1);
 
     state->layers->push_back(std::move(layer));
 }
@@ -958,31 +955,19 @@ size_t HBFont::getColorLayers(rive::GlyphID glyph,
     if (cacheIt != m_colorLayerCache.end())
     {
         // Copy from cache, but update foreground colors.
-        for (const auto& cached : cacheIt->second)
+        for (ColorGlyphLayer layer : cacheIt->second)
         {
-            ColorGlyphLayer layer;
-            layer.paintType = cached.paintType;
-            layer.path = cached.path;
-            layer.useForeground = cached.useForeground;
-            layer.color = cached.useForeground ? foreground : cached.color;
-            // Copy gradient data if present.
-            layer.stops = cached.stops;
-            layer.x0 = cached.x0;
-            layer.y0 = cached.y0;
-            layer.x1 = cached.x1;
-            layer.y1 = cached.y1;
-            layer.r0 = cached.r0;
-            layer.r1 = cached.r1;
-            layer.startAngle = cached.startAngle;
-            layer.endAngle = cached.endAngle;
-            // Copy image data if present.
-            layer.imageBytes = cached.imageBytes;
-            layer.imageWidth = cached.imageWidth;
-            layer.imageHeight = cached.imageHeight;
-            layer.imageBearingX = cached.imageBearingX;
-            layer.imageBearingY = cached.imageBearingY;
-            layer.imageExtentX = cached.imageExtentX;
-            layer.imageExtentY = cached.imageExtentY;
+            if (layer.useForeground)
+            {
+                layer.color = foreground;
+            }
+            for (auto& stop : layer.stops)
+            {
+                if (stop.isForeground)
+                {
+                    stop.color = foreground;
+                }
+            }
             out.push_back(std::move(layer));
         }
         return cacheIt->second.size();

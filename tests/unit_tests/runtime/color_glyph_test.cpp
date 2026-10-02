@@ -487,3 +487,115 @@ TEST_CASE("RawText at large font size with emoji does not crash",
     NoOpRenderer renderer;
     rawText.render(&renderer);
 }
+
+// U+1F389, U+1F600 and U+1F605 are glyphs 1 to 3, subset from Android's COLRv1
+// Noto.
+static const char* colrV1Font = "assets/NotoColorEmojiCOLRv1.subset.ttf";
+
+TEST_CASE("COLRv1 radial gradient maps to glyph space", "[color_glyph]")
+{
+    auto font = loadFont(colrV1Font);
+    REQUIRE(font != nullptr);
+
+    std::vector<Font::ColorGlyphLayer> layers;
+    REQUIRE(font->getColorLayers(2, layers) == 10);
+
+    // The face is a radial gradient centered at (630, 360) of a 1024 upem.
+    const auto& face = layers[0];
+    REQUIRE(face.paintType == Font::ColorGlyphPaintType::radialGradient);
+    REQUIRE(face.stops.size() == 3);
+    CHECK(face.stops[0].color == 0xFFFDE030);
+    CHECK(face.x1 == Approx(630.0f / 1024.0f));
+    CHECK(face.y1 == Approx(-360.0f / 1024.0f));
+    CHECK(face.r1 == Approx(534.0f / 1024.0f));
+    AABB faceBounds = face.path.bounds();
+    CHECK(faceBounds.contains(Vec2D(face.x1, face.y1)));
+}
+
+TEST_CASE("COLRv1 transformed clip glyphs keep their transform",
+          "[color_glyph]")
+{
+    auto font = loadFont(colrV1Font);
+    REQUIRE(font != nullptr);
+
+    std::vector<Font::ColorGlyphLayer> layers;
+    REQUIRE(font->getColorLayers(2, layers) == 10);
+
+    // Both eye highlights reuse one glyph, translated by -41.906 and 317.625.
+    AABB left = layers[2].path.bounds();
+    AABB right = layers[4].path.bounds();
+    CHECK(right.minX - left.minX == Approx((317.625f + 41.906f) / 1024.0f));
+    CHECK(right.minY == Approx(left.minY));
+}
+
+TEST_CASE("COLRv1 radial gradients keep their ellipse", "[color_glyph]")
+{
+    auto font = loadFont(colrV1Font);
+    REQUIRE(font != nullptr);
+
+    // The sweat drop on U+1F605 is a radial gradient under an uneven scale.
+    std::vector<Font::ColorGlyphLayer> layers;
+    REQUIRE(font->getColorLayers(3, layers) > 0);
+    bool sawEllipse = false;
+    for (const auto& layer : layers)
+    {
+        if (layer.paintType != Font::ColorGlyphPaintType::radialGradient)
+        {
+            continue;
+        }
+        const Mat2D& m = layer.radialTransform;
+        Vec2D center = m * Vec2D(0, 0);
+        CHECK(center.x == Approx(layer.x1));
+        CHECK(center.y == Approx(layer.y1));
+        float sx = Vec2D(m[0], m[1]).length();
+        float sy = Vec2D(m[2], m[3]).length();
+        sawEllipse |= std::abs(sx - sy) > 0.2f * std::max(sx, sy);
+    }
+    CHECK(sawEllipse);
+}
+
+class GradientCountingFactory : public NoOpFactory
+{
+public:
+    int linear = 0;
+    int radial = 0;
+
+    rcp<RenderShader> makeLinearGradient(float,
+                                         float,
+                                         float,
+                                         float,
+                                         const ColorInt[],
+                                         const float[],
+                                         size_t) override
+    {
+        linear++;
+        return nullptr;
+    }
+
+    rcp<RenderShader> makeRadialGradient(float,
+                                         float,
+                                         float,
+                                         const ColorInt[],
+                                         const float[],
+                                         size_t) override
+    {
+        radial++;
+        return nullptr;
+    }
+};
+
+TEST_CASE("RawText draws COLRv1 gradient layers with gradient shaders",
+          "[color_glyph]")
+{
+    auto font = loadFont(colrV1Font);
+    REQUIRE(font != nullptr);
+
+    GradientCountingFactory factory;
+    RawText rawText(&factory);
+    rawText.append("\xF0\x9F\x8E\x89\xF0\x9F\x98\x80", nullptr, font, 32.0f);
+
+    NoOpRenderer renderer;
+    rawText.render(&renderer);
+    CHECK(factory.linear == 1);
+    CHECK(factory.radial == 1);
+}
