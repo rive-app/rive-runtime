@@ -14,7 +14,6 @@
 
 #include <stdio.h>
 #include <cstdint>
-#include <vector>
 
 namespace rive
 {
@@ -127,7 +126,6 @@ public:
     virtual bool supportsLayerMask() const { return false; }
 
     rcp<Font> decodeFont(Span<const uint8_t>);
-    rcp<Font> decodeFont(std::vector<uint8_t>&&);
 
     rcp<AudioSource> decodeAudio(Span<const uint8_t>);
 

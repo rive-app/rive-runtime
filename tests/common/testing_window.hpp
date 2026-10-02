@@ -151,6 +151,16 @@ public:
             immediate,
         };
         PresentMode presentMode = PresentMode::fifo;
+
+        // The display refresh a window asks for where the platform lets it
+        // choose; others keep their default.
+        enum class Refresh
+        {
+            fixed60,
+            fixed120,
+            variable,
+        };
+        Refresh refresh = Refresh::fixed60;
     };
 
     enum class Visibility

@@ -5018,3 +5018,41 @@ TEST_CASE("Uncollapse and focus element on the same action", "[silver]")
 
     CHECK(silver.matches("gamepad_inputs_test-collapsing"));
 }
+
+TEST_CASE("Destroying an artboard on an adopted manager with focus held in a "
+          "nested artboard",
+          "[FocusManager]")
+{
+    // Editor shape: Dart owns the manager, so ~Artboard skips
+    // cleanupFocusTree and focus is still live when the m_Objects loop runs.
+    // Blur callbacks fired from that loop must not reach deleted components.
+    rive::FocusManager external;
+    auto file = ReadRiveFile("assets/swappable_artboards_focus.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    artboard->adoptFocusManager(&external);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    REQUIRE(stateMachine->focusManager() == &external);
+
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(vmi != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(stateMachine->focusNext() == true);
+    CHECK(stateMachine->focusNext() == true);
+    auto* focusedArtboard = external.primaryFocusImmediateArtboard();
+    REQUIRE(focusedArtboard != nullptr);
+    REQUIRE(focusedArtboard->name() == "StaticNestWithFocusable");
+
+    // Same order as WrappedStateMachine: machine first, then artboard.
+    stateMachine = nullptr;
+    artboard = nullptr;
+
+    CHECK(external.primaryFocus() == nullptr);
+    CHECK(external.hasFocusableContent() == false);
+}

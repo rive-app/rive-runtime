@@ -206,6 +206,7 @@ typedef struct rive_gpu_pipeline_desc_v1
 void rtLogImpl(WasmScriptingVM* vm, int32_t level, const char* message, uint32_t length);
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t object);
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
+void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
@@ -291,11 +292,13 @@ uint32_t artboardFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard);
 void artboardSetFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t value);
 void artboardBoundsImpl(WasmScriptingVM* vm, uint32_t artboard, float* out, uint32_t outCount);
 uint32_t artboardPointerEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+uint32_t artboardGamepadEventImpl(WasmScriptingVM* vm, uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 uint32_t artboardAnimationImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardAnimationReleaseImpl(WasmScriptingVM* vm, uint32_t animation);
 float artboardAnimationDurationImpl(WasmScriptingVM* vm, uint32_t animation);
 uint32_t artboardAnimationAdvanceImpl(WasmScriptingVM* vm, uint32_t animation, float seconds);
 void artboardAnimationSetTimeImpl(WasmScriptingVM* vm, uint32_t animation, float value, uint32_t mode);
+void artboardAddToPathImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty);
 uint32_t artboardNodeImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardNodeReleaseImpl(WasmScriptingVM* vm, uint32_t node);
 void artboardNodeTransformImpl(WasmScriptingVM* vm, uint32_t node, float* out, uint32_t outCount);
@@ -416,6 +419,7 @@ void gpuShaderModuleReleaseImpl(WasmScriptingVM* vm, uint32_t shaderModule);
 uint32_t gpuBindGroupLayoutNewImpl(WasmScriptingVM* vm, uint32_t groupIndex, const rive_gpu_bind_group_layout_entry_v1* entries, uint32_t entryByteCount);
 void gpuBindGroupLayoutReleaseImpl(WasmScriptingVM* vm, uint32_t layout);
 uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM* vm, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM* vm, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t bindGroup);
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
@@ -501,6 +505,10 @@ uint32_t textSelectionRectsImpl(WasmScriptingVM* vm, uint32_t text, uint32_t fro
 uint32_t shaderLinearImpl(WasmScriptingVM* vm, float sx, float sy, float ex, float ey, uint32_t colors, uint32_t stops, uint32_t count);
 uint32_t shaderRadialImpl(WasmScriptingVM* vm, float cx, float cy, float radius, uint32_t colors, uint32_t stops, uint32_t count);
 void shaderReleaseImpl(WasmScriptingVM* vm, uint32_t shader);
+uint32_t testBlobImpl(WasmScriptingVM* vm, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
+void transitionChildDrawImpl(WasmScriptingVM* vm, uint32_t child, uint32_t renderer);
+float transitionChildWidthImpl(WasmScriptingVM* vm, uint32_t child);
+float transitionChildHeightImpl(WasmScriptingVM* vm, uint32_t child);
 void rendererSaveImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t renderer);
 void rendererTransformImpl(WasmScriptingVM* vm, uint32_t renderer, float xx, float xy, float yx, float yy, float tx, float ty);
@@ -525,8 +533,24 @@ void rtMarkNeedsUpdate(wasm_exec_env_t env, uint32_t object)
 }
 void rtBudgetExceeded(wasm_exec_env_t env, uint32_t ms)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "execution exceeded timeout");
+        return;
+    }
     rtBudgetExceededImpl(vm, ms);
+}
+void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env), "script threw");
+        return;
+    }
+    WasmStringArg messageUtf8(vm, message, length);
+    rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
@@ -981,6 +1005,11 @@ uint32_t artboardPointerEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t k
     WasmScriptingVM* vm = vmFromEnv(env);
     return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
+uint32_t artboardGamepadEvent(wasm_exec_env_t env, uint32_t artboard, const uint8_t* payload, uint32_t byteCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardGamepadEventImpl(vm, artboard, payload, byteCount);
+}
 uint32_t artboardAnimation(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -1006,6 +1035,11 @@ void artboardAnimationSetTime(wasm_exec_env_t env, uint32_t animation, float val
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     artboardAnimationSetTimeImpl(vm, animation, value, mode);
+}
+void artboardAddToPath(wasm_exec_env_t env, uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    artboardAddToPathImpl(vm, artboard, path, xx, xy, yx, yy, tx, ty);
 }
 uint32_t artboardNode(wasm_exec_env_t env, uint32_t artboard, const char* name, uint32_t length)
 {
@@ -1688,6 +1722,15 @@ uint32_t gpuBindGroupLayoutFromShader(wasm_exec_env_t env, uint32_t shaderModule
     }
     return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
+uint32_t gpuBindGroupLayoutFromShaders(wasm_exec_env_t env, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (dynamicUBOCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)dynamicUBOs, (uint64_t)dynamicUBOCount * 4))
+    {
+        return {};
+    }
+    return gpuBindGroupLayoutFromShadersImpl(vm, vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount);
+}
 uint32_t gpuBindGroupNew(wasm_exec_env_t env, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2029,6 +2072,27 @@ void shaderRelease(wasm_exec_env_t env, uint32_t shader)
     WasmScriptingVM* vm = vmFromEnv(env);
     shaderReleaseImpl(vm, shader);
 }
+uint32_t testBlob(wasm_exec_env_t env, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return testBlobImpl(vm, nameUtf8.data(), nameUtf8.size(), out, outCount);
+}
+void transitionChildDraw(wasm_exec_env_t env, uint32_t child, uint32_t renderer)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    transitionChildDrawImpl(vm, child, renderer);
+}
+float transitionChildWidth(wasm_exec_env_t env, uint32_t child)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return transitionChildWidthImpl(vm, child);
+}
+float transitionChildHeight(wasm_exec_env_t env, uint32_t child)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return transitionChildHeightImpl(vm, child);
+}
 void rendererSave(wasm_exec_env_t env, uint32_t renderer)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2084,6 +2148,7 @@ NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
     {"mark_needs_update", (void*)rtMarkNeedsUpdate, "(i)", nullptr},
     {"budget_exceeded", (void*)rtBudgetExceeded, "(i)", nullptr},
+    {"error", (void*)rtError, "(*~)", nullptr},
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},
@@ -2175,11 +2240,13 @@ NativeSymbol kArtboardNatives[] = {
     {"set_frame_origin", (void*)artboardSetFrameOrigin, "(ii)", nullptr},
     {"bounds", (void*)artboardBounds, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"pointer_event", (void*)artboardPointerEvent, "(iiiff)i", nullptr},
+    {"gamepad_event", (void*)artboardGamepadEvent, "(i*~)i", nullptr},
     {"animation", (void*)artboardAnimation, "(i*~)i", nullptr},
     {"animation_release", (void*)artboardAnimationRelease, "(i)", nullptr},
     {"animation_duration", (void*)artboardAnimationDuration, "(i)f", nullptr},
     {"animation_advance", (void*)artboardAnimationAdvance, "(if)i", nullptr},
     {"animation_set_time", (void*)artboardAnimationSetTime, "(ifi)", nullptr},
+    {"add_to_path", (void*)artboardAddToPath, "(iiffffff)", nullptr},
     {"node", (void*)artboardNode, "(i*~)i", nullptr},
     {"node_release", (void*)artboardNodeRelease, "(i)", nullptr},
     {"node_transform", (void*)artboardNodeTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
@@ -2318,6 +2385,7 @@ NativeSymbol kGpuNatives[] = {
     {"bind_group_layout_new", (void*)gpuBindGroupLayoutNew, "(i*~)i", nullptr},
     {"bind_group_layout_release", (void*)gpuBindGroupLayoutRelease, "(i)", nullptr},
     {"bind_group_layout_from_shader", (void*)gpuBindGroupLayoutFromShader, "(ii*~)i", nullptr},
+    {"bind_group_layout_from_shaders", (void*)gpuBindGroupLayoutFromShaders, "(iii*~)i", nullptr},
     {"bind_group_new", (void*)gpuBindGroupNew, "(i*~*~*~)i", nullptr},
     {"bind_group_release", (void*)gpuBindGroupRelease, "(i)", nullptr},
     {"pipeline_new", (void*)gpuPipelineNew, "(*~*~)i", nullptr},
@@ -2429,6 +2497,16 @@ NativeSymbol kShaderNatives[] = {
     {"release", (void*)shaderRelease, "(i)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
+NativeSymbol kTestNatives[] = {
+    {"blob", (void*)testBlob, "(*~*~)i", nullptr},
+};
+
+NativeSymbol kTransitionNatives[] = {
+    {"child_draw", (void*)transitionChildDraw, "(ii)", nullptr},
+    {"child_width", (void*)transitionChildWidth, "(i)f", nullptr},
+    {"child_height", (void*)transitionChildHeight, "(i)f", nullptr},
+};
+
 NativeSymbol kRendererNatives[] = {
     {"save", (void*)rendererSave, "(i)", (void*)&wasm_runtime_rive_leaf_native},
     {"restore", (void*)rendererRestore, "(i)", (void*)&wasm_runtime_rive_leaf_native},
@@ -2512,6 +2590,14 @@ inline bool registerRiveBindingNatives()
                "rive_shader_v1",
                kShaderNatives,
                sizeof(kShaderNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_test_v1",
+               kTestNatives,
+               sizeof(kTestNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_transition_v1",
+               kTransitionNatives,
+               sizeof(kTransitionNatives) / sizeof(NativeSymbol)) &&
            wasm_runtime_register_natives(
                "rive_renderer_v1",
                kRendererNatives,

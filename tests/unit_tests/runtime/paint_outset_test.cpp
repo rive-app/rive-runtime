@@ -12,8 +12,12 @@
  * preview will crop where playback does not.
  */
 
+#include <rive/artboard.hpp>
+#include <rive/file.hpp>
 #include <rive/shapes/paint/paint_outset.hpp>
+#include <rive/shapes/paint/stroke.hpp>
 
+#include "rive_file_reader.hpp"
 #include <catch.hpp>
 
 using namespace rive;
@@ -72,6 +76,31 @@ TEST_CASE("a miter join outranks a square cap", "[paint-outset]")
     CHECK(paintBoundsOutset(s, 0.0f) == Approx(5.0f * kMiterLimit));
 }
 
+TEST_CASE("an outside stroke reaches its full thickness", "[paint-outset]")
+{
+    // Drawn as a centered stroke twice as thick, clipped to the outside.
+    StrokeParams s;
+    s.thickness = 10.0f;
+    s.join = StrokeJoin::round;
+    s.position = StrokePosition::outside;
+    CHECK(paintBoundsOutset(s, 0.0f) == Approx(10.0f));
+
+    s.join = StrokeJoin::miter;
+    CHECK(paintBoundsOutset(s, 0.0f) == Approx(10.0f * kMiterLimit));
+    CHECK(paintBoundsOutset(s, 0.0f) == Approx(40.0f));
+
+    s.join = StrokeJoin::bevel;
+    s.cap = StrokeCap::square;
+    CHECK(paintBoundsOutset(s, 0.0f) == Approx(10.0f * math::SQRT2));
+
+    // Clipped to the path, an inside stroke reaches nothing past it. Half its
+    // thickness, like a centered one, is kept as a safe over-estimate.
+    s.position = StrokePosition::inside;
+    s.join = StrokeJoin::round;
+    s.cap = StrokeCap::butt;
+    CHECK(paintBoundsOutset(s, 0.0f) == Approx(5.0f));
+}
+
 TEST_CASE("a feather reaches 1.5x its authored strength", "[paint-outset]")
 {
     // Design tools quote a blur as the width of two standard deviations, so an
@@ -124,4 +153,30 @@ TEST_CASE("the outset never shrinks the box", "[paint-outset]")
             }
         }
     }
+}
+
+TEST_CASE("shapePaintOutset reads a stroke's position", "[paint-outset]")
+{
+    auto file = ReadRiveFile("assets/stroke_name_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    artboard->advance(0.0f);
+    auto stroke = artboard->find<Stroke>("white_stroke");
+    REQUIRE(stroke != nullptr);
+    REQUIRE(stroke->shouldDraw());
+
+    StrokeParams params;
+    params.thickness = stroke->thickness();
+    params.join = static_cast<StrokeJoin>(stroke->join());
+    params.cap = static_cast<StrokeCap>(stroke->cap());
+    const float centeredStroke = paintBoundsOutset(params, 0.0f);
+    params.position = StrokePosition::outside;
+    const float outsideStroke = paintBoundsOutset(params, 0.0f);
+    REQUIRE(outsideStroke > centeredStroke);
+
+    // Compared as a difference so any feather on the stroke cancels out.
+    const float centered = shapePaintOutset(stroke).outset;
+    stroke->position((uint8_t)StrokePosition::outside);
+    CHECK(shapePaintOutset(stroke).outset - centered ==
+          Approx(outsideStroke - centeredStroke));
 }

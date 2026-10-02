@@ -1,36 +1,25 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
-#include "rive/nested_artboard.hpp"
-#include "rive/artboard.hpp"
+#include "rive/scripted/transition_child_ref.hpp"
 
 using namespace rive;
 
 void TransitionChild::draw(Renderer* renderer)
 {
-    // Invalidated (post-frame) or not mounted: nothing to draw.
-    if (m_artboard == nullptr)
-    {
-        return;
-    }
-    // Place the child by its world transform then draw its content. The
-    // transition script has already wrapped this call in renderer state
-    // (opacity / transform / clip) to author the effect. drawInternal does not
-    // consult isHidden(), so a child excluded from the normal draw loop still
-    // renders here.
-    renderer->save();
-    renderer->transform(m_worldTransform);
-    m_artboard->drawInternal(renderer);
-    renderer->restore();
+    ScriptBackend::TransitionChildRef{m_artboard, m_worldTransform}.draw(
+        renderer);
 }
 
 float TransitionChild::width() const
 {
-    return m_artboard != nullptr ? m_artboard->width() : 0.0f;
+    return ScriptBackend::TransitionChildRef{m_artboard, m_worldTransform}
+        .width();
 }
 
 float TransitionChild::height() const
 {
-    return m_artboard != nullptr ? m_artboard->height() : 0.0f;
+    return ScriptBackend::TransitionChildRef{m_artboard, m_worldTransform}
+        .height();
 }
 
 static int transition_child_draw(lua_State* L)

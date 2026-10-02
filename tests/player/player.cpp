@@ -282,6 +282,7 @@ bool Player::parseArgs(int argc,
     bool onlyUbershaders = false;
     // Applied after parsing, since --backend resets the backend params.
     std::optional<TestingWindow::BackendParams::PresentMode> presentMode;
+    std::optional<TestingWindow::BackendParams::Refresh> refresh;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -333,6 +334,30 @@ bool Player::parseArgs(int argc,
                     : strcmp(fit, "cover") == 0 ? rive::Fit::cover
                     : strcmp(fit, "fill") == 0  ? rive::Fit::fill
                                                 : rive::Fit::contain;
+        }
+        else if (strcmp(argv[i], "--refresh") == 0 && i + 1 < argc)
+        {
+            using RR = TestingWindow::BackendParams::Refresh;
+            const char* rate = argv[++i];
+            if (strcmp(rate, "60") == 0)
+            {
+                refresh = RR::fixed60;
+            }
+            else if (strcmp(rate, "120") == 0)
+            {
+                refresh = RR::fixed120;
+            }
+            else if (strcmp(rate, "vrr") == 0)
+            {
+                refresh = RR::variable;
+            }
+            else
+            {
+                fprintf(stderr,
+                        "--refresh must be 60, 120 or vrr, not %s\n",
+                        rate);
+                abort();
+            }
         }
         else if (strcmp(argv[i], "--present") == 0 && i + 1 < argc)
         {
@@ -405,6 +430,10 @@ bool Player::parseArgs(int argc,
     if (presentMode)
     {
         options.backendParams.presentMode = *presentMode;
+    }
+    if (refresh)
+    {
+        options.backendParams.refresh = *refresh;
     }
     if (onlyUbershaders)
     {

@@ -41,6 +41,11 @@ export function createRiveModuleImports(host, moduleMemory) {
             },
             mark_needs_update: calls.rive_rt_mark_needs_update,
             budget_exceeded: calls.rive_rt_budget_exceeded,
+            error: (message, length) => {
+                stackReset();
+                const message_p = stageIn(message, length);
+                calls.rive_rt_error(message_p, length);
+            },
             debug_enter: calls.rive_rt_debug_enter,
             debug_line: calls.rive_rt_debug_line,
             debug_leave: calls.rive_rt_debug_leave,
@@ -276,6 +281,12 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(out_p, out, outCount * 4);
             },
             pointer_event: calls.rive_artboard_pointer_event,
+            gamepad_event: (artboard, payload, byteCount) => {
+                stackReset();
+                const payload_p = stageIn(payload, byteCount);
+                const ret = calls.rive_artboard_gamepad_event(artboard, payload_p, byteCount);
+                return ret;
+            },
             animation: (artboard, name, length) => {
                 stackReset();
                 const name_p = stageIn(name, length);
@@ -286,6 +297,7 @@ export function createRiveModuleImports(host, moduleMemory) {
             animation_duration: calls.rive_artboard_animation_duration,
             animation_advance: calls.rive_artboard_animation_advance,
             animation_set_time: calls.rive_artboard_animation_set_time,
+            add_to_path: calls.rive_artboard_add_to_path,
             node: (artboard, name, length) => {
                 stackReset();
                 const name_p = stageIn(name, length);
@@ -634,6 +646,12 @@ export function createRiveModuleImports(host, moduleMemory) {
                 const ret = calls.rive_gpu_bind_group_layout_from_shader(shaderModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
                 return ret;
             },
+            bind_group_layout_from_shaders: (vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount) => {
+                stackReset();
+                const dynamicUBOs_p = stageIn(dynamicUBOs, dynamicUBOCount * 4);
+                const ret = calls.rive_gpu_bind_group_layout_from_shaders(vertexModule, fragmentModule, groupIndex, dynamicUBOs_p, dynamicUBOCount);
+                return ret;
+            },
             bind_group_new: (layout, ubos, uboByteCount, textures, textureByteCount, samplers, samplerByteCount) => {
                 stackReset();
                 const ubos_p = stageIn(ubos, uboByteCount);
@@ -840,6 +858,21 @@ export function createRiveModuleImports(host, moduleMemory) {
             linear: unsupported('rive_shader_linear'),
             radial: unsupported('rive_shader_radial'),
             release: calls.rive_shader_release,
+        },
+        rive_test_v1: {
+            blob: (name, nameLength, out, outCount) => {
+                stackReset();
+                const name_p = stageIn(name, nameLength);
+                const out_p = stageIn(out, outCount);
+                const ret = calls.rive_test_blob(name_p, nameLength, out_p, outCount);
+                copyOut(out_p, out, outCount);
+                return ret;
+            },
+        },
+        rive_transition_v1: {
+            child_draw: calls.rive_transition_child_draw,
+            child_width: calls.rive_transition_child_width,
+            child_height: calls.rive_transition_child_height,
         },
         rive_renderer_v1: {
             save: calls.rive_renderer_save,

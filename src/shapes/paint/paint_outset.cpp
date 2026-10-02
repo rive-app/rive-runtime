@@ -19,7 +19,13 @@ float paintBoundsOutset(const std::optional<StrokeParams>& stroke,
     float outset = 0.0f;
     if (stroke.has_value())
     {
-        outset = stroke->thickness * .5f;
+        // A centered stroke straddles the path, reaching half its thickness.
+        // The renderer draws an outside stroke as a centered stroke twice as
+        // thick, clipped to the outside, so it reaches the full thickness (and
+        // its miter twice as far). An inside one is clipped to the path and
+        // reaches nothing past it; half is a safe over-estimate.
+        outset = stroke->thickness *
+                 (stroke->position == StrokePosition::outside ? 1.0f : .5f);
         if (stroke->join == StrokeJoin::miter)
         {
             // Miter joins may be longer than the stroke radius.
@@ -53,14 +59,13 @@ ShapePaintOutset shapePaintOutset(const ShapePaint* paint)
     if (paint->is<Stroke>())
     {
         const Stroke* s = paint->as<Stroke>();
-        // Mirrors Stroke::applyTo, which is what the renderer actually sees.
-        // StrokePosition is deliberately not read: applyTo never sets it, so
-        // the stroke really does straddle the path and thickness/2 is the
-        // reach.
+        // Mirrors Stroke::applyTo, which is what the renderer actually sees,
+        // position included: an outside stroke reaches twice as far.
         StrokeParams params;
         params.thickness = s->thickness();
         params.join = static_cast<StrokeJoin>(s->join());
         params.cap = static_cast<StrokeCap>(s->cap());
+        params.position = s->strokePosition();
         stroke = params;
         // Stroke::pickPath: the local path when the transform affects the
         // stroke, the already-world path otherwise.

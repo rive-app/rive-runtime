@@ -104,6 +104,7 @@ public:
             audioSound,
             drawable,
             text,
+            transitionChild,
             count,
         };
         struct Slot
@@ -121,6 +122,9 @@ public:
         void release(uint32_t handle, Tag tag);
     };
     HandleTable& handles() { return m_handles; }
+    /// Borrowed node handles, released when the path effect update that
+    /// minted them returns.
+    std::vector<uint32_t>& scopedNodes() { return m_scopedNodes; }
 
     // Saves the draw visit in flight has open on the renderer it was handed,
     // so a trap can close them before the rest of the frame draws.
@@ -424,8 +428,30 @@ public:
     /// Ends module execution like a trap once the current native returns.
     virtual void raiseModuleError(const char* message);
 
-    /// The full raiseModuleError text when `exception` is its truncation
-    /// (the runtime's exception buffer is small), otherwise `exception`.
+    /// raiseModuleError for a spent execution budget, which lastTrap marks.
+    void raiseBudgetExceeded();
+
+    /// raiseModuleError for a message the script threw, which lastTrap marks.
+    void raiseThrown(const char* message);
+
+    /// What ended the last call that trapped: the message the script threw,
+    /// else the runtime's own trap text. A test takes only a thrown trap for
+    /// the error it expected.
+    struct Trap
+    {
+        std::string message;
+        bool budget = false;
+        bool thrown = false;
+    };
+    const Trap& lastTrap() const { return m_lastTrap; }
+
+    /// Traps still land in lastTrap but print nothing, for callers that
+    /// expect them.
+    void setQuietTraps(bool quiet) { m_quietTraps = quiet; }
+
+    /// The trap text without the runtime's "Exception: " prefix: the full
+    /// raiseModuleError text when `exception` is its truncation (the
+    /// runtime's exception buffer is small), otherwise `exception`.
     const char* fullTrapMessage(const char* exception) const;
 
     /// Function imports the module declares that no host native resolves.
@@ -440,6 +466,19 @@ public:
     /// (armed metering costs about 5 percent on loop heavy scripts).
     void setTimeoutMs(int ms);
     int timeoutMs() const { return m_timeoutMs; }
+
+    /// Backs a Tests suite's blob(name); empty when the blob is missing,
+    /// which every blob is outside test runs.
+    using TestBlobLookup =
+        std::function<Span<const uint8_t>(const std::string&)>;
+    void setTestBlobs(TestBlobLookup lookup)
+    {
+        m_testBlobs = std::move(lookup);
+    }
+    Span<const uint8_t> testBlob(const std::string& name) const
+    {
+        return m_testBlobs ? m_testBlobs(name) : Span<const uint8_t>();
+    }
 
     /// Budget for VMs created after the call; the host's trust decision for
     /// files whose modules it baked itself (e.g. dangerouslyFast content).
@@ -483,6 +522,10 @@ private:
     bool init(Span<const uint8_t> module);
     uint32_t guestString(const char* text, const char* allocator = "malloc");
     void guestFree(uint32_t ptr);
+    // A call scoped handle over a transition child, 0 for an empty one.
+    uint32_t mintTransitionChild(const TransitionChildRef& ref);
+    void releaseTransitionChild(uint32_t handle);
+    void releaseScopedNodes(size_t from);
     // A method name in guest memory: made once per instance when the module
     // can keep it past the frame, else copied for this call alone.
     class GuestName
@@ -526,7 +569,9 @@ private:
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;
     int m_timeoutMs = sm_defaultTimeoutMs;
+    TestBlobLookup m_testBlobs;
     HandleTable m_handles;
+    std::vector<uint32_t> m_scopedNodes;
     /// Canvas frames begun and not ended, as handles with a monotonic token
     /// so a script call's exit reclaims only the frames it began.
     struct OpenCanvasFrame
@@ -570,6 +615,10 @@ private:
     bool m_hostBudget = false;
     /// Set once the watchdog interrupts a call; the module never runs again.
     bool m_poisoned = false;
+    bool m_budgetRaised = false;
+    bool m_thrownRaised = false;
+    bool m_quietTraps = false;
+    Trap m_lastTrap;
     VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
