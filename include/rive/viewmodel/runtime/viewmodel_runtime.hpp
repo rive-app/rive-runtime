@@ -17,6 +17,7 @@ struct PropertyData
     DataType type;
     std::string name;
     std::string enumName;
+    std::string viewModelName;
 };
 
 class ViewModelRuntime : public RefCnt<ViewModelRuntime>
@@ -34,8 +35,7 @@ public:
     rcp<ViewModelInstanceRuntime> createDefaultInstance() const;
     rcp<ViewModelInstanceRuntime> createInstance() const;
     std::vector<PropertyData> properties();
-    static std::vector<PropertyData> buildPropertiesData(
-        std::vector<rive::ViewModelProperty*>& properties);
+    static std::vector<PropertyData> buildPropertiesData(ViewModel* viewModel);
     std::vector<std::string> instanceNames() const;
 
 private:
