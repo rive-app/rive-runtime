@@ -2663,10 +2663,16 @@ public:
             return;
         }
         lua_Callbacks* cb = lua_callbacks(state);
+        if (m_timedDepth++ == 0)
+        {
+            m_outerInterrupt = cb->interrupt;
+        }
         cb->interrupt = interruptCPP;
         executionTime = std::chrono::steady_clock::now();
     }
 
+    // Restores rather than clears, so a host's own interrupt, like the test
+    // harness budget, outlives any timed call it makes.
     void endTimedExecution(lua_State* state)
     {
         if (m_timeoutMs == 0)
@@ -2674,7 +2680,7 @@ public:
             return;
         }
         lua_Callbacks* cb = lua_callbacks(state);
-        cb->interrupt = nullptr;
+        cb->interrupt = --m_timedDepth == 0 ? m_outerInterrupt : interruptCPP;
     }
 
 #ifdef WITH_RIVE_TOOLS
@@ -2692,6 +2698,8 @@ public:
 
 private:
     int m_timeoutMs = 200;
+    int m_timedDepth = 0;
+    void (*m_outerInterrupt)(lua_State* L, int gc) = nullptr;
 #ifdef WITH_RIVE_TOOLS
     ConsoleCallback m_consoleCallback = nullptr;
     VectorBinaryStream m_consoleBuffer;

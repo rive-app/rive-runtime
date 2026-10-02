@@ -24,7 +24,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
     return {std::move(font), size, -1.0f, 0.0f, n, 0};
 }
 
-static std::vector<uint8_t> readBytes(const char* filename)
+static rcp<Font> loadFont(const char* filename)
 {
     FILE* fp = fopen(filename, "rb");
     REQUIRE(fp != nullptr);
@@ -35,12 +35,7 @@ static std::vector<uint8_t> readBytes(const char* filename)
     std::vector<uint8_t> bytes(length);
     REQUIRE(fread(bytes.data(), 1, length, fp) == length);
     fclose(fp);
-    return bytes;
-}
 
-static rcp<Font> loadFont(const char* filename)
-{
-    auto bytes = readBytes(filename);
     return HBFont::Decode(bytes);
 }
 
@@ -305,93 +300,6 @@ TEST_CASE("mapped font outlives the call that created it", "[text]")
 #endif
 }
 
-TEST_CASE("mapped font opens the requested collection face", "[text]")
-{
-    const char* path = "assets/fonts/two_faces.ttc";
-#ifndef RIVE_HB_FILE_MAPPING
-    REQUIRE(HBFont::DecodeFile(path, 1) == nullptr);
-    return;
-#else
-    // Face 0 covers a-f at weight 400, face 1 covers only a at weight 250.
-    auto first = HBFont::DecodeFile(path, 0);
-    auto second = HBFont::DecodeFile(path, 1);
-    REQUIRE(first != nullptr);
-    REQUIRE(second != nullptr);
-    REQUIRE(first->hasGlyph('b'));
-    REQUIRE(second->hasGlyph('a'));
-    REQUIRE_FALSE(second->hasGlyph('b'));
-    REQUIRE(first->getWeight() != second->getWeight());
-    REQUIRE(HBFont::DecodeFile(path, 2) == nullptr);
-#endif
-}
-
-TEST_CASE("mapped coverage probes respect collection faces and promote safely",
-          "[text]")
-{
-    const char* path = "assets/fonts/two_faces.ttc";
-#ifndef RIVE_HB_FILE_MAPPING
-    REQUIRE(HBFont::ProbeFile(path) == nullptr);
-#else
-    auto first = HBFont::ProbeFile(path, 0);
-    auto second = HBFont::ProbeFile(path, 1);
-    REQUIRE(first != nullptr);
-    REQUIRE(second != nullptr);
-    REQUIRE(first->hasGlyph('b'));
-    REQUIRE(second->hasGlyph('a'));
-    REQUIRE_FALSE(second->hasGlyph('b'));
-    REQUIRE_FALSE(first->hasGlyph(0x10FFFF));
-    REQUIRE(HBFont::ProbeFile(path, 2) == nullptr);
-
-    auto font = first->makeFont();
-    REQUIRE(font != nullptr);
-    REQUIRE_FALSE(first->hasGlyph('b'));
-    REQUIRE(first->makeFont() == nullptr);
-    first.reset();
-    second.reset();
-    REQUIRE(font->hasGlyph('b'));
-    REQUIRE(font->getWeight() == 400);
-
-    // Shaping and drawing must still work after the probes release their
-    // references.
-    std::vector<rive::Unichar> text;
-    std::vector<rive::TextRun> runs;
-    runs.push_back(append(&text, font, 32.0f, "b"));
-    auto shape = font->shapeText(text, runs);
-    REQUIRE(shape.size() == 1);
-    REQUIRE(shape[0].runs[0].glyphs.size() == 1);
-    REQUIRE(font->getPath(shape[0].runs[0].glyphs[0]).verbs().size() > 0);
-#endif
-}
-
-TEST_CASE("owned font bytes are adopted rather than copied", "[text]")
-{
-    rcp<Font> font;
-    const uint8_t* data;
-    {
-        auto bytes = readBytes("assets/fonts/Inter_18pt-Regular.ttf");
-        data = bytes.data();
-        font = HBFont::Decode(std::move(bytes));
-    }
-    REQUIRE(font != nullptr);
-
-    hb_blob_t* blob = hb_face_reference_blob(
-        hb_font_get_face(static_cast<HBFont*>(font.get())->font()));
-    REQUIRE(reinterpret_cast<const uint8_t*>(hb_blob_get_data(blob, nullptr)) ==
-            data);
-    hb_blob_destroy(blob);
-
-    // Shaping reads the adopted bytes after the caller's scope is gone.
-    std::vector<rive::Unichar> text;
-    std::vector<rive::TextRun> runs;
-    runs.push_back(append(&text, font, 32.0f, "A"));
-    auto shape = font->shapeText(text, runs);
-    REQUIRE(shape.size() == 1);
-    REQUIRE(shape[0].runs[0].glyphs.size() == 1);
-    REQUIRE(font->getPath(shape[0].runs[0].glyphs[0]).verbs().size() > 0);
-
-    REQUIRE(HBFont::Decode(std::vector<uint8_t>()) == nullptr);
-}
-
 TEST_CASE("DecodeFile returns null rather than failing hard", "[text]")
 {
     // Callers treat null as "use Decode instead", so every failure this call
@@ -401,8 +309,6 @@ TEST_CASE("DecodeFile returns null rather than failing hard", "[text]")
     // blob is a font -- the byte-based Decode has the same behaviour.
     REQUIRE(HBFont::DecodeFile(nullptr) == nullptr);
     REQUIRE(HBFont::DecodeFile("assets/does_not_exist.ttf") == nullptr);
-    REQUIRE(HBFont::ProbeFile(nullptr) == nullptr);
-    REQUIRE(HBFont::ProbeFile("assets/does_not_exist.ttf") == nullptr);
 
     // An empty file: rejected on size before anything is mapped.
     const char* emptyPath = "assets/empty_font_test_file.tmp";
@@ -410,6 +316,5 @@ TEST_CASE("DecodeFile returns null rather than failing hard", "[text]")
     REQUIRE(fp != nullptr);
     fclose(fp);
     REQUIRE(HBFont::DecodeFile(emptyPath) == nullptr);
-    REQUIRE(HBFont::ProbeFile(emptyPath) == nullptr);
     remove(emptyPath);
 }

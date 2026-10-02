@@ -1,5 +1,6 @@
 
 #include "rive/viewmodel/runtime/viewmodel_instance_color_runtime.hpp"
+#include "rive/shapes/paint/color.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -35,7 +36,7 @@ void ViewModelInstanceColorRuntime::alpha(int a)
 
 void ViewModelInstanceColorRuntime::argb(int a, int r, int g, int b)
 {
-    auto color = (a << 24) | (r << 16) | (g << 8) | b;
+    auto color = colorARGB(a, r, g, b);
     m_viewModelInstanceValue->as<ViewModelInstanceColor>()->propertyValue(
         color);
 }

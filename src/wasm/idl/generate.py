@@ -324,7 +324,17 @@ def emit_host():
             call = '%sImpl(%s)' % (name, ', '.join(args))
             body = ['%s %s(%s)' % (ret_ctype(op), name, ', '.join(params)),
                     '{',
-                    '    WasmScriptingVM* vm = vmFromEnv(env);']
+                    '    WasmScriptingVM* vm = %s(env);' %
+                    ('bootVmFromEnv' if op['boot'] else 'vmFromEnv')]
+            if op['boot']:
+                assert op['ret'] is None, op['name']
+                body += ['    if (vm == nullptr)',
+                         '    {',
+                         '        wasm_runtime_set_exception('
+                         'wasm_runtime_get_module_inst(env), "%s");' %
+                         op['boot'],
+                         '        return;',
+                         '    }']
             body += host_bounds_prologue(op)
             body += host_string_prologue(op['params'])
             body += ['    %s%s;' %

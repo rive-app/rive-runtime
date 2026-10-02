@@ -187,6 +187,11 @@ public:
     {
         Artboard* artboard = nullptr;
         Mat2D transform;
+
+        // Defined in transition_child_ref.hpp, shared by both backends.
+        void draw(Renderer* renderer) const;
+        float width() const;
+        float height() const;
     };
     /// Transition protocol: self.managesTo, read as a field rather than
     /// called. A script opts out of compositing the incoming child with an

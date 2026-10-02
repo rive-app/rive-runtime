@@ -1993,3 +1993,12 @@ end
 
     object.scriptDispose();
 }
+
+// print joins its arguments with a tab, as Luau's own print does, so several
+// values on one line read back apart rather than run together.
+TEST_CASE("print separates its arguments with tabs", "[scripting]")
+{
+    ScriptingTest vm(R"(print("alpha", 1, true, nil, 2.5))", 0);
+    REQUIRE(vm.console.size() == 1);
+    CHECK(vm.console[0] == "alpha\t1\ttrue\tnil\t2.5");
+}

@@ -172,9 +172,17 @@ Artboard::~Artboard()
     // First pass: identify ViewModelInstance and ViewModelInstanceValue
     // objects while memory is valid (before any deletions). Precompute which
     // VMIs should be released so we never dereference pointers after deletes.
-    auto gatherVmObjects = [&](Core* object) {
+    // Also detach FocusData from their nodes: with an adopted manager the
+    // focus tree above wasn't torn down, and deleting a focused node blurs the
+    // chain, which must not call into components already deleted.
+    auto preDeletePass = [&](Core* object) {
         if (object == nullptr || object == this)
         {
+            return;
+        }
+        if (object->is<FocusData>())
+        {
+            object->as<FocusData>()->detachFocusable();
             return;
         }
         if (object->is<ViewModelInstance>())
@@ -190,11 +198,11 @@ Artboard::~Artboard()
     };
     for (auto object : m_Objects)
     {
-        gatherVmObjects(object);
+        preDeletePass(object);
     }
     for (auto object : m_invalidObjects)
     {
-        gatherVmObjects(object);
+        preDeletePass(object);
     }
 
     auto isVmObject = [&](Core* object) -> bool {

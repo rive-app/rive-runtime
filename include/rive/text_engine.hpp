@@ -302,6 +302,7 @@ public:
     {
         float offset;
         ColorInt color;
+        bool isForeground = false;
     };
 
     enum class ColorGlyphPaintType : uint8_t
@@ -328,6 +329,9 @@ public:
         float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
         float r0 = 0, r1 = 0;               // radial
         float startAngle = 0, endAngle = 0; // sweep
+        // Maps the unit circle onto the radial's outer circle in glyph space,
+        // keeping its ellipse under uneven or skewed font transforms.
+        Mat2D radialTransform;
 
         // Image data (only valid when paintType == image).
         // Raw encoded image bytes (e.g. PNG from SBIX/CBDT).
