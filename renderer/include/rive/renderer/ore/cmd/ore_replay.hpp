@@ -67,6 +67,7 @@ inline bool replayPassCommand(Context& ctx,
         {
             auto c = reader.read<BeginRenderPassCmd>();
             RenderPassDesc desc{};
+            desc.label = blobCString(reader, c.label);
             desc.colorCount = c.colorCount;
             for (uint32_t i = 0; i < c.colorCount && i < 4; ++i)
             {

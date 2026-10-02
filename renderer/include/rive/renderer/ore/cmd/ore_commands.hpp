@@ -150,11 +150,13 @@ static_assert(sizeof(DepthStencilAttachmentPOD) == 4 * sizeof(uint32_t),
 // Fixed 4 slot color array keeps the command a flat POD.
 struct BeginRenderPassCmd
 {
+    BlobRef label; // absent when the pass carries none
     uint32_t colorCount;
     ColorAttachmentPOD colors[4];
     DepthStencilAttachmentPOD depthStencil;
+    uint32_t pad; // keeps the 8-aligned BlobRef free of implicit padding
 };
-static_assert(sizeof(BeginRenderPassCmd) == 33 * sizeof(uint32_t),
+static_assert(sizeof(BeginRenderPassCmd) == 38 * sizeof(uint32_t),
               "wire POD must be pointer-free and padding-free");
 
 struct SetPipelineCmd

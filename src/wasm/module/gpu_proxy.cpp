@@ -730,11 +730,30 @@ public:
             colors[i].clearB = desc.colorAttachments[i].clearColor.b;
             colors[i].clearA = desc.colorAttachments[i].clearColor.a;
         }
-        uint32_t handle =
-            rive_gpu_pass_begin(&pod,
-                                sizeof(pod),
-                                colors,
-                                desc.colorCount * (uint32_t)sizeof(colors[0]));
+        pod.labelSize =
+            desc.label != nullptr ? (uint32_t)strlen(desc.label) : 0;
+        const uint32_t colorBytes =
+            std::min(desc.colorCount, 4u) * (uint32_t)sizeof(colors[0]);
+        auto blob = reinterpret_cast<const uint8_t*>(colors);
+        alignas(rive_gpu_pass_color_attachment_v1)
+            uint8_t stackBlob[sizeof(colors) + 128];
+        std::vector<uint8_t> heapBlob;
+        if (pod.labelSize != 0)
+        {
+            uint8_t* bytes = stackBlob;
+            if (colorBytes + pod.labelSize > sizeof(stackBlob))
+            {
+                heapBlob.resize(colorBytes + pod.labelSize);
+                bytes = heapBlob.data();
+            }
+            memcpy(bytes, colors, colorBytes);
+            memcpy(bytes + colorBytes, desc.label, pod.labelSize);
+            blob = bytes;
+        }
+        uint32_t handle = rive_gpu_pass_begin(&pod,
+                                              sizeof(pod),
+                                              blob,
+                                              colorBytes + pod.labelSize);
         if (handle == 0)
         {
             if (outError != nullptr)

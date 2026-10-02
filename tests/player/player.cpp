@@ -392,6 +392,10 @@ bool Player::parseArgs(int argc,
         {
             m_threaded = true;
         }
+        else if (strcmp(argv[i], "--gpu-profile") == 0)
+        {
+            m_gpuProfile = true;
+        }
         else if (strcmp(argv[i], "--dump") == 0 && i + 1 < argc)
         {
             m_dumpPath = argv[++i];
@@ -454,6 +458,16 @@ void Player::init(std::string rivName, std::vector<uint8_t> rivBytes)
     m_rivName = std::move(rivName);
     m_factory = TestingWindow::Get()->factory();
 #ifdef RIVE_CANVAS
+    if (m_gpuProfile)
+    {
+        if (auto* rc = TestingWindow::Get()->renderContext())
+        {
+            if (auto* ore = rc->getOreContext())
+            {
+                ore->setGpuProfiling(true);
+            }
+        }
+    }
     // Importing through the DeferredSession makes the artboard's own 2D
     // resources deferred objects with ids so drawInternal can record.
     if (m_useDeferred)

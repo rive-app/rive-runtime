@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -311,6 +312,18 @@ public:
     bool deferredRecording() const { return m_deferredRecording; }
     void setDeferredRecording(bool deferred) { m_deferredRecording = deferred; }
 
+    // Per pass GPU timing, off by default and free while off. Seeded from the
+    // RIVE_ORE_GPU_PROFILE env var. Only Vulkan measures so far; the other
+    // backends never publish rows.
+    bool gpuProfiling() const
+    {
+        return m_gpuProfiling.load(std::memory_order_relaxed);
+    }
+    void setGpuProfiling(bool on)
+    {
+        m_gpuProfiling.store(on, std::memory_order_relaxed);
+    }
+
     // True when the backend replays the accumulated pendingFrame at endFrame.
     // False falls back to per pass inline replay, which is byte identical.
     virtual bool usesDeferredFrameReplay() const { return false; }
@@ -445,10 +458,27 @@ protected:
     {
 #ifndef NO_GETENV
         m_deferredRecording = getenv("RIVE_ORE_DEFER") != nullptr;
+        m_gpuProfiling.store(getenv("RIVE_ORE_GPU_PROFILE") != nullptr,
+                             std::memory_order_relaxed);
 #endif
     }
 
     Features m_features;
+
+    struct GpuPassTiming
+    {
+        std::string label;
+        double milliseconds;
+    };
+
+    // The pass's label, or its attachment shape when the script gave none.
+    static std::string gpuPassLabel(const RenderPassDesc& desc);
+
+    // Backends hand in each resolved frame's passes here, in any order and
+    // with repeated labels. Prints the per label average once every
+    // kGpuProfileReportFrames frames.
+    static constexpr uint32_t kGpuProfileReportFrames = 120;
+    void publishGpuPassTimings(const std::vector<GpuPassTiming>& rows);
 
     // A finish that fails to unregister would loop forever, so pop it.
     void finishInnermostRenderPass()
@@ -471,6 +501,10 @@ protected:
     bool m_deferredRecording = false;
 
     gpu::RenderTarget* m_renderTarget = nullptr;
+    // Replay reads it on a worker while the host may toggle it.
+    std::atomic<bool> m_gpuProfiling{false};
+    std::unordered_map<std::string, double> m_gpuProfileTotals;
+    uint32_t m_gpuProfileFrames = 0;
 
     std::unordered_map<uint64_t, rcp<BindGroupLayout>> m_internedLayouts;
 

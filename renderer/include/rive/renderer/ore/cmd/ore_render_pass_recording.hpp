@@ -29,6 +29,7 @@ public:
         populateAttachmentMetadata(desc);
 
         BeginRenderPassCmd begin{};
+        begin.label = m_cmd->appendStringRef(desc.label);
         begin.colorCount = desc.colorCount;
         for (uint32_t i = 0; i < desc.colorCount && i < 4; ++i)
         {

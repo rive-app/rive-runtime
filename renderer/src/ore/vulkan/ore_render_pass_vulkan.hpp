@@ -93,5 +93,7 @@ private:
     rcp<Texture> m_vkDepthTexture;
     // Pass-state stencil ref; re-emitted on every setPipeline.
     uint32_t m_vkStencilRef = 0;
+    // Opening timestamp query when profiled; finish() writes the closing one.
+    uint32_t m_vkProfileQuery = UINT32_MAX;
 };
 } // namespace rive::ore

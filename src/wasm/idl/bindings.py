@@ -199,6 +199,7 @@ PODS = [
         u32('stencilLoadOp'),
         u32('stencilStoreOp'),
         u32('stencilClearValue'),
+        u32('labelSize'),
     ]),
     # Sizes and counts slice the op's blob in field order: vertex entry
     # string, fragment entry string, color targets, vertex buffer layouts,
@@ -685,10 +686,11 @@ NAMESPACES = [
             u32('current'),
             mutbuf('uint32_t', 'props', 'propCount'),
         ], ret='u32'),
+        # The blob is colorCount color attachments, then labelSize bytes of
+        # label.
         op('pass_begin', [
             podref('gpu_pass_desc', 'desc'),
-            buf('rive_gpu_pass_color_attachment_v1', 'colors',
-                'colorByteCount'),
+            buf('uint8_t', 'blob', 'blobCount'),
         ], ret='u32'),
         op('pass_set_pipeline', [handle('pass'), handle('pipeline')]),
         op('pass_set_vertex_buffer', [

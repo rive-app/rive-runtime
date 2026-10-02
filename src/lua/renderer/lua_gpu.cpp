@@ -2604,6 +2604,10 @@ static int gputarget_beginrenderpass(lua_State* L,
     RenderPassDesc passDesc{};
     passDesc.colorCount = 0;
     bool dropped = false;
+    // Left on the stack so the label lives without an owning string, which a
+    // Lua error would unwind past.
+    lua_getfield(L, 2, "label");
+    passDesc.label = lua_isstring(L, -1) ? lua_tostring(L, -1) : nullptr;
 
     // Tracks the first attachment we see (any color slot or depth) and
     // becomes the pass's authoritative sampleCount. Subsequent attachments
@@ -2869,7 +2873,7 @@ static int gputarget_beginrenderpass(lua_State* L,
     rp->m_finished = false;
     rp->sampleCount =
         passSampleCount < 1 ? 1u : static_cast<uint32_t>(passSampleCount);
-    rp->label = passDesc.label ? passDesc.label : "";
+    rp->label = passDesc.label != nullptr ? passDesc.label : "";
     rp->drawCallCount = 0;
     return 1;
 }

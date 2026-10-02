@@ -1135,10 +1135,10 @@ uint32_t rive_web_gpu_target_view(uint32_t vmHandle, uint32_t current, uint32_t*
     return gpuTargetViewImpl(vm, current, props, propCount);
 }
 EMSCRIPTEN_KEEPALIVE
-uint32_t rive_web_gpu_pass_begin(uint32_t vmHandle, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
+uint32_t rive_web_gpu_pass_begin(uint32_t vmHandle, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    return gpuPassBeginImpl(vm, desc, descByteCount, colors, colorByteCount);
+    return gpuPassBeginImpl(vm, desc, descByteCount, blob, blobCount);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_gpu_pass_set_pipeline(uint32_t vmHandle, uint32_t pass, uint32_t pipeline)

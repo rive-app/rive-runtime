@@ -212,6 +212,14 @@ void RenderPassVulkan::finish()
     releaseBoundResources();
 
     m_vkContext->m_vk->CmdEndRenderPass(m_vkCmdBuf);
+    if (m_vkProfileQuery != UINT32_MAX)
+    {
+        m_vkContext->m_vk->CmdWriteTimestamp(
+            m_vkCmdBuf,
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+            m_vkContext->m_vkProfilePool,
+            m_vkProfileQuery + 1);
+    }
 
     // A target that is never sampled stays in the layout the pass left it in,
     // and Rive's tracker hears the write so its own barrier starts from there.
@@ -407,6 +415,7 @@ RenderPassVulkan::RenderPassVulkan(RenderPassVulkan&& other) noexcept
     m_vkDepthRange = other.m_vkDepthRange;
     m_vkDepthTexture = std::move(other.m_vkDepthTexture);
     m_vkStencilRef = other.m_vkStencilRef;
+    m_vkProfileQuery = std::exchange(other.m_vkProfileQuery, UINT32_MAX);
     other.m_vkDepthImage = VK_NULL_HANDLE;
     other.m_vkStencilRef = 0;
 #endif

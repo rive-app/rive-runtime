@@ -132,6 +132,7 @@
 #include "wasm_export.h"
 
 #include <chrono>
+#include <cstddef>
 #include <string.h>
 #include <time.h>
 
@@ -2379,17 +2380,32 @@ uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount)
 uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
                           const rive_gpu_pass_desc_v1* podDesc,
                           uint32_t descByteCount,
-                          const rive_gpu_pass_color_attachment_v1* colors,
-                          uint32_t colorByteCount)
+                          const uint8_t* blob,
+                          uint32_t blobCount)
 {
     ore::Context* oreContext = gpuOreContext(vm);
+    // The label is optional, so a descriptor from before it still passes.
     if (vm == nullptr || oreContext == nullptr ||
-        descByteCount < sizeof(*podDesc) ||
-        colorByteCount % sizeof(*colors) != 0 ||
-        podDesc->colorCount != colorByteCount / sizeof(*colors) ||
+        descByteCount < offsetof(rive_gpu_pass_desc_v1, labelSize) ||
         podDesc->colorCount > 4)
     {
         return 0;
+    }
+    const uint32_t labelSize =
+        descByteCount >= sizeof(*podDesc) ? podDesc->labelSize : 0;
+    const uint64_t colorBytes = uint64_t(podDesc->colorCount) *
+                                sizeof(rive_gpu_pass_color_attachment_v1);
+    if (colorBytes + labelSize != blobCount)
+    {
+        return 0;
+    }
+    auto colors =
+        reinterpret_cast<const rive_gpu_pass_color_attachment_v1*>(blob);
+    std::string label;
+    if (labelSize != 0)
+    {
+        label.assign(reinterpret_cast<const char*>(blob + colorBytes),
+                     labelSize);
     }
     auto resolveView = [vm](uint32_t handle) -> ore::TextureView* {
         auto host = static_cast<HostGpuTextureView*>(vm->handles().resolve(
@@ -2431,6 +2447,7 @@ uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
     desc.depthStencil.stencilLoadOp = (ore::LoadOp)podDesc->stencilLoadOp;
     desc.depthStencil.stencilStoreOp = (ore::StoreOp)podDesc->stencilStoreOp;
     desc.depthStencil.stencilClearValue = podDesc->stencilClearValue;
+    desc.label = label.empty() ? nullptr : label.c_str();
     oreContext->clearLastError();
     auto pass = ore::cmd::beginRecordedRenderPass(*oreContext, desc);
     if (pass == nullptr)
@@ -3608,7 +3625,7 @@ uint32_t gpuFeaturesImpl(WasmScriptingVM*, uint32_t*, uint32_t) { return 0; }
 uint32_t gpuPassBeginImpl(WasmScriptingVM*,
                           const rive_gpu_pass_desc_v1*,
                           uint32_t,
-                          const rive_gpu_pass_color_attachment_v1*,
+                          const uint8_t*,
                           uint32_t)
 {
     return 0;

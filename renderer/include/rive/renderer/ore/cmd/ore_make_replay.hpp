@@ -155,6 +155,14 @@ inline rive::gpu::GPUResource* resolveOre(const OreResident& session,
     return session.getAs(h, kind);
 }
 
+// Recorded strings carry their NUL, so the blob reads in place.
+inline const char* blobCString(const OreCommandReader& reader, BlobRef ref)
+{
+    return ref.absent() ? nullptr
+                        : reinterpret_cast<const char*>(
+                              reader.blobAt(ref.offset, ref.size).data());
+}
+
 // Returns false for a pass command so the caller's pass switch takes it.
 inline bool replayOreLifecycle(Context& ctx,
                                OreResident& table,
@@ -168,10 +176,7 @@ inline bool replayOreLifecycle(Context& ctx,
         return ref.absent() ? Span<const uint8_t>(nullptr, 0)
                             : reader.blobAt(ref.offset, ref.size);
     };
-    auto cstr = [&](BlobRef ref) -> const char* {
-        return ref.absent() ? nullptr
-                            : reinterpret_cast<const char*>(blob(ref).data());
-    };
+    auto cstr = [&](BlobRef ref) { return blobCString(reader, ref); };
     auto bytesOf = [&](BlobRef ref) -> const void* {
         return ref.absent() ? nullptr : blob(ref).data();
     };

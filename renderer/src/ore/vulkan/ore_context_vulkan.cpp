@@ -252,6 +252,9 @@ ContextVulkan::~ContextVulkan()
     if (m_vkCommandPool != VK_NULL_HANDLE)
         m_vk->DestroyCommandPool(m_vk->device, m_vkCommandPool, nullptr);
 
+    if (m_vkProfilePool != VK_NULL_HANDLE)
+        m_vk->DestroyQueryPool(m_vk->device, m_vkProfilePool, nullptr);
+
     for (TextureVulkan* tex : m_vkRiveWrapped)
         tex->m_vkOreContext = nullptr;
 }
@@ -699,10 +702,166 @@ void ContextVulkan::beginFrame(const FrameDescriptor& desc)
         static_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     m_vkCmdBufRecording = true;
 
+    m_vkProfileSlot = kVkProfileSlots;
+    if (gpuProfiling())
+    {
+        vkBeginProfileFrame(desc);
+    }
+    else
+    {
+        // Frames left pending or totals left unreported when profiling stops
+        // would publish stale rows once it resumes.
+        for (VkProfileSlot& slot : m_vkProfileSlots)
+        {
+            slot.pending = false;
+        }
+        m_gpuProfileTotals.clear();
+        m_gpuProfileFrames = 0;
+    }
+
     // Drain pre-frame deferred work onto the host's CB.
     vkFlushPendingTextureUploads();
     vkFlushPendingInitialTransitions();
     vkSyncRiveTextures();
+}
+
+bool ContextVulkan::vkCreateProfilePool()
+{
+    if (!m_vk->physicalDeviceProperties.limits.timestampComputeAndGraphics)
+    {
+        return false;
+    }
+    uint32_t familyCount = 0;
+    m_vk->GetPhysicalDeviceQueueFamilyProperties(m_vk->physicalDevice,
+                                                 &familyCount,
+                                                 nullptr);
+    std::vector<VkQueueFamilyProperties> families(familyCount);
+    m_vk->GetPhysicalDeviceQueueFamilyProperties(m_vk->physicalDevice,
+                                                 &familyCount,
+                                                 families.data());
+    if (m_vkQueueFamily >= familyCount)
+    {
+        return false;
+    }
+    const uint32_t validBits = families[m_vkQueueFamily].timestampValidBits;
+    if (validBits == 0)
+    {
+        return false;
+    }
+    m_vkTimestampMask =
+        validBits >= 64 ? UINT64_MAX : (uint64_t(1) << validBits) - 1;
+    VkQueryPoolCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+    info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+    info.queryCount = kVkProfileSlots * kVkProfilePassesPerSlot * 2;
+    if (m_vk->CreateQueryPool(m_vk->device, &info, nullptr, &m_vkProfilePool) !=
+        VK_SUCCESS)
+    {
+        m_vkProfilePool = VK_NULL_HANDLE;
+        return false;
+    }
+    return true;
+}
+
+void ContextVulkan::vkBeginProfileFrame(const FrameDescriptor& desc)
+{
+    if (m_vkProfilePool == VK_NULL_HANDLE)
+    {
+        if (m_vkProfileUnavailable)
+        {
+            return;
+        }
+        if (!vkCreateProfilePool())
+        {
+            m_vkProfileUnavailable = true;
+            fprintf(stderr,
+                    "[ore gpu] this device cannot time passes, so no profile "
+                    "will print\n");
+            return;
+        }
+    }
+    for (uint32_t i = 0; i < kVkProfileSlots; ++i)
+    {
+        if (m_vkProfileSlots[i].pending &&
+            m_vkProfileSlots[i].frameNumber <= desc.safeFrameNumber)
+        {
+            vkResolveProfileSlot(i);
+        }
+    }
+    const uint32_t index =
+        static_cast<uint32_t>(desc.currentFrameNumber % kVkProfileSlots);
+    VkProfileSlot& slot = m_vkProfileSlots[index];
+    if (slot.pending)
+    {
+        return;
+    }
+    slot.frameNumber = desc.currentFrameNumber;
+    slot.pending = true;
+    slot.labels.clear();
+    m_vkProfileSlot = index;
+    m_vk->CmdResetQueryPool(m_vkCommandBuffer,
+                            m_vkProfilePool,
+                            index * kVkProfilePassesPerSlot * 2,
+                            kVkProfilePassesPerSlot * 2);
+}
+
+void ContextVulkan::vkResolveProfileSlot(uint32_t index)
+{
+    VkProfileSlot& slot = m_vkProfileSlots[index];
+    slot.pending = false;
+    const double period =
+        m_vk->physicalDeviceProperties.limits.timestampPeriod * 1e-6;
+    std::vector<GpuPassTiming> rows;
+    rows.reserve(slot.labels.size());
+    for (uint32_t i = 0; i < slot.labels.size(); ++i)
+    {
+        uint64_t stamps[2] = {};
+        if (m_vk->GetQueryPoolResults(m_vk->device,
+                                      m_vkProfilePool,
+                                      (index * kVkProfilePassesPerSlot + i) * 2,
+                                      2,
+                                      sizeof(stamps),
+                                      stamps,
+                                      sizeof(stamps[0]),
+                                      VK_QUERY_RESULT_64_BIT) != VK_SUCCESS)
+        {
+            continue;
+        }
+        // Masked so a counter that wrapped between the stamps stays small.
+        const uint64_t ticks = (stamps[1] - stamps[0]) & m_vkTimestampMask;
+        rows.push_back(
+            {std::move(slot.labels[i]), static_cast<double>(ticks) * period});
+    }
+    publishGpuPassTimings(rows);
+}
+
+uint32_t ContextVulkan::vkBeginProfilePass(const RenderPassDesc& desc)
+{
+    if (m_vkProfileSlot == kVkProfileSlots)
+    {
+        return UINT32_MAX;
+    }
+    VkProfileSlot& slot = m_vkProfileSlots[m_vkProfileSlot];
+    if (slot.labels.size() >= kVkProfilePassesPerSlot)
+    {
+        if (!m_vkProfileOverflowWarned)
+        {
+            m_vkProfileOverflowWarned = true;
+            fprintf(stderr,
+                    "[ore gpu] passes past %u in a frame go unmeasured\n",
+                    kVkProfilePassesPerSlot);
+        }
+        return UINT32_MAX;
+    }
+    const uint32_t query = (m_vkProfileSlot * kVkProfilePassesPerSlot +
+                            static_cast<uint32_t>(slot.labels.size())) *
+                           2;
+    slot.labels.push_back(gpuPassLabel(desc));
+    m_vk->CmdWriteTimestamp(m_vkCommandBuffer,
+                            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                            m_vkProfilePool,
+                            query);
+    return query;
 }
 
 // Rive's own barrier helper no-ops once its tracker already says shader read.
@@ -1602,6 +1761,10 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     vkFlushPendingTextureUploads();
     vkFlushPendingInitialTransitions();
 
+    if (gpuProfiling())
+    {
+        pass->m_vkProfileQuery = vkBeginProfilePass(desc);
+    }
     m_vk->CmdBeginRenderPass(m_vkCommandBuffer,
                              &rpBI,
                              VK_SUBPASS_CONTENTS_INLINE);

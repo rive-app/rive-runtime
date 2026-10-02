@@ -100,6 +100,7 @@ private:
 
     bool m_useDeferred = false;
     bool m_threaded = false;
+    bool m_gpuProfile = false;
     struct FrameJob;
     struct RenderThread;
     std::unique_ptr<RenderThread> m_renderThread;

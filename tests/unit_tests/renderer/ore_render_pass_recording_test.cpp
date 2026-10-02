@@ -180,6 +180,7 @@ public:
     LiveStubContext() : Context(nullptr) {}
 
     std::vector<Op> log;
+    std::vector<std::string> labels;
     int open = 0;
     int maxOpen = 0;
     bool frameReplay = false;
@@ -234,9 +235,10 @@ public:
         LiveStubContext* m_ctx;
     };
 
-    std::unique_ptr<RenderPass> beginRenderPass(const RenderPassDesc&,
+    std::unique_ptr<RenderPass> beginRenderPass(const RenderPassDesc& desc,
                                                 std::string*) override
     {
+        labels.push_back(desc.label != nullptr ? desc.label : "");
         return std::make_unique<Pass>(this);
     }
     bool usesDeferredFrameReplay() const override { return frameReplay; }
@@ -621,4 +623,21 @@ TEST_CASE("frame replay backends settle nested passes in pendingFrame",
                                      draw(3),
                                      finish()});
     CHECK(ctx.maxOpen == 1);
+}
+
+// The label has no handle behind it, so it rides the stream as a blob and
+// reaches the backend verbatim, or as null when the script gave none.
+TEST_CASE("a pass label survives the deferred stream", "[ore][cmd]")
+{
+    LiveStubContext ctx;
+    ctx.frameReplay = true;
+    ctx.setDeferredRecording(true);
+    RenderPassDesc labeled{};
+    labeled.label = "shadow";
+    beginRecordedRenderPass(ctx, labeled)->finish();
+    beginRecordedRenderPass(ctx, {})->finish();
+    CHECK(ctx.labels.empty());
+
+    replayCommandBuffer(ctx, ctx.pendingFrame());
+    CHECK(ctx.labels == std::vector<std::string>{"shadow", ""});
 }

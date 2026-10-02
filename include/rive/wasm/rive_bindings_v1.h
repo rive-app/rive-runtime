@@ -180,6 +180,7 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t stencilLoadOp;
     uint32_t stencilStoreOp;
     uint32_t stencilClearValue;
+    uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
 
 typedef struct rive_gpu_pipeline_desc_v1
@@ -597,7 +598,7 @@ uint32_t rive_gpu_canvas_resize(uint32_t canvas, uint32_t width, uint32_t height
 RIVE_BINDING_IMPORT("rive_gpu_v1", "target_view")
 uint32_t rive_gpu_target_view(uint32_t current, uint32_t* props, uint32_t propCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_begin")
-uint32_t rive_gpu_pass_begin(const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
+uint32_t rive_gpu_pass_begin(const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_set_pipeline")
 void rive_gpu_pass_set_pipeline(uint32_t pass, uint32_t pipeline);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "pass_set_vertex_buffer")

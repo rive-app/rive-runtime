@@ -547,11 +547,11 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(props_p, props, propCount * 4);
                 return ret;
             },
-            pass_begin: (desc, descByteCount, colors, colorByteCount) => {
+            pass_begin: (desc, descByteCount, blob, blobCount) => {
                 stackReset();
                 const desc_p = stageIn(desc, descByteCount);
-                const colors_p = stageIn(colors, colorByteCount);
-                const ret = calls.rive_gpu_pass_begin(desc_p, descByteCount, colors_p, colorByteCount);
+                const blob_p = stageIn(blob, blobCount);
+                const ret = calls.rive_gpu_pass_begin(desc_p, descByteCount, blob_p, blobCount);
                 return ret;
             },
             pass_set_pipeline: calls.rive_gpu_pass_set_pipeline,

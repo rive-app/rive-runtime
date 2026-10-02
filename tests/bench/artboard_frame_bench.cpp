@@ -294,7 +294,12 @@ constexpr float kFrameSeconds = 1.0f / 60.0f;
 // it isn't there -- CI runs every bench once from places without the assets.
 bool readAsset(const char* name, std::vector<uint8_t>* bytes)
 {
+#ifdef NO_GETENV
+    // Consoles have no environment.
+    const char* dir = nullptr;
+#else
     const char* dir = getenv("RIVE_BENCH_ASSETS");
+#endif
     std::string path =
         std::string(dir != nullptr ? dir : "unit_tests/assets") + "/" + name;
     std::ifstream stream(path, std::ios::binary);

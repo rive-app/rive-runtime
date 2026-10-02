@@ -8,7 +8,9 @@
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <functional>
+#include <string>
 #include <utility>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 namespace rive::ore
@@ -253,6 +255,32 @@ private:
     std::vector<VkPendingTextureUpload> m_vkPendingTextureUploads;
     void vkQueuePendingTextureUpload(VkPendingTextureUpload pending);
     void vkFlushPendingTextureUploads();
+
+    // Per pass timestamps behind gpuProfiling(). Each frame writes one slot,
+    // read back once the frame is at or below safeFrameNumber; a frame that
+    // finds its slot still pending goes unmeasured rather than stalling.
+    static constexpr uint32_t kVkProfileSlots = 3;
+    static constexpr uint32_t kVkProfilePassesPerSlot = 64;
+    struct VkProfileSlot
+    {
+        uint64_t frameNumber = 0;
+        bool pending = false;
+        std::vector<std::string> labels;
+    };
+    VkQueryPool m_vkProfilePool = VK_NULL_HANDLE;
+    // Latched so a device without timestamps is not retried every frame.
+    bool m_vkProfileUnavailable = false;
+    bool m_vkProfileOverflowWarned = false;
+    uint64_t m_vkTimestampMask = UINT64_MAX;
+    VkProfileSlot m_vkProfileSlots[kVkProfileSlots];
+    // kVkProfileSlots when this frame has no slot.
+    uint32_t m_vkProfileSlot = kVkProfileSlots;
+    bool vkCreateProfilePool();
+    void vkBeginProfileFrame(const FrameDescriptor& desc);
+    void vkResolveProfileSlot(uint32_t index);
+    // Writes the pass's opening timestamp; returns its query index or
+    // UINT32_MAX when the pass goes unmeasured.
+    uint32_t vkBeginProfilePass(const RenderPassDesc& desc);
 };
 
 } // namespace rive::ore

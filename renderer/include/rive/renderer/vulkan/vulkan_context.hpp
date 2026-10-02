@@ -84,6 +84,7 @@ public:
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
     F(GetPhysicalDeviceProperties)                                             \
+    F(GetPhysicalDeviceQueueFamilyProperties)                                  \
     F(GetPhysicalDeviceFeatures)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
@@ -105,6 +106,7 @@ public:
     F(CmdNextSubpass)                                                          \
     F(CmdPipelineBarrier)                                                      \
     F(CmdPushConstants)                                                        \
+    F(CmdResetQueryPool)                                                       \
     F(CmdSetBlendConstants)                                                    \
     F(CmdSetColorWriteEnableEXT)                                               \
     F(CmdSetCullMode)                                                          \
@@ -115,6 +117,7 @@ public:
     F(CmdSetStencilReference)                                                  \
     F(CmdSetStencilWriteMask)                                                  \
     F(CmdSetViewport)                                                          \
+    F(CmdWriteTimestamp)                                                       \
     F(CreateCommandPool)                                                       \
     F(CreateDescriptorPool)                                                    \
     F(CreateDescriptorSetLayout)                                               \
@@ -123,6 +126,7 @@ public:
     F(CreateGraphicsPipelines)                                                 \
     F(CreateImageView)                                                         \
     F(CreatePipelineLayout)                                                    \
+    F(CreateQueryPool)                                                         \
     F(CreateRenderPass)                                                        \
     F(CreateSampler)                                                           \
     F(CreateShaderModule)                                                      \
@@ -134,12 +138,14 @@ public:
     F(DestroyImageView)                                                        \
     F(DestroyPipeline)                                                         \
     F(DestroyPipelineLayout)                                                   \
+    F(DestroyQueryPool)                                                        \
     F(DestroyRenderPass)                                                       \
     F(DestroySampler)                                                          \
     F(DestroyShaderModule)                                                     \
     F(EndCommandBuffer)                                                        \
     F(FreeCommandBuffers)                                                      \
     F(FreeDescriptorSets)                                                      \
+    F(GetQueryPoolResults)                                                     \
     F(QueueSubmit)                                                             \
     F(QueueWaitIdle)                                                           \
     F(ResetCommandBuffer)                                                      \

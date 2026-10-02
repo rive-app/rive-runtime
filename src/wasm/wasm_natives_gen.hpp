@@ -168,6 +168,7 @@ typedef struct rive_gpu_pass_desc_v1
     uint32_t stencilLoadOp;
     uint32_t stencilStoreOp;
     uint32_t stencilClearValue;
+    uint32_t labelSize;
 } rive_gpu_pass_desc_v1;
 
 typedef struct rive_gpu_pipeline_desc_v1
@@ -387,7 +388,7 @@ uint32_t gpuCanvasColorViewImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t* 
 uint32_t gpuCanvasImageImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t gpuCanvasResizeImpl(WasmScriptingVM* vm, uint32_t canvas, uint32_t width, uint32_t height, uint32_t* props, uint32_t propCount);
 uint32_t gpuTargetViewImpl(WasmScriptingVM* vm, uint32_t current, uint32_t* props, uint32_t propCount);
-uint32_t gpuPassBeginImpl(WasmScriptingVM* vm, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount);
+uint32_t gpuPassBeginImpl(WasmScriptingVM* vm, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 void gpuPassSetPipelineImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t pipeline);
 void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t slot, uint32_t buffer, uint32_t offset);
 void gpuPassSetIndexBufferImpl(WasmScriptingVM* vm, uint32_t pass, uint32_t buffer, uint32_t indexFormat, uint32_t offset);
@@ -1556,10 +1557,10 @@ uint32_t gpuTargetView(wasm_exec_env_t env, uint32_t current, uint32_t* props, u
     }
     return gpuTargetViewImpl(vm, current, props, propCount);
 }
-uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const rive_gpu_pass_color_attachment_v1* colors, uint32_t colorByteCount)
+uint32_t gpuPassBegin(wasm_exec_env_t env, const rive_gpu_pass_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
-    return gpuPassBeginImpl(vm, desc, descByteCount, colors, colorByteCount);
+    return gpuPassBeginImpl(vm, desc, descByteCount, blob, blobCount);
 }
 void gpuPassSetPipeline(wasm_exec_env_t env, uint32_t pass, uint32_t pipeline)
 {
