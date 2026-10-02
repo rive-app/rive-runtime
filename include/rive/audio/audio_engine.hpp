@@ -57,7 +57,6 @@ public:
                                 Artboard* artboard = nullptr);
 
     static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
-    static void ReleaseRuntimeEngine();
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     bool readAudioFrames(float* frames,

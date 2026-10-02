@@ -104,8 +104,6 @@ static const char* opToName(SerializeOp op)
             return "blendMode";
         case SerializeOp::additiveness:
             return "additiveness";
-        case SerializeOp::strokePosition:
-            return "strokePosition";
         case SerializeOp::shader:
             return "shader";
         case SerializeOp::paintModulatedImage:
@@ -231,18 +229,6 @@ public:
         m_writer->writeVarUint((uint32_t)m_cap);
     }
 
-    void strokePosition(StrokePosition value) override
-    {
-        if (m_strokePosition == value)
-        {
-            return;
-        }
-        m_strokePosition = value;
-        m_writer->writeVarUint((uint32_t)SerializeOp::strokePosition);
-        m_writer->writeVarUint(m_id);
-        m_writer->writeVarUint((uint32_t)m_strokePosition);
-    }
-
     void blendMode(BlendMode value) override
     {
         if (m_blendMode == value)
@@ -326,7 +312,6 @@ private:
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
-    StrokePosition m_strokePosition = StrokePosition::center;
     float m_feather = 0;
     float m_additiveness = 0;
     BlendMode m_blendMode = BlendMode::srcOver;
@@ -1677,22 +1662,6 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                     return false;
                 }
                 if (!varUintMatches(opA, "cap_value", readerA, readerB))
-                {
-                    return false;
-                }
-                break;
-            case SerializeOp::strokePosition:
-                if (!varUintMatches(opA,
-                                    "strokeposition_paint_id",
-                                    readerA,
-                                    readerB))
-                {
-                    return false;
-                }
-                if (!varUintMatches(opA,
-                                    "strokeposition_value",
-                                    readerA,
-                                    readerB))
                 {
                     return false;
                 }

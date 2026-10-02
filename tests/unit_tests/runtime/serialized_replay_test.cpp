@@ -16,7 +16,6 @@
 
 #include <catch.hpp>
 #include <cstring>
-#include <vector>
 
 using namespace rive;
 
@@ -38,7 +37,6 @@ TEST_CASE("serialized 2D commands replay byte-identically",
     paint->blendMode(BlendMode::multiply);
     paint->feather(2.0f);
     paint->additiveness(0.375f);
-    paint->strokePosition(StrokePosition::outside);
 
     RawPath rp;
     rp.move({0, 0});
@@ -297,69 +295,6 @@ TEST_CASE("replayed instances keep their data", "[serialize][replay]")
     CHECK(sink.got[0].opacity == 1.0f);
     CHECK(sink.got[0].uvScale.x == 1.0f);
     CHECK(sink.got[0].uvScale.y == 1.0f);
-}
-
-TEST_CASE("a centered stroke records no stroke position op",
-          "[serialize][replay]")
-{
-    // Every stroke in an existing file is centered, so recording one has to
-    // leave the stream byte for byte what it was before the op existed, or
-    // every silver with a stroke in it would need regenerating.
-    SerializingFactory plain;
-    auto plainPaint = plain.makeRenderPaint();
-    plainPaint->style(RenderPaintStyle::stroke);
-
-    SerializingFactory centered;
-    auto centeredPaint = centered.makeRenderPaint();
-    centeredPaint->style(RenderPaintStyle::stroke);
-    centeredPaint->strokePosition(StrokePosition::center);
-
-    auto sa = plain.bytes();
-    auto sb = centered.bytes();
-    REQUIRE(sa.size() == sb.size());
-    CHECK(std::memcmp(sa.data(), sb.data(), sa.size()) == 0);
-}
-
-TEST_CASE("a replayed paint keeps its stroke position", "[serialize][replay]")
-{
-    SerializingFactory a;
-    auto paint = a.makeRenderPaint();
-    paint->style(RenderPaintStyle::stroke);
-    paint->strokePosition(StrokePosition::inside);
-    auto recorded = a.bytes().size();
-    // Setting the same value again is deduped like every other paint op.
-    paint->strokePosition(StrokePosition::inside);
-    CHECK(a.bytes().size() == recorded);
-    paint->strokePosition(StrokePosition::outside);
-    CHECK(a.bytes().size() > recorded);
-
-    SerializingFactory b;
-    auto r = b.makeRenderer();
-    REQUIRE(replaySerializedCommands(a.bytes(), &b, r.get()));
-    auto sa = a.bytes();
-    auto sb = b.bytes();
-    REQUIRE(sa.size() == sb.size());
-    CHECK(std::memcmp(sa.data(), sb.data(), sa.size()) == 0);
-}
-
-TEST_CASE("an unknown stroke position fails replay", "[serialize][replay]")
-{
-    // Renderers assert on a position they don't know, so replay has to stop
-    // at it rather than pass it through.
-    SerializingFactory a;
-    auto paint = a.makeRenderPaint();
-    paint->strokePosition(StrokePosition::outside);
-    std::vector<uint8_t> stream(a.bytes().begin(), a.bytes().end());
-    // The op ends the stream: [strokePosition][paint id][value].
-    REQUIRE(stream.back() == (uint8_t)StrokePosition::outside);
-    stream.back() = 7;
-
-    SerializingFactory b;
-    auto r = b.makeRenderer();
-    CHECK_FALSE(replaySerializedCommands(
-        Span<const uint8_t>(stream.data(), stream.size()),
-        &b,
-        r.get()));
 }
 
 TEST_CASE("serialized replay rejects a bad header", "[serialize][replay]")

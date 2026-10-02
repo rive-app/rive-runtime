@@ -165,12 +165,6 @@ struct ColorGlyphCacheHash
     }
 };
 
-// Sweep gradients have no Rive shader and fall back to their first stop.
-void drawColorGlyphLayer(Renderer* renderer,
-                         Factory* factory,
-                         Font::ColorGlyphLayer& layer,
-                         float opacity);
-
 class Text : public TextBase,
              public TextInterface,
              public DataBindListItemConsumer

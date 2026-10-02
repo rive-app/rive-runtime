@@ -84,11 +84,6 @@ enum class SerializeOp : uint32_t
     // named image. Recorded inside the masked layer's canvas bracket, as the
     // last op before it closes.
     applyLayerMask = 42, // imageId, mode
-
-    // RenderPaint::strokePosition. Its own op for the same reason as
-    // additiveness: only written once a paint leaves center, so a stream with
-    // no inside or outside strokes is byte for byte what it was before.
-    strokePosition = 43, // paint id, value
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

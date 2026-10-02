@@ -10,12 +10,6 @@ class DataValueColor : public DataValue
 {
 private:
     int m_value = 0;
-    void setChannel(int shift, int value)
-    {
-        uint32_t mask = 0xFFu << shift;
-        m_value = (int)(((uint32_t)m_value & ~mask) |
-                        (((uint32_t)value & 0xFFu) << shift));
-    }
 
 public:
     DataValueColor(int value) : m_value(value) {};
@@ -31,11 +25,10 @@ public:
     int red() { return (m_value >> 16) & 0xFF; }
     int green() { return (m_value >> 8) & 0xFF; }
     int blue() { return m_value & 0xFF; }
-    // Channels keep their low 8 bits, like Color's, so they never spill.
-    void alpha(int value) { setChannel(24, value); }
-    void red(int value) { setChannel(16, value); }
-    void green(int value) { setChannel(8, value); }
-    void blue(int value) { setChannel(0, value); }
+    void alpha(int value) { m_value = (m_value & 0x00FFFFFF) | (value << 24); }
+    void red(int value) { m_value = (m_value & 0xFF00FFFF) | (value << 16); }
+    void green(int value) { m_value = (m_value & 0xFFFF00FF) | (value << 8); }
+    void blue(int value) { m_value = (m_value & 0xFFFFFF00) | value; }
     bool compare(DataValue* comparand) override
     {
         if (comparand->is<DataValueColor>())

@@ -22,11 +22,6 @@ static int luaB_print(lua_State* L)
             luaL_tolstring(L,
                            i,
                            &l); // convert to string using __tostring et al
-        if (i > 1)
-        {
-            // Same separator as Luau's own print.
-            context->print(Span<const char>("\t", 1));
-        }
         context->print(Span<const char>(s, l));
         lua_pop(L, 1); // pop result
     }

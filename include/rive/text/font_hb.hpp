@@ -5,6 +5,7 @@
 #include "rive/text_engine.hpp"
 
 #include <unordered_map>
+#include <memory>
 #include <vector>
 
 // Platforms where HBFont::DecodeFile can map a file. Declared here so callers
@@ -22,6 +23,48 @@ using hb_color_t = uint32_t;
 class HBFont : public rive::Font
 {
 public:
+    /** A mapped face for nominal coverage queries, without Rive font
+     * initialization. */
+    class FileProbe
+    {
+    public:
+        FileProbe(const FileProbe&) = delete;
+        FileProbe& operator=(const FileProbe&) = delete;
+        /** Releases the probe's font and its reference to the mapped file. */
+        ~FileProbe();
+        /**
+         * Checks nominal coverage without shaping, metrics, or drawing setup.
+         * @param codepoint Unicode character to look up.
+         * @return Whether the face contains the character, or false after
+         * promotion.
+         */
+        bool hasGlyph(rive::Unichar codepoint) const;
+        /**
+         * Transfers the existing HarfBuzz font and mapping into a Rive font.
+         * @return The initialized font, or nullptr if already promoted.
+         */
+        rive::rcp<rive::Font> makeFont();
+
+    private:
+        friend class HBFont;
+        /** Takes ownership of a HarfBuzz font and enables nominal glyph lookup.
+         */
+        explicit FileProbe(hb_font_t* font);
+        hb_font_t* m_font;
+    };
+
+    /**
+     * Maps a file for coverage queries without initializing Rive font metrics
+     * or drawing. The trusted, stable file restrictions documented on
+     * DecodeFile also apply here.
+     * @param path Stable local font file to map.
+     * @param faceIndex Face within a font collection.
+     * @return An owning probe, or nullptr on detectable failure or unsupported
+     * platforms.
+     */
+    static std::unique_ptr<FileProbe> ProbeFile(const char* path,
+                                                unsigned faceIndex = 0);
+
     // We assume ownership of font!
     HBFont(hb_font_t* font);
     ~HBFont() override;
@@ -52,8 +95,12 @@ public:
     bool hasGlyph(const rive::Unichar) const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
+    /// Decodes [bytes] in place, keeping them for the font's lifetime instead
+    /// of copying them.
+    static rive::rcp<rive::Font> Decode(std::vector<uint8_t>&& bytes);
 
     /// Decodes the font at [path] by mapping the file rather than copying it.
+    /// [faceIndex] picks a face within a font collection (.ttc).
     ///
     /// Only for trusted, stable local files -- system fonts are the intended
     /// use. The mapping stays live for the font's lifetime, and a null return
@@ -66,7 +113,8 @@ public:
     ///
     /// Returns null where RIVE_HB_FILE_MAPPING is undefined, so callers must
     /// always have a Decode fallback.
-    static rive::rcp<rive::Font> DecodeFile(const char* path);
+    static rive::rcp<rive::Font> DecodeFile(const char* path,
+                                            unsigned faceIndex = 0);
     static rive::rcp<rive::Font> FromSystem(void* systemFont,
                                             bool useSystemShaper,
                                             uint16_t weight,

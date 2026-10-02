@@ -991,71 +991,6 @@ void Text::draw(Renderer* renderer)
     }
 }
 
-void rive::drawColorGlyphLayer(Renderer* renderer,
-                               Factory* factory,
-                               Font::ColorGlyphLayer& layer,
-                               float opacity)
-{
-    using PaintType = Font::ColorGlyphPaintType;
-    auto paint = factory->makeRenderPaint();
-    paint->style(RenderPaintStyle::fill);
-    Mat2D toUnitCircle;
-    bool isLinear = layer.paintType == PaintType::linearGradient;
-    bool isRadial = layer.paintType == PaintType::radialGradient &&
-                    layer.radialTransform.invert(&toUnitCircle);
-    if (layer.stops.size() < 2 || (!isLinear && !isRadial))
-    {
-        ColorInt color =
-            layer.paintType == PaintType::solid || layer.stops.empty()
-                ? layer.color
-                : layer.stops.front().color;
-        paint->color(colorModulateOpacity(color, opacity));
-        renderer->drawPath(
-            factory->makeRenderPath(layer.path, FillRule::nonZero).get(),
-            paint.get());
-        return;
-    }
-
-    std::vector<ColorInt> colors;
-    std::vector<float> stops;
-    colors.reserve(layer.stops.size());
-    stops.reserve(layer.stops.size());
-    for (const auto& stop : layer.stops)
-    {
-        colors.push_back(colorModulateOpacity(stop.color, opacity));
-        stops.push_back(stop.offset);
-    }
-    if (isLinear)
-    {
-        paint->shader(factory->makeLinearGradient(layer.x0,
-                                                  layer.y0,
-                                                  layer.x1,
-                                                  layer.y1,
-                                                  colors.data(),
-                                                  stops.data(),
-                                                  colors.size()));
-        renderer->drawPath(
-            factory->makeRenderPath(layer.path, FillRule::nonZero).get(),
-            paint.get());
-        return;
-    }
-
-    // Radial shaders are circles, so draw in the gradient's own space.
-    paint->shader(factory->makeRadialGradient(0,
-                                              0,
-                                              1,
-                                              colors.data(),
-                                              stops.data(),
-                                              colors.size()));
-    layer.path.transformInPlace(toUnitCircle);
-    renderer->save();
-    renderer->transform(layer.radialTransform);
-    renderer->drawPath(
-        factory->makeRenderPath(layer.path, FillRule::nonZero).get(),
-        paint.get());
-    renderer->restore();
-}
-
 void Text::drawColorGlyph(Renderer* renderer,
                           const TextDrawCommand::ColorGlyphInfo& info,
                           const Mat2D& worldTransform)
@@ -1108,7 +1043,12 @@ void Text::drawColorGlyph(Renderer* renderer,
         }
         else
         {
-            drawColorGlyphLayer(renderer, factory, layer, info.opacity);
+            auto renderPath =
+                factory->makeRenderPath(layer.path, FillRule::nonZero);
+            auto renderPaint = factory->makeRenderPaint();
+            renderPaint->style(RenderPaintStyle::fill);
+            renderPaint->color(colorModulateOpacity(layer.color, info.opacity));
+            renderer->drawPath(renderPath.get(), renderPaint.get());
         }
     }
     renderer->restore();

@@ -658,10 +658,10 @@ public:
                 return new ListenerInputTypeEvent();
             case ListenerInputTypeGamepadBase::typeKey:
                 return new ListenerInputTypeGamepad();
-            case ListenerInputTypePointerButtonBase::typeKey:
-                return new ListenerInputTypePointerButton();
             case ListenerInputTypeKeyboardBase::typeKey:
                 return new ListenerInputTypeKeyboard();
+            case ListenerInputTypePointerButtonBase::typeKey:
+                return new ListenerInputTypePointerButton();
             case ListenerInputTypeTextBase::typeKey:
                 return new ListenerInputTypeText();
             case ListenerInputTypeSemanticBase::typeKey:
@@ -1743,9 +1743,6 @@ public:
                 break;
             case StrokeBase::joinPropertyKey:
                 object->as<StrokeBase>()->join(value);
-                break;
-            case StrokeBase::positionPropertyKey:
-                object->as<StrokeBase>()->position(value);
                 break;
             case PaintImageBase::imageSamplerFilterPropertyKey:
                 object->as<PaintImageBase>()->imageSamplerFilter(value);
@@ -3908,8 +3905,6 @@ public:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
                 return object->as<StrokeBase>()->join();
-            case StrokeBase::positionPropertyKey:
-                return object->as<StrokeBase>()->position();
             case PaintImageBase::imageSamplerFilterPropertyKey:
                 return object->as<PaintImageBase>()->imageSamplerFilter();
             case PaintImageBase::imageSamplerWrapXPropertyKey:
@@ -5246,7 +5241,6 @@ public:
             case ColorChannelsBase::colorAlphaPropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
-            case StrokeBase::positionPropertyKey:
             case PaintImageBase::imageSamplerFilterPropertyKey:
             case PaintImageBase::imageSamplerWrapXPropertyKey:
             case PaintImageBase::imageSamplerWrapYPropertyKey:
@@ -6195,8 +6189,6 @@ public:
             case StrokeBase::capPropertyKey:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:
-                return object->is<StrokeBase>();
-            case StrokeBase::positionPropertyKey:
                 return object->is<StrokeBase>();
             case PaintImageBase::imageSamplerFilterPropertyKey:
                 return object->is<PaintImageBase>();

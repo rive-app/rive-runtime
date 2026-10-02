@@ -48,11 +48,6 @@ public:
                                             const CommandQueue::PointerEvent&);
     rive::HitResult pointerUpSynchronized(StateMachineHandle,
                                           const CommandQueue::PointerEvent&);
-    // Whether a listener under the event's position responds to presses of
-    // its button. Lets a host keep a mouse button for its own use wherever
-    // nothing in the scene wants it.
-    bool listensToButtonAtSynchronized(StateMachineHandle,
-                                       const CommandQueue::PointerEvent&);
 
     File* getFile(FileHandle) const;
     bool getWasDisconnected() const { return m_wasDisconnectReceived; }

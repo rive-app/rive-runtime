@@ -568,7 +568,12 @@ void RawText::drawColorGlyph(Renderer* renderer,
     renderer->transform(transform);
     for (auto& layer : layers)
     {
-        drawColorGlyphLayer(renderer, m_factory, layer, 1.0f);
+        auto renderPath =
+            m_factory->makeRenderPath(layer.path, FillRule::nonZero);
+        auto layerPaint = m_factory->makeRenderPaint();
+        layerPaint->style(RenderPaintStyle::fill);
+        layerPaint->color(layer.color);
+        renderer->drawPath(renderPath.get(), layerPaint.get());
     }
     renderer->restore();
 }

@@ -549,8 +549,6 @@ rcp<AudioEngine> AudioEngine::RuntimeEngine(bool makeWhenNecessary)
     return m_runtimeAudioEngine;
 }
 
-void AudioEngine::ReleaseRuntimeEngine() { m_runtimeAudioEngine = nullptr; }
-
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
 bool AudioEngine::readAudioFrames(float* frames,
                                   uint64_t numFrames,

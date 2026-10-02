@@ -34,13 +34,6 @@ void rive_web_rt_budget_exceeded(uint32_t vmHandle, uint32_t ms)
     rtBudgetExceededImpl(vm, ms);
 }
 EMSCRIPTEN_KEEPALIVE
-void rive_web_rt_error(uint32_t vmHandle, const char* message, uint32_t length)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    WasmStringArg messageUtf8(vm, message, length);
-    rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
-}
-EMSCRIPTEN_KEEPALIVE
 void rive_web_rt_debug_enter(uint32_t vmHandle, uint32_t func, uint32_t line)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -571,12 +564,6 @@ uint32_t rive_web_artboard_pointer_event(uint32_t vmHandle, uint32_t artboard, u
     return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
 EMSCRIPTEN_KEEPALIVE
-uint32_t rive_web_artboard_gamepad_event(uint32_t vmHandle, uint32_t artboard, const uint8_t* payload, uint32_t byteCount)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    return artboardGamepadEventImpl(vm, artboard, payload, byteCount);
-}
-EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_animation(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -606,12 +593,6 @@ void rive_web_artboard_animation_set_time(uint32_t vmHandle, uint32_t animation,
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     artboardAnimationSetTimeImpl(vm, animation, value, mode);
-}
-EMSCRIPTEN_KEEPALIVE
-void rive_web_artboard_add_to_path(uint32_t vmHandle, uint32_t artboard, uint32_t path, float xx, float xy, float yx, float yy, float tx, float ty)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    artboardAddToPathImpl(vm, artboard, path, xx, xy, yx, yy, tx, ty);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_node(uint32_t vmHandle, uint32_t artboard, const char* name, uint32_t length)
@@ -1329,12 +1310,6 @@ uint32_t rive_web_gpu_bind_group_layout_from_shader(uint32_t vmHandle, uint32_t 
     return gpuBindGroupLayoutFromShaderImpl(vm, shaderModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
 EMSCRIPTEN_KEEPALIVE
-uint32_t rive_web_gpu_bind_group_layout_from_shaders(uint32_t vmHandle, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    return gpuBindGroupLayoutFromShadersImpl(vm, vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount);
-}
-EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_gpu_bind_group_new(uint32_t vmHandle, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -1677,31 +1652,6 @@ void rive_web_shader_release(uint32_t vmHandle, uint32_t shader)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     shaderReleaseImpl(vm, shader);
-}
-EMSCRIPTEN_KEEPALIVE
-uint32_t rive_web_test_blob(uint32_t vmHandle, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    WasmStringArg nameUtf8(vm, name, nameLength);
-    return testBlobImpl(vm, nameUtf8.data(), nameUtf8.size(), out, outCount);
-}
-EMSCRIPTEN_KEEPALIVE
-void rive_web_transition_child_draw(uint32_t vmHandle, uint32_t child, uint32_t renderer)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    transitionChildDrawImpl(vm, child, renderer);
-}
-EMSCRIPTEN_KEEPALIVE
-float rive_web_transition_child_width(uint32_t vmHandle, uint32_t child)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    return transitionChildWidthImpl(vm, child);
-}
-EMSCRIPTEN_KEEPALIVE
-float rive_web_transition_child_height(uint32_t vmHandle, uint32_t child)
-{
-    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
-    return transitionChildHeightImpl(vm, child);
 }
 EMSCRIPTEN_KEEPALIVE
 void rive_web_renderer_save(uint32_t vmHandle, uint32_t renderer)
