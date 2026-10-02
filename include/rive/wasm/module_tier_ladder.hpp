@@ -12,6 +12,7 @@
 #endif
 
 #include "rive/span.hpp"
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -83,16 +84,28 @@ public:
     void stagePristine(uint64_t moduleKey, Span<const uint8_t> moduleBytes);
 
     // Ready artifact path for a module at the given species, empty if none.
-    std::string artifactPath(uint64_t moduleKey, TierSpecies species);
+    // A target names a device to compile for instead of this machine, such
+    // as "android-aarch64".
+    std::string artifactPath(uint64_t moduleKey,
+                             TierSpecies species,
+                             const std::string& target = std::string());
 
     // Compile one species on the calling thread, bypassing the worker pool
     // and lane supersession, and return the artifact path (or an existing
     // artifact's path immediately). Empty on failure. This is the sync-boot
     // path: a host that would rather block for seconds than run a module on
     // the interpreter at all.
+    // Setting cancel, then calling cancelCrossCompiles, stops a device
+    // target compile even one that has not spawned yet.
     std::string compileSync(uint64_t moduleKey,
                             Span<const uint8_t> moduleBytes,
-                            TierSpecies species);
+                            TierSpecies species,
+                            const std::string& target = std::string(),
+                            const std::atomic<bool>* cancel = nullptr);
+
+    // Kills the device target compiles whose cancel flag is set, which then
+    // return empty.
+    void cancelCrossCompiles();
 
     // Test hooks: block until the lane has no queued or running compiles.
     void drain();
@@ -111,8 +124,10 @@ private:
         TierSpecies species = TierSpecies::o0;
         std::string wasmPath;
         uint64_t generation = 0;
+        std::string target;
         pid_t pid = -1;
         bool cancelled = false;
+        const std::atomic<bool>* cancel = nullptr;
     };
 
     void ensureWorkers();
@@ -120,6 +135,7 @@ private:
     bool runWamrc(Job& job);
     std::string artifactName(uint64_t moduleKey, TierSpecies species);
     std::string keyedCacheDir();
+    std::string artifactDir(const std::string& target);
     const std::string& wamrcVersion();
 
     std::mutex m_mutex;
@@ -135,6 +151,9 @@ private:
     ArrivalCallback m_arrival;
     std::deque<Job> m_queue;
     std::vector<Job*> m_running;
+    // compileSync jobs for a device target, apart from m_running so lane
+    // supersession never touches them.
+    std::vector<Job*> m_crossJobs;
     // Latest schedule generation per lane; older jobs are stale and are
     // killed (running) or skipped (queued).
     std::unordered_map<std::string, uint64_t> m_laneGeneration;
@@ -174,11 +193,21 @@ public:
 
     void schedule(const std::string&, uint64_t, Span<const uint8_t>) {}
     void stagePristine(uint64_t, Span<const uint8_t>) {}
-    std::string artifactPath(uint64_t, TierSpecies) { return std::string(); }
-    std::string compileSync(uint64_t, Span<const uint8_t>, TierSpecies)
+    std::string artifactPath(uint64_t,
+                             TierSpecies,
+                             const std::string& = std::string())
     {
         return std::string();
     }
+    std::string compileSync(uint64_t,
+                            Span<const uint8_t>,
+                            TierSpecies,
+                            const std::string& = std::string(),
+                            const std::atomic<bool>* = nullptr)
+    {
+        return std::string();
+    }
+    void cancelCrossCompiles() {}
     void drain() {}
 
     static constexpr size_t kStraightToO3Bytes = 50 * 1024;

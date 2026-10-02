@@ -1,5 +1,6 @@
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
+#include "rive/wasm/aot_artifact.hpp"
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/wamr_state_transplant.hpp"
 #include "rive/wasm/wasm_scripting_vm.hpp"
@@ -8292,6 +8293,8 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         return false;
     }
 
+    // A debugger pins before init; a rejected artifact must not unpin it.
+    const bool callerPinned = m_tierPinned;
     // wasm_runtime_load keeps referencing the buffer, so hold a copy.
     m_moduleBytes.assign(module.begin(), module.end());
     // Snapshot before load: the loader mutates m_moduleBytes in place
@@ -8301,11 +8304,8 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     // One content hash serves the dev AOT artifact lookup and the shared
     // module cache key; the key folds in which artifact actually loads so
     // interp and AOT lanes never share an entry.
-    uint64_t moduleKey = 0xcbf29ce484222325ull;
-    for (uint8_t byte : m_moduleBytes)
-    {
-        moduleKey = (moduleKey ^ byte) * 0x100000001b3ull;
-    }
+    uint64_t moduleKey = wasmModuleKey(
+        Span<const uint8_t>(m_moduleBytes.data(), m_moduleBytes.size()));
     m_state = std::make_unique<WamrState>();
     m_moduleKey = moduleKey;
     char error[256] = {0};
@@ -8324,9 +8324,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         // ever probe the .hw.aot name; sw-only builds cannot load them.
         snprintf(aotPath,
                  sizeof(aotPath),
-                 "%s/%016llx.hw.aot",
+                 "%s/%s",
                  cacheDir,
-                 (unsigned long long)moduleKey);
+                 aotArtifactName(moduleKey, ".hw").c_str());
         struct stat hwAotStat;
         haveHwAot = stat(aotPath, &hwAotStat) == 0;
 #endif
@@ -8334,9 +8334,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         {
             snprintf(aotPath,
                      sizeof(aotPath),
-                     "%s/%016llx.aot",
+                     "%s/%s",
                      cacheDir,
-                     (unsigned long long)moduleKey);
+                     aotArtifactName(moduleKey).c_str());
             struct stat aotStat;
             haveAot = stat(aotPath, &aotStat) == 0;
         }
@@ -8345,9 +8345,9 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             char dumpPath[1024];
             snprintf(dumpPath,
                      sizeof(dumpPath),
-                     "%s/%016llx.wasm",
+                     "%s/%s",
                      cacheDir,
-                     (unsigned long long)moduleKey);
+                     wasmModuleName(moduleKey).c_str());
             struct stat dumpStat;
             if (stat(dumpPath, &dumpStat) != 0)
             {
@@ -8473,7 +8473,14 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         moduleKey ^= 0x27d4eb2f165667c5ull;
     }
     auto& cache = sharedModuleCache();
-    auto adoptCached = [&](SharedWasmModule& entry) {
+    bool adoptedFromCache = false;
+    auto adoptCached = [&]() {
+        auto cached = cache.find(moduleKey);
+        if (cached == cache.end())
+        {
+            return false;
+        }
+        SharedWasmModule& entry = cached->second;
         m_state->module = entry.module;
         m_state->ownsModule = false;
         m_tier = entry.tier;
@@ -8483,15 +8490,10 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_scheduleBytes = Span<const uint8_t>(entry.pristineBytes.data(),
                                               entry.pristineBytes.size());
         m_moduleBytes.clear();
-    };
-    bool adoptedFromCache = false;
-    auto cached = cache.find(moduleKey);
-    if (cached != cache.end())
-    {
-        adoptCached(cached->second);
         adoptedFromCache = true;
-    }
-    else
+        return true;
+    };
+    if (!adoptCached())
     {
         if (haveAot || haveHwAot || haveO0Aot)
         {
@@ -8534,30 +8536,51 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                         error);
                 prelinked = nullptr;
                 moduleKey ^= 0x94d049bb133111ebull;
-                auto fallback = cache.find(moduleKey);
-                if (fallback != cache.end())
-                {
-                    adoptCached(fallback->second);
-                    adoptedFromCache = true;
-                }
+                adoptCached();
             }
         }
         if (m_state->module == nullptr)
 #endif
         {
-            if (!haveAot && !haveHwAot && !haveO0Aot)
+            auto loadBytes = [&]() {
+                if (!haveAot && !haveHwAot && !haveO0Aot)
+                {
+                    // The load below rewrites the buffer in place; wamrc
+                    // needs the module as it is now.
+                    ModuleTierLadder::instance().stagePristine(
+                        m_moduleKey,
+                        Span<const uint8_t>(m_moduleBytes.data(),
+                                            m_moduleBytes.size()));
+                }
+                m_state->module =
+                    wasm_runtime_load(m_moduleBytes.data(),
+                                      (uint32_t)m_moduleBytes.size(),
+                                      error,
+                                      sizeof(error));
+            };
+            loadBytes();
+            if (m_state->module == nullptr &&
+                (haveAot || haveHwAot || haveO0Aot))
             {
-                // The load below rewrites the buffer in place; wamrc needs
-                // the module as it is now.
-                ModuleTierLadder::instance().stagePristine(
-                    m_moduleKey,
-                    Span<const uint8_t>(m_moduleBytes.data(),
-                                        m_moduleBytes.size()));
+                // A stale artifact, say from another WAMR, must not fail the
+                // file; drop to the wasm bytes under the plain key.
+                fprintf(stderr,
+                        "wasm aot: %s rejected (%s); falling back\n",
+                        aotPath,
+                        error);
+                // Every later load would read and reject it again.
+                remove(aotPath);
+                haveAot = haveHwAot = haveO0Aot = false;
+                m_tier = ExecutionTier::interp;
+                // The pin held the rejected artifact's tier, not this one.
+                m_tierPinned = callerPinned;
+                moduleKey = m_moduleKey;
+                if (!adoptCached())
+                {
+                    m_moduleBytes = pristineBytes;
+                    loadBytes();
+                }
             }
-            m_state->module = wasm_runtime_load(m_moduleBytes.data(),
-                                                (uint32_t)m_moduleBytes.size(),
-                                                error,
-                                                sizeof(error));
         }
         if (m_state->module != nullptr && !adoptedFromCache)
         {

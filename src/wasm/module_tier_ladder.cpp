@@ -1,6 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
 #include "rive/wasm/module_tier_ladder.hpp"
+#include "rive/wasm/aot_artifact.hpp"
 
 #ifdef RIVE_WASM_TIER_LADDER
 
@@ -163,6 +164,29 @@ const std::string& ModuleTierLadder::wamrcVersion()
     return m_wamrcVersion;
 }
 
+// wamrc flags naming a device target, null for one we cannot compile for.
+static const char* const* crossTargetArgs(const std::string& target)
+{
+    // Android reserves x18 for its shadow call stack.
+    static const char* const androidAarch64[] = {"--target=aarch64v8",
+                                                 "--target-abi=gnu",
+                                                 "--cpu=generic",
+                                                 "--cpu-features=+reserve-x18",
+                                                 nullptr};
+    static const char* const androidX64[] = {"--target=x86_64",
+                                             "--target-abi=gnu",
+                                             nullptr};
+    if (target == kAotTargetAndroidAarch64)
+    {
+        return androidAarch64;
+    }
+    if (target == kAotTargetAndroidX64)
+    {
+        return androidX64;
+    }
+    return nullptr;
+}
+
 // The module exports __riveHostBudget. A byte search suffices: a false
 // hit only adds interrupt checks.
 static bool asksHostBudget(const std::string& wasmPath)
@@ -184,32 +208,46 @@ std::string ModuleTierLadder::keyedCacheDir()
     return dir;
 }
 
+// Device artifacts sit apart from this machine's, which share their names.
+std::string ModuleTierLadder::artifactDir(const std::string& target)
+{
+    std::string dir = keyedCacheDir();
+    if (target.empty())
+    {
+        return dir;
+    }
+    dir += "/" + target;
+    mkdir(dir.c_str(), 0755);
+    return dir;
+}
+
 std::string ModuleTierLadder::artifactName(uint64_t moduleKey,
                                            TierSpecies species)
 {
-    const char* pattern = "%016llx.aot";
     if (species == TierSpecies::o0)
     {
-        pattern = "%016llx.o0.aot";
+        return aotArtifactName(moduleKey, ".o0");
     }
-    else if (species == TierSpecies::hw)
+    if (species == TierSpecies::hw)
     {
-        pattern = "%016llx.hw.aot";
+        return aotArtifactName(moduleKey, ".hw");
     }
-    char name[64];
-    snprintf(name, sizeof(name), pattern, (unsigned long long)moduleKey);
-    return name;
+    return aotArtifactName(moduleKey);
 }
 
 std::string ModuleTierLadder::artifactPath(uint64_t moduleKey,
-                                           TierSpecies species)
+                                           TierSpecies species,
+                                           const std::string& target)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
-    if (m_wamrcPath.empty() || m_cacheDir.empty())
+    // Targets come from link peers, so only known ones reach a path.
+    if (m_wamrcPath.empty() || m_cacheDir.empty() ||
+        (!target.empty() && crossTargetArgs(target) == nullptr))
     {
         return std::string();
     }
-    std::string path = keyedCacheDir() + "/" + artifactName(moduleKey, species);
+    std::string path =
+        artifactDir(target) + "/" + artifactName(moduleKey, species);
     struct stat st;
     if (stat(path.c_str(), &st) == 0)
     {
@@ -250,12 +288,7 @@ void ModuleTierLadder::stagePristine(uint64_t moduleKey,
         return;
     }
     std::unique_lock<std::mutex> lock(m_mutex);
-    char wasmName[64];
-    snprintf(wasmName,
-             sizeof(wasmName),
-             "%016llx.wasm",
-             (unsigned long long)moduleKey);
-    std::string wasmPath = keyedCacheDir() + "/" + wasmName;
+    std::string wasmPath = keyedCacheDir() + "/" + wasmModuleName(moduleKey);
     struct stat st;
     if (stat(wasmPath.c_str(), &st) == 0)
     {
@@ -266,13 +299,15 @@ void ModuleTierLadder::stagePristine(uint64_t moduleKey,
 
 std::string ModuleTierLadder::compileSync(uint64_t moduleKey,
                                           Span<const uint8_t> moduleBytes,
-                                          TierSpecies species)
+                                          TierSpecies species,
+                                          const std::string& target,
+                                          const std::atomic<bool>* cancel)
 {
-    if (!enabled())
+    if (!enabled() || (!target.empty() && crossTargetArgs(target) == nullptr))
     {
         return std::string();
     }
-    std::string existing = artifactPath(moduleKey, species);
+    std::string existing = artifactPath(moduleKey, species, target);
     if (!existing.empty())
     {
         return existing;
@@ -281,21 +316,43 @@ std::string ModuleTierLadder::compileSync(uint64_t moduleKey,
     std::string wasmPath;
     {
         std::unique_lock<std::mutex> lock(m_mutex);
-        char wasmName[64];
-        snprintf(wasmName,
-                 sizeof(wasmName),
-                 "%016llx.wasm",
-                 (unsigned long long)moduleKey);
-        wasmPath = keyedCacheDir() + "/" + wasmName;
+        wasmPath = keyedCacheDir() + "/" + wasmModuleName(moduleKey);
     }
     // Runs on the caller's thread and never joins m_running, so lane
     // supersession cannot kill it out from under the boot.
     Job job{std::string(), moduleKey, species, wasmPath, 0};
-    if (!runWamrc(job))
+    job.target = target;
+    job.cancel = cancel;
+    if (!target.empty())
     {
-        return std::string();
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_crossJobs.push_back(&job);
     }
-    return artifactPath(moduleKey, species);
+    bool ok = runWamrc(job);
+    if (!target.empty())
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_crossJobs.erase(
+            std::find(m_crossJobs.begin(), m_crossJobs.end(), &job));
+    }
+    return ok ? artifactPath(moduleKey, species, target) : std::string();
+}
+
+void ModuleTierLadder::cancelCrossCompiles()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    for (Job* job : m_crossJobs)
+    {
+        if (job->cancel == nullptr || !job->cancel->load())
+        {
+            continue;
+        }
+        job->cancelled = true;
+        if (job->pid > 0)
+        {
+            kill(job->pid, SIGKILL);
+        }
+    }
 }
 
 void ModuleTierLadder::schedule(const std::string& laneId,
@@ -348,12 +405,7 @@ void ModuleTierLadder::schedule(const std::string& laneId,
     }
 
     std::string dir = keyedCacheDir();
-    char wasmName[64];
-    snprintf(wasmName,
-             sizeof(wasmName),
-             "%016llx.wasm",
-             (unsigned long long)moduleKey);
-    std::string wasmPath = dir + "/" + wasmName;
+    std::string wasmPath = dir + "/" + wasmModuleName(moduleKey);
 
     // On guard-page builds the top rung is the hw species: no inline
     // bounds checks and growth never moves the memory base.
@@ -477,8 +529,8 @@ bool ModuleTierLadder::runWamrc(Job& job)
     std::string wamrc;
     {
         std::unique_lock<std::mutex> lock(m_mutex);
-        finalPath =
-            keyedCacheDir() + "/" + artifactName(job.moduleKey, job.species);
+        finalPath = artifactDir(job.target) + "/" +
+                    artifactName(job.moduleKey, job.species);
         wamrc = m_wamrcPath;
     }
     // Unique temp per compile: the same artifact can be raced by a worker
@@ -509,12 +561,27 @@ bool ModuleTierLadder::runWamrc(Job& job)
     {
         args.push_back("--opt-level=3");
     }
+    if (!job.target.empty())
+    {
+        const char* const* targetArgs = crossTargetArgs(job.target);
+        if (targetArgs == nullptr)
+        {
+            return false;
+        }
+        for (; *targetArgs != nullptr; targetArgs++)
+        {
+            args.push_back(*targetArgs);
+        }
+    }
 #if (defined(__APPLE__) || defined(_WIN32)) &&                                 \
     (defined(__aarch64__) || defined(_M_ARM64))
-    // The platform clobbers x18; reserve it here so safety does not depend on
-    // the wamrc we were handed. Features need an explicit cpu.
-    args.push_back("--cpu=generic");
-    args.push_back("--cpu-features=+reserve-x18");
+    else
+    {
+        // The platform clobbers x18; reserve it here so safety does not
+        // depend on the wamrc we were handed. Features need an explicit cpu.
+        args.push_back("--cpu=generic");
+        args.push_back("--cpu-features=+reserve-x18");
+    }
 #endif
     // Loop back-edges and calls check the watchdog only in modules that ask
     // for it; the module bytes, and so its cache key, decide.
@@ -561,6 +628,15 @@ bool ModuleTierLadder::runWamrc(Job& job)
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         job.pid = pid;
+        // A cancel that landed before the spawn had no pid to kill.
+        if (job.cancel != nullptr && job.cancel->load())
+        {
+            job.cancelled = true;
+        }
+        if (job.cancelled)
+        {
+            kill(pid, SIGKILL);
+        }
     }
     // The whole child runs below interactive priority; the editor's frame
     // loop must never contend with LLVM.
