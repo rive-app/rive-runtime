@@ -1800,6 +1800,12 @@ public:
     virtual void printError(lua_State* state) = 0;
     virtual void printBeginLine(lua_State* state) = 0;
     virtual void print(Span<const char> data) = 0;
+    // Separates two of print's arguments. The separator is presentation, so
+    // it belongs only to a sink that renders a line of text: a sink that
+    // records each argument as a discrete value would store it as a value of
+    // its own, and its reader supplies a separator of its own when it joins
+    // them back into a line.
+    virtual void printSeparator() { print(Span<const char>("\t", 1)); }
     virtual void printEndLine() = 0;
     virtual int pCall(lua_State* state, int nargs, int nresults) = 0;
 
@@ -2618,6 +2624,20 @@ public:
         {
             auto message = std::string(data.data(), data.size());
             printf("%s", message.c_str());
+        }
+    }
+
+    // print() above records a span whether or not anyone installed a
+    // callback -- scripting_workspace and the player both read the buffer
+    // without one -- so the separator never goes there. It belongs to the
+    // stdout half, which runs on the same condition print() uses.
+    void printSeparator() override
+    {
+#ifdef WITH_RIVE_TOOLS
+        if (m_consoleCallback == nullptr)
+#endif
+        {
+            printf("\t");
         }
     }
 

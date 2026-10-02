@@ -32,6 +32,10 @@ public:
         m_line.append(data.data(), data.size());
     }
 
+    // print() is redirected into m_line, so the base's stdout separator would
+    // land somewhere this line never sees.
+    void printSeparator() override { print(Span<const char>("\t", 1)); }
+
     void printEndLine() override
     {
         m_sink(ScriptingLogLevel::info, m_line.c_str(), m_line.size());

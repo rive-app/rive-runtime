@@ -36,28 +36,55 @@ rive::Font::FallbackProc rive::Font::gFallbackProc;
 
 bool rive::Font::gFallbackProcEnabled = true;
 
+namespace
+{
+// Takes ownership of blob, which is null when harfbuzz already released its
+// data.
+hb_font_t* hbFontFromBlob(hb_blob_t* blob, unsigned faceIndex = 0)
+{
+    if (blob == nullptr)
+    {
+        return nullptr;
+    }
+    auto face = hb_face_create_or_fail(blob, faceIndex);
+    hb_blob_destroy(blob);
+    if (face == nullptr)
+    {
+        return nullptr;
+    }
+    auto font = hb_font_create(face);
+    hb_face_destroy(face);
+    return font;
+}
+
+/** Takes ownership of blob and initializes a Rive font from its first face. */
+rive::rcp<rive::Font> fontFromBlob(hb_blob_t* blob)
+{
+    auto* font = hbFontFromBlob(blob);
+    return font ? rive::rcp<rive::Font>(new HBFont(font)) : nullptr;
+}
+} // namespace
+
 rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
 {
-    auto blob = hb_blob_create_or_fail((const char*)span.data(),
-                                       (unsigned)span.size(),
-                                       HB_MEMORY_MODE_DUPLICATE,
-                                       nullptr,
-                                       nullptr);
-    if (blob)
-    {
-        auto face = hb_face_create_or_fail(blob, 0);
-        hb_blob_destroy(blob);
-        if (face)
-        {
-            auto font = hb_font_create(face);
-            hb_face_destroy(face);
-            if (font)
-            {
-                return rive::rcp<rive::Font>(new HBFont(font));
-            }
-        }
-    }
-    return nullptr;
+    return fontFromBlob(hb_blob_create_or_fail((const char*)span.data(),
+                                               (unsigned)span.size(),
+                                               HB_MEMORY_MODE_DUPLICATE,
+                                               nullptr,
+                                               nullptr));
+}
+
+rive::rcp<rive::Font> HBFont::Decode(std::vector<uint8_t>&& bytes)
+{
+    auto* owned = new std::vector<uint8_t>(std::move(bytes));
+    return fontFromBlob(hb_blob_create_or_fail(
+        reinterpret_cast<const char*>(owned->data()),
+        static_cast<unsigned>(owned->size()),
+        HB_MEMORY_MODE_WRITABLE,
+        owned,
+        [](void* context) {
+            delete static_cast<std::vector<uint8_t>*>(context);
+        }));
 }
 
 #ifdef RIVE_HB_FILE_MAPPING
@@ -78,7 +105,38 @@ void destroyHBFileMapping(void* context)
 } // namespace
 #endif
 
-rive::rcp<rive::Font> HBFont::DecodeFile(const char* path)
+HBFont::FileProbe::FileProbe(hb_font_t* font) : m_font(font)
+{
+    hb_ot_font_set_funcs(m_font);
+}
+
+HBFont::FileProbe::~FileProbe() { hb_font_destroy(m_font); }
+
+bool HBFont::FileProbe::hasGlyph(rive::Unichar codepoint) const
+{
+    hb_codepoint_t glyph;
+    return m_font && hb_font_get_nominal_glyph(m_font, codepoint, &glyph);
+}
+
+rive::rcp<rive::Font> HBFont::FileProbe::makeFont()
+{
+    if (!m_font)
+    {
+        return nullptr;
+    }
+    auto* font = m_font;
+    m_font = nullptr; // HBFont now owns the same face and mapped bytes.
+    return rive::rcp<rive::Font>(new HBFont(font));
+}
+
+rive::rcp<rive::Font> HBFont::DecodeFile(const char* path, unsigned faceIndex)
+{
+    auto probe = ProbeFile(path, faceIndex);
+    return probe ? probe->makeFont() : nullptr;
+}
+
+std::unique_ptr<HBFont::FileProbe> HBFont::ProbeFile(const char* path,
+                                                     unsigned faceIndex)
 {
 #ifdef RIVE_HB_FILE_MAPPING
     if (path == nullptr)
@@ -109,30 +167,14 @@ rive::rcp<rive::Font> HBFont::DecodeFile(const char* path)
 
     // READONLY_MAY_MAKE_WRITABLE: harfbuzz reads our clean, evictable file
     // pages and only copies if it ever needs to write.
-    auto blob =
+    auto* font = hbFontFromBlob(
         hb_blob_create_or_fail(static_cast<const char*>(data),
                                static_cast<unsigned>(size),
                                HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE,
                                new HBFileMapping{data, size},
-                               &destroyHBFileMapping);
-    // On failure harfbuzz has already invoked the destroy callback.
-    if (blob == nullptr)
-    {
-        return nullptr;
-    }
-    auto face = hb_face_create_or_fail(blob, 0);
-    hb_blob_destroy(blob);
-    if (face == nullptr)
-    {
-        return nullptr;
-    }
-    auto font = hb_font_create(face);
-    hb_face_destroy(face);
-    if (font == nullptr)
-    {
-        return nullptr;
-    }
-    return rive::rcp<rive::Font>(new HBFont(font));
+                               &destroyHBFileMapping),
+        faceIndex);
+    return font ? std::unique_ptr<FileProbe>(new FileProbe(font)) : nullptr;
 #else
     return nullptr;
 #endif

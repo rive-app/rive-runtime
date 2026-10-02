@@ -499,12 +499,18 @@ public:
         StateMachineFireOccurance occurs,
         const std::vector<std::unique_ptr<ListenerAction>>& listenerActions)
     {
+        bool performed = false;
         for (const auto& action : listenerActions)
         {
             if (action->matchesScheduledOccurrence(occurs))
             {
                 action->perform(smi, ListenerInvocation::none());
+                performed = true;
             }
+        }
+        if (performed)
+        {
+            smi->updateDataBinds(false);
         }
     }
 

@@ -1349,7 +1349,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_byteVectors >> bytes;
                 lock.unlock();
 
-                auto font = factory()->decodeFont(bytes);
+                auto font = factory()->decodeFont(std::move(bytes));
                 if (font)
                 {
                     m_fonts[handle] = std::move(font);

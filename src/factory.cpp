@@ -28,6 +28,15 @@ rcp<Font> Factory::decodeFont(Span<const uint8_t> span)
 #endif
 }
 
+rcp<Font> Factory::decodeFont(std::vector<uint8_t>&& bytes)
+{
+#ifdef WITH_RIVE_TEXT
+    return HBFont::Decode(std::move(bytes));
+#else
+    return nullptr;
+#endif
+}
+
 rcp<AudioSource> Factory::decodeAudio(Span<const uint8_t> span)
 {
 #ifdef WITH_RIVE_AUDIO

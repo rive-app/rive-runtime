@@ -25,7 +25,7 @@ static int luaB_print(lua_State* L)
         if (i > 1)
         {
             // Same separator as Luau's own print.
-            context->print(Span<const char>("\t", 1));
+            context->printSeparator();
         }
         context->print(Span<const char>(s, l));
         lua_pop(L, 1); // pop result

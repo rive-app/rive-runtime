@@ -245,15 +245,42 @@ public:
         return m_openTargets.empty();
     }
     // A host that stops recording without finishing, such as one paused
-    // mid frame, must not pin the window shut for everyone else.
+    // mid frame, must not pin the window shut for everyone else. What it drew
+    // in that frame goes too, so the frame that closes the window never
+    // carries it to another target's replay.
     void abandonTargetFrame(uint64_t target)
     {
         auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
         if (it != m_openTargets.end())
         {
             m_openTargets.erase(it);
+            dropScreenSegments(target);
         }
     }
+    // A host leaving the session: its frame never replays, whether still open
+    // or finished while another target holds the window open. Its target id
+    // is about to be released, and the next host to claim it would replay
+    // what is left.
+    void discardTargetFrame(uint64_t target)
+    {
+        auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
+        if (it != m_openTargets.end())
+        {
+            m_openTargets.erase(it);
+        }
+        dropScreenSegments(target);
+    }
+    // For a host that detaches off the recording thread: whatever it left
+    // open is never going to close, so drop it all here first.
+    void abandonOpenTargetFrames()
+    {
+        for (uint64_t target : m_openTargets)
+        {
+            dropScreenSegments(target);
+        }
+        m_openTargets.clear();
+    }
+    size_t openTargetCount() const { return m_openTargets.size(); }
 
     // ---- DeferredRouteHost ----
     // Splits the stream into per target scheduler ranges as the issuing
@@ -498,6 +525,30 @@ private:
         m_activeTarget = screenTarget(m_openScreen);
         m_activeRouted = m_hasOpenScreen;
         m_activeBegin = streamSize();
+    }
+
+    // Unroutes a screen target's draws from this frame, the range still open
+    // included. The bytes stay in the stream, where only segments reach a
+    // target; creates and destroys among them replay from the whole stream.
+    void dropScreenSegments(uint64_t target)
+    {
+        if (m_activeRouted && m_activeTarget == screenTarget(target))
+        {
+            m_activeRouted = false;
+        }
+        if (m_hasOpenScreen && m_openScreen == target)
+        {
+            m_hasOpenScreen = false;
+        }
+        m_segments.erase(
+            std::remove_if(m_segments.begin(),
+                           m_segments.end(),
+                           [target](const DeferredSegment& segment) {
+                               return segment.target ==
+                                          DeferredSegment::Target::screen &&
+                                      segment.targetId == target;
+                           }),
+            m_segments.end());
     }
 
     // Push the open range as a segment, closing a canvas one's bracket first.
