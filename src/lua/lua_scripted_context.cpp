@@ -729,6 +729,15 @@ static int context_namecall(lua_State* L)
                 return context_decodeImage_impl(L);
             }
 
+#ifdef WITH_RIVE_SCRIPTNET
+            case (int)LuaAtoms::decodeFile:
+            {
+                // Defined in lua_rive_file.cpp.
+                extern int context_decodeFile_impl(lua_State * L);
+                return context_decodeFile_impl(L);
+            }
+#endif
+
             default:
                 break;
         }

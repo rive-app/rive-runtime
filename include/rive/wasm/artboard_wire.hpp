@@ -46,6 +46,18 @@ struct DataPropertyWire
     static constexpr uint32_t kindSymbolListIndex = 12;
 };
 
+/// rive_file_v1.decode's statusOut[0] when it returns no file.
+struct FileDecodeWire
+{
+    static constexpr uint32_t statusOk = 0;
+    static constexpr uint32_t statusMalformed = 1;
+    static constexpr uint32_t statusUnsupportedVersion = 2;
+    /// The host has no factory to decode with.
+    static constexpr uint32_t statusNoFactory = 3;
+    /// The host was built without fetch() support.
+    static constexpr uint32_t statusUnavailable = 4;
+};
+
 } // namespace rive
 
 #endif

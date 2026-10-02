@@ -241,6 +241,7 @@ uint32_t dataVmiEnumImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, ui
 uint32_t dataVmiImageImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataVmiFontImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataVmiBlobImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
+uint32_t dataVmiArtboardImpl(WasmScriptingVM* vm, uint32_t vmi, const char* name, uint32_t length);
 uint32_t dataImageGetImpl(WasmScriptingVM* vm, uint32_t property);
 void dataImageSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t image);
 uint32_t dataFontGetImpl(WasmScriptingVM* vm, uint32_t property);
@@ -251,6 +252,8 @@ uint32_t dataBlobGetImpl(WasmScriptingVM* vm, uint32_t property, uint8_t* buffer
 uint32_t dataBlobNameImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataBlobSetImpl(WasmScriptingVM* vm, uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 void dataBlobClearImpl(WasmScriptingVM* vm, uint32_t property);
+uint32_t dataArtboardGetImpl(WasmScriptingVM* vm, uint32_t property);
+void dataArtboardSetImpl(WasmScriptingVM* vm, uint32_t property, uint32_t bindable);
 uint32_t dataEnumGetImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
 void dataEnumSetImpl(WasmScriptingVM* vm, uint32_t property, const char* value, uint32_t length);
 uint32_t dataEnumValuesImpl(WasmScriptingVM* vm, uint32_t property, char* buffer, uint32_t capacity);
@@ -520,6 +523,17 @@ void rendererModulateColorImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t 
 void rendererDrawImageImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t blend, float opacity);
 void rendererDrawImageMeshImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
 void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm, uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
+uint32_t netFetchImpl(WasmScriptingVM* vm, const uint8_t* request, uint32_t requestCount, uint32_t token);
+void netFetchCancelImpl(WasmScriptingVM* vm, uint32_t token);
+uint32_t fileDecodeImpl(WasmScriptingVM* vm, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+void fileReleaseImpl(WasmScriptingVM* vm, uint32_t file);
+uint32_t fileArtboardCountImpl(WasmScriptingVM* vm, uint32_t file);
+uint32_t fileArtboardNameImpl(WasmScriptingVM* vm, uint32_t file, uint32_t index, char* buffer, uint32_t capacity);
+uint32_t fileBindableImpl(WasmScriptingVM* vm, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
+void fileBindableReleaseImpl(WasmScriptingVM* vm, uint32_t bindable);
+uint32_t fileBindableNameImpl(WasmScriptingVM* vm, uint32_t bindable, char* buffer, uint32_t capacity);
+uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
+uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
 
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
@@ -739,6 +753,12 @@ uint32_t dataVmiBlob(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32
     WasmStringArg nameUtf8(vm, name, length);
     return dataVmiBlobImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
+uint32_t dataVmiArtboard(wasm_exec_env_t env, uint32_t vmi, const char* name, uint32_t length)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiArtboardImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
+}
 uint32_t dataImageGet(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -788,6 +808,16 @@ void dataBlobClear(wasm_exec_env_t env, uint32_t property)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     dataBlobClearImpl(vm, property);
+}
+uint32_t dataArtboardGet(wasm_exec_env_t env, uint32_t property)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return dataArtboardGetImpl(vm, property);
+}
+void dataArtboardSet(wasm_exec_env_t env, uint32_t property, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    dataArtboardSetImpl(vm, property, bindable);
 }
 uint32_t dataEnumGet(wasm_exec_env_t env, uint32_t property, char* buffer, uint32_t capacity)
 {
@@ -2144,6 +2174,66 @@ void rendererDrawImageMeshInstanced(wasm_exec_env_t env, uint32_t renderer, uint
     WasmScriptingVM* vm = vmFromEnv(env);
     rendererDrawImageMeshInstancedImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, instances);
 }
+uint32_t netFetch(wasm_exec_env_t env, const uint8_t* request, uint32_t requestCount, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return netFetchImpl(vm, request, requestCount, token);
+}
+void netFetchCancel(wasm_exec_env_t env, uint32_t token)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    netFetchCancelImpl(vm, token);
+}
+uint32_t fileDecode(wasm_exec_env_t env, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (statusCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)statusOut, (uint64_t)statusCount * 4))
+    {
+        return {};
+    }
+    return fileDecodeImpl(vm, bytes, byteCount, statusOut, statusCount);
+}
+void fileRelease(wasm_exec_env_t env, uint32_t file)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    fileReleaseImpl(vm, file);
+}
+uint32_t fileArtboardCount(wasm_exec_env_t env, uint32_t file)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileArtboardCountImpl(vm, file);
+}
+uint32_t fileArtboardName(wasm_exec_env_t env, uint32_t file, uint32_t index, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileArtboardNameImpl(vm, file, index, buffer, capacity);
+}
+uint32_t fileBindable(wasm_exec_env_t env, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileBindableImpl(vm, file, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
+void fileBindableRelease(wasm_exec_env_t env, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    fileBindableReleaseImpl(vm, bindable);
+}
+uint32_t fileBindableName(wasm_exec_env_t env, uint32_t bindable, char* buffer, uint32_t capacity)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableNameImpl(vm, bindable, buffer, capacity);
+}
+uint32_t fileBindableData(wasm_exec_env_t env, uint32_t bindable)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableDataImpl(vm, bindable);
+}
+uint32_t fileBindableEqual(wasm_exec_env_t env, uint32_t a, uint32_t b)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return fileBindableEqualImpl(vm, a, b);
+}
 
 NativeSymbol kRtNatives[] = {
     {"log", (void*)rtLog, "(i*~)", nullptr},
@@ -2186,6 +2276,7 @@ NativeSymbol kDataNatives[] = {
     {"vmi_image", (void*)dataVmiImage, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_font", (void*)dataVmiFont, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"vmi_blob", (void*)dataVmiBlob, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
+    {"vmi_artboard", (void*)dataVmiArtboard, "(i*~)i", nullptr},
     {"image_get", (void*)dataImageGet, "(i)i", nullptr},
     {"image_set", (void*)dataImageSet, "(ii)", nullptr},
     {"font_get", (void*)dataFontGet, "(i)i", nullptr},
@@ -2196,6 +2287,8 @@ NativeSymbol kDataNatives[] = {
     {"blob_name", (void*)dataBlobName, "(i*~)i", nullptr},
     {"blob_set", (void*)dataBlobSet, "(i*~)", nullptr},
     {"blob_clear", (void*)dataBlobClear, "(i)", nullptr},
+    {"artboard_get", (void*)dataArtboardGet, "(i)i", nullptr},
+    {"artboard_set", (void*)dataArtboardSet, "(ii)", nullptr},
     {"enum_get", (void*)dataEnumGet, "(i*~)i", (void*)&wasm_runtime_rive_leaf_native},
     {"enum_set", (void*)dataEnumSet, "(i*~)", nullptr},
     {"enum_values", (void*)dataEnumValues, "(i*~)i", nullptr},
@@ -2521,6 +2614,23 @@ NativeSymbol kRendererNatives[] = {
     {"draw_image_mesh_instanced", (void*)rendererDrawImageMeshInstanced, "(iiiiiii)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
+NativeSymbol kNetNatives[] = {
+    {"fetch", (void*)netFetch, "(*~i)i", nullptr},
+    {"fetch_cancel", (void*)netFetchCancel, "(i)", nullptr},
+};
+
+NativeSymbol kFileNatives[] = {
+    {"decode", (void*)fileDecode, "(*~*~)i", nullptr},
+    {"release", (void*)fileRelease, "(i)", nullptr},
+    {"artboard_count", (void*)fileArtboardCount, "(i)i", nullptr},
+    {"artboard_name", (void*)fileArtboardName, "(ii*~)i", nullptr},
+    {"bindable", (void*)fileBindable, "(i*~i)i", nullptr},
+    {"bindable_release", (void*)fileBindableRelease, "(i)", nullptr},
+    {"bindable_name", (void*)fileBindableName, "(i*~)i", nullptr},
+    {"bindable_data", (void*)fileBindableData, "(i)i", nullptr},
+    {"bindable_equal", (void*)fileBindableEqual, "(ii)i", nullptr},
+};
+
 inline bool registerRiveBindingNatives()
 {
     return wasm_runtime_register_natives(
@@ -2602,5 +2712,13 @@ inline bool registerRiveBindingNatives()
            wasm_runtime_register_natives(
                "rive_renderer_v1",
                kRendererNatives,
-               sizeof(kRendererNatives) / sizeof(NativeSymbol));
+               sizeof(kRendererNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_net_v1",
+               kNetNatives,
+               sizeof(kNetNatives) / sizeof(NativeSymbol)) &&
+           wasm_runtime_register_natives(
+               "rive_file_v1",
+               kFileNatives,
+               sizeof(kFileNatives) / sizeof(NativeSymbol));
 }

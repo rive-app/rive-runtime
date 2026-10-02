@@ -22,6 +22,8 @@ public:
     virtual void updateArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard) = 0;
     virtual int referencedArtboardId() = 0;
+    // The artboard whose instances also instance the referenced one, if any.
+    virtual Artboard* nestingArtboard() { return nullptr; }
     static ArtboardReferencer* from(Core*);
     virtual void referencedArtboard(Artboard* artboard)
     {

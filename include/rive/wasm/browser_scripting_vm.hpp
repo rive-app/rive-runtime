@@ -28,6 +28,7 @@ public:
 
     bool valid() const override;
     void* resolveModulePtr(uint32_t appAddr, uint32_t size) override;
+    void* resolveModuleWritePtr(uint32_t appAddr, uint32_t size) override;
     uint32_t callModule(const char* name,
                         uint32_t argc,
                         uint32_t* argv) override;

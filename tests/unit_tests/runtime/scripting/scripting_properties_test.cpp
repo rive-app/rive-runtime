@@ -23,6 +23,9 @@
 #include <rive/viewmodel/viewmodel_instance_asset_blob.hpp>
 #include <rive/viewmodel/viewmodel_instance_asset_image.hpp>
 #include <rive/viewmodel/viewmodel_instance_asset_font.hpp>
+#include <rive/viewmodel/viewmodel.hpp>
+#include <rive/viewmodel/viewmodel_instance.hpp>
+#include <rive/viewmodel/viewmodel_property_number.hpp>
 #include <rive/assets/blob_asset.hpp>
 #include <rive/renderer.hpp>
 #include <rive/text/font_hb.hpp>
@@ -1208,5 +1211,68 @@ end
     lua_getglobal(L, "readSize");
     CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
     CHECK(luaL_checknumber(L, -1) == Approx(0));
+    lua_pop(L, 1);
+}
+// An async body runs on its own coroutine, while the wrappers it reaches were
+// made on the main thread (or the other way round). Values have to land on
+// the calling thread's stack, and a wrapper minted inside a coroutine has to
+// keep working after that coroutine is gone.
+TEST_CASE("view model properties work from async bodies",
+          "[scripting_properties]")
+{
+    ScriptingTest vm(R"(
+results = {}
+
+function run(model: ViewModel)
+    async(function()
+        results.method = model:getNumber("n").value
+        results.index = model.n.value
+        model:getNumber("n"):addListener(function()
+            results.heard = model.n.value
+        end)
+        results.kept = model:getNumber("n")
+        return nil
+    end)
+    return nil
+end
+
+function readKept(): number
+    return results.kept.value
+end
+)");
+    lua_State* L = vm.state();
+
+    auto viewModel = rcp<ViewModel>(new ViewModel());
+    auto* property = new ViewModelPropertyNumber();
+    property->name("n");
+    viewModel->addProperty(property);
+    auto instance = make_rcp<ViewModelInstance>();
+    instance->viewModel(viewModel.get());
+    auto* number = new ViewModelInstanceNumber();
+    number->viewModelProperty(property);
+    number->propertyValue(7);
+    instance->addValue(number);
+
+    lua_getglobal(L, "run");
+    lua_newrive<ScriptedViewModel>(L, L, viewModel, instance);
+    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+
+    lua_getglobal(L, "results");
+    lua_getfield(L, -1, "method");
+    CHECK(lua_tonumber(L, -1) == 7);
+    lua_getfield(L, -2, "index");
+    CHECK(lua_tonumber(L, -1) == 7);
+    lua_pop(L, 2);
+
+    // The listener registered from the coroutine fires on the main thread.
+    number->propertyValue(9);
+    lua_getfield(L, -1, "heard");
+    CHECK(lua_tonumber(L, -1) == 9);
+    lua_pop(L, 2);
+
+    lua_getglobal(L, "readKept");
+    REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 9);
     lua_pop(L, 1);
 }

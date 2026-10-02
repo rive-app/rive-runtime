@@ -60,6 +60,16 @@ if isNx then
     -- executable memory.
     table.insert(wamrConfigDefines, 'WASM_ENABLE_PRELINKED_AOT=1')
 end
+-- iOS devices map no executable memory either, so rive --ios --aot links
+-- modules into the player the same way.
+if
+    _OPTIONS['os'] == 'ios'
+    and _OPTIONS['variant'] ~= 'emulator'
+    and _OPTIONS['variant'] ~= 'xrsimulator'
+    and _OPTIONS['variant'] ~= 'appletvsimulator'
+then
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_PRELINKED_AOT=1')
+end
 if os.target() == 'windows' and not isNx then
     -- We link wamr statically; under clang's msvc mode wasm_export.h and
     -- wasm_c_api.h otherwise declare every API dllimport.

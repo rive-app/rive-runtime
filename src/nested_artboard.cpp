@@ -92,7 +92,6 @@ Core* NestedArtboard::clone() const
 {
     NestedArtboard* nestedArtboard =
         static_cast<NestedArtboard*>(NestedArtboardBase::clone());
-    nestedArtboard->file(file());
     // Carry the swap-slot flag to clones. It is detected on the SOURCE
     // artboard's host (import populates the source's data binds before
     // onAddedClean)
@@ -101,13 +100,21 @@ Core* NestedArtboard::clone() const
         nestedArtboard->m_hostFlags |=
             NestedArtboardHostFlags::artboardDataBound;
     }
+    cloneReferencesInto(nestedArtboard);
+    return nestedArtboard;
+}
+
+void NestedArtboard::cloneReferencesInto(NestedArtboard* clone) const
+{
+    clone->file(file());
     if (m_referencedArtboard == nullptr)
     {
-        return nestedArtboard;
+        return;
     }
-    auto ni = m_referencedArtboard->instance();
-    nestedArtboard->referencedArtboard(ni.release());
-    return nestedArtboard;
+    // A clone of a mounted bindable's instance needs that bindable's file as
+    // much as the instance does.
+    clone->m_mountedBindable = m_mountedBindable;
+    clone->referencedArtboard(m_referencedArtboard->instance().release());
 }
 
 void NestedArtboard::nest(Artboard* artboard)
@@ -278,6 +285,7 @@ void NestedArtboard::updateArtboard(
         }
         m_referencedArtboard = nullptr;
         m_Instance = nullptr;
+        m_mountedBindable = nullptr;
         setActiveViewModelInstance(nullptr, false);
         return;
     }
@@ -301,8 +309,19 @@ void NestedArtboard::updateArtboard(
                 nestedStateMachine)); // take ownership
         }
         referencedArtboard(artboardInstance.release());
+        // The outgoing instance was destroyed by the swap above, so the
+        // bindable it came from can go now.
+        m_mountedBindable = viewModelInstanceArtboard->asset();
 
-        if (isStateful())
+        // An artboard from another file binds to a view model of that file,
+        // which its bindable carries. This host's stateful instances are of
+        // this file's view models: comparing ids across files, or looking
+        // one up here, would bind it to the wrong properties.
+        const File* sourceFile =
+            m_mountedBindable != nullptr ? m_mountedBindable->file() : nullptr;
+        bool fromOtherFile =
+            sourceFile != nullptr && m_file != nullptr && sourceFile != m_file;
+        if (isStateful() && !fromOtherFile)
         {
             auto statefulChild = findStatefulChildVmi();
             if (statefulChild != nullptr &&
@@ -337,6 +356,9 @@ void NestedArtboard::updateArtboard(
         else
         {
             setActiveViewModelInstance(nullptr, false);
+            // Mounting scheduled a stateful bind for the outgoing instance;
+            // with none active it would unbind the new one on next advance.
+            m_hostFlags &= ~NestedArtboardHostFlags::pendingStatefulBinding;
         }
 
         if (viewModelInstanceArtboard->boundViewModelInstance())

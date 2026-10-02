@@ -68,6 +68,7 @@
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/path_measure.hpp"
 #include "rive/renderer.hpp"
+#include "rive/scripted/decoded_file.hpp"
 #include "rive/scripted/scripted_object.hpp"
 #include "rive/scripted/transition_child_ref.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -91,6 +92,12 @@
 #include "rive/wasm/gamepad_wire.hpp"
 #include "rive/wasm/listener_wire.hpp"
 #include "rive/wasm/path_effect_wire.hpp"
+#include "rive/wasm/net_wire.hpp"
+#include "rive/bindable_artboard.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/net.hpp"
+#endif
 
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
@@ -7219,6 +7226,262 @@ uint32_t blobAssetBytesImpl(WasmScriptingVM* vm,
     return (uint32_t)bytes.size();
 }
 
+// --- rive_file_v1 and artboard properties: context:decodeFile ---------------
+//
+// The Luau lane's decodeFile, RiveFile, BindableArtboard and
+// Property<BindableArtboard> (lua_rive_file.cpp, ScriptedPropertyArtboard),
+// with the file and its bindables held host side. Like the Luau lane they
+// exist only where fetch() does; elsewhere every op answers none.
+
+struct HostRiveFile
+{
+    rcp<File> file;
+};
+
+using HostBindableArtboard = DecodedBindable;
+
+HostRiveFile* resolveRiveFile(WasmScriptingVM* vm, uint32_t handle)
+{
+    return vm == nullptr ? nullptr
+                         : static_cast<HostRiveFile*>(vm->handles().resolve(
+                               handle,
+                               WasmScriptingVM::HandleTable::Tag::riveFile));
+}
+
+HostBindableArtboard* resolveBindableArtboard(WasmScriptingVM* vm,
+                                              uint32_t handle)
+{
+    return vm == nullptr
+               ? nullptr
+               : static_cast<HostBindableArtboard*>(vm->handles().resolve(
+                     handle,
+                     WasmScriptingVM::HandleTable::Tag::bindableArtboard));
+}
+
+uint32_t fileDecodeImpl(WasmScriptingVM* vm,
+                        const uint8_t* bytes,
+                        uint32_t byteCount,
+                        uint32_t* statusOut,
+                        uint32_t statusCount)
+{
+    auto status = [&](uint32_t value) {
+        if (statusCount > 0)
+        {
+            statusOut[0] = value;
+        }
+    };
+#ifdef WITH_RIVE_SCRIPTNET
+    if (vm == nullptr || vm->factory() == nullptr)
+    {
+        status(FileDecodeWire::statusNoFactory);
+        return 0;
+    }
+    ImportResult result = ImportResult::malformed;
+    auto file = byteCount == 0
+                    ? nullptr
+                    : importDecodedFile(Span<const uint8_t>(bytes, byteCount),
+                                        vm->factory(),
+                                        &result);
+    if (file == nullptr)
+    {
+        status(result == ImportResult::unsupportedVersion
+                   ? FileDecodeWire::statusUnsupportedVersion
+                   : FileDecodeWire::statusMalformed);
+        return 0;
+    }
+    status(FileDecodeWire::statusOk);
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::riveFile,
+                              new HostRiveFile{std::move(file)});
+#else
+    (void)vm;
+    (void)bytes;
+    (void)byteCount;
+    status(FileDecodeWire::statusUnavailable);
+    return 0;
+#endif
+}
+
+void fileReleaseImpl(WasmScriptingVM* vm, uint32_t file)
+{
+    delete resolveRiveFile(vm, file);
+    if (vm != nullptr)
+    {
+        vm->handles().release(file,
+                              WasmScriptingVM::HandleTable::Tag::riveFile);
+    }
+}
+
+uint32_t fileArtboardCountImpl(WasmScriptingVM* vm, uint32_t file)
+{
+    auto host = resolveRiveFile(vm, file);
+    return host == nullptr ? 0 : (uint32_t)host->file->artboardCount();
+}
+
+// One name at a time: names are file data, so no separator is safe.
+uint32_t fileArtboardNameImpl(WasmScriptingVM* vm,
+                              uint32_t file,
+                              uint32_t index,
+                              char* buffer,
+                              uint32_t capacity)
+{
+    auto host = resolveRiveFile(vm, file);
+    if (host == nullptr || index >= host->file->artboardCount())
+    {
+        return 0;
+    }
+    return fillModuleString(vm,
+                            host->file->artboard(index)->name(),
+                            buffer,
+                            capacity);
+}
+
+uint32_t fileBindableImpl(WasmScriptingVM* vm,
+                          uint32_t file,
+                          const char* name,
+                          uint32_t nameLength,
+                          uint32_t useDefault)
+{
+    auto host = resolveRiveFile(vm, file);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    std::string named(name, nameLength);
+    DecodedBindable decoded =
+        decodedBindable(*host->file, useDefault != 0 ? nullptr : named.c_str());
+    if (decoded.artboard == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::bindableArtboard,
+        new HostBindableArtboard(std::move(decoded)));
+}
+
+void fileBindableReleaseImpl(WasmScriptingVM* vm, uint32_t bindable)
+{
+    delete resolveBindableArtboard(vm, bindable);
+    if (vm != nullptr)
+    {
+        vm->handles().release(
+            bindable,
+            WasmScriptingVM::HandleTable::Tag::bindableArtboard);
+    }
+}
+
+uint32_t fileBindableNameImpl(WasmScriptingVM* vm,
+                              uint32_t bindable,
+                              char* buffer,
+                              uint32_t capacity)
+{
+    auto host = resolveBindableArtboard(vm, bindable);
+    if (host == nullptr)
+    {
+        return 0;
+    }
+    return fillModuleString(vm,
+                            host->artboard->artboard()->name(),
+                            buffer,
+                            capacity);
+}
+
+uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable)
+{
+    auto host = resolveBindableArtboard(vm, bindable);
+    if (host == nullptr || host->viewModel == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::viewModelInstance,
+        new HostViewModelInstance{host->viewModel});
+}
+
+uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b)
+{
+    auto first = resolveBindableArtboard(vm, a);
+    auto second = resolveBindableArtboard(vm, b);
+    return first != nullptr && second != nullptr &&
+                   first->artboard == second->artboard
+               ? 1
+               : 0;
+}
+
+uint32_t dataVmiArtboardImpl(WasmScriptingVM* vm,
+                             uint32_t vmiHandle,
+                             const char* name,
+                             uint32_t length)
+{
+#ifdef WITH_RIVE_SCRIPTNET
+    return mintInstanceValue<ViewModelInstanceArtboard>(vm,
+                                                        vmiHandle,
+                                                        name,
+                                                        length);
+#else
+    (void)vm;
+    (void)vmiHandle;
+    (void)name;
+    (void)length;
+    return 0;
+#endif
+}
+
+// Mirrors ScriptedPropertyArtboard::pushValue: nil while the property names
+// one of the host file's own artboards.
+uint32_t dataArtboardGetImpl(WasmScriptingVM* vm, uint32_t handle)
+{
+    auto value = resolveInstanceValue<ViewModelInstanceArtboard>(vm, handle);
+    if (value == nullptr || value->asset() == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::bindableArtboard,
+        new HostBindableArtboard{value->asset(),
+                                 value->boundViewModelInstance()});
+}
+
+// Mirrors ScriptedPropertyArtboard::setValue: the artboard's own view model
+// goes in first, since asset() notifies and whatever mounts the artboard
+// binds it to that instance.
+void dataArtboardSetImpl(WasmScriptingVM* vm,
+                         uint32_t handle,
+                         uint32_t bindable)
+{
+    auto value = resolveInstanceValue<ViewModelInstanceArtboard>(vm, handle);
+    if (value == nullptr)
+    {
+        return;
+    }
+    auto host = resolveBindableArtboard(vm, bindable);
+    value->boundViewModelInstance(host != nullptr ? host->viewModel : nullptr);
+    value->asset(host != nullptr ? host->artboard : nullptr);
+}
+
+// --- rive_net_v1: fetch() --------------------------------------------------
+
+uint32_t netFetchImpl(WasmScriptingVM* vm,
+                      const uint8_t* request,
+                      uint32_t requestCount,
+                      uint32_t token)
+{
+    if (vm == nullptr)
+    {
+        return 0;
+    }
+    return vm->startFetch(Span<const uint8_t>(request, requestCount), token)
+               ? 1
+               : 0;
+}
+
+void netFetchCancelImpl(WasmScriptingVM* vm, uint32_t token)
+{
+    if (vm != nullptr)
+    {
+        vm->cancelFetch(token);
+    }
+}
+
 // --- rive_audio_v1 ---------------------------------------------------------
 
 #ifdef WITH_RIVE_AUDIO
@@ -7862,6 +8125,13 @@ WasmScriptingVM::~WasmScriptingVM()
             pool->cancelAllForOwner(m_decodeOwnerId);
         }
     }
+#ifdef WITH_RIVE_SCRIPTNET
+    // Same for fetches: their listeners hold this VM.
+    if (m_netOwnerId != 0)
+    {
+        scriptnet::cancelAllForOwner(m_netOwnerId);
+    }
+#endif
     // Coverage measurement: RIVE_WASM_EXEC_STATS=1 dumps how many frames ran
     // compiled, interpreted, and as guard-exit continuations.
     if (getenv("RIVE_WASM_EXEC_STATS") != nullptr && m_state != nullptr &&
@@ -7931,6 +8201,12 @@ WasmScriptingVM::~WasmScriptingVM()
                 break;
             case HandleTable::Tag::node:
                 delete static_cast<HostNode*>(slot.object);
+                break;
+            case HandleTable::Tag::riveFile:
+                delete static_cast<HostRiveFile*>(slot.object);
+                break;
+            case HandleTable::Tag::bindableArtboard:
+                delete static_cast<HostBindableArtboard*>(slot.object);
                 break;
 #ifdef WITH_RIVE_AUDIO
             case HandleTable::Tag::audioSource:
@@ -8110,7 +8386,7 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
             deliverDecodeResult(failure);
             return;
         }
-        memcpy(resolveModulePtr(pixelsPtr, byteCount),
+        memcpy(resolveModuleWritePtr(pixelsPtr, byteCount),
                result.pixels.data(),
                byteCount);
         uint32_t args[6] = {m_L,
@@ -8139,8 +8415,21 @@ void WasmScriptingVM::resolveImageDecode(uint32_t token,
                                          const uint8_t* pixels,
                                          uint32_t byteCount)
 {
-    m_pendingDecodes.erase(token);
-    if (!valid())
+    if (inModuleCall())
+    {
+        // The decoder frees its pixels once this returns.
+        std::vector<uint8_t> owned(pixels, pixels + byteCount);
+        m_heldOutcomes.push_back(
+            [this, token, width, height, owned = std::move(owned)] {
+                resolveImageDecode(token,
+                                   width,
+                                   height,
+                                   owned.data(),
+                                   (uint32_t)owned.size());
+            });
+        return;
+    }
+    if (m_pendingDecodes.erase(token) == 0 || !valid())
     {
         return;
     }
@@ -8155,8 +8444,14 @@ void WasmScriptingVM::resolveImageDecode(uint32_t token,
 
 void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
 {
-    m_pendingDecodes.erase(token);
-    if (!valid())
+    if (inModuleCall())
+    {
+        m_heldOutcomes.push_back([this, token, error = std::string(message)] {
+            rejectImageDecode(token, error.c_str());
+        });
+        return;
+    }
+    if (m_pendingDecodes.erase(token) == 0 || !valid())
     {
         return;
     }
@@ -8164,6 +8459,193 @@ void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
     result.token = token;
     result.error = message;
     deliverDecodeResult(result);
+}
+
+// --- fetch() over the module ABI --------------------------------------------
+
+#ifdef WITH_RIVE_SCRIPTNET
+namespace
+{
+// The Luau lane's rejection value: "<code>: <message>".
+std::string fetchRejection(scriptnet::NetErrorCode code,
+                           const std::string& message)
+{
+    return std::string(scriptnet::netErrorCodeName(code)) + ": " + message;
+}
+
+// Carries one request's outcome back to the VM that started it. scriptnet
+// delivers on this VM's thread from its poll; teardown cancels every
+// outstanding request first, which clears the VM pointer here.
+class WasmFetchListener : public scriptnet::FetchListener
+{
+public:
+    WasmFetchListener(WasmScriptingVM* vm, uint32_t token) :
+        m_vm(vm), m_token(token)
+    {}
+
+    void onResponse(scriptnet::HttpResponse&& response) override
+    {
+        if (m_vm != nullptr)
+        {
+            m_vm->resolveFetch(m_token, std::move(response));
+        }
+    }
+
+    void onError(const scriptnet::NetError& error) override
+    {
+        if (m_vm != nullptr)
+        {
+            m_vm->rejectFetch(m_token,
+                              (uint32_t)error.code,
+                              fetchRejection(error.code, error.message));
+        }
+    }
+
+    void onCancel() override { m_vm = nullptr; }
+
+private:
+    WasmScriptingVM* m_vm;
+    uint32_t m_token;
+};
+} // namespace
+#endif
+
+bool WasmScriptingVM::startFetch(Span<const uint8_t> wire, uint32_t token)
+{
+#ifdef WITH_RIVE_SCRIPTNET
+    // Reusing a live token would leave its first request uncancellable.
+    if (m_pendingFetches.count(token) != 0)
+    {
+        return false;
+    }
+    scriptnet::HttpRequest request;
+    // The module's fetch() writes the stream from arguments it validated, so
+    // a bad one is a bug; it goes out empty and the policy refuses it,
+    // settling like any other refusal.
+    if (!NetWire::decode(wire, request))
+    {
+        request = scriptnet::HttpRequest();
+    }
+    if (m_netOwnerId == 0)
+    {
+        m_netOwnerId = WorkPool::nextOwnerId();
+    }
+    m_pendingFetches[token] =
+        scriptnet::fetch(m_netOwnerId,
+                         std::move(request),
+                         make_rcp<WasmFetchListener>(this, token));
+    return true;
+#else
+    (void)wire;
+    (void)token;
+    return false;
+#endif
+}
+
+void WasmScriptingVM::cancelFetch(uint32_t token)
+{
+    auto it = m_pendingFetches.find(token);
+    if (it == m_pendingFetches.end())
+    {
+        return;
+    }
+    uint32_t id = it->second;
+    m_pendingFetches.erase(it);
+#ifdef WITH_RIVE_SCRIPTNET
+    scriptnet::cancel(id);
+#else
+    (void)id;
+#endif
+}
+
+void WasmScriptingVM::resolveFetch(uint32_t token,
+                                   scriptnet::HttpResponse&& response)
+{
+    if (inModuleCall())
+    {
+        m_heldOutcomes.push_back(
+            [this, token, response = std::move(response)]() mutable {
+                resolveFetch(token, std::move(response));
+            });
+        return;
+    }
+    // Cancelled while held.
+    if (m_pendingFetches.erase(token) == 0 || !valid())
+    {
+        return;
+    }
+    size_t size = NetWire::encodedSize(response);
+    uint32_t byteCount = (uint32_t)size;
+    uint32_t sizeArgs[1] = {byteCount};
+    uint32_t responsePtr =
+        size == byteCount ? callModule("malloc", 1, sizeArgs) : 0;
+    if (responsePtr == 0)
+    {
+#ifdef WITH_RIVE_SCRIPTNET
+        deliverFetchFailure(
+            token,
+            (uint32_t)scriptnet::NetErrorCode::TooLarge,
+            fetchRejection(scriptnet::NetErrorCode::TooLarge,
+                           "the response does not fit in script memory"));
+#endif
+        return;
+    }
+    NetWire::encode(response,
+                    (uint8_t*)resolveModuleWritePtr(responsePtr, byteCount));
+    uint32_t args[4] = {m_L, token, responsePtr, byteCount};
+    callModule("host_fetch_resolved", 4, args);
+    guestFree(responsePtr);
+}
+
+void WasmScriptingVM::rejectFetch(uint32_t token,
+                                  uint32_t code,
+                                  const std::string& message)
+{
+    if (inModuleCall())
+    {
+        m_heldOutcomes.push_back([this, token, code, message] {
+            rejectFetch(token, code, message);
+        });
+        return;
+    }
+    if (m_pendingFetches.erase(token) != 0 && valid())
+    {
+        deliverFetchFailure(token, code, message);
+    }
+}
+
+void WasmScriptingVM::deliverFetchFailure(uint32_t token,
+                                          uint32_t code,
+                                          const std::string& message)
+{
+    uint32_t messagePtr = guestString(message.c_str());
+    if (messagePtr == 0)
+    {
+        return;
+    }
+    uint32_t args[4] = {m_L, token, code, messagePtr};
+    callModule("host_fetch_failed", 4, args);
+    guestFree(messagePtr);
+}
+
+bool WasmScriptingVM::inModuleCall() const
+{
+    return m_state != nullptr && m_state->callDepth != 0;
+}
+
+void WasmScriptingVM::deliverHeldOutcomes()
+{
+    if (inModuleCall() || m_heldOutcomes.empty())
+    {
+        return;
+    }
+    // Deliveries can hold more, which wait for the next pass.
+    std::vector<std::function<void()>> held;
+    held.swap(m_heldOutcomes);
+    for (auto& deliver : held)
+    {
+        deliver();
+    }
 }
 
 void WasmScriptingVM::setBootHook(BootHook hook)
@@ -9005,6 +9487,10 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
             return "audioSound";
         case Tag::drawable:
             return "drawable";
+        case Tag::riveFile:
+            return "riveFile";
+        case Tag::bindableArtboard:
+            return "bindableArtboard";
         case Tag::empty:
         case Tag::count:
             break;
@@ -10249,7 +10735,7 @@ uint32_t WasmScriptingVM::guestString(const char* text, const char* allocator)
     uint32_t ptr = callModule(allocator, 1, sizeArgs);
     if (ptr != 0)
     {
-        memcpy(resolveModulePtr(ptr, (uint32_t)bytes.size()),
+        memcpy(resolveModuleWritePtr(ptr, (uint32_t)bytes.size()),
                bytes.data(),
                bytes.size());
     }

@@ -176,6 +176,12 @@ export function createRiveModuleImports(host, moduleMemory) {
                 const ret = calls.rive_data_vmi_blob(vmi, name_p, length);
                 return ret;
             },
+            vmi_artboard: (vmi, name, length) => {
+                stackReset();
+                const name_p = stageIn(name, length);
+                const ret = calls.rive_data_vmi_artboard(vmi, name_p, length);
+                return ret;
+            },
             image_get: calls.rive_data_image_get,
             image_set: calls.rive_data_image_set,
             font_get: calls.rive_data_font_get,
@@ -202,6 +208,8 @@ export function createRiveModuleImports(host, moduleMemory) {
                 calls.rive_data_blob_set(property, bytes_p, byteCount);
             },
             blob_clear: calls.rive_data_blob_clear,
+            artboard_get: calls.rive_data_artboard_get,
+            artboard_set: calls.rive_data_artboard_set,
             enum_get: (property, buffer, capacity) => {
                 stackReset();
                 const buffer_p = stageIn(buffer, capacity);
@@ -885,6 +893,50 @@ export function createRiveModuleImports(host, moduleMemory) {
             draw_image: calls.rive_renderer_draw_image,
             draw_image_mesh: calls.rive_renderer_draw_image_mesh,
             draw_image_mesh_instanced: calls.rive_renderer_draw_image_mesh_instanced,
+        },
+        rive_net_v1: {
+            fetch: (request, requestCount, token) => {
+                stackReset();
+                const request_p = stageIn(request, requestCount);
+                const ret = calls.rive_net_fetch(request_p, requestCount, token);
+                return ret;
+            },
+            fetch_cancel: calls.rive_net_fetch_cancel,
+        },
+        rive_file_v1: {
+            decode: (bytes, byteCount, statusOut, statusCount) => {
+                stackReset();
+                const bytes_p = stageIn(bytes, byteCount);
+                const statusOut_p = stageIn(statusOut, statusCount * 4);
+                const ret = calls.rive_file_decode(bytes_p, byteCount, statusOut_p, statusCount);
+                copyOut(statusOut_p, statusOut, statusCount * 4);
+                return ret;
+            },
+            release: calls.rive_file_release,
+            artboard_count: calls.rive_file_artboard_count,
+            artboard_name: (file, index, buffer, capacity) => {
+                stackReset();
+                const buffer_p = stageIn(buffer, capacity);
+                const ret = calls.rive_file_artboard_name(file, index, buffer_p, capacity);
+                copyOut(buffer_p, buffer, capacity);
+                return ret;
+            },
+            bindable: (file, name, nameLength, useDefault) => {
+                stackReset();
+                const name_p = stageIn(name, nameLength);
+                const ret = calls.rive_file_bindable(file, name_p, nameLength, useDefault);
+                return ret;
+            },
+            bindable_release: calls.rive_file_bindable_release,
+            bindable_name: (bindable, buffer, capacity) => {
+                stackReset();
+                const buffer_p = stageIn(buffer, capacity);
+                const ret = calls.rive_file_bindable_name(bindable, buffer_p, capacity);
+                copyOut(buffer_p, buffer, capacity);
+                return ret;
+            },
+            bindable_data: calls.rive_file_bindable_data,
+            bindable_equal: calls.rive_file_bindable_equal,
         },
     };
 }

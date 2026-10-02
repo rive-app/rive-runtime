@@ -256,6 +256,13 @@ uint32_t rive_web_data_vmi_blob(uint32_t vmHandle, uint32_t vmi, const char* nam
     return dataVmiBlobImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_data_vmi_artboard(uint32_t vmHandle, uint32_t vmi, const char* name, uint32_t length)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, length);
+    return dataVmiArtboardImpl(vm, vmi, nameUtf8.data(), nameUtf8.size());
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_image_get(uint32_t vmHandle, uint32_t property)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
@@ -314,6 +321,18 @@ void rive_web_data_blob_clear(uint32_t vmHandle, uint32_t property)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     dataBlobClearImpl(vm, property);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_data_artboard_get(uint32_t vmHandle, uint32_t property)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return dataArtboardGetImpl(vm, property);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_data_artboard_set(uint32_t vmHandle, uint32_t property, uint32_t bindable)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    dataArtboardSetImpl(vm, property, bindable);
 }
 EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_data_enum_get(uint32_t vmHandle, uint32_t property, char* buffer, uint32_t capacity)
@@ -1762,6 +1781,73 @@ void rive_web_renderer_draw_image_mesh_instanced(uint32_t vmHandle, uint32_t ren
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
     rendererDrawImageMeshInstancedImpl(vm, renderer, image, sampler, vertexBuffer, uvBuffer, indexBuffer, instances);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_net_fetch(uint32_t vmHandle, const uint8_t* request, uint32_t requestCount, uint32_t token)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return netFetchImpl(vm, request, requestCount, token);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_net_fetch_cancel(uint32_t vmHandle, uint32_t token)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    netFetchCancelImpl(vm, token);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_decode(uint32_t vmHandle, const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileDecodeImpl(vm, bytes, byteCount, statusOut, statusCount);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_file_release(uint32_t vmHandle, uint32_t file)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    fileReleaseImpl(vm, file);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_artboard_count(uint32_t vmHandle, uint32_t file)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileArtboardCountImpl(vm, file);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_artboard_name(uint32_t vmHandle, uint32_t file, uint32_t index, char* buffer, uint32_t capacity)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileArtboardNameImpl(vm, file, index, buffer, capacity);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_bindable(uint32_t vmHandle, uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    WasmStringArg nameUtf8(vm, name, nameLength);
+    return fileBindableImpl(vm, file, nameUtf8.data(), nameUtf8.size(), useDefault);
+}
+EMSCRIPTEN_KEEPALIVE
+void rive_web_file_bindable_release(uint32_t vmHandle, uint32_t bindable)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    fileBindableReleaseImpl(vm, bindable);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_bindable_name(uint32_t vmHandle, uint32_t bindable, char* buffer, uint32_t capacity)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileBindableNameImpl(vm, bindable, buffer, capacity);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_bindable_data(uint32_t vmHandle, uint32_t bindable)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileBindableDataImpl(vm, bindable);
+}
+EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_file_bindable_equal(uint32_t vmHandle, uint32_t a, uint32_t b)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return fileBindableEqualImpl(vm, a, b);
 }
 
 } // extern "C"

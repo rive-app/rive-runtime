@@ -112,13 +112,19 @@ bool BrowserScriptingVM::valid() const
 
 void* BrowserScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 {
+    auto staged = (uint8_t*)resolveModuleWritePtr(appAddr, size);
+    riveWebReadMemory(m_instanceSlot, appAddr, staged, size);
+    return staged;
+}
+
+void* BrowserScriptingVM::resolveModuleWritePtr(uint32_t appAddr, uint32_t size)
+{
     // TODO(web-backend): bounds-check against the instance's memory size
     // and track dirty ranges so clean reads skip the write-back.
     m_staged.emplace_back();
     StagedRange& range = m_staged.back();
     range.appAddr = appAddr;
     range.bytes.resize(size);
-    riveWebReadMemory(m_instanceSlot, appAddr, range.bytes.data(), size);
     return range.bytes.data();
 }
 

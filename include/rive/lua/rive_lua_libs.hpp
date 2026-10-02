@@ -49,6 +49,9 @@
 #include "rive/core/binary_writer.hpp"
 #include "rive/core/vector_binary_stream.hpp"
 #endif
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/http.hpp"
+#endif
 
 #include <chrono>
 #include <memory>
@@ -481,6 +484,21 @@ enum class LuaAtoms : int16_t
     min,
     max,
     defaultValue,
+
+    // Fetch Response
+    status,
+    statusText,
+    ok,
+    url,
+    headers,
+    arrayBuffer,
+    header,
+
+    // Decoded Rive files
+    decodeFile,
+    artboardNames,
+    bindableArtboard,
+    getArtboard,
 };
 
 struct ScriptedMat2D
@@ -1062,6 +1080,26 @@ public:
 
 int luaopen_rive_promise(lua_State* L);
 
+#ifdef WITH_RIVE_SCRIPTNET
+// ── fetch() Response ───────────────────────────────────────────────────────
+
+/// What a script's fetch() promise resolves with. Owns the whole response;
+/// text() and arrayBuffer() copy the body out on demand.
+class ScriptedHttpResponse
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 74;
+    static constexpr const char* luaName = "Response";
+    static constexpr bool hasMetatable = true;
+
+    ScriptedHttpResponse(scriptnet::HttpResponse&& value) :
+        response(std::move(value))
+    {}
+
+    scriptnet::HttpResponse response;
+};
+#endif
+
 // ── ImageSampler ───────────────────────────────────────────────────────────
 
 class ScriptedImageSampler
@@ -1377,8 +1415,8 @@ class ScriptedProperty : public ViewModelInstanceValueDelegate
 public:
     ScriptedProperty(lua_State* L, rcp<ViewModelInstanceValue> value);
     virtual ~ScriptedProperty();
-    int addListener();
-    int removeListener();
+    int addListener(lua_State* L);
+    int removeListener(lua_State* L);
     void clearListeners();
     virtual void dispose();
 
@@ -1427,8 +1465,8 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 11;
     static constexpr const char* luaName = "ViewModel";
     static constexpr bool hasMetatable = true;
-    int pushValue(const char* name, int coreType = 0);
-    int pushIndex();
+    int pushValue(lua_State* L, const char* name, int coreType = 0);
+    int pushIndex(lua_State* L);
     int instance(lua_State* L);
 
     const lua_State* state() const { return m_state; }
@@ -1461,7 +1499,7 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 12;
     static constexpr const char* luaName = "PropertyViewModel";
     static constexpr bool hasMetatable = true;
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(ScriptedViewModel*);
     void dispose() override;
     void relinkDataBind() override;
@@ -1481,7 +1519,7 @@ public:
     static constexpr const char* luaName = "Property<number>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(float value);
 };
 
@@ -1503,8 +1541,8 @@ public:
     static constexpr const char* luaName = "PropertyList";
     static constexpr bool hasMetatable = true;
 
-    int pushLength();
-    int pushValue(int index);
+    int pushLength(lua_State* L);
+    int pushValue(lua_State* L, int index);
     void valueChanged() override;
     void append(ViewModelInstance*);
 
@@ -1521,7 +1559,7 @@ public:
     static constexpr const char* luaName = "PropertyColor";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(unsigned value);
 };
 
@@ -1533,7 +1571,7 @@ public:
     static constexpr const char* luaName = "PropertyString";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(const std::string& value);
 };
 
@@ -1545,7 +1583,7 @@ public:
     static constexpr const char* luaName = "Property<bool>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(bool value);
 };
 
@@ -1553,14 +1591,14 @@ class ScriptedEnumValues
 {
 public:
     ScriptedEnumValues(lua_State* L, DataEnum* value) :
-        m_state(L), m_dataEnum(value)
+        m_state(lua_mainthread(L)), m_dataEnum(value)
     {}
     static constexpr uint8_t luaTag = LUA_T_COUNT + 34;
     static constexpr const char* luaName = "EnumValues";
     static constexpr bool hasMetatable = true;
     void dataEnum(DataEnum* value) { m_dataEnum = value; }
-    int pushValue(int index);
-    int pushLength();
+    int pushValue(lua_State* L, int index);
+    int pushLength(lua_State* L);
 
     const lua_State* state() const { return m_state; }
 
@@ -1577,7 +1615,7 @@ public:
     static constexpr const char* luaName = "Property<enum>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(const std::string& value);
 };
 
@@ -1589,7 +1627,7 @@ public:
     static constexpr const char* luaName = "Property<Image>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(ScriptedImage* scriptedImage);
 };
 
@@ -1611,7 +1649,7 @@ public:
     static constexpr const char* luaName = "Property<Font>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(ScriptedFont* scriptedFont);
 };
 
@@ -1625,7 +1663,7 @@ public:
     static constexpr const char* luaName = "Property<Blob>";
     static constexpr bool hasMetatable = true;
 
-    int pushValue();
+    int pushValue(lua_State* L);
     void setValue(BlobAsset* blob);
 };
 
@@ -1633,8 +1671,6 @@ public:
 // ScriptedPropertyViewModel
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceViewModel)
 //      - Requires ViewModel to know which properties to expect
-// ScriptedPropertyArtboard
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceArtboard)
 
 // Make renderer: return lua_newrive<ScriptedRenderer>(L, renderer);
 template <class T, class... Args>
@@ -1913,8 +1949,15 @@ public:
     // WorkPool for async operations (image decode, etc.).
     // Lazily created on first access. Shared across all contexts via a
     // process-global singleton.
+    // Falls back to the main thread, since only async() bodies copy the
+    // context onto their coroutine.
+    static ScriptingContext* from(lua_State* L);
+
     class WorkPool* workPool();
     uint64_t ownerId() const { return m_ownerId; }
+    // The id async work is cancelled by in shutdownAsync(), assigned on first
+    // use.
+    uint64_t acquireOwnerId();
 
     // Cancel all pending async tasks for this context. Must be called
     // BEFORE lua_close() to prevent callbacks on a dead Lua state.
@@ -2358,7 +2401,9 @@ public:
     void store(lua_State* L, const rcp<T>& key)
     {
         release();
-        m_state = L;
+        // The main thread, not L: an async body stores from a coroutine that
+        // can be collected long before this cache releases its ref.
+        m_state = lua_mainthread(L);
         m_ref = lua_ref(L, -1);
         m_key = key;
     }
@@ -2378,6 +2423,69 @@ private:
     int m_ref = 0;
     rcp<T> m_key;
 };
+
+#ifdef WITH_RIVE_SCRIPTNET
+// ── Decoded Rive files (context:decodeFile) ────────────────────────────────
+
+class BindableArtboard;
+class ViewModelInstanceArtboard;
+
+/// A Rive file a script decoded from bytes. Its artboards reach the host only
+/// as BindableArtboards assigned to view model artboard properties.
+class ScriptedRiveFile
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 75;
+    static constexpr const char* luaName = "RiveFile";
+    static constexpr bool hasMetatable = true;
+
+    ScriptedRiveFile();
+    ~ScriptedRiveFile();
+
+    rcp<File> file;
+};
+
+/// An artboard of a decoded file, with an instance of the view model its
+/// binds read from that same file. Assigning it to a view model artboard
+/// property binds both.
+class ScriptedBindableArtboard
+{
+public:
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 76;
+    static constexpr const char* luaName = "BindableArtboard";
+    static constexpr bool hasMetatable = true;
+
+    // Filled in after the userdata exists, so a failed allocation cannot
+    // strand the references (Luau errors longjmp past destructors).
+    ScriptedBindableArtboard();
+    ~ScriptedBindableArtboard();
+
+    int pushData(lua_State* L);
+
+    rcp<BindableArtboard> artboard;
+    // Null when the artboard has no view model.
+    rcp<ViewModelInstance> viewModel;
+
+private:
+    ScriptedWrapperCache<ViewModelInstance> m_dataCache;
+};
+
+class ScriptedPropertyArtboard : public ScriptedProperty
+{
+public:
+    ScriptedPropertyArtboard(lua_State* L,
+                             rcp<ViewModelInstanceArtboard> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 77;
+    static constexpr const char* luaName = "Property<BindableArtboard>";
+    static constexpr bool hasMetatable = true;
+
+    /// The bindable last assigned, or nil while the property names one of
+    /// the host file's own artboards (or none).
+    int pushValue(lua_State* L);
+    /// Assigns the BindableArtboard (or nil) at valueIdx.
+    void setValue(lua_State* L, int valueIdx);
+};
+#endif
 
 class ScriptedContext
 {

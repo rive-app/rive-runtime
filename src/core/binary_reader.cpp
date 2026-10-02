@@ -51,37 +51,36 @@ uint64_t BinaryReader::readVarUint64()
 
 std::string BinaryReader::readString(size_t length)
 {
-    std::vector<char> rawValue((size_t)length + 1);
-    auto readBytes =
-        decode_string(length, m_Position, m_Bytes.end(), &rawValue[0]);
-    if (readBytes != length)
+    // Same guard as readBytes: the length comes straight from the file, so
+    // check it against what is left before allocating anything for it.
+    if (length > static_cast<size_t>(m_Bytes.end() - m_Position))
     {
         overflow();
         return std::string();
     }
-    m_Position += readBytes;
-    return std::string(rawValue.data(), (size_t)length);
+    std::string value(reinterpret_cast<const char*>(m_Position), length);
+    m_Position += length;
+    return value;
 }
 
-std::string BinaryReader::readString()
+size_t BinaryReader::readLength()
 {
     uint64_t length = readVarUint64();
-    if (didOverflow())
+    // Checked at full width so a 32 bit size_t can't truncate a huge length
+    // into a small, wrong one.
+    if (length > static_cast<uint64_t>(m_Bytes.end() - m_Position))
     {
-        return std::string();
+        overflow();
+        return 0;
     }
-    return readString(length);
+    return static_cast<size_t>(length);
 }
+
+std::string BinaryReader::readString() { return readString(readLength()); }
 
 Span<const uint8_t> BinaryReader::readBytes()
 {
-    uint64_t length = readVarUint64();
-    if (didOverflow())
-    {
-        return Span<const uint8_t>(m_Position, 0);
-    }
-
-    return readBytes((size_t)length);
+    return readBytes(readLength());
 }
 
 Span<const uint8_t> BinaryReader::readBytes(size_t length)

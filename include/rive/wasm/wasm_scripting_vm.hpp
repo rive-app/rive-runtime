@@ -29,6 +29,10 @@ class RenderPath;
 class ViewModel;
 class WorkTask;
 class WasmScriptingVM;
+namespace scriptnet
+{
+struct HttpResponse;
+}
 
 /// A debugger's view of a module baked with rasc's line probes. Everything
 /// arrives on the module's thread: the probes from inside the module, the
@@ -105,6 +109,9 @@ public:
             drawable,
             text,
             transitionChild,
+            // context:decodeFile's files and their bindable artboards.
+            riveFile,
+            bindableArtboard,
             count,
         };
         struct Slot
@@ -212,6 +219,24 @@ public:
                             const uint8_t* pixels,
                             uint32_t byteCount);
     void rejectImageDecode(uint32_t token, const char* message);
+
+    /// fetch() plumbing. The module issues the token and passes a NetWire
+    /// request; scriptnet runs the policy, this VM's limits and the host's
+    /// transport, and the outcome reaches the module on a later
+    /// rive_pollAsyncWork, on the thread that started it, through its
+    /// host_fetch_resolved / host_fetch_failed exports. Returns false on
+    /// hosts built without fetch() support, where nothing would settle, and
+    /// for a token already in flight.
+    bool startFetch(Span<const uint8_t> request, uint32_t token);
+    /// The script cancelled: aborted at the transport, never delivered.
+    void cancelFetch(uint32_t token);
+    /// scriptnet listener callbacks: the response, or the NetErrorCode and
+    /// its "<code>: <message>" rejection.
+    void resolveFetch(uint32_t token, scriptnet::HttpResponse&& response);
+    void rejectFetch(uint32_t token, uint32_t code, const std::string& message);
+    /// Delivers the decode and fetch outcomes that landed while a module
+    /// call was running; a no-op while one still is.
+    void deliverHeldOutcomes();
 
     /// Advances detached view model instances the module holds handles to,
     /// mirroring the Luau context's tracked instance advance.
@@ -405,6 +430,12 @@ public:
     /// the next callModule, when a copying backend flushes staged ranges;
     /// WAMR returns the linear memory address directly.
     virtual void* resolveModulePtr(uint32_t appAddr, uint32_t size);
+    /// resolveModulePtr for a range the host overwrites whole, such as a
+    /// fresh allocation, so a copying backend need not read it first.
+    virtual void* resolveModuleWritePtr(uint32_t appAddr, uint32_t size)
+    {
+        return resolveModulePtr(appAddr, size);
+    }
 
     /// Calls a module export with i32 args; returns the first result, or 0
     /// when the export is missing or the call traps.
@@ -483,6 +514,7 @@ public:
     /// Budget for VMs created after the call; the host's trust decision for
     /// files whose modules it baked itself (e.g. dangerouslyFast content).
     static void defaultTimeoutMs(int ms) { sm_defaultTimeoutMs = ms; }
+    static int defaultTimeoutMs() { return sm_defaultTimeoutMs; }
 
     /// Receives script print output; defaults to stdout.
     void onPrint(std::function<void(const char*, size_t)> handler)
@@ -601,6 +633,18 @@ private:
     void deliverDecodeResult(const DecodeResult& result);
     // Logs the pending trap and clears it so later calls can run.
     void reportTrap(const char* where);
+    /// In-flight fetches: module token to scriptnet request id, for
+    /// cancellation. The owner id scopes this VM's rate limits and lets
+    /// teardown cancel everything it started.
+    std::unordered_map<uint32_t, uint32_t> m_pendingFetches;
+    uint64_t m_netOwnerId = 0;
+    void deliverFetchFailure(uint32_t token,
+                             uint32_t code,
+                             const std::string& message);
+    /// A nested advance polls async work while the module is mid call;
+    /// settling its promises there would run script under that call.
+    bool inModuleCall() const;
+    std::vector<std::function<void()>> m_heldOutcomes;
     bool m_advancedOnce = false;
     bool m_missingRequestedData = false;
     std::unique_ptr<BudgetSlot> m_budgetSlot;

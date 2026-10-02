@@ -120,21 +120,32 @@ public:
     /// @param vm is an optional ScriptingVM that should be made per file. This
     /// is the environment that any script instances in the file will be
     /// created in.
+    /// @param requireSignedScripts runs only Rive-signed scripts, even in
+    /// builds that otherwise run unsigned ones (WITH_RIVE_TOOLS). Set it for
+    /// bytes that did not come from the embedder, such as a file a script
+    /// downloaded.
     /// @returns a pointer to the file, or null on failure.
     static rcp<File> import(Span<const uint8_t> data,
                             Factory* factory,
                             ImportResult* result = nullptr,
                             FileAssetLoader* assetLoader = nullptr,
-                            ScriptingVM* vm = nullptr)
+                            ScriptingVM* vm = nullptr,
+                            bool requireSignedScripts = false)
     {
-        return import(data, factory, result, ref_rcp(assetLoader), vm);
+        return import(data,
+                      factory,
+                      result,
+                      ref_rcp(assetLoader),
+                      vm,
+                      requireSignedScripts);
     }
 
     static rcp<File> import(Span<const uint8_t> data,
                             Factory*,
                             ImportResult* result,
                             rcp<FileAssetLoader> assetLoader,
-                            ScriptingVM* vm = nullptr);
+                            ScriptingVM* vm = nullptr,
+                            bool requireSignedScripts = false);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
@@ -214,6 +225,14 @@ public:
     /// @returns a view model instance of the viewModel.
     rcp<ViewModelInstance> createViewModelInstance(ViewModel* viewModel) const;
 
+    /// @returns a view model instance of the viewModel with at most
+    /// maxInstances instances in all, itself included; view model properties
+    /// past that stay empty. createViewModelInstance caps a file's untrusted
+    /// nesting well past what an authored file holds.
+    rcp<ViewModelInstance> createBoundedViewModelInstance(
+        ViewModel* viewModel,
+        size_t maxInstances) const;
+
     /// @returns the default view model instance of the viewModel, or returns an
     /// empty one if there is no default.
     rcp<ViewModelInstance> createDefaultViewModelInstance(
@@ -255,10 +274,13 @@ public:
     ViewModelInstanceListItem* viewModelInstanceListItem(
         rcp<ViewModelInstance> viewModelInstance,
         Artboard* artboard);
+    /// `depth` is how deep viewModelInstance sits in the graph, the root at
+    /// 1; nesting past a cap stays empty, as when creating an instance.
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance,
         std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-            instancesMap) const;
+            instancesMap,
+        size_t depth = 1) const;
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
     /// Clones [viewModelInstance] and completes the clone, sharing one copy per
@@ -411,6 +433,10 @@ private:
 
 #ifdef WITH_RIVE_SCRIPTING
     void registerScripts();
+    /// Whether a script asset (or wasm module) with this signature status may
+    /// run. See import()'s requireSignedScripts.
+    bool acceptsScript(bool verified) const;
+    bool m_requireSignedScripts = false;
 #endif
 #ifdef WITH_RIVE_SCRIPTING
     [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
@@ -455,11 +481,21 @@ private:
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,
         std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-            instancesMap) const;
+            instancesMap,
+        size_t depth = 1) const;
 
     void completeViewModelProperties(
         ViewModelInstance* viewModelInstance,
-        std::unordered_set<ViewModelInstance*>& visited);
+        std::unordered_set<ViewModelInstance*>& visited,
+        size_t depth = 1);
+
+    // `creating` holds the view models on the current path, so one that
+    // contains itself (directly or through others) ends the recursion.
+    // `budget` counts the instances the outermost call may still create.
+    rcp<ViewModelInstance> createViewModelInstance(
+        ViewModel* viewModel,
+        std::vector<const ViewModel*>& creating,
+        size_t& budget) const;
 
     rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 

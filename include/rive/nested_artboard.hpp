@@ -38,6 +38,12 @@ class NestedArtboard : public NestedArtboardBase,
                        public Focusable
 {
 protected:
+    // The bindable m_Instance was cloned from, when a view model artboard
+    // property supplied one. The clone shares the definitions of the file
+    // the bindable pins, which may be a different file with no other owner,
+    // so the bindable is released only after m_Instance is gone. Declared
+    // before m_Instance so it is also destroyed after it.
+    rcp<BindableArtboard> m_mountedBindable;
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
     std::unique_ptr<NestedStateMachine>
         m_boundNestedStateMachine; // may be null
@@ -57,6 +63,7 @@ protected:
     std::vector<rcp<ViewModelInstance>> m_globalViewModelInstances;
     /// Structural scope for data-bound hosts only
     rcp<FocusNode> m_focusScope;
+    void cloneReferencesInto(NestedArtboard* clone) const;
 
 private:
     void clearNestedAnimations();
@@ -186,6 +193,7 @@ public:
                                                AdvanceFlags::NewFrame) override;
     void reset() override;
     Artboard* parentArtboard() override { return artboard(); }
+    Artboard* nestingArtboard() override { return artboard(); }
     Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) override;
     Mat2D worldTransformForArtboard(ArtboardInstance*) override;
     bool hitTestHost(const Vec2D& position,

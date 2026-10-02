@@ -1455,7 +1455,19 @@ void Artboard::initScriptedObjects()
     }
 }
 
-void Artboard::pollAsyncWork() { rive_pollAsyncWork(); }
+void Artboard::pollAsyncWork()
+{
+    rive_pollAsyncWork();
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    if (auto f = artboardFile())
+    {
+        for (auto& vm : f->wasmVMs())
+        {
+            vm->deliverHeldOutcomes();
+        }
+    }
+#endif
+}
 
 void Artboard::advanceScriptedViewModels()
 {

@@ -337,6 +337,10 @@ NAMESPACES = [
         op('vmi_image', [handle('vmi'), string('name', 'length')], ret='u32'),
         op('vmi_font', [handle('vmi'), string('name', 'length')], ret='u32'),
         op('vmi_blob', [handle('vmi'), string('name', 'length')], ret='u32'),
+        # Artboard properties; 0 on hosts built without fetch() support,
+        # like the Luau lane's getArtboard.
+        op('vmi_artboard', [handle('vmi'), string('name', 'length')],
+           ret='u32'),
         # The property's image as a rive_image_v1 handle, resolved through
         # the instance's embedded asset or the file registry; 0 when none.
         op('image_get', [handle('property')], ret='u32'),
@@ -356,6 +360,13 @@ NAMESPACES = [
         op('blob_set', [handle('property'),
                         buf('uint8_t', 'bytes', 'byteCount')]),
         op('blob_clear', [handle('property')]),
+        # The bindable artboard the property holds, as a rive_file_v1
+        # bindable handle; 0 while it names one of the host file's own
+        # artboards, or none.
+        op('artboard_get', [handle('property')], ret='u32'),
+        # Binds the bindable's own view model instance and then the
+        # artboard, as the Luau lane's setter does; 0 clears both.
+        op('artboard_set', [handle('property'), handle('bindable')]),
         # Same retrying length contract as string_get; the value is the
         # current key resolved through the property's data enum.
         op('enum_get', [handle('property'),
@@ -1058,6 +1069,46 @@ NAMESPACES = [
             handle('indexBuffer'),
             handle('instances'),
         ]),
+    ]),
+    # fetch(): the host runs NetPolicy, the limits and the transport. The
+    # request is a NetWire stream; the outcome lands on a later advance
+    # through the module's host_fetch_resolved / host_fetch_failed exports,
+    # keyed by the module-issued token. fetch returns 0 when the host was
+    # built without fetch() support and nothing will ever settle, or when
+    # the token is already in flight.
+    ns('rive_net_v1', 'net', [
+        op('fetch', [buf('uint8_t', 'request', 'requestCount'),
+                     u32('token')], ret='u32'),
+        op('fetch_cancel', [u32('token')]),
+    ]),
+    # context:decodeFile and what it returns: decoded files and their
+    # bindable artboards are host objects behind handles.
+    ns('rive_file_v1', 'file', [
+        # 0 when no file results, with statusOut[0] set to the
+        # FileDecodeWire status saying why.
+        op('decode', [buf('uint8_t', 'bytes', 'byteCount'),
+                      mutbuf('uint32_t', 'statusOut', 'statusCount')],
+           ret='u32'),
+        op('release', [handle('file')]),
+        # The artboard count, then each name by index with the retrying
+        # length contract; names are file data and may hold any character.
+        op('artboard_count', [handle('file')], ret='u32'),
+        op('artboard_name', [handle('file'), u32('index'),
+                             mutbuf('char', 'buffer', 'capacity')],
+           ret='u32'),
+        # The named artboard, or the file's default one when useDefault is
+        # set, with an instance of its own view model; 0 when absent.
+        op('bindable', [handle('file'), string('name', 'nameLength'),
+                        u32('useDefault')], ret='u32'),
+        op('bindable_release', [handle('bindable')]),
+        op('bindable_name', [handle('bindable'),
+                             mutbuf('char', 'buffer', 'capacity')],
+           ret='u32'),
+        # The instance of the artboard's own view model as a rive_data_v1
+        # vmi handle; 0 when the artboard has none.
+        op('bindable_data', [handle('bindable')], ret='u32'),
+        # Both handles carry the same bindable artboard.
+        op('bindable_equal', [handle('a'), handle('b')], ret='u32'),
     ]),
 ]
 

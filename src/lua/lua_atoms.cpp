@@ -304,6 +304,19 @@ constexpr LuaAtomName atoms[] = {
     {"number", (int16_t)LuaAtoms::number},
     {"boolean", (int16_t)LuaAtoms::boolean},
     {"string", (int16_t)LuaAtoms::string},
+    // Fetch Response
+    {"status", (int16_t)LuaAtoms::status},
+    {"statusText", (int16_t)LuaAtoms::statusText},
+    {"ok", (int16_t)LuaAtoms::ok},
+    {"url", (int16_t)LuaAtoms::url},
+    {"headers", (int16_t)LuaAtoms::headers},
+    {"arrayBuffer", (int16_t)LuaAtoms::arrayBuffer},
+    {"header", (int16_t)LuaAtoms::header},
+    // Decoded Rive files
+    {"decodeFile", (int16_t)LuaAtoms::decodeFile},
+    {"artboardNames", (int16_t)LuaAtoms::artboardNames},
+    {"bindableArtboard", (int16_t)LuaAtoms::bindableArtboard},
+    {"getArtboard", (int16_t)LuaAtoms::getArtboard},
 #ifdef WITH_RIVE_TOOLS
     {"properties", (int16_t)LuaAtoms::properties},
 #endif

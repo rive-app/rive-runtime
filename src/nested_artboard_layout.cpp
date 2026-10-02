@@ -11,13 +11,7 @@ Core* NestedArtboardLayout::clone() const
 {
     NestedArtboardLayout* nestedArtboard =
         static_cast<NestedArtboardLayout*>(NestedArtboardLayoutBase::clone());
-    nestedArtboard->file(file());
-    if (m_referencedArtboard == nullptr)
-    {
-        return nestedArtboard;
-    }
-    auto ni = m_referencedArtboard->instance();
-    nestedArtboard->referencedArtboard(ni.release());
+    cloneReferencesInto(nestedArtboard);
     return nestedArtboard;
 }
 

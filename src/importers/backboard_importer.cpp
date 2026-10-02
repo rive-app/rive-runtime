@@ -16,9 +16,108 @@
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/script_input_artboard.hpp"
+#include <algorithm>
 #include <unordered_set>
+#include <utility>
 
 using namespace rive;
+
+namespace
+{
+// Flags each referencer whose reference lies on a nested artboard cycle, which
+// would make instancing recurse without end. The editor never exports those.
+std::vector<bool> closesNestedArtboardCycle(
+    const std::vector<ArtboardReferencer*>& referencers,
+    const std::unordered_map<int, Artboard*>& artboards)
+{
+    std::unordered_map<Artboard*, int> nodes;
+    auto node = [&](Artboard* artboard) {
+        return nodes.emplace(artboard, (int)nodes.size()).first->second;
+    };
+    std::vector<std::pair<int, int>> references(referencers.size(), {-1, -1});
+    std::vector<std::vector<int>> edges;
+    for (size_t i = 0; i < referencers.size(); i++)
+    {
+        Artboard* nesting = referencers[i]->nestingArtboard();
+        auto nested = artboards.find(referencers[i]->referencedArtboardId());
+        if (nesting == nullptr || nested == artboards.end() ||
+            nested->second == nullptr)
+        {
+            continue;
+        }
+        references[i] = {node(nesting), node(nested->second)};
+        edges.resize(nodes.size());
+        edges[references[i].first].push_back(references[i].second);
+    }
+
+    // Iterative Tarjan: a reference closes a cycle when both its ends share a
+    // strongly connected component. Recursing could overflow on large files.
+    const size_t count = edges.size();
+    std::vector<int> order(count, -1);
+    std::vector<int> lowLink(count, 0);
+    std::vector<int> component(count, -1);
+    std::vector<int> open;
+    std::vector<std::pair<int, size_t>> calls;
+    int nextOrder = 0;
+    int nextComponent = 0;
+    for (int root = 0; root < (int)count; root++)
+    {
+        if (order[root] != -1)
+        {
+            continue;
+        }
+        order[root] = lowLink[root] = nextOrder++;
+        open.push_back(root);
+        calls.push_back({root, 0});
+        while (!calls.empty())
+        {
+            int current = calls.back().first;
+            size_t next = calls.back().second++;
+            if (next < edges[current].size())
+            {
+                int to = edges[current][next];
+                if (order[to] == -1)
+                {
+                    order[to] = lowLink[to] = nextOrder++;
+                    open.push_back(to);
+                    calls.push_back({to, 0});
+                }
+                else if (component[to] == -1)
+                {
+                    lowLink[current] = std::min(lowLink[current], order[to]);
+                }
+                continue;
+            }
+            calls.pop_back();
+            if (!calls.empty())
+            {
+                int parent = calls.back().first;
+                lowLink[parent] = std::min(lowLink[parent], lowLink[current]);
+            }
+            if (lowLink[current] == order[current])
+            {
+                int member;
+                do
+                {
+                    member = open.back();
+                    open.pop_back();
+                    component[member] = nextComponent;
+                } while (member != current);
+                nextComponent++;
+            }
+        }
+    }
+
+    std::vector<bool> closesCycle(referencers.size(), false);
+    for (size_t i = 0; i < referencers.size(); i++)
+    {
+        closesCycle[i] =
+            references[i].first != -1 &&
+            component[references[i].first] == component[references[i].second];
+    }
+    return closesCycle;
+}
+} // namespace
 
 BackboardImporter::BackboardImporter(Backboard* backboard) :
     m_Backboard(backboard), m_NextArtboardId(0)
@@ -75,8 +174,15 @@ void BackboardImporter::addMissingArtboard() { m_NextArtboardId++; }
 
 StatusCode BackboardImporter::resolve()
 {
-    for (auto nestedArtboard : m_ArtboardsReferencers)
+    auto closesCycle =
+        closesNestedArtboardCycle(m_ArtboardsReferencers, m_ArtboardLookup);
+    for (size_t i = 0; i < m_ArtboardsReferencers.size(); i++)
     {
+        if (closesCycle[i])
+        {
+            continue;
+        }
+        auto nestedArtboard = m_ArtboardsReferencers[i];
         auto itr =
             m_ArtboardLookup.find(nestedArtboard->referencedArtboardId());
         if (itr != m_ArtboardLookup.end())

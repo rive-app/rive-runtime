@@ -57,6 +57,8 @@ public:
     // cache directory are configured.
     void configure(const std::string& wamrcPath, const std::string& cacheDir);
     bool enabled();
+    // The wamrc the ladder runs, for callers compiling their own way.
+    std::string compilerPath();
 
     struct Artifact
     {
@@ -181,6 +183,7 @@ public:
 
     void configure(const std::string&, const std::string&) {}
     bool enabled() { return false; }
+    std::string compilerPath() { return std::string(); }
 
     struct Artifact
     {

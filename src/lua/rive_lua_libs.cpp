@@ -6,6 +6,9 @@
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_context.hpp"
 #endif
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/net.hpp"
+#endif
 #include "lualib.h"
 #include <stdio.h>
 #include <unordered_set>
@@ -29,6 +32,10 @@ int luaopen_rive_data_context(lua_State* L);
 int luaopen_rive_input(lua_State* L);
 int luaopen_rive_contex(lua_State* L);
 int luaopen_rive_audio(lua_State* L);
+#ifdef WITH_RIVE_SCRIPTNET
+int luaopen_rive_scriptnet(lua_State* L);
+int luaopen_rive_file(lua_State* L);
+#endif
 extern "C" int luaopen_rive_buffer_ext(lua_State* L);
 
 static const luaL_Reg lualibs[] = {
@@ -51,6 +58,10 @@ static const luaL_Reg lualibs[] = {
     {"dataContext", luaopen_rive_data_context},
     {"audio", luaopen_rive_audio},
     {"promise", luaopen_rive_promise},
+#ifdef WITH_RIVE_SCRIPTNET
+    {"scriptnet", luaopen_rive_scriptnet},
+    {"riveFile", luaopen_rive_file},
+#endif
     {NULL, NULL},
 };
 
@@ -812,10 +823,27 @@ void ScriptingContext::advanceDetachedViewModels()
 // ── WorkPool integration ───────────────────────────────────────────────────
 // getGlobalWorkPool() is defined in work_pool.cpp (shared singleton).
 
-WorkPool* ScriptingContext::workPool()
+ScriptingContext* ScriptingContext::from(lua_State* L)
+{
+    auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    if (context == nullptr)
+    {
+        context = static_cast<ScriptingContext*>(
+            lua_getthreaddata(lua_mainthread(L)));
+    }
+    return context;
+}
+
+uint64_t ScriptingContext::acquireOwnerId()
 {
     if (m_ownerId == 0)
         m_ownerId = WorkPool::nextOwnerId();
+    return m_ownerId;
+}
+
+WorkPool* ScriptingContext::workPool()
+{
+    acquireOwnerId();
     return getGlobalWorkPool().get();
 }
 
@@ -831,6 +859,9 @@ void ScriptingContext::shutdownAsync()
         auto& pool = getGlobalWorkPoolIfExists();
         if (pool)
             pool->cancelAllForOwner(m_ownerId);
+#ifdef WITH_RIVE_SCRIPTNET
+        scriptnet::cancelAllForOwner(m_ownerId);
+#endif
         m_ownerId = 0;
     }
 }

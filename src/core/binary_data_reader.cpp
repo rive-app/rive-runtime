@@ -102,17 +102,17 @@ std::string BinaryDataReader::readString()
     {
         return std::string();
     }
-
-    std::string rawValue;
-    rawValue.resize(length);
-    auto readBytes = decode_string(length, m_Position, m_End, &rawValue[0]);
-    if (readBytes != length)
+    // The length comes from the data; check it against what is left before
+    // allocating anything for it.
+    if (length > static_cast<uint64_t>(m_End - m_Position))
     {
         overflow();
         return std::string();
     }
-    m_Position += readBytes;
-    return std::string(rawValue);
+    std::string value(reinterpret_cast<const char*>(m_Position),
+                      static_cast<size_t>(length));
+    m_Position += static_cast<size_t>(length);
+    return value;
 }
 
 void BinaryDataReader::complete(uint8_t* bytes, size_t length)

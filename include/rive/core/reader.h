@@ -13,6 +13,9 @@ static bool is_big_endian(void)
 }
 
 /* Decode an unsigned int LEB128 at buf into r, returning the nr of bytes read.
+ * Returns zero (overflow) when the buffer ends first, the encoding is longer
+ * than a 64 bit value can need (where the shift would be undefined), or its
+ * last group carries bits past bit 63.
  */
 inline size_t decode_uint_leb(const uint8_t* buf,
                               const uint8_t* buf_end,
@@ -25,11 +28,16 @@ inline size_t decode_uint_leb(const uint8_t* buf,
 
     do
     {
-        if (p >= buf_end)
+        if (p >= buf_end || shift >= 64)
         {
             return 0;
         }
         byte = *p++;
+        // The tenth group lands on bit 63 and has room for one bit.
+        if (shift == 63 && (byte & 0x7e) != 0)
+        {
+            return 0;
+        }
         result |= ((uint64_t)(byte & 0x7f)) << shift;
         shift += 7;
     } while ((byte & 0x80) != 0);
@@ -38,6 +46,9 @@ inline size_t decode_uint_leb(const uint8_t* buf,
 }
 
 /* Decode an unsigned int LEB128 at buf into r, returning the nr of bytes read.
+ * Returns zero (overflow) when the buffer ends first, the encoding is longer
+ * than a 32 bit value can need (where the shift would be undefined), or its
+ * last group carries bits past bit 31.
  */
 inline size_t decode_uint_leb32(const uint8_t* buf,
                                 const uint8_t* buf_end,
@@ -50,11 +61,16 @@ inline size_t decode_uint_leb32(const uint8_t* buf,
 
     do
     {
-        if (p >= buf_end)
+        if (p >= buf_end || shift >= 32)
         {
             return 0;
         }
         byte = *p++;
+        // The fifth group lands on bit 28 and has room for four bits.
+        if (shift == 28 && (byte & 0x70) != 0)
+        {
+            return 0;
+        }
         result |= ((uint32_t)(byte & 0x7f)) << shift;
         shift += 7;
     } while ((byte & 0x80) != 0);
@@ -62,23 +78,21 @@ inline size_t decode_uint_leb32(const uint8_t* buf,
     return p - buf;
 }
 
-/* Decodes a string
+/* Decodes a string of str_len bytes into char_buf, which must hold
+ * str_len + 1 bytes. Returns zero bytes read on buffer overflow.
  */
 inline uint64_t decode_string(uint64_t str_len,
                               const uint8_t* buf,
                               const uint8_t* buf_end,
                               char* char_buf)
 {
-    // Return zero bytes read on buffer overflow
-    if (buf_end < buf + str_len)
+    // Compare lengths rather than forming buf + str_len, which a file
+    // controlled length can push past the end of the address space.
+    if (buf_end < buf || str_len > (uint64_t)(buf_end - buf))
     {
         return 0;
     }
-    const uint8_t* p = buf;
-    for (int i = 0; i < str_len; i++)
-    {
-        char_buf[i] = *p++;
-    }
+    memcpy(char_buf, buf, (size_t)str_len);
     // Add the null terminator
     char_buf[str_len] = '\0';
     return str_len;

@@ -74,6 +74,12 @@ filter({ 'options:with_rive_layout' })
 do
     defines({ 'WITH_RIVE_LAYOUT' })
 end
+-- Script networking (fetch). Hosts still choose the transport at runtime;
+-- without one every request is denied.
+filter({ 'options:with_rive_scriptnet' })
+do
+    defines({ 'WITH_RIVE_SCRIPTNET' })
+end
 filter({ 'options:with_rive_editor' })
 do
     defines({ 'WITH_RIVE_EDITOR' })
@@ -225,7 +231,11 @@ do
 
     filter('system:macosx or system:ios')
     do
-        files({ 'src/text/font_hb_apple.mm' })
+        files({
+            'src/text/font_hb_apple.mm',
+            -- Gated inside on WITH_RIVE_SCRIPTNET.
+            'src/scriptnet/net_provider_apple.mm',
+        })
     end
 
     if TESTING == true then
@@ -407,6 +417,11 @@ newoption({
 newoption({
     trigger = 'with_rive_canvas',
     description = 'Compiles in RenderCanvas and Ore GPU abstraction layer.',
+})
+
+newoption({
+    trigger = 'with_rive_scriptnet',
+    description = 'Compiles in script networking (fetch). Requires scripting.',
 })
 
 newoption({

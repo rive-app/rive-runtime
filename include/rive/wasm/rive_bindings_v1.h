@@ -293,6 +293,8 @@ RIVE_BINDING_IMPORT("rive_data_v1", "vmi_font")
 uint32_t rive_data_vmi_font(uint32_t vmi, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_data_v1", "vmi_blob")
 uint32_t rive_data_vmi_blob(uint32_t vmi, const char* name, uint32_t length);
+RIVE_BINDING_IMPORT("rive_data_v1", "vmi_artboard")
+uint32_t rive_data_vmi_artboard(uint32_t vmi, const char* name, uint32_t length);
 RIVE_BINDING_IMPORT("rive_data_v1", "image_get")
 uint32_t rive_data_image_get(uint32_t property);
 RIVE_BINDING_IMPORT("rive_data_v1", "image_set")
@@ -313,6 +315,10 @@ RIVE_BINDING_IMPORT("rive_data_v1", "blob_set")
 void rive_data_blob_set(uint32_t property, const uint8_t* bytes, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_data_v1", "blob_clear")
 void rive_data_blob_clear(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "artboard_get")
+uint32_t rive_data_artboard_get(uint32_t property);
+RIVE_BINDING_IMPORT("rive_data_v1", "artboard_set")
+void rive_data_artboard_set(uint32_t property, uint32_t bindable);
 RIVE_BINDING_IMPORT("rive_data_v1", "enum_get")
 uint32_t rive_data_enum_get(uint32_t property, char* buffer, uint32_t capacity);
 RIVE_BINDING_IMPORT("rive_data_v1", "enum_set")
@@ -815,6 +821,32 @@ RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh")
 void rive_renderer_draw_image_mesh(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t blend, float opacity);
 RIVE_BINDING_IMPORT("rive_renderer_v1", "draw_image_mesh_instanced")
 void rive_renderer_draw_image_mesh_instanced(uint32_t renderer, uint32_t image, uint32_t sampler, uint32_t vertexBuffer, uint32_t uvBuffer, uint32_t indexBuffer, uint32_t instances);
+
+// rive_net_v1
+RIVE_BINDING_IMPORT("rive_net_v1", "fetch")
+uint32_t rive_net_fetch(const uint8_t* request, uint32_t requestCount, uint32_t token);
+RIVE_BINDING_IMPORT("rive_net_v1", "fetch_cancel")
+void rive_net_fetch_cancel(uint32_t token);
+
+// rive_file_v1
+RIVE_BINDING_IMPORT("rive_file_v1", "decode")
+uint32_t rive_file_decode(const uint8_t* bytes, uint32_t byteCount, uint32_t* statusOut, uint32_t statusCount);
+RIVE_BINDING_IMPORT("rive_file_v1", "release")
+void rive_file_release(uint32_t file);
+RIVE_BINDING_IMPORT("rive_file_v1", "artboard_count")
+uint32_t rive_file_artboard_count(uint32_t file);
+RIVE_BINDING_IMPORT("rive_file_v1", "artboard_name")
+uint32_t rive_file_artboard_name(uint32_t file, uint32_t index, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable")
+uint32_t rive_file_bindable(uint32_t file, const char* name, uint32_t nameLength, uint32_t useDefault);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_release")
+void rive_file_bindable_release(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_name")
+uint32_t rive_file_bindable_name(uint32_t bindable, char* buffer, uint32_t capacity);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_data")
+uint32_t rive_file_bindable_data(uint32_t bindable);
+RIVE_BINDING_IMPORT("rive_file_v1", "bindable_equal")
+uint32_t rive_file_bindable_equal(uint32_t a, uint32_t b);
 
 #ifdef __cplusplus
 }

@@ -114,6 +114,12 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
+// Bounds on building a view model instance with everything it nests, which a
+// downloaded file controls: deeper than an authored file nests, and more
+// instances than one holds. Past either, nested references stay empty.
+static constexpr size_t kMaxViewModelNesting = 256;
+static constexpr size_t kMaxViewModelInstances = 100000;
+
 #if defined(DEBUG)
 size_t File::debugTotalFileCount = 0;
 #endif
@@ -293,6 +299,9 @@ File::~File()
     }
     for (auto& viewModel : m_ViewModels)
     {
+        // Instances can keep a view model alive past its file; createInstance
+        // must find no file rather than this freed one.
+        viewModel->file(nullptr);
         viewModel->unref();
     }
 #ifdef WITH_RIVE_TOOLS
@@ -321,7 +330,8 @@ rcp<File> File::import(Span<const uint8_t> bytes,
                        Factory* factory,
                        ImportResult* result,
                        rcp<FileAssetLoader> assetLoader,
-                       ScriptingVM* vm)
+                       ScriptingVM* vm,
+                       bool requireSignedScripts)
 {
     if (factory == nullptr)
     {
@@ -363,6 +373,11 @@ rcp<File> File::import(Span<const uint8_t> bytes,
         return nullptr;
     }
     auto file = make_rcp<File>(factory, std::move(assetLoader));
+#ifdef WITH_RIVE_SCRIPTING
+    file->m_requireSignedScripts = requireSignedScripts;
+#else
+    (void)requireSignedScripts;
+#endif
 #ifdef WITH_RIVE_SCRIPTING_LUAU
     if (vm != nullptr)
     {
@@ -1006,8 +1021,42 @@ const char* File::frameBoundary()
 }
 #endif
 
+bool File::acceptsScript(bool verified) const
+{
+    if (m_requireSignedScripts)
+    {
+#ifdef WITH_RIVE_TEST_SIGNATURE
+        // The test key's private half is public, so its signatures prove
+        // nothing about bytes the embedder did not supply.
+        return false;
+#else
+        return verified;
+#endif
+    }
+#ifdef WITH_RIVE_TOOLS
+    // Tools builds run unsigned scripts so files work before export signs
+    // them.
+    return true;
+#else
+    return verified;
+#endif
+}
+
 void File::registerScripts()
 {
+    if (m_requireSignedScripts)
+    {
+        // Registration assigns the generator of every script that runs. The
+        // value the file itself carries could point instantiate() at any ref
+        // in the VM, so it is never trusted.
+        for (auto& asset : m_fileAssets)
+        {
+            if (asset->is<ScriptAsset>())
+            {
+                asset->as<ScriptAsset>()->generatorFunctionRef(0);
+            }
+        }
+    }
 #ifdef WITH_RIVE_SCRIPTING_WASM
     // A wasm script module supersedes the bytecode path: scripts live inside
     // the module and ScriptAssets are metadata-only routing records. Assets
@@ -1039,12 +1088,10 @@ void File::registerScripts()
         if (asset->is<ScriptModuleAsset>())
         {
             auto module = asset->as<ScriptModuleAsset>();
-#ifndef WITH_RIVE_TOOLS
-            if (!module->verified())
+            if (!acceptsScript(module->verified()))
             {
                 continue;
             }
-#endif
             std::string error;
             auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
             if (vm == nullptr)
@@ -1077,6 +1124,18 @@ void File::registerScripts()
     // RIVE_WASM_VM naming a stock vm module, every script registers
     // dynamically instead of arriving baked into a module asset. Dev and
     // sweep-harness lane; bytecode is interpreted by the module's Luau VM.
+    // It registers bytecode without checking signatures, so a file that
+    // requires signed scripts drops its unsigned ones first.
+    if (m_requireSignedScripts)
+    {
+        pending.erase(std::remove_if(pending.begin(),
+                                     pending.end(),
+                                     [this](ScriptAsset* script) {
+                                         return !acceptsScript(
+                                             script->verified());
+                                     }),
+                      pending.end());
+    }
     if (m_wasmVMs.empty() && !pending.empty())
     {
         if (const char* vmPath = getenv("RIVE_WASM_VM"))
@@ -1131,10 +1190,19 @@ void File::registerScripts()
     std::vector<ScriptAsset*> scripts;
     for (auto asset : m_fileAssets)
     {
-        if (asset->is<ScriptAsset>())
+        if (!asset->is<ScriptAsset>())
         {
-            scripts.push_back(asset->as<ScriptAsset>());
+            continue;
         }
+        auto scriptAsset = asset->as<ScriptAsset>();
+        // A file that requires signed scripts builds no VM for unsigned ones:
+        // their scripted objects stay inert, as they are in builds without
+        // WITH_RIVE_TOOLS.
+        if (m_requireSignedScripts && !acceptsScript(scriptAsset->verified()))
+        {
+            continue;
+        }
+        scripts.push_back(scriptAsset);
     }
     // Only make the ScriptingVM if we have any script assets
     if (!scripts.empty())
@@ -1163,14 +1231,10 @@ void File::registerScripts()
                 // registered with the VM. At edit time, the script will
                 // have already been registered, so this won't run.
                 // WITH_RIVE_TOOLS allows unverified scripts for testing.
-#ifdef WITH_RIVE_TOOLS
-                vm->addModule(scriptAsset);
-#else
-                if (scriptAsset->verified())
+                if (acceptsScript(scriptAsset->verified()))
                 {
                     vm->addModule(scriptAsset);
                 }
-#endif
             }
             // Perform registration - ScriptingContext will handle dependencies
             // and retries
@@ -1445,8 +1509,12 @@ void File::completeViewModelInstance(
 void File::completeViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-        instancesMap) const
+        instancesMap,
+    size_t depth) const
 {
+    // The authored graph comes from the file, so a downloaded one can chain
+    // instances deeper than the stack goes; past the cap they stay empty.
+    bool nest = depth < kMaxViewModelNesting;
     // Every id below is read straight from the file. One past the end of
     // m_ViewModels -- a reference to a view model that was not exported, or an
     // index mapping that has gone stale -- would otherwise read the vector out
@@ -1478,11 +1546,12 @@ void File::completeViewModelInstance(
                     auto viewModelReferenceInstance =
                         viewModelReference->instance(
                             valueViewModel->propertyValue());
-                    if (viewModelReferenceInstance != nullptr)
+                    if (viewModelReferenceInstance != nullptr && nest)
                     {
                         valueViewModel->referenceViewModelInstance(
                             copyViewModelInstance(viewModelReferenceInstance,
-                                                  instancesMap));
+                                                  instancesMap,
+                                                  depth + 1));
                     }
                 }
             }
@@ -1500,11 +1569,12 @@ void File::completeViewModelInstance(
                 }
                 auto viewModelListItemInstance =
                     itemViewModel->instance(listItem->viewModelInstanceId());
-                if (viewModelListItemInstance != nullptr)
+                if (viewModelListItemInstance != nullptr && nest)
                 {
                     listItem->viewModelInstance(
                         copyViewModelInstance(viewModelListItemInstance,
-                                              instancesMap));
+                                              instancesMap,
+                                              depth + 1));
                 }
             }
         }
@@ -1521,12 +1591,15 @@ void File::completeViewModelProperties(ViewModelInstance* viewModelInstance)
 
 void File::completeViewModelProperties(
     ViewModelInstance* viewModelInstance,
-    std::unordered_set<ViewModelInstance*>& visited)
+    std::unordered_set<ViewModelInstance*>& visited,
+    size_t depth)
 {
     // This walks the file's own instances, so a cycle -- or merely a diamond,
     // which costs exponential time -- would recurse without end. Visiting each
-    // instance once is enough: the work is idempotent.
-    if (viewModelInstance == nullptr ||
+    // instance once is enough: the work is idempotent. A chain deeper than
+    // kMaxViewModelNesting, which only a crafted file holds, is left
+    // unfinished past the cap rather than overflow the stack.
+    if (viewModelInstance == nullptr || depth > kMaxViewModelNesting ||
         !visited.insert(viewModelInstance).second)
     {
         return;
@@ -1555,7 +1628,8 @@ void File::completeViewModelProperties(
                     completeViewModelProperties(
                         viewModelReference->instance(
                             valueViewModel->propertyValue()),
-                        visited);
+                        visited,
+                        depth + 1);
                 }
             }
         }
@@ -1571,7 +1645,8 @@ void File::completeViewModelProperties(
                 }
                 completeViewModelProperties(
                     itemViewModel->instance(listItem->viewModelInstanceId()),
-                    visited);
+                    visited,
+                    depth + 1);
             }
         }
         value->viewModelProperty(
@@ -1593,7 +1668,8 @@ rcp<ViewModelInstance> File::copyViewModelInstance(
 rcp<ViewModelInstance> File::copyViewModelInstance(
     ViewModelInstance* viewModelInstance,
     std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-        instancesMap) const
+        instancesMap,
+    size_t depth) const
 {
     // The map is keyed on the *source* instances, so one copy is shared by
     // every reference to the same source. The entry has to go in before the
@@ -1620,7 +1696,7 @@ rcp<ViewModelInstance> File::copyViewModelInstance(
 #ifdef WITH_RIVE_TOOLS
     registerViewModelInstance(copy.get(), copy);
 #endif
-    completeViewModelInstance(copy, instancesMap);
+    completeViewModelInstance(copy, instancesMap, depth);
     instancesMap[viewModelInstance] = copy;
     return copy;
 }
@@ -1723,8 +1799,27 @@ void File::clearRuntimeViewModelInstances()
 
 rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
 {
-    if (viewModel != nullptr)
+    return createBoundedViewModelInstance(viewModel, kMaxViewModelInstances);
+}
+
+rcp<ViewModelInstance> File::createBoundedViewModelInstance(
+    ViewModel* viewModel,
+    size_t maxInstances) const
+{
+    std::vector<const ViewModel*> creating;
+    size_t budget = maxInstances;
+    return createViewModelInstance(viewModel, creating, budget);
+}
+
+rcp<ViewModelInstance> File::createViewModelInstance(
+    ViewModel* viewModel,
+    std::vector<const ViewModel*>& creating,
+    size_t& budget) const
+{
+    if (viewModel != nullptr && budget > 0)
     {
+        budget--;
+        creating.push_back(viewModel);
         uint32_t viewModelId = findViewModelId(viewModel);
 
         auto viewModelInstance = new ViewModelInstance();
@@ -1772,8 +1867,21 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                     auto viewModelInstanceViewModel =
                         viewModelInstanceValue
                             ->as<ViewModelInstanceViewModel>();
+                    // A view model that contains itself, directly or through
+                    // others, would recurse until the stack overflows; leave
+                    // the nested reference empty instead, as for a chain
+                    // deeper than kMaxViewModelNesting.
+                    bool cycle =
+                        std::find(creating.begin(),
+                                  creating.end(),
+                                  viewModelReference) != creating.end();
+                    bool tooDeep = creating.size() >= kMaxViewModelNesting;
                     auto referenceViewModelInstance =
-                        createViewModelInstance(viewModelReference);
+                        cycle || tooDeep
+                            ? nullptr
+                            : createViewModelInstance(viewModelReference,
+                                                      creating,
+                                                      budget);
                     if (referenceViewModelInstance)
                     {
                         viewModelInstanceViewModel->parentViewModelInstance(
@@ -1811,6 +1919,7 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
             viewModelInstance->addValue(viewModelInstanceValue);
             propertyId++;
         }
+        creating.pop_back();
 #ifdef WITH_RIVE_TOOLS
         if (viewModelInstance)
         {

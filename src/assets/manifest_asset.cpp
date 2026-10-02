@@ -56,7 +56,7 @@ bool ManifestAsset::decodePaths(BinaryReader& reader)
         {
             return false;
         }
-        int pathLength = static_cast<int>(reader.readVarUint64());
+        uint64_t pathLength = reader.readVarUint64();
         if (reader.hasError())
         {
             return false;
@@ -65,6 +65,13 @@ bool ManifestAsset::decodePaths(BinaryReader& reader)
         for (uint64_t j = 0; j < pathLength; j++)
         {
             int pathId = static_cast<uint32_t>(reader.readVarUint64());
+            // Every entry takes at least one byte, so stopping at the first
+            // error bounds the loop by the bytes left, whatever the file
+            // claims pathLength is.
+            if (reader.hasError())
+            {
+                return false;
+            }
             path.push_back(pathId);
         }
         m_paths[id] = path;

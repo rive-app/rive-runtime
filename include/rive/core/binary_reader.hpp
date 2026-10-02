@@ -19,6 +19,7 @@ private:
 
     void overflow();
     void intRangeError();
+    size_t readLength();
 
 public:
     explicit BinaryReader(Span<const uint8_t>);

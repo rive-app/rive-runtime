@@ -3,6 +3,9 @@
  */
 
 #include "rive/async/work_pool.hpp"
+#ifdef WITH_RIVE_SCRIPTNET
+#include "rive/scriptnet/net.hpp"
+#endif
 #include <algorithm>
 #include <mutex>
 
@@ -334,13 +337,34 @@ rcp<WorkPool>& getGlobalWorkPool()
 
 rcp<WorkPool>& getGlobalWorkPoolIfExists() { return globalWorkPoolStorage(); }
 
-void rive_pollAsyncWork()
+uint32_t rive_pollAsyncWork(uint32_t maxCallbacks)
+{
+    uint32_t processed = 0;
+#ifdef WITH_RIVE_SCRIPTNET
+    // Fetches poll once, first, with half the budget, so decodes cannot
+    // starve them and outcomes queued during delivery wait a frame.
+    processed = scriptnet::poll((maxCallbacks + 1) / 2);
+#endif
+    auto& pool = getGlobalWorkPoolIfExists();
+    if (pool && pool->hasPendingWork())
+    {
+        processed += pool->pollCompletedWork(maxCallbacks - processed);
+    }
+    return processed;
+}
+
+bool rive_hasPendingAsyncWork()
 {
     auto& pool = getGlobalWorkPoolIfExists();
     if (pool && pool->hasPendingWork())
     {
-        pool->pollCompletedWork(16);
+        return true;
     }
+#ifdef WITH_RIVE_SCRIPTNET
+    return scriptnet::hasPendingWork();
+#else
+    return false;
+#endif
 }
 
 } // namespace rive

@@ -105,6 +105,12 @@ bool ModuleTierLadder::enabled()
     return m_wamrcUsable;
 }
 
+std::string ModuleTierLadder::compilerPath()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    return m_wamrcPath;
+}
+
 void ModuleTierLadder::onArrival(ArrivalCallback callback)
 {
     std::unique_lock<std::mutex> lock(m_mutex);
