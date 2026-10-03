@@ -88,14 +88,14 @@ static int pointer_event_index(lua_State* L)
             lua_pushunsigned(L, (unsigned)pointerEvent->m_id);
             return 1;
         case (int)LuaAtoms::position:
-            lua_pushvector2(L,
-                            pointerEvent->m_position.x,
-                            pointerEvent->m_position.y);
+            rive_lua_pushvector2(L,
+                                 pointerEvent->m_position.x,
+                                 pointerEvent->m_position.y);
             return 1;
         case (int)LuaAtoms::previousPosition:
-            lua_pushvector2(L,
-                            pointerEvent->m_previousPosition.x,
-                            pointerEvent->m_previousPosition.y);
+            rive_lua_pushvector2(L,
+                                 pointerEvent->m_previousPosition.x,
+                                 pointerEvent->m_previousPosition.y);
             return 1;
         case (int)LuaAtoms::type:
             lua_pushstring(

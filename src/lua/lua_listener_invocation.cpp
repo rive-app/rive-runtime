@@ -33,12 +33,12 @@ void pushStick(lua_State* L,
 {
     if (!gamepadIsStandardMapping(s))
     {
-        lua_pushvector2(L, 0.f, 0.f);
+        rive_lua_pushvector2(L, 0.f, 0.f);
         return;
     }
-    lua_pushvector2(L,
-                    standardGamepadAxisValue(s.axes, ax),
-                    standardGamepadAxisValue(s.axes, ay));
+    rive_lua_pushvector2(L,
+                         standardGamepadAxisValue(s.axes, ax),
+                         standardGamepadAxisValue(s.axes, ay));
 }
 
 void pushTriggerAxis(lua_State* L,

@@ -203,7 +203,7 @@ static int vector_xy(lua_State* L)
     float x = (float)lua_tonumber(L, 1);
     float y = (float)lua_tonumber(L, 2);
 
-    lua_pushvector2(L, x, y);
+    rive_lua_pushvector2(L, x, y);
     return 1;
 }
 
@@ -219,7 +219,7 @@ static int vector_xyz(lua_State* L)
 
 static int vector_origin(lua_State* L)
 {
-    lua_pushvector2(L, 0.0f, 0.0f);
+    rive_lua_pushvector2(L, 0.0f, 0.0f);
     return 1;
 }
 

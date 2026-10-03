@@ -890,9 +890,9 @@ static int node_index(lua_State* L)
     switch (atom)
     {
         case (int)LuaAtoms::position:
-            lua_pushvector2(L,
-                            scriptedNode->component()->x(),
-                            scriptedNode->component()->y());
+            rive_lua_pushvector2(L,
+                                 scriptedNode->component()->x(),
+                                 scriptedNode->component()->y());
             return 1;
 
         case (int)LuaAtoms::rotation:
@@ -900,9 +900,9 @@ static int node_index(lua_State* L)
             return 1;
 
         case (int)LuaAtoms::scale:
-            lua_pushvector2(L,
-                            scriptedNode->component()->scaleX(),
-                            scriptedNode->component()->scaleY());
+            rive_lua_pushvector2(L,
+                                 scriptedNode->component()->scaleX(),
+                                 scriptedNode->component()->scaleY());
             return 1;
 
         case (int)LuaAtoms::scaleX:

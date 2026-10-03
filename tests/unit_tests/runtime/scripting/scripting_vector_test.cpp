@@ -596,3 +596,47 @@ TEST_CASE("vector fast function benchmark", "[scripting][benchmark]")
     ScriptingTest dotCheck(dotStaticSrc);
     CHECK(lua_tonumber(dotCheck.state(), -1) == Approx(-5.0f * N));
 }
+
+// lua_pushvector2 leaves z (the slot's extra field) as whatever the slot held,
+// and length, distance and normalized read all three components. Seed the
+// slots above the top with z = 9, then build vectors where they land.
+TEST_CASE("two component vectors always have z = 0", "[scripting]")
+{
+    ScriptingTest vm("seeded = 1", 0);
+    lua_State* L = vm.state();
+    auto top = lua_gettop(L);
+    auto seed = [&]() {
+        for (int i = 0; i < 8; i++)
+        {
+            lua_pushvector(L, 1, 2, 9);
+        }
+        lua_pop(L, 8);
+    };
+
+    seed();
+    rive_lua_pushvector2(L, 3, 4);
+    CHECK(lua_tovector(L, -1)[2] == 0.0f);
+    lua_pop(L, 1);
+
+    seed();
+    lua_pushvec2d(L, Vec2D(3, 4));
+    CHECK(lua_tovector(L, -1)[2] == 0.0f);
+    lua_pop(L, 1);
+
+    // Through the script API: Vector.xy and Vector.origin push their result
+    // into a slot past the arguments.
+    for (const char* name : {"xy", "origin"})
+    {
+        seed();
+        lua_getglobal(L, "Vector");
+        lua_getfield(L, -1, name);
+        lua_pushnumber(L, 3);
+        lua_pushnumber(L, 4);
+        REQUIRE(lua_pcall(L, 2, 1, 0) == LUA_OK);
+        REQUIRE(lua_type(L, -1) == LUA_TVECTOR);
+        INFO(name);
+        CHECK(lua_tovector(L, -1)[2] == 0.0f);
+        lua_pop(L, 2);
+    }
+    CHECK(lua_gettop(L) == top);
+}

@@ -1773,9 +1773,20 @@ inline const Vec2D* lua_tovec2d(lua_State* L, int stack)
     return (const Vec2D*)lua_tovector(L, stack);
 }
 
+// lua_pushvector2 leaves z (the slot's extra field) stale, and length,
+// distance and normalized read all three components.
+inline void rive_lua_pushvector2(lua_State* L, float x, float y)
+{
+#if LUA_VECTOR_SIZE == 4
+    lua_pushvector(L, x, y, 0.0f, 0.0f);
+#else
+    lua_pushvector(L, x, y, 0.0f);
+#endif
+}
+
 inline void lua_pushvec2d(lua_State* L, Vec2D vec)
 {
-    return lua_pushvector2(L, vec.x, vec.y);
+    rive_lua_pushvector2(L, vec.x, vec.y);
 }
 
 int luaopen_rive(lua_State* L);
