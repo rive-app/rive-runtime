@@ -4,6 +4,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/factory.hpp"
 
+#include <algorithm>
 #include <math.h>
 #include <stdio.h>
 
@@ -133,12 +134,7 @@ static int mesh_instances_resize(lua_State* L)
 {
     auto scripted = lua_torive<ScriptedImageMeshInstances>(L, 1);
     auto count = luaL_checkunsigned(L, 2);
-    auto& instances = scripted->instances;
-    if (instances->count() != count)
-    {
-        instances->edit((size_t)count);
-        instances->endEdit();
-    }
+    scripted->resize((size_t)count);
     return 0;
 }
 
@@ -147,9 +143,8 @@ static int mesh_instances_resize(lua_State* L)
 static int mesh_instances_set(lua_State* L)
 {
     auto scripted = lua_torive<ScriptedImageMeshInstances>(L, 1);
-    auto& instances = scripted->instances;
     auto index = luaL_checkunsigned(L, 2);
-    if (index >= instances->count())
+    if (index >= scripted->count())
     {
         luaL_error(L,
                    "index %d is past the end of %s",
@@ -158,7 +153,9 @@ static int mesh_instances_set(lua_State* L)
     }
     auto mat2d = lua_torive<ScriptedMat2D>(L, 3);
 
-    ImageMeshInstanceData& data = instances->edit()[index];
+    // Staged: the renderer gets every set() of a frame in one commit when the
+    // instances are drawn.
+    ImageMeshInstanceData& data = scripted->stage(index);
     data.transform = mat2d->value;
     data.opacity = (float)luaL_optnumber(L, 4, 1.0);
     data.additiveness = (float)luaL_optnumber(L, 5, 0.0);
@@ -166,7 +163,6 @@ static int mesh_instances_set(lua_State* L)
         lua_gettop(L) >= 6 ? *lua_checkvec2d(L, 6) : Vec2D(0.0f, 0.0f);
     data.uvScale =
         lua_gettop(L) >= 7 ? *lua_checkvec2d(L, 7) : Vec2D(1.0f, 1.0f);
-    instances->endEdit();
     return 0;
 }
 
@@ -294,6 +290,27 @@ void ScriptedTriangleBuffer::update(Factory* factory)
         }
     }
     indexBuffer = buffer;
+}
+
+void ScriptedImageMeshInstances::resize(size_t count)
+{
+    if (m_staged.size() != count)
+    {
+        m_staged.resize(count);
+        m_dirty = true;
+    }
+}
+
+void ScriptedImageMeshInstances::commit()
+{
+    if (!m_dirty)
+    {
+        return;
+    }
+    Span<ImageMeshInstanceData> data = instances->edit(m_staged.size());
+    std::copy(m_staged.begin(), m_staged.end(), data.data());
+    instances->endEdit();
+    m_dirty = false;
 }
 
 int luaopen_rive_mesh(lua_State* L)

@@ -644,13 +644,34 @@ class ScriptedImageMeshInstances
 {
 public:
     ScriptedImageMeshInstances(Factory* factory, size_t count) :
-        instances(factory->makeImageMeshInstances(count))
+        instances(factory->makeImageMeshInstances(count)), m_staged(count)
     {}
+
+    // set() and resize() change a staged copy of the instance data, and
+    // commit() hands it to the renderer in one edit. Every edit hands over the
+    // whole array (the deferred and serializing renderers copy it), so this
+    // happens once per draw rather than once per set() or resize().
+    size_t count() const { return m_staged.size(); }
+    // The staged instance at `index`, for writing.
+    ImageMeshInstanceData& stage(size_t index)
+    {
+        m_dirty = true;
+        return m_staged[index];
+    }
+    // Sets the staged count, keeping existing instances.
+    void resize(size_t count);
+    // Hands staged changes to the renderer. Called before the instances are
+    // drawn.
+    void commit();
 
     rcp<ImageMeshInstances> instances;
     static constexpr uint8_t luaTag = LUA_T_COUNT + 70;
     static constexpr const char* luaName = "MeshInstances";
     static constexpr bool hasMetatable = true;
+
+private:
+    std::vector<ImageMeshInstanceData> m_staged;
+    bool m_dirty = false;
 };
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)

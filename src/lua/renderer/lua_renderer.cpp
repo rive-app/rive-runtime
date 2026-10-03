@@ -144,6 +144,9 @@ static int renderer_drawImageMeshInstanced(lua_State* L)
     scriptedTriangleBuffer->update(factory);
 
     auto renderer = scriptedRenderer->validate(L);
+    // Everything set() and resize() staged since the last draw goes over in
+    // one commit.
+    scriptedInstances->commit();
     renderer->drawImageMeshInstanced(
         scriptedImage->image.get(),
         scriptedSampler->sampler,
