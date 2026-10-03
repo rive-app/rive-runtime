@@ -118,10 +118,21 @@ public:
         {
             Tag tag = Tag::empty;
             uint8_t generation = 0;
+            /// Position in viewModelSlots while the slot holds one.
+            uint32_t viewModelIndex = 0;
             void* object = nullptr;
         };
         std::vector<Slot> slots;
         std::vector<uint32_t> freeSlots;
+        /// Kinds whose view model advances each frame; each needs a case in
+        /// advanceDetachedViewModels.
+        static bool holdsViewModel(Tag tag)
+        {
+            return tag == Tag::viewModelInstance || tag == Tag::artboard;
+        }
+        /// Slots of those kinds, so the per frame advance skips every other
+        /// handle.
+        std::vector<uint32_t> viewModelSlots;
 
         uint32_t mint(Tag tag, void* object);
         void* resolve(uint32_t handle, Tag tag) const;

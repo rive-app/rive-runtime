@@ -8027,6 +8027,11 @@ uint32_t WasmScriptingVM::HandleTable::mint(Tag tag, void* object)
     }
     slots[slot].tag = tag;
     slots[slot].object = object;
+    if (holdsViewModel(tag))
+    {
+        slots[slot].viewModelIndex = (uint32_t)viewModelSlots.size();
+        viewModelSlots.push_back(slot);
+    }
     // Handle 0 is never valid; slots bias by one.
     return ((slot + 1) & 0xffffff) | ((uint32_t)slots[slot].generation << 24);
 }
@@ -8059,6 +8064,13 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
     if (entry.generation != (uint8_t)(handle >> 24) || entry.tag != tag)
     {
         return;
+    }
+    if (holdsViewModel(tag))
+    {
+        uint32_t moved = viewModelSlots.back();
+        viewModelSlots[entry.viewModelIndex] = moved;
+        slots[moved].viewModelIndex = entry.viewModelIndex;
+        viewModelSlots.pop_back();
     }
     entry.tag = Tag::empty;
     entry.object = nullptr;
@@ -8667,25 +8679,31 @@ void WasmScriptingVM::advanceDetachedViewModels()
 {
     // Only detached roots; instances with parents are already reached
     // through the bound tree or their detached-root ancestor.
-    auto advanceDetached = [](const rcp<ViewModelInstance>& instance) {
+    auto advanceDetached = [](rcp<ViewModelInstance> instance) {
         if (instance != nullptr && !instance->hasParents())
         {
             instance->advanced();
         }
     };
-    for (auto& slot : m_handles.slots)
+    // Indexed and holding the instance, since a changed callback can mint or
+    // release, like ViewModelInstance::advanced.
+    for (size_t i = 0; i < m_handles.viewModelSlots.size(); i++)
     {
-        if (slot.tag == HandleTable::Tag::viewModelInstance)
+        HandleTable::Slot slot = m_handles.slots[m_handles.viewModelSlots[i]];
+        switch (slot.tag)
         {
-            advanceDetached(
-                static_cast<HostViewModelInstance*>(slot.object)->instance);
-        }
-        else if (slot.tag == HandleTable::Tag::artboard)
-        {
-            // Artboard inputs keep their bound instance advancing, like the
-            // Luau context's tracked instances.
-            advanceDetached(
-                static_cast<HostArtboard*>(slot.object)->viewModelInstance);
+            case HandleTable::Tag::viewModelInstance:
+                advanceDetached(
+                    static_cast<HostViewModelInstance*>(slot.object)->instance);
+                break;
+            case HandleTable::Tag::artboard:
+                // Artboard inputs keep their bound instance advancing, like
+                // the Luau context's tracked instances.
+                advanceDetached(
+                    static_cast<HostArtboard*>(slot.object)->viewModelInstance);
+                break;
+            default:
+                break;
         }
     }
 }
