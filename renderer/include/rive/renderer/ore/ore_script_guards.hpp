@@ -6,6 +6,10 @@ namespace rive::ore
 {
 constexpr char kGuardSetPipelineBeforeDraw[] =
     "setPipeline must be called before draw";
+// The most dynamic offsets one setBindGroup takes.
+constexpr uint32_t kMaxDynamicOffsets = 8;
+constexpr char kGuardDynamicOffsetCountFormat[] =
+    "setBindGroup: dynamicOffsets count %u exceeds maximum of %u";
 constexpr char kGuardVertexSlotRangeFormat[] =
     "setVertexBuffer: slot must be 0-%u (got %u)";
 constexpr char kGuardBaseVertexFormat[] =

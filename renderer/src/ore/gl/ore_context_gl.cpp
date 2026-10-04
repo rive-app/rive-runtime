@@ -339,7 +339,7 @@ std::unique_ptr<ContextGL> ContextGL::Make()
     // Query limits.
     GLint maxTexSize = 0, maxCubeSize = 0, max3DSize = 0, maxUBOSize = 0;
     GLint maxDrawBuffers = 0, maxVertexAttribs = 0, maxTexUnits = 0;
-    GLint maxSamples = 0;
+    GLint maxSamples = 0, uboOffsetAlignment = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexSize);
     glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &maxCubeSize);
     glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &max3DSize);
@@ -348,6 +348,7 @@ std::unique_ptr<ContextGL> ContextGL::Make()
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttribs);
     glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxTexUnits);
     glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboOffsetAlignment);
 
     f.maxTextureSize2D = maxTexSize;
     f.maxTextureSizeCube = maxCubeSize;
@@ -357,6 +358,10 @@ std::unique_ptr<ContextGL> ContextGL::Make()
     f.maxVertexAttributes = maxVertexAttribs;
     f.maxSamplers = maxTexUnits;
     f.maxSamples = std::max(maxSamples, 1);
+    // Never below the default so scripts stay portable to D3D11.
+    f.minUniformBufferOffsetAlignment =
+        std::max(f.minUniformBufferOffsetAlignment,
+                 static_cast<uint32_t>(uboOffsetAlignment));
 
     // Check extensions.
     GLint numExtensions = 0;
@@ -954,6 +959,7 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
     auto bg = rcp<BindGroupGL>(new BindGroupGL());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // Native GL slot resolution: layout entries are pre-resolved by the
     // GM/Lua helper (makeLayoutFromShader) using the shader's binding map.

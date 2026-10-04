@@ -969,6 +969,7 @@ rcp<BindGroup> ContextWGPU::makeBindGroup(const BindGroupDesc& desc)
     auto bg = rcp<BindGroupWGPU>(new BindGroupWGPU());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // Count dynamic-offset UBOs declared by the layout. Authoritative —
     // dynamic-ness is a layout property (WebGPU/Vulkan model).

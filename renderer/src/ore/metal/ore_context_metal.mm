@@ -861,6 +861,7 @@ inline rcp<BindGroup> ContextMetal::mtlMakeBindGroup(const BindGroupDesc& desc)
     auto bg = rcp<BindGroupMetal>(new BindGroupMetal());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // Resolve per-stage Metal slots from the layout's pre-resolved
     // nativeSlotVS/FS fields. The layout was built via

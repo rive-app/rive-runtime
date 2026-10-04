@@ -12,6 +12,7 @@
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 
+#include <string>
 #include <vector>
 
 namespace rive::ore
@@ -36,6 +37,21 @@ public:
     BindGroupLayout* layout() const { return m_layoutRef.get(); }
     Context* context() const { return m_context; }
 
+    // A dynamic uniform buffer binding: the window a dynamic offset moves
+    // within its buffer.
+    struct DynamicUBORange
+    {
+        uint32_t slot = 0;
+        uint32_t offset = 0;
+        uint32_t size = 0;
+        uint64_t bufferSize = 0;
+    };
+    // In ascending @binding order, the order setBindGroup's offsets follow.
+    const std::vector<DynamicUBORange>& dynamicRanges() const
+    {
+        return m_dynamicRanges;
+    }
+
     virtual ~BindGroup() = default;
 
 protected:
@@ -48,6 +64,10 @@ protected:
     {}
 
     uint32_t m_dynamicOffsetCount = 0;
+    std::vector<DynamicUBORange> m_dynamicRanges;
+
+    // Each backend's makeBindGroup calls this once the group exists.
+    void recordDynamicRanges(const BindGroupDesc& desc);
 
     // The layout this BindGroup conforms to. Holds the per-backend native
     // layout handle alive for the BindGroup's lifetime — Vulkan's
@@ -67,5 +87,23 @@ protected:
     // last rcp<> directly, keeping the object alive until endFrame().
     Context* m_context = nullptr;
 };
+
+// Checks a setBindGroup call the way WebGPU would: the group index, one
+// offset per dynamic uniform buffer, each a multiple of `alignment` and
+// keeping its binding inside its buffer. Both script lanes call it so a
+// misuse reads the same on either.
+//
+// A binding created without a size spans the rest of its buffer, so as in
+// WebGPU only offset 0 fits it.
+bool validateSetBindGroup(uint32_t groupIndex,
+                          const BindGroup* group,
+                          const uint32_t* offsets,
+                          uint32_t offsetCount,
+                          uint32_t alignment,
+                          std::string* outError);
+
+// The alignment scripts' dynamic offsets are held to: the device's once
+// known, else the default every backend accepts.
+uint32_t scriptDynamicOffsetAlignment(const Context* context);
 
 } // namespace rive::ore

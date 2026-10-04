@@ -246,6 +246,7 @@ public:
                 m_dynamicOffsetCount++;
             }
         }
+        recordDynamicRanges(desc);
     }
 };
 

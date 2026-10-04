@@ -114,6 +114,7 @@
 #endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_deferred_bind_groups.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
@@ -2092,6 +2093,8 @@ struct HostGpuCanvas
 struct HostGpuPass
 {
     std::unique_ptr<ore::RenderPass> pass;
+    // setBindGroup calls made before the first setPipeline.
+    ore::DeferredBindGroups deferredBindGroups;
     bool pipelineSet = false;
 };
 
@@ -2381,7 +2384,13 @@ uint32_t gpuFeaturesImpl(WasmScriptingVM* vm, uint32_t* out, uint32_t outCount)
     out[16] = (uint32_t)f.maxUniformBufferSize;
     out[17] = (uint32_t)f.maxSamplers;
     out[18] = (uint32_t)f.maxSamples;
-    return 19;
+    // Guests built before the alignment field ask for 19.
+    if (outCount < 20)
+    {
+        return 19;
+    }
+    out[19] = f.minUniformBufferOffsetAlignment;
+    return 20;
 }
 
 uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
@@ -2609,6 +2618,7 @@ void gpuPassSetPipelineImpl(WasmScriptingVM* vm,
         oreContext->clearLastError();
     }
     host->pass->setPipeline(pipeline->pipeline.get());
+    host->deferredBindGroups.flush(host->pass.get());
     if (oreContext != nullptr && !oreContext->lastError().empty())
     {
         gpuRejected(vm, oreContext, "setPipeline");
@@ -2671,20 +2681,50 @@ void gpuPassSetBindGroupImpl(WasmScriptingVM* vm,
                              const uint32_t* dynamicOffsets,
                              uint32_t dynamicOffsetByteCount)
 {
-    auto* pass = resolvePass(vm, passHandle);
+    auto* host = resolveHostPass(vm, passHandle);
     auto bindGroup = static_cast<HostGpuBindGroup*>(
         vm->handles().resolve(bindGroupHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuBindGroup));
-    if (pass == nullptr || bindGroup == nullptr ||
+    if (host == nullptr || host->pass == nullptr || bindGroup == nullptr ||
         dynamicOffsetByteCount % sizeof(uint32_t) != 0)
     {
         return;
     }
     uint32_t count = dynamicOffsetByteCount / (uint32_t)sizeof(uint32_t);
-    pass->setBindGroup(groupIndex,
-                       bindGroup->bindGroup.get(),
-                       count != 0 ? dynamicOffsets : nullptr,
-                       count);
+    // The checks the Luau binding makes, so a misuse raises on the call
+    // instead of reaching a backend assert or a silent misbind.
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (std::string err; !ore::validateSetBindGroup(
+            groupIndex,
+            bindGroup->bindGroup.get(),
+            dynamicOffsets,
+            count,
+            ore::scriptDynamicOffsetAlignment(oreContext),
+            &err))
+    {
+        vm->raiseModuleError(err.c_str());
+        return;
+    }
+    if (!host->pipelineSet)
+    {
+        host->deferredBindGroups.defer(groupIndex,
+                                       bindGroup->bindGroup.get(),
+                                       dynamicOffsets,
+                                       count);
+        return;
+    }
+    if (oreContext != nullptr)
+    {
+        oreContext->clearLastError();
+    }
+    host->pass->setBindGroup(groupIndex,
+                             bindGroup->bindGroup.get(),
+                             count != 0 ? dynamicOffsets : nullptr,
+                             count);
+    if (oreContext != nullptr && !oreContext->lastError().empty())
+    {
+        gpuRejected(vm, oreContext, "setBindGroup");
+    }
 }
 
 void gpuPassSetViewportImpl(WasmScriptingVM* vm,

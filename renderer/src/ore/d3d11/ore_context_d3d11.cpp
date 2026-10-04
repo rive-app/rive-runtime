@@ -437,6 +437,12 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
 
     auto buffer = rcp<BufferD3D11>(new BufferD3D11(desc.size, desc.usage));
     buffer->m_d3d11Context = m_d3d11Context.Get();
+    // A later partial update rewrites the whole buffer, so it needs these.
+    if (!desc.immutable && desc.data != nullptr)
+    {
+        auto bytes = static_cast<const uint8_t*>(desc.data);
+        buffer->m_shadow.assign(bytes, bytes + desc.size);
+    }
 
     D3D11_BUFFER_DESC bd{};
     bd.ByteWidth = desc.size;
@@ -1064,6 +1070,7 @@ rcp<BindGroup> ContextD3D11::d3d11MakeBindGroup(const BindGroupDesc& desc)
     auto bg = rcp<BindGroupD3D11>(new BindGroupD3D11());
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // D3D11 has separate VS / PS register namespaces (b0 in VS vs b0 in PS
     // are independent). HLSL SM5.0 has no register spaces, so all groups

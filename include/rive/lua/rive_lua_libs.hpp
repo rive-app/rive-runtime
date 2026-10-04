@@ -783,6 +783,7 @@ class BindGroup;
 class BindGroupLayout;
 class ShaderModule;
 class Pipeline;
+class DeferredBindGroups;
 class RenderPass;
 class Context;
 } // namespace ore
@@ -933,9 +934,12 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 46;
     static constexpr const char* luaName = "GPURenderPass";
     static constexpr bool hasMetatable = true;
-    // Out of line, unique_ptr<ore::RenderPass> needs the complete type.
+    // Out of line, the unique_ptrs need their complete types.
+    ScriptedGPURenderPass();
     ~ScriptedGPURenderPass();
     std::unique_ptr<ore::RenderPass> pass;
+    // setBindGroup calls made before the first setPipeline.
+    std::unique_ptr<ore::DeferredBindGroups> deferredBindGroups;
     bool m_finished = false;
     bool m_pipelineSet = false;
     uint32_t sampleCount = 1; // for pipeline sampleCount validation

@@ -761,6 +761,8 @@ struct Features
     uint32_t maxTextureSizeCube = 4096;
     uint32_t maxTextureSize3D = 256;
     uint32_t maxUniformBufferSize = 16384;
+    // What setBindGroup's dynamic offsets must be a multiple of.
+    uint32_t minUniformBufferOffsetAlignment = 256;
     uint32_t maxVertexAttributes = 16;
     uint32_t maxSamplers = 16;
     // Maximum MSAA sample count supported for color render targets.

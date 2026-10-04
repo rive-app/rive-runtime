@@ -2,9 +2,11 @@
  * Copyright 2026 Rive
  */
 
+#include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
 
 #include <algorithm>
@@ -836,6 +838,130 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
         }
     }
     return true;
+}
+
+void BindGroup::recordDynamicRanges(const BindGroupDesc& desc)
+{
+    m_dynamicRanges.clear();
+    if (desc.layout == nullptr)
+        return;
+    for (uint32_t i = 0; i < desc.uboCount; ++i)
+    {
+        const BindGroupDesc::UBOEntry& ubo = desc.ubos[i];
+        if (ubo.buffer != nullptr && desc.layout->hasDynamicOffset(ubo.slot))
+        {
+            const uint64_t bufferSize = ubo.buffer->size();
+            // Size 0 spans the rest of the buffer.
+            const uint64_t size = ubo.size != 0 ? ubo.size
+                                  : bufferSize > ubo.offset
+                                      ? bufferSize - ubo.offset
+                                      : 0;
+            m_dynamicRanges.push_back(
+                {ubo.slot, ubo.offset, (uint32_t)size, bufferSize});
+        }
+    }
+    std::sort(m_dynamicRanges.begin(),
+              m_dynamicRanges.end(),
+              [](const DynamicUBORange& a, const DynamicUBORange& b) {
+                  return a.slot < b.slot;
+              });
+}
+
+bool validateSetBindGroup(uint32_t groupIndex,
+                          const BindGroup* group,
+                          const uint32_t* offsets,
+                          uint32_t offsetCount,
+                          uint32_t alignment,
+                          std::string* outError)
+{
+    char message[192];
+    auto fail = [&]() {
+        if (outError != nullptr)
+            *outError = message;
+        return false;
+    };
+    if (groupIndex >= kMaxBindGroups)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "setBindGroup: groupIndex must be in [0, %u) (got %u)",
+                 kMaxBindGroups,
+                 groupIndex);
+        return fail();
+    }
+    if (offsetCount > kMaxDynamicOffsets)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 kGuardDynamicOffsetCountFormat,
+                 offsetCount,
+                 kMaxDynamicOffsets);
+        return fail();
+    }
+    if (group == nullptr)
+        return true;
+    if (group->layout() != nullptr && group->groupIndex() != groupIndex)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "setBindGroup: BindGroup was made for group %u, not %u",
+                 group->groupIndex(),
+                 groupIndex);
+        return fail();
+    }
+    if (offsetCount != group->dynamicOffsetCount())
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "setBindGroup: dynamicOffsets count %u does not match the "
+                 "BindGroup's declared dynamic UBO count %u",
+                 offsetCount,
+                 group->dynamicOffsetCount());
+        return fail();
+    }
+    // A group missing a dynamic UBO its layout declares cannot pair ranges
+    // with offsets, so only the alignment is checked then.
+    const auto& ranges = group->dynamicRanges();
+    const bool paired = ranges.size() == offsetCount;
+    for (uint32_t i = 0; i < offsetCount; ++i)
+    {
+        if (alignment != 0 && offsets[i] % alignment != 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "setBindGroup: dynamicOffsets[%u] = %u is not a "
+                     "multiple of %u (alignment requirement)",
+                     i,
+                     offsets[i],
+                     alignment);
+            return fail();
+        }
+        if (paired)
+        {
+            const auto& range = ranges[i];
+            if (uint64_t(offsets[i]) + range.offset + range.size >
+                range.bufferSize)
+            {
+                snprintf(message,
+                         sizeof(message),
+                         "setBindGroup: dynamicOffsets[%u] = %u moves "
+                         "@binding(%u) past the end of its %llu byte buffer",
+                         i,
+                         offsets[i],
+                         range.slot,
+                         static_cast<unsigned long long>(range.bufferSize));
+                return fail();
+            }
+        }
+    }
+    return true;
+}
+
+uint32_t scriptDynamicOffsetAlignment(const Context* context)
+{
+    return context != nullptr && context->featuresKnown()
+               ? context->features().minUniformBufferOffsetAlignment
+               : Features{}.minUniformBufferOffsetAlignment;
 }
 
 } // namespace rive::ore

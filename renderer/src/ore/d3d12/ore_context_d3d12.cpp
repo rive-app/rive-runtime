@@ -1484,6 +1484,7 @@ rcp<BindGroup> ContextD3D12::d3d12MakeBindGroup(const BindGroupDesc& desc)
 
     auto bg = rcp<BindGroupD3D12>(new BindGroupD3D12(m_manager));
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // Count dynamic-offset UBOs declared by the layout — authoritative.
     uint32_t dynamicCount = 0;

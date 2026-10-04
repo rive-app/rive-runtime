@@ -166,6 +166,7 @@ public:
         m_handle(handle)
     {
         m_layoutRef = ref_rcp(desc.layout);
+        recordDynamicRanges(desc);
         for (uint32_t i = 0; i < desc.uboCount; i++)
         {
             m_retainedBuffers.push_back(ref_rcp(desc.ubos[i].buffer));

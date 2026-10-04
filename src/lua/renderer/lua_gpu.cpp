@@ -6,6 +6,7 @@
 #include "rive/wasm/module_render.hpp"
 #endif
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
+#include "rive/renderer/ore/ore_deferred_bind_groups.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
@@ -2211,6 +2212,10 @@ static int gpurenderpass_setpipeline(lua_State* L)
     if (oreCtx)
         oreCtx->clearLastError();
     self->pass->setPipeline(pipeline->pipeline.get());
+    if (self->deferredBindGroups != nullptr)
+    {
+        self->deferredBindGroups->flush(self->pass.get());
+    }
     if (oreCtx && !oreCtx->lastError().empty())
     {
         luaL_error(L, "setPipeline: %s", oreCtx->lastError().c_str());
@@ -2269,71 +2274,79 @@ static int gpurenderpass_setbindgroup(lua_State* L)
         return 0;
     }
     uint32_t groupIndex = static_cast<uint32_t>(luaL_checkunsigned(L, 2));
-    if (groupIndex >= ore::kMaxBindGroups)
-    {
-        luaL_error(L,
-                   "setBindGroup: groupIndex must be in [0, %u) (got %u)",
-                   ore::kMaxBindGroups,
-                   groupIndex);
-    }
     auto* bg = lua_torive<ScriptedGPUBindGroup>(L, 3);
 
-    // Parse optional dynamic offsets array.
-    //
     // WebGPU contract: `dynamicOffsets[i]` corresponds to the i-th dynamic
     // entry in the BindGroupLayout, ordered by ascending `@binding`.
-    // The count must equal the BindGroup's dynamic-offset count exactly,
-    // and each value must be aligned to `minUniformBufferOffsetAlignment`
-    // (256 bytes — D3D11.1's `firstConstant` requirement, D3D12's CBV
-    // alignment, Vulkan's adapter-default minimum). Validate here so a
-    // misuse error surfaces on the Lua call site instead of a backend
-    // assert / silent misbind.
-    constexpr uint32_t kDynamicOffsetAlign = 256;
-    uint32_t dynamicOffsets[8] = {};
+    uint32_t dynamicOffsets[ore::kMaxDynamicOffsets] = {};
     uint32_t dynamicOffsetCount = 0;
     if (lua_istable(L, 4))
     {
         int tbl = 4;
         int n = (int)lua_objlen(L, tbl);
-        if (n > 8)
+        if (n > (int)ore::kMaxDynamicOffsets)
         {
             luaL_error(L,
-                       "setBindGroup: dynamicOffsets count %d exceeds "
-                       "maximum of 8",
-                       n);
+                       ore::kGuardDynamicOffsetCountFormat,
+                       (unsigned)n,
+                       ore::kMaxDynamicOffsets);
         }
         for (int i = 0; i < n; i++)
         {
             lua_rawgeti(L, tbl, i + 1);
-            uint32_t off = static_cast<uint32_t>(lua_tonumber(L, -1));
+            dynamicOffsets[dynamicOffsetCount++] =
+                static_cast<uint32_t>(lua_tonumber(L, -1));
             lua_pop(L, 1);
-            if ((off % kDynamicOffsetAlign) != 0)
-            {
-                luaL_error(L,
-                           "setBindGroup: dynamicOffsets[%d] = %u is not a "
-                           "multiple of %u (alignment requirement)",
-                           i,
-                           off,
-                           kDynamicOffsetAlign);
-            }
-            dynamicOffsets[dynamicOffsetCount++] = off;
         }
     }
 
-    if (bg->bindGroup &&
-        dynamicOffsetCount != bg->bindGroup->dynamicOffsetCount())
+    // Validate here so a misuse surfaces on the Lua call site instead of a
+    // backend assert or a silent misbind.
+    Context* oreCtx = getOreContext(L);
+    // luaL_error longjmps past destructors, so the message leaves the
+    // std::string before raising.
+    char message[256] = {};
     {
-        luaL_error(L,
-                   "setBindGroup: dynamicOffsets count %u does not match the "
-                   "BindGroup's declared dynamic UBO count %u",
-                   dynamicOffsetCount,
-                   bg->bindGroup->dynamicOffsetCount());
+        std::string err;
+        if (!ore::validateSetBindGroup(
+                groupIndex,
+                bg->bindGroup.get(),
+                dynamicOffsets,
+                dynamicOffsetCount,
+                ore::scriptDynamicOffsetAlignment(oreCtx),
+                &err))
+        {
+            snprintf(message, sizeof(message), "%s", err.c_str());
+        }
+    }
+    if (message[0] != '\0')
+    {
+        luaL_error(L, "%s", message);
     }
 
+    if (!self->m_pipelineSet)
+    {
+        if (self->deferredBindGroups == nullptr)
+        {
+            self->deferredBindGroups =
+                std::make_unique<ore::DeferredBindGroups>();
+        }
+        self->deferredBindGroups->defer(groupIndex,
+                                        bg->bindGroup.get(),
+                                        dynamicOffsets,
+                                        dynamicOffsetCount);
+        return 0;
+    }
+    if (oreCtx)
+        oreCtx->clearLastError();
     self->pass->setBindGroup(groupIndex,
                              bg->bindGroup.get(),
                              dynamicOffsetCount > 0 ? dynamicOffsets : nullptr,
                              dynamicOffsetCount);
+    if (oreCtx && !oreCtx->lastError().empty())
+    {
+        luaL_error(L, "setBindGroup: %s", oreCtx->lastError().c_str());
+    }
     return 0;
 }
 
@@ -2524,6 +2537,7 @@ ScriptedGPUCanvas::~ScriptedGPUCanvas()
     }
 }
 
+ScriptedGPURenderPass::ScriptedGPURenderPass() = default;
 ScriptedGPURenderPass::~ScriptedGPURenderPass() = default;
 
 ScriptedCanvas::~ScriptedCanvas()

@@ -2,6 +2,7 @@
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include <d3d11.h>
 #include <wrl/client.h>
+#include <vector>
 
 namespace rive::ore
 {
@@ -21,5 +22,8 @@ private:
     friend class RenderPassD3D11;
     Microsoft::WRL::ComPtr<ID3D11Buffer> m_d3d11Buffer;
     ID3D11DeviceContext* m_d3d11Context = nullptr; // Weak ref.
+    // The buffer's contents, kept once anything writes less than all of
+    // it: every map discards, so a partial write rewrites the whole buffer.
+    std::vector<uint8_t> m_shadow;
 };
 } // namespace rive::ore

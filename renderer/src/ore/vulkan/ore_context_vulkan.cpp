@@ -20,6 +20,7 @@
 // VMA_IMPLEMENTATION is defined in src/vulkan/vulkan_memory_allocator.cpp,
 // which is compiled when --with_vulkan is passed (required for this backend).
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <string>
@@ -366,6 +367,10 @@ std::unique_ptr<ContextVulkan> ContextVulkan::Make(
     f.maxTextureSize3D = props.limits.maxImageDimension3D;
     f.maxUniformBufferSize =
         static_cast<uint32_t>(props.limits.maxUniformBufferRange);
+    // Never below the default so scripts stay portable to D3D11.
+    f.minUniformBufferOffsetAlignment = std::max(
+        f.minUniformBufferOffsetAlignment,
+        static_cast<uint32_t>(props.limits.minUniformBufferOffsetAlignment));
     f.maxVertexAttributes = props.limits.maxVertexInputAttributes;
     f.maxSamplers = props.limits.maxPerStageDescriptorSamplers;
 
@@ -1430,6 +1435,7 @@ rcp<BindGroup> ContextVulkan::makeBindGroup(const BindGroupDesc& desc)
     auto bg = rcp<BindGroupVulkan>(new BindGroupVulkan(m_manager));
     bg->m_context = this;
     bg->m_layoutRef = ref_rcp(layout);
+    bg->recordDynamicRanges(desc);
 
     // Count dynamic-offset UBOs declared by the layout — authoritative.
     uint32_t dynamicCount = 0;

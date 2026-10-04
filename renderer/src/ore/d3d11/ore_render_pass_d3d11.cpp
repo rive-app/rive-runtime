@@ -254,6 +254,16 @@ void RenderPassD3D11::setBindGroup(uint32_t groupIndex,
         // minimum of 16 (the smallest legal value). The shader
         // still only reads `ubo.size` bytes; binding more is
         // harmless for the shader and required for the API.
+        if (offsetBytes != 0 && ctx1 == nullptr)
+        {
+            // Without D3D11.1 a constant buffer always binds from its start,
+            // which would draw with another slot's data.
+            if (m_context != nullptr)
+                m_context->setLastError("a uniform buffer offset needs "
+                                        "Direct3D 11.1, which this device "
+                                        "lacks");
+            continue;
+        }
         const bool useOffsetPath =
             (offsetBytes != 0 && ctx1 != nullptr && ubo.size != 0);
         const UINT firstConstant = useOffsetPath ? (offsetBytes / 16) : 0;

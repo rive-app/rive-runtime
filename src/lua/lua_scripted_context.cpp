@@ -54,7 +54,7 @@ int lua_push_gpu_features(lua_State* L)
     if (oreCtx != nullptr)
     {
         const auto& f = oreCtx->features();
-        lua_createtable(L, 0, 19);
+        lua_createtable(L, 0, 20);
         lua_pushboolean(L, f.bc);
         lua_setfield(L, -2, "bc");
         lua_pushboolean(L, f.etc2);
@@ -93,12 +93,14 @@ int lua_push_gpu_features(lua_State* L)
         lua_setfield(L, -2, "maxSamplers");
         lua_pushnumber(L, f.maxSamples);
         lua_setfield(L, -2, "maxSamples");
+        lua_pushnumber(L, f.minUniformBufferOffsetAlignment);
+        lua_setfield(L, -2, "minUniformBufferOffsetAlignment");
         lua_setreadonly(L, -1, true);
         return 1;
     }
 #endif
     // Fallback when no ore context is available
-    lua_createtable(L, 0, 19);
+    lua_createtable(L, 0, 20);
     lua_pushboolean(L, false);
     lua_setfield(L, -2, "bc");
     lua_pushboolean(L, false);
@@ -137,6 +139,8 @@ int lua_push_gpu_features(lua_State* L)
     lua_setfield(L, -2, "maxSamplers");
     lua_pushnumber(L, 4);
     lua_setfield(L, -2, "maxSamples");
+    lua_pushnumber(L, 256);
+    lua_setfield(L, -2, "minUniformBufferOffsetAlignment");
     lua_setreadonly(L, -1, true);
     return 1;
 }

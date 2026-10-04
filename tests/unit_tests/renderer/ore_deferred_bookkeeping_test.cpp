@@ -9,6 +9,7 @@
 
 #include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_resource.hpp"
+#include "rive/renderer/ore/ore_script_guards.hpp"
 
 #include <catch.hpp>
 
@@ -133,4 +134,100 @@ TEST_CASE("a deferred bind group rejects a UBO shorter than its block",
     auto sized = ctx.makeBuffer(bufferDesc);
     ubo.buffer = sized.get();
     CHECK(ctx.makeBindGroup(bd) != nullptr);
+}
+
+// A dynamic uniform buffer with its group, for the setBindGroup checks: the
+// binding is 256 bytes at offset 0 of a 1024 byte buffer.
+static rcp<BindGroup> makeDynamicGroup(DeferredOreContext& ctx,
+                                       rcp<BindGroupLayout>* outLayout,
+                                       rcp<Buffer>* outBuffer,
+                                       uint32_t bindingSize)
+{
+    BindGroupLayoutEntry entry{};
+    entry.binding = 0;
+    entry.kind = BindingKind::uniformBuffer;
+    entry.hasDynamicOffset = true;
+    BindGroupLayoutDesc ld{};
+    ld.entries = &entry;
+    ld.entryCount = 1;
+    *outLayout = ctx.makeBindGroupLayout(ld);
+
+    BufferDesc bufferDesc{};
+    bufferDesc.usage = BufferUsage::uniform;
+    bufferDesc.size = 1024;
+    *outBuffer = ctx.makeBuffer(bufferDesc);
+
+    BindGroupDesc::UBOEntry ubo{};
+    ubo.slot = 0;
+    ubo.buffer = outBuffer->get();
+    ubo.size = bindingSize;
+    BindGroupDesc bd{};
+    bd.layout = outLayout->get();
+    bd.ubos = &ubo;
+    bd.uboCount = 1;
+    return ctx.makeBindGroup(bd);
+}
+
+TEST_CASE("a sizeless dynamic UBO spans the rest of its buffer", "[ore][cmd]")
+{
+    DeferredOreContext ctx(nullptr);
+    rcp<BindGroupLayout> layout;
+    rcp<Buffer> buffer;
+
+    auto whole = makeDynamicGroup(ctx, &layout, &buffer, 0);
+    REQUIRE(whole != nullptr);
+    REQUIRE(whole->dynamicRanges().size() == 1u);
+    CHECK(whole->dynamicRanges()[0].size == 1024u);
+    std::string err;
+    const uint32_t zero = 0;
+    CHECK(validateSetBindGroup(0, whole.get(), &zero, 1, 256, &err));
+    const uint32_t moved = 256;
+    CHECK_FALSE(validateSetBindGroup(0, whole.get(), &moved, 1, 256, &err));
+
+    auto group = makeDynamicGroup(ctx, &layout, &buffer, 256);
+    REQUIRE(group != nullptr);
+    REQUIRE(group->dynamicRanges().size() == 1u);
+    CHECK(group->dynamicRanges()[0].size == 256u);
+    CHECK(group->dynamicRanges()[0].bufferSize == 1024u);
+}
+
+TEST_CASE("setBindGroup validation catches misuse", "[ore][cmd]")
+{
+    DeferredOreContext ctx(nullptr);
+    rcp<BindGroupLayout> layout;
+    rcp<Buffer> buffer;
+    auto group = makeDynamicGroup(ctx, &layout, &buffer, 256);
+    REQUIRE(group != nullptr);
+
+    std::string err;
+    const uint32_t last = 768;
+    CHECK(validateSetBindGroup(0, group.get(), &last, 1, 256, &err));
+
+    CHECK_FALSE(validateSetBindGroup(0, group.get(), nullptr, 0, 256, &err));
+    CHECK(err.find("count 0 does not match") != std::string::npos);
+
+    const uint32_t unaligned = 100;
+    CHECK_FALSE(validateSetBindGroup(0, group.get(), &unaligned, 1, 256, &err));
+    CHECK(err.find("multiple of 256") != std::string::npos);
+
+    const uint32_t past = 1024;
+    CHECK_FALSE(validateSetBindGroup(0, group.get(), &past, 1, 256, &err));
+    CHECK(err.find("past the end of its 1024 byte buffer") !=
+          std::string::npos);
+
+    CHECK_FALSE(
+        validateSetBindGroup(kMaxBindGroups, group.get(), &last, 1, 256, &err));
+    CHECK(err.find("groupIndex") != std::string::npos);
+
+    CHECK_FALSE(validateSetBindGroup(1, group.get(), &last, 1, 256, &err));
+    CHECK(err.find("made for group 0, not 1") != std::string::npos);
+
+    const uint32_t many[kMaxDynamicOffsets + 1] = {};
+    CHECK_FALSE(validateSetBindGroup(0,
+                                     group.get(),
+                                     many,
+                                     kMaxDynamicOffsets + 1,
+                                     256,
+                                     &err));
+    CHECK(err.find("exceeds maximum") != std::string::npos);
 }
