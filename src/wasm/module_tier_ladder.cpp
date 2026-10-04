@@ -151,12 +151,16 @@ const std::string& ModuleTierLadder::wamrcVersion()
             }
             pclose(pipe);
         }
+        auto accepts = [&](const char* flags) {
+            std::string probe =
+                m_wamrcPath + " " + flags + " --version >/dev/null 2>&1";
+            FILE* probePipe = popen(probe.c_str(), "r");
+            return probePipe != nullptr && pclose(probePipe) == 0;
+        };
         // Every compile passes --rive-interrupt, which an unpatched wamrc
         // rejects; say so once rather than fail each compile quietly.
-        std::string probe =
-            m_wamrcPath + " --rive-interrupt --version >/dev/null 2>&1";
-        FILE* probePipe = popen(probe.c_str(), "r");
-        m_wamrcUsable = probePipe != nullptr && pclose(probePipe) == 0;
+        m_wamrcUsable = accepts("--rive-interrupt");
+        m_wamrcTunes = accepts("--tune-cpu=generic");
         if (!m_wamrcUsable)
         {
             fprintf(stderr,
@@ -208,7 +212,9 @@ std::string ModuleTierLadder::keyedCacheDir()
     // The revision folds our wamrc flag choices into the cache key; bump
     // it whenever species flags change or stale artifacts get served on a
     // cache hit.
-    std::string dir = m_cacheDir + "/" + wamrcVersion() + "-r8";
+    const std::string& version = wamrcVersion();
+    std::string dir =
+        m_cacheDir + "/" + version + "-r9" + (m_wamrcTunes ? "t" : "");
     mkdir(m_cacheDir.c_str(), 0755);
     mkdir(dir.c_str(), 0755);
     return dir;
@@ -533,11 +539,13 @@ bool ModuleTierLadder::runWamrc(Job& job)
     // kill superseded compiles.
     std::string finalPath;
     std::string wamrc;
+    bool tunes = false;
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         finalPath = artifactDir(job.target) + "/" +
                     artifactName(job.moduleKey, job.species);
         wamrc = m_wamrcPath;
+        tunes = m_wamrcTunes;
     }
     // Unique temp per compile: the same artifact can be raced by a worker
     // and a sync boot, or by two processes sharing the cache.
@@ -559,7 +567,7 @@ bool ModuleTierLadder::runWamrc(Job& job)
         // segfaults on runtimes without the guard-page trap handler.
         args.push_back("--bounds-checks=1");
     }
-    if (job.species == TierSpecies::o0 || job.species == TierSpecies::hw)
+    if (job.species == TierSpecies::o0)
     {
         args.push_back("--opt-level=0");
     }
@@ -587,6 +595,14 @@ bool ModuleTierLadder::runWamrc(Job& job)
         // depend on the wamrc we were handed. Features need an explicit cpu.
         args.push_back("--cpu=generic");
         args.push_back("--cpu-features=+reserve-x18");
+#if defined(__APPLE__)
+        // Generic scheduling turns float compare chains into mispredicted
+        // branches (up to 1.5x slower); tuning leaves the ISA baseline alone.
+        if (tunes)
+        {
+            args.push_back("--tune-cpu=apple-m1");
+        }
+#endif
     }
 #endif
     // Loop back-edges and calls check the watchdog only in modules that ask

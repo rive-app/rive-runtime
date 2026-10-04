@@ -150,6 +150,8 @@ private:
     // The wamrc accepts our --rive-interrupt flag; true on platforms that
     // cannot probe.
     bool m_wamrcUsable = true;
+    // The wamrc takes --tune-cpu; older builds compile untuned.
+    bool m_wamrcTunes = false;
     ArrivalCallback m_arrival;
     std::deque<Job> m_queue;
     std::vector<Job*> m_running;
