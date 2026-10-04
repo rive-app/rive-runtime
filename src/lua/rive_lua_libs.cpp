@@ -3,6 +3,7 @@
 #include "rive/assets/script_asset.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/async/work_pool.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 #ifdef RIVE_CANVAS
 #include "rive/renderer/render_context.hpp"
 #endif
@@ -108,6 +109,8 @@ int rive_lua_pcall(lua_State* state, int nargs, int nresults)
 {
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
+    // Bounds what a setter's error leaves behind to this call.
+    RIVE_WRITE_SOURCE(luau, state);
 
 #ifdef RIVE_ORE
     ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
@@ -127,6 +130,7 @@ int rive_lua_pcall_with_context(lua_State* state,
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(state));
     ScopedScriptedObjectContext scope(context, scriptedObject);
+    RIVE_WRITE_SOURCE(luau, state);
 #ifdef RIVE_ORE
     ScriptCallGpuScope gpuScope = rive_lua_enterScriptCallGpuScope(state);
 #endif

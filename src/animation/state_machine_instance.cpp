@@ -74,6 +74,7 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/file.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 #include <array>
 #include <memory>
 #include <unordered_map>
@@ -267,6 +268,7 @@ public:
 
     bool advance(StateMachineInstance* smi, float seconds, bool newFrame)
     {
+        RIVE_WRITE_SOURCE(layer, m_layer, smi);
         if (newFrame)
         {
             m_stateMachineChangedOnAdvance = false;

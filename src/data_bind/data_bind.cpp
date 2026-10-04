@@ -44,6 +44,7 @@
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/component.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 
 using namespace rive;
 
@@ -517,6 +518,7 @@ void DataBind::updateSourceBinding(bool invalidate)
         {
             m_ContextValue->invalidate();
         }
+        RIVE_WRITE_SOURCE(dataBind, this);
         m_ContextValue->applyToSource(target(),
                                       propertyKey(),
                                       isMainToSource(),

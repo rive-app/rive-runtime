@@ -6,6 +6,7 @@
 #include "rive/refcnt.hpp"
 #include "rive/scripted/script_backend.hpp"
 #include "rive/span.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 
 #include <functional>
 #include <memory>
@@ -165,6 +166,9 @@ public:
 
     private:
         WasmScriptingVM* m_vm;
+#ifdef WITH_RIVE_TOOLS
+        WriteAttributionScope m_writeSource{WriteSource::Kind::wasm, m_vm};
+#endif
         uint64_t m_passToken = 0;
         uint64_t m_frameToken = 0;
         bool m_budgeted = false;

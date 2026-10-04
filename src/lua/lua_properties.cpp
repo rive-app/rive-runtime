@@ -34,6 +34,7 @@
 #endif
 
 #include <math.h>
+#include "rive/viewmodel/write_attribution.hpp"
 
 using namespace rive;
 
@@ -706,6 +707,7 @@ static int property_vm_index(lua_State* L)
 
 static int property_vm_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -745,6 +747,7 @@ static int property_namecall_atom(lua_State* L,
                                   int atom,
                                   bool& error)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     switch (atom)
     {
         case (int)LuaAtoms::addListener:
@@ -1854,6 +1857,7 @@ static int property_color_index(lua_State* L)
 
 static int property_number_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -1876,6 +1880,7 @@ static int property_number_newindex(lua_State* L)
 
 static int property_color_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -1919,6 +1924,7 @@ static int property_string_index(lua_State* L)
 
 static int property_string_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -1962,6 +1968,7 @@ static int property_boolean_index(lua_State* L)
 
 static int property_boolean_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -2005,6 +2012,7 @@ static int property_enum_index(lua_State* L)
 
 static int property_enum_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -2050,6 +2058,7 @@ static int property_image_index(lua_State* L)
 
 static int property_image_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -2097,6 +2106,7 @@ static int property_font_index(lua_State* L)
 
 static int property_font_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -2144,6 +2154,7 @@ static int property_blob_index(lua_State* L)
 
 static int property_blob_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -2219,6 +2230,7 @@ static int property_artboard_index(lua_State* L)
 
 static int property_artboard_newindex(lua_State* L)
 {
+    RIVE_WRITE_SOURCE(luau, L);
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)

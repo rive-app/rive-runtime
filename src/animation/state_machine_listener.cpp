@@ -8,6 +8,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_types/listener_input_type.hpp"
+#include "rive/viewmodel/write_attribution.hpp"
 #include <array>
 
 using namespace rive;
@@ -224,6 +225,7 @@ void StateMachineListener::performChanges(
     // Every listener kind acts through here, including keyboard and text ones
     // that mark nothing else, so a quiet list row wakes up to what they do.
     stateMachineInstance->wakeRow();
+    RIVE_WRITE_SOURCE(listener, this, stateMachineInstance);
     for (auto& action : m_actions)
     {
         action->perform(stateMachineInstance, invocation);
