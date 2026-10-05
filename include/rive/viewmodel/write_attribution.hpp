@@ -3,6 +3,7 @@
 
 #ifdef WITH_RIVE_TOOLS
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
