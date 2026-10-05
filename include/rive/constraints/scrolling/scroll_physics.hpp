@@ -52,13 +52,15 @@ public:
         return Vec2D();
     };
     virtual Vec2D advance(float elapsedSeconds) { return Vec2D(); };
+    // Moves the simulation by delta, for content that moved under it.
+    virtual void shift(Vec2D delta) {}
     virtual void accumulate(Vec2D delta, float timeStamp);
     virtual void run(Vec2D rangeMin,
                      Vec2D rangeMax,
                      Vec2D value,
                      std::vector<Vec2D> snappingPoints,
-                     float contentSize,
-                     float viewportSize)
+                     Vec2D contentSize,
+                     Vec2D viewportSize)
     {
         m_isRunning = true;
     }

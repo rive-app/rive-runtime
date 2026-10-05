@@ -102,8 +102,7 @@ void LayoutComponentStyle::applyItemStyle(YGStyle& style,
 
 #ifdef WITH_RIVE_LAYOUT
 // What this layout imposes on its children: their box (padding/border/gap) and
-// the 9-way alignment selector. The two switches below split horizontal from
-// vertical intent, since the axis each lands on follows the main axis.
+// the alignment selector, resolved onto our own axes by containerAlignment.
 void LayoutComponentStyle::applyContainerStyle(YGStyle& style,
                                                const LayoutSyncContext& context)
 {
@@ -138,109 +137,30 @@ void LayoutComponentStyle::applyContainerStyle(YGStyle& style,
         return;
     }
     // Our own main axis, not the parent's: this aligns the children we lay out.
-    const bool isRowForAlignment = flexDirection() == YGFlexDirectionRow ||
-                                   flexDirection() == YGFlexDirectionRowReverse;
-    switch (alignmentType())
+    const bool isRow = flexDirection() == YGFlexDirectionRow ||
+                       flexDirection() == YGFlexDirectionRowReverse;
+    auto alignment = containerAlignment(alignmentType(), isRow);
+    switch (alignment.main)
     {
-        case LayoutAlignmentType::topLeft:
-        case LayoutAlignmentType::topCenter:
-        case LayoutAlignmentType::topRight:
-            if (isRowForAlignment)
-            {
-                style.alignItems() = YGAlignFlexStart;
-                style.alignContent() = YGAlignFlexStart;
-            }
-            else
-            {
-                style.justifyContent() = YGJustifyFlexStart;
-            }
+        case LayoutMainDistribute::start:
+            style.justifyContent() = YGJustifyFlexStart;
             break;
-        case LayoutAlignmentType::centerLeft:
-        case LayoutAlignmentType::center:
-        case LayoutAlignmentType::centerRight:
-            if (isRowForAlignment)
-            {
-                style.alignItems() = YGAlignCenter;
-                style.alignContent() = YGAlignCenter;
-            }
-            else
-            {
-                style.justifyContent() = YGJustifyCenter;
-            }
+        case LayoutMainDistribute::center:
+            style.justifyContent() = YGJustifyCenter;
             break;
-        case LayoutAlignmentType::bottomLeft:
-        case LayoutAlignmentType::bottomCenter:
-        case LayoutAlignmentType::bottomRight:
-            if (isRowForAlignment)
-            {
-                style.alignItems() = YGAlignFlexEnd;
-                style.alignContent() = YGAlignFlexEnd;
-            }
-            else
-            {
-                style.justifyContent() = YGJustifyFlexEnd;
-            }
+        case LayoutMainDistribute::end:
+            style.justifyContent() = YGJustifyFlexEnd;
             break;
-        default:
-            break;
-    }
-    switch (alignmentType())
-    {
-        case LayoutAlignmentType::topLeft:
-        case LayoutAlignmentType::centerLeft:
-        case LayoutAlignmentType::bottomLeft:
-            if (isRowForAlignment)
-            {
-                style.justifyContent() = YGJustifyFlexStart;
-            }
-            else
-            {
-                style.alignItems() = YGAlignFlexStart;
-                style.alignContent() = YGAlignFlexStart;
-            }
-            break;
-        case LayoutAlignmentType::topCenter:
-        case LayoutAlignmentType::center:
-        case LayoutAlignmentType::bottomCenter:
-            if (isRowForAlignment)
-            {
-                style.justifyContent() = YGJustifyCenter;
-            }
-            else
-            {
-                style.alignItems() = YGAlignCenter;
-                style.alignContent() = YGAlignCenter;
-            }
-            break;
-        case LayoutAlignmentType::topRight:
-        case LayoutAlignmentType::centerRight:
-        case LayoutAlignmentType::bottomRight:
-            if (isRowForAlignment)
-            {
-                style.justifyContent() = YGJustifyFlexEnd;
-            }
-            else
-            {
-                style.alignItems() = YGAlignFlexEnd;
-                style.alignContent() = YGAlignFlexEnd;
-            }
-            break;
-        case LayoutAlignmentType::spaceBetweenStart:
-            style.alignItems() = YGAlignFlexStart;
-            style.alignContent() = YGAlignFlexStart;
-            style.justifyContent() = YGJustifySpaceBetween;
-            break;
-        case LayoutAlignmentType::spaceBetweenCenter:
-            style.alignItems() = YGAlignCenter;
-            style.alignContent() = YGAlignCenter;
-            style.justifyContent() = YGJustifySpaceBetween;
-            break;
-        case LayoutAlignmentType::spaceBetweenEnd:
-            style.alignItems() = YGAlignFlexEnd;
-            style.alignContent() = YGAlignFlexEnd;
+        case LayoutMainDistribute::spaceBetween:
             style.justifyContent() = YGJustifySpaceBetween;
             break;
     }
+    YGAlign cross =
+        alignment.cross == LayoutCrossAlign::start    ? YGAlignFlexStart
+        : alignment.cross == LayoutCrossAlign::center ? YGAlignCenter
+                                                      : YGAlignFlexEnd;
+    style.alignItems() = cross;
+    style.alignContent() = cross;
 }
 #endif
 

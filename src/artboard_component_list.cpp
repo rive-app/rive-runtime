@@ -272,17 +272,48 @@ void ArtboardComponentList::markLayoutNodeDirty(
     }
 }
 
+enum class WindowState : uint8_t
+{
+    none,
+    realized,
+    visible
+};
+
+void ArtboardComponentList::clearVirtualWindow()
+{
+    for (int index : m_windowOrder)
+    {
+        if (index < (int)m_windowState.size())
+        {
+            m_windowState[index] = (uint8_t)WindowState::none;
+        }
+    }
+    m_windowOrder.clear();
+    m_windowVisibleCount = 0;
+    invalidateOrderedListIndicesCache();
+}
+
+void ArtboardComponentList::addToVirtualWindow(int index, bool visible)
+{
+    if (index >= (int)m_windowState.size())
+    {
+        m_windowState.resize(std::max((size_t)index + 1, m_listItems.size()),
+                             (uint8_t)WindowState::none);
+    }
+    m_windowState[index] =
+        (uint8_t)(visible ? WindowState::visible : WindowState::realized);
+    m_windowOrder.push_back(index);
+    if (visible)
+    {
+        m_windowVisibleCount++;
+    }
+    invalidateOrderedListIndicesCache();
+}
+
 bool ArtboardComponentList::isWithinVisibleWindow(int index) const
 {
-    const int count = static_cast<int>(m_listItems.size());
-    if (count == 0 || m_visibleStartIndex < 0 || m_visibleEndIndex < 0)
-    {
-        return false;
-    }
-    const int start = m_visibleStartIndex % count;
-    const int end = m_visibleEndIndex % count;
-    return start <= end ? (index >= start && index <= end)
-                        : (index >= start || index <= end);
+    return index >= 0 && index < (int)m_windowState.size() &&
+           m_windowState[index] == (uint8_t)WindowState::visible;
 }
 
 void ArtboardComponentList::updateLayoutBounds(bool animate)
@@ -292,9 +323,8 @@ void ArtboardComponentList::updateLayoutBounds(bool animate)
     // into m_artboardSizes would feed back into the virtualizer, which sums
     // that same table to pick the visible window - so only visible items
     // report their size.
-    const bool hasVirtualWindow = virtualizationEnabled() &&
-                                  m_visibleStartIndex >= 0 &&
-                                  m_visibleEndIndex >= 0;
+    const bool hasVirtualWindow =
+        virtualizationEnabled() && m_windowVisibleCount > 0;
     for (int i = 0; i < artboardCount(); i++)
     {
         auto artboard = artboardInstance(i);
@@ -1297,26 +1327,21 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
 {
     if (virtualizationEnabled())
     {
-        auto realIndex = std::fmod(index, m_listItems.size());
-        auto gap = this->gap();
-        float runningSize = 0;
-        bool isHorizontal = mainAxisIsRow();
-        for (int i = 0; i < realIndex; i++)
+        int count = (int)m_artboardSizes.size();
+        if (count == 0)
         {
-            auto size = m_artboardSizes[i];
-            if (isHorizontal)
-            {
-                runningSize += size.x + gap;
-            }
-            else
-            {
-                runningSize += size.y + gap;
-            }
+            return AABB();
         }
+        int realIndex = index % count;
+        // The scroll's layout places items in virtualized content space,
+        // after any scroll children ahead of this list.
+        auto position =
+            scrollConstraint()->virtualItemPosition(this, realIndex);
         auto itemSize = m_artboardSizes[realIndex];
-        double left = isHorizontal ? runningSize : 0;
-        double top = isHorizontal ? 0 : runningSize;
-        return AABB(left, top, left + itemSize.x, top + itemSize.y);
+        return AABB(position.x,
+                    position.y,
+                    position.x + itemSize.x,
+                    position.y + itemSize.y);
     }
     else
     {
@@ -1465,23 +1490,17 @@ void ArtboardComponentList::ensureOrderedListIndices()
 
     std::vector<int>& cache = m_cachedOrderedListIndices;
     cache.clear();
-    const bool useVirtualWindow = virtualizationEnabled() &&
-                                  m_realizedStartIndex >= 0 &&
-                                  m_realizedEndIndex >= 0;
+    const bool useVirtualWindow =
+        virtualizationEnabled() && !m_windowOrder.empty();
 
     if (useVirtualWindow)
     {
-        auto startIndex = m_realizedStartIndex % count;
-        auto endIndex = m_realizedEndIndex % count;
-        int i = startIndex;
-        while (true)
+        for (int index : m_windowOrder)
         {
-            cache.push_back(i);
-            if (i == endIndex)
+            if (index < count)
             {
-                break;
+                cache.push_back(index);
             }
-            i = (i + 1) % count;
         }
     }
     else
@@ -1525,7 +1544,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
     {
         renderer->transform(
             parent()->as<WorldTransformComponent>()->worldTransform());
-        if (m_realizedStartIndex != -1 && m_realizedEndIndex != -1)
+        if (!m_windowOrder.empty())
         {
             // We need to render in the correct order so we get the correct
             // z-index for items in cases where there is overlap
@@ -1889,10 +1908,6 @@ void ArtboardComponentList::addArtboardAt(
             artboardInstance->parentIsRow(mainAxisIsRow());
             artboardInstance->parentIsStack(isStack());
         }
-        if (forceLayoutSync)
-        {
-            syncLayoutChildren();
-        }
 
         StateMachineInstance* stateMachineInstance = nullptr;
         auto artboard = findArtboard(item);
@@ -1938,6 +1953,11 @@ void ArtboardComponentList::addArtboardAt(
             resetQuietRow(index);
             m_artboardInstancesByIndex[index] = artboardInstance;
             m_stateMachinesByIndex[index] = stateMachineInstance;
+        }
+        // After the instance is findable by index, which the sync reads.
+        if (forceLayoutSync)
+        {
+            syncLayoutChildren();
         }
     }
 }
@@ -2132,6 +2152,8 @@ void ArtboardComponentList::removeVirtualizable(int index)
         auto artboardInstance = std::move(m_artboardInstancesMap[listItem]);
         if (artboard != nullptr && artboardInstance != nullptr)
         {
+            // A pooled instance may be reused anywhere, so it keeps no cell.
+            artboardInstance->virtualGridCell(-1, -1);
             auto& pool = m_resourcePool[artboard];
             pool.push_back(std::move(artboardInstance));
         }
@@ -2143,6 +2165,26 @@ void ArtboardComponentList::removeVirtualizable(int index)
         }
     }
     removeArtboardAt(index);
+}
+
+void ArtboardComponentList::realizedIndices(std::vector<int>& out)
+{
+    for (int i = 0; i < (int)m_artboardInstancesByIndex.size(); i++)
+    {
+        if (m_artboardInstancesByIndex[i] != nullptr)
+        {
+            out.push_back(i);
+        }
+    }
+}
+
+void ArtboardComponentList::setVirtualizableCell(int index, int column, int row)
+{
+    auto artboard = artboardInstance(index);
+    if (artboard != nullptr)
+    {
+        artboard->virtualGridCell(column, row);
+    }
 }
 
 void ArtboardComponentList::setVirtualizablePosition(int index, Vec2D position)

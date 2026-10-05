@@ -902,7 +902,7 @@ bool TextInput::advanceDrag(float elapsedSeconds)
         float scrollDeltaX = m_scrollX * elapsedSeconds;
         float newScrollOffsetX =
             m_scrollConstraint->scrollOffsetX() + scrollDeltaX;
-        if (!m_scrollConstraint->infinite())
+        if (!m_scrollConstraint->loopsX())
         {
             newScrollOffsetX = std::max(m_scrollConstraint->maxOffsetX(),
                                         std::min(0.0f, newScrollOffsetX));
@@ -914,7 +914,7 @@ bool TextInput::advanceDrag(float elapsedSeconds)
         float scrollDeltaY = m_scrollY * elapsedSeconds;
         float newScrollOffsetY =
             m_scrollConstraint->scrollOffsetY() + scrollDeltaY;
-        if (!m_scrollConstraint->infinite())
+        if (!m_scrollConstraint->loopsY())
         {
             newScrollOffsetY = std::max(m_scrollConstraint->maxOffsetY(),
                                         std::min(0.0f, newScrollOffsetY));

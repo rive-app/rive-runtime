@@ -2,8 +2,11 @@
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/scrolling/scroll_constraint_proxy.hpp"
 #include "rive/constraints/scrolling/scroll_virtualizer.hpp"
+#include "rive/constraints/scrolling/virtual_layout.hpp"
 #include "rive/constraints/transform_constraint.hpp"
 #include "rive/core_context.hpp"
+#include "rive/layout/grid_track.hpp"
+#include "rive/layout/layout_component_style.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/virtualizing_component.hpp"
@@ -21,56 +24,46 @@ ScrollConstraint::~ScrollConstraint()
         delete m_virtualizer;
         m_virtualizer = nullptr;
     }
+    delete m_virtualLayout;
+    m_virtualLayout = nullptr;
     m_layoutChildren.clear();
     delete m_physics;
 }
 
+// Virtualized content along the scroll axis. Matches the non-virtualized
+// layout size; an infinite carousel's cycle length stays padding free.
+float ScrollConstraint::virtualContentExtent(float padding)
+{
+    auto layout = ensureVirtualLayout();
+    if (layout == nullptr)
+    {
+        return 0.0f;
+    }
+    return infinite() ? layout->cycleExtent() : layout->extent() + padding;
+}
+
 float ScrollConstraint::contentWidth()
 {
-    if (virtualize() && !mainAxisIsColumn())
+    if (virtualize() && !virtualAxisIsColumn())
     {
-        auto contentSize = 0.0f;
-        for (auto child : scrollChildren())
-        {
-            if (child == nullptr)
-            {
-                continue;
-            }
-            contentSize += child->layoutBounds().width();
-        }
-        auto lenOffset = infinite() ? 0 : 1;
-        contentSize += gap().x * (scrollChildren().size() - lenOffset);
-        if (!infinite())
-        {
-            // Match the non-virtualized layout width; an infinite carousel's
-            // cycle length stays padding free.
-            contentSize += content()->paddingLeft() + content()->paddingRight();
-        }
-        return contentSize;
+        return virtualContentExtent(content()->paddingLeft() +
+                                    content()->paddingRight());
+    }
+    if (loopsX())
+    {
+        // A grid's columns cycle on from their copy one cycle along.
+        auto layout = ensureVirtualLayout();
+        return layout != nullptr ? layout->columnCycleExtent() : 0.0f;
     }
     return content()->layoutWidth();
 }
 
 float ScrollConstraint::contentHeight()
 {
-    if (virtualize() && mainAxisIsColumn())
+    if (virtualize() && virtualAxisIsColumn())
     {
-        auto contentSize = 0.0f;
-        for (auto child : scrollChildren())
-        {
-            if (child == nullptr)
-            {
-                continue;
-            }
-            contentSize += child->layoutBounds().height();
-        }
-        auto lenOffset = infinite() ? 0 : 1;
-        contentSize += gap().y * (scrollChildren().size() - lenOffset);
-        if (!infinite())
-        {
-            contentSize += content()->paddingTop() + content()->paddingBottom();
-        }
-        return contentSize;
+        return virtualContentExtent(content()->paddingTop() +
+                                    content()->paddingBottom());
     }
     return content()->layoutHeight();
 }
@@ -107,7 +100,7 @@ float ScrollConstraint::visibleHeightRatio()
 }
 float ScrollConstraint::minOffsetX()
 {
-    if (infinite() && !mainAxisIsColumn())
+    if (loopsX())
     {
         return std::numeric_limits<float>::infinity();
     }
@@ -115,7 +108,7 @@ float ScrollConstraint::minOffsetX()
 }
 float ScrollConstraint::minOffsetY()
 {
-    if (infinite() && mainAxisIsColumn())
+    if (loopsY())
     {
         return std::numeric_limits<float>::infinity();
     }
@@ -123,7 +116,7 @@ float ScrollConstraint::minOffsetY()
 }
 float ScrollConstraint::maxOffsetX()
 {
-    if (infinite() && !mainAxisIsColumn())
+    if (loopsX())
     {
         return -std::numeric_limits<float>::infinity();
     }
@@ -133,7 +126,7 @@ float ScrollConstraint::maxOffsetX()
 }
 float ScrollConstraint::maxOffsetY()
 {
-    if (infinite() && mainAxisIsColumn())
+    if (loopsY())
     {
         return -std::numeric_limits<float>::infinity();
     }
@@ -143,7 +136,7 @@ float ScrollConstraint::maxOffsetY()
 }
 float ScrollConstraint::clampedOffsetX()
 {
-    if (infinite())
+    if (loopsX())
     {
         return offsetX();
     }
@@ -163,7 +156,7 @@ float ScrollConstraint::clampedOffsetX()
 }
 float ScrollConstraint::clampedOffsetY()
 {
-    if (infinite())
+    if (loopsY())
     {
         return offsetY();
     }
@@ -206,6 +199,127 @@ bool ScrollConstraint::mainAxisIsColumn()
     return content() != nullptr && content()->mainAxisIsColumn();
 }
 
+bool ScrollConstraint::virtualizesGrid()
+{
+    if (!virtualize() || content() == nullptr ||
+        !content()->isGridContainer() ||
+        direction() == DraggableConstraintDirection::horizontal)
+    {
+        return false;
+    }
+    // Anything but a list keeps its cell while its row is unrealized, which
+    // would shift realized items off their columns.
+    return scrollChildrenAreLists();
+}
+
+bool ScrollConstraint::virtualizesGridColumns()
+{
+    // Columns past the viewport's sides are windowed too, however it scrolls.
+    // A carousel only windows them when it cycles them, scrolled both ways.
+    return virtualizesGrid() &&
+           (!infinite() || direction() == DraggableConstraintDirection::all);
+}
+
+bool ScrollConstraint::indexesGridCells()
+{
+    return direction() == DraggableConstraintDirection::all &&
+           virtualizesGridColumns();
+}
+
+bool ScrollConstraint::indexesHorizontally()
+{
+    // Scrolled both ways, only the virtualized axis has an item order.
+    if (virtualize() && direction() == DraggableConstraintDirection::all)
+    {
+        return !virtualAxisIsColumn();
+    }
+    return constrainsHorizontal();
+}
+
+// A carousel cycles its virtualized axis, and a grid's columns when it
+// scrolls both ways; any other axis it scrolls is bounded.
+bool ScrollConstraint::loopsX()
+{
+    return infinite() && (!virtualAxisIsColumn() || virtualizesGridColumns());
+}
+
+bool ScrollConstraint::loopsY() { return infinite() && virtualAxisIsColumn(); }
+
+bool ScrollConstraint::scrollChildrenAreLists()
+{
+    for (auto child : scrollChildren())
+    {
+        if (VirtualizingComponent::fromScrollChild(child) == nullptr)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static float innerSize(LayoutComponent* layout, bool vertical)
+{
+    return vertical ? layout->layoutHeight() - layout->paddingTop() -
+                          layout->paddingBottom()
+                    : layout->layoutWidth() - layout->paddingLeft() -
+                          layout->paddingRight();
+}
+
+// The content's margins along its lines' flow axis: points, or percents of
+// its parent's inner width, as layout resolves them.
+static float flowMargins(LayoutComponent* content,
+                         LayoutComponent* parent,
+                         bool flowIsVertical)
+{
+    auto style = content->style();
+    if (style == nullptr)
+    {
+        return 0.0f;
+    }
+    float reference = innerSize(parent, false);
+    auto resolve = [&](float value, uint8_t unit) {
+        const uint8_t point = 1, percent = 2;
+        return unit == point     ? value
+               : unit == percent ? value / 100.0f * reference
+                                 : 0.0f;
+    };
+    return flowIsVertical
+               ? resolve(style->marginTop(), style->marginTopUnitsValue()) +
+                     resolve(style->marginBottom(),
+                             style->marginBottomUnitsValue())
+               : resolve(style->marginLeft(), style->marginLeftUnitsValue()) +
+                     resolve(style->marginRight(),
+                             style->marginRightUnitsValue());
+}
+
+// A row track as the virtual layout sizes it.
+static VirtualGridTrack virtualTrack(GridTrack* track)
+{
+    auto min = (VirtualTrackSizing)track->trackType();
+    if (track->trackMaxType() == 0)
+    {
+        return {min, track->trackValue(), min, track->trackValue()};
+    }
+    return {min,
+            track->trackValue(),
+            (VirtualTrackSizing)(track->trackMaxType() - 1),
+            track->trackMaxValue()};
+}
+
+bool ScrollConstraint::virtualAxisIsColumn()
+{
+    // Grid rows stack down the block axis.
+    if (virtualizesGrid())
+    {
+        return true;
+    }
+    // Wrapped lines stack along the cross axis, so that's what scrolls.
+    bool isColumn = mainAxisIsColumn();
+    return virtualize() && content() != nullptr && content()->wrapsLines()
+               ? !isColumn
+               : isColumn;
+}
+
 void ScrollConstraint::constrain(TransformComponent* component)
 {
     resolveScrollIntents();
@@ -244,12 +358,315 @@ void ScrollConstraint::constrainVirtualized(bool force)
         {
             return;
         }
-        auto isColumn = mainAxisIsColumn();
-        auto direction = isColumn ? VirtualizedDirection::vertical
-                                  : VirtualizedDirection::horizontal;
+        refreshVirtualLayout();
+        auto isColumn = virtualAxisIsColumn();
+        anchorScroll(m_virtualizer->anchorMoved(*m_virtualLayout, children),
+                     isColumn);
+        auto virtualDirection = isColumn ? VirtualizedDirection::vertical
+                                         : VirtualizedDirection::horizontal;
         auto offset = isColumn ? clampedOffsetY() : clampedOffsetX();
-        m_virtualizer->constrain(this, children, offset, direction);
+        // Items move along their lines when the scroll moves that axis.
+        bool scrollsFlow =
+            isColumn ? constrainsHorizontal() : constrainsVertical();
+        float flowOffset =
+            scrollsFlow ? -(isColumn ? clampedOffsetX() : clampedOffsetY())
+                        : 0.0f;
+        // A grid windows the columns the viewport shows, in content space.
+        bool columns = virtualizesGridColumns();
+        m_virtualizer->constrain(this,
+                                 children,
+                                 offset,
+                                 virtualDirection,
+                                 flowOffset,
+                                 flowOffset - content()->layoutX(),
+                                 columns ? viewport()->layoutWidth() : 0.0f,
+                                 columns);
+        syncVirtualGridTracks();
     }
+}
+
+// Size of a scroll child's item.
+static Vec2D virtualItemSize(LayoutNodeProvider* child, int index)
+{
+    auto virt = VirtualizingComponent::fromScrollChild(child);
+    if (virt != nullptr)
+    {
+        return virt->itemSize(index);
+    }
+    auto bounds = child->layoutBounds();
+    return Vec2D(bounds.width(), bounds.height());
+}
+
+void ScrollConstraint::refreshVirtualLayout()
+{
+    if (m_virtualLayout == nullptr)
+    {
+        return;
+    }
+    bool isHorizontal = !virtualAxisIsColumn();
+    auto contentGap = gap();
+    auto layout = content();
+    if (virtualizesGrid())
+    {
+        // Layout only ever sees the realized rows, so tracks are sized here
+        // from every item; column starts come back from layout once it uses
+        // them.
+        int columns = 0;
+        for (auto child : layout->children())
+        {
+            if (child->is<GridTrack>() &&
+                child->as<GridTrack>()->gridCollection() ==
+                    GridTrackCollection::templateColumns)
+            {
+                columns++;
+            }
+        }
+        m_virtualLayout->beginGrid(contentGap.y,
+                                   columns,
+                                   layout->childAlignment().cross,
+                                   contentGap.x);
+        layout->gridColumnLineOffsets(m_virtualLayout->gridColumnStarts());
+
+        auto& rows = m_virtualLayout->gridRows();
+        auto& gridColumns = m_virtualLayout->gridColumns();
+        for (auto child : layout->children())
+        {
+            if (!child->is<GridTrack>())
+            {
+                continue;
+            }
+            auto track = child->as<GridTrack>();
+            std::vector<VirtualGridTrack>* tracks = nullptr;
+            switch (track->gridCollection())
+            {
+                case GridTrackCollection::templateRows:
+                    tracks = &rows.templates;
+                    break;
+                case GridTrackCollection::autoRows:
+                    tracks = &rows.autos;
+                    break;
+                case GridTrackCollection::templateColumns:
+                    tracks = &gridColumns.templates;
+                    break;
+                case GridTrackCollection::autoColumns:
+                    tracks = &gridColumns.autos;
+                    break;
+            }
+            if (tracks != nullptr)
+            {
+                tracks->push_back(virtualTrack(track));
+            }
+        }
+        // A grid of fixed or filling size sizes its tracks in it; one that
+        // hugs them sizes them first (its own size only reflects realized
+        // rows), and again in the size they give it along a flex parent's
+        // main axis.
+        auto style = layout->style();
+        const auto hug = (uint8_t)LayoutScaleType::hug;
+        if (style != nullptr && style->layoutHeightScaleType() != hug)
+        {
+            rows.space = std::max(0.0f, innerSize(layout, true));
+        }
+        if (style != nullptr && style->layoutWidthScaleType() != hug)
+        {
+            gridColumns.space = std::max(0.0f, innerSize(layout, false));
+        }
+        auto parent = viewport();
+        if (parent->style() != nullptr &&
+            parent->style()->layoutTypeValue() == 0)
+        {
+            rows.resize = parent->mainAxisIsColumn();
+            gridColumns.resize = !rows.resize;
+        }
+    }
+    else if (layout->wrapsLines())
+    {
+        // Lines run along the flow axis, inside the content's padding. Hugging
+        // content breaks them at the space its parent offers instead (its own
+        // size only reflects the realized lines), less its margins.
+        auto alignment = layout->childAlignment();
+        bool hugs = layout->hugsLines();
+        auto bounds = hugs ? viewport() : layout;
+        float flowStart =
+            isHorizontal ? layout->paddingTop() : layout->paddingLeft();
+        float flowExtent = innerSize(bounds, isHorizontal);
+        if (hugs)
+        {
+            flowExtent -= isHorizontal
+                              ? layout->paddingTop() + layout->paddingBottom()
+                              : layout->paddingLeft() + layout->paddingRight();
+            flowExtent -= flowMargins(layout, viewport(), isHorizontal);
+        }
+        m_virtualLayout->beginWrap(isHorizontal ? contentGap.x : contentGap.y,
+                                   isHorizontal ? contentGap.y : contentGap.x,
+                                   flowStart,
+                                   flowExtent,
+                                   alignment.main,
+                                   alignment.cross,
+                                   hugs);
+        // Layout positions items along a line exactly (grow, margins) when it
+        // sees whole lines from a line start, as we realize them. A non-list
+        // child keeps its slot while its line is unrealized, a carousel adds
+        // its tail after its head, and hugging content justifies within its
+        // realized lines only; those positions are ours.
+        m_virtualLayout->flowFromLayout(!hugs && !infinite() &&
+                                        scrollChildrenAreLists());
+    }
+    else
+    {
+        m_virtualLayout->beginLinear(isHorizontal ? contentGap.x
+                                                  : contentGap.y);
+    }
+    for (auto child : scrollChildren())
+    {
+        // Every child gets a segment, so segments index like scrollChildren.
+        m_virtualLayout->beginSegment();
+        if (child == nullptr)
+        {
+            continue;
+        }
+        int count = (int)child->numLayoutNodes();
+        for (int j = 0; j < count; j++)
+        {
+            auto size = virtualItemSize(child, j);
+            m_virtualLayout->addItem(isHorizontal ? size.x : size.y,
+                                     isHorizontal ? size.y : size.x);
+        }
+    }
+    m_virtualLayout->end();
+}
+
+void ScrollConstraint::anchorScroll(float moved, bool isColumn)
+{
+    // Content before the first item on screen changed size (it measured
+    // differently from its authored size): move with it so what's on screen
+    // stays put. At the start nothing is above to anchor against, so growth
+    // shows below instead.
+    // The live offset: direct writes (scrollToPosition, intents, tests) move it
+    // without the stored scroll offset.
+    float offset = isColumn ? offsetY() : offsetX();
+    if (moved == 0.0f || offset >= 0.0f)
+    {
+        return;
+    }
+    if (isColumn)
+    {
+        scrollOffsetY(offset - moved);
+        offsetY(offset - moved);
+        m_lastFrameOffsetY -= moved;
+    }
+    else
+    {
+        scrollOffsetX(offset - moved);
+        offsetX(offset - moved);
+        m_lastFrameOffsetX -= moved;
+    }
+    if (m_physics != nullptr)
+    {
+        m_physics->shift(isColumn ? Vec2D(0.0f, -moved) : Vec2D(-moved, 0.0f));
+    }
+}
+
+void ScrollConstraint::syncVirtualGridTracks()
+{
+    static const std::vector<float> none;
+    auto layout = content();
+    if (layout == nullptr)
+    {
+        return;
+    }
+    if (!virtualizesGrid() || m_virtualLayout == nullptr ||
+        !m_virtualLayout->isGrid())
+    {
+        layout->virtualGridTracks(none, none);
+        return;
+    }
+    // Every column takes the size the layout sized from all of its items; a
+    // grid without template columns has one implicit column.
+    auto& columns = m_virtualLayout->gridColumnSizes();
+    columns.clear();
+    for (int column = 0; column < m_virtualLayout->columnCount(); column++)
+    {
+        columns.push_back(m_virtualLayout->gridColumnSize(column));
+    }
+    // Realized rows reach layout in item order. A window follows it, except a
+    // carousel's, which can wrap from the tail to the head; pinned cells take
+    // their rows in window order instead.
+    auto& rows = m_virtualLayout->gridRowSizes();
+    rows.clear();
+    int lineCount = m_virtualLayout->lineCount();
+    int start = m_virtualizer->realizedLineStart();
+    int end = m_virtualizer->realizedLineEnd();
+    auto pushRows = [&](int from, int to) {
+        for (int line = from; line <= to; line++)
+        {
+            rows.push_back(m_virtualLayout->lineExtent(line));
+        }
+    };
+    if (lineCount > 0 && end >= start)
+    {
+        // A carousel window wrapping past the tail takes the head first.
+        int first = m_virtualLayout->wrapLine(start);
+        int span = std::min(end - start + 1, lineCount);
+        if (!infinite() || virtualizesGridColumns())
+        {
+            pushRows(start, end);
+        }
+        else if (first + span <= lineCount)
+        {
+            pushRows(first, first + span - 1);
+        }
+        else
+        {
+            pushRows(0, first + span - 1 - lineCount);
+            pushRows(first, lineCount - 1);
+        }
+    }
+    layout->virtualGridTracks(columns, rows);
+}
+
+const VirtualLayout* ScrollConstraint::ensureVirtualLayout()
+{
+    // Asked before the first constrain: build on demand.
+    if (m_virtualLayout != nullptr &&
+        m_virtualLayout->segmentCount() != (int)scrollChildren().size())
+    {
+        refreshVirtualLayout();
+    }
+    return m_virtualLayout;
+}
+
+Vec2D ScrollConstraint::virtualItemPosition(LayoutNodeProvider* child,
+                                            int index)
+{
+    if (m_virtualLayout == nullptr)
+    {
+        return Vec2D();
+    }
+    auto& children = scrollChildren();
+    auto it = std::find(children.begin(), children.end(), child);
+    if (it == children.end())
+    {
+        return Vec2D();
+    }
+    int segment = (int)(it - children.begin());
+    ensureVirtualLayout();
+    // Asked before a grown list's constrain: build on demand.
+    if (m_virtualLayout->segmentStart(segment) + index >=
+        m_virtualLayout->itemCount())
+    {
+        refreshVirtualLayout();
+    }
+    int item = m_virtualLayout->segmentStart(segment) + index;
+    if (item >= m_virtualLayout->itemCount())
+    {
+        return Vec2D();
+    }
+    float scroll =
+        m_virtualLayout->lineStart(m_virtualLayout->lineOfItem(item)) +
+        m_virtualLayout->itemLineOffset(item);
+    float flow = m_virtualLayout->itemFlowOffset(item);
+    return virtualAxisIsColumn() ? Vec2D(flow, scroll) : Vec2D(scroll, flow);
 }
 
 void ScrollConstraint::addLayoutChild(LayoutNodeProvider* child)
@@ -277,9 +694,12 @@ void ScrollConstraint::dragView(Vec2D delta,
     // so overscroll would accumulate out of view and eat the next drag.
     float x = offsetX() + scaledDelta.x;
     float y = offsetY() + scaledDelta.y;
-    if (!infinite())
+    if (!loopsX())
     {
         x = maxOffsetX() > 0 ? 0 : math::clamp(x, maxOffsetX(), 0);
+    }
+    if (!loopsY())
+    {
         y = maxOffsetY() > 0 ? 0 : math::clamp(y, maxOffsetY(), 0);
     }
     scrollOffsetX(x);
@@ -296,13 +716,9 @@ Vec2D ScrollConstraint::scaledDelta(Vec2D delta)
 // dragView writes unclamped, so only the elastic clamp hides the excess.
 bool ScrollConstraint::isOverscrolled()
 {
-    if (infinite())
-    {
-        return false;
-    }
-    return (constrainsHorizontal() &&
+    return (constrainsHorizontal() && !loopsX() &&
             offsetX() != clampResolvedOffset(offsetX(), true)) ||
-           (constrainsVertical() &&
+           (constrainsVertical() && !loopsY() &&
             offsetY() != clampResolvedOffset(offsetY(), false));
 }
 
@@ -320,11 +736,8 @@ bool ScrollConstraint::canStretch(Vec2D rawDelta)
     }
     bool wantsX = constrainsHorizontal() && delta.x != 0;
     bool wantsY = constrainsVertical() && delta.y != 0;
-    if (infinite())
-    {
-        return wantsX || wantsY;
-    }
-    return (wantsX && maxOffsetX() < 0) || (wantsY && maxOffsetY() < 0);
+    return (wantsX && (loopsX() || maxOffsetX() < 0)) ||
+           (wantsY && (loopsY() || maxOffsetY() < 0));
 }
 
 bool ScrollConstraint::canConsume(Vec2D rawDelta)
@@ -338,18 +751,12 @@ bool ScrollConstraint::canConsume(Vec2D rawDelta)
     }
     bool wantsX = constrainsHorizontal() && delta.x != 0;
     bool wantsY = constrainsVertical() && delta.y != 0;
-    if (infinite())
-    {
-        // Wraps forever, so any delta on a constrained axis moves.
-        return wantsX || wantsY;
-    }
-    if (wantsX && clampResolvedOffset(offsetX() + delta.x, true) !=
-                      clampResolvedOffset(offsetX(), true))
-    {
-        return true;
-    }
-    return wantsY && clampResolvedOffset(offsetY() + delta.y, false) !=
-                         clampResolvedOffset(offsetY(), false);
+    // A looping axis wraps forever, so any delta on it moves.
+    bool movesX = loopsX() || clampResolvedOffset(offsetX() + delta.x, true) !=
+                                  clampResolvedOffset(offsetX(), true);
+    bool movesY = loopsY() || clampResolvedOffset(offsetY() + delta.y, false) !=
+                                  clampResolvedOffset(offsetY(), false);
+    return (wantsX && movesX) || (wantsY && movesY);
 }
 
 void ScrollConstraint::scrollBy(Vec2D delta)
@@ -432,8 +839,8 @@ void ScrollConstraint::startPhysics()
                        Vec2D(minOffsetX(), minOffsetY()),
                        Vec2D(offsetX(), offsetY()),
                        snappingPoints,
-                       mainAxisIsColumn() ? contentHeight() : contentWidth(),
-                       mainAxisIsColumn() ? viewportHeight() : viewportWidth());
+                       Vec2D(contentWidth(), contentHeight()),
+                       Vec2D(viewportWidth(), viewportHeight()));
     }
 }
 
@@ -578,12 +985,67 @@ StatusCode ScrollConstraint::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
+void ScrollConstraint::virtualizeChanged()
+{
+    if (virtualize())
+    {
+        // The next pass recycles whatever the lists hold off screen.
+        if (m_virtualizer == nullptr)
+        {
+            m_virtualizer = new ScrollVirtualizer();
+        }
+        if (m_virtualLayout == nullptr)
+        {
+            m_virtualLayout = new VirtualLayout();
+        }
+        markConstraintDirty();
+        return;
+    }
+    delete m_virtualizer;
+    m_virtualizer = nullptr;
+    delete m_virtualLayout;
+    m_virtualLayout = nullptr;
+    if (!hasLayoutParent())
+    {
+        return;
+    }
+    // Layout takes every item from here: undo the rows and cells we gave it,
+    // and realize what the window left out.
+    syncVirtualGridTracks();
+    std::vector<int> held;
+    for (auto child : scrollChildren())
+    {
+        auto virt = VirtualizingComponent::fromScrollChild(child);
+        if (virt == nullptr)
+        {
+            continue;
+        }
+        held.clear();
+        virt->realizedIndices(held);
+        for (int index : held)
+        {
+            virt->setVirtualizableCell(index, -1, -1);
+        }
+        virt->clearVirtualWindow();
+        for (int index = 0; index < virt->itemCount(); index++)
+        {
+            if (virt->item(index) == nullptr)
+            {
+                virt->addVirtualizable(index);
+            }
+        }
+        virt->virtualizableChanged();
+    }
+    markConstraintDirty();
+}
+
 StatusCode ScrollConstraint::onAddedDirty(CoreContext* context)
 {
     StatusCode result = Super::onAddedDirty(context);
     if (virtualize())
     {
         m_virtualizer = new ScrollVirtualizer();
+        m_virtualLayout = new VirtualLayout();
     }
     offsetX(scrollOffsetX());
     offsetY(scrollOffsetY());
@@ -643,12 +1105,12 @@ void ScrollConstraint::clearVelocity()
 
 float ScrollConstraint::maxOffsetXForPercent()
 {
-    return infinite() ? contentWidth() : maxOffsetX();
+    return loopsX() ? contentWidth() : maxOffsetX();
 }
 
 float ScrollConstraint::maxOffsetYForPercent()
 {
-    return infinite() ? contentHeight() : maxOffsetY();
+    return loopsY() ? contentHeight() : maxOffsetY();
 }
 
 float ScrollConstraint::velocityX()
@@ -688,7 +1150,7 @@ float ScrollConstraint::scrollPercentY()
 float ScrollConstraint::scrollIndex()
 {
     const ScrollAxisIntent& intent =
-        constrainsHorizontal() ? m_intentX : m_intentY;
+        indexesHorizontally() ? m_intentX : m_intentY;
     if (intent.space == ScrollSpace::index)
     {
         return intent.value;
@@ -747,7 +1209,7 @@ bool ScrollConstraint::scrollLayoutResolvable(bool isX)
 // Resolved offsets clamp to the scrollable range.
 float ScrollConstraint::clampResolvedOffset(float value, bool isX)
 {
-    if (infinite())
+    if (isX ? loopsX() : loopsY())
     {
         return value;
     }
@@ -1035,11 +1497,33 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
     {
         return 0;
     }
+    // A grid scrolled both ways: the row at y, then the column at x.
+    if (indexesGridCells() && m_virtualLayout != nullptr)
+    {
+        ensureVirtualLayout();
+        if (m_virtualLayout->lineCount() == 0)
+        {
+            return 0;
+        }
+        // A carousel's position wraps into its first cycle.
+        float y = -pos.y;
+        float cycle = m_virtualLayout->cycleExtent();
+        if (loopsY() && cycle > 0.0f)
+        {
+            y -= std::floor(y / cycle) * cycle;
+        }
+        int row = m_virtualLayout->window(y, 0.0f, loopsY(), 0).visibleStart;
+        int column = m_virtualLayout->wrapColumn(
+            m_virtualLayout->columnWindow(-pos.x, 0.0f, 0, loopsX())
+                .visibleStart);
+        return (float)std::min(m_virtualLayout->lineFirstItem(row) + column,
+                               m_virtualLayout->lineLastItem(row));
+    }
     Vec2D contentGap = gap();
     if (!m_hasListChildren)
     {
         size_t count = scrollChildren().size();
-        if (constrainsHorizontal())
+        if (indexesHorizontally())
         {
             for (size_t i = 0; i < count; i++)
             {
@@ -1072,7 +1556,7 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
     }
     // Has list children: nested iteration visiting each node once.
     float flatIndex = 0.0f;
-    if (constrainsHorizontal())
+    if (indexesHorizontally())
     {
         for (auto child : scrollChildren())
         {

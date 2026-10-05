@@ -1,6 +1,7 @@
 #ifndef _RIVE_GRID_TRACK_HPP_
 #define _RIVE_GRID_TRACK_HPP_
 #include "rive/generated/layout/grid_track_base.hpp"
+#include <vector>
 #ifdef WITH_RIVE_LAYOUT
 class YGStyle;
 #endif
@@ -54,9 +55,15 @@ public:
                               uint32_t columnSpan,
                               uint32_t rowSpan);
 
-    static void syncContainerStyle(YGStyle& ygStyle,
-                                   ContainerComponent* owner,
-                                   uint32_t justifyItemsValue);
+    // columnSizes / rowSizes are a virtualized grid's overrides (see
+    // LayoutComponent::virtualGridTracks); null or empty keeps the authored
+    // tracks.
+    static void syncContainerStyle(
+        YGStyle& ygStyle,
+        ContainerComponent* owner,
+        uint32_t justifyItemsValue,
+        const std::vector<float>* columnSizes = nullptr,
+        const std::vector<float>* rowSizes = nullptr);
     // Stack container: a synthetic 1x1 grid (1fr x 1fr) whose single cell fills
     // the container; children all land in cell 1,1 (see syncStackItemCell
     // stack).

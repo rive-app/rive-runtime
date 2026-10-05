@@ -1,7 +1,15 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1_4_grid')
+-- packages/yoga is the source of truth; mirrors of the runtime build the copy
+-- published to our fork at the pinned tag instead.
+local packages = path.getabsolute(path.join(path.getdirectory(_SCRIPT), '../..'))
+if path.getname(packages) == 'packages' and os.isdir(packages .. '/yoga/yoga') then
+    yoga = packages .. '/yoga'
+else
+    local ref = io.readfile(path.join(path.getdirectory(_SCRIPT), 'yoga.ref'))
+    yoga = dependency.github('rive-app/yoga', (ref:gsub('%s', '')))
+end
 
 newoption({
     trigger = 'no-yoga-renames',

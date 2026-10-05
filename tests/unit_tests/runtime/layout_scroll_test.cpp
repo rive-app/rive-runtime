@@ -1178,3 +1178,57 @@ TEST_CASE("ScrollConstraint out-of-range index clamps to the ends",
     REQUIRE(scroll->offsetY() == 0.0f);
     REQUIRE(scroll->scrollIndex() == 0);
 }
+// A grid carousel cycles columns every 440 and rows every 350. Each axis wraps
+// its snap target by its own cycle: released three column cycles plus 105 in
+// and two row cycles plus 68 down, it settles on the items at 110 and 70. With
+// one size for both axes, either would land on a different item.
+TEST_CASE("ElasticScrollPhysics snaps each looping axis by its own cycle",
+          "[layoutscroll]")
+{
+    std::vector<rive::Vec2D> snaps;
+    for (float x : {0.0f, 110.0f, 220.0f, 330.0f})
+    {
+        for (float y : {0.0f, 70.0f, 140.0f, 210.0f, 280.0f})
+        {
+            snaps.push_back(rive::Vec2D(x, y));
+        }
+    }
+    const float inf = std::numeric_limits<float>::infinity();
+    rive::ElasticScrollPhysics physics;
+    physics.prepare(rive::DraggableConstraintDirection::all);
+    physics.run(rive::Vec2D(-inf, -inf),
+                rive::Vec2D(inf, inf),
+                rive::Vec2D(-1425.0f, -768.0f),
+                snaps,
+                rive::Vec2D(440.0f, 350.0f),
+                rive::Vec2D(250.0f, 200.0f));
+    rive::Vec2D last;
+    for (int i = 0; i < 2000 && physics.isRunning(); i++)
+    {
+        last = physics.advance(0.016f);
+    }
+    REQUIRE_FALSE(physics.isRunning());
+    CHECK(last.x == Approx(-1430.0f).margin(0.5f));
+    CHECK(last.y == Approx(-770.0f).margin(0.5f));
+}
+
+// Anchoring shifts a running fling when content above grows, which moves the
+// far end of the range with it. Shifted 50 toward an end that also moved 50,
+// a fling that would have stopped 75 short of the old end comes to rest past
+// it, rather than being hauled back to where the end used to be.
+TEST_CASE("ElasticScrollPhysicsHelper shift moves the far end with it",
+          "[layoutscroll]")
+{
+    rive::ElasticScrollPhysicsHelper helper(8.0f, 1.0f, 0.66f);
+    // Speed 600 toward the end from -400: about 75 of travel.
+    helper.run(-234375.0f, -500.0f, 0.0f, -400.0f, {}, 0.0f, 0.0f);
+    helper.shift(-50.0f);
+    float last = 0.0f;
+    for (int i = 0; i < 2000 && helper.isRunning(); i++)
+    {
+        last = helper.advance(0.016f);
+    }
+    REQUIRE_FALSE(helper.isRunning());
+    CHECK(last < -510.0f);
+    CHECK(last > -550.0f);
+}

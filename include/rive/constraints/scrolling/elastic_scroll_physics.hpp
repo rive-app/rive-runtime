@@ -33,6 +33,14 @@ public:
     bool isRunning() { return m_isRunning; }
     float target() { return m_target; }
     float current() { return m_current; }
+    // Content resized above moves the far end with it; the near end stays.
+    void shift(float delta)
+    {
+        m_target += delta;
+        m_current += delta;
+        m_snapTarget += delta;
+        m_runRangeMin += delta;
+    }
     float clamp(float rangeMin, float rangeMax, float value);
     void run(float acceleration,
              float rangeMin,
@@ -77,13 +85,14 @@ public:
     bool hasTargetX() override { return m_physicsX != nullptr; }
     bool hasTargetY() override { return m_physicsY != nullptr; }
     Vec2D advance(float elapsedSeconds) override;
+    void shift(Vec2D delta) override;
     Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
     void run(Vec2D rangeMin,
              Vec2D rangeMax,
              Vec2D value,
              std::vector<Vec2D> snappingPoints,
-             float contentSize,
-             float viewportSize) override;
+             Vec2D contentSize,
+             Vec2D viewportSize) override;
     void prepare(DraggableConstraintDirection dir) override;
     void reset() override;
 

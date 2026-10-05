@@ -303,6 +303,10 @@ private:
     float m_forcedHeight = NAN;
     // Yoga YGUnit values (0..3) plus a -1 sentinel; int8_t is ample.
     int8_t m_widthUnitValueOverride = -1;
+    // Virtualized grid state; only allocated when a virtualized grid uses
+    // this layout or hosts it as an item.
+    struct VirtualGrid;
+    VirtualGrid* m_virtualGrid = nullptr;
     int8_t m_heightUnitValueOverride = -1;
     // Remaining boolean state now lives in m_layoutFlags. Two flags carry the
     // notable defaults documented here:
@@ -486,6 +490,14 @@ public:
     void heightOverride(float height, int unitValue = 1, bool isRow = true);
     void parentIsRow(bool isRow);
     void parentIsStack(bool isStack);
+    // Pins this hosted item to a grid cell (0-based) while a virtualized grid
+    // realizes it away from where layout would auto-place it; -1 clears it.
+    void virtualGridCell(int column, int row);
+    // Track sizes a virtualized grid imposes over its authored tracks: a
+    // column size >= 0 fixes that template column, and rows replace the
+    // template rows with the realized rows' heights. Both empty clears.
+    void virtualGridTracks(const std::vector<float>& columns,
+                           const std::vector<float>& rows);
     void widthIntrinsicallySizeOverride(bool intrinsic);
     void heightIntrinsicallySizeOverride(bool intrinsic);
     virtual bool canHaveOverrides() { return false; }
@@ -504,6 +516,18 @@ public:
 #endif
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
+    // Flex children flow into lines that stack along the cross axis.
+    bool wrapsLines();
+    // Our main axis hugs, so wrapped lines break at the space available from
+    // our parent and we take the width of the widest.
+    bool hugsLines();
+    // The alignment we impose on our children, on our own axes.
+    LayoutContainerAlignment childAlignment();
+    // A grid (not a stack): children auto-place into rows of cells.
+    bool isGridContainer();
+    // Resolved column line positions in local space after layout; empty unless
+    // this is a solved grid.
+    void gridColumnLineOffsets(std::vector<float>& out);
     // Whether this layout stacks its children, for hosts that push the
     // container's state into a hosted artboard.
     bool isStackContainer();

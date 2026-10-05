@@ -13,6 +13,7 @@ namespace rive
 {
 class LayoutNodeProvider;
 class ScrollVirtualizer;
+class VirtualLayout;
 
 class ScrollConstraint : public ScrollConstraintBase,
                          public AdvancingComponent,
@@ -35,6 +36,8 @@ private:
 
     ScrollPhysics* m_physics = nullptr;
     ScrollVirtualizer* m_virtualizer = nullptr;
+    // Geometry of virtualized content; only allocated when virtualizing.
+    VirtualLayout* m_virtualLayout = nullptr;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
 
     TransformComponents m_componentsA;
@@ -68,6 +71,14 @@ private:
     float maxOffsetYForPercent();
     bool isBoundsCollapsed(AABB bounds);
     std::vector<Vec2D> collectSnapPoints();
+    void refreshVirtualLayout();
+    // The virtual layout, built if it's stale; null unless virtualizing.
+    const VirtualLayout* ensureVirtualLayout();
+    // Gives layout the grid track sizes only the model knows.
+    void syncVirtualGridTracks();
+    // Keeps the first item on screen in place when content before it resized.
+    void anchorScroll(float moved, bool isColumn);
+    float virtualContentExtent(float padding);
     bool scrollLayoutResolvable(bool isX);
     float clampResolvedOffset(float value, bool isX);
     bool resolveIntent(const ScrollAxisIntent& intent,
@@ -120,6 +131,11 @@ public:
     void addLayoutChild(LayoutNodeProvider* child) override;
     Constraint* constraint() override { return this; }
     void constrainVirtualized(bool force = false);
+    // Null unless virtualizing. Rebuilt by constrainVirtualized, which every
+    // item size change reaches through the list's computeLayoutBounds.
+    const VirtualLayout* virtualLayout() const { return m_virtualLayout; }
+    // Start of a scroll child's item in virtualized content space.
+    Vec2D virtualItemPosition(LayoutNodeProvider* child, int index);
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
@@ -194,6 +210,9 @@ public:
 
     void scrollOffsetXChanged() override { offsetX(scrollOffsetX()); }
     void scrollOffsetYChanged() override { offsetY(scrollOffsetY()); }
+    // A bound or keyed buffer must re-run the window, as in Dart.
+    void virtualizeBufferChanged() override { markConstraintDirty(); }
+    void virtualizeChanged() override;
 
     float scrollPercentX() override;
     float scrollPercentY() override;
@@ -232,6 +251,22 @@ public:
     }
     Vec2D gap();
     bool mainAxisIsColumn();
+    // The axis virtualized lines stack along; the cross axis when wrapping.
+    bool virtualAxisIsColumn();
+    // Virtualizing grid rows: a vertical (or two-way) scroll over a grid of
+    // lists.
+    bool virtualizesGrid();
+    // Every scroll child is a virtualizing list.
+    bool scrollChildrenAreLists();
+    // A virtualized grid windows its columns as well as its rows.
+    bool virtualizesGridColumns();
+    // A grid scrolled both ways: scrollIndex reads a cell, not a row.
+    bool indexesGridCells();
+    // The axis scrollIndex counts along.
+    bool indexesHorizontally();
+    // Whether a carousel cycles each axis.
+    bool loopsX();
+    bool loopsY();
 
     /// Animate scroll to the target position using the physics settling
     /// animation.

@@ -117,19 +117,12 @@ public:
     void addVirtualizable(int index) override;
     void virtualizableChanged() override;
     void removeVirtualizable(int index) override;
-    void setVisibleIndices(int start, int end) override
-    {
-        m_visibleStartIndex = start;
-        m_visibleEndIndex = end;
-    }
-    void setRealizedIndices(int start, int end) override
-    {
-        m_realizedStartIndex = start;
-        m_realizedEndIndex = end;
-        invalidateOrderedListIndicesCache();
-    }
+    void realizedIndices(std::vector<int>& out) override;
+    void clearVirtualWindow() override;
+    void addToVirtualWindow(int index, bool visible) override;
     void shouldResetInstances(bool value);
     void setVirtualizablePosition(int index, Vec2D position) override;
+    void setVirtualizableCell(int index, int column, int row) override;
     void createArtboardAt(int index, bool forceLayoutSync = true);
     void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard,
                        int index,
@@ -226,10 +219,10 @@ private:
     File* m_file = nullptr;
     std::vector<Vec2D> m_artboardSizes;
     Vec2D m_layoutSize;
-    int m_visibleStartIndex = -1;
-    int m_visibleEndIndex = -1;
-    int m_realizedStartIndex = -1;
-    int m_realizedEndIndex = -1;
+    // Realized items in walk order, and each item's place in the window.
+    std::vector<int> m_windowOrder;
+    std::vector<uint8_t> m_windowState;
+    int m_windowVisibleCount = 0;
     std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
         m_artboardOverridesMap;
     std::unordered_map<int, int> m_artboardMapRules;

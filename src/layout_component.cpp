@@ -479,6 +479,55 @@ LayoutScaleType LayoutComponent::effectiveHeightScaleType()
 }
 #endif
 
+struct LayoutComponent::VirtualGrid
+{
+    int column = -1;
+    int row = -1;
+    // Lines were written for a cell, and must be reset once it's cleared.
+    bool pinned = false;
+    std::vector<float> columns;
+    std::vector<float> rows;
+};
+
+void LayoutComponent::virtualGridCell(int column, int row)
+{
+    if (m_virtualGrid == nullptr)
+    {
+        if (column < 0)
+        {
+            return;
+        }
+        m_virtualGrid = new VirtualGrid();
+    }
+    if (m_virtualGrid->column == column && m_virtualGrid->row == row)
+    {
+        return;
+    }
+    m_virtualGrid->column = column;
+    m_virtualGrid->row = row;
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::virtualGridTracks(const std::vector<float>& columns,
+                                        const std::vector<float>& rows)
+{
+    if (m_virtualGrid == nullptr)
+    {
+        if (columns.empty() && rows.empty())
+        {
+            return;
+        }
+        m_virtualGrid = new VirtualGrid();
+    }
+    if (m_virtualGrid->columns == columns && m_virtualGrid->rows == rows)
+    {
+        return;
+    }
+    m_virtualGrid->columns = columns;
+    m_virtualGrid->rows = rows;
+    markLayoutNodeDirty();
+}
+
 void LayoutComponent::parentIsStack(bool isStack)
 {
     if (hasLayoutFlag(LayoutComponentFlags::ParentIsStack) == isStack)
@@ -887,6 +936,59 @@ bool LayoutComponent::mainAxisIsColumn()
            style()->flexDirection() == YGFlexDirectionColumnReverse;
 }
 
+bool LayoutComponent::wrapsLines()
+{
+    if (style() == nullptr || style()->isGrid())
+    {
+        return false;
+    }
+    // Reversed flows are left to layout; the line model runs forward only.
+    auto direction = style()->flexDirection();
+    if (style()->flexWrap() != YGWrapWrap ||
+        (direction != YGFlexDirectionRow && direction != YGFlexDirectionColumn))
+    {
+        return false;
+    }
+    // Hugging the line axis without a bound lays everything out on one line.
+    return !(hugsLines() && style()->hugUnbounded());
+}
+
+bool LayoutComponent::hugsLines()
+{
+    if (style() == nullptr)
+    {
+        return false;
+    }
+    auto scale = mainAxisIsRow() ? style()->layoutWidthScaleType()
+                                 : style()->layoutHeightScaleType();
+    return scale == (uint8_t)LayoutScaleType::hug;
+}
+
+LayoutContainerAlignment LayoutComponent::childAlignment()
+{
+    if (style() == nullptr)
+    {
+        return {LayoutMainDistribute::start, LayoutCrossAlign::start};
+    }
+    return containerAlignment(style()->alignmentType(), mainAxisIsRow());
+}
+
+bool LayoutComponent::isGridContainer()
+{
+    return style() != nullptr && style()->isGrid() && !style()->isStack();
+}
+
+void LayoutComponent::gridColumnLineOffsets(std::vector<float>& out)
+{
+    out.clear();
+    YGNode* node = &m_layoutData->node;
+    uint32_t count = YGNodeLayoutGetGridColumnLineCount(node);
+    for (uint32_t i = 0; i < count; i++)
+    {
+        out.push_back(YGNodeLayoutGetGridColumnLineOffset(node, i));
+    }
+}
+
 bool LayoutComponent::isStackContainer()
 {
     return style() != nullptr && style()->isStack();
@@ -920,7 +1022,12 @@ void LayoutComponent::applyContainerStyle(YGStyle& ygStyle,
     {
         return;
     }
-    GridTrack::syncContainerStyle(ygStyle, this, m_style->justifyItemsValue());
+    GridTrack::syncContainerStyle(
+        ygStyle,
+        this,
+        m_style->justifyItemsValue(),
+        m_virtualGrid != nullptr ? &m_virtualGrid->columns : nullptr,
+        m_virtualGrid != nullptr ? &m_virtualGrid->rows : nullptr);
 }
 #endif
 
@@ -1187,7 +1294,24 @@ void LayoutComponent::syncStyle()
     syncContext.parentIsRow = effectiveParentIsRow();
     syncContext.isLTR = actualDirection() != LayoutDirection::rtl;
     syncContext.hasLayoutParent = layoutParent() != nullptr;
+    if (m_virtualGrid != nullptr && m_virtualGrid->column < 0 &&
+        m_virtualGrid->pinned)
+    {
+        // Back to auto placement; a placement's applier below still wins.
+        GridTrack::syncItemLines(ygStyle, 0, 0, 1, 1);
+        m_virtualGrid->pinned = false;
+    }
     m_layoutData->applyLayoutStyles(ygStyle, syncContext);
+    if (m_virtualGrid != nullptr && m_virtualGrid->column >= 0)
+    {
+        // Grid lines are 1-based.
+        GridTrack::syncItemLines(ygStyle,
+                                 m_virtualGrid->column + 1,
+                                 m_virtualGrid->row + 1,
+                                 1,
+                                 1);
+        m_virtualGrid->pinned = true;
+    }
 
     // Sync the styles of participant children that provide their
     // own layout node (including any nested inside transparent groups).
@@ -1971,6 +2095,17 @@ void LayoutComponent::onDirty(ComponentDirt value) {}
 bool LayoutComponent::mainAxisIsRow() { return true; }
 
 bool LayoutComponent::mainAxisIsColumn() { return false; }
+bool LayoutComponent::wrapsLines() { return false; }
+bool LayoutComponent::hugsLines() { return false; }
+bool LayoutComponent::isGridContainer() { return false; }
+void LayoutComponent::gridColumnLineOffsets(std::vector<float>& out)
+{
+    out.clear();
+}
+LayoutContainerAlignment LayoutComponent::childAlignment()
+{
+    return {LayoutMainDistribute::start, LayoutCrossAlign::start};
+}
 bool LayoutComponent::isStackContainer() { return false; }
 void LayoutComponent::calculateLayoutInternal(float availableWidth,
                                               float availableHeight)
@@ -1979,6 +2114,7 @@ void LayoutComponent::calculateLayoutInternal(float availableWidth,
 
 LayoutComponent::~LayoutComponent()
 {
+    delete m_virtualGrid;
     if (artboard() != nullptr)
     {
         artboard()->cleanLayout(this);

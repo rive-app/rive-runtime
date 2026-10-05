@@ -92,9 +92,15 @@ static YGGridLine gridSpan(uint32_t span)
 
 void GridTrack::syncContainerStyle(YGStyle& ygStyle,
                                    ContainerComponent* owner,
-                                   uint32_t justifyItemsValue)
+                                   uint32_t justifyItemsValue,
+                                   const std::vector<float>* columnSizes,
+                                   const std::vector<float>* rowSizes)
 {
+    // A virtualized grid only lays out its realized rows, so it fixes the
+    // tracks those can't size: auto columns, and the rows themselves.
+    bool overridesRows = rowSizes != nullptr && !rowSizes->empty();
     facebook::yoga::GridTrackList lists[4];
+    size_t column = 0;
     for (auto child : owner->children())
     {
         if (!child->is<GridTrack>())
@@ -102,11 +108,46 @@ void GridTrack::syncContainerStyle(YGStyle& ygStyle,
             continue;
         }
         auto track = child->as<GridTrack>();
-        if (track->collection() > 3)
+        auto collection = track->collection();
+        if (collection > 3)
         {
             continue;
         }
-        lists[track->collection()].push_back(gridTrackSize(track));
+        if (collection == (uint32_t)GridTrackCollection::templateColumns)
+        {
+            float size = columnSizes != nullptr && column < columnSizes->size()
+                             ? (*columnSizes)[column]
+                             : -1.0f;
+            column++;
+            if (size >= 0.0f)
+            {
+                lists[collection].push_back(YGGridTrackSize::length(size));
+                continue;
+            }
+        }
+        if (collection == (uint32_t)GridTrackCollection::templateRows &&
+            overridesRows)
+        {
+            continue;
+        }
+        lists[collection].push_back(gridTrackSize(track));
+    }
+    if (overridesRows)
+    {
+        for (float size : *rowSizes)
+        {
+            lists[(uint32_t)GridTrackCollection::templateRows].push_back(
+                YGGridTrackSize::length(size));
+        }
+    }
+    // Without template columns, items fill an implicit column; its size comes
+    // after the (no) template columns'.
+    if (column == 0 && columnSizes != nullptr && !columnSizes->empty() &&
+        (*columnSizes)[0] >= 0.0f)
+    {
+        auto& autoColumns = lists[(uint32_t)GridTrackCollection::autoColumns];
+        autoColumns.clear();
+        autoColumns.push_back(YGGridTrackSize::length((*columnSizes)[0]));
     }
     ygStyle.setGridTemplateColumns(std::move(lists[0]));
     ygStyle.setGridTemplateRows(std::move(lists[1]));

@@ -43,8 +43,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                                Vec2D rangeMax,
                                Vec2D value,
                                std::vector<Vec2D> snappingPoints,
-                               float contentSize,
-                               float viewportSize)
+                               Vec2D contentSize,
+                               Vec2D viewportSize)
 {
     Super::run(rangeMin,
                rangeMax,
@@ -66,8 +66,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMax.x,
                         value.x,
                         xPoints,
-                        contentSize,
-                        viewportSize);
+                        contentSize.x,
+                        viewportSize.x);
     }
     if (m_physicsY != nullptr)
     {
@@ -76,8 +76,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMax.y,
                         value.y,
                         yPoints,
-                        contentSize,
-                        viewportSize);
+                        contentSize.y,
+                        viewportSize.y);
     }
 }
 
@@ -306,5 +306,16 @@ void ElasticScrollPhysics::scrollToPosition(Vec2D current,
     if (m_physicsY != nullptr && vertical)
     {
         m_physicsY->scrollTo(current.y, target.y, rangeMin.y, rangeMax.y);
+    }
+}
+void ElasticScrollPhysics::shift(Vec2D delta)
+{
+    if (m_physicsX != nullptr)
+    {
+        m_physicsX->shift(delta.x);
+    }
+    if (m_physicsY != nullptr)
+    {
+        m_physicsY->shift(delta.y);
     }
 }
