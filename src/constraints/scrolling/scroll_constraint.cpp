@@ -39,7 +39,19 @@ float ScrollConstraint::virtualContentExtent(float padding)
     {
         return 0.0f;
     }
-    return infinite() ? layout->cycleExtent() : layout->extent() + padding;
+    if (infinite())
+    {
+        return layout->cycleExtent();
+    }
+    // A hugging grid is as tall as layout makes it from every item, which
+    // percent rows can run past.
+    auto style = content()->style();
+    if (layout->isGrid() && layout->rowsLaidOut() && style != nullptr &&
+        style->layoutHeightScaleType() == (uint8_t)LayoutScaleType::hug)
+    {
+        return content()->layoutHeight();
+    }
+    return layout->extent() + padding;
 }
 
 float ScrollConstraint::contentWidth()
@@ -292,20 +304,6 @@ static float flowMargins(LayoutComponent* content,
                              style->marginRightUnitsValue());
 }
 
-// A row track as the virtual layout sizes it.
-static VirtualGridTrack virtualTrack(GridTrack* track)
-{
-    auto min = (VirtualTrackSizing)track->trackType();
-    if (track->trackMaxType() == 0)
-    {
-        return {min, track->trackValue(), min, track->trackValue()};
-    }
-    return {min,
-            track->trackValue(),
-            (VirtualTrackSizing)(track->trackMaxType() - 1),
-            track->trackMaxValue()};
-}
-
 bool ScrollConstraint::virtualAxisIsColumn()
 {
     // Grid rows stack down the block axis.
@@ -381,7 +379,10 @@ void ScrollConstraint::constrainVirtualized(bool force)
                                  flowOffset - content()->layoutX(),
                                  columns ? viewport()->layoutWidth() : 0.0f,
                                  columns);
-        syncVirtualGridTracks();
+        if (m_contributionsStale)
+        {
+            syncVirtualGridContributions();
+        }
     }
 }
 
@@ -397,99 +398,97 @@ static Vec2D virtualItemSize(LayoutNodeProvider* child, int index)
     return Vec2D(bounds.width(), bounds.height());
 }
 
-void ScrollConstraint::refreshVirtualLayout()
+bool ScrollConstraint::refreshVirtualLayout()
 {
     if (m_virtualLayout == nullptr)
     {
-        return;
+        return false;
     }
     bool isHorizontal = !virtualAxisIsColumn();
     auto contentGap = gap();
     auto layout = content();
-    if (virtualizesGrid())
+    auto& children = scrollChildren();
+    std::vector<float> inputs;
+    std::vector<uint32_t> versions;
+    for (auto child : children)
     {
-        // Layout only ever sees the realized rows, so tracks are sized here
-        // from every item; column starts come back from layout once it uses
-        // them.
-        int columns = 0;
-        for (auto child : layout->children())
+        auto virt = VirtualizingComponent::fromScrollChild(child);
+        versions.push_back(virt != nullptr ? virt->itemsVersion() : 0);
+        if (virt == nullptr && child != nullptr)
         {
-            if (child->is<GridTrack>() &&
-                child->as<GridTrack>()->gridCollection() ==
-                    GridTrackCollection::templateColumns)
-            {
-                columns++;
-            }
+            auto size = virtualItemSize(child, 0);
+            inputs.push_back(size.x);
+            inputs.push_back(size.y);
         }
-        m_virtualLayout->beginGrid(contentGap.y,
-                                   columns,
-                                   layout->childAlignment().cross,
-                                   contentGap.x);
-        layout->gridColumnLineOffsets(m_virtualLayout->gridColumnStarts());
-
-        auto& rows = m_virtualLayout->gridRows();
-        auto& gridColumns = m_virtualLayout->gridColumns();
-        for (auto child : layout->children())
+    }
+    bool grid = virtualizesGrid();
+    bool wraps = !grid && layout->wrapsLines();
+    auto alignment = layout->childAlignment();
+    inputs.insert(inputs.end(),
+                  {(float)grid,
+                   (float)wraps,
+                   (float)isHorizontal,
+                   contentGap.x,
+                   contentGap.y,
+                   (float)alignment.main,
+                   (float)alignment.cross});
+    int columns = 0;
+    int rows = 0;
+    float flowStart = 0.0f;
+    float flowExtent = 0.0f;
+    bool hugs = false;
+    bool flowFromLayout = true;
+    if (grid)
+    {
+        // Layout sizes every track from the contents we give it (see
+        // syncVirtualGridContributions); rows and columns sit on its lines,
+        // spaced as it spaced them.
+        for (auto track : layout->children())
         {
-            if (!child->is<GridTrack>())
+            if (!track->is<GridTrack>())
             {
                 continue;
             }
-            auto track = child->as<GridTrack>();
-            std::vector<VirtualGridTrack>* tracks = nullptr;
-            switch (track->gridCollection())
+            switch (track->as<GridTrack>()->gridCollection())
             {
-                case GridTrackCollection::templateRows:
-                    tracks = &rows.templates;
-                    break;
-                case GridTrackCollection::autoRows:
-                    tracks = &rows.autos;
-                    break;
                 case GridTrackCollection::templateColumns:
-                    tracks = &gridColumns.templates;
+                    columns++;
                     break;
-                case GridTrackCollection::autoColumns:
-                    tracks = &gridColumns.autos;
+                case GridTrackCollection::templateRows:
+                    rows++;
+                    break;
+                default:
                     break;
             }
-            if (tracks != nullptr)
-            {
-                tracks->push_back(virtualTrack(track));
-            }
         }
-        // A grid of fixed or filling size sizes its tracks in it; one that
-        // hugs them sizes them first (its own size only reflects realized
-        // rows), and again in the size they give it along a flex parent's
-        // main axis.
-        auto style = layout->style();
-        const auto hug = (uint8_t)LayoutScaleType::hug;
-        if (style != nullptr && style->layoutHeightScaleType() != hug)
+        float columnGap = layout->gridLines(false, m_columnLines);
+        float rowGap = layout->gridLines(true, m_rowLines);
+        if (!m_columnLines.empty())
         {
-            rows.space = std::max(0.0f, innerSize(layout, true));
+            contentGap.x = columnGap;
         }
-        if (style != nullptr && style->layoutWidthScaleType() != hug)
+        if (!m_rowLines.empty())
         {
-            gridColumns.space = std::max(0.0f, innerSize(layout, false));
+            contentGap.y = rowGap;
         }
-        auto parent = viewport();
-        if (parent->style() != nullptr &&
-            parent->style()->layoutTypeValue() == 0)
-        {
-            rows.resize = parent->mainAxisIsColumn();
-            gridColumns.resize = !rows.resize;
-        }
+        inputs.insert(inputs.end(),
+                      {contentGap.x,
+                       contentGap.y,
+                       (float)columns,
+                       (float)rows,
+                       (float)m_columnLines.size()});
+        inputs.insert(inputs.end(), m_columnLines.begin(), m_columnLines.end());
+        inputs.insert(inputs.end(), m_rowLines.begin(), m_rowLines.end());
     }
-    else if (layout->wrapsLines())
+    else if (wraps)
     {
         // Lines run along the flow axis, inside the content's padding. Hugging
         // content breaks them at the space its parent offers instead (its own
         // size only reflects the realized lines), less its margins.
-        auto alignment = layout->childAlignment();
-        bool hugs = layout->hugsLines();
+        hugs = layout->hugsLines();
         auto bounds = hugs ? viewport() : layout;
-        float flowStart =
-            isHorizontal ? layout->paddingTop() : layout->paddingLeft();
-        float flowExtent = innerSize(bounds, isHorizontal);
+        flowStart = isHorizontal ? layout->paddingTop() : layout->paddingLeft();
+        flowExtent = innerSize(bounds, isHorizontal);
         if (hugs)
         {
             flowExtent -= isHorizontal
@@ -497,6 +496,37 @@ void ScrollConstraint::refreshVirtualLayout()
                               : layout->paddingLeft() + layout->paddingRight();
             flowExtent -= flowMargins(layout, viewport(), isHorizontal);
         }
+        // Layout positions items along a line exactly (grow, margins) when it
+        // sees whole lines from a line start, as we realize them. A non-list
+        // child keeps its slot while its line is unrealized, a carousel adds
+        // its tail after its head, and hugging content justifies within its
+        // realized lines only; those positions are ours.
+        flowFromLayout = !hugs && !infinite() && scrollChildrenAreLists();
+        inputs.insert(
+            inputs.end(),
+            {flowStart, flowExtent, (float)hugs, (float)flowFromLayout});
+    }
+    if (inputs == m_virtualInputs && versions == m_virtualVersions &&
+        m_virtualLayout->segmentCount() == (int)children.size())
+    {
+        return false;
+    }
+    m_virtualInputs = std::move(inputs);
+    m_virtualVersions = std::move(versions);
+    m_contributionsStale = true;
+
+    if (grid)
+    {
+        m_virtualLayout->beginGrid(contentGap.y,
+                                   columns,
+                                   alignment.cross,
+                                   contentGap.x,
+                                   rows);
+        m_virtualLayout->gridColumnStarts() = m_columnLines;
+        m_virtualLayout->gridRowStarts() = m_rowLines;
+    }
+    else if (wraps)
+    {
         m_virtualLayout->beginWrap(isHorizontal ? contentGap.x : contentGap.y,
                                    isHorizontal ? contentGap.y : contentGap.x,
                                    flowStart,
@@ -504,20 +534,14 @@ void ScrollConstraint::refreshVirtualLayout()
                                    alignment.main,
                                    alignment.cross,
                                    hugs);
-        // Layout positions items along a line exactly (grow, margins) when it
-        // sees whole lines from a line start, as we realize them. A non-list
-        // child keeps its slot while its line is unrealized, a carousel adds
-        // its tail after its head, and hugging content justifies within its
-        // realized lines only; those positions are ours.
-        m_virtualLayout->flowFromLayout(!hugs && !infinite() &&
-                                        scrollChildrenAreLists());
+        m_virtualLayout->flowFromLayout(flowFromLayout);
     }
     else
     {
         m_virtualLayout->beginLinear(isHorizontal ? contentGap.x
                                                   : contentGap.y);
     }
-    for (auto child : scrollChildren())
+    for (auto child : children)
     {
         // Every child gets a segment, so segments index like scrollChildren.
         m_virtualLayout->beginSegment();
@@ -534,6 +558,7 @@ void ScrollConstraint::refreshVirtualLayout()
         }
     }
     m_virtualLayout->end();
+    return true;
 }
 
 void ScrollConstraint::anchorScroll(float moved, bool isColumn)
@@ -567,62 +592,20 @@ void ScrollConstraint::anchorScroll(float moved, bool isColumn)
     }
 }
 
-void ScrollConstraint::syncVirtualGridTracks()
+void ScrollConstraint::syncVirtualGridContributions()
 {
+    m_contributionsStale = false;
     static const std::vector<float> none;
     auto layout = content();
     if (layout == nullptr)
     {
         return;
     }
-    if (!virtualizesGrid() || m_virtualLayout == nullptr ||
-        !m_virtualLayout->isGrid())
-    {
-        layout->virtualGridTracks(none, none);
-        return;
-    }
-    // Every column takes the size the layout sized from all of its items; a
-    // grid without template columns has one implicit column.
-    auto& columns = m_virtualLayout->gridColumnSizes();
-    columns.clear();
-    for (int column = 0; column < m_virtualLayout->columnCount(); column++)
-    {
-        columns.push_back(m_virtualLayout->gridColumnSize(column));
-    }
-    // Realized rows reach layout in item order. A window follows it, except a
-    // carousel's, which can wrap from the tail to the head; pinned cells take
-    // their rows in window order instead.
-    auto& rows = m_virtualLayout->gridRowSizes();
-    rows.clear();
-    int lineCount = m_virtualLayout->lineCount();
-    int start = m_virtualizer->realizedLineStart();
-    int end = m_virtualizer->realizedLineEnd();
-    auto pushRows = [&](int from, int to) {
-        for (int line = from; line <= to; line++)
-        {
-            rows.push_back(m_virtualLayout->lineExtent(line));
-        }
-    };
-    if (lineCount > 0 && end >= start)
-    {
-        // A carousel window wrapping past the tail takes the head first.
-        int first = m_virtualLayout->wrapLine(start);
-        int span = std::min(end - start + 1, lineCount);
-        if (!infinite() || virtualizesGridColumns())
-        {
-            pushRows(start, end);
-        }
-        else if (first + span <= lineCount)
-        {
-            pushRows(first, first + span - 1);
-        }
-        else
-        {
-            pushRows(0, first + span - 1 - lineCount);
-            pushRows(first, lineCount - 1);
-        }
-    }
-    layout->virtualGridTracks(columns, rows);
+    bool grid = virtualizesGrid() && m_virtualLayout != nullptr &&
+                m_virtualLayout->isGrid();
+    layout->virtualGridContributions(
+        grid ? m_virtualLayout->gridRowContents() : none,
+        grid ? m_virtualLayout->gridColumnContents() : none);
 }
 
 const VirtualLayout* ScrollConstraint::ensureVirtualLayout()
@@ -1009,9 +992,9 @@ void ScrollConstraint::virtualizeChanged()
     {
         return;
     }
-    // Layout takes every item from here: undo the rows and cells we gave it,
-    // and realize what the window left out.
-    syncVirtualGridTracks();
+    // Layout takes every item from here: undo the contents and cells we gave
+    // it, and realize what the window left out.
+    syncVirtualGridContributions();
     std::vector<int> held;
     for (auto child : scrollChildren())
     {

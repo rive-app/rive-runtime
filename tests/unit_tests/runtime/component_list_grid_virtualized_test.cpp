@@ -5,6 +5,7 @@
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -27,7 +28,7 @@ struct GridScroll
     rive::ArtboardComponentList* list = nullptr;
     rive::ScrollConstraint* scroll = nullptr;
 
-    GridScroll()
+    GridScroll(bool settled = true)
     {
         file = ReadRiveFile("assets/layout/layout_scroll_grid_virtualized.riv");
         artboard = file->artboard("Main")->instance();
@@ -36,7 +37,10 @@ struct GridScroll
         artboard->bindViewModelInstance(viewModelInstance);
         list = artboard->find<rive::ArtboardComponentList>("List");
         scroll = artboard->find<rive::ScrollConstraint>()[0];
-        settle();
+        if (settled)
+        {
+            settle();
+        }
     }
 
     // Layout, then the window it allows, then the items it realized.
@@ -318,4 +322,74 @@ TEST_CASE("Grid auto columns size from items that aren't realized",
     // Column 1 starts after a 150 wide column 0 and its gap.
     CHECK(grid.list->layoutBoundsForNode(1).left() == Approx(160.0f));
     CHECK((grid.drawnAt(1) - grid.drawnAt(0)).x == Approx(160.0f));
+}
+
+TEST_CASE("Grid virtualized list keeps its offset while layout places rows",
+          "[component_list][virtual_layout]")
+{
+    // Rows stack at their content size until layout's lines reach them; that
+    // guess must not read as content moving under the anchor.
+    GridScroll grid(false);
+    grid.scroll->scrollOffsetY(-100.0f);
+    grid.scroll->offsetY(-100.0f);
+    grid.settle();
+    CHECK(grid.scroll->offsetY() == Approx(-100.0f));
+}
+
+TEST_CASE("Grid virtualized list with percent rows scrolls its layout height",
+          "[component_list][virtual_layout]")
+{
+    GridScroll grid;
+    auto content = grid.artboard->find<rive::LayoutComponent>("Content");
+    content->style()->layoutHeightScaleType(2);
+    for (auto child : content->children())
+    {
+        if (child->is<rive::GridTrack>() &&
+            child->as<rive::GridTrack>()->gridCollection() ==
+                rive::GridTrackCollection::templateRows)
+        {
+            // A percent of a hugging grid's height, which its rows then run
+            // past.
+            child->as<rive::GridTrack>()->trackType(2);
+            child->as<rive::GridTrack>()->trackValue(50.0f);
+        }
+    }
+    grid.settle();
+    CHECK(grid.scroll->contentHeight() == Approx(content->layoutHeight()));
+}
+
+TEST_CASE("Grid virtualized list rebuilds when its items or gap change",
+          "[component_list][virtual_layout]")
+{
+    GridScroll grid;
+    REQUIRE(grid.scroll->contentHeight() == Approx(360.0f));
+    SECTION("an added item opens a row")
+    {
+        rive::ViewModelInstanceList* items = nullptr;
+        for (auto& value : grid.viewModelInstance->propertyValues())
+        {
+            if (value->is<rive::ViewModelInstanceList>())
+            {
+                items = value->as<rive::ViewModelInstanceList>();
+            }
+        }
+        REQUIRE(items != nullptr);
+        auto first = items->listItems()[0];
+        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+        item->viewModelInstance(grid.file->createViewModelInstance(
+            first->viewModelInstance()->viewModel()));
+        item->artboard(first->artboard());
+        items->addItem(item);
+        grid.settle();
+        // 21 items need a sixth 60px row.
+        CHECK(grid.scroll->contentHeight() == Approx(430.0f));
+    }
+    SECTION("a wider gap spreads the rows")
+    {
+        grid.artboard->find<rive::LayoutComponent>("Content")
+            ->style()
+            ->gapVertical(20.0f);
+        grid.settle();
+        CHECK(grid.scroll->contentHeight() == Approx(400.0f));
+    }
 }

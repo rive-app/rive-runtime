@@ -26,63 +26,6 @@ struct VirtualWindow
     }
 };
 
-// How a grid row track sizes, in the order GridTrackSizeType numbers them.
-enum class VirtualTrackSizing : uint8_t
-{
-    autoSize,
-    points,
-    percent,
-    fr,
-};
-
-// A grid row track: the smallest it may be and the size it grows to, as
-// minmax(min, max). A bare size is both. Percents resolve against the grid's
-// height; fr only flexes as a max.
-struct VirtualGridTrack
-{
-    VirtualTrackSizing minSizing = VirtualTrackSizing::autoSize;
-    float minValue = 0.0f;
-    VirtualTrackSizing maxSizing = VirtualTrackSizing::autoSize;
-    float maxValue = 0.0f;
-
-    static VirtualGridTrack points(float value)
-    {
-        return {VirtualTrackSizing::points,
-                value,
-                VirtualTrackSizing::points,
-                value};
-    }
-    static VirtualGridTrack autoSize() { return {}; }
-    static VirtualGridTrack percent(float value)
-    {
-        return {VirtualTrackSizing::percent,
-                value,
-                VirtualTrackSizing::percent,
-                value};
-    }
-    static VirtualGridTrack fr(float value)
-    {
-        return {VirtualTrackSizing::autoSize,
-                0.0f,
-                VirtualTrackSizing::fr,
-                value};
-    }
-};
-
-// One grid axis: its tracks and the space layout sizes them in.
-struct VirtualGridAxis
-{
-    std::vector<VirtualGridTrack> templates;
-    // Cycle once the templates run out; tracks past both size to their items.
-    std::vector<VirtualGridTrack> autos;
-    // The grid's inner size along the axis when it's fixed or fills; < 0 when
-    // it hugs its tracks.
-    float space = -1.0f;
-    // Whether layout sizes hugging tracks again in the size they give the
-    // grid, as a flex parent does along its main axis.
-    bool resize = false;
-};
-
 // Items of a virtualized list grouped into lines stacked along the scroll
 // axis. A non-wrapping list is the one-item-per-line case; a wrapping one
 // flows items along each line (the flow axis).
@@ -93,15 +36,9 @@ public:
     int lineCount() const { return m_lineCount; }
     float gap() const { return m_gap; }
 
-    // Extent along the scroll axis, without padding or a trailing gap. A
-    // hugging grid is as tall as its rows were before percents resolved
-    // against that height, as layout sizes it.
+    // Extent along the scroll axis, without padding or a trailing gap.
     float extent() const
     {
-        if (m_naturalExtent >= 0.0f)
-        {
-            return m_naturalExtent;
-        }
         return m_lineCount == 0 ? 0.0f
                                 : m_lineStart[m_lineCount - 1] +
                                       m_lineExtent[m_lineCount - 1];
@@ -124,16 +61,22 @@ public:
                    LayoutMainDistribute justify,
                    LayoutCrossAlign align,
                    bool hugsLines = false);
-    // Rebuild as grid rows: items fill columnCount cells per row, left to
-    // right. Fill gridColumnStarts (may stay empty) and both grid axes after
-    // this; they keep their capacity across rebuilds.
+    // Rebuild as grid rows of columnCount cells, at least rowCount rows. Fill
+    // gridColumnStarts and gridRowStarts with layout's lines after this.
     void beginGrid(float rowGap,
                    int columnCount,
                    LayoutCrossAlign align,
-                   float columnGap = 0.0f);
+                   float columnGap = 0.0f,
+                   int rowCount = 0);
     std::vector<float>& gridColumnStarts() { return m_columnStarts; }
-    VirtualGridAxis& gridRows() { return m_rows; }
-    VirtualGridAxis& gridColumns() { return m_columns; }
+    std::vector<float>& gridRowStarts() { return m_rowStarts; }
+    // The largest item in each row and column, which layout sizes the grid's
+    // tracks from (see LayoutComponent::virtualGridContributions).
+    const std::vector<float>& gridRowContents() const { return m_rowContents; }
+    const std::vector<float>& gridColumnContents() const
+    {
+        return m_columnContents;
+    }
     void beginSegment();
     // extent is the item's size along the scroll axis, flowExtent along its
     // line (only read when wrapping).
@@ -147,18 +90,6 @@ public:
     void flowFromLayout(bool value) { m_flowFromLayout = value; }
     bool isGrid() const { return m_grid; }
     int columnCount() const { return m_grid ? m_columnCount : 1; }
-    // A grid column's width as layout sizes it from its track and every item
-    // in it, realized or not.
-    float gridColumnSize(int column) const
-    {
-        return column < (int)m_columnTrackSizes.size()
-                   ? m_columnTrackSizes[column]
-                   : 0.0f;
-    }
-    // Track sizes for layout to use over the authored ones (see
-    // LayoutComponent::virtualGridTracks); they keep their capacity.
-    std::vector<float>& gridColumnSizes() { return m_columnSizes; }
-    std::vector<float>& gridRowSizes() { return m_rowSizes; }
     // Grid columns to realize when the grid also scrolls along its rows, with
     // offset and viewport in column-line space; every column when the lines
     // aren't known. Infinite columns cycle like a carousel's lines, in
@@ -179,6 +110,16 @@ public:
     }
     // The line an unwrapped one repeats.
     int wrapLine(int line) const { return wrapIndex(line, m_lineCount); }
+    // Whether layout placed a line; a grid row past its lines stacks at its
+    // content size until they reach it.
+    bool lineLaidOut(int line) const
+    {
+        return !m_grid || wrapLine(line) + 1 < (int)m_rowStarts.size();
+    }
+    bool rowsLaidOut() const
+    {
+        return !m_grid || (int)m_rowStarts.size() > m_lineCount;
+    }
     // Where an item sits along the flow axis; 0 when items don't share lines.
     float itemFlowOffset(int item) const;
     // Where an item sits past its line's start along the scroll axis.
@@ -241,24 +182,8 @@ private:
     void closeLine();
     // Spreads a wrapped line's items along extent, as justify-content.
     void placeLine(int line, float extent);
-    // A row's or column's track: templates first, then autos cycling, then
-    // auto.
-    static const VirtualGridTrack& trackAt(const VirtualGridAxis& axis,
-                                           int index);
-    // Sizes grid rows the way layout does (see end()).
-    void sizeGridRows();
-    // Sizes an axis's tracks from their largest items; returns the natural
-    // size a hugging grid takes when it sized them again in it, else -1.
-    static float sizeAxis(const VirtualGridAxis& axis,
-                          const std::vector<float>& content,
-                          float gap,
-                          std::vector<float>& sizes);
-    // One pass of grid track sizing into sizes.
-    static void sizeTracks(const std::vector<float>& content,
-                           float space,
-                           const VirtualGridAxis& axis,
-                           float gap,
-                           std::vector<float>& sizes);
+    // Places grid rows on layout's lines (see end()).
+    void placeGridRows();
 
     int m_itemCount = 0;
     int m_lineCount = 0;
@@ -283,14 +208,11 @@ private:
     bool m_grid = false;
     int m_columnCount = 1;
     float m_columnGap = 0.0f;
+    int m_rowCount = 0;
     std::vector<float> m_columnStarts;
-    std::vector<float> m_columnWidths;
-    std::vector<float> m_columnSizes;
-    std::vector<float> m_rowSizes;
-    VirtualGridAxis m_rows;
-    VirtualGridAxis m_columns;
-    std::vector<float> m_columnTrackSizes;
-    float m_naturalExtent = -1.0f;
+    std::vector<float> m_rowStarts;
+    std::vector<float> m_columnContents;
+    std::vector<float> m_rowContents;
     std::vector<float> m_itemExtent;
     std::vector<float> m_itemFlowExtent;
     std::vector<float> m_itemFlowOffset;

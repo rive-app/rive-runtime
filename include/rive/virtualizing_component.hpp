@@ -37,6 +37,8 @@ public:
     // Appends the indices of the items it holds realized, wherever a list
     // update has moved them since they were added.
     virtual void realizedIndices(std::vector<int>& out) = 0;
+    // Changes whenever the item count or an item's size does.
+    virtual uint32_t itemsVersion() = 0;
     // Starts a new window: every item leaves it.
     virtual void clearVirtualWindow() = 0;
     // Adds a realized item to the window, in the order the virtualizer walks

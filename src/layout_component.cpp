@@ -485,8 +485,6 @@ struct LayoutComponent::VirtualGrid
     int row = -1;
     // Lines were written for a cell, and must be reset once it's cleared.
     bool pinned = false;
-    std::vector<float> columns;
-    std::vector<float> rows;
 };
 
 void LayoutComponent::virtualGridCell(int column, int row)
@@ -505,26 +503,6 @@ void LayoutComponent::virtualGridCell(int column, int row)
     }
     m_virtualGrid->column = column;
     m_virtualGrid->row = row;
-    markLayoutNodeDirty();
-}
-
-void LayoutComponent::virtualGridTracks(const std::vector<float>& columns,
-                                        const std::vector<float>& rows)
-{
-    if (m_virtualGrid == nullptr)
-    {
-        if (columns.empty() && rows.empty())
-        {
-            return;
-        }
-        m_virtualGrid = new VirtualGrid();
-    }
-    if (m_virtualGrid->columns == columns && m_virtualGrid->rows == rows)
-    {
-        return;
-    }
-    m_virtualGrid->columns = columns;
-    m_virtualGrid->rows = rows;
     markLayoutNodeDirty();
 }
 
@@ -978,14 +956,24 @@ bool LayoutComponent::isGridContainer()
     return style() != nullptr && style()->isGrid() && !style()->isStack();
 }
 
-void LayoutComponent::gridColumnLineOffsets(std::vector<float>& out)
+float LayoutComponent::gridLines(bool rows, std::vector<float>& out)
 {
-    out.clear();
-    YGNode* node = &m_layoutData->node;
-    uint32_t count = YGNodeLayoutGetGridColumnLineCount(node);
-    for (uint32_t i = 0; i < count; i++)
+    const auto& layout = m_layoutData->node.getLayout();
+    out = rows ? layout.gridRowLineOffsets : layout.gridColumnLineOffsets;
+    return rows ? layout.gridRowGap : layout.gridColumnGap;
+}
+
+void LayoutComponent::virtualGridContributions(
+    const std::vector<float>& rows,
+    const std::vector<float>& columns)
+{
+    if (YGNodeSetGridVirtualContributions(&m_layoutData->node,
+                                          rows.data(),
+                                          rows.size(),
+                                          columns.data(),
+                                          columns.size()))
     {
-        out.push_back(YGNodeLayoutGetGridColumnLineOffset(node, i));
+        markLayoutNodeDirty();
     }
 }
 
@@ -1022,12 +1010,7 @@ void LayoutComponent::applyContainerStyle(YGStyle& ygStyle,
     {
         return;
     }
-    GridTrack::syncContainerStyle(
-        ygStyle,
-        this,
-        m_style->justifyItemsValue(),
-        m_virtualGrid != nullptr ? &m_virtualGrid->columns : nullptr,
-        m_virtualGrid != nullptr ? &m_virtualGrid->rows : nullptr);
+    GridTrack::syncContainerStyle(ygStyle, this, m_style->justifyItemsValue());
 }
 #endif
 
@@ -1342,21 +1325,19 @@ void LayoutComponent::syncLayoutChildren()
 {
     YGNode& ourNode = m_layoutData->node;
     YGNodeRemoveAllChildren(&ourNode);
+    std::vector<void*> nodes;
+    forEachLayoutProvider(this,
+                          [&nodes](Component*, LayoutNodeProvider* provider) {
+                              provider->collectLayoutNodes(nodes);
+                          });
     int index = 0;
-    forEachLayoutProvider(
-        this,
-        [&ourNode, &index](Component*, LayoutNodeProvider* provider) {
-            for (size_t i = 0; i < provider->numLayoutNodes(); i++)
-            {
-                auto* node = static_cast<YGNode*>(provider->layoutNode((int)i));
-                if (node != nullptr)
-                {
-                    ourNode.insertChild(node, index++);
-                    node->setOwner(&ourNode);
-                    ourNode.markDirtyAndPropagate();
-                }
-            }
-        });
+    for (auto* node : nodes)
+    {
+        auto* child = static_cast<YGNode*>(node);
+        ourNode.insertChild(child, index++);
+        child->setOwner(&ourNode);
+        ourNode.markDirtyAndPropagate();
+    }
     markLayoutNodeDirty();
 }
 
@@ -2098,10 +2079,15 @@ bool LayoutComponent::mainAxisIsColumn() { return false; }
 bool LayoutComponent::wrapsLines() { return false; }
 bool LayoutComponent::hugsLines() { return false; }
 bool LayoutComponent::isGridContainer() { return false; }
-void LayoutComponent::gridColumnLineOffsets(std::vector<float>& out)
+float LayoutComponent::gridLines(bool rows, std::vector<float>& out)
 {
     out.clear();
+    return 0.0f;
 }
+void LayoutComponent::virtualGridContributions(
+    const std::vector<float>& rows,
+    const std::vector<float>& columns)
+{}
 LayoutContainerAlignment LayoutComponent::childAlignment()
 {
     return {LayoutMainDistribute::start, LayoutCrossAlign::start};

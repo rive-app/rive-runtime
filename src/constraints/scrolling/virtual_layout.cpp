@@ -6,7 +6,6 @@ using namespace rive;
 void VirtualLayout::beginLinear(float gap)
 {
     m_itemCount = m_lineCount = 0;
-    m_naturalExtent = -1.0f;
     m_gap = gap;
     m_running = 0.0f;
     m_trailing = -std::numeric_limits<float>::infinity();
@@ -48,94 +47,48 @@ void VirtualLayout::beginWrap(float lineGap,
 void VirtualLayout::beginGrid(float rowGap,
                               int columnCount,
                               LayoutCrossAlign align,
-                              float columnGap)
+                              float columnGap,
+                              int rowCount)
 {
     m_columnGap = columnGap;
     beginLinear(rowGap);
     m_wraps = true;
     m_grid = true;
     m_columnCount = std::max(1, columnCount);
-    m_columnWidths.assign(m_columnCount, 0.0f);
+    m_rowCount = rowCount;
+    m_columnContents.assign(m_columnCount, 0.0f);
     m_columnStarts.clear();
-    for (auto axis : {&m_rows, &m_columns})
-    {
-        axis->templates.clear();
-        axis->autos.clear();
-        axis->space = -1.0f;
-        axis->resize = false;
-    }
-    m_columnTrackSizes.clear();
+    m_rowStarts.clear();
     m_align = align;
 }
 
-const VirtualGridTrack& VirtualLayout::trackAt(const VirtualGridAxis& axis,
-                                               int index)
-{
-    static const VirtualGridTrack autoTrack;
-    int templateCount = (int)axis.templates.size();
-    if (index < templateCount)
-    {
-        return axis.templates[index];
-    }
-    if (axis.autos.empty())
-    {
-        return autoTrack;
-    }
-    return axis.autos[(index - templateCount) % axis.autos.size()];
-}
-
-// A fixed or filling grid sizes its tracks in its space; a hugging one at its
-// natural size, with percents as auto, then again in that size, which it
-// keeps, when there are percents or the axis resizes.
-float VirtualLayout::sizeAxis(const VirtualGridAxis& axis,
-                              const std::vector<float>& content,
-                              float gap,
-                              std::vector<float>& sizes)
-{
-    sizeTracks(content, axis.space, axis, gap, sizes);
-    int n = (int)content.size();
-    bool sizesAgain = axis.space < 0.0f && axis.resize;
-    for (int index = 0; index < n && axis.space < 0.0f && !sizesAgain; index++)
-    {
-        auto& track = trackAt(axis, index);
-        sizesAgain = track.minSizing == VirtualTrackSizing::percent ||
-                     track.maxSizing == VirtualTrackSizing::percent;
-    }
-    if (!sizesAgain)
-    {
-        return -1.0f;
-    }
-    float natural = n > 1 ? gap * (n - 1) : 0.0f;
-    for (float size : sizes)
-    {
-        natural += size;
-    }
-    sizeTracks(content, natural, axis, gap, sizes);
-    return natural;
-}
-
-// Sizes grid rows from their tracks and tallest items (see sizeAxis).
-void VirtualLayout::sizeGridRows()
+// Rows sit on layout's lines once it has sized every track from the row and
+// column contents; rows it hasn't laid out yet stack at their content size.
+void VirtualLayout::placeGridRows()
 {
     // Template rows nothing fills still take their space.
-    while (m_lineCount < (int)m_rows.templates.size())
+    while (m_lineCount < m_rowCount)
     {
         pushLine(0.0f, 0.0f);
     }
     int n = m_lineCount;
-    std::vector<float> content(m_lineExtent.begin(), m_lineExtent.begin() + n);
-    std::vector<float> sizes;
-    float natural = sizeAxis(m_rows, content, m_gap, sizes);
-    if (natural >= 0.0f)
-    {
-        m_naturalExtent = natural;
-    }
+    m_rowContents.assign(m_lineExtent.begin(), m_lineExtent.begin() + n);
+    int lines = (int)m_rowStarts.size();
     m_running = 0.0f;
     m_trailing = -std::numeric_limits<float>::infinity();
     for (int line = 0; line < n; line++)
     {
-        float extent = sizes[line];
-        m_lineStart[line] = m_running;
+        float start = m_running;
+        float extent = m_rowContents[line];
+        if (line + 1 < lines)
+        {
+            // The last line closes the last track; the others open one after
+            // a gap.
+            start = m_rowStarts[line] - m_rowStarts[0];
+            extent = m_rowStarts[line + 1] - m_rowStarts[line] -
+                     (line + 2 < lines ? m_gap : 0.0f);
+        }
+        m_lineStart[line] = start;
         m_lineExtent[line] = extent;
         int last = line + 1 < n ? m_lineFirstItem[line + 1] : m_itemCount;
         for (int item = m_lineFirstItem[line]; item < last; item++)
@@ -146,158 +99,9 @@ void VirtualLayout::sizeGridRows()
             m_itemLineOffset[item] =
                 m_align == LayoutCrossAlign::center ? slack / 2.0f : 0.0f;
         }
-        m_trailing = std::max(m_trailing, m_running + extent);
+        m_trailing = std::max(m_trailing, start + extent);
         m_trailingMax[line] = m_trailing;
-        m_running += extent + m_gap;
-    }
-}
-
-// One pass of grid track sizing, for rows or columns: tracks start at their
-// minimum (their largest item when that's auto). In a definite space they
-// grow toward their limit while there's room and fr tracks share what's
-// left; otherwise fr tracks take a size per fr that fits each one. Percents
-// are of space, or auto when it's < 0.
-void VirtualLayout::sizeTracks(const std::vector<float>& content,
-                               float space,
-                               const VirtualGridAxis& axis,
-                               float gap,
-                               std::vector<float>& size)
-{
-    int n = (int)content.size();
-    size.assign(n, 0.0f);
-    std::vector<float> limit(n, 0.0f);
-    std::vector<float> flex(n, 0.0f);
-    auto resolve = [&](VirtualTrackSizing sizing, float value, float autoSize) {
-        switch (sizing)
-        {
-            case VirtualTrackSizing::points:
-                return value;
-            // A percent of a size that depends on the tracks sizes as auto.
-            case VirtualTrackSizing::percent:
-                return space >= 0.0f ? value / 100.0f * space : autoSize;
-            // fr only flexes as a max; as a min it's auto.
-            default:
-                return autoSize;
-        }
-    };
-    bool anyFlex = false;
-    for (int row = 0; row < n; row++)
-    {
-        auto& track = trackAt(axis, row);
-        size[row] = resolve(track.minSizing, track.minValue, content[row]);
-        if (track.maxSizing == VirtualTrackSizing::fr)
-        {
-            flex[row] = track.maxValue;
-            limit[row] = size[row];
-            anyFlex = anyFlex || flex[row] > 0.0f;
-        }
-        else
-        {
-            limit[row] = std::max(
-                size[row],
-                resolve(track.maxSizing, track.maxValue, content[row]));
-        }
-    }
-    float gaps = n > 1 ? gap * (n - 1) : 0.0f;
-    if (space >= 0.0f)
-    {
-        // Room left grows rows toward their limits, evenly.
-        float room = space - gaps;
-        for (float s : size)
-        {
-            room -= s;
-        }
-        while (room > 1e-6f)
-        {
-            int growing = 0;
-            for (int row = 0; row < n; row++)
-            {
-                if (limit[row] > size[row])
-                {
-                    growing++;
-                }
-            }
-            if (growing == 0)
-            {
-                break;
-            }
-            float share = room / growing;
-            for (int row = 0; row < n; row++)
-            {
-                if (limit[row] > size[row])
-                {
-                    float grow = std::min(share, limit[row] - size[row]);
-                    size[row] += grow;
-                    room -= grow;
-                }
-            }
-        }
-    }
-    if (!anyFlex)
-    {
-        return;
-    }
-    // Factors under 1 in total count as 1.
-    float frSize = 0.0f;
-    if (space < 0.0f)
-    {
-        // Each fr row needs fr enough for its minimum, and for its items
-        // unless sharing them would leave it under the minimum, which then
-        // only needs what's left over it.
-        for (int row = 0; row < n; row++)
-        {
-            if (flex[row] > 0.0f)
-            {
-                float factor = std::max(flex[row], 1.0f);
-                float items = content[row] / factor;
-                frSize = std::max(frSize,
-                                  std::max(size[row] / factor,
-                                           flex[row] * items < size[row]
-                                               ? content[row] - size[row]
-                                               : items));
-            }
-        }
-    }
-    else
-    {
-        // Share what the other rows leave; a row whose share is under its
-        // minimum keeps the minimum and drops out of the sharing.
-        std::vector<uint8_t> fixed(n, 0);
-        bool settled = false;
-        while (!settled)
-        {
-            float left = space - gaps;
-            float factors = 0.0f;
-            for (int row = 0; row < n; row++)
-            {
-                if (flex[row] > 0.0f && !fixed[row])
-                {
-                    factors += flex[row];
-                }
-                else
-                {
-                    left -= size[row];
-                }
-            }
-            frSize = std::max(0.0f, left) / std::max(factors, 1.0f);
-            settled = true;
-            for (int row = 0; row < n; row++)
-            {
-                if (flex[row] > 0.0f && !fixed[row] &&
-                    flex[row] * frSize < size[row])
-                {
-                    fixed[row] = 1;
-                    settled = false;
-                }
-            }
-        }
-    }
-    for (int row = 0; row < n; row++)
-    {
-        if (flex[row] > 0.0f)
-        {
-            size[row] = std::max(size[row], flex[row] * frSize);
-        }
+        m_running = start + extent + m_gap;
     }
 }
 
@@ -329,13 +133,13 @@ void VirtualLayout::closeLine()
     int first = m_lineFirstItem[line];
     if (m_grid)
     {
-        // Rows size together once all are known (see sizeGridRows); until
+        // Rows are placed once all are known (see placeGridRows); until
         // then a row's extent is its tallest item.
         for (int item = first; item < m_itemCount; item++)
         {
             int column = item - first;
-            m_columnWidths[column] =
-                std::max(m_columnWidths[column], m_itemFlowExtent[item]);
+            m_columnContents[column] =
+                std::max(m_columnContents[column], m_itemFlowExtent[item]);
             m_itemFlowOffset[item] = column < (int)m_columnStarts.size()
                                          ? m_columnStarts[column]
                                          : 0.0f;
@@ -447,8 +251,7 @@ void VirtualLayout::end()
     }
     if (m_grid)
     {
-        sizeAxis(m_columns, m_columnWidths, m_columnGap, m_columnTrackSizes);
-        sizeGridRows();
+        placeGridRows();
     }
     m_lineFirstItem.push_back(m_itemCount);
     m_startSuffixMin.resize(m_lineCount);

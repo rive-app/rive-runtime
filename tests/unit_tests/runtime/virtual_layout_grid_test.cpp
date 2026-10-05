@@ -2,7 +2,8 @@
 #include <catch.hpp>
 #include <vector>
 
-// Grid mode of VirtualLayout: rows of cells, column starts and row tracks.
+// Grid mode of VirtualLayout: rows of cells on layout's grid lines. Track
+// sizing itself is layout's (see yoga_grid_virtual_contributions_test.cpp).
 // Mirrors virtual_layout_grid_test.dart in rive_core.
 
 using namespace rive;
@@ -13,9 +14,9 @@ struct GridOptions
 {
     int columns = 4;
     std::vector<float> columnStarts = {0, 110, 220, 330};
-    std::vector<VirtualGridTrack> templateRows;
-    std::vector<VirtualGridTrack> autoRows;
-    float rowSpace = -1.0f;
+    // Layout's row lines; empty until it has laid the grid out.
+    std::vector<float> rowStarts;
+    int rowCount = 0;
     LayoutCrossAlign align = LayoutCrossAlign::start;
 };
 
@@ -23,11 +24,9 @@ void grid(VirtualLayout& layout,
           const std::vector<float>& heights,
           const GridOptions& options = {})
 {
-    layout.beginGrid(10, options.columns, options.align);
+    layout.beginGrid(10, options.columns, options.align, 10, options.rowCount);
     layout.gridColumnStarts() = options.columnStarts;
-    layout.gridRows().templates = options.templateRows;
-    layout.gridRows().autos = options.autoRows;
-    layout.gridRows().space = options.rowSpace;
+    layout.gridRowStarts() = options.rowStarts;
     layout.beginSegment();
     for (float height : heights)
     {
@@ -63,31 +62,64 @@ TEST_CASE("VirtualLayout grid items take their column start",
     }
 }
 
-TEST_CASE("VirtualLayout grid row tracks", "[virtual_layout]")
+TEST_CASE("VirtualLayout grid rows", "[virtual_layout]")
 {
     VirtualLayout layout;
-    SECTION("fixed rows hold their size and auto rows cycle")
+    SECTION("sit on layout's lines once it has them")
     {
-        // Template rows 80 then content-sized; auto rows cycle 40, 50.
+        // Lines from a padded grid: rows 80, 60 and 50 tall, gaps of 10.
         GridOptions options;
-        options.templateRows = {VirtualGridTrack::points(80),
-                                VirtualGridTrack::autoSize()};
-        options.autoRows = {VirtualGridTrack::points(40),
-                            VirtualGridTrack::points(50)};
-        grid(layout, std::vector<float>(20, 60), options);
-        float expected[] = {0, 90, 160, 210, 270};
-        for (int r = 0; r < 5; r++)
-        {
-            CHECK(layout.lineStart(r) == expected[r]);
-        }
-        CHECK(layout.extent() == 310);
+        options.rowStarts = {5, 95, 165, 215};
+        grid(layout, std::vector<float>(12, 30), options);
+        CHECK(layout.lineStart(0) == 0);
+        CHECK(layout.lineStart(1) == 90);
+        CHECK(layout.lineExtent(1) == 60);
+        CHECK(layout.lineStart(2) == 160);
+        CHECK(layout.lineExtent(2) == 50);
+        CHECK(layout.extent() == 210);
     }
-    SECTION("a content sized row fits its tallest item")
+    SECTION("stack at their tallest item until then")
     {
         grid(layout, {60, 90, 60, 60, 30});
         CHECK(layout.lineStart(1) == 100);
         CHECK(layout.extent() == 130);
     }
+    SECTION("past the lines layout has stack on after them")
+    {
+        GridOptions options;
+        options.rowStarts = {0, 80};
+        grid(layout, std::vector<float>(12, 30), options);
+        CHECK(layout.lineExtent(0) == 80);
+        CHECK(layout.lineStart(1) == 90);
+        CHECK(layout.lineExtent(1) == 30);
+        CHECK(layout.lineStart(2) == 130);
+    }
+    SECTION("template rows nothing fills still take their space")
+    {
+        GridOptions options;
+        options.rowCount = 4;
+        options.rowStarts = {0, 30, 70, 110, 150};
+        grid(layout, std::vector<float>(4, 30), options);
+        CHECK(layout.lineCount() == 4);
+        CHECK(layout.lineFirstItem(3) == 4);
+        CHECK(layout.extent() == 150);
+    }
+}
+
+TEST_CASE("VirtualLayout grid reports each row's and column's largest item",
+          "[virtual_layout]")
+{
+    VirtualLayout layout;
+    layout.beginGrid(10, 2, LayoutCrossAlign::start, 10, 3);
+    layout.beginSegment();
+    layout.addItem(20, 50);
+    layout.addItem(40, 70);
+    layout.addItem(30, 90);
+    layout.end();
+    std::vector<float> rows = {40, 30, 0};
+    std::vector<float> columns = {90, 70};
+    CHECK(layout.gridRowContents() == rows);
+    CHECK(layout.gridColumnContents() == columns);
 }
 
 TEST_CASE("VirtualLayout grid only centers within a row", "[virtual_layout]")
@@ -257,229 +289,6 @@ TEST_CASE("VirtualLayout cycling column windows match a brute force sweep",
             INFO("offset " << offset << " viewport " << viewport);
             REQUIRE(window.visibleStart == start);
             REQUIRE(window.visibleEnd == end);
-        }
-    }
-}
-
-namespace
-{
-// A one column grid's rows as layout sizes them, recorded from the layout
-// engine by virtual_layout_grid_rows_test.dart: row tracks, item heights, row
-// gap, the grid's inner height (-1 when it hugs its rows), where layout put
-// each item and, for a hugging grid, its height.
-struct RowCase
-{
-    std::vector<VirtualGridTrack> rows;
-    std::vector<float> heights;
-    float gap;
-    float rowSpace;
-    std::vector<float> tops;
-    float height;
-};
-
-using S = VirtualTrackSizing;
-// clang-format off
-const RowCase rowCases[] = {
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::points, 40.0f}, {S::points, 80.0f, S::points, 120.0f}}, {150.0f, 50.0f, 50.0f, 100.0f, 150.0f}, 0.0f, 300.0f, {0.0f, 150.0f, 200.0f, 280.0f, 380.0f}, -1.0f},
-    {{}, {150.0f, 200.0f, 80.0f, 80.0f, 100.0f, 150.0f}, 10.0f, -1.0f, {0.0f, 160.0f, 370.0f, 460.0f, 550.0f, 660.0f}, 810.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::percent, 10.0f, S::percent, 10.0f}, {S::points, 80.0f, S::points, 80.0f}}, {50.0f, 150.0f, 80.0f, 80.0f, 80.0f}, 10.0f, 400.0f, {0.0f, 90.0f, 140.0f, 230.0f, 320.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}}, {150.0f, 80.0f, 50.0f, 80.0f, 80.0f}, 10.0f, 400.0f, {0.0f, 160.0f, 250.0f, 310.0f, 400.0f}, -1.0f},
-    {{}, {100.0f, 50.0f, 50.0f, 50.0f, 150.0f}, 0.0f, -1.0f, {0.0f, 100.0f, 150.0f, 200.0f, 250.0f}, 400.0f},
-    {{{S::autoSize, 0.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {20.0f}, 0.0f, -1.0f, {0.0f}, 20.0f},
-    {{{S::points, 0.0f, S::points, 0.0f}}, {200.0f, 80.0f, 80.0f, 20.0f, 200.0f}, 0.0f, 300.0f, {0.0f, 0.0f, 80.0f, 160.0f, 180.0f}, -1.0f},
-    {{}, {100.0f}, 0.0f, 300.0f, {0.0f}, -1.0f},
-    {{{S::points, 40.0f, S::points, 40.0f}}, {20.0f, 20.0f}, 0.0f, 400.0f, {0.0f, 40.0f}, -1.0f},
-    {{}, {80.0f, 200.0f, 80.0f, 150.0f}, 0.0f, 300.0f, {0.0f, 80.0f, 280.0f, 360.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}}, {100.0f, 20.0f, 50.0f, 200.0f, 80.0f, 200.0f}, 0.0f, 400.0f, {0.0f, 100.0f, 120.0f, 170.0f, 370.0f, 450.0f}, -1.0f},
-    {{{S::points, 0.0f, S::percent, 10.0f}}, {200.0f, 50.0f, 80.0f}, 10.0f, 400.0f, {0.0f, 50.0f, 110.0f}, -1.0f},
-    {{}, {50.0f}, 0.0f, 400.0f, {0.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {20.0f, 150.0f, 200.0f, 200.0f}, 10.0f, 400.0f, {0.0f, 30.0f, 190.0f, 400.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {50.0f, 50.0f, 200.0f, 100.0f, 20.0f}, 10.0f, -1.0f, {0.0f, 60.0f, 120.0f, 330.0f, 440.0f}, 460.0f},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::points, 120.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::points, 40.0f}}, {200.0f, 100.0f, 80.0f, 20.0f, 200.0f, 200.0f}, 0.0f, 300.0f, {0.0f, 200.0f, 320.0f, 400.0f, 420.0f, 620.0f}, -1.0f},
-    {{{S::percent, 25.0f, S::percent, 25.0f}}, {50.0f, 20.0f, 100.0f, 80.0f, 50.0f}, 0.0f, 400.0f, {0.0f, 100.0f, 120.0f, 220.0f, 300.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}}, {150.0f, 200.0f, 100.0f, 100.0f, 100.0f}, 0.0f, -1.0f, {0.0f, 150.0f, 350.0f, 450.0f, 550.0f}, 650.0f},
-    {{}, {150.0f, 100.0f, 50.0f, 20.0f, 80.0f, 50.0f}, 0.0f, -1.0f, {0.0f, 150.0f, 250.0f, 300.0f, 320.0f, 400.0f}, 450.0f},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::autoSize, 0.0f, S::points, 80.0f}}, {100.0f, 100.0f}, 10.0f, 400.0f, {0.0f, 300.0f}, -1.0f},
-    {{{S::points, 80.0f, S::fr, 2.0f}}, {150.0f, 100.0f, 150.0f, 50.0f, 20.0f}, 0.0f, 400.0f, {0.0f, 80.0f, 180.0f, 330.0f, 380.0f}, -1.0f},
-    {{{S::points, 0.0f, S::points, 0.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::percent, 50.0f, S::percent, 50.0f}}, {100.0f}, 10.0f, -1.0f, {0.0f}, 20.0f},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}, {S::points, 80.0f, S::points, 0.0f}}, {200.0f, 200.0f, 80.0f, 150.0f, 50.0f, 150.0f}, 0.0f, 300.0f, {0.0f, 200.0f, 400.0f, 480.0f, 630.0f, 680.0f}, -1.0f},
-    {{}, {80.0f, 100.0f, 80.0f, 80.0f, 100.0f, 200.0f}, 10.0f, 400.0f, {0.0f, 90.0f, 200.0f, 290.0f, 380.0f, 490.0f}, -1.0f},
-    {{}, {80.0f}, 0.0f, 300.0f, {0.0f}, -1.0f},
-    {{{S::percent, 10.0f, S::percent, 10.0f}}, {20.0f, 20.0f}, 0.0f, 300.0f, {0.0f, 30.0f}, -1.0f},
-    {{{S::percent, 25.0f, S::percent, 50.0f}, {S::points, 0.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {200.0f, 200.0f, 150.0f, 50.0f, 100.0f}, 0.0f, 300.0f, {0.0f, 75.0f, 75.0f, 225.0f, 275.0f}, -1.0f},
-    {{}, {200.0f}, 10.0f, 400.0f, {0.0f}, -1.0f},
-    {{{S::points, 120.0f, S::points, 120.0f}}, {20.0f, 50.0f, 20.0f, 20.0f, 50.0f}, 0.0f, -1.0f, {0.0f, 120.0f, 170.0f, 190.0f, 210.0f}, 260.0f},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}}, {100.0f, 80.0f, 100.0f}, 0.0f, -1.0f, {0.0f, 100.0f, 180.0f}, 280.0f},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::percent, 25.0f, S::points, 80.0f}}, {200.0f, 20.0f}, 10.0f, 400.0f, {0.0f, 300.0f}, -1.0f},
-    {{}, {50.0f, 20.0f, 200.0f, 20.0f, 200.0f, 20.0f}, 10.0f, -1.0f, {0.0f, 60.0f, 90.0f, 300.0f, 330.0f, 540.0f}, 560.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {150.0f, 50.0f, 200.0f, 200.0f, 80.0f}, 0.0f, -1.0f, {0.0f, 150.0f, 200.0f, 400.0f, 600.0f}, 680.0f},
-    {{{S::autoSize, 0.0f, S::fr, 0.5f}, {S::autoSize, 0.0f, S::percent, 10.0f}}, {100.0f, 200.0f, 80.0f, 200.0f}, 10.0f, -1.0f, {0.0f, 110.0f, 320.0f, 410.0f}, 610.0f},
-    {{}, {100.0f, 50.0f}, 10.0f, 300.0f, {0.0f, 110.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::percent, 10.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::percent, 25.0f}}, {20.0f, 20.0f, 80.0f, 20.0f, 200.0f}, 0.0f, -1.0f, {0.0f, 20.0f, 54.0f, 134.0f, 154.0f}, 340.0f},
-    {{{S::points, 0.0f, S::points, 0.0f}, {S::percent, 25.0f, S::fr, 0.5f}}, {100.0f, 50.0f}, 10.0f, -1.0f, {0.0f, 10.0f}, 60.0f},
-    {{{S::points, 80.0f, S::percent, 50.0f}, {S::points, 80.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::points, 120.0f}}, {50.0f, 20.0f, 20.0f}, 10.0f, -1.0f, {0.0f, 90.0f, 180.0f}, 200.0f},
-    {{{S::points, 0.0f, S::autoSize, 0.0f}, {S::points, 0.0f, S::percent, 25.0f}, {S::percent, 25.0f, S::percent, 50.0f}}, {50.0f, 200.0f, 50.0f}, 10.0f, 400.0f, {0.0f, 60.0f, 170.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::percent, 10.0f}, {S::percent, 25.0f, S::autoSize, 0.0f}}, {80.0f, 150.0f, 20.0f, 200.0f}, 10.0f, -1.0f, {0.0f, 90.0f, 250.0f, 280.0f}, 480.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::autoSize, 0.0f, S::percent, 25.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {100.0f, 80.0f, 50.0f}, 10.0f, 300.0f, {0.0f, 160.0f, 250.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::fr, 0.5f}, {S::points, 40.0f, S::points, 40.0f}}, {150.0f, 100.0f, 20.0f, 20.0f, 100.0f}, 10.0f, 300.0f, {0.0f, 160.0f, 210.0f, 240.0f, 270.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::points, 80.0f, S::percent, 50.0f}}, {100.0f, 80.0f, 50.0f, 80.0f}, 10.0f, 300.0f, {0.0f, 110.0f, 200.0f, 260.0f}, -1.0f},
-    {{{S::points, 80.0f, S::fr, 1.0f}, {S::points, 80.0f, S::fr, 2.0f}, {S::points, 40.0f, S::points, 40.0f}}, {100.0f, 150.0f, 20.0f, 80.0f, 50.0f}, 10.0f, -1.0f, {0.0f, 110.0f, 320.0f, 370.0f, 460.0f}, 510.0f},
-    {{{S::autoSize, 0.0f, S::points, 0.0f}}, {200.0f, 200.0f, 80.0f, 100.0f, 20.0f, 150.0f}, 0.0f, -1.0f, {0.0f, 200.0f, 400.0f, 480.0f, 580.0f, 600.0f}, 750.0f},
-    {{{S::percent, 50.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {20.0f, 100.0f, 50.0f}, 10.0f, 400.0f, {0.0f, 210.0f, 350.0f}, -1.0f},
-    {{{S::percent, 25.0f, S::percent, 25.0f}, {S::percent, 50.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {150.0f, 150.0f}, 10.0f, 300.0f, {0.0f, 85.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::percent, 10.0f}}, {200.0f, 80.0f}, 0.0f, -1.0f, {0.0f, 200.0f}, 280.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}}, {100.0f, 200.0f, 100.0f}, 0.0f, 400.0f, {0.0f, 100.0f, 300.0f}, -1.0f},
-    {{{S::points, 40.0f, S::points, 40.0f}}, {20.0f, 200.0f}, 10.0f, 400.0f, {0.0f, 50.0f}, -1.0f},
-    {{{S::points, 80.0f, S::fr, 0.5f}, {S::points, 40.0f, S::points, 0.0f}, {S::points, 120.0f, S::percent, 50.0f}}, {150.0f, 100.0f, 50.0f}, 10.0f, -1.0f, {0.0f, 90.0f, 140.0f}, 260.0f},
-    {{{S::autoSize, 0.0f, S::fr, 0.5f}, {S::percent, 10.0f, S::points, 120.0f}}, {150.0f}, 10.0f, 400.0f, {0.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}}, {50.0f, 80.0f}, 0.0f, 300.0f, {0.0f, 50.0f}, -1.0f},
-    {{}, {20.0f, 80.0f}, 10.0f, -1.0f, {0.0f, 30.0f}, 110.0f},
-    {{{S::percent, 25.0f, S::percent, 50.0f}}, {50.0f, 80.0f, 100.0f, 80.0f, 20.0f, 20.0f}, 10.0f, 300.0f, {0.0f, 85.0f, 175.0f, 285.0f, 375.0f, 405.0f}, -1.0f},
-    {{{S::percent, 10.0f, S::autoSize, 0.0f}}, {100.0f, 100.0f, 80.0f, 150.0f, 20.0f, 50.0f}, 0.0f, 400.0f, {0.0f, 40.0f, 140.0f, 220.0f, 370.0f, 390.0f}, -1.0f},
-    {{{S::points, 120.0f, S::points, 120.0f}}, {50.0f, 100.0f, 20.0f, 150.0f, 200.0f}, 10.0f, 400.0f, {0.0f, 130.0f, 240.0f, 270.0f, 430.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {200.0f}, 0.0f, 400.0f, {0.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::points, 120.0f}, {S::points, 120.0f, S::points, 120.0f}, {S::percent, 25.0f, S::percent, 25.0f}}, {150.0f, 150.0f, 200.0f}, 10.0f, 400.0f, {0.0f, 160.0f, 290.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::percent, 25.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {80.0f, 100.0f}, 10.0f, 300.0f, {0.0f, 90.0f}, -1.0f},
-    {{}, {50.0f, 80.0f, 50.0f, 200.0f, 150.0f}, 0.0f, 400.0f, {0.0f, 50.0f, 130.0f, 180.0f, 380.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::points, 120.0f}}, {150.0f, 20.0f, 20.0f, 50.0f}, 10.0f, 400.0f, {0.0f, 160.0f, 290.0f, 320.0f}, -1.0f},
-    {{}, {200.0f, 50.0f, 50.0f}, 10.0f, 300.0f, {0.0f, 210.0f, 270.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}, {S::points, 120.0f, S::points, 120.0f}}, {100.0f, 80.0f, 50.0f, 20.0f, 50.0f}, 10.0f, 300.0f, {0.0f, 110.0f, 200.0f, 330.0f, 360.0f}, -1.0f},
-    {{{S::points, 80.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {80.0f, 80.0f, 20.0f, 80.0f, 100.0f, 50.0f}, 0.0f, 400.0f, {0.0f, 80.0f, 160.0f, 180.0f, 260.0f, 360.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::percent, 10.0f}}, {200.0f, 100.0f}, 0.0f, 400.0f, {0.0f, 200.0f}, -1.0f},
-    {{}, {80.0f, 100.0f, 20.0f}, 10.0f, -1.0f, {0.0f, 90.0f, 200.0f}, 220.0f},
-    {{}, {200.0f}, 0.0f, 400.0f, {0.0f}, -1.0f},
-    {{{S::percent, 50.0f, S::percent, 50.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}}, {150.0f, 50.0f, 20.0f, 150.0f, 20.0f, 150.0f}, 0.0f, 400.0f, {0.0f, 200.0f, 250.0f, 270.0f, 420.0f, 440.0f}, -1.0f},
-    {{{S::percent, 10.0f, S::percent, 10.0f}, {S::percent, 50.0f, S::fr, 1.0f}, {S::points, 0.0f, S::points, 0.0f}}, {100.0f, 200.0f, 200.0f, 150.0f}, 10.0f, 300.0f, {0.0f, 40.0f, 200.0f, 210.0f}, -1.0f},
-    {{{S::points, 40.0f, S::points, 40.0f}, {S::percent, 25.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}}, {50.0f, 80.0f, 80.0f, 20.0f}, 0.0f, 400.0f, {0.0f, 40.0f, 140.0f, 380.0f}, -1.0f},
-    {{{S::percent, 10.0f, S::autoSize, 0.0f}}, {50.0f, 20.0f, 100.0f, 50.0f, 100.0f, 150.0f}, 10.0f, 400.0f, {0.0f, 50.0f, 80.0f, 190.0f, 250.0f, 360.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::percent, 10.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::percent, 10.0f}}, {200.0f, 80.0f}, 10.0f, -1.0f, {0.0f, 210.0f}, 300.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}, {S::percent, 50.0f, S::percent, 50.0f}}, {200.0f, 20.0f, 50.0f, 200.0f, 150.0f}, 0.0f, -1.0f, {0.0f, 200.0f, 220.0f, 530.0f, 730.0f}, 620.0f},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {20.0f, 200.0f, 200.0f}, 0.0f, 300.0f, {0.0f, 20.0f, 220.0f}, -1.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}, {S::autoSize, 0.0f, S::percent, 50.0f}}, {80.0f, 150.0f, 20.0f}, 10.0f, 300.0f, {0.0f, 90.0f, 250.0f}, -1.0f},
-    {{{S::points, 40.0f, S::points, 40.0f}}, {200.0f}, 10.0f, 400.0f, {0.0f}, -1.0f},
-    {{}, {200.0f, 80.0f}, 0.0f, 300.0f, {0.0f, 200.0f}, -1.0f},
-    {{{S::percent, 50.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}}, {50.0f, 50.0f, 150.0f, 20.0f, 20.0f, 150.0f}, 10.0f, -1.0f, {0.0f, 255.0f, 315.0f, 475.0f, 505.0f, 535.0f}, 490.0f},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {50.0f, 150.0f, 50.0f}, 10.0f, 300.0f, {0.0f, 60.0f, 250.0f}, -1.0f},
-    // The cases each rule was found from: fr rows under 1, an fr row whose
-    // items would leave it under its minimum, and percents sized again in a
-    // hugging grid's height.
-    {{{S::points, 0.0f, S::fr, 0.5f}}, {80.0f, 100.0f, 200.0f, 200.0f}, 0.0f,
-     -1.0f, {0.0f, 40.0f, 140.0f, 340.0f}, 540.0f},
-    {{{S::autoSize, 0.0f, S::fr, 0.5f}, {S::autoSize, 0.0f, S::fr, 0.5f}},
-     {200.0f, 50.0f, 50.0f, 80.0f, 80.0f, 20.0f}, 10.0f, -1.0f,
-     {0.0f, 210.0f, 320.0f, 380.0f, 470.0f, 560.0f}, 580.0f},
-    {{{S::points, 120.0f, S::fr, 2.0f}, {S::autoSize, 0.0f, S::points, 120.0f}},
-     {200.0f, 50.0f}, 0.0f, -1.0f, {0.0f, 200.0f}, 250.0f},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::points, 120.0f, S::fr, 0.5f},
-      {S::autoSize, 0.0f, S::points, 80.0f}},
-     {50.0f, 200.0f, 100.0f}, 10.0f, -1.0f, {0.0f, 250.0f, 380.0f}, 480.0f},
-    {{{S::percent, 10.0f, S::autoSize, 0.0f}}, {150.0f, 20.0f}, 0.0f, -1.0f,
-     {0.0f, 150.0f}, 170.0f},
-    {{{S::percent, 10.0f, S::percent, 10.0f}, {S::autoSize, 0.0f, S::fr, 2.0f},
-      {S::percent, 50.0f, S::fr, 0.5f}},
-     {200.0f, 80.0f, 80.0f, 20.0f, 100.0f}, 10.0f, -1.0f,
-     {0.0f, 70.0f, 160.0f, 470.0f, 500.0f}, 600.0f},
-};
-// clang-format on
-} // namespace
-
-TEST_CASE("VirtualLayout grid rows land where layout puts them",
-          "[virtual_layout]")
-{
-    int index = 0;
-    for (auto& rowCase : rowCases)
-    {
-        VirtualLayout layout;
-        layout.beginGrid(rowCase.gap, 1, LayoutCrossAlign::start);
-        layout.gridColumnStarts() = {0, 100};
-        layout.gridRows().templates = rowCase.rows;
-        layout.gridRows().space = rowCase.rowSpace;
-        layout.beginSegment();
-        for (float height : rowCase.heights)
-        {
-            layout.addItem(height, 100);
-        }
-        layout.end();
-        INFO("case " << index++);
-        for (int item = 0; item < (int)rowCase.tops.size(); item++)
-        {
-            float top = layout.lineStart(layout.lineOfItem(item)) +
-                        layout.itemLineOffset(item);
-            CHECK(top == Approx(rowCase.tops[item]).margin(0.01f));
-        }
-        if (rowCase.height >= 0.0f)
-        {
-            CHECK(layout.extent() == Approx(rowCase.height).margin(0.01f));
-        }
-    }
-}
-
-namespace
-{
-// Column tracks as layout sizes them for two rows of items, recorded from the
-// layout engine by virtual_layout_grid_rows_test.dart: column tracks, item
-// widths, column gap, the grid's inner width (-1 when it hugs its columns),
-// whether its width is a flex parent's main axis and where layout put each
-// column.
-struct ColumnCase
-{
-    std::vector<VirtualGridTrack> columns;
-    std::vector<float> widths;
-    float gap;
-    float columnSpace;
-    bool resize;
-    std::vector<float> starts;
-};
-
-// clang-format off
-const ColumnCase columnCases[] = {
-    {{{S::autoSize, 0.0f, S::points, 0.0f}, {S::percent, 10.0f, S::fr, 0.5f}}, {20.0f, 100.0f, 150.0f, 50.0f}, 10.0f, 300.0f, true, {0.0f, 160.0f}},
-    {{{S::points, 80.0f, S::fr, 1.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {100.0f, 50.0f, 100.0f, 50.0f}, 10.0f, 400.0f, true, {0.0f, 205.0f}},
-    {{{S::points, 40.0f, S::points, 40.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {20.0f, 50.0f, 20.0f, 50.0f}, 10.0f, 400.0f, false, {0.0f, 50.0f}},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}, {S::points, 40.0f, S::fr, 0.5f}}, {20.0f, 80.0f, 100.0f, 100.0f, 100.0f, 100.0f}, 10.0f, 400.0f, true, {0.0f, 162.0f, 324.0f}},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::points, 80.0f}}, {50.0f, 100.0f, 50.0f, 100.0f}, 0.0f, 300.0f, false, {0.0f, 80.0f}},
-    {{{S::autoSize, 0.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}, {S::points, 120.0f, S::autoSize, 0.0f}}, {80.0f, 80.0f, 20.0f, 100.0f, 150.0f, 20.0f}, 0.0f, 400.0f, false, {0.0f, 120.0f, 280.0f}},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}, {S::points, 40.0f, S::percent, 50.0f}, {S::percent, 25.0f, S::percent, 25.0f}}, {20.0f, 150.0f, 100.0f, 80.0f, 100.0f, 150.0f}, 0.0f, 300.0f, true, {0.0f, 80.0f, 225.0f}},
-    {{{S::autoSize, 0.0f, S::fr, 1.0f}, {S::points, 0.0f, S::points, 0.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {50.0f, 20.0f, 50.0f, 80.0f, 50.0f, 150.0f}, 0.0f, 300.0f, false, {0.0f, 150.0f, 150.0f}},
-    {{{S::points, 40.0f, S::points, 80.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::points, 40.0f}}, {50.0f, 150.0f, 80.0f, 100.0f, 80.0f, 20.0f}, 10.0f, -1.0f, true, {0.0f, 50.0f, 210.0f}},
-    {{{S::autoSize, 0.0f, S::points, 0.0f}, {S::autoSize, 0.0f, S::fr, 0.5f}}, {50.0f, 20.0f, 80.0f, 50.0f}, 0.0f, -1.0f, true, {0.0f, 80.0f}},
-    {{{S::points, 0.0f, S::fr, 0.5f}, {S::percent, 25.0f, S::fr, 1.0f}}, {50.0f, 20.0f, 150.0f, 80.0f}, 0.0f, 300.0f, true, {0.0f, 100.0f}},
-    {{{S::percent, 50.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {50.0f, 150.0f, 50.0f, 150.0f}, 10.0f, -1.0f, false, {0.0f, 115.0f}},
-    {{{S::autoSize, 0.0f, S::autoSize, 0.0f}, {S::autoSize, 0.0f, S::autoSize, 0.0f}}, {80.0f, 100.0f, 100.0f, 50.0f}, 0.0f, 400.0f, true, {0.0f, 100.0f}},
-    {{{S::autoSize, 0.0f, S::fr, 2.0f}, {S::percent, 10.0f, S::percent, 10.0f}}, {50.0f, 150.0f, 20.0f, 150.0f}, 10.0f, 400.0f, true, {0.0f, 360.0f}},
-    {{{S::autoSize, 0.0f, S::points, 120.0f}, {S::points, 120.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}}, {20.0f, 80.0f, 150.0f, 80.0f, 150.0f, 80.0f}, 0.0f, 400.0f, true, {0.0f, 120.0f, 240.0f}},
-    {{{S::percent, 50.0f, S::percent, 50.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {150.0f, 100.0f, 50.0f, 20.0f}, 0.0f, -1.0f, false, {0.0f, 125.0f}},
-    {{{S::points, 0.0f, S::points, 120.0f}, {S::autoSize, 0.0f, S::fr, 2.0f}, {S::autoSize, 0.0f, S::fr, 1.0f}}, {20.0f, 80.0f, 20.0f, 150.0f, 50.0f, 20.0f}, 0.0f, -1.0f, true, {0.0f, 20.0f, 100.0f}},
-    {{{S::autoSize, 0.0f, S::points, 80.0f}, {S::points, 0.0f, S::fr, 0.5f}, {S::points, 120.0f, S::points, 120.0f}}, {150.0f, 50.0f, 20.0f, 20.0f, 100.0f, 150.0f}, 10.0f, -1.0f, true, {0.0f, 160.0f, 195.0f}},
-    {{{S::points, 80.0f, S::autoSize, 0.0f}, {S::points, 0.0f, S::fr, 0.5f}}, {100.0f, 150.0f, 150.0f, 50.0f}, 0.0f, -1.0f, true, {0.0f, 150.0f}},
-};
-// clang-format on
-} // namespace
-
-TEST_CASE("VirtualLayout grid columns land where layout puts them",
-          "[virtual_layout]")
-{
-    int index = 0;
-    for (auto& columnCase : columnCases)
-    {
-        int count = (int)columnCase.columns.size();
-        VirtualLayout layout;
-        layout.beginGrid(10, count, LayoutCrossAlign::start, columnCase.gap);
-        layout.gridColumns().templates = columnCase.columns;
-        layout.gridColumns().space = columnCase.columnSpace;
-        layout.gridColumns().resize = columnCase.resize;
-        layout.beginSegment();
-        for (float width : columnCase.widths)
-        {
-            layout.addItem(50, width);
-        }
-        layout.end();
-        INFO("case " << index++);
-        float start = 0.0f;
-        for (int column = 0; column < count; column++)
-        {
-            CHECK(start == Approx(columnCase.starts[column]).margin(0.01f));
-            start += layout.gridColumnSize(column) + columnCase.gap;
         }
     }
 }

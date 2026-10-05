@@ -9,7 +9,6 @@
 #include "rive/refcnt.hpp"
 #include <cstdint>
 #include <stdio.h>
-#include <unordered_map>
 #include <vector>
 namespace rive
 {
@@ -22,9 +21,12 @@ class ViewModelInstance : public ViewModelInstanceBase,
 private:
     std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
     LazyVector<DataBind*> m_valueDataBinds;
-    std::vector<ViewModelInstance*> m_parents;
-    std::vector<DataBindContainer*> m_dependents;
-    std::unordered_map<SymbolType, ViewModelInstanceValue*> m_propertySymbols;
+    // Most instances have one parent, so it is kept inline.
+    ViewModelInstance* m_parent = nullptr;
+    LazyVector<ViewModelInstance*> m_moreParents;
+    LazyVector<DataBindContainer*> m_dependents;
+    std::vector<std::pair<SymbolType, ViewModelInstanceValue*>>
+        m_propertySymbols;
     ViewModel* m_ViewModel;
     void rebindDependents();
     void rebindProperties();
@@ -42,6 +44,8 @@ public:
 
     ~ViewModelInstance();
     void addValue(ViewModelInstanceValue* value);
+    // Adds a value known not to be here yet.
+    void appendValue(ViewModelInstanceValue* value);
     // Removes the property value with the given property id, if present.
     // Returns whether a value was removed. Used to prune editor-time override
     // instances down to only their explicitly-overridden properties.
@@ -56,6 +60,7 @@ public:
     bool replaceViewModelByProperty(ViewModelInstanceViewModel*,
                                     rcp<ViewModelInstance> value);
     const std::vector<rcp<ViewModelInstanceValue>>& propertyValues();
+    void reserveValues(size_t count) { m_PropertyValues.reserve(count); }
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);
     void viewModel(ViewModel* value);
@@ -68,7 +73,7 @@ public:
     void advanced();
     void addParent(ViewModelInstance*);
     void removeParent(ViewModelInstance*);
-    bool hasParents() const { return !m_parents.empty(); }
+    bool hasParents() const { return m_parent != nullptr; }
     void addDependent(DataBindContainer*);
     void removeDependent(DataBindContainer*);
     // Binds targeting this instance's own values. Owned here and cloned with
@@ -79,8 +84,16 @@ public:
         return m_valueDataBinds;
     }
 #ifdef TESTING
-    std::vector<DataBindContainer*> dependents() { return m_dependents; }
-    std::vector<ViewModelInstance*> parents() { return m_parents; }
+    std::vector<DataBindContainer*> dependents() { return m_dependents.view(); }
+    std::vector<ViewModelInstance*> parents()
+    {
+        std::vector<ViewModelInstance*> parents = m_moreParents.view();
+        if (m_parent != nullptr)
+        {
+            parents.insert(parents.begin(), m_parent);
+        }
+        return parents;
+    }
 #endif
 };
 } // namespace rive

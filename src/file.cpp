@@ -1819,13 +1819,13 @@ rcp<ViewModelInstance> File::createViewModelInstance(
     if (viewModel != nullptr && budget > 0)
     {
         budget--;
-        creating.push_back(viewModel);
         uint32_t viewModelId = findViewModelId(viewModel);
 
         auto viewModelInstance = new ViewModelInstance();
         viewModelInstance->viewModelId(viewModelId);
         viewModelInstance->viewModel(viewModel);
-        auto properties = viewModel->properties();
+        auto& properties = viewModel->properties();
+        viewModelInstance->reserveValues(properties.size());
         uint32_t propertyId = 0;
         for (auto& property : properties)
         {
@@ -1872,16 +1872,21 @@ rcp<ViewModelInstance> File::createViewModelInstance(
                     // the nested reference empty instead, as for a chain
                     // deeper than kMaxViewModelNesting.
                     bool cycle =
+                        viewModelReference == viewModel ||
                         std::find(creating.begin(),
                                   creating.end(),
                                   viewModelReference) != creating.end();
-                    bool tooDeep = creating.size() >= kMaxViewModelNesting;
-                    auto referenceViewModelInstance =
-                        cycle || tooDeep
-                            ? nullptr
-                            : createViewModelInstance(viewModelReference,
-                                                      creating,
-                                                      budget);
+                    bool tooDeep = creating.size() + 1 >= kMaxViewModelNesting;
+                    rcp<ViewModelInstance> referenceViewModelInstance;
+                    if (!cycle && !tooDeep)
+                    {
+                        creating.push_back(viewModel);
+                        referenceViewModelInstance =
+                            createViewModelInstance(viewModelReference,
+                                                    creating,
+                                                    budget);
+                        creating.pop_back();
+                    }
                     if (referenceViewModelInstance)
                     {
                         viewModelInstanceViewModel->parentViewModelInstance(
@@ -1915,11 +1920,10 @@ rcp<ViewModelInstance> File::createViewModelInstance(
             {
                 viewModelInstanceValue->viewModelProperty(property);
                 viewModelInstanceValue->viewModelPropertyId(propertyId);
+                viewModelInstance->appendValue(viewModelInstanceValue);
             }
-            viewModelInstance->addValue(viewModelInstanceValue);
             propertyId++;
         }
-        creating.pop_back();
 #ifdef WITH_RIVE_TOOLS
         if (viewModelInstance)
         {

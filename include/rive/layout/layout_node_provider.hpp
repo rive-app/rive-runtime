@@ -33,6 +33,17 @@ public:
     virtual ~LayoutNodeProvider() { delete m_layoutConstraints; }
 #ifdef WITH_RIVE_LAYOUT
     virtual void* layoutNode(int index) = 0;
+    // Appends the nodes that exist, in index order.
+    virtual void collectLayoutNodes(std::vector<void*>& out)
+    {
+        for (size_t i = 0; i < numLayoutNodes(); i++)
+        {
+            if (auto node = layoutNode((int)i))
+            {
+                out.push_back(node);
+            }
+        }
+    }
 #endif
     static LayoutNodeProvider* from(Component* component);
     virtual TransformComponent* transformComponent() = 0;

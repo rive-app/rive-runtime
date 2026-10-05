@@ -33,7 +33,10 @@ public:
 #endif
     ViewModelInstance* defaultInstance();
     size_t instanceCount() const;
-    std::vector<ViewModelProperty*> properties() { return m_Properties; }
+    const std::vector<ViewModelProperty*>& properties() const
+    {
+        return m_Properties;
+    }
     std::vector<ViewModelInstance*> instances() { return m_Instances; }
 };
 } // namespace rive

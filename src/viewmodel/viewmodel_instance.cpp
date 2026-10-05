@@ -48,6 +48,10 @@ ViewModelInstance::~ViewModelInstance()
 
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
 {
+    if (value == nullptr)
+    {
+        return;
+    }
     // Check if already added (can happen when both import() and onAddedDirty()
     // add the same value).
     for (const auto& existing : m_PropertyValues)
@@ -57,17 +61,13 @@ void ViewModelInstance::addValue(ViewModelInstanceValue* value)
             return;
         }
     }
-    if (value)
-    {
-        value->viewModelInstance(this);
-    }
-    if (value->viewModelProperty() != nullptr &&
-        (SymbolType)value->viewModelProperty()->symbolTypeValue() !=
-            SymbolType::none)
-    {
-        propertyValue((SymbolType)value->viewModelProperty()->symbolTypeValue(),
-                      value);
-    }
+    appendValue(value);
+}
+
+void ViewModelInstance::appendValue(ViewModelInstanceValue* value)
+{
+    // Registers the value's symbol too.
+    value->viewModelInstance(this);
     m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }
 
@@ -90,7 +90,8 @@ bool ViewModelInstance::removeValue(uint32_t propertyId)
                 delete dataBind;
             }
         }
-        for (auto* dependent : std::vector<DataBindContainer*>(m_dependents))
+        for (auto* dependent :
+             std::vector<DataBindContainer*>(m_dependents.view()))
         {
             dependent->dropInstanceValueBindsTargeting(value.get());
         }
@@ -216,7 +217,15 @@ void ViewModelInstance::propertyValue(const SymbolType symbolType,
 {
     if (symbolType != SymbolType::none)
     {
-        m_propertySymbols[symbolType] = value;
+        for (auto& entry : m_propertySymbols)
+        {
+            if (entry.first == symbolType)
+            {
+                entry.second = value;
+                return;
+            }
+        }
+        m_propertySymbols.emplace_back(symbolType, value);
     }
 }
 
@@ -224,10 +233,12 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const SymbolType symbolType)
 {
 
-    auto propertyIt = m_propertySymbols.find(symbolType);
-    if (propertyIt != m_propertySymbols.end())
+    for (auto& entry : m_propertySymbols)
     {
-        return propertyIt->second;
+        if (entry.first == symbolType)
+        {
+            return entry.second;
+        }
     }
     return nullptr;
 }
@@ -398,21 +409,27 @@ void ViewModelInstance::advanced()
 
 void ViewModelInstance::addParent(ViewModelInstance* parent)
 {
-    if (!parent)
+    if (parent == nullptr || parent == m_parent)
     {
         return;
     }
-    auto p = std::find(m_parents.begin(), m_parents.end(), parent);
-    if (p == m_parents.end())
+    if (m_parent == nullptr)
     {
-        m_parents.push_back(parent);
+        m_parent = parent;
+        return;
     }
+    m_moreParents.pushUnique(parent);
 }
 
 void ViewModelInstance::removeParent(ViewModelInstance* parent)
 {
-    m_parents.erase(std::remove(m_parents.begin(), m_parents.end(), parent),
-                    m_parents.end());
+    m_moreParents.eraseAll(parent);
+    if (m_parent == parent)
+    {
+        auto& more = m_moreParents.view();
+        m_parent = more.empty() ? nullptr : more.back();
+        m_moreParents.eraseAll(m_parent);
+    }
 }
 
 void ViewModelInstance::addDependent(DataBindContainer* dependent)
@@ -421,18 +438,12 @@ void ViewModelInstance::addDependent(DataBindContainer* dependent)
     {
         return;
     }
-    auto p = std::find(m_dependents.begin(), m_dependents.end(), dependent);
-    if (p == m_dependents.end())
-    {
-        m_dependents.push_back(dependent);
-    }
+    m_dependents.pushUnique(dependent);
 }
 
 void ViewModelInstance::removeDependent(DataBindContainer* dependent)
 {
-    m_dependents.erase(
-        std::remove(m_dependents.begin(), m_dependents.end(), dependent),
-        m_dependents.end());
+    m_dependents.eraseAll(dependent);
 }
 
 void ViewModelInstance::rebindProperties()
@@ -462,7 +473,11 @@ void ViewModelInstance::rebindDependents()
     {
         dependent->relinkDataContext();
     }
-    for (auto& parent : m_parents)
+    if (m_parent != nullptr)
+    {
+        m_parent->rebindDependents();
+    }
+    for (auto* parent : m_moreParents)
     {
         parent->rebindDependents();
     }

@@ -77,15 +77,9 @@ private:
 };
 } // namespace rive
 
-// Rows that show the same item share its instances, and keeping them in step
-// takes a scan of every row. Most lists show each item once.
-static bool hasDuplicateItems(
+static std::vector<const ViewModelInstanceListItem*> sortedItems(
     const std::vector<rcp<ViewModelInstanceListItem>>& items)
 {
-    if (items.size() < 2)
-    {
-        return false;
-    }
     std::vector<const ViewModelInstanceListItem*> sorted;
     sorted.reserve(items.size());
     for (const auto& item : items)
@@ -93,7 +87,7 @@ static bool hasDuplicateItems(
         sorted.push_back(item.get());
     }
     std::sort(sorted.begin(), sorted.end());
-    return std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end();
+    return sorted;
 }
 
 ArtboardComponentList::ArtboardComponentList() {}
@@ -108,14 +102,9 @@ bool ArtboardComponentList::collapse(bool value)
 
     // Semantic-only collapse via the artboard boundary node. Only touches
     // SemanticData nodes — non-semantic components stay untouched.
-    for (size_t i = 0; i < artboardCount(); i++)
-    {
-        auto* nestedArtboard = artboardInstance(static_cast<int>(i));
-        if (nestedArtboard != nullptr)
-        {
-            nestedArtboard->collapseSemanticBoundary(value);
-        }
-    }
+    forEachRealized([&](int, ArtboardInstance* nestedArtboard) {
+        nestedArtboard->collapseSemanticBoundary(value);
+    });
     return true;
 }
 
@@ -161,6 +150,7 @@ void ArtboardComponentList::clear()
     }
     m_stateMachinesMap.clear();
     m_artboardInstancesByIndex.clear();
+    m_realizedIndices.clear();
     m_stateMachinesByIndex.clear();
     m_artboardInstancesMap.clear();
     m_listItems.clear();
@@ -230,6 +220,7 @@ void ArtboardComponentList::setRowsForItem(
             resetQuietRow(index);
             m_artboardInstancesByIndex[index] = artboard;
             m_stateMachinesByIndex[index] = stateMachine;
+            markRealized(index, artboard != nullptr);
         }
         return;
     }
@@ -240,6 +231,7 @@ void ArtboardComponentList::setRowsForItem(
             resetQuietRow(i);
             m_artboardInstancesByIndex[i] = artboard;
             m_stateMachinesByIndex[i] = stateMachine;
+            markRealized(i, artboard != nullptr);
         }
     }
 }
@@ -254,6 +246,17 @@ void* ArtboardComponentList::layoutNode(int index)
     }
     return nullptr;
 }
+
+void ArtboardComponentList::collectLayoutNodes(std::vector<void*>& out)
+{
+    for (int index : m_realizedIndices)
+    {
+        if (auto node = layoutNode(index))
+        {
+            out.push_back(node);
+        }
+    }
+}
 #endif
 
 void ArtboardComponentList::markLayoutNodeDirty(
@@ -261,15 +264,10 @@ void ArtboardComponentList::markLayoutNodeDirty(
 {
     bool parentIsRow = mainAxisIsRow();
     bool parentIsStack = isStack();
-    for (int i = 0; i < artboardCount(); i++)
-    {
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
-        {
-            artboard->parentIsRow(parentIsRow);
-            artboard->parentIsStack(parentIsStack);
-        }
-    }
+    forEachRealized([&](int, ArtboardInstance* artboard) {
+        artboard->parentIsRow(parentIsRow);
+        artboard->parentIsStack(parentIsStack);
+    });
 }
 
 enum class WindowState : uint8_t
@@ -325,19 +323,14 @@ void ArtboardComponentList::updateLayoutBounds(bool animate)
     // report their size.
     const bool hasVirtualWindow =
         virtualizationEnabled() && m_windowVisibleCount > 0;
-    for (int i = 0; i < artboardCount(); i++)
-    {
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
+    forEachRealized([&](int i, ArtboardInstance* artboard) {
+        artboard->updateLayoutBounds(animate);
+        if (!hasVirtualWindow || isWithinVisibleWindow(i))
         {
-            artboard->updateLayoutBounds(animate);
-            if (!hasVirtualWindow || isWithinVisibleWindow(i))
-            {
-                auto bounds = artboard->layoutBounds();
-                setItemSize(Vec2D(bounds.width(), bounds.height()), i);
-            }
+            auto bounds = artboard->layoutBounds();
+            setItemSize(Vec2D(bounds.width(), bounds.height()), i);
         }
-    }
+    });
 #endif
     computeLayoutBounds();
 }
@@ -349,17 +342,12 @@ bool ArtboardComponentList::cascadeLayoutStyle(
     float inheritedInterpolationTime,
     LayoutDirection direction)
 {
-    for (int i = 0; i < (int)artboardCount(); i++)
-    {
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
-        {
-            artboard->cascadeLayoutStyle(inheritedInterpolation,
-                                         inheritedInterpolator,
-                                         inheritedInterpolationTime,
-                                         direction);
-        }
-    }
+    forEachRealized([&](int, ArtboardInstance* artboard) {
+        artboard->cascadeLayoutStyle(inheritedInterpolation,
+                                     inheritedInterpolator,
+                                     inheritedInterpolationTime,
+                                     direction);
+    });
     return false;
 }
 #endif
@@ -367,18 +355,13 @@ bool ArtboardComponentList::cascadeLayoutStyle(
 bool ArtboardComponentList::syncStyleChanges()
 {
     bool changed = false;
-    for (int i = 0; i < artboardCount(); i++)
-    {
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
+    forEachRealized([&](int, ArtboardInstance* artboard) {
+        bool artboardChanged = artboard->syncStyleChanges();
+        if (artboardChanged)
         {
-            bool artboardChanged = artboard->syncStyleChanges();
-            if (artboardChanged)
-            {
-                changed = true;
-            }
+            changed = true;
         }
-    }
+    });
     return changed;
 }
 
@@ -853,14 +836,21 @@ void ArtboardComponentList::updateList(
     m_oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();
     m_listItems.assign(list->begin(), list->end());
-    m_listHasDuplicateItems = hasDuplicateItems(m_listItems);
+    const auto sorted = sortedItems(m_listItems);
+    // Rows that show the same item share its instances, and keeping them in
+    // step takes a scan of every row. Most lists show each item once.
+    m_listHasDuplicateItems =
+        std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end();
     invalidateOrderedListIndicesCache();
     m_artboardSizes.clear();
 
     // Clear the index vectors - they'll be rebuilt as artboards are created
     resetQuietRows(m_listItems.size());
     m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
+    m_realizedIndices.clear();
+    m_itemsVersion++;
     m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
+    quietUnrealizedRows();
 
     auto p = layoutParent();
     if (p != nullptr)
@@ -872,14 +862,14 @@ void ArtboardComponentList::updateList(
     // We need to dispose old items after the layout children of the parent have
     // updated to ensure no bad YGNodes are being hosted from the old data
     // during clearLayoutChildren.
-    for (auto item : m_oldItems)
+    for (const auto& item : m_oldItems)
     {
-        auto it = std::find(m_listItems.begin(), m_listItems.end(), item);
-        if (it == m_listItems.end())
+        if (!std::binary_search(sorted.begin(), sorted.end(), item.get()))
         {
             disposeListItem(item);
         }
     }
+    const bool virtualized = virtualizationEnabled();
     uint32_t index = 0;
     for (auto& item : m_listItems)
     {
@@ -894,14 +884,16 @@ void ArtboardComponentList::updateList(
         if (itr != m_artboardInstancesMap.end())
         {
             // Existing artboard - update index vectors
+            resetQuietRow(index);
             m_artboardInstancesByIndex[index] = itr->second.get();
+            markRealized(index, itr->second != nullptr);
             auto smItr = m_stateMachinesMap.find(item);
             if (smItr != m_stateMachinesMap.end())
             {
                 m_stateMachinesByIndex[index] = smItr->second.get();
             }
         }
-        else if (!virtualizationEnabled())
+        else if (!virtualized)
         {
             createArtboardAt(index, false);
         }
@@ -1013,19 +1005,11 @@ bool ArtboardComponentList::tryQuietRow(size_t row)
 {
     const size_t word = row >> 6;
     const uint64_t bit = uint64_t(1) << (row & 63);
-    // A row sharing its item's instances with other rows can't be judged on
-    // its own.
-    if (m_listHasDuplicateItems || word >= m_quietRows.size() ||
+    if (!canQuietRows() || word >= m_quietRows.size() ||
         (m_neverQuietRows[word] & bit) != 0)
     {
         return false;
     }
-#ifdef TESTING
-    if (!sm_quietRowsEnabled)
-    {
-        return false;
-    }
-#endif
     switch (rowQuietState(row))
     {
         case AdvancingComponent::QuietState::never:
@@ -1042,6 +1026,32 @@ bool ArtboardComponentList::tryQuietRow(size_t row)
         artboard->quietHostRow(static_cast<uint32_t>(row));
     }
     return true;
+}
+
+bool ArtboardComponentList::canQuietRows() const
+{
+#ifdef TESTING
+    if (!sm_quietRowsEnabled)
+    {
+        return false;
+    }
+#endif
+    // A row sharing its item's instances with other rows can't be judged on
+    // its own.
+    return !m_listHasDuplicateItems;
+}
+
+void ArtboardComponentList::quietUnrealizedRows()
+{
+    if (!canQuietRows() || m_quietRows.empty())
+    {
+        return;
+    }
+    std::fill(m_quietRows.begin(), m_quietRows.end(), ~uint64_t(0));
+    if (size_t tail = m_listItems.size() & 63)
+    {
+        m_quietRows.back() = (uint64_t(1) << tail) - 1;
+    }
 }
 
 void ArtboardComponentList::resetQuietRow(size_t row)
@@ -1654,25 +1664,15 @@ void ArtboardComponentList::update(ComponentDirt value)
         // Mark semantic bounds dirty for nodes inside each list item
         // artboard. Their root-space bounds depend on the host's
         // world transform.
-        for (int i = 0; i < artboardCount(); i++)
-        {
-            auto artboard = artboardInstance(i);
-            if (artboard != nullptr)
-            {
-                artboard->markSemanticBoundaryTransformDirty();
-            }
-        }
+        forEachRealized([&](int, ArtboardInstance* artboard) {
+            artboard->markSemanticBoundaryTransformDirty();
+        });
     }
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
-        for (int i = 0; i < artboardCount(); i++)
-        {
-            auto artboard = artboardInstance(i);
-            if (artboard != nullptr)
-            {
-                artboard->opacity(renderOpacity());
-            }
-        }
+        forEachRealized([&](int, ArtboardInstance* artboard) {
+            artboard->opacity(renderOpacity());
+        });
     }
     if (hasDirt(value, ComponentDirt::Components))
     {
@@ -1953,6 +1953,7 @@ void ArtboardComponentList::addArtboardAt(
             resetQuietRow(index);
             m_artboardInstancesByIndex[index] = artboardInstance;
             m_stateMachinesByIndex[index] = stateMachineInstance;
+            markRealized(index, artboardInstance != nullptr);
         }
         // After the instance is findable by index, which the sync reads.
         if (forceLayoutSync)
@@ -2169,12 +2170,22 @@ void ArtboardComponentList::removeVirtualizable(int index)
 
 void ArtboardComponentList::realizedIndices(std::vector<int>& out)
 {
-    for (int i = 0; i < (int)m_artboardInstancesByIndex.size(); i++)
+    out.insert(out.end(), m_realizedIndices.begin(), m_realizedIndices.end());
+}
+
+void ArtboardComponentList::markRealized(size_t index, bool realized)
+{
+    auto it = std::lower_bound(m_realizedIndices.begin(),
+                               m_realizedIndices.end(),
+                               (int)index);
+    bool present = it != m_realizedIndices.end() && *it == (int)index;
+    if (realized && !present)
     {
-        if (m_artboardInstancesByIndex[i] != nullptr)
-        {
-            out.push_back(i);
-        }
+        m_realizedIndices.insert(it, (int)index);
+    }
+    else if (!realized && present)
+    {
+        m_realizedIndices.erase(it);
     }
 }
 
@@ -2259,9 +2270,10 @@ Vec2D ArtboardComponentList::itemSize(int index)
 
 void ArtboardComponentList::setItemSize(Vec2D size, int index)
 {
-    if (index < m_artboardSizes.size())
+    if (index < m_artboardSizes.size() && m_artboardSizes[index] != size)
     {
         m_artboardSizes[index] = size;
+        m_itemsVersion++;
     }
 }
 

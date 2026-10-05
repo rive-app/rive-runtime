@@ -33,8 +33,6 @@ private:
     bool m_windowsColumns = false;
     // Whether the last pass pinned grid cells, which the next must undo.
     bool m_pinnedCells = false;
-    int m_lineStart = 0;
-    int m_lineEnd = -1;
     float m_flowOffset = 0;
     float m_columnStart = 0;
     float m_columnViewport = 0;
@@ -53,9 +51,6 @@ public:
                    bool windowsColumns = false);
     void virtualize(ScrollConstraint* scroll,
                     std::vector<LayoutNodeProvider*>& children);
-    // Lines the last pass realized, unwrapped.
-    int realizedLineStart() const { return m_lineStart; }
-    int realizedLineEnd() const { return m_lineEnd; }
     // How far the anchor item's line moved along the scroll axis since the
     // last pass, given the rebuilt layout; 0 when there's no anchor.
     float anchorMoved(const VirtualLayout& layout,

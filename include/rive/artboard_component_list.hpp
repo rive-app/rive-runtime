@@ -106,6 +106,9 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     bool isLayoutProvider() override { return true; }
     size_t numLayoutNodes() override { return m_listItems.size(); }
+#ifdef WITH_RIVE_LAYOUT
+    void collectLayoutNodes(std::vector<void*>& out) override;
+#endif
     void clear();
     void file(File*) override;
     File* file() const override;
@@ -118,6 +121,7 @@ public:
     void virtualizableChanged() override;
     void removeVirtualizable(int index) override;
     void realizedIndices(std::vector<int>& out) override;
+    uint32_t itemsVersion() override { return m_itemsVersion; }
     void clearVirtualWindow() override;
     void addToVirtualWindow(int index, bool visible) override;
     void shouldResetInstances(bool value);
@@ -218,6 +222,23 @@ private:
 
     File* m_file = nullptr;
     std::vector<Vec2D> m_artboardSizes;
+    // Bumped when the items or their sizes change.
+    uint32_t m_itemsVersion = 0;
+    // Rows holding an artboard, sorted; per-row loops visit only these.
+    std::vector<int> m_realizedIndices;
+    void markRealized(size_t index, bool realized);
+    // A copy, so the callback may realize or recycle rows.
+    template <typename F> void forEachRealized(F callback)
+    {
+        auto realized = m_realizedIndices;
+        for (int i : realized)
+        {
+            if (auto artboard = m_artboardInstancesByIndex[i])
+            {
+                callback(i, artboard);
+            }
+        }
+    }
     Vec2D m_layoutSize;
     // Realized items in walk order, and each item's place in the window.
     std::vector<int> m_windowOrder;
@@ -267,8 +288,11 @@ private:
     // The first row at or after `row` that isn't quiet, or the row count.
     size_t nextAwakeRow(size_t row) const;
     bool isRowQuiet(size_t row) const;
+    bool canQuietRows() const;
     // Marks the row quiet if its work would do nothing; true if it did.
     bool tryQuietRow(size_t row);
+    // Quiets every row while none are realized; realizing a row wakes it.
+    void quietUnrealizedRows();
     // Whether the row's work would do nothing right now.
     AdvancingComponent::QuietState rowQuietState(size_t row);
     // Wakes the row and forgets it can't be quiet: its instances are about to

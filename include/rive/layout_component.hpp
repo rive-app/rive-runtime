@@ -490,14 +490,13 @@ public:
     void heightOverride(float height, int unitValue = 1, bool isRow = true);
     void parentIsRow(bool isRow);
     void parentIsStack(bool isStack);
-    // Pins this hosted item to a grid cell (0-based) while a virtualized grid
-    // realizes it away from where layout would auto-place it; -1 clears it.
+    // Pins this hosted item to its grid cell (0-based) while a virtualized
+    // grid realizes it; -1 clears it.
     void virtualGridCell(int column, int row);
-    // Track sizes a virtualized grid imposes over its authored tracks: a
-    // column size >= 0 fixes that template column, and rows replace the
-    // template rows with the realized rows' heights. Both empty clears.
-    void virtualGridTracks(const std::vector<float>& columns,
-                           const std::vector<float>& rows);
+    // Content sizes of a virtualized grid's items per row and column; layout
+    // sizes every track as if all of them were realized. Both empty clears.
+    void virtualGridContributions(const std::vector<float>& rows,
+                                  const std::vector<float>& columns);
     void widthIntrinsicallySizeOverride(bool intrinsic);
     void heightIntrinsicallySizeOverride(bool intrinsic);
     virtual bool canHaveOverrides() { return false; }
@@ -525,9 +524,9 @@ public:
     LayoutContainerAlignment childAlignment();
     // A grid (not a stack): children auto-place into rows of cells.
     bool isGridContainer();
-    // Resolved column line positions in local space after layout; empty unless
-    // this is a solved grid.
-    void gridColumnLineOffsets(std::vector<float>& out);
+    // Resolved row or column line positions in local space after layout,
+    // empty unless this is a solved grid; returns the gap between their tracks.
+    float gridLines(bool rows, std::vector<float>& out);
     // Whether this layout stacks its children, for hosts that push the
     // container's state into a hosted artboard.
     bool isStackContainer();

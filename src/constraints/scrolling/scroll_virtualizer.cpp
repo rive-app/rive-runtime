@@ -68,7 +68,13 @@ float ScrollVirtualizer::anchorMoved(
             return 0.0f;
         }
     }
-    return layout.lineStart(layout.lineOfItem(item)) - m_anchorStart;
+    // A row layout hasn't placed yet sits at a guess, not where it moved.
+    int line = layout.lineOfItem(item);
+    if (!layout.lineLaidOut(line))
+    {
+        return 0.0f;
+    }
+    return layout.lineStart(line) - m_anchorStart;
 }
 
 bool ScrollVirtualizer::constrain(ScrollConstraint* scroll,
@@ -139,8 +145,6 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
     int buffer =
         std::min(static_cast<int>(scroll->virtualizeBuffer()), totalItemCount);
     auto window = layout->window(m_offset, m_viewportSize, m_infinite, buffer);
-    m_lineStart = window.start;
-    m_lineEnd = window.end;
     // Only realized columns of each realized row exist when columns window.
     bool windowsColumns = m_windowsColumns && layout->isGrid();
     // A carousel scrolled both ways cycles its columns too; whole cycles
@@ -189,7 +193,8 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
     // Recycle what the lists hold that this window doesn't. They're asked
     // rather than remembered: a list update moves held items to new indices.
     // Line indices wrap through the layout, so these are list items.
-    std::vector<uint8_t> used(totalItemCount, 0);
+    // Sized to the window, not the list, so a pass costs what it shows.
+    std::vector<int> used;
     for (int line = window.start; line <= window.end; line++)
     {
         for (int item = layout->lineFirstItem(line),
@@ -199,10 +204,14 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
         {
             if (inColumns(line, item))
             {
-                used[item] = 1;
+                used.push_back(item);
             }
         }
     }
+    std::sort(used.begin(), used.end());
+    auto isUsed = [&](int item) {
+        return std::binary_search(used.begin(), used.end(), item);
+    };
     // An item listed more than once shares its instance across its indices:
     // keep it while any of them is used, and recycle it once.
     std::vector<int> held;
@@ -235,7 +244,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
         for (int index : held)
         {
             heldItems.push_back(virt->item(index));
-            if (index < count && used[first + index])
+            if (index < count && isUsed(first + index))
             {
                 kept.push_back(heldItems.back());
             }
@@ -243,7 +252,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
         for (size_t i = 0; i < held.size(); i++)
         {
             int index = held[i];
-            if (index < count && used[first + index])
+            if (index < count && isUsed(first + index))
             {
                 continue;
             }
@@ -266,6 +275,10 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
          m_anchorItem < 0;
          line++)
     {
+        if (!layout->lineLaidOut(line))
+        {
+            break;
+        }
         int first = layout->lineFirstItem(line);
         int last = layout->lineLastItem(line);
         int columnsShown =
@@ -342,15 +355,15 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
                 virt->addVirtualizable(childIndex);
                 changedVirtualizingComponents.emplace(virt);
             }
-            // A row realized from a later column would auto-place from column
-            // 0; pin it to its own cell, in a row of the realized rows (layout
-            // only has those). Unpin once a pass stops pinning.
+            // Layout holds every row, so a realized item takes its own cell
+            // rather than the next free one. Unpin once a pass stops pinning.
             if (layout->isGrid() || m_pinnedCells)
             {
+                bool grid = layout->isGrid();
                 virt->setVirtualizableCell(
                     childIndex,
-                    windowsColumns ? item - layout->lineFirstItem(line) : -1,
-                    windowsColumns ? line - window.start : -1);
+                    grid ? item - layout->lineFirstItem(line) : -1,
+                    grid ? layout->wrapLine(line) : -1);
             }
 
             auto virtualizable = virt->item(childIndex);
@@ -408,7 +421,7 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
                 virt->item(m_anchorItem - layout->segmentStart(segment));
         }
     }
-    m_pinnedCells = windowsColumns;
+    m_pinnedCells = layout->isGrid();
     for (auto& virtualizingComponent : changedVirtualizingComponents)
     {
         virtualizingComponent->virtualizableChanged();

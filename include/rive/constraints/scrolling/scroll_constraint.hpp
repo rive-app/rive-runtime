@@ -38,6 +38,14 @@ private:
     ScrollVirtualizer* m_virtualizer = nullptr;
     // Geometry of virtualized content; only allocated when virtualizing.
     VirtualLayout* m_virtualLayout = nullptr;
+    // What the virtual layout was built from: every input but item sizes, and
+    // each scroll child's version of those. It rebuilds only when they change.
+    std::vector<float> m_virtualInputs;
+    std::vector<uint32_t> m_virtualVersions;
+    std::vector<float> m_columnLines;
+    std::vector<float> m_rowLines;
+    // A rebuild layout hasn't been given the new grid contents for yet.
+    bool m_contributionsStale = false;
     std::vector<LayoutNodeProvider*> m_layoutChildren;
 
     TransformComponents m_componentsA;
@@ -71,11 +79,13 @@ private:
     float maxOffsetYForPercent();
     bool isBoundsCollapsed(AABB bounds);
     std::vector<Vec2D> collectSnapPoints();
-    void refreshVirtualLayout();
+    // Returns whether the layout was rebuilt.
+    bool refreshVirtualLayout();
     // The virtual layout, built if it's stale; null unless virtualizing.
     const VirtualLayout* ensureVirtualLayout();
-    // Gives layout the grid track sizes only the model knows.
-    void syncVirtualGridTracks();
+    // Gives layout the row and column contents of every grid item, realized
+    // or not.
+    void syncVirtualGridContributions();
     // Keeps the first item on screen in place when content before it resized.
     void anchorScroll(float moved, bool isColumn);
     float virtualContentExtent(float padding);
