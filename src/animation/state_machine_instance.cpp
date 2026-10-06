@@ -3847,6 +3847,11 @@ void StateMachineInstance::reset() {}
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
+    // This is the host's per-frame entry point, and it reaches the artboard
+    // through advanceInternal, which skips the poll Artboard::advance does.
+    // Deliver finished async work (script image decodes, fetches) here so
+    // their promises resolve before script callbacks run.
+    m_artboardInstance->pollAsyncWork();
     if (m_artboardInstance->advanceWatermark(seconds))
     {
         // The file's watermark is playing: settle the artboard at time zero so
@@ -3856,7 +3861,11 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         advanceAndApply(0.0f, true);
         return true;
     }
-    return advanceAndApply(seconds, true);
+    // Keep going while this artboard's scripts have async work outstanding,
+    // even once settled: a host that stops ticking on false would never poll
+    // the result in.
+    return advanceAndApply(seconds, true) ||
+           m_artboardInstance->hasPendingAsyncWork();
 }
 
 bool StateMachineInstance::advanceAndApply(float seconds,

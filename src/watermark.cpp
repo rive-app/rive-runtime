@@ -129,8 +129,11 @@ bool Watermark::advance(float elapsedSeconds)
 
     // A settled state machine is the completion signal. Note that advancing by
     // zero always reports "keep going", so the priming zero-advance embedders
-    // do right after instancing can't complete the watermark early.
-    bool more = m_stateMachine->advanceAndApply(seconds);
+    // do right after instancing can't complete the watermark early. The
+    // internal overload, because the host entry point also reports its file's
+    // pending async work, and the watermark lives in the host's file: its
+    // decodes in flight would hold the watermark up.
+    bool more = m_stateMachine->advanceAndApply(seconds, true);
     m_elapsedSeconds += seconds;
     m_finished = !more || m_elapsedSeconds >= watermarkMaxSeconds;
 

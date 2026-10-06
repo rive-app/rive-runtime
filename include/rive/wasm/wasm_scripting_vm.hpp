@@ -243,6 +243,13 @@ public:
     /// Delivers the decode and fetch outcomes that landed while a module
     /// call was running; a no-op while one still is.
     void deliverHeldOutcomes();
+    /// True while a decode or fetch this VM started has yet to reach the
+    /// module, held outcomes included.
+    bool hasPendingAsyncWork() const
+    {
+        return !m_pendingDecodes.empty() || !m_pendingFetches.empty() ||
+               !m_heldOutcomes.empty();
+    }
 
     // ScriptBackend.
     bool valid() const override;

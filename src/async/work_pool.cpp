@@ -96,6 +96,17 @@ uint32_t WorkPool::pollCompletedWork(uint32_t maxCallbacks)
 
 bool WorkPool::hasPendingWork() const { return !m_workQueue.empty(); }
 
+bool WorkPool::hasPendingWorkForOwner(uint64_t ownerId) const
+{
+    // Tasks leave the queue as they are delivered, so it holds exactly the
+    // undelivered ones.
+    return std::any_of(m_workQueue.begin(),
+                       m_workQueue.end(),
+                       [ownerId](const rcp<WorkTask>& task) {
+                           return task->ownerId() == ownerId;
+                       });
+}
+
 void WorkPool::cancelAllForOwner(uint64_t ownerId)
 {
     // Only set the cancel flag here. onCancel() is delivered once from
@@ -170,6 +181,7 @@ uint64_t WorkPool::submit(rcp<WorkTask> task)
         task->setStatus(WorkStatus::Pending);
         task->setSubmitGeneration(m_cancelGeneration);
         handle = m_nextHandle++;
+        m_undeliveredByOwner[task->ownerId()]++;
         m_workQueue.push_back(std::move(task));
     }
     m_haveWork.notify_one();
@@ -239,6 +251,12 @@ uint32_t WorkPool::pollCompletedWork(uint32_t maxCallbacks)
         bool ownerCancelled = false;
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
+            auto undelivered = m_undeliveredByOwner.find(task->ownerId());
+            if (undelivered != m_undeliveredByOwner.end() &&
+                --undelivered->second == 0)
+            {
+                m_undeliveredByOwner.erase(undelivered);
+            }
             auto it = m_cancelledOwners.find(task->ownerId());
             if (it != m_cancelledOwners.end())
             {
@@ -281,6 +299,12 @@ bool WorkPool::hasPendingWork() const
             return true;
     }
     return false;
+}
+
+bool WorkPool::hasPendingWorkForOwner(uint64_t ownerId) const
+{
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(m_queueMutex));
+    return m_undeliveredByOwner.count(ownerId) != 0;
 }
 
 void WorkPool::cancelAllForOwner(uint64_t ownerId)

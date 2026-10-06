@@ -624,6 +624,11 @@ public:
     /// script callbacks run. Called at the top of advance().
     void pollAsyncWork();
 
+    /// True while async work this artboard's scripting VMs started has yet
+    /// to be delivered. Scoped to those VMs: another file's slow fetch
+    /// doesn't count.
+    bool hasPendingAsyncWork();
+
     // Draws with the color modulation set from each drawable's property of
     // this key: a number as a gray level, a color as is. Levels multiply
     // down through tagged drawables that hold others.

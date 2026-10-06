@@ -242,6 +242,13 @@ uint32_t nextDecodeId()
 
 } // namespace
 
+// The glue below reaches its callbacks by bare name, never as Module.*
+// properties: release builds run Closure, which renames a dotted
+// Module._wasm_image_decode_complete to an undefined one while the real
+// exports keep their names, so every decode threw and its promise never
+// settled. It calls only this file's own exports, so it needs no EM_JS_DEPS,
+// which Unity's oldest WebGL toolchain (Emscripten 3.1.8) predates.
+
 // Start a browser-native image decode. createImageBitmap is async; the JS
 // callback fires between frames and calls back into C++ to resolve the promise.
 EM_JS(void,
@@ -265,31 +272,32 @@ EM_JS(void,
 
                   // Allocate WASM memory and copy pixels.
                   var numBytes = imageData.data.length;
-                  var ptr = Module._malloc(numBytes);
+                  var ptr = _wasm_image_decode_alloc(numBytes);
                   // malloc may grow memory, so view the buffer after it.
                   new Uint8Array(wasmMemory.buffer, ptr, numBytes)
                       .set(imageData.data);
 
-                  Module._wasm_image_decode_complete(requestId,
-                                                     bmp.width,
-                                                     bmp.height,
-                                                     ptr,
-                                                     numBytes);
+                  _wasm_image_decode_complete(requestId,
+                                              bmp.width,
+                                              bmp.height,
+                                              ptr,
+                                              numBytes);
               })
-              .catch(function(err) {
-                  var msg = err.message || "decode failed";
-                  var msgLen = Module.lengthBytesUTF8(msg) + 1;
-                  var msgPtr = Module._malloc(msgLen);
-                  Module.stringToUTF8(msg, msgPtr, msgLen);
-                  Module._wasm_image_decode_error(requestId, msgPtr);
-                  Module._free(msgPtr);
-              });
+              .catch(function() { _wasm_image_decode_error(requestId); });
       });
 
 // C callbacks invoked by JS when createImageBitmap resolves/rejects.
 extern "C"
 {
     using namespace rive;
+
+    // The glue allocates the pixel buffer through this rather than _malloc,
+    // which reaches JS only when something declares a dependency on it.
+    EMSCRIPTEN_KEEPALIVE
+    uint8_t* wasm_image_decode_alloc(int numBytes)
+    {
+        return static_cast<uint8_t*>(malloc(numBytes));
+    }
 
     EMSCRIPTEN_KEEPALIVE
     void wasm_image_decode_complete(uint32_t requestId,
@@ -354,8 +362,11 @@ extern "C"
         free(pixels);
     }
 
+    // Rejects with the native path's message rather than the browser's, so a
+    // script sees the same error on every platform and the glue needs no
+    // string marshalling.
     EMSCRIPTEN_KEEPALIVE
-    void wasm_image_decode_error(uint32_t requestId, const char* msg)
+    void wasm_image_decode_error(uint32_t requestId)
     {
         auto it = s_pendingDecodes.find(requestId);
         if (it == s_pendingDecodes.end())
@@ -373,7 +384,7 @@ extern "C"
 
             if (promise && promise->isPending())
             {
-                lua_pushstring(L, msg);
+                lua_pushstring(L, "failed to decode image data");
                 promise->reject(L, lua_gettop(L));
                 lua_pop(L, 1);
             }
@@ -401,6 +412,20 @@ void wasm_cancelPendingDecodes(lua_State* mainThread)
             ++it;
         }
     }
+}
+
+// Whether a decode mainThread started is still waiting on the browser. These
+// bypass the WorkPool, so its owner-scoped check can't see them.
+bool wasm_hasPendingDecodes(lua_State* mainThread)
+{
+    for (const auto& entry : s_pendingDecodes)
+    {
+        if (entry.second.state == mainThread)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 } // namespace rive
 

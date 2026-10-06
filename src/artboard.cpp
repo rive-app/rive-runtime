@@ -1461,6 +1461,34 @@ void Artboard::pollAsyncWork()
 #endif
 }
 
+bool Artboard::hasPendingAsyncWork()
+{
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+    if (m_scriptingVM != nullptr)
+    {
+        auto* context = m_scriptingVM->context();
+        if (context != nullptr &&
+            context->hasPendingAsyncWork(m_scriptingVM->state()))
+        {
+            return true;
+        }
+    }
+#endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    if (auto f = artboardFile())
+    {
+        for (auto& vm : f->wasmVMs())
+        {
+            if (vm->hasPendingAsyncWork())
+            {
+                return true;
+            }
+        }
+    }
+#endif
+    return false;
+}
+
 Core* Artboard::resolve(Id id) const
 {
 #ifdef WITH_RIVE_EDITOR

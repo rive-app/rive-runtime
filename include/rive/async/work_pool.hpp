@@ -46,6 +46,10 @@ public:
     /// completed-but-unpolled.
     bool hasPendingWork() const;
 
+    /// hasPendingWork() for one owner's tasks: true until each one ownerId
+    /// submitted has been delivered by pollCompletedWork().
+    bool hasPendingWorkForOwner(uint64_t ownerId) const;
+
     /// Cancel all tasks belonging to the given owner.
     void cancelAllForOwner(uint64_t ownerId);
 
@@ -64,6 +68,9 @@ private:
     // Maps ownerId → cancel generation. A task is owner-cancelled only if
     // its submit generation is less than the owner's cancel generation.
     std::unordered_map<uint64_t, uint64_t> m_cancelledOwners;
+    // Submitted but not yet delivered, per owner (entries erased at zero), so
+    // hasPendingWorkForOwner() sees tasks running on a worker too.
+    std::unordered_map<uint64_t, uint32_t> m_undeliveredByOwner;
     std::atomic<int> m_inFlightCount{0};
     uint64_t m_cancelGeneration = 0;
     bool m_shutdown = false;

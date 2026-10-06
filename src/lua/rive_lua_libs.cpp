@@ -815,6 +815,7 @@ WorkPool* ScriptingContext::workPool()
 // Forward-declared in lua_image_decode.cpp (WASM only).
 #ifdef __EMSCRIPTEN__
 extern void wasm_cancelPendingDecodes(lua_State* mainThread);
+extern bool wasm_hasPendingDecodes(lua_State* mainThread);
 #endif
 
 void ScriptingContext::shutdownAsync()
@@ -838,6 +839,31 @@ void ScriptingContext::shutdownAsyncForState(lua_State* mainThread)
     shutdownAsync();
 #ifdef __EMSCRIPTEN__
     wasm_cancelPendingDecodes(mainThread);
+#endif
+}
+
+bool ScriptingContext::hasPendingAsyncWork(lua_State* mainThread) const
+{
+#ifdef __EMSCRIPTEN__
+    if (wasm_hasPendingDecodes(mainThread))
+    {
+        return true;
+    }
+#endif
+    // No id yet means this context never started pool or network work.
+    if (m_ownerId == 0)
+    {
+        return false;
+    }
+    auto& pool = getGlobalWorkPoolIfExists();
+    if (pool && pool->hasPendingWorkForOwner(m_ownerId))
+    {
+        return true;
+    }
+#ifdef WITH_RIVE_SCRIPTNET
+    return scriptnet::hasPendingWorkForOwner(m_ownerId);
+#else
+    return false;
 #endif
 }
 

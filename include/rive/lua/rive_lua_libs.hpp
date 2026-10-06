@@ -2002,6 +2002,11 @@ public:
     // that bypass WorkPool. Call from ~ScriptingVM with the main lua_State.
     void shutdownAsyncForState(lua_State* mainThread);
 
+    // True while async work this context started (image decodes, fetches)
+    // has yet to be delivered, including WASM browser-native decodes started
+    // on mainThread. Other contexts' work doesn't count.
+    bool hasPendingAsyncWork(lua_State* mainThread) const;
+
     // WebGL/WASM only: whether an ore frame is currently open for this VM.
     // riveLuaPCall uses this to auto-open a mini-frame when Lua callbacks
     // fire outside the normal render boundary (e.g. Coop stream events).

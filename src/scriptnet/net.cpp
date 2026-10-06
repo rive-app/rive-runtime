@@ -492,6 +492,24 @@ bool hasPendingWork()
     return false;
 }
 
+bool hasPendingWorkForOwner(uint64_t ownerId)
+{
+    Net& net = Net::instance();
+    if (net.outstandingCount.load(std::memory_order_relaxed) == 0)
+    {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(net.mutex);
+    for (const auto& entry : net.outstanding)
+    {
+        if (entry.second.ownerId == ownerId)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void complete(RequestId id, HttpResponse&& response)
 {
     Net& net = Net::instance();

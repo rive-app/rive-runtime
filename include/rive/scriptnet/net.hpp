@@ -91,6 +91,9 @@ uint32_t poll(uint32_t maxDeliveries = 16);
 /// delivery.
 bool hasPendingWork();
 
+/// hasPendingWork() for the requests `ownerId` started, on any thread.
+bool hasPendingWorkForOwner(uint64_t ownerId);
+
 /// Any thread. The provider's outcome for `id`; ignored once `id` has been
 /// cancelled, timed out or already completed.
 void complete(RequestId id, HttpResponse&& response);
