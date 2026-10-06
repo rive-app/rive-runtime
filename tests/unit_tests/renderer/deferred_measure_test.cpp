@@ -128,6 +128,7 @@ public:
     void cap(StrokeCap) override {}
     void blendMode(BlendMode) override {}
     void shader(rcp<RenderShader>) override {}
+    void shaderTransform(const Mat2D&) override {}
     void invalidateStroke() override {}
     void feather(float) override {}
 };

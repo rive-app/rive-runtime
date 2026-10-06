@@ -338,39 +338,69 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
         mergedVertexID -= mergedSegmentCount;
         mergedSegmentCount = joinSegmentCount;
         radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
-        if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+        bool isEmulatedCap =
+            (contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u;
+        if (isEmulatedCap ||
+            (contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
         {
-            // Miter or bevel join vertices snap to either tangents[0] or
-            // tangents[1], and get adjusted in the shader that follows.
-            if (mergedVertexID < 2.5) // With 5 join segments, this branch will
-                                      // see IDs: 1, 2, 3, 4.
-                contourIDWithFlags |= JOIN_TANGENT_0_CONTOUR_FLAG;
-            if (mergedVertexID > 1.5 && mergedVertexID < 3.5)
-                contourIDWithFlags |= JOIN_TANGENT_INNER_CONTOUR_FLAG;
-        }
-        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) !=
-                     0u ||
-                 (contourIDWithFlags & JOIN_TYPE_MASK) ==
-                     FEATHER_JOIN_CONTOUR_FLAG)
-        {
-            // Round caps emulated as joins and feather joins need to emit
-            // vertices at T=0 and T=1, unlike normal round joins. Preserve
-            // the same number of vertices, but adjust our stepping
+            // Unlike cubics, typical joins don't emit spokes at the beginning
+            // or end of the section (they share those spokes with their
+            // neighbor cubics instead.)
+            //
+            // BUT, caps being emulated by joins don't have a neighbor to share
+            // one of their sides with, so those do emit spokes at the beginning
+            // and end of the section. Feather joins also need spokes at the
+            // beginning and end.
+            //
+            // Preserve the same number of vertices, but adjust our stepping
             // parameters so we begin at T=0 and end at T=1. (The CPU should
             // have known we were going to add vertices here and increased our
             // count to make sure the tessellation would still be smooth).
             mergedSegmentCount -= 2.;
             --mergedVertexID;
         }
-        contourIDWithFlags |= radsPerPolarSegment < .0
-                                  ? LEFT_JOIN_CONTOUR_FLAG
-                                  : RIGHT_JOIN_CONTOUR_FLAG;
+        bool isCapClosingSpoke =
+            isEmulatedCap &&
+            (mergedVertexID == 0. || mergedVertexID == mergedSegmentCount);
+        if (isCapClosingSpoke)
+        {
+            // The tessellator and vertex shader need to treat opening and
+            // closing spokes of caps emulated as joins like normal cubic spokes
+            // (leave them full-width as opposed to half so we don't create a
+            // T-junction with the cubic edge we're capping, don't reposition
+            // miter/bevel spokes, etc.).
+            //
+            // The purpose of these spokes is to stand in for what normally
+            // would have been a neighboring full-length cubic spoke, but is
+            // absent from the neighbor-less side of a 180-degree join that is
+            // standing in for a cap.
+            contourIDWithFlags &= ~JOIN_TYPE_MASK;
+        }
+        else
+        {
+            contourIDWithFlags |= radsPerPolarSegment < .0
+                                      ? LEFT_JOIN_CONTOUR_FLAG
+                                      : RIGHT_JOIN_CONTOUR_FLAG;
+        }
+        if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+        {
+            // We belong to a miter or bevel join.
+            float halfJoin = mergedSegmentCount * .5;
+            if (mergedVertexID < halfJoin)
+                contourIDWithFlags |= JOIN_TANGENT_0_CONTOUR_FLAG;
+            if (mergedSegmentCount > 3. && mergedVertexID > halfJoin - 1. &&
+                mergedVertexID < halfJoin + 1.)
+                contourIDWithFlags |= JOIN_TANGENT_INNER_CONTOUR_FLAG;
+            // Miter and bevel spokes snap to either the beginning or end
+            // of the join section, and then get placed by the vertex shader.
+            mergedVertexID =
+                mergedVertexID < halfJoin ? .0 : mergedSegmentCount;
+        }
     }
 
     float2 tessCoord;
     float theta = .0;
-    if (mergedVertexID == .0 || mergedVertexID == mergedSegmentCount ||
-        (contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
+    if (mergedVertexID == .0 || mergedVertexID == mergedSegmentCount)
     {
         // Tessellated vertices at the beginning and end of the strip use exact
         // endpoints and tangents. This ensures crack-free seaming between

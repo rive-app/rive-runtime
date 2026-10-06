@@ -89,6 +89,10 @@ enum class SerializeOp : uint32_t
     // additiveness: only written once a paint leaves center, so a stream with
     // no inside or outside strokes is byte for byte what it was before.
     strokePosition = 43, // paint id, value
+
+    // Note: logically this should be placed next to `shader`, but existing
+    // .sriv files encode these values, so this list is append-only.
+    shaderTransform = 44,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

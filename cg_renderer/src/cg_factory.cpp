@@ -202,6 +202,7 @@ private:
     CGLineCap m_cap = kCGLineCapButt;
     CGBlendMode m_blend = kCGBlendModeNormal;
     rcp<CGRenderShader> m_shader;
+    Mat2D m_gradientTransform;
 
 public:
     CGRenderPaint() {}
@@ -210,6 +211,7 @@ public:
     float opacity() const { return m_rgba[3]; }
 
     CGRenderShader* shader() const { return m_shader.get(); }
+    const Mat2D& gradientTransform() const { return m_gradientTransform; }
 
     void apply(CGContextRef ctx)
     {
@@ -247,6 +249,10 @@ public:
     void shader(rcp<RenderShader> sh) override
     {
         m_shader = lite_rtti_rcp_cast<CGRenderShader>(std::move(sh));
+    }
+    void shaderTransform(const Mat2D& transform) override
+    {
+        m_gradientTransform = transform;
     }
     void invalidateStroke() override {}
 };
@@ -431,6 +437,7 @@ void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
         // opacity
         CGContextSetAlpha(m_ctx, cgpaint->opacity() * m_opacityStack.back());
 
+        CGContextConcatCTM(m_ctx, convert(cgpaint->gradientTransform()));
         sh->draw(m_ctx);
         CGContextRestoreGState(m_ctx);
     }

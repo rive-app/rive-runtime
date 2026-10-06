@@ -298,6 +298,7 @@ public:
         bool fillsDisabled = false;
         bool strokesDisabled = false;
         bool clockwiseFillOverride = false;
+        uint32_t maxCanvasAtlasSize = 0;
         rive::gpu::TriangulationThresholds triangulationThresholds;
 #ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =

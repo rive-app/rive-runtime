@@ -59,6 +59,7 @@ StatusCode ScriptInputTrigger::onAddedClean(CoreContext* context)
 
 void ScriptInputTrigger::propertyValueChanged()
 {
+    CustomPropertyTrigger::propertyValueChanged();
     if (propertyValue() != 0)
     {
         scriptedObject()->trigger(name());

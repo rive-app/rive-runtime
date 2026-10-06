@@ -204,6 +204,7 @@ ScriptedPaint::ScriptedPaint(Factory* factory, const ScriptedPaint& source) :
     feather(source.m_feather);
     blendMode(source.m_blendMode);
     gradient(source.m_gradient);
+    gradientTransform(source.m_gradientTransform);
 }
 
 static bool paint_set_value(lua_State* L,
@@ -243,6 +244,14 @@ static bool paint_set_value(lua_State* L,
             {
                 renderPaint->gradient(nullptr);
             }
+            return true;
+        }
+        case (int)LuaAtoms::gradientTransform:
+        {
+            ScriptedMat2D* transform =
+                lua_torive<ScriptedMat2D>(L, valueIndex, true);
+            renderPaint->gradientTransform(
+                transform != nullptr ? transform->value : Mat2D());
             return true;
         }
         case (int)LuaAtoms::color:
@@ -454,6 +463,10 @@ void ScriptedPaintData::pushGradient(lua_State* L)
         lua_pushnil(L);
     }
 }
+void ScriptedPaintData::pushGradientTransform(lua_State* L)
+{
+    lua_newrive<ScriptedMat2D>(L, m_gradientTransform);
+}
 void ScriptedPaintData::pushColor(lua_State* L)
 {
     lua_pushunsigned(L, m_color);
@@ -492,6 +505,9 @@ static int paint_index(lua_State* L)
             return 1;
         case (int)LuaAtoms::gradient:
             scriptedPaint->pushGradient(L);
+            return 1;
+        case (int)LuaAtoms::gradientTransform:
+            scriptedPaint->pushGradientTransform(L);
             return 1;
         case (int)LuaAtoms::color:
             scriptedPaint->pushColor(L);

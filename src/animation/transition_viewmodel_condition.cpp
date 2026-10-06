@@ -1,4 +1,6 @@
 #include "rive/animation/transition_viewmodel_condition.hpp"
+#include "rive/custom_property_trigger.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/animation/transition_property_component_comparator.hpp"
 #include "rive/artboard.hpp"
@@ -53,8 +55,9 @@ public:
         if (dataBind != nullptr)
         {
             auto source = dataBind->source();
-            if (source != nullptr && source->hasChanged() &&
-                !source->isUsedInLayer(layerInstance))
+            if (source != nullptr &&
+                stateMachineInstance->viewModelValueChanged(source,
+                                                            layerInstance))
             {
                 return true;
             }
@@ -347,6 +350,17 @@ bool describeComponentSide(const TransitionPropertyComponentComparator* comp,
         default:
             return false;
     }
+}
+
+bool isComponentTrigger(const TransitionComparator* comparator)
+{
+    ComponentComparandKind kind;
+    return comparator != nullptr &&
+           comparator->is<TransitionPropertyComponentComparator>() &&
+           describeComponentSide(
+               comparator->as<TransitionPropertyComponentComparator>(),
+               &kind) &&
+           kind == ComponentComparandKind::Trigger;
 }
 
 bool componentKindsCompatible(ComponentComparandKind a,
@@ -856,8 +870,16 @@ bool makeComparand(TransitionComparator* c,
             }
             if (c->is<TransitionPropertyComponentComparator>())
             {
-                slot->uint32 = new ConditionComparandComponentCoreUint(
-                    c->as<TransitionPropertyComponentComparator>());
+                auto* comp = c->as<TransitionPropertyComponentComparator>();
+                if (k == ComponentComparandKind::Trigger)
+                {
+                    slot->uint32 = new ConditionComparandComponentTrigger(comp);
+                }
+                else
+                {
+                    slot->uint32 =
+                        new ConditionComparandComponentCoreUint(comp);
+                }
                 return true;
             }
             return false;
@@ -1067,6 +1089,12 @@ ConditionOperation* TransitionViewModelCondition::operation(
     return new ConditionOperation();
 }
 
+bool TransitionViewModelCondition::readsComponentTrigger() const
+{
+    return isComponentTrigger(leftComparator()) ||
+           isComponentTrigger(rightComparator());
+}
+
 void TransitionViewModelCondition::initialize()
 {
     TransitionComparator* left = leftComparator();
@@ -1229,6 +1257,45 @@ uint32_t ConditionComparandComponentCoreUint::value(
         return 0;
     }
     return CoreRegistry::getUint(target, (int)m_comparator->propertyKey());
+}
+
+uint32_t ConditionComparandTriggerBindable::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    auto bindableInstance =
+        stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+    if (bindableInstance == nullptr)
+    {
+        return 0;
+    }
+    auto dataBind =
+        stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+    auto source = dataBind == nullptr ? nullptr : dataBind->source();
+    return source != nullptr &&
+                   stateMachineInstance->changePending(source->changeSequence())
+               ? 1
+               : 0;
+}
+
+ConditionComparandComponentTrigger::ConditionComparandComponentTrigger(
+    TransitionPropertyComponentComparator* comparator) :
+    m_comparator(comparator)
+{}
+
+uint32_t ConditionComparandComponentTrigger::value(
+    const StateMachineInstance* stateMachineInstance)
+{
+    Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
+    uint64_t changeSequence = 0;
+    if (target != nullptr && target->is<CustomPropertyTrigger>())
+    {
+        changeSequence = target->as<CustomPropertyTrigger>()->changeSequence();
+    }
+    else if (target != nullptr && target->is<ViewModelInstanceValue>())
+    {
+        changeSequence = target->as<ViewModelInstanceValue>()->changeSequence();
+    }
+    return stateMachineInstance->changePending(changeSequence) ? 1 : 0;
 }
 
 bool ConditionComparison::compareNumbers(float left, float right)

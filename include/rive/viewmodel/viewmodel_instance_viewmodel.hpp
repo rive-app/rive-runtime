@@ -47,7 +47,6 @@ public:
         return m_parentViewModelInstance;
     }
     void setRoot(rcp<ViewModelInstance> value) override;
-    void advanced() override;
     void updateViewModel(ViewModelInstance*) override;
     void applyValue(DataValueViewModel*);
     StatusCode import(ImportStack& importStack) override;

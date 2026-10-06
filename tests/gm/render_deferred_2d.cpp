@@ -31,6 +31,8 @@ static RawPath kShape()
     return p;
 }
 
+static const Mat2D GradientTransform = {0.8f, 0.3f, -0.3f, 0.8f, 20, -10};
+
 // Fill and stroke so all paint properties get recorded.
 static void drawScene(Factory* factory, Renderer* renderer)
 {
@@ -64,6 +66,7 @@ static void drawScene(Factory* factory, Renderer* renderer)
     auto gradPaint = factory->makeRenderPaint();
     gradPaint->style(RenderPaintStyle::fill);
     gradPaint->shader(grad);
+    gradPaint->shaderTransform(GradientTransform);
     renderer->drawPath(boxPath.get(), gradPaint.get());
 
     // Exercises paths built verb by verb.

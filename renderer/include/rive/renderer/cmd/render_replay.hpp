@@ -208,6 +208,7 @@ struct PaintShadow
     float additiveness = 0;
     uint8_t blendMode = 3; // srcOver
     RenderHandle shader = kInvalidRenderHandle;
+    Mat2D transform;
     // Modulated image; kInvalidRenderHandle means none (a fresh paint has no
     // image), so a version bump re-applies whatever was last set.
     RenderHandle image = kInvalidRenderHandle;

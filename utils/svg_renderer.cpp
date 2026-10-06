@@ -184,7 +184,7 @@ void SVGRenderer::emitPaintAttributes(std::ostream& out,
         if (shader)
         {
             std::string gradId = "grad" + std::to_string(m_gradientIdCounter++);
-            shader->emitDefs(m_defs, gradId);
+            shader->emitDefs(m_defs, gradId, paint->getShaderTransform());
             out << " stroke=\"url(#" << gradId << ")\"";
         }
         else
@@ -227,7 +227,7 @@ void SVGRenderer::emitPaintAttributes(std::ostream& out,
         if (shader)
         {
             std::string gradId = "grad" + std::to_string(m_gradientIdCounter++);
-            shader->emitDefs(m_defs, gradId);
+            shader->emitDefs(m_defs, gradId, paint->getShaderTransform());
             out << " fill=\"url(#" << gradId << ")\"";
         }
         else if (r != 0 || g != 0 || b != 0)

@@ -639,6 +639,10 @@ NAMESPACES = [
         op('blend_mode', [handle('paint'), u32('value')]),
         op('feather', [handle('paint'), f32('value')]),
         op('shader', [handle('paint'), handle('shader')]),
+        op('shader_transform', [
+            handle('paint'),
+            buf('float', 'values', 'floatCount'),
+        ]),
     ]),
     # 2D canvas: an offscreen Rive render target the script draws into with
     # a frame's Renderer and composites with the image it mints. A zero size

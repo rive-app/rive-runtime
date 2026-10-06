@@ -162,6 +162,7 @@ public:
     void cap(StrokeCap value) override {}
     void blendMode(BlendMode value) override {}
     void shader(rcp<RenderShader>) override {}
+    void shaderTransform(const Mat2D&) override {}
     void invalidateStroke() override {}
     void feather(float value) override {}
     void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&) override

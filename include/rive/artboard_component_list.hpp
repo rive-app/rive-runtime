@@ -40,7 +40,6 @@ class ArtboardComponentList final : public ArtboardComponentListBase,
 {
 private:
     std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
-    std::vector<rcp<ViewModelInstanceListItem>> m_oldItems;
 
 public:
     ArtboardComponentList();
@@ -124,7 +123,6 @@ public:
     uint32_t itemsVersion() override { return m_itemsVersion; }
     void clearVirtualWindow() override;
     void addToVirtualWindow(int index, bool visible) override;
-    void shouldResetInstances(bool value);
     void setVirtualizablePosition(int index, Vec2D position) override;
     void setVirtualizableCell(int index, int column, int row) override;
     void createArtboardAt(int index, bool forceLayoutSync = true);
@@ -230,9 +228,10 @@ private:
     // A copy, so the callback may realize or recycle rows.
     template <typename F> void forEachRealized(F callback)
     {
-        auto realized = m_realizedIndices;
-        for (int i : realized)
+        // Indexed, so a callback that realizes a row can't invalidate it.
+        for (size_t k = 0; k < m_realizedIndices.size(); k++)
         {
+            int i = m_realizedIndices[k];
             if (auto artboard = m_artboardInstancesByIndex[i])
             {
                 callback(i, artboard);
@@ -240,6 +239,10 @@ private:
         }
     }
     Vec2D m_layoutSize;
+    // What m_layoutSize was summed from.
+    uint32_t m_layoutSizeVersion = 0;
+    float m_layoutSizeGap = 0.0f;
+    bool m_layoutSizeIsHorz = false;
     // Realized items in walk order, and each item's place in the window.
     std::vector<int> m_windowOrder;
     std::vector<uint8_t> m_windowState;
@@ -272,15 +275,14 @@ private:
     void attachArtboardOverride(ArtboardInstance*,
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);
-    bool m_shouldResetInstances = false;
     // Whether some item shows on more than one row.
     bool m_listHasDuplicateItems = false;
 
     // Quiet rows: rows whose per-frame work (their state machine's advance,
     // tryChangeState and updateDataBinds, their artboard's advance, bind
-    // updates, reset and update pass) would do nothing are skipped until
-    // something wakes them (Artboard::quietHostRow). A bit per row, so a pass
-    // steps over 64 quiet rows at a time.
+    // updates and update pass) would do nothing are skipped until something
+    // wakes them (Artboard::quietHostRow). A bit per row, so a pass steps over
+    // 64 quiet rows at a time.
     std::vector<uint64_t> m_quietRows;
     // Rows whose content can't report being quiet, so they aren't checked
     // again every frame.
@@ -305,7 +307,6 @@ private:
         advance,
         settle,
         updateDataBinds,
-        reset,
         update,
     };
 #ifdef TESTING
@@ -322,6 +323,8 @@ public:
     static uint64_t sm_quietRowSkips;
     // Lets a test run the same frames with and without quiet rows.
     static bool sm_quietRowsEnabled;
+    // Lets a benchmark time quiet rows without checking each one every pass.
+    static bool sm_verifyQuietRows;
 
 private:
 #endif

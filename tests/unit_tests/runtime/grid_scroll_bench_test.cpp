@@ -21,6 +21,8 @@ TEST_CASE("Bench virtualized grid scroll", "[.bench]")
         return std::chrono::duration<double, std::milli>(Clock::now() - from)
             .count();
     };
+    // Times what a shipping runtime does, not the test-only row checks.
+    rive::ArtboardComponentList::sm_verifyQuietRows = false;
     int maxCount = getenv("BENCH_MAX") ? atoi(getenv("BENCH_MAX")) : 100000;
     std::vector<int> counts = {1000, 10000, 100000};
     if (getenv("BENCH_REPEAT"))
@@ -148,4 +150,5 @@ TEST_CASE("Bench virtualized grid scroll", "[.bench]")
                idle,
                scroll->contentHeight());
     }
+    rive::ArtboardComponentList::sm_verifyQuietRows = true;
 }

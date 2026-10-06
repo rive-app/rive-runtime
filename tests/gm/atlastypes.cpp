@@ -23,7 +23,24 @@ using namespace rivegm;
 
 // Validate all our atlas fallbacks by rendering feathered strokes and fills
 // with every FeatherAtlasRenderType.
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(atlastypes, 0x80000000, 1600, 1600, renderer)
+class AtlasTypesGM : public GM
+{
+public:
+    AtlasTypesGM() : GM(1600, 1600) {}
+
+    ColorInt clearColor() const override { return 0x80000000; }
+
+    void updateFrameOptions(TestingWindow::FrameOptions* options) const override
+    {
+        // Reduce this to test the canvas 2D renderer's atlas flush
+        options->maxCanvasAtlasSize = 1024;
+    }
+
+    void onDraw(Renderer* renderer) override;
+};
+GMREGISTER(atlastypes, return new AtlasTypesGM)
+
+void AtlasTypesGM::onDraw(Renderer* renderer)
 {
     gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
     gpu::RenderContext::FrameDescriptor frameDescriptor;

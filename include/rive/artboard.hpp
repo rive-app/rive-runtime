@@ -124,7 +124,6 @@ private:
     std::vector<ArtboardComponentList*> m_ComponentLists;
     std::vector<ArtboardHost*> m_ArtboardHosts;
     std::vector<Joystick*> m_Joysticks;
-    std::vector<ResettingComponent*> m_Resettables;
     std::vector<ScriptedObject*> m_ScriptedObjects;
     std::vector<AdvancingComponent*> m_advancingComponents;
     // Whose value binds are currently cloned into this container.
@@ -613,6 +612,9 @@ public:
                          AdvanceFlags flags = AdvanceFlags::AdvanceNested |
                                               AdvanceFlags::Animate |
                                               AdvanceFlags::NewFrame);
+    // Does nothing, like the NestedArtboard and ArtboardComponentList
+    // overrides: nothing in an artboard resets at the end of a frame any more.
+    // Kept for callers outside the runtime.
     void reset() override;
     uint8_t drawOrderChangeCounter() { return m_drawOrderChangeCounter; }
     Drawable* firstDrawable() { return m_FirstDrawable; };
@@ -726,10 +728,6 @@ public:
         m_scriptingVM = std::move(value);
     }
 #endif
-    // Advances detached scripted view model instances (those with no parents),
-    // which are not reachable from the bound view model tree. No-op when
-    // scripting is disabled. Called at the end of each frame.
-    void advanceScriptedViewModels();
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
 

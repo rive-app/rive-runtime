@@ -377,6 +377,7 @@ void replayRenderCommands(Factory* factory,
                             fresh->additiveness(sh.additiveness);
                             fresh->blendMode(
                                 static_cast<BlendMode>(sh.blendMode));
+                            fresh->shaderTransform(sh.transform);
                             if (sh.shader != kInvalidRenderHandle)
                             {
                                 fresh->shader(shaders.shared(sh.shader));
@@ -604,6 +605,17 @@ void replayRenderCommands(Factory* factory,
                 {
                     pt->shader(shaders.shared(c.shader));
                     table.paintShadows[c.paint].shader = c.shader;
+                }
+                break;
+            }
+            case RenderCmd::paintShaderTransform:
+            {
+                auto c = reader.read<PaintMat2DPOD>();
+                if (auto* pt = paint(c.paint))
+                {
+                    Mat2D transform(c.xx, c.xy, c.yx, c.yy, c.tx, c.ty);
+                    pt->shaderTransform(transform);
+                    table.paintShadows[c.paint].transform = transform;
                 }
                 break;
             }

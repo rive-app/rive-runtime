@@ -401,6 +401,10 @@ public:
         // (we're mixing one state onto another) if enableEarlyExit is not true.
         if (isTransitioning() && !m_transition->enableEarlyExit())
         {
+            // A view model change pending while this layer can't change state
+            // still expires with the frame, instead of waiting for a search
+            // that can act on it.
+            smi->markViewModelChangesSearched();
             return false;
         }
 
@@ -409,12 +413,16 @@ public:
         ensureAnyStateInstance(smi);
         if (m_settled)
         {
+            // Marked anyway: a machine bound to another instance would
+            // otherwise find that instance's past changes pending.
+            smi->markViewModelChangesSearched();
 #ifdef TESTING
             verifySettled(smi);
             StateMachineInstance::sm_settledLayerSkips++;
 #endif
             return false;
         }
+        smi->markViewModelChangesSearched();
         if (tryChangeState(smi, m_anyStateInstance))
         {
             return true;
@@ -2168,24 +2176,25 @@ public:
                 index++;
             }
         }
-        // A trigger fired before this bind (e.g. during script init) stays
-        // pending until the frame resets it; report it so it isn't lost.
         for (auto& binding : m_propertyBindings)
         {
-            auto value = binding->value();
-            if (value != nullptr && value->is<ViewModelInstanceTrigger>() &&
-                value->as<ViewModelInstanceTrigger>()->propertyValue() != 0)
-            {
-                reportToStateMachine(value);
-            }
+            reportIfPending(binding->value());
         }
     }
-    void reportToStateMachine(ViewModelInstanceValue* value)
+    void reportToStateMachine()
     {
-        if (!value->is<ViewModelInstanceTrigger>() ||
-            value->as<ViewModelInstanceTrigger>()->propertyValue() != 0)
+        m_stateMachineInstance->reportListenerViewModel(this);
+    }
+    // A trigger fired before this listener was listening to it can still be
+    // pending (fired by a script's init(), which runs as the artboard binds,
+    // before this does, or by the host before binding): report it so it isn't
+    // lost. A fire whose frame has passed isn't, so it isn't replayed.
+    void reportIfPending(ViewModelInstanceValue* value)
+    {
+        if (value != nullptr && value->is<ViewModelInstanceTrigger>() &&
+            m_stateMachineInstance->viewModelTriggerPendingForListeners(value))
         {
-            m_stateMachineInstance->reportListenerViewModel(this);
+            reportToStateMachine();
         }
     }
     const StateMachineListener* listener() { return m_listener; }
@@ -2255,6 +2264,7 @@ void ListenerViewModelPropertyBindingListener::relinkDataBind()
             {
                 m_viewModelInstanceValue = ref_rcp(vmProp);
                 vmProp->addDependent(this);
+                m_parent->reportIfPending(vmProp);
             }
         }
     }
@@ -2282,6 +2292,7 @@ void ListenerViewModelPropertyBindingInput::relinkDataBind()
             {
                 m_viewModelInstanceValue = ref_rcp(vmProp);
                 vmProp->addDependent(this);
+                m_parent->reportIfPending(vmProp);
             }
         }
     }
@@ -2290,9 +2301,11 @@ void ListenerViewModelPropertyBindingInput::relinkDataBind()
 void ListenerViewModelPropertyBinding::addDirt(ComponentDirt value,
                                                bool recurse)
 {
+    // Every change reports, a trigger's included: its count only changes
+    // when it fires.
     if (m_parent != nullptr && m_viewModelInstanceValue != nullptr)
     {
-        m_parent->reportToStateMachine(m_viewModelInstanceValue.get());
+        m_parent->reportToStateMachine();
     }
 }
 
@@ -2835,6 +2848,14 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_layers[i].init(this, machine->layer(i));
     }
 
+    // A condition comparing a component's trigger reads whether it fired
+    // within the frame (changePending), which this instance's change tracking
+    // answers. It has to start now, before anything fires.
+    if (machine->readsComponentTriggers())
+    {
+        ensureBindables();
+    }
+
     // Initialize dataBinds. All databinds are cloned for the state machine
     // instance. That enables binding each instance to its own context without
     // polluting the rest.
@@ -2923,6 +2944,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             auto vmListener = new ListenerViewModel(this, listener);
             ensureReporting().listenerViewModels.push_back(vmListener);
+            // Its triggers are checked against this instance's change
+            // tracking when it binds (viewModelTriggerPendingForListeners),
+            // which has to start now, before the first bind.
+            ensureBindables();
             continue;
         }
         // Handle focus/blur listeners - they're driven by FocusManager,
@@ -3238,7 +3263,13 @@ SMIReporting& StateMachineInstance::ensureReporting()
 
 SMIBindables& StateMachineInstance::ensureBindables()
 {
-    return *m_bindables.ensureAllocated();
+    if (m_bindables.get() == nullptr)
+    {
+        m_bindables.ensureAllocated();
+        // Changes from before this instance existed aren't pending for it.
+        forgetViewModelChanges();
+    }
+    return *m_bindables.get();
 }
 
 SMIInputExtras& StateMachineInstance::ensureInputExtras()
@@ -3758,6 +3789,16 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     }
     if (newFrame)
     {
+        // View model changes the last frame's transition searches could see
+        // have had their frame. See viewModelValueChanged.
+        if (auto* bindables = m_bindables.get())
+        {
+            bindables->changeBaseline = bindables->changeSearched;
+            bindables->changesUsed.clear();
+            // applyEvents below handles every listener report so far.
+            bindables->listenerBaseline =
+                ViewModelInstanceValue::latestChangeSequence();
+        }
         processFocusEvents();
         processSemanticEvents();
         applyEvents();
@@ -3787,19 +3828,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     return m_needsAdvance || hasPendingReports();
 }
 
-void StateMachineInstance::advancedDataContext()
-{
-    if (dataBindContext() != nullptr)
-    {
-        dataBindContext()->advanced();
-    }
-}
-
-void StateMachineInstance::reset()
-{
-    advancedDataContext();
-    m_artboardInstance->reset();
-}
+void StateMachineInstance::reset() {}
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
@@ -3816,7 +3845,7 @@ bool StateMachineInstance::advanceAndApply(float seconds)
 }
 
 bool StateMachineInstance::advanceAndApply(float seconds,
-                                           bool advanceViewModels)
+                                           bool /*advanceViewModels*/)
 {
     RIVE_PROF_SCOPE_L(1)
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
@@ -3867,14 +3896,6 @@ bool StateMachineInstance::advanceAndApply(float seconds,
         {
             keepGoing = true;
         }
-        if (advanceViewModels)
-        {
-            reset(); // advancedDataContext() (VM consume) + artboard reset
-        }
-        else
-        {
-            m_artboardInstance->reset(); // artboard component reset only
-        }
 
         if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
         {
@@ -3887,12 +3908,6 @@ bool StateMachineInstance::advanceAndApply(float seconds,
     if (focusManager())
     {
         focusManager()->finishPendingFocusRequests(rootArtboard());
-    }
-    if (advanceViewModels)
-    {
-        // Advance detached scripted view models (created via scripts, not part
-        // of the bound view model tree) at the end of the frame.
-        m_artboardInstance->advanceScriptedViewModels();
     }
     return keepGoing || hasPendingReports();
 }
@@ -3907,6 +3922,9 @@ bool StateMachineInstance::needsAdvance() const { return m_needsAdvance; }
 void StateMachineInstance::resetState()
 {
     wakeRow();
+    // Starting over, e.g. as a list reuses this instance for another item:
+    // nothing pending from before carries into the new run.
+    forgetViewModelChanges();
     for (size_t i = 0; i < m_layerCount; i++)
     {
         m_layers[i].resetState(this);
@@ -4629,6 +4647,95 @@ DataBind* StateMachineInstance::bindableDataBindToTarget(
         return nullptr;
     }
     return dataBind->second;
+}
+
+bool StateMachineInstance::changePending(uint64_t changeSequence) const
+{
+    auto* bindables = this->bindables();
+    return bindables != nullptr && changeSequence > bindables->changeBaseline;
+}
+
+bool StateMachineInstance::viewModelTriggerPendingForListeners(
+    const ViewModelInstanceValue* trigger) const
+{
+    auto* bindables = this->bindables();
+    return bindables != nullptr &&
+           trigger->changeSequence() > bindables->listenerBaseline;
+}
+
+bool StateMachineInstance::viewModelValueChanged(
+    const ViewModelInstanceValue* value,
+    const StateMachineLayerInstance* layer) const
+{
+    auto* bindables = this->bindables();
+    if (bindables == nullptr ||
+        value->changeSequence() <= bindables->changeBaseline)
+    {
+        return false;
+    }
+    for (const auto& used : bindables->changesUsed)
+    {
+        if (used.first == layer && used.second == value)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void StateMachineInstance::useViewModelValue(
+    const ViewModelInstanceValue* value,
+    const StateMachineLayerInstance* layer) const
+{
+    auto* bindables = this->bindables();
+    if (bindables == nullptr)
+    {
+        return;
+    }
+    for (const auto& used : bindables->changesUsed)
+    {
+        if (used.first == layer && used.second == value)
+        {
+            return;
+        }
+    }
+    bindables->changesUsed.emplace_back(layer, value);
+}
+
+void StateMachineInstance::markViewModelChangesSearched()
+{
+    auto* bindables = m_bindables.get();
+    if (bindables == nullptr)
+    {
+        return;
+    }
+    bindables->changeSearched = ViewModelInstanceValue::latestChangeSequence();
+    // A host above that stopped advancing this instance (collapsed or paused)
+    // marks the changes made meanwhile. They had their frame while this
+    // instance couldn't run, so they aren't pending for it now that it does.
+    uint64_t inactive = 0;
+    for (const Artboard* artboard = m_artboardInstance;
+         artboard != nullptr && artboard->host() != nullptr;
+         artboard = artboard->host()->parentArtboard())
+    {
+        inactive =
+            std::max(inactive, artboard->host()->inactiveChangeSequence());
+    }
+    if (inactive > bindables->changeBaseline)
+    {
+        bindables->changeBaseline = inactive;
+    }
+}
+
+void StateMachineInstance::forgetViewModelChanges()
+{
+    if (auto* bindables = m_bindables.get())
+    {
+        bindables->changeBaseline = bindables->changeSearched =
+            bindables->listenerBaseline =
+                ViewModelInstanceValue::latestChangeSequence();
+        bindables->changesUsed.clear();
+    }
 }
 
 BindablePropertyNumber* StateMachineInstance::findTransitionPropertyInstance(

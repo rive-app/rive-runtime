@@ -75,6 +75,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::paintShader:
                 paintSets[r.read<PaintShaderPOD>().paint]++;
                 break;
+            case RenderCmd::paintShaderTransform:
+                paintSets[r.read<PaintMat2DPOD>().paint]++;
+                break;
             case RenderCmd::paintModulatedImage:
                 paintSets[r.read<PaintModulatedImagePOD>().paint]++;
                 break;
@@ -278,6 +281,9 @@ static void diagnose_replay_coverage(const rive::cmd::RenderCommandBuffer& cmd,
                 break;
             case RenderCmd::paintShader:
                 r.read<PaintShaderPOD>();
+                break;
+            case RenderCmd::paintShaderTransform:
+                r.read<PaintMat2DPOD>();
                 break;
             case RenderCmd::transform:
                 r.read<TransformPOD>();

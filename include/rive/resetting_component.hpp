@@ -3,12 +3,10 @@
 
 namespace rive
 {
-class Component;
 class ResettingComponent
 {
 public:
     virtual void reset() = 0;
-    static ResettingComponent* from(Component* component);
 };
 } // namespace rive
 

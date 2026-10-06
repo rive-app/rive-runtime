@@ -450,14 +450,6 @@ StatusCode Artboard::initialize()
         {
             return code;
         }
-        if (object->is<Component>())
-        {
-            auto resettable = ResettingComponent::from(object->as<Component>());
-            if (resettable)
-            {
-                m_Resettables.push_back(resettable);
-            }
-        }
         switch (object->coreType())
         {
             case DrawRulesBase::typeKey:
@@ -1469,28 +1461,6 @@ void Artboard::pollAsyncWork()
 #endif
 }
 
-void Artboard::advanceScriptedViewModels()
-{
-#ifdef WITH_RIVE_SCRIPTING_LUAU
-    if (m_scriptingVM != nullptr)
-    {
-        if (auto* context = m_scriptingVM->context())
-        {
-            context->advanceDetachedViewModels();
-        }
-    }
-#endif
-#ifdef WITH_RIVE_SCRIPTING_WASM
-    if (auto f = artboardFile())
-    {
-        for (auto& vm : f->wasmVMs())
-        {
-            vm->advanceDetachedViewModels();
-        }
-    }
-#endif
-}
-
 Core* Artboard::resolve(Id id) const
 {
 #ifdef WITH_RIVE_EDITOR
@@ -1657,10 +1627,10 @@ void Artboard::wakeQuietRow()
 AdvancingComponent::QuietState Artboard::rowQuietState()
 {
     using QuietState = AdvancingComponent::QuietState;
-    // Work this check can't see into: hosted artboards and lists, joysticks,
-    // resettables and scripts.
+    // Work this check can't see into: hosted artboards and lists, joysticks
+    // and scripts.
     if (!m_ArtboardHosts.empty() || !m_Joysticks.empty() ||
-        !m_Resettables.empty() || !m_ScriptedObjects.empty())
+        !m_ScriptedObjects.empty())
     {
         return QuietState::never;
     }
@@ -2176,17 +2146,7 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
     return didUpdate;
 }
 
-void Artboard::reset()
-{
-    if (m_Resettables.size() == 0)
-    {
-        return;
-    }
-    for (auto obj : m_Resettables)
-    {
-        obj->reset();
-    }
-}
+void Artboard::reset() {}
 
 bool Artboard::advance(float elapsedSeconds, AdvanceFlags flags)
 {

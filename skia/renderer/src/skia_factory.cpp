@@ -53,12 +53,17 @@ class SkiaRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, SkiaRenderPaint)
 {
 private:
     SkPaint m_Paint;
+    sk_sp<SkShader> m_shader;
+    Mat2D m_shaderTransform;
+    sk_sp<SkShader> m_combinedShader;
     bool m_hasFeather = false;
+
+    void clearCachedCombinedShader();
 
 public:
     SkiaRenderPaint();
 
-    const SkPaint& paint() const { return m_Paint; }
+    const SkPaint& paint();
 
     void style(RenderPaintStyle style) override;
     void color(unsigned int value) override;
@@ -68,6 +73,7 @@ public:
     void feather(float value) override;
     void blendMode(BlendMode value) override;
     void shader(rcp<RenderShader>) override;
+    void shaderTransform(const Mat2D& transform) override;
     void invalidateStroke() override {}
 
     class OverrideStrokeParamsForFeather
@@ -172,6 +178,43 @@ void SkiaRenderPath::close() { m_Path.close(); }
 
 SkiaRenderPaint::SkiaRenderPaint() { m_Paint.setAntiAlias(true); }
 
+void SkiaRenderPaint::clearCachedCombinedShader()
+{
+    m_combinedShader = nullptr;
+    m_Paint.setShader(nullptr);
+}
+
+const SkPaint& SkiaRenderPaint::paint()
+{
+    // The shader and its transform arrive through independent setters, so they
+    // are combined here, once, instead of on every set.
+    // TODO(joshj) Add image transform and combine logic here
+    if (m_combinedShader == nullptr && m_shader != nullptr)
+    {
+        if (m_shaderTransform == Mat2D())
+        {
+            m_combinedShader = m_shader;
+        }
+        else
+        {
+            m_combinedShader = m_shader->makeWithLocalMatrix(
+                SkMatrix::MakeAll(m_shaderTransform.xx(),
+                                  m_shaderTransform.yx(),
+                                  m_shaderTransform.tx(),
+                                  m_shaderTransform.xy(),
+                                  m_shaderTransform.yy(),
+                                  m_shaderTransform.ty(),
+                                  0.0f,
+                                  0.0f,
+                                  1.0f));
+        }
+
+        m_Paint.setShader(m_combinedShader);
+    }
+
+    return m_Paint;
+}
+
 void SkiaRenderPaint::style(RenderPaintStyle style)
 {
     switch (style)
@@ -217,7 +260,14 @@ void SkiaRenderPaint::blendMode(BlendMode value)
 void SkiaRenderPaint::shader(rcp<RenderShader> rsh)
 {
     SkiaRenderShader* sksh = lite_rtti_cast<SkiaRenderShader*>(rsh.get());
-    m_Paint.setShader(sksh ? sksh->shader : nullptr);
+    m_shader = sksh ? sksh->shader : nullptr;
+    clearCachedCombinedShader();
+}
+
+void SkiaRenderPaint::shaderTransform(const Mat2D& transform)
+{
+    m_shaderTransform = transform;
+    clearCachedCombinedShader();
 }
 
 void SkiaRenderer::save()
@@ -225,6 +275,7 @@ void SkiaRenderer::save()
     m_Canvas->save();
     m_opacityStack.push_back(m_opacityStack.back());
 }
+
 void SkiaRenderer::restore()
 {
     m_Canvas->restore();
@@ -233,14 +284,17 @@ void SkiaRenderer::restore()
         m_opacityStack.pop_back();
     }
 }
+
 void SkiaRenderer::transform(const Mat2D& transform)
 {
     m_Canvas->concat(ToSkia::convert(transform));
 }
+
 void SkiaRenderer::modulateOpacity(float opacity)
 {
     m_opacityStack.back() = std::max(0.0f, m_opacityStack.back() * opacity);
 }
+
 void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
     LITE_RTTI_CAST_OR_RETURN(skiaRenderPath, SkiaRenderPath*, path);

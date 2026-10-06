@@ -48,4 +48,24 @@ rcp<RenderPaint> RiveRenderFactory::makeRenderPaint()
 {
     return make_rcp<RiveRenderPaint>();
 }
+
+RiveRenderPath* asRiveRenderPath(RenderPath* path)
+{
+    return lite_rtti_cast_or_assert<RiveRenderPath*>(path);
+}
+
+const RiveRenderPath* asRiveRenderPath(const RenderPath* path)
+{
+    return lite_rtti_cast_or_assert<const RiveRenderPath*>(path);
+}
+
+RiveRenderPaint* asRiveRenderPaint(RenderPaint* paint)
+{
+    return lite_rtti_cast_or_assert<RiveRenderPaint*>(paint);
+}
+
+const RiveRenderPaint* asRiveRenderPaint(const RenderPaint* paint)
+{
+    return lite_rtti_cast_or_assert<const RiveRenderPaint*>(paint);
+}
 } // namespace rive

@@ -250,6 +250,11 @@ public:
                               ColorInt modulatedColor,
                               std::optional<IAABB> pixelBounds = {});
 
+    // The pixels a draw of `path` with `paint` can touch, before any clipping.
+    static IAABB calculatePixelBounds(const Mat2D& paintMatrix,
+                                      const RiveRenderPath* path,
+                                      const RiveRenderPaint* paint);
+
     // Determines how coverage is calculated for antialiasing and feathers.
     // CoverageType is mostly decided by the InterlockMode, but we keep these
     // concepts separate because atlas coverage may be used with any
@@ -280,6 +285,10 @@ public:
 
     FillRule pathFillRule() const { return m_pathFillRule; }
     const Gradient* gradient() const { return m_gradientRef; }
+    const Mat2D& inverseGradientTransform() const
+    {
+        return m_inverseGradientTransform;
+    }
     gpu::PaintType paintType() const { return m_paintType; }
     bool isFeatheredFill() const
     {
@@ -433,6 +442,7 @@ protected:
     const RiveRenderPath* const m_pathRef;
     const FillRule m_pathFillRule; // Fill rule can mutate on RenderPath.
     const Gradient* m_gradientRef; // Already modulated if opacity != 1.0
+    const Mat2D m_inverseGradientTransform;
     const gpu::PaintType m_paintType;
     const CoverageType m_coverageType;
     float m_strokeRadius = 0;
@@ -528,10 +538,15 @@ public:
                   const ImageSampler imageSampler,
                   ColorInt modulatedColor,
                   const Mat2D& imageMatrix,
-                  const Mat2D& gradientMatrix);
+                  const Mat2D& gradientMatrix,
+                  const Mat2D& inverseGradientTransform);
 
     ColorInt modulatedColor() const { return m_modulatedColor; }
     const Mat2D& gradientMatrix() const { return m_gradientMatrix; }
+    const Mat2D& inverseGradientTransform() const
+    {
+        return m_inverseGradientTransform;
+    }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
                                         int subpassIndex,
@@ -547,6 +562,7 @@ protected:
     const ColorInt m_modulatedColor;
     const Mat2D m_imageMatrix;
     const Mat2D m_gradientMatrix;
+    const Mat2D m_inverseGradientTransform;
     const Gradient* m_gradientRef;
     ColorRampLocation m_rampLocation;
 };

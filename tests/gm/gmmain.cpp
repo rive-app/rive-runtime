@@ -224,6 +224,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(additive_blend)
     MAKE_GM(additive_advanced_blend)
     MAKE_GM(trickycubicstrokes_feather)
+    MAKE_GM(gradienttransform)
 #ifdef RIVE_CANVAS
     MAKE_GM(render_canvas_basic)
     MAKE_GM(render_canvas_mesh)

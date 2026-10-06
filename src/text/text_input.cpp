@@ -34,7 +34,17 @@ bool TextInput::hitTestPoint(const Vec2D& position,
     }
 
     Vec2D localPosition = inverseWorld * position;
-    if (!localBounds().contains(localPosition))
+    // A field laid out wider or taller than its text takes presses across
+    // its whole box, as a platform text field does, and the drag places the
+    // caret at the nearest position: a press past the end of the text lands
+    // at the end.
+    AABB bounds = localBounds();
+    if (!std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
+    {
+        AABB::expandTo(bounds, Vec2D(0.0f, 0.0f));
+        AABB::expandTo(bounds, Vec2D(m_layoutWidth, m_layoutHeight));
+    }
+    if (!bounds.contains(localPosition))
     {
         return false;
     }
@@ -193,6 +203,17 @@ bool TextInput::advanceCursorBlink(float elapsedSeconds)
     // drawable reads isCursorVisible() when it builds its path, so no dirt is
     // needed for the toggle itself.
     return true;
+}
+
+bool TextInput::isCursorVisible() const
+{
+#ifdef WITH_RIVE_TEXT
+    if (!m_rawTextInput.cursor().isCollapsed())
+    {
+        return false;
+    }
+#endif
+    return m_focused && m_cursorBlinkVisible;
 }
 
 AABB TextInput::localBounds() const

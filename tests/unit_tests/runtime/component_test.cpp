@@ -378,13 +378,8 @@ TEST_CASE("Stateful Component list with input/output bridge binds", "[silver]")
     auto clicked1 = getClickedBool(button1);
     auto clicked2 = getClickedBool(button2);
 
-    // To observe trigger fires on the original VMs we attach a delegate.
-    // Reading `propertyValue()` post-frame doesn't work for triggers
-    // because `ViewModelInstanceTrigger::advanced()` resets the value
-    // back to 0 every frame — that's their normal "fired this frame"
-    // semantic. The delegate's `valueChanged` is invoked in
-    // `propertyValueChanged()`, before the reset, so it captures real
-    // fires.
+    // To observe trigger fires on the original VMs we attach a delegate,
+    // whose `valueChanged` runs on every fire.
     struct FireCounter : public rive::ViewModelInstanceValueDelegate
     {
         int count = 0;

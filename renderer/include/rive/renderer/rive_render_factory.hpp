@@ -8,6 +8,9 @@
 
 namespace rive
 {
+class RiveRenderPaint;
+class RiveRenderPath;
+
 // Partial rive::Factory implementation for the PLS objects that are
 // backend-agnostic.
 class RiveRenderFactory : public Factory
@@ -34,4 +37,11 @@ public:
 
     rcp<RenderPaint> makeRenderPaint() override;
 };
+
+// Narrow an object back to the concrete type a RiveRenderFactory produced
+// (asserts on incorrect type).
+RiveRenderPath* asRiveRenderPath(RenderPath*);
+const RiveRenderPath* asRiveRenderPath(const RenderPath*);
+RiveRenderPaint* asRiveRenderPaint(RenderPaint*);
+const RiveRenderPaint* asRiveRenderPaint(const RenderPaint*);
 } // namespace rive

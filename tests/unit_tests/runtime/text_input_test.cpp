@@ -1107,4 +1107,100 @@ TEST_CASE("selectAllOnFocus press selects all, later press places the caret",
     CHECK(textInput->rawTextInput()->selectedText() != "hello world");
     stateMachine->pointerUp(pressPosition);
 }
+TEST_CASE("the caret hides while text is selected", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+    stateMachine->setFocus(artboard->objects<FocusData>().first());
+    textInput->rawTextInput()->text("hello world");
+    stateMachine->advanceAndApply(0.0f);
+
+    // A range is selected: the selection shows and the caret does not, as
+    // platform text fields draw it.
+    textInput->rawTextInput()->cursor(
+        Cursor(CursorPosition(0), CursorPosition(5)));
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // Collapsed again: the caret is back.
+    textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(5)));
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(cursor->localClockwisePath() != nullptr);
+}
+
+// text_input_tray.riv: each field box spans x 32..432, its text container
+// filling the box; SingleLine's sits at y 136..184, Multiline's at y 136..276.
+TEST_CASE("a press past the end of the text puts the caret at the end",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input_tray.riv");
+    for (const char* name : {"SingleLine", "Multiline"})
+    {
+        INFO(name);
+        auto artboard = file->artboardNamed(name);
+        REQUIRE(artboard != nullptr);
+        auto stateMachine = artboard->stateMachineAt(0);
+        REQUIRE(stateMachine != nullptr);
+        auto textInput = artboard->objects<TextInput>().first();
+        REQUIRE(textInput != nullptr);
+        textInput->text("Hello world");
+        stateMachine->advanceAndApply(0.0f);
+
+        // A press inside the text places the caret there.
+        stateMachine->pointerDown(Vec2D(70.0f, 160.0f));
+        stateMachine->pointerUp(Vec2D(70.0f, 160.0f));
+        stateMachine->advanceAndApply(0.0f);
+        CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() < 11);
+
+        // A press in the field to the right of the text goes to the end.
+        stateMachine->pointerDown(Vec2D(420.0f, 160.0f));
+        stateMachine->pointerUp(Vec2D(420.0f, 160.0f));
+        stateMachine->advanceAndApply(0.0f);
+        auto caret = textInput->rawTextInput()->cursor();
+        CHECK(caret.start().codePointIndex() == 11);
+        CHECK(caret.end().codePointIndex() == 11);
+    }
+}
+
+TEST_CASE("undo reaches the first edit and stops at the initial text",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input_tray.riv");
+    auto artboard = file->artboardNamed("SingleLine");
+    REQUIRE(artboard != nullptr);
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    artboard->advance(0.0f);
+    auto undo = [&]() {
+        textInput->keyInput(Key::z,
+                            KeyModifiers::meta | KeyModifiers::ctrl,
+                            true,
+                            false);
+    };
+
+    // A field that starts empty: the first edit can be undone.
+    textInput->textInput("abc");
+    undo();
+    CHECK(textInput->text() == "");
+
+    // Text set from outside (a data bind) starts a new history: undo takes
+    // back the edits after it, never the text itself.
+    textInput->text("Hello");
+    artboard->advance(0.0f);
+    textInput->textInput("!");
+    CHECK(textInput->text() == "!Hello");
+    undo();
+    CHECK(textInput->text() == "Hello");
+    undo();
+    CHECK(textInput->text() == "Hello");
+}
+
 #endif

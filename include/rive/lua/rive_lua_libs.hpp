@@ -129,6 +129,7 @@ enum class LuaAtoms : int16_t
     blendMode,
     feather,
     gradient,
+    gradientTransform,
     color,
 
     stroke,
@@ -1170,6 +1171,11 @@ public:
 
     virtual void gradient(rcp<RenderShader> value) { m_gradient = value; }
 
+    virtual void gradientTransform(const Mat2D& value)
+    {
+        m_gradientTransform = value;
+    }
+
     void pushStyle(lua_State* L);
     void pushJoin(lua_State* L);
     void pushCap(lua_State* L);
@@ -1177,6 +1183,7 @@ public:
     void pushBlendMode(lua_State* L);
     void pushFeather(lua_State* L);
     void pushGradient(lua_State* L);
+    void pushGradientTransform(lua_State* L);
     void pushColor(lua_State* L);
 
     float thickness() const { return m_thickness; }
@@ -1186,6 +1193,7 @@ public:
 protected:
     RenderPaintStyle m_style = RenderPaintStyle::fill;
     rcp<RenderShader> m_gradient;
+    Mat2D m_gradientTransform = Mat2D();
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;
     StrokeCap m_cap = StrokeCap::butt;
@@ -1252,6 +1260,12 @@ public:
     {
         ScriptedPaintData::gradient(value);
         renderPaint->shader(value);
+    }
+
+    void gradientTransform(const Mat2D& value) override
+    {
+        ScriptedPaintData::gradientTransform(value);
+        renderPaint->shaderTransform(value);
     }
 };
 
@@ -1327,8 +1341,7 @@ public:
     ScriptReffedArtboard(File* file,
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
-                         rcp<DataContext> parentDataContext,
-                         ScriptingContext* scriptingContext
+                         rcp<DataContext> parentDataContext
 #ifdef WITH_RIVE_TOOLS
                          ,
                          rcp<File> filePin = nullptr
@@ -1354,7 +1367,6 @@ private:
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
-    ScriptingContext* m_scriptingContext = nullptr;
 };
 
 class ScriptedArtboard
@@ -1510,7 +1522,6 @@ private:
     rcp<ViewModel> m_viewModel;
     rcp<ViewModelInstance> m_viewModelInstance;
     std::unordered_map<std::string, int> m_propertyRefs;
-    ScriptingContext* m_scriptingContext = nullptr;
 };
 
 class ScriptedPropertyViewModel : public ScriptedProperty,
@@ -1902,23 +1913,6 @@ public:
     void recordMissingDependency(const std::string& requiringModule,
                                  const std::string& missingModule);
 
-    // Track detached view model instances (no parents, e.g. created via
-    // vm:instance()) so they can be advanced at the end of each frame — they
-    // are not reachable from the artboard's bound view model tree, so the
-    // normal DataContext advance never reaches them. Instances are keyed by
-    // owner lifetime, not by Lua-wrapper GC: every live owner (a
-    // ScriptedViewModel wrapper, a ScriptReffedArtboard) registers on
-    // construction and unregisters on destruction. The context holds a strong
-    // reference for as long as any owner is alive, so the instance survives
-    // even if the script drops its wrapper while it is still bound to a
-    // scripted artboard.
-    void trackViewModelInstance(rcp<ViewModelInstance> instance);
-    void untrackViewModelInstance(ViewModelInstance* instance);
-    // Advances every tracked instance that has no parents. Instances with
-    // parents are already advanced through the bound tree (and via their
-    // detached-root ancestor's recursion), so they are skipped.
-    void advanceDetachedViewModels();
-
     // Scoped :shader / :blob reference resolution. Bare names resolve in the
     // calling chunk's scope first, then among host assets;
     // lib:<label>/<path> matches any version of the label's library, whose
@@ -2108,18 +2102,6 @@ private:
     std::vector<ModuleDetails*> m_modulesToRegister;
     std::unordered_map<std::string, ModuleDetails*> m_moduleLookup;
     std::unordered_set<ModuleDetails*> m_pendingModules;
-
-    // Detached view model instances tracked for end-of-frame advance, keyed by
-    // instance pointer. Each entry keeps a strong reference alive and counts
-    // how many live owners registered it; the entry is erased when the count
-    // returns to zero.
-    struct TrackedViewModelInstance
-    {
-        rcp<ViewModelInstance> instance;
-        int registrations = 0;
-    };
-    std::unordered_map<ViewModelInstance*, TrackedViewModelInstance>
-        m_trackedViewModelInstances;
 
 #ifdef WITH_RIVE_TOOLS
     // Editor-only: Map from asset ID to generator function ref.

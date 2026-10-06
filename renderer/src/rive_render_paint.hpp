@@ -59,6 +59,10 @@ public:
         m_data.m_blendMode = foldAdditiveToSrcOver(mode);
     }
     void shader(rcp<RenderShader> shader) override;
+    void shaderTransform(const Mat2D& transform) override
+    {
+        m_data.m_inverseGradientTransform = transform.invertOrIdentity();
+    }
 
     void modulatedImage(const RenderImage*,
                         ImageSampler,
@@ -81,6 +85,10 @@ public:
     const gpu::Gradient* getGradient() const { return m_data.m_gradient.get(); }
     rcp<gpu::Gradient> getModulatedGradient(float opacity,
                                             ColorInt color) const;
+    const Mat2D& getInverseGradientTransform() const
+    {
+        return m_data.m_inverseGradientTransform;
+    }
     gpu::Texture* getImageTexture() const
     {
         return m_data.m_imageTexture.get();
@@ -132,6 +140,7 @@ private:
         gpu::PaintType m_paintType = gpu::PaintType::solidColor;
         gpu::SimplePaintValue m_simpleValue;
         rcp<const gpu::Gradient> m_gradient;
+        Mat2D m_inverseGradientTransform;
         rcp<gpu::Texture> m_imageTexture;
         ImageSampler m_imageSampler = ImageSampler::LinearClamp();
         float m_thickness = 1;

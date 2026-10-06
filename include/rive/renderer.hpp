@@ -199,6 +199,7 @@ public:
     virtual void additiveness(float value) {} // Only used for srcOver
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
+    virtual void shaderTransform(const Mat2D& transform) = 0;
     virtual void invalidateStroke() = 0;
     virtual void modulatedImage(const RenderImage*, ImageSampler, const Mat2D&)
     {} // TODO: Implement on other backends besides Rive Renderer

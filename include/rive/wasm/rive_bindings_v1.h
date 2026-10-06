@@ -569,6 +569,8 @@ RIVE_BINDING_IMPORT("rive_paint_v1", "feather")
 void rive_paint_feather(uint32_t paint, float value);
 RIVE_BINDING_IMPORT("rive_paint_v1", "shader")
 void rive_paint_shader(uint32_t paint, uint32_t shader);
+RIVE_BINDING_IMPORT("rive_paint_v1", "shader_transform")
+void rive_paint_shader_transform(uint32_t paint, const float* values, uint32_t floatCount);
 
 // rive_canvas_v1
 RIVE_BINDING_IMPORT("rive_canvas_v1", "new")

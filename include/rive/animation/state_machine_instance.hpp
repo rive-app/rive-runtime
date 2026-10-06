@@ -48,6 +48,7 @@ class KeyedProperty;
 class EventReport;
 class DataBind;
 class BindableProperty;
+class ViewModelInstanceValue;
 class StateInstance;
 class HitDrawable;
 class DraggableProxy;
@@ -177,12 +178,12 @@ public:
     const LayerState* stateChangedByIndex(size_t index) const;
 
     bool advanceAndApply(float secs) override;
-    // When advanceViewModels is false, skips consuming/advancing the bound and
-    // detached view model instances (used when a script drives a nested
-    // scripted artboard, whose view models are advanced by the host frame
-    // instead). Animation and artboard component reset still run.
+    // Advances without playing the file's watermark, for a script driving a
+    // nested scripted artboard. advanceViewModels no longer changes anything:
+    // nothing consumes view model values at the end of a frame any more.
     bool advanceAndApply(float secs, bool advanceViewModels);
-    void advancedDataContext();
+    // Does nothing: nothing resets at the end of a frame any more. Kept for
+    // callers outside the runtime.
     void reset();
     std::string name() const override;
     HitResult pointerMove(Vec2D position,
@@ -289,6 +290,34 @@ public:
         BindableProperty* bindableProperty) const;
     DataBind* bindableDataBindToTarget(
         BindableProperty* bindableProperty) const;
+
+    /// Whether a change to `value` (a trigger fire, or any change a "changed"
+    /// condition reads) is still pending for `layer`. A change is pending for
+    /// one frame: until the end of the first frame in which this instance
+    /// searched its transitions after it happened, so it is gone even if no
+    /// transition could take it then. And within that frame only until a
+    /// transition `layer` takes has read the value (useViewModelValue).
+    /// Changes made before this instance was created or reset, or while a host
+    /// above it was collapsed or paused, are never pending for it.
+    bool viewModelValueChanged(const ViewModelInstanceValue* value,
+                               const StateMachineLayerInstance* layer) const;
+    /// Whether a fire of `trigger` happened after this instance last handled
+    /// its view model listeners' reports (or was created or reset). A listener
+    /// that binds then reports it, so a fire made before it was listening, by a
+    /// script's init() or the host, still reaches it, while one a listener
+    /// would already have handled isn't replayed.
+    bool viewModelTriggerPendingForListeners(
+        const ViewModelInstanceValue* trigger) const;
+    /// Whether a change at `changeSequence` (ViewModelInstanceValue's change
+    /// sequence) is still pending for this instance's transitions: the frame
+    /// window of viewModelValueChanged, without its per-layer use. How a
+    /// trigger compared as a number in a condition (a component's trigger,
+    /// or a view model trigger against one) reads as fired.
+    bool changePending(uint64_t changeSequence) const;
+    /// Records that a transition `layer` took read `value`, so its pending
+    /// change can't satisfy another of the layer's transitions this frame.
+    void useViewModelValue(const ViewModelInstanceValue* value,
+                           const StateMachineLayerInstance* layer) const;
 
     /// Find the per-instance BindablePropertyNumber for the given shared
     /// StateTransition and property key (e.g. durationPropertyKey).
@@ -487,6 +516,11 @@ private:
     // Something a settled layer's conditions read may have changed: search
     // every layer again on its next update.
     void unsettleLayers();
+    // A layer is about to search its transitions: view model changes made from
+    // here on are new to it. See viewModelValueChanged.
+    void markViewModelChangesSearched();
+    // No view model change made so far is pending for this instance any more.
+    void forgetViewModelChanges();
 
     // Cold clusters. See state_machine_instance_clusters.hpp.
     Sidecar<SMIReporting> m_reporting;

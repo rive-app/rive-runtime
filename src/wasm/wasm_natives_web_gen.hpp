@@ -1064,6 +1064,12 @@ void rive_web_paint_shader(uint32_t vmHandle, uint32_t paint, uint32_t shader)
     paintShaderImpl(vm, paint, shader);
 }
 EMSCRIPTEN_KEEPALIVE
+void rive_web_paint_shader_transform(uint32_t vmHandle, uint32_t paint, const float* values, uint32_t floatCount)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    paintShaderTransformImpl(vm, paint, values, floatCount);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_canvas_new(uint32_t vmHandle, uint32_t width, uint32_t height)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;

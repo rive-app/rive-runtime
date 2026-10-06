@@ -147,6 +147,33 @@ static bool isSettleSafe(const LayerState* state,
     return true;
 }
 
+static bool readsComponentTrigger(const LayerState* state)
+{
+    for (size_t i = 0, count = state->transitionCount(); i < count; i++)
+    {
+        auto transition = state->transition(i);
+        if (transition == nullptr)
+        {
+            continue;
+        }
+        for (size_t j = 0, conditions = transition->conditionCount();
+             j < conditions;
+             j++)
+        {
+            auto condition = transition->condition(j);
+            if (condition != nullptr &&
+                condition->coreType() ==
+                    TransitionViewModelConditionBase::typeKey &&
+                condition->as<TransitionViewModelCondition>()
+                    ->readsComponentTrigger())
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Only the flags are read here, since a layer's animations and target states
 // may not be resolved yet when this runs (see onAddedClean).
 static bool transitionsIgnoreTime(const LayerState* state)
@@ -248,6 +275,8 @@ StatusCode StateMachine::onAddedClean(CoreContext* context)
             {
                 state->transitionsSettleSafe(isSettleSafe(state, untracked));
                 state->transitionsIgnoreTime(transitionsIgnoreTime(state));
+                m_readsComponentTriggers =
+                    m_readsComponentTriggers || readsComponentTrigger(state);
             }
         }
     }

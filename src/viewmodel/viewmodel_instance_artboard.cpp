@@ -59,13 +59,3 @@ void ViewModelInstanceArtboard::boundViewModelInstance(
         m_boundViewModelInstanceChanged = true;
     }
 }
-
-void ViewModelInstanceArtboard::advanced()
-{
-    if (m_boundViewModelInstance != nullptr)
-    {
-        m_boundViewModelInstance->advanced();
-    }
-
-    ViewModelInstanceValue::advanced();
-}

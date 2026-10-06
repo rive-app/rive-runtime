@@ -61,6 +61,33 @@ static Path make_path_move_mix()
         .detach();
 }
 
+static Path make_path_move_addpath()
+{
+    Path inner = PathBuilder()
+                     .moveTo(kPts[1].x, kPts[1].y)
+                     .lineTo(kPts[1].x, kPts[1].y)
+                     .detach();
+    Path path;
+    path->moveTo(kPts[0].x, kPts[0].y);
+    path->addRenderPath(inner.get(), Mat2D());
+    path->moveTo(kPts[2].x, kPts[2].y);
+    return path;
+}
+
+static Path make_path_addpath_line()
+{
+    Path inner = PathBuilder()
+                     .moveTo(kPts[0].x, kPts[0].y)
+                     .lineTo(kPts[0].x, kPts[0].y)
+                     .detach();
+    Path path;
+    path->addRenderPath(inner.get(), Mat2D());
+    path->moveTo(kPts[1].x, kPts[1].y);
+    path->moveTo(kPts[2].x, kPts[2].y);
+    path->lineTo(kPts[2].x, kPts[2].y);
+    return path;
+}
+
 class EmptyStrokeGM : public GM
 {
 public:
@@ -69,16 +96,24 @@ public:
         bool stroke = false, feather = false;
     };
 
-    EmptyStrokeGM(Options options) : GM(180, 540), m_options(options) {}
+    EmptyStrokeGM(Options options) : GM(180, 780), m_options(options) {}
 
 private:
     void onDraw(Renderer* renderer) override
     {
+        // Every subpath below is degenerate, so they should render as follows:
+        // - open: a cap
+        // - closed: a join
+        // - isolated moveTo: caps the same as a zero-length lineTo.
+        // Whether that covers the red dot underneath depends on the cap/join
+        // style.
         static constexpr Path (*kProcs[])() = {
-            make_path_move,       // expect red red red
-            make_path_move_close, // expect black black black
-            make_path_move_line,  // expect black black black
-            make_path_move_mix,   // expect red black black,
+            make_path_move,         // isolated moves
+            make_path_move_close,   // closed, so joins rather than caps
+            make_path_move_line,    // zero-length lines
+            make_path_move_mix,     // a move, a close and a line, left to right
+            make_path_move_addpath, // addPath must not drop the caps around it
+            make_path_addpath_line, // nor the ones that follow it
         };
 
         Paint paint;

@@ -60,9 +60,13 @@ void TransitionPropertyViewModelComparator::useInLayer(
     }
     auto dataBind =
         stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+    if (dataBind == nullptr)
+    {
+        return;
+    }
     auto source = dataBind->source();
     if (source != nullptr)
     {
-        source->useInLayer(layerInstance);
+        stateMachineInstance->useViewModelValue(source, layerInstance);
     }
 }

@@ -123,7 +123,6 @@ public:
     // keys), preserving any global instances and their slot order. The result
     // is always ordered as [main, globals...].
     void setMainViewModelInstance(rcp<ViewModelInstance> value);
-    void advanced();
     // The main view model instance: the first entry not on the slot keys, or
     // nullptr if the context holds only globals.
     rcp<ViewModelInstance> mainViewModelInstance() const;

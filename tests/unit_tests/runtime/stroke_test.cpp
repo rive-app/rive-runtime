@@ -47,6 +47,7 @@ public:
     }
     void blendMode(rive::BlendMode) override {}
     void shader(rive::rcp<rive::RenderShader>) override {}
+    void shaderTransform(const rive::Mat2D& transform) override {}
     void invalidateStroke() override {}
 };
 

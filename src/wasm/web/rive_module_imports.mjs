@@ -512,6 +512,11 @@ export function createRiveModuleImports(host, moduleMemory) {
             blend_mode: calls.rive_paint_blend_mode,
             feather: calls.rive_paint_feather,
             shader: calls.rive_paint_shader,
+            shader_transform: (paint, values, floatCount) => {
+                stackReset();
+                const values_p = stageIn(values, floatCount * 4);
+                calls.rive_paint_shader_transform(paint, values_p, floatCount);
+            },
         },
         rive_canvas_v1: {
             new: calls.rive_canvas_new,

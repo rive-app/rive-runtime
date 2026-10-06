@@ -1039,8 +1039,14 @@ float NestedArtboard::calculateLocalElapsedSeconds(float elapsedSeconds)
 
 bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    if (m_referencedArtboard == nullptr || isCollapsed() || isPaused())
+    if (m_referencedArtboard == nullptr)
     {
+        return false;
+    }
+    if (isCollapsed() || isPaused())
+    {
+        m_inactiveChangeSequence =
+            ViewModelInstanceValue::latestChangeSequence();
         return false;
     }
     if (enums::is_flag_set(m_hostFlags,
@@ -1107,17 +1113,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     return keepGoing;
 }
 
-void NestedArtboard::reset()
-{
-    if (m_referencedArtboard)
-    {
-        m_referencedArtboard->reset();
-    }
-    if (m_activeViewModelInstance != nullptr)
-    {
-        m_activeViewModelInstance->advanced();
-    }
-}
+void NestedArtboard::reset() {}
 
 void NestedArtboard::file(File* value) { m_file = value; }
 

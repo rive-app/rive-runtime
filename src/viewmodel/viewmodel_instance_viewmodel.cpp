@@ -37,14 +37,6 @@ void ViewModelInstanceViewModel::setRoot(rcp<ViewModelInstance> value)
     }
 }
 
-void ViewModelInstanceViewModel::advanced()
-{
-    if (m_referenceViewModelInstance != nullptr)
-    {
-        m_referenceViewModelInstance->advanced();
-    }
-}
-
 StatusCode ViewModelInstanceViewModel::import(ImportStack& importStack)
 {
     auto status = Super::import(importStack);

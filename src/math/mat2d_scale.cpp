@@ -64,4 +64,19 @@ float Mat2D::findMaxScale() const
     result = sqrtf(result);
     return result;
 }
+
+bool Mat2D::hasUniformScale(float tolerance) const
+{
+    // Both axes scale equally exactly when the columns of the 2x2 portion are
+    // the same length and perpendicular, i.e. when A^T*A is a multiple of the
+    // identity.
+    float xLengthSquared = sdot(xx(), xx(), xy(), xy());
+    float yLengthSquared = sdot(yx(), yx(), yy(), yy());
+    float columnDot = sdot(xx(), yx(), xy(), yy());
+    // These are squared lengths, but scaling the threshold by their sum leaves
+    // the check relative to the scale itself rather than to its square.
+    float epsilon = (xLengthSquared + yLengthSquared) * tolerance;
+    return fabsf(xLengthSquared - yLengthSquared) <= epsilon &&
+           fabsf(columnDot) <= epsilon;
+}
 } // namespace rive

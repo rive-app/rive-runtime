@@ -17,7 +17,10 @@ protected:
     void propertyValueChanged() override;
 
 public:
-    void advanced() override;
+    // Its count only goes up, by one per fire, and nothing resets it.
+    // Consumers see a fire as a change: transitions through the value's change
+    // sequence (see ViewModelInstanceValue::changeSequence), listeners
+    // through its dirt.
 #ifdef WITH_RIVE_TOOLS
     void onChanged(ViewModelTriggerChanged callback)
     {

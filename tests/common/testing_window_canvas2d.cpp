@@ -22,8 +22,6 @@ namespace rive::gpu
 {
 
 EM_ASYNC_JS(void, testingWindowCanvas2dImportCanvasAdvanced, (), {
-    // The import itself is async, and then we need to call the "default"
-    // function to get the module, which is also async.
     // clang-format off
     if (globalThis.canvasAdvancedModule === undefined)
     {
@@ -33,15 +31,13 @@ EM_ASYNC_JS(void, testingWindowCanvas2dImportCanvasAdvanced, (), {
     // clang-format on
 });
 
-// Resets the canvas and fills it with `color` (0xAARRGGBB). The fill has to
-// happen here rather than through the renderer: a drawPath composites over the
-// existing pixels, which cannot produce a transparent clear color.
+// Resets the canvas and fills it with `color` (0xAARRGGBB)
 EM_JS(void, testingWindowCanvas2dResetCanvas, (uint32_t color), {
     var canvas = document["getElementById"]("canvas");
     var ctx = canvas["getContext"]("2d");
     ctx["reset"]();
     // reset() leaves the canvas transparent, so compositing the clear color
-    // over it yields exactly that color, alpha included.
+    // over it yields that color, alpha included.
     ctx["fillStyle"] = "rgba(" + ((0x00ff0000 & color) >>> 16) + "," +
                        ((0x0000ff00 & color) >>> 8) + "," +
                        ((0x000000ff & color) >>> 0) + "," +
@@ -63,10 +59,9 @@ EM_JS(bool,
               return false;
           }
 
-          // TestHarness::savePNG() flips vertically on the way out, since every
-          // other backend fills this buffer bottom-up (the GL convention).
-          // getImageData() hands back rows top-down, so reverse them here and
-          // let the two cancel.
+          // TestHarness::savePNG() reads this buffer bottom-up, the GL
+          // convention every other backend fills it with. getImageData()
+          // returns rows top-down, so reverse them here.
           var stride = width * 4;
           for (var y = 0; y < height; ++y)
           {
@@ -78,20 +73,20 @@ EM_JS(bool,
           return true;
       });
 
-// Image decoding is asynchronous: renderer.js hands the bytes to an <img>
-// element through a blob URL and only fills in the result on its load event.
+// Image decoding is asynchronous. renderer.js hands the bytes to an <img>
+// element through a blob URL and fills in the result on its load event, so this
+// awaits that event and returns the image as a value handle.
 //
-// Note this goes through Module.decodeImage rather than the more obvious
-// renderFactory.makeRenderImage(). The latter's onDecode callback closes over
-// renderer.js's loadContext, which is only non-null inside Module.load(), and
-// this harness draws images directly without ever loading a .riv file, so that
-// path would dereference null on the first decode.
+// Module.decodeImage is the entry point that works here.
+// renderFactory.makeRenderImage()'s onDecode callback closes over renderer.js's
+// loadContext, which is null outside Module.load(), and this harness draws
+// images without ever loading a .riv file.
 EM_ASYNC_JS(emscripten::EM_VAL,
             testingWindowCanvas2dDecodeImage,
             (const uint8_t* bytes, int size),
             {
-                // Copy out of our heap up front just to be extra safe
-                // (renderer.js's `decode` function also makes a Blob copy).
+                // Defensive copy out of this module's heap; renderer.js's
+                // `decode` copies the bytes into a Blob as well.
                 var copy = Module['HEAPU8']['slice'](bytes, bytes + size);
                 var image = await new Promise(function(resolve) {
                     globalThis.canvasAdvancedModule["decodeImage"](copy,
@@ -100,8 +95,8 @@ EM_ASYNC_JS(emscripten::EM_VAL,
                 return Emval.toHandle(image);
             });
 
-// Resolved on first use rather than at static-init time, since the module isn't
-// on globalThis until testingWindowCanvas2dImportCanvasAdvanced() has finished.
+// Resolved on first use because the module is not on globalThis until
+// testingWindowCanvas2dImportCanvasAdvanced() has finished.
 static emscripten::val& canvasAdvancedModule()
 {
     static emscripten::val module =
@@ -109,14 +104,11 @@ static emscripten::val& canvasAdvancedModule()
     return module;
 }
 
-// embind exposes C++ enums to JS as value objects, not plain numbers, and
-// renderer.js compares them by identity. This class maps the C++ int-based
-// enums to the objects stored in canvas_advanced's heap (which is different
-// from this wasm module's heap!).
-//
-// embind stores the reverse map on the enum's JS constructor as
-// `.values[rawValue]` (see _embind_register_enum_value in libembind.js), which
-// lets us build the table without naming every enumerator here.
+// embind exposes C++ enums to JS as value objects, and renderer.js compares
+// them by identity, so calls into it have to carry canvas_advanced's own
+// objects. This class maps a C++ enumerator to the matching object, reading the
+// table embind stores on the enum's JS constructor as `.values[rawValue]` (see
+// _embind_register_enum_value in libembind.js).
 class JSEnum
 {
 public:
@@ -126,8 +118,8 @@ public:
         emscripten::val values = canvasAdvancedModule()[enumName]["values"];
         assert(!values.isUndefined()); // Not an embind enum?
 
-        // Index the table by raw value. Some of these enums are sparse, so the
-        // gaps stay undefined and are caught by the assert in operator().
+        // Indexed by raw value. These enums are sparse, so the gaps stay
+        // undefined and operator() asserts on them.
         emscripten::val keys =
             emscripten::val::global("Object").call<emscripten::val>("keys",
                                                                     values);
@@ -137,12 +129,8 @@ public:
             int rawValue = std::stoi(keys[i].as<std::string>());
             assert(rawValue >= 0);
 
-            // We're storing the enum mapping in a vector rather than a sparse
-            // data structure, like a map. If we ever try to register an enum
-            // with really high values, it might indicate that this enum is
-            // meant to be used as a bit-mask, and the vector will become huge.
-            // If that happens, this assert will trigger and we can switch to
-            // something more appropriate.
+            // m_values is a dense vector, so an enum with large raw values,
+            // such as a bit-mask, would make it huge.
             assert(rawValue < 1024);
 
             if (static_cast<size_t>(rawValue) >= m_values.size())
@@ -165,8 +153,8 @@ private:
     std::vector<emscripten::val> m_values;
 };
 
-// The names here are the ones canvas_advanced registers in
-// EMSCRIPTEN_BINDINGS(RiveWASM_C2D); they are not the C++ type names.
+// These strings are the names canvas_advanced registers in
+// EMSCRIPTEN_BINDINGS(RiveWASM_C2D), which need not match the C++ type names.
 struct JSEnums
 {
     JSEnum blendMode{"BlendMode"};
@@ -176,46 +164,45 @@ struct JSEnums
     JSEnum strokeJoin{"StrokeJoin"};
 };
 
-// Built on first use, which must be after the import wait loop in
-// TestingWindowCanvas2D's constructor.
+// Built on first use, which must come after the
+// testingWindowCanvas2dImportCanvasAdvanced() call in TestingWindowCanvas2D's
+// constructor.
 static const JSEnums& jsEnums()
 {
     static JSEnums enums;
     return enums;
 }
 
-// The classes below let this module drive the canvas2d renderer that lives in
+// The classes below drive the canvas2d renderer that lives in
 // canvas_advanced.mjs.
 //
-// This harness and canvas_advanced are separately linked Emscripten modules:
-// two WebAssembly.Memory instances, two C++ runtimes, two embind type
-// registries. A pointer is only an offset into one module's linear memory, so
-// nothing that is or contains one -- a rive::Renderer*, an rcp<>, a vtable --
-// can be handed across. JS objects can, since there is only one JavaScript
-// realm; that includes TypedArrays, which are ordinary JS objects that happen
-// to view a particular module's heap.
+// This harness and canvas_advanced are separately linked Emscripten modules,
+// each with its own WebAssembly.Memory, C++ runtime and embind type registry. A
+// pointer is an offset into one module's linear memory, so nothing that is or
+// contains one -- a rive::Renderer*, an rcp<>, a vtable -- can be handed
+// across. JS objects can, since there is one JavaScript realm; that includes
+// TypedArrays, which are ordinary JS objects that view a particular module's
+// heap.
 //
 // So each class holds the emscripten::val of its canvas_advanced counterpart
-// and forwards to it, either directly for simple cases (e.g.
-// m_jsPath.call<void>("moveTo", x, y)), or through Canvas2DTestUtilities, where
-// that wrapper has logic worth exercising rather than duplicating.
+// and forwards to it, either directly (m_jsPath.call<void>("moveTo", x, y)) or
+// through Canvas2DTestUtilities, which wraps the calls whose logic the harness
+// would otherwise have to duplicate.
 //
-// Ownership runs opposite to bindings_c2d.cpp: there the factory adopts the C++
-// object out of the JS handle, whereas here the handle stays the sole owner,
-// and embind never reclaims raw pointer handles by itself. So each destructor
-// releases explicitly, via deleteLater() rather than delete() because
-// renderer.js captures paths and paints in deferred draw-list closures that
-// must outlive us until endFrame() flushes them.
+// The JS handle stays the sole owner of each object, and embind never reclaims
+// raw pointer handles by itself, so every destructor here releases explicitly.
+// It calls deleteLater(), since renderer.js captures paths and paints in
+// deferred draw-list closures that must outlive the C++ object until endFrame()
+// flushes them.
 //
-// Every renderer object we see originates from JSRenderFactory, so a failed
-// downcast is a bug rather than a legitimate "some other subclass" case --
-// hence lite_rtti_cast_or_assert<> rather than the silent LITE_RTTI_CAST_OR_*
-// macros.
+// Every renderer object here originates from JSRenderFactory, so a failed
+// downcast is a bug; hence lite_rtti_cast_or_assert<> over the silent
+// LITE_RTTI_CAST_OR_* macros.
 
 // Gradients have no JS-side object to wrap, so there is no handle for
-// makeLinearGradient() to return. Instead we hold the parameters and replay
-// them onto the paint when JSRenderPaint::shader() is called, mirroring
-// GradientShader in bindings_c2d.cpp.
+// makeLinearGradient() to return. These hold the parameters and replay them
+// onto the paint from JSRenderPaint::shader(), mirroring Canvas2DGradientShader
+// in bindings_c2d.cpp.
 class JSGradientShader
     : public LITE_RTTI_OVERRIDE(RenderShader, JSGradientShader)
 {
@@ -293,8 +280,8 @@ public:
 
     void applyToPaint(const emscripten::val& jsPaint) const override
     {
-        // renderer.js wants the radius expressed as a second point rather than
-        // a scalar. Matches RadialGradientShader::passToJS in bindings_c2d.cpp.
+        // renderer.js takes the radius as a second point on the circle. Matches
+        // Canvas2DRadialGradientShader::passToJS in bindings_c2d.cpp.
         jsPaint.call<void>("radialGradient",
                            m_centerX,
                            m_centerY,
@@ -316,10 +303,9 @@ public:
         m_jsPath(std::forward<emscripten::val>(jsPath))
     {}
 
-    // Queued rather than deleted outright: renderer.js's _drawPath/_clipPath
-    // capture the path in deferred draw-list closures, so it has to outlive us
-    // until TestingWindowCanvas2D::endFrame() flushes them. See the comment on
-    // flushPendingDeletes() there.
+    // renderer.js's _drawPath/_clipPath capture the path in deferred draw-list
+    // closures, so its deletion waits for the flush in
+    // TestingWindowCanvas2D::endFrame().
     ~JSRenderPath() override { m_jsPath.call<void>("deleteLater"); }
 
     void rewind() override { m_jsPath.call<void>("rewind"); }
@@ -430,7 +416,7 @@ public:
 
     void feather(float value) override
     {
-        // Not currently implemented (yet)
+        m_jsPaint.call<void>("feather", value);
     }
 
     void blendMode(BlendMode value) override
@@ -450,6 +436,17 @@ public:
             ->applyToPaint(m_jsPaint);
     }
 
+    void shaderTransform(const Mat2D& transform) override
+    {
+        m_jsPaint.call<void>("gradientTransform",
+                             transform.xx(),
+                             transform.xy(),
+                             transform.yx(),
+                             transform.yy(),
+                             transform.tx(),
+                             transform.ty());
+    }
+
     void invalidateStroke() override {}
 
     emscripten::val& js() { return m_jsPaint; }
@@ -466,9 +463,9 @@ public:
         m_jsImage(std::forward<emscripten::val>(jsImage))
     {
         // On load, renderer.js calls size() on the RenderImage it created,
-        // which sets the dimensions on the wrapper in canvas_advanced's heap.
-        // Ours is a separate rive::RenderImage with its own m_Width/m_Height,
-        // and rive core reads those, so copy them across.
+        // setting the dimensions on the wrapper in canvas_advanced's heap. This
+        // is a separate rive::RenderImage with its own m_Width/m_Height, which
+        // rive core reads, so copy them across.
         emscripten::val testUtils =
             canvasAdvancedModule()["Canvas2DTestUtilities"];
         m_Width = testUtils.call<int>("imageWidth", m_jsImage);
@@ -495,8 +492,7 @@ public:
     {
         // These never cross the module boundary: rive core maps and fills them
         // here, and JSRenderer::drawImageMesh() copies the contents over when
-        // it hands off. Must be a DataRenderBuffer for the LITE_RTTI casts
-        // there to succeed.
+        // it hands off.
         return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
     }
 
@@ -571,8 +567,8 @@ public:
                                        std::string("canvas"))))
     {}
 
-    // Queued, not deleted: renderer.js holds us in _pendingCanvasRenderers
-    // until the draw list is flushed.
+    // renderer.js holds this renderer in _pendingCanvasRenderers until the draw
+    // list is flushed.
     ~JSRenderer() override { m_jsRenderer.call<void>("deleteLater"); }
 
     void beginFrame(bool clear)
@@ -647,17 +643,16 @@ public:
             return;
         }
 
-        // Unlike the rest of the shims, this one hands off to the C++ side of
-        // canvas_advanced rather than to renderer.js, so that the real
-        // RendererWrapper::drawImageMesh() runs -- it owns the mesh bounding
-        // box computation and the atlas packing, and we'd otherwise have to
-        // duplicate them here (and leave them untested).
+        // This hands off to the C++ side of canvas_advanced so that the real
+        // Canvas2DRendererWrapper::drawImageMesh() runs. It owns the mesh
+        // bounding box computation and the atlas packing, which the harness
+        // would otherwise duplicate here, leaving them untested.
         //
-        // The typed_memory_views below are over our heap. A TypedArray is a
-        // plain JS object, so canvas_advanced can read it even though it wraps
-        // a different ArrayBuffer; it copies into its own DataRenderBuffers.
-        // Nothing between here and the call allocates locally, so our memory
-        // can't grow and detach them in the meantime.
+        // The typed_memory_views below are over this module's heap.
+        // canvas_advanced can read them because a TypedArray is a plain JS
+        // object, whichever ArrayBuffer it wraps, and it copies into its own
+        // DataRenderBuffers. Nothing between here and the call allocates, so
+        // this module's memory cannot grow and detach them in the meantime.
         auto* jsImage =
             rive::lite_rtti_cast_or_assert<const JSRenderImage*>(image);
         canvasAdvancedModule()["Canvas2DTestUtilities"].call<void>(
@@ -712,6 +707,11 @@ public:
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
+        m_frameName = options.name != nullptr ? options.name : "<frame>";
+        canvasAdvancedModule()["Canvas2DTestUtilities"].call<void>(
+            "setMaxCanvasAtlasSize",
+            options.maxCanvasAtlasSize);
+
         if (options.doClear)
         {
             testingWindowCanvas2dResetCanvas(options.clearColor);
@@ -728,12 +728,24 @@ public:
         // Flush commands so that we can read pixel data from the canvas.
         canvasAdvancedModule().call<void>("resolveAnimationFrame");
 
-        // Now that the deferred draw list has run, nothing on the JS side is
-        // still holding the objects our shims queued via deleteLater(). Embind
-        // never reclaims these on its own -- class handles created from JS own
-        // their C++ instance outright, and no finalizer is attached to raw
-        // pointer handles -- so without this every path, paint and renderer
-        // would accumulate in canvas_advanced's heap for the whole run.
+        // The flush should have executed and released data associated with all
+        // pending draws.
+        if (int pending =
+                canvasAdvancedModule()["Canvas2DTestUtilities"].call<int>(
+                    "pendingAtlasReleaseCount"))
+        {
+            fprintf(stderr,
+                    "%s: %i delegated draw(s) were never released\n",
+                    m_frameName.c_str(),
+                    pending);
+            abort();
+        }
+
+        // The deferred draw list has run, so nothing on the JS side still holds
+        // the objects the shims above queued with deleteLater(). embind
+        // attaches no finalizer to raw pointer handles, so without this call
+        // every path, paint and renderer accumulates in canvas_advanced's heap
+        // for the whole run.
         canvasAdvancedModule().call<void>("flushPendingDeletes");
 
         if (!pixelData)
@@ -766,6 +778,7 @@ public:
 
 private:
     std::unique_ptr<JSRenderFactory> m_factory;
+    std::string m_frameName;
 };
 }; // namespace rive::gpu
 

@@ -38,7 +38,25 @@ static uint32_t find_outer_cubic_subdivision_count(
         math::clamp(numSubdivisions, 1, kMaxCurveSubdivisions));
 }
 
-constexpr static int NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN = 5;
+constexpr static int NumSpokesInMiterOrBevelJoin = 4;
+// "Fixed" join types, i.e., miter or bevel (not round), all have a fixed number
+// of spokes regardless of angle.
+constexpr static int numSpokesInFixedJoin(StrokeJoin join)
+{
+    assert(join != StrokeJoin::round);
+    return NumSpokesInMiterOrBevelJoin;
+}
+constexpr static int numSegmentsInFixedJoin(StrokeJoin join)
+{
+    // Since a join sits between 2 cubics, it already has an implicit spoke at
+    // either end, shared with its cubic neighbor. A join SEGMENT count is
+    // therefore its internal spoke count plus 1.
+    return numSpokesInFixedJoin(join) + 1;
+}
+constexpr static int numSegmentsInMiterClipJoin()
+{
+    return NumSpokesInMiterOrBevelJoin + 1;
+}
 constexpr static int STROKE_OR_FEATHER_STYLE_FLAG = 8;
 constexpr static int ROUND_JOIN_STYLE_FLAG = STROKE_OR_FEATHER_STYLE_FLAG << 1;
 RIVE_ALWAYS_INLINE constexpr int style_flags(bool isStrokeOrFeather,
@@ -413,6 +431,18 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
     RIVE_UNREACHABLE();
 }
 
+IAABB PathDraw::calculatePixelBounds(const Mat2D& paintMatrix,
+                                     const RiveRenderPath* path,
+                                     const RiveRenderPaint* paint)
+{
+    std::optional<StrokeParams> stroke;
+    if (paint->getIsStroked())
+    {
+        stroke = paint->getStrokeParams();
+    }
+    return path->calculatePixelBounds(paintMatrix, stroke, paint->getFeather());
+}
+
 DrawUniquePtr PathDraw::Make(RenderContext* context,
                              const Mat2D& paintMatrix,
                              const Mat2D* imageMatrix,
@@ -447,14 +477,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 #endif
     {
         // We weren't given pre-computed bounds, so calculate them.
-        std::optional<StrokeParams> stroke;
-        if (paint->getIsStroked())
-        {
-            stroke = paint->getStrokeParams();
-        }
-        pixelBounds = path->calculatePixelBounds(paintMatrix,
-                                                 stroke,
-                                                 paint->getFeather());
+        pixelBounds = calculatePixelBounds(paintMatrix, path.get(), paint);
     }
 
     // In debug mode, we always compute the pixel bounds, so validate that the
@@ -546,6 +569,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
                                                    : initialFillRule),
     m_gradientRef(paint->getModulatedGradient(modulatedOpacity, modulatedColor)
                       .release()),
+    m_inverseGradientTransform(paint->getInverseGradientTransform()),
     m_paintType(paint->getType()),
     m_coverageType(coverageType)
 {
@@ -1247,20 +1271,16 @@ void PathDraw::initForMidpointFan(RenderContext* context,
             }
             else if (m_strokeJoin == StrokeJoin::round)
             {
-                // Round joins share their beginning and ending vertices with
-                // the curve on either side. Therefore, the number of vertices
-                // we need to allocate for a round join is "joinSegmentCount -
-                // 1". Do all the -1's here.
+                // Round joins share their beginning and ending spokes with the
+                // curve on either side. Therefore, the number of spokes we need
+                // to allocate for a round join is "joinSegmentCount - 1". Do
+                // all the -1's here.
                 contourVertexCount -= contour->strokeJoinCount;
             }
             else
             {
-                // The shader needs 3 segments for each miter and bevel join
-                // (which translates to two interior vertices, since joins share
-                // their beginning and ending vertices with the curve on either
-                // side).
                 contourVertexCount += contour->strokeJoinCount *
-                                      (NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN - 1);
+                                      numSpokesInFixedJoin(m_strokeJoin);
             }
 
             // Count stroke caps, if any.
@@ -1289,9 +1309,6 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                     // Round caps rotate 180 degrees.
                     float strokeCapSegmentCount =
                         ceilf(m_polarSegmentsPerRadian * math::PI);
-                    // +2 because round caps emulated as joins need to emit
-                    // vertices at T=0 and T=1, unlike normal round joins.
-                    strokeCapSegmentCount += 2;
                     // Make sure not to exceed kMaxPolarSegments.
                     strokeCapSegmentCount =
                         fminf(strokeCapSegmentCount, kMaxPolarSegments);
@@ -1300,15 +1317,19 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                 }
                 else
                 {
+                    // Butt caps are emulated as bevel joins, square caps as
+                    // miterClip joins.
                     contour->strokeCapSegmentCount =
-                        NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN;
+                        (cap == StrokeCap::square
+                             ? numSegmentsInMiterClipJoin()
+                             : numSegmentsInFixedJoin(StrokeJoin::bevel));
                 }
-                // PLS expects all patches to have >0 tessellation vertices, so
-                // for the case of an empty patch with a stroke cap,
-                // contour->strokeCapSegmentCount can't be zero. Also,
-                // pushContourToRenderContext() uses "strokeCapSegmentCount !=
-                // 0" to tell if it needs stroke caps.
-                assert(contour->strokeCapSegmentCount >= 2);
+                // +2 because caps emulated as joins need to emit spokes at T=0
+                // and T=1, unlike normal joins, which always have a cubic
+                // neighbor to share with on both sides.
+                contour->strokeCapSegmentCount =
+                    std::min(contour->strokeCapSegmentCount + 2,
+                             kMaxPolarSegments);
                 // As long as a contour isn't empty, we can tack the end cap
                 // onto the join section of the final curve in the stroke.
                 // Otherwise, we need to introduce 0-tessellation-segment curves
@@ -2039,15 +2060,15 @@ void PathDraw::pushMidpointFanTessellationData(
         // When we don't have round joins, the number of segments per join is
         // constant. (Round joins have a variable number of segments per join,
         // depending on the angle.)
-        uint32_t numSegmentsInNotRoundJoin;
+        uint32_t fixedJoinSegmentCount = 0;
         if (isFeatheredFill())
         {
-            numSegmentsInNotRoundJoin =
+            fixedJoinSegmentCount =
                 feather_join_segment_count(m_polarSegmentsPerRadian);
         }
-        else
+        else if (isStroke() && !roundJoinStroked)
         {
-            numSegmentsInNotRoundJoin = NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN;
+            fixedJoinSegmentCount = numSegmentsInFixedJoin(m_strokeJoin);
         }
 
         // Convert all curves in the contour to cubics and push them to the GPU.
@@ -2101,7 +2122,7 @@ void PathDraw::pushMidpointFanTessellationData(
                                                         end.rawPtsPtr(),
                                                         contour.closed,
                                                         pts);
-                        joinSegmentCount = numSegmentsInNotRoundJoin;
+                        joinSegmentCount = fixedJoinSegmentCount;
                         RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                     }
                     else
@@ -2249,7 +2270,7 @@ void PathDraw::pushMidpointFanTessellationData(
                                                             end.rawPtsPtr(),
                                                             contour.closed,
                                                             pts);
-                            joinSegmentCount = numSegmentsInNotRoundJoin;
+                            joinSegmentCount = fixedJoinSegmentCount;
                         }
                         RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                     }
@@ -2330,7 +2351,7 @@ void PathDraw::pushMidpointFanTessellationData(
                 else if (isStrokeOrFeather())
                 {
                     joinTangent = find_starting_tangent(pts, end.rawPtsPtr());
-                    joinSegmentCount = numSegmentsInNotRoundJoin;
+                    joinSegmentCount = fixedJoinSegmentCount;
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
                 tessWriter->pushCubic(cubic.data(),
@@ -2648,7 +2669,8 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
                              const ImageSampler imageSampler,
                              ColorInt modulatedColor,
                              const Mat2D& imageMatrix,
-                             const Mat2D& gradientMatrix) :
+                             const Mat2D& gradientMatrix,
+                             const Mat2D& inverseGradientTransform) :
     Draw(pixelBounds,
          matrix,
          &imageMatrix,
@@ -2659,6 +2681,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
          Type::imageRect),
     m_modulatedColor(modulatedColor),
     m_gradientMatrix(gradientMatrix),
+    m_inverseGradientTransform(inverseGradientTransform),
     m_gradientRef(gradient.release())
 {
     // If we support image paints for paths, the client should draw a

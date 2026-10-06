@@ -328,8 +328,6 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                 clipPathImpl(path, stroke, paint->getFeather());
             }
 
-            // TODO: Multiply the paint's gradient matrix with this once it
-            // exists
             const auto gradientMatrix = m_renderStateStack.back().matrix;
 
             // ImageRectDraw draws as a unit square with upper-left corner of 0,
@@ -370,7 +368,8 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                     modulated(paintColor,
                               m_renderStateStack.back().modulatedOpacity),
                     imageMatrix,
-                    gradientMatrix)));
+                    gradientMatrix,
+                    paint->getInverseGradientTransform())));
 
             restore();
             return;
@@ -744,7 +743,8 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     imageSampler,
                     modulated(0xFFFFFFFF, finalOpacity),
                     Mat2D{},    // imageMatrix
-                    Mat2D{}))); // gradientMatrix
+                    Mat2D{},    // gradientMatrix
+                    Mat2D{}))); // inverseGradientTransform
         }
     }
     else

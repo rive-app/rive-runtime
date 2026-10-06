@@ -222,6 +222,20 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 paint->shader(shaders[shaderId]);
                 break;
             }
+            case SerializeOp::shaderTransform:
+            {
+                uint64_t id = reader.readVarUint64();
+                RenderPaint* paint = find(paints, id);
+                if (paint == nullptr)
+                    return false;
+                Mat2D transform;
+                for (int i = 0; i < 6; i++)
+                {
+                    transform[i] = reader.readFloat32();
+                }
+                paint->shaderTransform(transform);
+                break;
+            }
             case SerializeOp::paintModulatedImage:
             {
                 uint64_t id = reader.readVarUint64();

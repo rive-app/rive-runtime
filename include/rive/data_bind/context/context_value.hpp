@@ -14,6 +14,10 @@ protected:
     DataValue* m_dataValue = nullptr;
     DataBindContextTargetValue m_targetValue;
     bool m_isValid = false;
+    // Set when a listener action writes this bind to its source
+    // (DataBind::updateSourceBinding(true)), as opposed to the target having
+    // changed. Only a trigger reads it: there the write is a fire.
+    bool m_sourceWriteRequested = false;
 
 public:
     DataBindContextValue(DataBind* dataBind);
@@ -33,6 +37,7 @@ public:
                        bool isMainDirection,
                        DataBind* dataBind) {};
     void invalidate() { m_isValid = false; };
+    void requestSourceWrite() { m_sourceWriteRequested = true; }
     // Re-read the target after we wrote it ourselves (source->target). The
     // cached target value is what detects target-side changes; if we leave it
     // holding the value from before our own write, a later genuine target

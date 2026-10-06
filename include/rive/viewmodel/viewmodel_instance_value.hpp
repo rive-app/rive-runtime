@@ -10,6 +10,8 @@
 #include "rive/component_dirt.hpp"
 #include "rive/refcnt.hpp"
 #include <stdio.h>
+#include <atomic>
+#include <cstdint>
 #include <list>
 
 namespace rive
@@ -24,7 +26,6 @@ public:
 enum class ValueFlags : uint8_t
 {
     none = 0,
-    valueChanged = 1 << 1,
     delegatesChanged = 1 << 2,
     delegating = 1 << 3,
 };
@@ -32,15 +33,16 @@ enum class ValueFlags : uint8_t
 class SuppressDelegation;
 
 class ViewModelInstanceValue : public ViewModelInstanceValueBase,
-                               public RefCnt<ViewModelInstanceValue>,
-                               public Triggerable
+                               public RefCnt<ViewModelInstanceValue>
 {
     friend class SuppressDelegation;
 
 private:
     ViewModelProperty* m_ViewModelProperty = nullptr;
     static std::string defaultName;
+    static std::atomic<uint64_t> s_changeSequence;
     ValueFlags m_changeFlags = ValueFlags::none;
+    uint64_t m_changeSequence = 0;
     LazyVector<ViewModelInstanceValueDelegate*> m_delegates;
     LazyVector<ViewModelInstanceValueDelegate*> m_delegatesCopy;
     void registerSymbol();
@@ -88,9 +90,26 @@ public:
     void addDependent(ViewModelValueDependent* value);
     void removeDependent(ViewModelValueDependent* value);
     virtual void setRoot(rcp<ViewModelInstance> value);
-    virtual void advanced();
-    bool hasChanged();
     void onValueChanged();
+
+    // Where this value's latest change falls in the sequence that every value
+    // change advances, or 0 if it never changed. State machines compare it with
+    // how far their transition searches have got to tell whether a change, a
+    // trigger fire included, is still pending for them (see
+    // StateMachineInstance::viewModelValueChanged).
+    uint64_t changeSequence() const { return m_changeSequence; }
+    // The sequence's latest position: a change made after reading it gets a
+    // greater one.
+    static uint64_t latestChangeSequence()
+    {
+        return s_changeSequence.load(std::memory_order_relaxed);
+    }
+    // Takes the sequence's next position, for a change that isn't a view
+    // model value's: a component trigger's fire (CustomPropertyTrigger).
+    static uint64_t nextChangeSequence()
+    {
+        return s_changeSequence.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
     const std::string& name() const;
     const std::vector<ViewModelValueDependent*>& dependents() const
     {

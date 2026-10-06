@@ -286,14 +286,6 @@ rcp<ViewModelInstance> DataContext::mainViewModelInstance() const
     return nullptr;
 }
 
-void DataContext::advanced()
-{
-    for (auto& vmi : m_ViewModelInstances)
-    {
-        vmi->advanced();
-    }
-}
-
 // --- Private helpers: try resolution against a single instance ---
 
 ViewModelInstanceValue* DataContext::tryGetViewModelProperty(

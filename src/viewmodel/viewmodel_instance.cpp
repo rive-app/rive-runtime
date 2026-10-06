@@ -299,11 +299,11 @@ Core* ViewModelInstance::clone() const
     // list which will clone our property values for us
     if (artboard() == nullptr)
     {
-        for (auto propertyValue : m_PropertyValues)
+        cloned->reserveValues(m_PropertyValues.size());
+        for (const auto& propertyValue : m_PropertyValues)
         {
-            auto clonedValue =
-                propertyValue->clone()->as<ViewModelInstanceValue>();
-            cloned->addValue(clonedValue);
+            cloned->appendValue(
+                propertyValue->clone()->as<ViewModelInstanceValue>());
         }
         for (auto dataBind : m_valueDataBinds)
         {
@@ -388,23 +388,6 @@ ViewModelInstanceValue* ViewModelInstance::propertyFromPath(
         }
     }
     return nullptr;
-}
-
-void ViewModelInstance::advanced()
-{
-    // Walked by index: a value's changed callback (tools builds only) runs
-    // inside its advanced() and can remove values, which would invalidate an
-    // iterator. A removal at worst leaves the value after it for next frame.
-    for (size_t i = 0; i < m_PropertyValues.size(); i++)
-    {
-#ifdef WITH_RIVE_TOOLS
-        // The callback can free this value too, so it is held meanwhile.
-        auto value = m_PropertyValues[i];
-#else
-        const auto& value = m_PropertyValues[i];
-#endif
-        value->advanced();
-    }
 }
 
 void ViewModelInstance::addParent(ViewModelInstance* parent)

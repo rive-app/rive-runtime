@@ -199,3 +199,41 @@ TEST_CASE("paint gradients can be cleared", "[scripting]")
                   .state(),
               -1) == LUA_TNIL);
 }
+
+TEST_CASE("paint gradient transform round trips", "[scripting]")
+{
+    ScriptingTest vm(
+        // clang-format off
+        "local paint = Paint.with({\n"
+            "gradientTransform = Mat2D.values(0.8, 0.3, -0.3, 0.8, 20, -10),\n"
+        "})\n"
+        "local m = paint.gradientTransform\n"
+        "return m.xx, m.xy, m.yx, m.yy, m.tx, m.ty\n"
+        // clang-format on
+        ,
+        6);
+    lua_State* L = vm.state();
+    CHECK((float)lua_tonumber(L, -6) == Approx(0.8f));
+    CHECK((float)lua_tonumber(L, -5) == Approx(0.3f));
+    CHECK((float)lua_tonumber(L, -4) == Approx(-0.3f));
+    CHECK((float)lua_tonumber(L, -3) == Approx(0.8f));
+    CHECK((float)lua_tonumber(L, -2) == Approx(20.0f));
+    CHECK((float)lua_tonumber(L, -1) == Approx(-10.0f));
+}
+
+TEST_CASE("paint gradient transform survives assignment and copy",
+          "[scripting]")
+{
+    ScriptingTest vm(
+        // clang-format off
+        "local paint = Paint.new()\n"
+        "paint.gradientTransform = Mat2D.withTranslation(12, 34)\n"
+        "local m = paint:copy().gradientTransform\n"
+        "return m.tx, m.ty\n"
+        // clang-format on
+        ,
+        2);
+    lua_State* L = vm.state();
+    CHECK((float)lua_tonumber(L, -2) == Approx(12.0f));
+    CHECK((float)lua_tonumber(L, -1) == Approx(34.0f));
+}

@@ -75,7 +75,7 @@ TEST_CASE("View model conditions settle until a bound value changes",
 
     // So do an enum change and a trigger fired together on settled layers.
     state->value("state-blue");
-    trigger->propertyValue(1);
+    trigger->trigger();
     machine->advanceAndApply(0.0f);
     CHECK(fillColor(artboard.get()) == colorARGB(255, 0, 0, 255));
     CHECK(shape->x() == 350);
@@ -87,7 +87,7 @@ TEST_CASE("View model conditions settle until a bound value changes",
     }
 
     // And a trigger on its own.
-    trigger->propertyValue(1);
+    trigger->trigger();
     machine->advanceAndApply(0.0f);
     CHECK(shape->x() == 350);
     CHECK(shape->y() == 350);

@@ -1,6 +1,7 @@
 #include "rive/component.hpp"
 #include "rive/file.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard_component_list.hpp"
@@ -89,6 +90,10 @@ static std::vector<const ViewModelInstanceListItem*> sortedItems(
     std::sort(sorted.begin(), sorted.end());
     return sorted;
 }
+
+// Shared by every list, so a scroll can't mistake one list's version for
+// another's.
+static std::atomic<uint32_t> s_itemsVersion{0};
 
 ArtboardComponentList::ArtboardComponentList() {}
 ArtboardComponentList::~ArtboardComponentList() { clear(); }
@@ -832,8 +837,6 @@ void ArtboardComponentList::updateList(
     // those rows too.
     const bool wasUpdatingList = m_updatingList;
     m_updatingList = true;
-    m_oldItems.clear();
-    m_oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();
     m_listItems.assign(list->begin(), list->end());
     const auto sorted = sortedItems(m_listItems);
@@ -848,7 +851,6 @@ void ArtboardComponentList::updateList(
     resetQuietRows(m_listItems.size());
     m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
     m_realizedIndices.clear();
-    m_itemsVersion++;
     m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
     quietUnrealizedRows();
 
@@ -862,7 +864,7 @@ void ArtboardComponentList::updateList(
     // We need to dispose old items after the layout children of the parent have
     // updated to ensure no bad YGNodes are being hosted from the old data
     // during clearLayoutChildren.
-    for (const auto& item : m_oldItems)
+    for (const auto& item : preListItems)
     {
         if (!std::binary_search(sorted.begin(), sorted.end(), item.get()))
         {
@@ -899,6 +901,7 @@ void ArtboardComponentList::updateList(
         }
         index++;
     }
+    m_itemsVersion = ++s_itemsVersion;
     computeLayoutBounds();
     syncLayoutChildren();
     markLayoutNodeDirty();
@@ -931,6 +934,7 @@ void ArtboardComponentList::syncLayoutChildren()
 #ifdef TESTING
 uint64_t ArtboardComponentList::sm_quietRowSkips = 0;
 bool ArtboardComponentList::sm_quietRowsEnabled = true;
+bool ArtboardComponentList::sm_verifyQuietRows = true;
 #endif
 
 static size_t lowestSetBit(uint64_t bits)
@@ -978,20 +982,6 @@ AdvancingComponent::QuietState ArtboardComponentList::rowQuietState(size_t row)
     if (stateMachine != nullptr && stateMachine->artboard() != artboard)
     {
         return QuietState::busy;
-    }
-    if (m_shouldResetInstances)
-    {
-        // reset() also advances a bound main instance that isn't the item's.
-        auto dataContext = artboard->dataContext();
-        if (dataContext != nullptr)
-        {
-            auto bound = dataContext->mainViewModelInstance();
-            if (bound != nullptr &&
-                bound.get() != m_listItems[row]->viewModelInstance().get())
-            {
-                return QuietState::busy;
-            }
-        }
     }
     auto state = artboard->rowQuietState();
     if (state != QuietState::quiet || stateMachine == nullptr)
@@ -1108,22 +1098,16 @@ void ArtboardComponentList::hostedRowWoke(Artboard* artboard, uint32_t row)
     }
 }
 
-void ArtboardComponentList::shouldResetInstances(bool value)
-{
-    if (value != m_shouldResetInstances)
-    {
-        // Rows were judged quiet with the other setting's reset work.
-        resetQuietRows(m_listItems.size());
-    }
-    m_shouldResetInstances = value;
-}
-
 #ifdef TESTING
 void ArtboardComponentList::verifyQuietRows(RowPass pass,
                                             float elapsedSeconds,
                                             AdvanceFlags flags,
                                             bool advanceNested)
 {
+    if (!sm_verifyQuietRows)
+    {
+        return;
+    }
     for (size_t word = 0; word < m_quietRows.size(); word++)
     {
         for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
@@ -1178,9 +1162,6 @@ void ArtboardComponentList::verifyQuietRows(RowPass pass,
                         }
                         artboard->updateDataBinds();
                         break;
-                    case RowPass::reset:
-                        artboard->reset();
-                        break;
                     case RowPass::update:
                         didWork = artboard->updatePass(false);
                         break;
@@ -1213,8 +1194,14 @@ void ArtboardComponentList::verifyQuietRows(RowPass pass,
 bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
                                              AdvanceFlags flags)
 {
-    if (artboardCount() == 0 || isCollapsed())
+    if (artboardCount() == 0)
     {
+        return false;
+    }
+    if (isCollapsed())
+    {
+        m_inactiveChangeSequence =
+            ViewModelInstanceValue::latestChangeSequence();
         return false;
     }
     bool keepGoing = false;
@@ -1284,49 +1271,7 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
     return keepGoing;
 }
 
-void ArtboardComponentList::reset()
-{
-    const size_t count = m_listItems.size();
-    // Detached item view models (see shouldResetInstances) are advanced on
-    // every row, quiet or not; otherwise only awake rows have work here.
-    for (size_t i = m_shouldResetInstances ? 0 : nextAwakeRow(0); i < count;
-         i = m_shouldResetInstances ? i + 1 : nextAwakeRow(i + 1))
-    {
-        auto artboard = m_artboardInstancesByIndex[i];
-        if (m_shouldResetInstances)
-        {
-            auto& viewModelInstance = m_listItems[i]->viewModelInstance();
-            if (viewModelInstance != nullptr)
-            {
-                viewModelInstance->advanced();
-            }
-            if (isRowQuiet(i))
-            {
-                continue;
-            }
-            if (artboard != nullptr)
-            {
-                auto dataContext = artboard->dataContext();
-                if (dataContext != nullptr)
-                {
-                    auto boundInstance = dataContext->mainViewModelInstance();
-                    if (boundInstance != nullptr &&
-                        boundInstance != viewModelInstance)
-                    {
-                        boundInstance->advanced();
-                    }
-                }
-            }
-        }
-        if (artboard != nullptr)
-        {
-            artboard->reset();
-        }
-    }
-#ifdef TESTING
-    verifyQuietRows(RowPass::reset, 0.0f, AdvanceFlags::None, false);
-#endif
-}
+void ArtboardComponentList::reset() {}
 
 AABB ArtboardComponentList::layoutBounds()
 {
@@ -1371,9 +1316,12 @@ void ArtboardComponentList::markHostingLayoutDirty(
     // Only an artboard showing in a row joins the parent's layout. Artboards
     // in the pools get here too, whenever reusing one resets its properties.
     if (artboardInstance != nullptr &&
-        std::find(m_artboardInstancesByIndex.begin(),
-                  m_artboardInstancesByIndex.end(),
-                  artboardInstance) != m_artboardInstancesByIndex.end())
+        std::any_of(m_realizedIndices.begin(),
+                    m_realizedIndices.end(),
+                    [&](int i) {
+                        return m_artboardInstancesByIndex[i] ==
+                               artboardInstance;
+                    }))
     {
         this->artboard()->markLayoutDirty(artboardInstance);
     }
@@ -2233,25 +2181,32 @@ void ArtboardComponentList::computeLayoutBounds()
     if (virtualizationEnabled())
     {
         auto gap = this->gap();
-        auto runningWidth = 0.0f;
-        auto runningHeight = 0.0f;
         bool isHorz = mainAxisIsRow();
-        for (int i = 0; i < m_artboardSizes.size(); i++)
+        if (m_layoutSizeVersion != m_itemsVersion || m_layoutSizeGap != gap ||
+            m_layoutSizeIsHorz != isHorz)
         {
-            auto size = m_artboardSizes[i];
-            auto realGap = i == m_artboardSizes.size() - 1 ? 0 : gap;
-            if (isHorz)
+            m_layoutSizeVersion = m_itemsVersion;
+            m_layoutSizeGap = gap;
+            m_layoutSizeIsHorz = isHorz;
+            auto runningWidth = 0.0f;
+            auto runningHeight = 0.0f;
+            for (int i = 0; i < m_artboardSizes.size(); i++)
             {
-                runningWidth += size.x + realGap;
-                runningHeight = std::max(runningHeight, size.y);
+                auto size = m_artboardSizes[i];
+                auto realGap = i == m_artboardSizes.size() - 1 ? 0 : gap;
+                if (isHorz)
+                {
+                    runningWidth += size.x + realGap;
+                    runningHeight = std::max(runningHeight, size.y);
+                }
+                else
+                {
+                    runningWidth = std::max(runningWidth, size.x);
+                    runningHeight += size.y + realGap;
+                }
             }
-            else
-            {
-                runningWidth = std::max(runningWidth, size.x);
-                runningHeight += size.y + realGap;
-            }
+            m_layoutSize = Vec2D(runningWidth, runningHeight);
         }
-        m_layoutSize = Vec2D(runningWidth, runningHeight);
 
         auto scroll = scrollConstraint();
         if (scroll != nullptr)
@@ -2273,7 +2228,7 @@ void ArtboardComponentList::setItemSize(Vec2D size, int index)
     if (index < m_artboardSizes.size() && m_artboardSizes[index] != size)
     {
         m_artboardSizes[index] = size;
-        m_itemsVersion++;
+        m_itemsVersion = ++s_itemsVersion;
     }
 }
 

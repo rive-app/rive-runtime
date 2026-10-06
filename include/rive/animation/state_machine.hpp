@@ -90,6 +90,18 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
 
+    // Whether a transition condition compares a component's trigger
+    // (TransitionViewModelCondition::readsComponentTrigger). Editor builds
+    // don't classify, since conditions there change after import.
+    bool readsComponentTriggers() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        return true;
+#else
+        return m_readsComponentTriggers;
+#endif
+    }
+
 #ifdef WITH_RIVE_EDITOR
     // Editor-only parallel non-owning lists. Coop hydration delivers
     // layers/inputs/listeners as `Core*`s into `EditorFile::m_arena`
@@ -112,6 +124,9 @@ public:
 #endif
 
 private:
+#ifndef WITH_RIVE_EDITOR
+    bool m_readsComponentTriggers = false;
+#endif
 #ifdef WITH_RIVE_EDITOR
     std::vector<StateMachineLayer*> m_editorLayers;
     std::vector<StateMachineInput*> m_editorInputs;

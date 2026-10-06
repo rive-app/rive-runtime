@@ -139,6 +139,7 @@ public:
     void blendMode(rive::BlendMode value) override { blend = value; }
     void additiveness(float value) override { additive = value; }
     void shader(rive::rcp<rive::RenderShader>) override {}
+    void shaderTransform(const rive::Mat2D&) override {}
     void invalidateStroke() override {}
 };
 

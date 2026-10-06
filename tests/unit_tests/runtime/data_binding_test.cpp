@@ -162,8 +162,9 @@ TEST_CASE("state machine led by enums and triggers", "[data binding]")
     // Update view model properties
     // Update enum by name
     stateProperty->as<rive::ViewModelInstanceEnum>()->value("state-blue");
-    // Update trigger
-    triggerProperty->as<rive::ViewModelInstanceTrigger>()->propertyValue(1);
+    // Fire trigger (monotonic counter: increment rather than set to a fixed
+    // value, which after the first fire would be a no-op change).
+    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
 
     // Advance state machine
     machine->advanceAndApply(0.0f);
@@ -172,8 +173,8 @@ TEST_CASE("state machine led by enums and triggers", "[data binding]")
             rive::colorARGB(255, 0, 0, 255));
     REQUIRE(shapeMapped->x() == 350);
     REQUIRE(shapeMapped->y() == 250);
-    // Update trigger
-    triggerProperty->as<rive::ViewModelInstanceTrigger>()->propertyValue(1);
+    // Fire trigger again
+    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
 
     // Advance state machine
     machine->advanceAndApply(0.0f);
@@ -181,11 +182,11 @@ TEST_CASE("state machine led by enums and triggers", "[data binding]")
     REQUIRE(shapeMapped->y() == 350);
 }
 
-// advanceAndApply(secs, advanceViewModels=false) runs the state machine but
-// must NOT consume the bound view model instances. This is what
-// ScriptedArtboard::advance uses so a script-driven nested artboard doesn't
-// reset view models owned by the host frame.
-TEST_CASE("advanceAndApply can skip view model reset", "[data binding]")
+// The monotonic trigger counter is never reset by advanceAndApply, regardless
+// of the advanceViewModels flag: transitions see fires through change
+// sequences, so nothing zeroes it.
+TEST_CASE("advanceAndApply does not reset the view model trigger counter",
+          "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_binding_test.riv");
 
@@ -206,17 +207,52 @@ TEST_CASE("advanceAndApply can skip view model reset", "[data binding]")
     // Settle initial state.
     machine->advanceAndApply(0.0f);
 
-    // advanceViewModels=false: the bound view model is not consumed, so a
-    // trigger set before the advance is retained (the host frame will consume
-    // it, not this advance).
-    trigger->propertyValue(1);
-    machine->advanceAndApply(0.0f, false);
+    trigger->trigger();
     CHECK(trigger->propertyValue() == 1);
+    machine->advanceAndApply(0.0f, false); // advanceViewModels = false
+    CHECK(trigger->propertyValue() == 1);  // not reset
+    machine->advanceAndApply(0.0f, true);  // advanceViewModels = true
+    CHECK(trigger->propertyValue() == 1);  // still not reset
+}
 
-    // The default (advanceViewModels=true) path consumes the trigger, resetting
-    // it to 0 via ViewModelInstance::advanced().
-    machine->advanceAndApply(0.0f, true);
-    CHECK(trigger->propertyValue() == 0);
+// The trigger value is a monotonically-increasing counter: each fire increments
+// it and it is never reset. This is the core of the durable-trigger model.
+TEST_CASE("view model trigger counter is monotonic across advances",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_test.riv");
+
+    auto artboard = file->artboard("artboard-2")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    REQUIRE(machine != nullptr);
+    machine->bindViewModelInstance(viewModelInstance);
+
+    auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
+    REQUIRE(triggerProperty != nullptr);
+    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+    auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
+
+    machine->advanceAndApply(0.0f); // settle; never fired yet
+    REQUIRE(trigger->propertyValue() == 0);
+
+    for (uint32_t i = 1; i <= 5; i++)
+    {
+        trigger->trigger();
+        CHECK(trigger->propertyValue() == i); // incremented
+        machine->advanceAndApply(0.016f);
+        CHECK(trigger->propertyValue() == i); // never reset
+    }
+
+    // Two fires within a single frame advance the counter by two.
+    trigger->trigger();
+    trigger->trigger();
+    CHECK(trigger->propertyValue() == 7);
+    machine->advanceAndApply(0.016f);
+    CHECK(trigger->propertyValue() == 7);
 }
 
 TEST_CASE("calculate and to string converters with numbers", "[data binding]")

@@ -98,9 +98,10 @@ public:
     /// Whether this text input currently has focus.
     bool isFocused() const { return m_focused; }
 
-    /// Whether the caret should be drawn this frame. Only true while focused
-    /// and while the blink cycle is in its visible phase.
-    bool isCursorVisible() const { return m_focused && m_cursorBlinkVisible; }
+    /// Whether the caret should be drawn this frame: focused, in the blink
+    /// cycle's visible phase, and with nothing selected (a selection shows
+    /// instead of the caret, as platform text fields draw it).
+    bool isCursorVisible() const;
 
 protected:
     void textChanged() override;

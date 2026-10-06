@@ -15,6 +15,8 @@ RawTextInput::RawTextInput() :
     m_cursorVisualPosition(CursorVisualPosition::missing())
 {
     m_text.push_back(zeroWidthSpace);
+    // The empty text is where undo stops, so the first edit can be undone.
+    m_journal.push_back({m_cursor, m_cursor, std::string()});
 }
 
 void RawTextInput::draw(Factory* factory,
@@ -934,12 +936,16 @@ void RawTextInput::setTextPrivate(std::string value)
 
 void RawTextInput::text(std::string value)
 {
-    Cursor startingCursor = m_cursor;
     setTextPrivate(value);
     auto position = CursorPosition::zero();
     m_cursor = Cursor::collapsed(position);
     flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
-    captureJournalEntry(startingCursor);
+    // Text set from outside (the file's own, a data bind) starts a new undo
+    // history with it as the baseline: undo takes back the edits after it,
+    // never the text itself.
+    m_journal.clear();
+    m_journal.push_back({m_cursor, m_cursor, text()});
+    m_journalIndex = 0;
 }
 
 void RawTextInput::textPreserveCursor(std::string value)

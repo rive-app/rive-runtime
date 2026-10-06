@@ -41,6 +41,8 @@ class FocusListenerGroup;
 class ListenerViewModel;
 class ScriptedDrawable;
 class ScriptedObject;
+class StateMachineLayerInstance;
+class ViewModelInstanceValue;
 
 /// Event and viewModel-listener reporting. Allocated the first time the file
 /// reports an event or registers a viewModel listener.
@@ -180,6 +182,30 @@ struct SMIBindables
     std::unordered_map<const Core*,
                        std::unordered_map<uint32_t, BindablePropertyNumber*>>
         transitionPropertyInstances;
+    /// Which view model changes are pending for this instance, see
+    /// StateMachineInstance::viewModelValueChanged. Positions in
+    /// ViewModelInstanceValue's change sequence: changes after changeBaseline
+    /// are pending this frame, and changeSearched is where the latest
+    /// transition search started, which becomes the next frame's baseline.
+    /// Held per instance rather than per layer: a change made after one
+    /// layer's search but before another's can only come from a transition of
+    /// a layer searched in between, and a state change gets every layer
+    /// searched again before the frame ends (short of the settle loop's
+    /// iteration cap).
+    uint64_t changeBaseline = 0;
+    uint64_t changeSearched = 0;
+    /// Where the sequence stood when this instance last handled its view
+    /// model listeners' reports (at the start of its frame), or was created or
+    /// reset. A trigger fired after it is pending for a listener that binds
+    /// now, see StateMachineInstance::viewModelTriggerPendingForListeners.
+    /// Not changeBaseline: settled layers don't search, so that one can stay
+    /// behind fires that listeners have long handled.
+    uint64_t listenerBaseline = 0;
+    /// The values each layer's taken transitions read this frame. Written
+    /// through the const instance the conditions are evaluated with.
+    mutable std::vector<std::pair<const StateMachineLayerInstance*,
+                                  const ViewModelInstanceValue*>>
+        changesUsed;
 };
 
 struct QueuedFocusEvent

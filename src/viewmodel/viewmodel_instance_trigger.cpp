@@ -19,14 +19,6 @@ void ViewModelInstanceTrigger::propertyValueChanged()
     onValueChanged();
 }
 
-void ViewModelInstanceTrigger::advanced()
-{
-    SuppressDelegation suppress(this);
-    propertyValue(0);
-
-    ViewModelInstanceValue::advanced();
-}
-
 void ViewModelInstanceTrigger::applyValue(DataValueInteger* dataValue)
 {
     propertyValue(dataValue->value());

@@ -226,6 +226,22 @@ public:
     }
     void shader(
         rcp<RenderShader> s) override; // defined below (needs the helper)
+    void shaderTransform(const Mat2D& transform) override
+    {
+        if (absorbed(m_state.transform, transform))
+        {
+            return;
+        }
+        bump();
+        m_buffer->append(t(RenderCmd::paintShaderTransform),
+                         PaintMat2DPOD{m_id,
+                                       transform.xx(),
+                                       transform.xy(),
+                                       transform.yx(),
+                                       transform.yy(),
+                                       transform.tx(),
+                                       transform.ty()});
+    }
     void modulatedImage(const RenderImage*,
                         ImageSampler,
                         const Mat2D&) override; // defined below (needs the
@@ -264,6 +280,7 @@ private:
         uint8_t cap = 0;   // butt
         uint8_t strokePosition = 1; // center
         uint8_t blendMode = 3;      // srcOver
+        Mat2D transform;
     };
 
     static uint8_t t(RenderCmd c) { return static_cast<uint8_t>(c); }

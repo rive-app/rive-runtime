@@ -1216,6 +1216,7 @@ void PaintData::set(DrawContents singleDrawContents,
 
 void getGradientMatrixAndSpan(const Gradient* gradient,
                               ColorRampLocation rampLocation,
+                              const Mat2D& inverseGradientTransform,
                               const Mat2D& viewMatrix,
                               const RenderTarget* renderTarget,
                               const PlatformFeatures& platformFeatures,
@@ -1237,6 +1238,8 @@ void getGradientMatrixAndSpan(const Gradient* gradient,
         // Flip _fragCoord.y.
         paintMatrixOut *= Mat2D(1, 0, 0, -1, 0, renderTarget->height());
     }
+
+    paintMatrixOut = inverseGradientTransform * paintMatrixOut;
 
     if (gradient->paintType() == PaintType::linearGradient)
     {
@@ -1279,6 +1282,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
                        PaintType paintType,
                        SimplePaintValue simplePaintValue,
                        const Gradient* gradient,
+                       const Mat2D& inverseGradientTransform,
                        const Texture* imageTexture,
                        const ClipRectInverseMatrix* clipRectInverseMatrix,
                        const RenderTarget* renderTarget,
@@ -1291,11 +1295,10 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
         {
             assert(gradient != nullptr);
             Mat2D paintMatrix;
-            viewMatrix.invert(&paintMatrix);
-
             float gradTextureHorizontalSpan[2];
             getGradientMatrixAndSpan(gradient,
                                      simplePaintValue.colorRampLocation,
+                                     inverseGradientTransform,
                                      viewMatrix,
                                      renderTarget,
                                      platformFeatures,

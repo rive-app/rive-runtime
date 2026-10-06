@@ -135,6 +135,10 @@ public:
         rive_paint_blend_mode(m_handle, (uint32_t)value);
     }
     void shader(rcp<RenderShader> value) override;
+    void shaderTransform(const Mat2D& value) override
+    {
+        rive_paint_shader_transform(m_handle, value.values(), 6);
+    }
     void invalidateStroke() override {}
 
     uint32_t handle() const { return m_handle; }

@@ -1,7 +1,8 @@
 dofile('rive_build_config.lua')
-defines({ 'WITH_RIVE_TOOLS' })
 
-WITH_RIVE_TOOLS = true
+-- Including this file automatically enables Rive tools. The other way to
+-- enable them is to pass the --with_rive_tools option to premake.
+_OPTIONS['with_rive_tools'] = ''
 
 -- Several of the scripts below assign RIVE_RUNTIME_DIR and RIVE_PLS_DIR
 -- themselves, so ours would not survive the dofiles. Keep a private copy to

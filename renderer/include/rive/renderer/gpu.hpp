@@ -1815,6 +1815,7 @@ public:
              PaintType,
              SimplePaintValue,
              const Gradient*,
+             const Mat2D& inverseGradientTransform,
              const Texture*,
              const ClipRectInverseMatrix*,
              const RenderTarget*,
@@ -2388,7 +2389,8 @@ float getGradientY(ColorRampLocation, GradTextureLayout);
 // gradient.
 void getGradientMatrixAndSpan(const Gradient*,
                               ColorRampLocation,
-                              const Mat2D& inverseViewMatrix,
+                              const Mat2D& inverseGradientTransform,
+                              const Mat2D& viewMatrix,
                               const RenderTarget*,
                               const PlatformFeatures&,
                               Mat2D& paintMatrixOut,

@@ -47,6 +47,17 @@ public:
     virtual class Component* hostComponent() { return nullptr; }
     virtual void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) {}
     virtual int type() const = 0;
+
+    /// Where ViewModelInstanceValue's change sequence stood the last time this
+    /// host skipped advancing its artboards because it was collapsed or
+    /// paused, or 0 if it never did. The state machines inside were inactive
+    /// while the changes up to it were made, so those changes aren't pending
+    /// for them once they run again (see
+    /// StateMachineInstance::viewModelValueChanged).
+    uint64_t inactiveChangeSequence() const { return m_inactiveChangeSequence; }
+
+protected:
+    uint64_t m_inactiveChangeSequence = 0;
 };
 } // namespace rive
 

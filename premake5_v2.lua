@@ -271,17 +271,12 @@ do
             defines(wamrConfigDefines)
             -- The tier transplant is the one TU reading instance internals
             -- (layout hinges on the config defines above); runtime builds
-            -- compile its stub without them. The tests workspace forces
-            -- tools on without the option, so honor both signals.
-            if WITH_RIVE_TOOLS == true then
-                includedirs(wamrInternalIncludes)
-            else
-                filter({
-                    'options:with_rive_scripting',
-                    'options:with_rive_tools',
-                })
-                includedirs(wamrInternalIncludes)
-            end
+            -- compile its stub without them.
+            filter({
+                'options:with_rive_scripting',
+                'options:with_rive_tools',
+            })
+            includedirs(wamrInternalIncludes)
             filter({ 'options:with_rive_scripting', 'system:macosx' })
             defines({ 'BH_PLATFORM_DARWIN' })
             filter({ 'options:with_rive_scripting', 'system:linux' })

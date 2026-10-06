@@ -172,6 +172,8 @@ struct rive::WasmScriptingVMNatives
 {
     static void print(WasmScriptingVM* vm, const char* data, size_t size);
     static WasmScriptingVM* adoptBooting(wasm_exec_env_t env);
+    static std::unordered_map<std::string, int64_t>& consoleTimers(
+        WasmScriptingVM* vm);
 };
 
 // Loaded modules are immutable and shared: fast-interp translation costs
@@ -211,6 +213,8 @@ struct WasmScriptingVM::WamrState
     wasm_exec_env_t execEnv = nullptr;
     uint32_t callDepth = 0;
     std::unordered_map<std::string, uint32_t> guestNames;
+    // console.time starts by label, in steady nanoseconds.
+    std::unordered_map<std::string, int64_t> consoleTimers;
 
     // Export names reach callModule as literals, so the pointer is the key;
     // the owned copy lets debug builds catch a caller that reuses a buffer.
@@ -672,6 +676,12 @@ WasmScriptingVM* WasmScriptingVMNatives::adoptBooting(wasm_exec_env_t env)
         s_booting->m_state->instance = wasm_runtime_get_module_inst(env);
     }
     return s_booting;
+}
+
+std::unordered_map<std::string, int64_t>& WasmScriptingVMNatives::consoleTimers(
+    WasmScriptingVM* vm)
+{
+    return vm->m_state->consoleTimers;
 }
 
 void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
@@ -1302,7 +1312,93 @@ double envSeed(wasm_exec_env_t)
     return (double)std::chrono::steady_clock::now().time_since_epoch().count();
 }
 
+// The std's console passes a managed string: UTF-16 whose byte length is the
+// word ahead of it.
+std::string consoleString(wasm_exec_env_t env, uint32_t text)
+{
+    wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    if (text < 4 || !wasm_runtime_validate_app_addr(inst, text - 4, 4))
+    {
+        return std::string();
+    }
+    uint32_t length = 0;
+    memcpy(&length, wasm_runtime_addr_app_to_native(inst, text - 4), 4);
+    if (!wasm_runtime_validate_app_addr(inst, text, length))
+    {
+        return std::string();
+    }
+    WasmStringArg utf8(vmFromEnv(env),
+                       (const char*)wasm_runtime_addr_app_to_native(inst, text),
+                       length);
+    return std::string(utf8.data(), utf8.size());
+}
+
+void consoleWrite(WasmScriptingVM* vm, const std::string& message)
+{
+    rtLogImpl(vm, 0, message.data(), (uint32_t)message.size());
+}
+
+void consoleLog(wasm_exec_env_t env, uint32_t text)
+{
+    consoleWrite(vmFromEnv(env), consoleString(env, text));
+}
+
+void consoleTime(wasm_exec_env_t env, uint32_t label)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm != nullptr)
+    {
+        WasmScriptingVMNatives::consoleTimers(vm)[consoleString(env, label)] =
+            steadyNanos();
+    }
+}
+
+void consoleTimeReport(wasm_exec_env_t env, uint32_t label, bool end)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        return;
+    }
+    auto& timers = WasmScriptingVMNatives::consoleTimers(vm);
+    std::string name = consoleString(env, label);
+    auto itr = timers.find(name);
+    if (itr == timers.end())
+    {
+        consoleWrite(vm, "Timer '" + name + "' does not exist");
+        return;
+    }
+    char elapsed[32];
+    snprintf(elapsed,
+             sizeof(elapsed),
+             ": %.3fms",
+             (double)(steadyNanos() - itr->second) / 1e6);
+    if (end)
+    {
+        timers.erase(itr);
+    }
+    consoleWrite(vm, name + elapsed);
+}
+
+void consoleTimeLog(wasm_exec_env_t env, uint32_t label)
+{
+    consoleTimeReport(env, label, false);
+}
+
+void consoleTimeEnd(wasm_exec_env_t env, uint32_t label)
+{
+    consoleTimeReport(env, label, true);
+}
+
 NativeSymbol kEnvNatives[] = {
+    {"console.log", (void*)consoleLog, "(i)", nullptr},
+    {"console.debug", (void*)consoleLog, "(i)", nullptr},
+    {"console.info", (void*)consoleLog, "(i)", nullptr},
+    {"console.warn", (void*)consoleLog, "(i)", nullptr},
+    {"console.error", (void*)consoleLog, "(i)", nullptr},
+    {"console.time", (void*)consoleTime, "(i)", nullptr},
+    {"console.timeLog", (void*)consoleTimeLog, "(i)", nullptr},
+    {"console.timeEnd", (void*)consoleTimeEnd, "(i)", nullptr},
     {"invoke_vii", (void*)invokeViiNative, "(iii)", nullptr},
     {"seed", (void*)envSeed, "()F", nullptr},
     {"_ZN4rive12CoreUintType11deserializeERNS_12BinaryReaderE",
@@ -1966,6 +2062,26 @@ void paintShaderImpl(WasmScriptingVM* vm,
         vm->handles().resolve(shaderHandle,
                               WasmScriptingVM::HandleTable::Tag::shader));
     paint->shader(hostShader != nullptr ? hostShader->shader : nullptr);
+}
+
+void paintShaderTransformImpl(WasmScriptingVM* vm,
+                              uint32_t paintHandle,
+                              const float* values,
+                              uint32_t floatCount)
+{
+    if (values == nullptr || floatCount < 6)
+    {
+        return;
+    }
+    if (auto paint = resolvePaint(vm, paintHandle))
+    {
+        paint->shaderTransform(Mat2D(values[0],
+                                     values[1],
+                                     values[2],
+                                     values[3],
+                                     values[4],
+                                     values[5]));
+    }
 }
 
 // The object's file asset of type T by name; accept skips matches that
@@ -8067,11 +8183,6 @@ uint32_t WasmScriptingVM::HandleTable::mint(Tag tag, void* object)
     }
     slots[slot].tag = tag;
     slots[slot].object = object;
-    if (holdsViewModel(tag))
-    {
-        slots[slot].viewModelIndex = (uint32_t)viewModelSlots.size();
-        viewModelSlots.push_back(slot);
-    }
     // Handle 0 is never valid; slots bias by one.
     return ((slot + 1) & 0xffffff) | ((uint32_t)slots[slot].generation << 24);
 }
@@ -8104,13 +8215,6 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
     if (entry.generation != (uint8_t)(handle >> 24) || entry.tag != tag)
     {
         return;
-    }
-    if (holdsViewModel(tag))
-    {
-        uint32_t moved = viewModelSlots.back();
-        viewModelSlots[entry.viewModelIndex] = moved;
-        slots[moved].viewModelIndex = entry.viewModelIndex;
-        viewModelSlots.pop_back();
     }
     entry.tag = Tag::empty;
     entry.object = nullptr;
@@ -8712,39 +8816,6 @@ void WasmScriptingVM::setTimeoutMs(int ms)
     {
         uint32_t args[2] = {m_L, (uint32_t)ms};
         callModule("host_set_timeout", 2, args);
-    }
-}
-
-void WasmScriptingVM::advanceDetachedViewModels()
-{
-    // Only detached roots; instances with parents are already reached
-    // through the bound tree or their detached-root ancestor.
-    auto advanceDetached = [](rcp<ViewModelInstance> instance) {
-        if (instance != nullptr && !instance->hasParents())
-        {
-            instance->advanced();
-        }
-    };
-    // Indexed and holding the instance, since a changed callback can mint or
-    // release, like ViewModelInstance::advanced.
-    for (size_t i = 0; i < m_handles.viewModelSlots.size(); i++)
-    {
-        HandleTable::Slot slot = m_handles.slots[m_handles.viewModelSlots[i]];
-        switch (slot.tag)
-        {
-            case HandleTable::Tag::viewModelInstance:
-                advanceDetached(
-                    static_cast<HostViewModelInstance*>(slot.object)->instance);
-                break;
-            case HandleTable::Tag::artboard:
-                // Artboard inputs keep their bound instance advancing, like
-                // the Luau context's tracked instances.
-                advanceDetached(
-                    static_cast<HostArtboard*>(slot.object)->viewModelInstance);
-                break;
-            default:
-                break;
-        }
     }
 }
 
@@ -9702,6 +9773,7 @@ bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
     }
     wasm_runtime_set_user_data(next->execEnv, this);
     next->guestNames = std::move(m_state->guestNames);
+    next->consoleTimers = std::move(m_state->consoleTimers);
     m_state = std::move(next);
     m_tier = tier;
     return true;

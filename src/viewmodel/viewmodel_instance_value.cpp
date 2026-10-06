@@ -56,11 +56,6 @@ StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
     return Core::import(importStack);
 }
 
-bool ViewModelInstanceValue::hasChanged()
-{
-    return enums::is_flag_set(m_changeFlags, ValueFlags::valueChanged);
-}
-
 void ViewModelInstanceValue::registerSymbol()
 {
 
@@ -118,6 +113,7 @@ void ViewModelInstanceValue::setRoot(rcp<ViewModelInstance> viewModelInstance)
 }
 
 std::string ViewModelInstanceValue::defaultName = "";
+std::atomic<uint64_t> ViewModelInstanceValue::s_changeSequence{0};
 
 const std::string& ViewModelInstanceValue::name() const
 {
@@ -126,12 +122,6 @@ const std::string& ViewModelInstanceValue::name() const
         return m_ViewModelProperty->constName();
     };
     return defaultName;
-}
-
-void ViewModelInstanceValue::advanced()
-{
-    m_usedLayers.clear();
-    m_changeFlags &= ~ValueFlags::valueChanged;
 }
 
 void ViewModelInstanceValue::viewModelInstance(ViewModelInstance* value)
@@ -175,7 +165,10 @@ void ViewModelInstanceValue::restoreDelegation()
 
 void ViewModelInstanceValue::onValueChanged()
 {
-    m_changeFlags |= ValueFlags::valueChanged;
+    // One sequence for every value, so a state machine can tell the changes
+    // made since its last transition search from the rest with one number.
+    // Atomic because files on other threads change their values too.
+    m_changeSequence = nextChangeSequence();
 
     // Common case: no delegates ever registered. Skip the snapshot+iterate
     // logic entirely.

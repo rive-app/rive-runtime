@@ -53,6 +53,7 @@ enum class RenderCmd : uint8_t
     paintAdditiveness,     // PaintFloatPOD
     paintBlendMode,        // PaintU8POD
     paintShader,           // PaintShaderPOD
+    paintShaderTransform,  // PaintMat2DPOD
     paintModulatedImage,   // PaintModulatedImagePOD
     paintInvalidateStroke, // ResId
 
@@ -214,6 +215,12 @@ struct PaintShaderPOD
 {
     RenderHandle paint;
     RenderHandle shader; // kInvalidRenderHandle clears the shader
+};
+
+struct PaintMat2DPOD
+{
+    RenderHandle paint;
+    float xx, xy, yx, yy, tx, ty; // Mat2D
 };
 
 struct PaintModulatedImagePOD
@@ -386,6 +393,7 @@ struct CanvasContentPOD
     X(paintAdditiveness, PaintFloatPOD)                                        \
     X(paintBlendMode, PaintU8POD)                                              \
     X(paintShader, PaintShaderPOD)                                             \
+    X(paintShaderTransform, PaintMat2DPOD)                                     \
     X(paintModulatedImage, PaintModulatedImagePOD)                             \
     X(paintInvalidateStroke, ResIdPOD)                                         \
     X(save, void)                                                              \

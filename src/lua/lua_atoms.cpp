@@ -51,6 +51,7 @@ constexpr LuaAtomName atoms[] = {
     {"blendMode", (int16_t)LuaAtoms::blendMode},
     {"feather", (int16_t)LuaAtoms::feather},
     {"gradient", (int16_t)LuaAtoms::gradient},
+    {"gradientTransform", (int16_t)LuaAtoms::gradientTransform},
     {"color", (int16_t)LuaAtoms::color},
     {"stroke", (int16_t)LuaAtoms::stroke},
     {"fill", (int16_t)LuaAtoms::fill},

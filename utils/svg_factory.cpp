@@ -126,12 +126,26 @@ static void emitColorStop(std::ostream& out, ColorInt color, float offset)
         << g << "," << b << ")\" stop-opacity=\"" << a << "\"/>\n";
 }
 
+static void emitGradientTransform(std::ostream& out,
+                                  const rive::Mat2D& transform)
+{
+    if (transform != rive::Mat2D())
+    {
+        out << " gradientTransform=\"matrix(" << transform.xx() << ' '
+            << transform.xy() << ' ' << transform.yx() << ' ' << transform.yy()
+            << ' ' << transform.tx() << ' ' << transform.ty() << ")\"";
+    }
+}
+
 void SVGLinearGradientShader::emitDefs(std::ostream& out,
-                                       const std::string& id) const
+                                       const std::string& id,
+                                       const rive::Mat2D& transform) const
 {
     out << "<linearGradient id=\"" << id << "\" x1=\"" << m_sx << "\" y1=\""
         << m_sy << "\" x2=\"" << m_ex << "\" y2=\"" << m_ey
-        << "\" gradientUnits=\"userSpaceOnUse\">\n";
+        << "\" gradientUnits=\"userSpaceOnUse\"";
+    emitGradientTransform(out, transform);
+    out << ">\n";
     for (size_t i = 0; i < m_colors.size(); i++)
     {
         emitColorStop(out, m_colors[i], m_stops[i]);
@@ -155,11 +169,14 @@ SVGRadialGradientShader::SVGRadialGradientShader(float cx,
 {}
 
 void SVGRadialGradientShader::emitDefs(std::ostream& out,
-                                       const std::string& id) const
+                                       const std::string& id,
+                                       const rive::Mat2D& transform) const
 {
     out << "<radialGradient id=\"" << id << "\" cx=\"" << m_cx << "\" cy=\""
         << m_cy << "\" r=\"" << m_radius
-        << "\" gradientUnits=\"userSpaceOnUse\">\n";
+        << "\" gradientUnits=\"userSpaceOnUse\"";
+    emitGradientTransform(out, transform);
+    out << ">\n";
     for (size_t i = 0; i < m_colors.size(); i++)
     {
         emitColorStop(out, m_colors[i], m_stops[i]);

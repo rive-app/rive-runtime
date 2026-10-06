@@ -131,6 +131,9 @@ static const char* opToName(SerializeOp op)
             return "drawImageAdditive";
         case SerializeOp::drawImageMeshAdditive:
             return "drawImageMeshAdditive";
+
+        case SerializeOp::shaderTransform:
+            return "shaderTransform";
     }
     return "???";
 }
@@ -281,6 +284,21 @@ public:
                 ? 0
                 : static_cast<SerializingRenderShader*>(shader.get())->id());
     }
+    void shaderTransform(const Mat2D& transform) override
+    {
+        if (m_shaderTransform == transform)
+        {
+            return;
+        }
+        m_shaderTransform = transform;
+        m_writer->writeVarUint((uint32_t)SerializeOp::shaderTransform);
+        m_writer->writeVarUint(m_id);
+        for (int i = 0; i < 6; i++)
+        {
+            m_writer->writeFloat(m_shaderTransform[i]);
+        }
+    }
+
     void modulatedImage(const RenderImage* image,
                         ImageSampler sampler,
                         const Mat2D& matrix) override
@@ -302,6 +320,7 @@ public:
         m_writer->writeFloat(matrix.tx());
         m_writer->writeFloat(matrix.ty());
     }
+
     void invalidateStroke() override {}
     void feather(float value) override
     {
@@ -321,6 +340,7 @@ private:
     uint64_t m_id;
     BinaryWriter* m_writer;
     rcp<RenderShader> m_shader;
+    Mat2D m_shaderTransform;
 
     unsigned int m_color = 0xFF000000;
     float m_thickness = 1;
@@ -1744,6 +1764,26 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                 if (!varUintMatches(opA, "setgradient_value", readerA, readerB))
                 {
                     return false;
+                }
+                break;
+            case SerializeOp::shaderTransform:
+                if (!varUintMatches(opA,
+                                    "shadertransform_paint_id",
+                                    readerA,
+                                    readerB))
+                {
+                    return false;
+                }
+                for (int i = 0; i < 6; i++)
+                {
+                    if (!floatMatches(opA,
+                                      std::string("setgradienttransform[") +
+                                          std::to_string(i) + std::string("]"),
+                                      readerA,
+                                      readerB))
+                    {
+                        return false;
+                    }
                 }
                 break;
             case SerializeOp::paintModulatedImage:

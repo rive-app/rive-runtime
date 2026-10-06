@@ -46,7 +46,9 @@ class SVGRenderShader : public RenderShader
 {
 public:
     virtual ~SVGRenderShader() = default;
-    virtual void emitDefs(std::ostream& out, const std::string& id) const = 0;
+    virtual void emitDefs(std::ostream& out,
+                          const std::string& id,
+                          const Mat2D& transform) const = 0;
 };
 
 class SVGLinearGradientShader : public SVGRenderShader
@@ -59,7 +61,9 @@ public:
                             const ColorInt colors[],
                             const float stops[],
                             size_t count);
-    void emitDefs(std::ostream& out, const std::string& id) const override;
+    void emitDefs(std::ostream& out,
+                  const std::string& id,
+                  const Mat2D& transform) const override;
 
 private:
     float m_sx, m_sy, m_ex, m_ey;
@@ -76,7 +80,9 @@ public:
                             const ColorInt colors[],
                             const float stops[],
                             size_t count);
-    void emitDefs(std::ostream& out, const std::string& id) const override;
+    void emitDefs(std::ostream& out,
+                  const std::string& id,
+                  const Mat2D& transform) const override;
 
 private:
     float m_cx, m_cy, m_radius;
@@ -94,6 +100,10 @@ public:
     void cap(StrokeCap value) override;
     void blendMode(BlendMode value) override;
     void shader(rcp<RenderShader> sh) override;
+    void shaderTransform(const Mat2D& transform) override
+    {
+        m_shaderTransform = transform;
+    }
     void invalidateStroke() override {}
     void feather(float value) override {}
 
@@ -103,6 +113,7 @@ public:
     StrokeJoin getJoin() const { return m_join; }
     StrokeCap getCap() const { return m_cap; }
     BlendMode getBlendMode() const { return m_blendMode; }
+    const Mat2D& getShaderTransform() const { return m_shaderTransform; }
     SVGRenderShader* getSvgShader() const;
 
 private:
@@ -113,6 +124,7 @@ private:
     StrokeCap m_cap = StrokeCap::butt;
     BlendMode m_blendMode = BlendMode::srcOver;
     rcp<RenderShader> m_shader;
+    Mat2D m_shaderTransform;
 };
 
 class SVGRenderImage : public RenderImage

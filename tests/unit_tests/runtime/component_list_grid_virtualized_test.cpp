@@ -393,3 +393,13 @@ TEST_CASE("Grid virtualized list rebuilds when its items or gap change",
         CHECK(grid.scroll->contentHeight() == Approx(400.0f));
     }
 }
+
+TEST_CASE("Lists never share a version a scroll could confuse",
+          "[component_list][virtual_layout]")
+{
+    // A scroll keys its layout on each list's version, so two lists swapped
+    // or replaced must not report the same one.
+    GridScroll a;
+    GridScroll b;
+    CHECK(a.list->itemsVersion() != b.list->itemsVersion());
+}

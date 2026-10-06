@@ -30,7 +30,6 @@ public:
         ViewModelInstance* viewModelInstance);
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
     Core* clone() const override;
-    void advanced() override;
     void parentViewModelInstance(ViewModelInstance* parent)
     {
         m_parentViewModelInstance = parent;

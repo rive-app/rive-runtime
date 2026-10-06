@@ -418,23 +418,17 @@ public:
 private:
     TransitionValueEnumComparator* m_value;
 };
+// A trigger compared as a number reads as 1 while its fire is pending for the
+// state machine (StateMachineInstance::changePending) and 0 otherwise, the way
+// its count did when triggers went back to 0 every frame. The count itself
+// only ever grows.
 class ConditionComparandTriggerBindable : public ConditionComparandUint32
 {
 public:
     ConditionComparandTriggerBindable(BindablePropertyTrigger* property) :
         m_bindableProperty(property)
     {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override
-    {
-        auto bindableInstance =
-            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
-        if (bindableInstance)
-        {
-            return bindableInstance->as<BindablePropertyTrigger>()
-                ->propertyValue();
-        }
-        return 0;
-    }
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
 
 private:
     BindablePropertyTrigger* m_bindableProperty;
@@ -685,6 +679,18 @@ private:
     TransitionPropertyComponentComparator* m_comparator;
 };
 
+// A component's trigger property, read like ConditionComparandTriggerBindable.
+class ConditionComparandComponentTrigger : public ConditionComparandUint32
+{
+public:
+    explicit ConditionComparandComponentTrigger(
+        TransitionPropertyComponentComparator* comparator);
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
+
+private:
+    TransitionPropertyComponentComparator* m_comparator;
+};
+
 class ConditionComparandComponentViewModel : public ConditionComparandViewModel
 {
 public:
@@ -747,6 +753,10 @@ public:
     }
     ConditionOperation* operation(TransitionConditionOp op);
     void initialize();
+    // Whether either side compares a component's trigger, which reads as
+    // fired within a frame (ConditionComparandComponentTrigger) and so needs
+    // the instance's change tracking.
+    bool readsComponentTrigger() const;
 
 private:
     bool canEvaluate(const StateMachineInstance*) const;

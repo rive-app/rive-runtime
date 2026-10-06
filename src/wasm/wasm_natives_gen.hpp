@@ -376,6 +376,7 @@ void paintCapImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintBlendModeImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t value);
 void paintFeatherImpl(WasmScriptingVM* vm, uint32_t paint, float value);
 void paintShaderImpl(WasmScriptingVM* vm, uint32_t paint, uint32_t shader);
+void paintShaderTransformImpl(WasmScriptingVM* vm, uint32_t paint, const float* values, uint32_t floatCount);
 uint32_t canvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height);
 void canvasReleaseImpl(WasmScriptingVM* vm, uint32_t canvas);
 uint32_t canvasWidthImpl(WasmScriptingVM* vm, uint32_t canvas);
@@ -1496,6 +1497,15 @@ void paintShader(wasm_exec_env_t env, uint32_t paint, uint32_t shader)
     WasmScriptingVM* vm = vmFromEnv(env);
     paintShaderImpl(vm, paint, shader);
 }
+void paintShaderTransform(wasm_exec_env_t env, uint32_t paint, const float* values, uint32_t floatCount)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    if (floatCount != 0 && !wasm_runtime_validate_native_addr(wasm_runtime_get_module_inst(env), (void*)values, (uint64_t)floatCount * 4))
+    {
+        return;
+    }
+    paintShaderTransformImpl(vm, paint, values, floatCount);
+}
 uint32_t canvasNew(wasm_exec_env_t env, uint32_t width, uint32_t height)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2426,6 +2436,7 @@ NativeSymbol kPaintNatives[] = {
     {"blend_mode", (void*)paintBlendMode, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
     {"feather", (void*)paintFeather, "(if)", (void*)&wasm_runtime_rive_leaf_native},
     {"shader", (void*)paintShader, "(ii)", (void*)&wasm_runtime_rive_leaf_native},
+    {"shader_transform", (void*)paintShaderTransform, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
 };
 
 NativeSymbol kCanvasNatives[] = {

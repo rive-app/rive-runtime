@@ -25,7 +25,6 @@ public:
     {
         return m_boundViewModelInstance;
     }
-    void advanced() override;
 
 private:
     rcp<BindableArtboard> m_bindableArtboard = nullptr;

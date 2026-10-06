@@ -42,6 +42,8 @@ private:
     // each scroll child's version of those. It rebuilds only when they change.
     std::vector<float> m_virtualInputs;
     std::vector<uint32_t> m_virtualVersions;
+    std::vector<float> m_pendingInputs;
+    std::vector<uint32_t> m_pendingVersions;
     std::vector<float> m_columnLines;
     std::vector<float> m_rowLines;
     // A rebuild layout hasn't been given the new grid contents for yet.

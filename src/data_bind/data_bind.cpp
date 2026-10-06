@@ -235,16 +235,6 @@ void DataBind::source(rcp<ViewModelInstanceValue> value)
         value->addDependent(this);
     }
     m_Source = value;
-
-    // We treat this as a special case. If an ArtboardComponentList's list
-    // property is bound to a number instance, we know that the component
-    // will be provided with dettached view model instances that need to be
-    // advanced explicitly
-    if (m_Source && target() && target()->is<ArtboardComponentList>())
-    {
-        target()->as<ArtboardComponentList>()->shouldResetInstances(
-            m_Source->coreType() == ViewModelInstanceNumberBase::typeKey);
-    }
 }
 
 void DataBind::clearSource()
@@ -517,6 +507,7 @@ void DataBind::updateSourceBinding(bool invalidate)
         if (invalidate)
         {
             m_ContextValue->invalidate();
+            m_ContextValue->requestSourceWrite();
         }
         RIVE_WRITE_SOURCE(dataBind, this);
         m_ContextValue->applyToSource(target(),

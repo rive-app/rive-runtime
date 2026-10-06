@@ -28,8 +28,7 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> parentDataContext,
-    ScriptingContext* scriptingContext
+    rcp<DataContext> parentDataContext
 #ifdef WITH_RIVE_TOOLS
     ,
     rcp<File> filePin
@@ -40,8 +39,7 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     m_filePin(std::move(filePin)),
 #endif
     m_artboard(std::move(artboardInstance)),
-    m_stateMachine(m_artboard->defaultStateMachine()),
-    m_scriptingContext(scriptingContext)
+    m_stateMachine(m_artboard->defaultStateMachine())
 {
     // A scripted artboard is a root: nothing hosts it in another artboard's
     // focus tree, so it owns its FocusManager and builds its own focus tree.
@@ -67,21 +65,10 @@ ScriptReffedArtboard::ScriptReffedArtboard(
             m_stateMachine->bindViewModelInstance(m_viewModelInstance);
         }
     }
-    // Keep the bound instance tracked for end-of-frame advance for as long as
-    // this artboard uses it — even if the script drops its ScriptedViewModel
-    // wrapper. Covers both the passed-in and the auto-created instance.
-    if (m_scriptingContext != nullptr)
-    {
-        m_scriptingContext->trackViewModelInstance(m_viewModelInstance);
-    }
 }
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
 {
-    if (m_scriptingContext != nullptr)
-    {
-        m_scriptingContext->untrackViewModelInstance(m_viewModelInstance.get());
-    }
     // Make sure state machine is deleted before artboard since
     // StateMachineInstance destructor accesses the artboard.
     m_stateMachine = nullptr;
@@ -748,17 +735,16 @@ ScriptedArtboard::ScriptedArtboard(
 #endif
     ) :
     m_state(L),
-    m_scriptReffedArtboard(make_rcp<ScriptReffedArtboard>(
-        file,
-        std::move(artboardInstance),
-        viewModelInstance,
-        dataContext,
-        static_cast<ScriptingContext*>(lua_getthreaddata(L))
+    m_scriptReffedArtboard(
+        make_rcp<ScriptReffedArtboard>(file,
+                                       std::move(artboardInstance),
+                                       viewModelInstance,
+                                       dataContext
 #ifdef WITH_RIVE_TOOLS
-            ,
-        std::move(filePin)
+                                       ,
+                                       std::move(filePin)
 #endif
-            )),
+                                           )),
     m_dataContext(dataContext)
 {}
 

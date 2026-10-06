@@ -70,7 +70,6 @@ public:
     void setRoot(rcp<ViewModelInstance> value);
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;
-    void advanced();
     void addParent(ViewModelInstance*);
     void removeParent(ViewModelInstance*);
     bool hasParents() const { return m_parent != nullptr; }

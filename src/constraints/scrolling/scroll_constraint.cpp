@@ -408,8 +408,11 @@ bool ScrollConstraint::refreshVirtualLayout()
     auto contentGap = gap();
     auto layout = content();
     auto& children = scrollChildren();
-    std::vector<float> inputs;
-    std::vector<uint32_t> versions;
+    // Reused across calls, since this runs every frame.
+    auto& inputs = m_pendingInputs;
+    auto& versions = m_pendingVersions;
+    inputs.clear();
+    versions.clear();
     for (auto child : children)
     {
         auto virt = VirtualizingComponent::fromScrollChild(child);
@@ -419,6 +422,7 @@ bool ScrollConstraint::refreshVirtualLayout()
             auto size = virtualItemSize(child, 0);
             inputs.push_back(size.x);
             inputs.push_back(size.y);
+            inputs.push_back((float)child->numLayoutNodes());
         }
     }
     bool grid = virtualizesGrid();
@@ -477,8 +481,6 @@ bool ScrollConstraint::refreshVirtualLayout()
                        (float)columns,
                        (float)rows,
                        (float)m_columnLines.size()});
-        inputs.insert(inputs.end(), m_columnLines.begin(), m_columnLines.end());
-        inputs.insert(inputs.end(), m_rowLines.begin(), m_rowLines.end());
     }
     else if (wraps)
     {
@@ -506,13 +508,16 @@ bool ScrollConstraint::refreshVirtualLayout()
             inputs.end(),
             {flowStart, flowExtent, (float)hugs, (float)flowFromLayout});
     }
+    // A grid's last build kept the lines it was placed on.
     if (inputs == m_virtualInputs && versions == m_virtualVersions &&
-        m_virtualLayout->segmentCount() == (int)children.size())
+        m_virtualLayout->segmentCount() == (int)children.size() &&
+        (!grid || (m_columnLines == m_virtualLayout->gridColumnStarts() &&
+                   m_rowLines == m_virtualLayout->gridRowStarts())))
     {
         return false;
     }
-    m_virtualInputs = std::move(inputs);
-    m_virtualVersions = std::move(versions);
+    std::swap(m_virtualInputs, inputs);
+    std::swap(m_virtualVersions, versions);
     m_contributionsStale = true;
 
     if (grid)
