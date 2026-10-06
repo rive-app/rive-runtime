@@ -76,13 +76,26 @@ void RotationConstraint::constrain(TransformComponent* component)
         }
         m_ComponentsB = (inverse * transformB).decompose();
     }
-    if (max() && m_ComponentsB.rotation() > maxValue())
+    if (min() || max())
     {
-        m_ComponentsB.rotation(maxValue());
-    }
-    if (min() && m_ComponentsB.rotation() < minValue())
-    {
-        m_ComponentsB.rotation(minValue());
+        // Decomposed angles wrap at half a turn, so compare them within the
+        // turn centered on the limits instead.
+        float center = min() && max() ? (minValue() + maxValue()) * 0.5f
+                       : max()        ? maxValue()
+                                      : minValue();
+        float rotation = m_ComponentsB.rotation() - center;
+        rotation -=
+            math::PI * 2 * std::floor((rotation + math::PI) / (math::PI * 2));
+        rotation += center;
+        if (max() && rotation > maxValue())
+        {
+            rotation = maxValue();
+        }
+        if (min() && rotation < minValue())
+        {
+            rotation = minValue();
+        }
+        m_ComponentsB.rotation(rotation);
     }
     if (clampLocal)
     {
