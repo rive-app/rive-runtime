@@ -15,8 +15,8 @@ local wamr = dependency.github('bytecodealliance/wasm-micro-runtime', 'WAMR-2.4.
 local simde = dependency.github('simd-everywhere/simde', 'v0.8.2')
 
 -- Struct layouts in wamr's internal headers follow these; any rive TU that
--- includes them (the tier transplant) must compile with the identical set
--- or instance layouts silently diverge.
+-- includes them must compile with the identical set or instance layouts
+-- silently diverge.
 local wamrConfigDefines = {
     'WASM_ENABLE_INTERP=1',
     'WASM_ENABLE_FAST_INTERP=1',

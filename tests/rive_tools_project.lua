@@ -167,7 +167,7 @@ function rive_tools_project(name, project_kind)
         do
             links({ 'ntdll', 'userenv', 'ws2_32', 'bcrypt' })
         end
-        -- Ladder and transplant tests speak the public wamr API directly.
+        -- Ladder tests speak the public wamr API directly.
         filter({ 'options:with_rive_scripting' })
         do
             includedirs({ wamr .. '/core/iwasm/include' })

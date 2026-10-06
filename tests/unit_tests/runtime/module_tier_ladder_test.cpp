@@ -4,7 +4,6 @@
 
 #include <catch.hpp>
 
-#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -26,6 +25,20 @@ static const uint8_t kTinyModule[] = {
 
 } // namespace
 
+TEST_CASE("a boot compiles the top species unless asked for -O0",
+          "[tier-ladder]")
+{
+    unsetenv("RIVE_WASM_AOT_SYNC");
+#ifdef RIVE_WASM_HW_BOUNDS
+    CHECK(bootTierSpecies() == TierSpecies::hw);
+#else
+    CHECK(bootTierSpecies() == TierSpecies::o3);
+#endif
+    setenv("RIVE_WASM_AOT_SYNC", "o0", 1);
+    CHECK(bootTierSpecies() == TierSpecies::o0);
+    unsetenv("RIVE_WASM_AOT_SYNC");
+}
+
 // Hidden: needs a wamrc binary via RIVE_WAMRC, which CI and dev machines
 // provide explicitly.
 TEST_CASE("tier ladder compiles a module to an artifact", "[.][tier-ladder]")
@@ -40,28 +53,15 @@ TEST_CASE("tier ladder compiles a module to an artifact", "[.][tier-ladder]")
     ladder.configure(std::string(), cacheDir);
     REQUIRE(ladder.enabled());
 
-    std::atomic<int> arrivals{0};
-    ladder.onArrival([&arrivals](const ModuleTierLadder::Artifact& artifact) {
-        CHECK(!artifact.path.empty());
-        arrivals++;
-    });
-
+    const TierSpecies kTopSpecies = bootTierSpecies();
     const uint64_t key = 0x1122334455667788ull;
-    ladder.schedule("test-lane",
-                    key,
-                    Span<const uint8_t>(kTinyModule, sizeof(kTinyModule)));
-    ladder.drain();
-
-    // Under the straight-to-O3 cutoff, so exactly the one artifact.
-    CHECK(arrivals.load() == 1);
-    // Guard-page builds ride the hw species as their top rung.
-#ifdef RIVE_WASM_HW_BOUNDS
-    constexpr TierSpecies kTopSpecies = TierSpecies::hw;
-#else
-    constexpr TierSpecies kTopSpecies = TierSpecies::o3;
-#endif
-    std::string path = ladder.artifactPath(key, kTopSpecies);
+    Span<const uint8_t> module(kTinyModule, sizeof(kTinyModule));
+    CHECK(ladder.artifactPath(key, kTopSpecies).empty());
+    TierCompile compile = ladder.compileSync(key, module, kTopSpecies);
+    CHECK(compile.compiled);
+    std::string path = compile.path;
     REQUIRE(!path.empty());
+    CHECK(ladder.artifactPath(key, kTopSpecies) == path);
     CHECK(ladder.artifactPath(key, TierSpecies::o0).empty());
 
     std::ifstream artifact(path, std::ios::binary);
@@ -72,15 +72,12 @@ TEST_CASE("tier ladder compiles a module to an artifact", "[.][tier-ladder]")
     CHECK(magic[2] == 'o');
     CHECK(magic[3] == 't');
 
-    // A second schedule of the same content is a cache hit: arrival fires
-    // again, no recompile (mtime unchanged is close enough to assert here).
-    ladder.schedule("test-lane",
-                    key,
-                    Span<const uint8_t>(kTinyModule, sizeof(kTinyModule)));
-    ladder.drain();
-    CHECK(arrivals.load() == 2);
+    // A second compile of the same content is a cache hit.
+    TierCompile hit = ladder.compileSync(key, module, kTopSpecies);
+    CHECK(hit.path == path);
+    CHECK(!hit.compiled);
 
-    ladder.onArrival(nullptr);
+    ladder.unconfigure();
 }
 
 #endif // WITH_RIVE_SCRIPTING_WASM

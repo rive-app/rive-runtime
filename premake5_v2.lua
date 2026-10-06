@@ -273,9 +273,8 @@ do
         do
             includedirs({ wamr .. '/core/iwasm/include' })
             defines(wamrConfigDefines)
-            -- The tier transplant is the one TU reading instance internals
-            -- (layout hinges on the config defines above); runtime builds
-            -- compile its stub without them.
+            -- Tools builds may read wamr internals, whose layouts hinge on
+            -- the config defines above.
             filter({
                 'options:with_rive_scripting',
                 'options:with_rive_tools',
@@ -287,14 +286,6 @@ do
             defines({ 'BH_PLATFORM_LINUX' })
             filter({ 'options:with_rive_scripting', 'system:windows' })
             defines({ 'BH_PLATFORM_WINDOWS', 'HAVE_STRUCT_TIMESPEC' })
-            filter({
-                'options:with_rive_scripting',
-                'system:windows',
-                'files:**/wamr_state_transplant.cpp',
-            })
-            -- platform_common.h hardcodes __declspec on BH_MALLOC while our
-            -- static-link wasm_export.h declares it plain.
-            buildoptions({ '-Wno-dll-attribute-on-redeclaration' })
             filter({ 'options:with_rive_scripting' })
         end
         filter({})
@@ -339,7 +330,6 @@ do
         removefiles({
             'src/wasm/module_tier_ladder.cpp',
             'src/wasm/prelinked_aot.cpp',
-            'src/wasm/wamr_state_transplant.cpp',
         })
     end
     filter({})

@@ -4,11 +4,12 @@
 #ifndef __EMSCRIPTEN__
 #include "rive/wasm/aot_artifact.hpp"
 #include "rive/wasm/module_tier_ladder.hpp"
-#include "rive/wasm/wamr_state_transplant.hpp"
 #include "rive/wasm/prelinked_aot.hpp"
 #else
 #include <emscripten/emscripten.h>
 #endif
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/raw_text.hpp"
@@ -16,8 +17,7 @@
 #include "rive/text/font_hb.hpp"
 #endif
 #if WASM_ENABLE_PRELINKED_AOT != 0
-// AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation; same
-// internal-header precedent as wamr_state_transplant.cpp.
+// AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation.
 #include "aot_runtime.h"
 #endif
 
@@ -198,12 +198,8 @@ struct rive::WasmScriptingVMNatives
 // keeps referencing it).
 struct SharedWasmModule
 {
-    // The buffer WAMR loads from and references for the module's lifetime;
-    // the loader null-terminates import/export names in place, so these
-    // bytes are unfit to recompile.
+    // The buffer WAMR loads from and references for the module's lifetime.
     std::vector<uint8_t> bytes;
-    // Pristine pre-load copy handed to wamrc for the AOT lane.
-    std::vector<uint8_t> pristineBytes;
     wasm_module_t module = nullptr;
     // Artifact-backed entries hand every later VM their real tier; without
     // this a cache hit reports interp while running compiled code.
@@ -217,11 +213,39 @@ static std::unordered_map<uint64_t, SharedWasmModule>& sharedModuleCache()
     return cache;
 }
 
+// Hosts boot modules on more than one thread, such as a build thread and
+// a render thread.
+static std::mutex& sharedModuleCacheMutex()
+{
+    static std::mutex mutex;
+    return mutex;
+}
+
+static bool sharedModuleCached(uint64_t key)
+{
+    std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
+    return sharedModuleCache().count(key) != 0;
+}
+
+// Compiled modules cache apart from interpreted ones of the same bytes, and
+// each species apart from the others, since the module carries its tier.
+static uint64_t compiledModuleKey(uint64_t key, TierSpecies species)
+{
+    key ^= 0x9e3779b97f4a7c15ull;
+    if (species == TierSpecies::hw)
+    {
+        // The hw bounds flag lives on the module.
+        key ^= 0xc2b2ae3d27d4eb4full;
+    }
+    if (species == TierSpecies::o0)
+    {
+        key ^= 0x27d4eb2f165667c5ull;
+    }
+    return key;
+}
+
 struct WasmScriptingVM::WamrState
 {
-    // Backing for an artifact loaded by a tier swap; wasm_runtime_load keeps
-    // referencing it.
-    std::vector<uint8_t> artifactBytes;
     wasm_module_t module = nullptr;
     bool ownsModule = true;
     wasm_module_inst_t instance = nullptr;
@@ -9245,14 +9269,8 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         return false;
     }
 
-    // A debugger pins before init; a rejected artifact must not unpin it.
-    const bool callerPinned = m_tierPinned;
     // wasm_runtime_load keeps referencing the buffer, so hold a copy.
     m_moduleBytes.assign(module.begin(), module.end());
-    // Snapshot before load: the loader mutates m_moduleBytes in place
-    // (null-terminating names), which corrupts it for wamrc. The AOT lane
-    // compiles from this pristine copy instead.
-    std::vector<uint8_t> pristineBytes(module.begin(), module.end());
     // One content hash serves the dev AOT artifact lookup and the shared
     // module cache key; the key folds in which artifact actually loads so
     // interp and AOT lanes never share an entry.
@@ -9268,6 +9286,11 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     bool haveAot = false;
     bool haveHwAot = false;
     bool haveO0Aot = false;
+    auto setCompiledSpecies = [&](TierSpecies species) {
+        haveHwAot = species == TierSpecies::hw;
+        haveO0Aot = species == TierSpecies::o0;
+        haveAot = !haveHwAot && !haveO0Aot;
+    };
     if (const char* cacheDir = getenv("RIVE_WASM_AOT_CACHE"))
     {
 #ifdef RIVE_WASM_HW_BOUNDS
@@ -9314,84 +9337,52 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             }
         }
     }
-    // Ladder cache: content already compiled in a prior session or by a
-    // background schedule boots straight onto the artifact - the
-    // undo/reopen-instant and permanently-hot-vm_host path.
-    // Only the documented values opt into sync boot; any other string (a
-    // typo, an empty value) leaves the module on the async ladder rather
-    // than silently blocking the load for seconds.
-    const char* syncEnv = getenv("RIVE_WASM_AOT_SYNC");
-    bool syncO0 = syncEnv != nullptr && strcmp(syncEnv, "o0") == 0;
-    bool syncO3 = syncEnv != nullptr && strcmp(syncEnv, "o3") == 0;
-    // Debug boot ignores any faster artifact a prior run left in a shared
-    // cache; the point is to run -O0, so only the sync-o0 path below acts.
-    bool debugBoot = syncO0;
+    // Tools builds boot compiled code: a ladder cache hit loads its
+    // artifact and a miss compiles one on this thread, blocking the load.
+    // RIVE_WASM_AOT_SYNC=o0 asks for the faster debug compile and =interp
+    // for no compile at all.
+    const char* tierEnv = getenv("RIVE_WASM_AOT_SYNC");
+    bool wantInterp = tierEnv != nullptr && strcmp(tierEnv, "interp") == 0;
+    TierSpecies species = bootTierSpecies();
+    bool ladderArtifact = false;
     if (!haveAot && !haveHwAot)
     {
-        auto& ladder = ModuleTierLadder::instance();
-        if (ladder.enabled())
+        if (wantInterp)
         {
-#ifdef RIVE_WASM_HW_BOUNDS
-            std::string hwPath =
-                debugBoot ? std::string()
-                          : ladder.artifactPath(moduleKey, TierSpecies::hw);
-            if (!hwPath.empty() && hwPath.size() < sizeof(aotPath))
+            m_interpReason = "RIVE_WASM_AOT_SYNC=interp";
+        }
+        else if (sharedModuleCached(compiledModuleKey(moduleKey, species)))
+        {
+            setCompiledSpecies(species);
+        }
+        else
+        {
+            auto compileStart = std::chrono::steady_clock::now();
+            // The caller's bytes, since loading rewrites m_moduleBytes.
+            TierCompile compile =
+                ModuleTierLadder::instance().bootCompile(moduleKey,
+                                                         module,
+                                                         species);
+            if (!compile.path.empty() && compile.path.size() < sizeof(aotPath))
             {
-                memcpy(aotPath, hwPath.c_str(), hwPath.size() + 1);
-                haveHwAot = true;
-            }
-#endif
-            if (!haveHwAot && !debugBoot)
-            {
-                std::string path =
-                    ladder.artifactPath(moduleKey, TierSpecies::o3);
-                if (!path.empty() && path.size() < sizeof(aotPath))
+                memcpy(aotPath, compile.path.c_str(), compile.path.size() + 1);
+                setCompiledSpecies(species);
+                ladderArtifact = true;
+                if (compile.compiled)
                 {
-                    memcpy(aotPath, path.c_str(), path.size() + 1);
-                    haveAot = true;
-                }
-            }
-            // Sync AOT boot, opted in by RIVE_WASM_AOT_SYNC=o3|o0: on a
-            // cache miss, compile on this thread and boot the artifact
-            // instead of the interpreter. Project-sized modules compile in
-            // seconds and the interpreter is never representative of real
-            // performance; hosts with large modules stay on the async
-            // ladder by not setting this.
-            if (!haveAot && !haveHwAot && (syncO0 || syncO3))
-            {
-#ifdef RIVE_WASM_HW_BOUNDS
-                TierSpecies top = TierSpecies::hw;
-#else
-                TierSpecies top = TierSpecies::o3;
-#endif
-                TierSpecies species = syncO0 ? TierSpecies::o0 : top;
-                auto syncStart = std::chrono::steady_clock::now();
-                std::string path = ladder.compileSync(
-                    moduleKey,
-                    Span<const uint8_t>(pristineBytes.data(),
-                                        pristineBytes.size()),
-                    species);
-                if (!path.empty() && path.size() < sizeof(aotPath))
-                {
-                    memcpy(aotPath, path.c_str(), path.size() + 1);
-                    haveHwAot = species == TierSpecies::hw;
-                    haveO0Aot = species == TierSpecies::o0;
-                    haveAot = !haveHwAot && !haveO0Aot;
-                    m_tierPinned = m_tierPinned || syncO0;
-                    auto syncMs =
+                    auto compileMs =
                         std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now() - syncStart)
+                            std::chrono::steady_clock::now() - compileStart)
                             .count();
                     fprintf(stderr,
-                            "wasm aot: sync compiled %s in %lld ms\n",
-                            path.c_str(),
-                            (long long)syncMs);
+                            "wasm aot: compiled %s in %lld ms\n",
+                            compile.path.c_str(),
+                            (long long)compileMs);
                 }
-                else
-                {
-                    fprintf(stderr,
-                            "wasm aot: sync compile failed, booting interp\n");
-                }
+            }
+            else
+            {
+                m_interpReason = compile.reason;
             }
         }
     }
@@ -9410,23 +9401,15 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
 #endif
     if (haveAot || haveHwAot || haveO0Aot)
     {
-        moduleKey ^= 0x9e3779b97f4a7c15ull;
-    }
-    if (haveHwAot)
-    {
-        // Distinct key: hw and sw artifacts of the same bytes must never
-        // share a cached module, the flag below lives on the module.
-        moduleKey ^= 0xc2b2ae3d27d4eb4full;
-    }
-    if (haveO0Aot)
-    {
-        // Same rule for the -O0 species: its cached module reports aotO0
-        // so later VMs still schedule the -O3 upgrade.
-        moduleKey ^= 0x27d4eb2f165667c5ull;
+        moduleKey = compiledModuleKey(moduleKey,
+                                      haveHwAot   ? TierSpecies::hw
+                                      : haveO0Aot ? TierSpecies::o0
+                                                  : TierSpecies::o3);
     }
     auto& cache = sharedModuleCache();
     bool adoptedFromCache = false;
     auto adoptCached = [&]() {
+        std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
         auto cached = cache.find(moduleKey);
         if (cached == cache.end())
         {
@@ -9436,11 +9419,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_state->module = entry.module;
         m_state->ownsModule = false;
         m_tier = entry.tier;
-        // The VM's own copy is redundant against the cache entry, but the
-        // tier ladder still needs the pristine bytes; entries live for the
-        // process.
-        m_scheduleBytes = Span<const uint8_t>(entry.pristineBytes.data(),
-                                              entry.pristineBytes.size());
+        // Redundant against the cache entry, which lives for the process.
         m_moduleBytes.clear();
         adoptedFromCache = true;
         return true;
@@ -9495,15 +9474,6 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
 #endif
         {
             auto loadBytes = [&]() {
-                if (!haveAot && !haveHwAot && !haveO0Aot)
-                {
-                    // The load below rewrites the buffer in place; wamrc
-                    // needs the module as it is now.
-                    ModuleTierLadder::instance().stagePristine(
-                        m_moduleKey,
-                        Span<const uint8_t>(m_moduleBytes.data(),
-                                            m_moduleBytes.size()));
-                }
                 m_state->module =
                     wasm_runtime_load(m_moduleBytes.data(),
                                       (uint32_t)m_moduleBytes.size(),
@@ -9520,16 +9490,24 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                         "wasm aot: %s rejected (%s); falling back\n",
                         aotPath,
                         error);
-                // Every later load would read and reject it again.
-                remove(aotPath);
                 haveAot = haveHwAot = haveO0Aot = false;
                 m_tier = ExecutionTier::interp;
-                // The pin held the rejected artifact's tier, not this one.
-                m_tierPinned = callerPinned;
+                m_interpReason = std::string("aot artifact rejected, ") + error;
+                // Every later load would read and reject it again.
+                if (ladderArtifact)
+                {
+                    ModuleTierLadder::instance().rejectArtifact(m_moduleKey,
+                                                                species,
+                                                                m_interpReason);
+                }
+                else
+                {
+                    remove(aotPath);
+                }
                 moduleKey = m_moduleKey;
                 if (!adoptCached())
                 {
-                    m_moduleBytes = pristineBytes;
+                    m_moduleBytes.assign(module.begin(), module.end());
                     loadBytes();
                 }
             }
@@ -9540,22 +9518,35 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
             {
                 wasm_runtime_set_module_hw_bounds(m_state->module, true);
             }
-            SharedWasmModule entry;
-            entry.bytes = std::move(m_moduleBytes);
-            entry.pristineBytes = std::move(pristineBytes);
-            entry.module = m_state->module;
-            entry.tier = m_tier;
-            auto inserted = cache.emplace(moduleKey, std::move(entry));
+            std::lock_guard<std::mutex> lock(sharedModuleCacheMutex());
+            auto inserted = cache.try_emplace(moduleKey);
+            SharedWasmModule& entry = inserted.first->second;
+            if (inserted.second)
+            {
+                entry.bytes = std::move(m_moduleBytes);
+                entry.module = m_state->module;
+                entry.tier = m_tier;
+            }
+            else
+            {
+                // Another thread loaded the same bytes first.
+                wasm_runtime_unload(m_state->module);
+                m_state->module = entry.module;
+                m_tier = entry.tier;
+                m_moduleBytes.clear();
+            }
             m_state->ownsModule = false;
-            m_scheduleBytes = Span<const uint8_t>(
-                inserted.first->second.pristineBytes.data(),
-                inserted.first->second.pristineBytes.size());
         }
     }
     if (m_state->module == nullptr)
     {
         m_lastError = std::string("module load failed: ") + error;
         return false;
+    }
+    // Prelinked code runs compiled whatever the ladder said.
+    if (m_tier != ExecutionTier::interp)
+    {
+        m_interpReason.clear();
     }
     // Unresolved function imports link fine and trap only when first called,
     // with no diagnostic; report them here where the failure is actionable.
@@ -9673,82 +9664,6 @@ bool WasmScriptingVM::bootModule()
     callModule("host_seal_env", 1, largs);
     return true;
 }
-
-#ifndef __EMSCRIPTEN__
-void WasmScriptingVM::scheduleTierCompiles(const std::string& laneId)
-{
-    auto& ladder = ModuleTierLadder::instance();
-    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3 || m_tierPinned)
-    {
-        return;
-    }
-    Span<const uint8_t> bytes = m_scheduleBytes;
-    if (bytes.size() == 0)
-    {
-        bytes = Span<const uint8_t>(m_moduleBytes.data(), m_moduleBytes.size());
-    }
-    if (bytes.size() == 0)
-    {
-        return;
-    }
-    ladder.schedule(laneId, m_moduleKey, bytes);
-}
-
-bool WasmScriptingVM::maybeUpgradeTier()
-{
-    auto& ladder = ModuleTierLadder::instance();
-    if (!ladder.enabled() || m_tier == ExecutionTier::aotO3 || m_tierPinned)
-    {
-        return false;
-    }
-    ExecutionTier target = ExecutionTier::aotO3;
-    bool hwBounds = false;
-    std::string path;
-#ifdef RIVE_WASM_HW_BOUNDS
-    path = ladder.artifactPath(m_moduleKey, TierSpecies::hw);
-    hwBounds = !path.empty();
-#endif
-    if (path.empty())
-    {
-        path = ladder.artifactPath(m_moduleKey, TierSpecies::o3);
-    }
-    if (path.empty() && m_tier < ExecutionTier::aotO0)
-    {
-        target = ExecutionTier::aotO0;
-        path = ladder.artifactPath(m_moduleKey, TierSpecies::o0);
-    }
-    if (path.empty())
-    {
-        return false;
-    }
-    FILE* f = fopen(path.c_str(), "rb");
-    if (f == nullptr)
-    {
-        return false;
-    }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    std::vector<uint8_t> artifact(size);
-    size_t read = fread(artifact.data(), 1, size, f);
-    fclose(f);
-    if (read != (size_t)size)
-    {
-        return false;
-    }
-    std::string error;
-    if (!applyTierArtifact(
-            Span<const uint8_t>(artifact.data(), artifact.size()),
-            target,
-            error,
-            hwBounds))
-    {
-        fprintf(stderr, "wasm tier swap failed: %s\n", error.c_str());
-        return false;
-    }
-    return true;
-}
-#endif
 
 const char* WasmScriptingVM::frameBoundary()
 {
@@ -10071,57 +9986,6 @@ const char* WasmScriptingVM::handleLeakWarning()
     m_leakWarning = buffer;
     return m_leakWarning.c_str();
 }
-
-#ifndef __EMSCRIPTEN__
-bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
-                                        ExecutionTier tier,
-                                        std::string& error,
-                                        bool hwBounds)
-{
-    auto next = std::make_unique<WamrState>();
-    next->artifactBytes.assign(artifactBytes.begin(), artifactBytes.end());
-    char loadError[256] = {0};
-    next->module = wasm_runtime_load(next->artifactBytes.data(),
-                                     (uint32_t)next->artifactBytes.size(),
-                                     loadError,
-                                     sizeof(loadError));
-    if (next->module == nullptr)
-    {
-        error = std::string("artifact load failed: ") + loadError;
-        return false;
-    }
-    if (hwBounds)
-    {
-        wasm_runtime_set_module_hw_bounds(next->module, true);
-    }
-    next->instance = wasm_runtime_instantiate(next->module,
-                                              512 * 1024,
-                                              0,
-                                              loadError,
-                                              sizeof(loadError));
-    if (next->instance == nullptr)
-    {
-        error = std::string("artifact instantiate failed: ") + loadError;
-        return false;
-    }
-    // No ctors on the target: every byte of initialized state arrives from
-    // the live instance.
-    if (!wamrTransplantState(m_state->instance, next->instance, error))
-    {
-        return false;
-    }
-    next->execEnv = wasm_runtime_create_exec_env(next->instance, 512 * 1024);
-    if (next->execEnv == nullptr)
-    {
-        error = "artifact exec env creation failed";
-        return false;
-    }
-    wasm_runtime_set_user_data(next->execEnv, this);
-    m_state = std::move(next);
-    m_tier = tier;
-    return true;
-}
-#endif
 
 bool WasmScriptingVM::registerBytecode(const std::string& name,
                                        Span<const uint8_t> bytecode)

@@ -403,8 +403,7 @@ public:
 
     const std::string& lastError() const { return m_lastError; }
 
-    /// The representation currently executing; interp is tier 0, artifacts
-    /// arrive by transplant.
+    /// The representation the module booted on; it runs there for life.
     enum class ExecutionTier : uint8_t
     {
         interp = 0,
@@ -412,18 +411,9 @@ public:
         aotO3 = 2,
     };
     ExecutionTier executionTier() const { return m_tier; }
-
-#ifndef __EMSCRIPTEN__
-    /// Queue this module on the process tier ladder; arrivals are picked up
-    /// by maybeUpgradeTier. laneId identifies the logical script so a newer
-    /// module content supersedes in-flight compiles.
-    void scheduleTierCompiles(const std::string& laneId);
-
-    /// Frame-boundary poll: when a better artifact than the current tier is
-    /// in the ladder cache, swap onto it, carrying all live state. Call with
-    /// no wasm frames on the stack. Returns true when a swap happened.
-    bool maybeUpgradeTier();
-#endif
+    /// Why the module runs on the interpreter, for a host's log; empty when
+    /// it runs compiled code.
+    const std::string& interpReason() const { return m_interpReason; }
 
     /// The per-frame collection point: frame collector modules scavenge
     /// here (call once during load after init so init promotion lands in
@@ -441,16 +431,6 @@ public:
 
     /// Current size of the module's linear memory in 64KB wasm pages.
     uint32_t memoryPages() const;
-
-#ifndef __EMSCRIPTEN__
-    /// Swap execution onto a compiled artifact of this module, carrying
-    /// memory, globals, and tables. No wasm frames may be live. On failure
-    /// the current instance keeps running.
-    bool applyTierArtifact(Span<const uint8_t> artifactBytes,
-                           ExecutionTier tier,
-                           std::string& error,
-                           bool hwBounds = false);
-#endif
 
     /// Backend seams: host code reaches module memory and module functions
     /// only through these, so a browser backend can substitute staged
@@ -564,10 +544,6 @@ public:
         m_print = std::move(handler);
     }
 
-    /// Keeps the module on the tier it booted with: no ladder compiles, no
-    /// upgrades, so a debugger sees one code shape.
-    void pinTier() { m_tierPinned = true; }
-
     /// A debugger over this module's line probes, or null. The hooks must
     /// outlive the VM or clear themselves first.
     void setDebugHooks(WasmDebugHooks* hooks) { m_debugHooks = hooks; }
@@ -668,14 +644,9 @@ private:
     std::unique_ptr<WamrState> m_state;
 #endif
     std::vector<uint8_t> m_moduleBytes;
-    // Stable view of the module bytes once the shared cache owns them.
-    Span<const uint8_t> m_scheduleBytes;
     uint64_t m_moduleKey = 0;
     ExecutionTier m_tier = ExecutionTier::interp;
-    // A debug boot (RIVE_WASM_AOT_SYNC=o0) pins the tier: no background
-    // compile is scheduled and no upgrade runs, so the module keeps
-    // running the -O0 code a debugger and stable codegen want.
-    bool m_tierPinned = false;
+    std::string m_interpReason;
     WasmDebugHooks* m_debugHooks = nullptr;
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;

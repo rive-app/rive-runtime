@@ -245,7 +245,7 @@ def op(name, params=(), ret=None, stub=None, guard=None, boot=None,
     # import what they call, so one that never calls it links anywhere.
     # boot: the op traps and module start can reach it, before the exec env
     # carries the vm, so the WAMR wrapper resolves the booting one. With no
-    # vm at all, as a tier swap reruns start, it traps with this text.
+    # vm at all it traps with this text.
     # web_js: the page answers the op itself; the expression goes straight
     # into the web import object, so the call never enters librive.
     return {'name': name, 'params': list(params), 'ret': ret, 'stub': stub,
