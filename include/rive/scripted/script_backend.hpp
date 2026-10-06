@@ -8,6 +8,7 @@
 #include "rive/listener_type.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/scroll_event.hpp"
 
 #include <string>
 #include <unordered_set>
@@ -166,6 +167,16 @@ public:
                                   ListenerType hitType,
                                   float timeStamp,
                                   HitResult* outResult) = 0;
+    /// Drawable protocol: self.pointerScroll(self, scrollEvent), with
+    /// localPosition and event.delta already in the drawable's space. False
+    /// when not implemented; outResult carries the event's hit result.
+    virtual bool callScrollEvent(ScriptedObject* object,
+                                 int selfRef,
+                                 int pointerId,
+                                 Vec2D localPosition,
+                                 const ScrollEvent& event,
+                                 float timeStamp,
+                                 HitResult* outResult) = 0;
     /// Drawable protocol: self.keyboardEvent(self, invocation) -> stop
     /// propagation.
     virtual bool callKeyboardEvent(ScriptedObject* object,

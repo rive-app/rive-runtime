@@ -405,6 +405,8 @@ RIVE_BINDING_IMPORT("rive_artboard_v1", "bounds")
 void rive_artboard_bounds(uint32_t artboard, float* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "pointer_event")
 uint32_t rive_artboard_pointer_event(uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+RIVE_BINDING_IMPORT("rive_artboard_v1", "scroll_event")
+uint32_t rive_artboard_scroll_event(uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "gamepad_event")
 uint32_t rive_artboard_gamepad_event(uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 RIVE_BINDING_IMPORT("rive_artboard_v1", "animation")

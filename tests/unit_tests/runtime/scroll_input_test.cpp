@@ -830,3 +830,31 @@ TEST_CASE("Wheel input can be switched off per view while drag still works",
 
     delete smi;
 }
+
+TEST_CASE("A view with the wheel off ignores inertia cancel", "[scrollinput]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+    auto artboard = file->artboard();
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+    rive::StateMachineInstance* smi =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+    auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+    smi->advanceAndApply(0.0f);
+
+    rive::Vec2D over(50.0f, 250.0f);
+    smi->pointerScroll(over, trackpad(rive::ScrollPhase::begin, 0, 0));
+    smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -40.0f));
+    smi->pointerScroll(over, trackpad(rive::ScrollPhase::end, 0, 0));
+    REQUIRE(scroll->physics()->isRunning() == true);
+
+    // Wanting a gesture it would then decline would hide it from the views
+    // behind, so the coast carries on and nothing claims the event.
+    scroll->wheelInteractive(false);
+    auto cancel = trackpad(rive::ScrollPhase::inertiaCancel, 0, 0);
+    REQUIRE(smi->wantsScroll(over, cancel) == false);
+    REQUIRE(smi->pointerScroll(over, cancel) == rive::HitResult::none);
+    REQUIRE(scroll->physics()->isRunning() == true);
+
+    delete smi;
+}

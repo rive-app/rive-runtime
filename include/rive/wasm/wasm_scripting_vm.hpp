@@ -14,6 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
+struct wasm_val_t;
+
 namespace rive
 {
 
@@ -307,6 +309,13 @@ public:
                           ListenerType hitType,
                           float timeStamp,
                           HitResult* outResult) override;
+    bool callScrollEvent(ScriptedObject* object,
+                         int selfRef,
+                         int pointerId,
+                         Vec2D localPosition,
+                         const ScrollEvent& event,
+                         float timeStamp,
+                         HitResult* outResult) override;
     bool callKeyboardEvent(ScriptedObject* object,
                            int selfRef,
                            Key key,
@@ -633,6 +642,12 @@ private:
     void deliverDecodeResult(const DecodeResult& result);
     // Logs the pending trap and clears it so later calls can run.
     void reportTrap(const char* where);
+    /// Calls a pointer or scroll export, whose 0 means unhandled and anything
+    /// else is 1 + the HitResult the handler reported.
+    bool callHitExport(const char* name,
+                       wasm_val_t* args,
+                       uint32_t argCount,
+                       HitResult* outResult);
     /// In-flight fetches: module token to scriptnet request id, for
     /// cancellation. The owner id scopes this VM's rate limits and lets
     /// teardown cancel everything it started.

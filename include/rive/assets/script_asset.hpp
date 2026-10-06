@@ -91,13 +91,16 @@ private:
     static const int m_wantsGamepadConnect = 1 << 18;
     static const int m_wantsGamepadDisconnect = 1 << 19;
     static const int m_wantsGamepadEvent = 1 << 20;
+    // Outside the legacy all bits default, so scripts exported before it
+    // never take scroll from the views beneath them.
+    static const int m_wantsPointerScrollBit = 1 << 21;
 
     int m_implementedMethods = 0;
 
 public:
-    // Bits 0-20 hold the method flags (see ScriptAsset::serializedImplemented
+    // Bits 0-21 hold the method flags (see ScriptAsset::serializedImplemented
     // Methods, which the editor serializes and the runtime reads directly).
-    static const uint32_t methodMask = (1u << 21) - 1;
+    static const uint32_t methodMask = (1u << 22) - 1;
 
     int implementedMethods() { return m_implementedMethods; }
     void implementedMethods(int implemented)
@@ -109,8 +112,9 @@ public:
         return (m_implementedMethods &
                 (m_wantsPointerDownBit | m_wantsPointerMoveBit |
                  m_wantsPointerUpBit | m_wantsPointerExitBit |
-                 m_wantsPointerCancelBit | m_wantsGamepadConnect |
-                 m_wantsGamepadDisconnect | m_wantsGamepadEvent)) != 0;
+                 m_wantsPointerCancelBit | m_wantsPointerScrollBit |
+                 m_wantsGamepadConnect | m_wantsGamepadDisconnect |
+                 m_wantsGamepadEvent)) != 0;
     }
     bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
     bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
@@ -143,6 +147,10 @@ public:
     bool wantsPointerCancel()
     {
         return (m_implementedMethods & m_wantsPointerCancelBit) != 0;
+    }
+    bool wantsPointerScroll()
+    {
+        return (m_implementedMethods & m_wantsPointerScrollBit) != 0;
     }
     bool wantsGamePadConnect()
     {

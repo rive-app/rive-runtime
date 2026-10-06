@@ -289,6 +289,7 @@ export function createRiveModuleImports(host, moduleMemory) {
                 copyOut(out_p, out, outCount * 4);
             },
             pointer_event: calls.rive_artboard_pointer_event,
+            scroll_event: calls.rive_artboard_scroll_event,
             gamepad_event: (artboard, payload, byteCount) => {
                 stackReset();
                 const payload_p = stageIn(payload, byteCount);

@@ -71,9 +71,18 @@ public:
     // script; the handler may have changed state (e.g. fired a trigger on a
     // scripted artboard) that only the next scriptAdvance can consume.
     void wakeAdvance();
+    /// Whether a scroll gesture this script claimed is still in flight.
+    bool scrollLatched() const { return m_scrollLatched; }
+    void scrollLatched(bool value)
+    {
+        m_scrollLatched = value;
+        m_scrollIdleSeconds = 0;
+    }
 
 private:
     bool m_isAdvanceActive = true;
+    bool m_scrollLatched = false;
+    float m_scrollIdleSeconds = 0;
     // One zero step after a reinit so advance driven content, like gpu
     // canvas fills, re-records while paused.
     bool m_forceAdvance = false;
@@ -110,6 +119,17 @@ public:
     HitResult processGamepadInvocation(
         const ListenerInvocation& invocation,
         ScriptedDrawable* alreadyDispatched) override;
+    bool hasScrollTarget(Vec2D position) override;
+    bool wantsScroll(Vec2D position, const ScrollEvent& event) override
+    {
+        return hasScrollTarget(position);
+    }
+    bool scrollGestureActive() override;
+    void cancelScroll() override { m_drawable->scrollLatched(false); }
+    HitResult processScroll(Vec2D position,
+                            const ScrollEvent& event,
+                            float timeStamp,
+                            int pointerId) override;
 };
 } // namespace rive
 

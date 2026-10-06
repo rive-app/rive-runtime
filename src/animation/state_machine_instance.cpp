@@ -1023,7 +1023,8 @@ public:
 
     HitResult processScroll(Vec2D position,
                             const ScrollEvent& event,
-                            float timeStamp) override
+                            float timeStamp,
+                            int pointerId) override
     {
         auto proxy = scrollProxyFor(event);
         if (proxy == nullptr || !proxy->scroll(event, timeStamp))
@@ -1413,7 +1414,8 @@ public:
 
     HitResult processScroll(Vec2D position,
                             const ScrollEvent& event,
-                            float timeStamp) override
+                            float timeStamp,
+                            int pointerId) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         Vec2D nestedPosition;
@@ -1440,7 +1442,8 @@ public:
                 return nestedAnimation->as<NestedStateMachine>()->pointerScroll(
                     nestedPosition,
                     mapped,
-                    timeStamp);
+                    timeStamp,
+                    pointerId);
             }
         }
         for (auto nestedAnimation : nestedArtboard->nestedAnimations())
@@ -1453,7 +1456,8 @@ public:
                 nestedAnimation->as<NestedStateMachine>()->pointerScroll(
                     nestedPosition,
                     mapped,
-                    timeStamp);
+                    timeStamp,
+                    pointerId);
             if (result != HitResult::none)
             {
                 return result;
@@ -1852,7 +1856,8 @@ public:
 
     HitResult processScroll(Vec2D position,
                             const ScrollEvent& event,
-                            float timeStamp) override
+                            float timeStamp,
+                            int pointerId) override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
         if (componentList->isCollapsed())
@@ -1889,7 +1894,8 @@ public:
                 }
                 auto result = stateMachine->pointerScroll(listPosition,
                                                           mapped,
-                                                          timeStamp);
+                                                          timeStamp,
+                                                          pointerId);
                 if (pass == 0 || result != HitResult::none)
                 {
                     return result;
@@ -2545,17 +2551,30 @@ HitResult StateMachineInstance::pointerScroll(Vec2D position,
         m_scrollLatch = nullptr;
     }
     HitComponent* target = m_scrollLatch;
-    if (target == nullptr)
+    HitResult result = HitResult::none;
+    if (target != nullptr)
+    {
+        result = target->processScroll(position, mapped, timeStamp, pointerId);
+    }
+    else
     {
         // Sorted top-most first, so the innermost view that can move wins.
-        // An opaque hit that cannot scroll ends the walk, as it would for a
-        // pointer: nothing behind it may take the event.
+        // One that declines, like a script that never calls hit, passes the
+        // event on. An opaque hit that cannot scroll ends the walk, as it
+        // would for a pointer: nothing behind it may take the event.
         for (const auto& hitShape : m_hitComponents)
         {
             if (hitShape->wantsScroll(position, mapped))
             {
-                target = hitShape.get();
-                break;
+                result = hitShape->processScroll(position,
+                                                 mapped,
+                                                 timeStamp,
+                                                 pointerId);
+                if (result != HitResult::none)
+                {
+                    target = hitShape.get();
+                    break;
+                }
             }
             if (hitShape->occludesScroll(position))
             {
@@ -2563,12 +2582,8 @@ HitResult StateMachineInstance::pointerScroll(Vec2D position,
             }
         }
     }
-    if (target == nullptr)
-    {
-        return HitResult::none;
-    }
-    auto result = target->processScroll(position, mapped, timeStamp);
-    m_scrollLatch = target->scrollGestureActive() ? target : nullptr;
+    m_scrollLatch =
+        target != nullptr && target->scrollGestureActive() ? target : nullptr;
     return result;
 }
 

@@ -519,6 +519,38 @@ bool ScriptingVM::callGamepadEvent(ScriptedObject* object,
     return true;
 }
 
+// Calls self[method](self, event) with a fresh Event; false when the method
+// is missing (legacy files assume every handler), so the walk goes on.
+template <typename Event, typename... Args>
+static bool callHitEvent(lua_State* L,
+                         ScriptedObject* object,
+                         int selfRef,
+                         const char* method,
+                         HitResult* outResult,
+                         Args... args)
+{
+    rive_lua_pushRef(L, selfRef);
+    if (static_cast<lua_Type>(lua_getfield(L, -1, method)) != LUA_TFUNCTION)
+    {
+        rive_lua_pop(L, 2);
+        return false;
+    }
+    lua_pushvalue(L, -2);
+    auto event = lua_newrive<Event>(L, args...);
+    // Anchored past the call so the hit result read cannot race GC.
+    lua_pushvalue(L, -1);
+    lua_insert(L, -4);
+    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 0)) !=
+        LUA_OK)
+    {
+        fprintf(stderr, "%s failed\n", method);
+        rive_lua_pop(L, 1);
+    }
+    *outResult = event->m_hitResult;
+    rive_lua_pop(L, 2);
+    return true;
+}
+
 bool ScriptingVM::callPointerEvent(ScriptedObject* object,
                                    int selfRef,
                                    const char* method,
@@ -528,32 +560,35 @@ bool ScriptingVM::callPointerEvent(ScriptedObject* object,
                                    float timeStamp,
                                    HitResult* outResult)
 {
-    lua_State* L = m_state;
-    rive_lua_pushRef(L, selfRef);
-    if (static_cast<lua_Type>(lua_getfield(L, -1, method)) != LUA_TFUNCTION)
-    {
-        // The pointer handler is assumed present for legacy files (all-bits
-        // default) but isn't actually implemented: the caller reports "not
-        // hit" so the state machine keeps walking other hit targets.
-        rive_lua_pop(L, 2);
-        return false;
-    }
-    lua_pushvalue(L, -2);
-    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(L,
-                                                          pointerId,
-                                                          localPosition,
-                                                          Vec2D(),
-                                                          (int)hitType,
-                                                          timeStamp);
-    if (static_cast<lua_Status>(rive_lua_pcall_with_context(L, object, 2, 0)) !=
-        LUA_OK)
-    {
-        fprintf(stderr, "%s failed\n", method);
-        rive_lua_pop(L, 1);
-    }
-    *outResult = pointerEvent->m_hitResult;
-    rive_lua_pop(L, 1);
-    return true;
+    return callHitEvent<ScriptedPointerEvent>(m_state,
+                                              object,
+                                              selfRef,
+                                              method,
+                                              outResult,
+                                              (uint8_t)pointerId,
+                                              localPosition,
+                                              Vec2D(),
+                                              (int)hitType,
+                                              timeStamp);
+}
+
+bool ScriptingVM::callScrollEvent(ScriptedObject* object,
+                                  int selfRef,
+                                  int pointerId,
+                                  Vec2D localPosition,
+                                  const ScrollEvent& event,
+                                  float timeStamp,
+                                  HitResult* outResult)
+{
+    return callHitEvent<ScriptedScrollEvent>(m_state,
+                                             object,
+                                             selfRef,
+                                             "pointerScroll",
+                                             outResult,
+                                             pointerId,
+                                             localPosition,
+                                             event,
+                                             timeStamp);
 }
 
 bool ScriptingVM::callKeyboardEvent(ScriptedObject* object,

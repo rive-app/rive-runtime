@@ -14,9 +14,6 @@
 
 using namespace rive;
 
-// A wheel reports no end, so its gesture closes by going quiet.
-static const float scrollIdleSeconds = 0.1f;
-
 ScrollConstraint::~ScrollConstraint()
 {
     if (m_virtualizer != nullptr)

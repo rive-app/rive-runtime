@@ -15,9 +15,9 @@ namespace rive
 /// over EM_JS to the slot's exports. Impl cores and the seam-routed
 /// ScriptBackend bodies are inherited from the WAMR backend; the entry
 /// points that call WAMR with typed f64 args (callUserInit, callAdvance,
-/// callPointerEvent, callLayoutResize, setInputNumber) still need browser
-/// overrides before this backend can go live. Not wired into File::import
-/// yet.
+/// callPointerEvent, callScrollEvent, callLayoutResize, setInputNumber) still
+/// need browser overrides before this backend can go live. Not wired into
+/// File::import yet.
 class BrowserScriptingVM : public WasmScriptingVM
 {
 public:

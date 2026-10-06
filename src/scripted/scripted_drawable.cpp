@@ -1,4 +1,5 @@
 #include "rive/animation/listener_invocation.hpp"
+#include "rive/artboard.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
@@ -128,6 +129,44 @@ HitResult HitScriptedDrawable::processEvent(Vec2D position,
     return hitResult;
 }
 
+HitResult HitScriptedDrawable::processScroll(Vec2D position,
+                                             const ScrollEvent& event,
+                                             float timeStamp,
+                                             int pointerId)
+{
+    HitResult hitResult = HitResult::none;
+    auto backend = m_drawable->backend();
+    Mat2D toLocal;
+    if (backend == nullptr || !backend->valid() ||
+        m_drawable->scriptAsset() == nullptr || m_drawable->isCollapsed() ||
+        !m_drawable->worldTransform().invert(&toLocal))
+    {
+        m_drawable->scrollLatched(false);
+        return hitResult;
+    }
+    Vec2D localPos = toLocal * position;
+    ScrollEvent local = event;
+    local.delta = toLocal * (position + event.delta) - localPos;
+    if (backend->callScrollEvent(m_drawable,
+                                 m_drawable->self(),
+                                 pointerId,
+                                 localPos,
+                                 local,
+                                 timeStamp,
+                                 &hitResult))
+    {
+        m_drawable->wakeAdvance();
+    }
+    // A claim latches the gesture, which then stays until it ends; a wheel
+    // detent never latches.
+    bool latchable = event.phase == ScrollPhase::begin ||
+                     event.phase == ScrollPhase::momentum ||
+                     (event.phase == ScrollPhase::update && event.precise);
+    m_drawable->scrollLatched(latchable && (hitResult != HitResult::none ||
+                                            m_drawable->scrollLatched()));
+    return hitResult;
+}
+
 HitResult HitScriptedDrawable::processGamepadInvocation(
     const ListenerInvocation&,
     ScriptedDrawable*)
@@ -211,6 +250,14 @@ HitResult HitScriptedDrawable::processGamepadInvocation(
     return HitResult::none;
 }
 
+HitResult HitScriptedDrawable::processScroll(Vec2D position,
+                                             const ScrollEvent& event,
+                                             float timeStamp,
+                                             int pointerId)
+{
+    return HitResult::none;
+}
+
 bool ScriptedDrawable::willDraw() { return Super::willDraw() && draws(); }
 
 #endif
@@ -253,9 +300,18 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
+    // A gesture that reports no end of its own releases the latch by going
+    // quiet, as a ScrollConstraint's does.
+    if (m_scrollLatched &&
+        enums::is_flag_set(flags, AdvanceFlags::AdvanceNested) &&
+        enums::is_flag_set(flags, AdvanceFlags::NewFrame))
+    {
+        m_scrollIdleSeconds += elapsedSeconds;
+        m_scrollLatched = m_scrollIdleSeconds < scrollIdleSeconds;
+    }
     if (!m_isAdvanceActive || isCollapsed())
     {
-        return false;
+        return m_scrollLatched;
     }
     m_isAdvanceActive = false;
     if (!enums::is_flag_set(flags, AdvanceFlags::AdvanceNested))
@@ -268,7 +324,7 @@ bool ScriptedDrawable::advanceComponent(float elapsedSeconds,
         m_isAdvanceActive = true;
         addScriptedDirt(ComponentDirt::Paint);
     }
-    return advanced;
+    return advanced || m_scrollLatched;
 }
 
 bool ScriptedDrawable::addScriptedDirt(ComponentDirt value, bool recurse)
@@ -335,6 +391,32 @@ bool HitScriptedDrawable::hitTestBounded(Vec2D position) const
     }
     return local.x >= 0.0f && local.y >= 0.0f && local.x <= size.x &&
            local.y <= size.y;
+}
+
+bool HitScriptedDrawable::hasScrollTarget(Vec2D position)
+{
+    if (!m_drawable->wantsPointerScroll() || m_drawable->isCollapsed())
+    {
+        return false;
+    }
+    if (m_drawable->is<ScriptedLayout>())
+    {
+        return hitTestBounded(position);
+    }
+    // A node has no box, so its artboard bounds it; hosts would otherwise
+    // lose every wheel event to it.
+    auto artboard = m_drawable->artboard();
+    return artboard != nullptr && artboard->bounds().contains(position);
+}
+
+bool HitScriptedDrawable::scrollGestureActive()
+{
+    // Like a collapsed ScrollConstraint, a collapsed script ends its gesture.
+    if (m_drawable->isCollapsed())
+    {
+        m_drawable->scrollLatched(false);
+    }
+    return m_drawable->scrollLatched();
 }
 
 bool ScriptedDrawable::worldToLocal(Vec2D world, Vec2D* local)

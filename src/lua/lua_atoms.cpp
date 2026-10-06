@@ -388,6 +388,9 @@ constexpr LuaAtomName atoms[] = {
     {"min", (int16_t)LuaAtoms::min},
     {"max", (int16_t)LuaAtoms::max},
     {"default", (int16_t)LuaAtoms::defaultValue},
+    {"delta", (int16_t)LuaAtoms::delta},
+    {"precise", (int16_t)LuaAtoms::precise},
+    {"pointerScroll", (int16_t)LuaAtoms::pointerScroll},
 };
 
 constexpr size_t atomCount = std::size(atoms);
@@ -416,10 +419,10 @@ constexpr bool hasAtomRange(LuaAtoms first, LuaAtoms last)
     return true;
 }
 
-// The text atoms follow the tools only ones; a guard swallowing them only
-// shows in a runtime build, which the test binaries never are.
-static_assert(hasAtomRange(LuaAtoms::append, LuaAtoms::defaultValue),
-              "text atoms must register in every build");
+// The text and scroll atoms follow the tools only ones; a guard swallowing
+// them only shows in a runtime build, which the test binaries never are.
+static_assert(hasAtomRange(LuaAtoms::append, LuaAtoms::pointerScroll),
+              "text and scroll atoms must register in every build");
 
 constexpr size_t atomSlotCount = 1024;
 static_assert(atomCount < atomSlotCount,

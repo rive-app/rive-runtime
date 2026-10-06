@@ -452,6 +452,18 @@ NAMESPACES = [
             f32('x'),
             f32('y'),
         ], ret='u32'),
+        # phase is ScrollPhase; returns the HitResult like pointer_event.
+        op('scroll_event', [
+            handle('artboard'),
+            u32('pointerId'),
+            f32('x'),
+            f32('y'),
+            f32('dx'),
+            f32('dy'),
+            u32('phase'),
+            u32('precise'),
+            f32('timeStamp'),
+        ], ret='u32'),
         # artboard:gamepad*: a GamepadWire payload with its button and axis
         # floats; returns how many scripted drawables took the event.
         op('gamepad_event', [handle('artboard'),

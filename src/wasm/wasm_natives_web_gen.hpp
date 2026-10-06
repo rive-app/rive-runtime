@@ -590,6 +590,12 @@ uint32_t rive_web_artboard_pointer_event(uint32_t vmHandle, uint32_t artboard, u
     return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
 }
 EMSCRIPTEN_KEEPALIVE
+uint32_t rive_web_artboard_scroll_event(uint32_t vmHandle, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;
+    return artboardScrollEventImpl(vm, artboard, pointerId, x, y, dx, dy, phase, precise, timeStamp);
+}
+EMSCRIPTEN_KEEPALIVE
 uint32_t rive_web_artboard_gamepad_event(uint32_t vmHandle, uint32_t artboard, const uint8_t* payload, uint32_t byteCount)
 {
     auto vm = (WasmScriptingVM*)(uintptr_t)vmHandle;

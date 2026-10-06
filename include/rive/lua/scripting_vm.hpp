@@ -88,6 +88,13 @@ public:
                           ListenerType hitType,
                           float timeStamp,
                           HitResult* outResult) override;
+    bool callScrollEvent(ScriptedObject* object,
+                         int selfRef,
+                         int pointerId,
+                         Vec2D localPosition,
+                         const ScrollEvent& event,
+                         float timeStamp,
+                         HitResult* outResult) override;
     bool callKeyboardEvent(ScriptedObject* object,
                            int selfRef,
                            Key key,

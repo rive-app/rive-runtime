@@ -296,6 +296,7 @@ uint32_t artboardFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard);
 void artboardSetFrameOriginImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t value);
 void artboardBoundsImpl(WasmScriptingVM* vm, uint32_t artboard, float* out, uint32_t outCount);
 uint32_t artboardPointerEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t kind, uint32_t pointerId, float x, float y);
+uint32_t artboardScrollEventImpl(WasmScriptingVM* vm, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp);
 uint32_t artboardGamepadEventImpl(WasmScriptingVM* vm, uint32_t artboard, const uint8_t* payload, uint32_t byteCount);
 uint32_t artboardAnimationImpl(WasmScriptingVM* vm, uint32_t artboard, const char* name, uint32_t length);
 void artboardAnimationReleaseImpl(WasmScriptingVM* vm, uint32_t animation);
@@ -1036,6 +1037,11 @@ uint32_t artboardPointerEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t k
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     return artboardPointerEventImpl(vm, artboard, kind, pointerId, x, y);
+}
+uint32_t artboardScrollEvent(wasm_exec_env_t env, uint32_t artboard, uint32_t pointerId, float x, float y, float dx, float dy, uint32_t phase, uint32_t precise, float timeStamp)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return artboardScrollEventImpl(vm, artboard, pointerId, x, y, dx, dy, phase, precise, timeStamp);
 }
 uint32_t artboardGamepadEvent(wasm_exec_env_t env, uint32_t artboard, const uint8_t* payload, uint32_t byteCount)
 {
@@ -2344,6 +2350,7 @@ NativeSymbol kArtboardNatives[] = {
     {"set_frame_origin", (void*)artboardSetFrameOrigin, "(ii)", nullptr},
     {"bounds", (void*)artboardBounds, "(i*~)", (void*)&wasm_runtime_rive_leaf_native},
     {"pointer_event", (void*)artboardPointerEvent, "(iiiff)i", nullptr},
+    {"scroll_event", (void*)artboardScrollEvent, "(iiffffiif)i", nullptr},
     {"gamepad_event", (void*)artboardGamepadEvent, "(i*~)i", nullptr},
     {"animation", (void*)artboardAnimation, "(i*~)i", nullptr},
     {"animation_release", (void*)artboardAnimationRelease, "(i)", nullptr},

@@ -158,9 +158,103 @@ static int pointer_event_new(lua_State* L)
     return 1;
 }
 
+// Indexed by ScrollPhase, null terminated for luaL_checkoption.
+static const char* const scrollPhaseNames[] =
+    {"begin", "update", "end", "momentum", "inertiaCancel", nullptr};
+
+static const char* scroll_phase_string(ScrollPhase phase)
+{
+    auto index = (size_t)phase;
+    return index < std::size(scrollPhaseNames) - 1 ? scrollPhaseNames[index]
+                                                   : "update";
+}
+
+static int scroll_event_new(lua_State* L)
+{
+    int id = luaL_checkinteger(L, 1);
+    auto position = lua_checkvec2d(L, 2);
+    auto delta = lua_checkvec2d(L, 3);
+    ScrollEvent event;
+    event.delta = Vec2D(delta->x, delta->y);
+    event.phase =
+        (ScrollPhase)luaL_checkoption(L, 4, "update", scrollPhaseNames);
+    event.precise = luaL_optboolean(L, 5, false);
+    lua_newrive<ScriptedScrollEvent>(L,
+                                     id,
+                                     Vec2D(position->x, position->y),
+                                     event,
+                                     (float)luaL_optnumber(L, 6, 0));
+    return 1;
+}
+
+static int scroll_event_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto scrollEvent = lua_torive<ScriptedScrollEvent>(L, 1);
+    switch (atom)
+    {
+        case (int)LuaAtoms::id:
+            lua_pushinteger(L, scrollEvent->m_id);
+            return 1;
+        case (int)LuaAtoms::position:
+            rive_lua_pushvector2(L,
+                                 scrollEvent->m_position.x,
+                                 scrollEvent->m_position.y);
+            return 1;
+        case (int)LuaAtoms::delta:
+            rive_lua_pushvector2(L,
+                                 scrollEvent->m_event.delta.x,
+                                 scrollEvent->m_event.delta.y);
+            return 1;
+        case (int)LuaAtoms::phase:
+            lua_pushstring(L, scroll_phase_string(scrollEvent->m_event.phase));
+            return 1;
+        case (int)LuaAtoms::precise:
+            lua_pushboolean(L, scrollEvent->m_event.precise);
+            return 1;
+        case (int)LuaAtoms::timeStamp:
+            lua_pushnumber(L, scrollEvent->m_timeStamp);
+            return 1;
+    }
+
+    luaL_error(L,
+               "%s is not a valid field of %s",
+               key,
+               ScriptedScrollEvent::luaName);
+    return 0;
+}
+
+static int scroll_event_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+    if (str != nullptr && atom == (int)LuaAtoms::hit)
+    {
+        lua_torive<ScriptedScrollEvent>(L, 1)->m_hitResult =
+            HitResult::hitOpaque;
+        return 0;
+    }
+
+    luaL_error(L,
+               "%s is not a valid method of %s",
+               str,
+               ScriptedScrollEvent::luaName);
+    return 0;
+}
+
 static const luaL_Reg pointerEventsStaticMethods[] = {
     {"new", pointer_event_new},
     {nullptr, nullptr}};
+
+static const luaL_Reg scrollEventsStaticMethods[] = {{"new", scroll_event_new},
+                                                     {nullptr, nullptr}};
 
 int luaopen_rive_input(lua_State* L)
 {
@@ -196,6 +290,22 @@ int luaopen_rive_input(lua_State* L)
                                            ScriptedPointerEvent::luaTag,
                                            "timeStamp",
                                            pointer_event_direct_timeStamp);
+    }
+
+    {
+        luaL_register(L,
+                      ScriptedScrollEvent::luaName,
+                      scrollEventsStaticMethods);
+    }
+    {
+        lua_register_rive<ScriptedScrollEvent>(L);
+        lua_pushcfunction(L, scroll_event_index, nullptr);
+        lua_setfield(L, -2, "__index");
+        lua_pushcfunction(L, scroll_event_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
     }
 
     rive_lua_register_listener_invocation_types(L);

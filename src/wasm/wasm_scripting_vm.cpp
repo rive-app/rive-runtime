@@ -6162,6 +6162,30 @@ uint32_t artboardPointerEventImpl(WasmScriptingVM* vm,
     return 0;
 }
 
+uint32_t artboardScrollEventImpl(WasmScriptingVM* vm,
+                                 uint32_t handle,
+                                 uint32_t pointerId,
+                                 float x,
+                                 float y,
+                                 float dx,
+                                 float dy,
+                                 uint32_t phase,
+                                 uint32_t precise,
+                                 float timeStamp)
+{
+    auto host = resolveArtboard(vm, handle);
+    if (host == nullptr || host->stateMachine == nullptr ||
+        phase > (uint32_t)ScrollPhase::inertiaCancel)
+    {
+        return 0;
+    }
+    ScrollEvent event{Vec2D(dx, dy), (ScrollPhase)phase, precise != 0};
+    return (uint32_t)(int)host->stateMachine->pointerScroll(Vec2D(x, y),
+                                                            event,
+                                                            timeStamp,
+                                                            (int)pointerId);
+}
+
 // Animations pin their artboard so the instance they play into outlives them.
 struct HostAnimation
 {
@@ -10259,6 +10283,37 @@ bool WasmScriptingVM::callDataConvert(ScriptedObject* object,
     return ran != 0;
 }
 
+bool WasmScriptingVM::callHitExport(const char* name,
+                                    wasm_val_t* args,
+                                    uint32_t argCount,
+                                    HitResult* outResult)
+{
+    wasm_function_inst_t f = m_state->lookupExport(name);
+    if (f == nullptr)
+    {
+        return false;
+    }
+    wasm_val_t results[1];
+    results[0].kind = WASM_I32;
+    ScriptCallScope callScope(this);
+    if (!wasm_runtime_call_wasm_a(m_state->execEnv,
+                                  f,
+                                  1,
+                                  results,
+                                  argCount,
+                                  args))
+    {
+        reportTrap(name);
+        return false;
+    }
+    if (results[0].of.i32 == 0)
+    {
+        return false;
+    }
+    *outResult = (HitResult)(results[0].of.i32 - 1);
+    return true;
+}
+
 bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
                                        int selfRef,
                                        const char* method,
@@ -10269,21 +10324,6 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
                                        HitResult* outResult)
 {
     if (!valid())
-    {
-        return false;
-    }
-    // _v2 carries the listener type and time stamp; modules built before it
-    // export only the six-argument name, which must be called as such.
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance,
-                                     "host_obj_pointer_event_v2");
-    bool legacy = f == nullptr;
-    if (legacy)
-    {
-        f = wasm_runtime_lookup_function(m_state->instance,
-                                         "host_obj_pointer_event");
-    }
-    if (f == nullptr)
     {
         return false;
     }
@@ -10310,25 +10350,50 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
     args[6].of.i32 = (int32_t)hitType;
     args[7].kind = WASM_F64;
     args[7].of.f64 = timeStamp;
-    wasm_val_t results[1];
-    results[0].kind = WASM_I32;
-    ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm_a(m_state->execEnv,
-                                  f,
-                                  1,
-                                  results,
-                                  legacy ? 6 : 8,
-                                  args))
+    // _v2 carries the listener type and time stamp; modules built before it
+    // export only the six-argument name, which must be called as such.
+    if (m_state->lookupExport("host_obj_pointer_event_v2") == nullptr)
     {
-        reportTrap("host_obj_pointer_event");
+        return callHitExport("host_obj_pointer_event", args, 6, outResult);
+    }
+    return callHitExport("host_obj_pointer_event_v2", args, 8, outResult);
+}
+
+bool WasmScriptingVM::callScrollEvent(ScriptedObject* object,
+                                      int selfRef,
+                                      int pointerId,
+                                      Vec2D localPosition,
+                                      const ScrollEvent& event,
+                                      float timeStamp,
+                                      HitResult* outResult)
+{
+    if (!valid())
+    {
         return false;
     }
-    if (results[0].of.i32 == 0)
-    {
-        return false;
-    }
-    *outResult = (HitResult)(results[0].of.i32 - 1);
-    return true;
+    wasm_val_t args[10];
+    args[0].kind = WASM_I32;
+    args[0].of.i32 = (int32_t)m_L;
+    args[1].kind = WASM_I32;
+    args[1].of.i32 = selfRef;
+    args[2].kind = WASM_I32;
+    args[2].of.i32 = pointerId;
+    args[3].kind = WASM_F64;
+    args[3].of.f64 = localPosition.x;
+    args[4].kind = WASM_F64;
+    args[4].of.f64 = localPosition.y;
+    args[5].kind = WASM_F64;
+    args[5].of.f64 = event.delta.x;
+    args[6].kind = WASM_F64;
+    args[6].of.f64 = event.delta.y;
+    args[7].kind = WASM_I32;
+    args[7].of.i32 = (int32_t)event.phase;
+    args[8].kind = WASM_I32;
+    args[8].of.i32 = event.precise ? 1 : 0;
+    args[9].kind = WASM_F64;
+    args[9].of.f64 = timeStamp;
+    // Modules built before scroll input lack the export and never scroll.
+    return callHitExport("host_obj_scroll_event", args, 10, outResult);
 }
 
 bool WasmScriptingVM::callKeyboardEvent(ScriptedObject* object,

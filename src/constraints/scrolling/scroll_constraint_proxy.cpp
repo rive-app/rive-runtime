@@ -87,10 +87,12 @@ bool ViewportDraggableProxy::wantsScroll(const ScrollEvent& event)
     // branch tests the delta and it declines; the first directional one picks.
     if (event.phase == ScrollPhase::inertiaCancel)
     {
-        // Only matters to a view already coasting.
-        return m_constraint->isScrolling() ||
-               (m_constraint->physics() != nullptr &&
-                m_constraint->physics()->isRunning());
+        // Only matters to a view already coasting, and only one the wheel
+        // drives, as scroll would decline it anyway.
+        return m_constraint->wheelEnabled() &&
+               (m_constraint->isScrolling() ||
+                (m_constraint->physics() != nullptr &&
+                 m_constraint->physics()->isRunning()));
     }
     if (event.precise)
     {

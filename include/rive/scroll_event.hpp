@@ -42,6 +42,10 @@ struct ScrollEvent
     /// Pixel-precise source (trackpad) rather than a detented wheel.
     bool precise = false;
 };
+
+/// A gesture that reports no end of its own, like a wheel or platform
+/// momentum, closes after this long without events.
+constexpr float scrollIdleSeconds = 0.1f;
 } // namespace rive
 
 #endif

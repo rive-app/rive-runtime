@@ -625,7 +625,8 @@ public:
     virtual bool occludesPointer(Vec2D position) { return false; }
     virtual HitResult processScroll(Vec2D position,
                                     const ScrollEvent& event,
-                                    float timeStamp)
+                                    float timeStamp,
+                                    int pointerId)
     {
         return HitResult::none;
     }

@@ -500,6 +500,11 @@ enum class LuaAtoms : int16_t
     artboardNames,
     bindableArtboard,
     getArtboard,
+
+    // Scroll input
+    delta,
+    precise,
+    pointerScroll,
 };
 
 struct ScriptedMat2D
@@ -2311,6 +2316,27 @@ public:
     Vec2D m_position;
     Vec2D m_previousPosition;
     int m_hitListenerType = 0;
+    float m_timeStamp = 0.f;
+    HitResult m_hitResult = HitResult::none;
+};
+
+class ScriptedScrollEvent
+{
+public:
+    ScriptedScrollEvent(int id,
+                        Vec2D position,
+                        const ScrollEvent& event,
+                        float timeStamp) :
+        m_id(id), m_position(position), m_event(event), m_timeStamp(timeStamp)
+    {}
+
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 78;
+    static constexpr const char* luaName = "ScrollEvent";
+    static constexpr bool hasMetatable = true;
+
+    int m_id = 0;
+    Vec2D m_position;
+    ScrollEvent m_event;
     float m_timeStamp = 0.f;
     HitResult m_hitResult = HitResult::none;
 };

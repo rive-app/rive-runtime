@@ -385,6 +385,22 @@ static int apply_pointer_event(lua_State* L, int atom)
     return 1;
 }
 
+static int apply_scroll_event(lua_State* L)
+{
+    auto machine = lua_torive<ScriptedArtboard>(L, 1)->stateMachine();
+    auto scrollEvent = lua_torive<ScriptedScrollEvent>(L, 2);
+    auto result = 0;
+    if (machine)
+    {
+        result = (int)machine->pointerScroll(scrollEvent->m_position,
+                                             scrollEvent->m_event,
+                                             scrollEvent->m_timeStamp,
+                                             scrollEvent->m_id);
+    }
+    lua_pushinteger(L, result);
+    return 1;
+}
+
 static int apply_gamepad_event(lua_State* L, int atom)
 {
     auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
@@ -531,6 +547,10 @@ static int artboard_namecall(lua_State* L)
             case (int)LuaAtoms::pointerExit:
             {
                 return apply_pointer_event(L, atom);
+            }
+            case (int)LuaAtoms::pointerScroll:
+            {
+                return apply_scroll_event(L);
             }
             case (int)LuaAtoms::gamepadEvent:
             case (int)LuaAtoms::gamepadConnected:
