@@ -694,10 +694,6 @@ bool Player::doFrame()
         advanceDeltaTime = 1.0f / 120;
     }
 
-    // advanceAndApply drives the artboard through advanceInternal, which
-    // skips the async-work pump in Artboard::advance; pump it here so scripted
-    // image decodes resolve (without threads they only run when polled).
-    m_artboard->pollAsyncWork();
 #ifdef WITH_RIVE_SCRIPTING_WASM
     // Scavenges the script nursery, which otherwise grows until it traps.
     if (const char* warning = m_file->frameBoundary())

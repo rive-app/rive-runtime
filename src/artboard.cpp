@@ -1451,35 +1451,57 @@ void Artboard::pollAsyncWork()
 {
     rive_pollAsyncWork();
 #ifdef WITH_RIVE_SCRIPTING_WASM
-    if (auto f = artboardFile())
-    {
-        for (auto& vm : f->wasmVMs())
-        {
-            vm->deliverHeldOutcomes();
-        }
-    }
+    WasmScriptingVM::deliverAllHeldOutcomes();
 #endif
 }
 
-bool Artboard::hasPendingAsyncWork()
+#if defined(WITH_RIVE_SCRIPTING_LUAU) || defined(WITH_RIVE_SCRIPTING_WASM)
+static bool fileHasPendingAsyncWork(const File* file)
 {
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    if (m_scriptingVM != nullptr)
+    if (auto vm = file->scriptingVM())
     {
-        auto* context = m_scriptingVM->context();
-        if (context != nullptr &&
-            context->hasPendingAsyncWork(m_scriptingVM->state()))
+        auto* context = vm->context();
+        if (context != nullptr && context->hasPendingAsyncWork(vm->state()))
         {
             return true;
         }
     }
 #endif
 #ifdef WITH_RIVE_SCRIPTING_WASM
-    if (auto f = artboardFile())
+    for (auto& vm : file->wasmVMs())
     {
-        for (auto& vm : f->wasmVMs())
+        if (vm->hasPendingAsyncWork())
         {
-            if (vm->hasPendingAsyncWork())
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+#endif
+
+bool Artboard::hasPendingAsyncWork()
+{
+#if defined(WITH_RIVE_SCRIPTING_LUAU) || defined(WITH_RIVE_SCRIPTING_WASM)
+    // Only roots carry their file, and nested artboards run on it unless they
+    // were bound in from another one.
+    auto file = artboardFile();
+    if (file != nullptr && fileHasPendingAsyncWork(file.get()))
+    {
+        return true;
+    }
+    for (auto host : m_ArtboardHosts)
+    {
+        auto foreign = host->foreignFile();
+        if (foreign != nullptr && fileHasPendingAsyncWork(foreign))
+        {
+            return true;
+        }
+        for (size_t i = 0; i < host->artboardCount(); i++)
+        {
+            auto instance = host->artboardInstance((int)i);
+            if (instance != nullptr && instance->hasPendingAsyncWork())
             {
                 return true;
             }

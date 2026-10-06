@@ -245,6 +245,8 @@ public:
     /// Delivers the decode and fetch outcomes that landed while a module
     /// call was running; a no-op while one still is.
     void deliverHeldOutcomes();
+    /// deliverHeldOutcomes() for every VM on this thread holding some.
+    static void deliverAllHeldOutcomes();
     /// True while a decode or fetch this VM started has yet to reach the
     /// module, held outcomes included.
     bool hasPendingAsyncWork() const
@@ -705,6 +707,7 @@ private:
     /// A nested advance polls async work while the module is mid call;
     /// settling its promises there would run script under that call.
     bool inModuleCall() const;
+    void holdOutcome(std::function<void()> deliver);
     std::vector<std::function<void()>> m_heldOutcomes;
     std::unique_ptr<BudgetSlot> m_budgetSlot;
     /// Module exports __riveUtf16HostStrings: strings the host hands it are

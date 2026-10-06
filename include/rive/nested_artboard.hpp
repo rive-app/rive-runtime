@@ -202,6 +202,7 @@ public:
     void markHostTransformDirty() override { markTransformDirty(); }
     void file(File*) override;
     File* file() const override;
+    const File* foreignFile() const override;
     Component* hostComponent() override { return this; }
 
     // Focusable interface - delegates to nested state machines

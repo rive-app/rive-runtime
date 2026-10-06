@@ -41,6 +41,8 @@ public:
     virtual bool isLayoutProvider() { return false; }
     virtual void file(File* value) = 0;
     virtual File* file() const = 0;
+    /// The file the hosted artboard was bound in from, when it isn't file().
+    virtual const File* foreignFile() const { return nullptr; }
 
     /// Return this host as a Component, if applicable (e.g., NestedArtboard).
     /// Returns nullptr if the host is not a Component.

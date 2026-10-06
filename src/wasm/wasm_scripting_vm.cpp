@@ -175,6 +175,9 @@ thread_local const std::function<void(const char*, size_t)>* s_bootPrint =
 // The VM whose module is starting, for the natives its top level reaches.
 thread_local WasmScriptingVM* s_booting = nullptr;
 thread_local WasmScriptingVM::BootHook s_bootHook;
+// The VMs holding outcomes, so a poll reaches them without walking every
+// artboard that might own one.
+thread_local std::vector<WasmScriptingVM*> s_holdingVMs;
 
 } // namespace
 
@@ -8576,6 +8579,9 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
 
 WasmScriptingVM::~WasmScriptingVM()
 {
+    s_holdingVMs.erase(
+        std::remove(s_holdingVMs.begin(), s_holdingVMs.end(), this),
+        s_holdingVMs.end());
 #ifndef __EMSCRIPTEN__
     if (m_budgetSlot != nullptr)
     {
@@ -8925,14 +8931,13 @@ void WasmScriptingVM::resolveImageDecode(uint32_t token,
     {
         // The decoder frees its pixels once this returns.
         std::vector<uint8_t> owned(pixels, pixels + byteCount);
-        m_heldOutcomes.push_back(
-            [this, token, width, height, owned = std::move(owned)] {
-                resolveImageDecode(token,
-                                   width,
-                                   height,
-                                   owned.data(),
-                                   (uint32_t)owned.size());
-            });
+        holdOutcome([this, token, width, height, owned = std::move(owned)] {
+            resolveImageDecode(token,
+                               width,
+                               height,
+                               owned.data(),
+                               (uint32_t)owned.size());
+        });
         return;
     }
     if (m_pendingDecodes.erase(token) == 0 || !valid())
@@ -8952,7 +8957,7 @@ void WasmScriptingVM::rejectImageDecode(uint32_t token, const char* message)
 {
     if (inModuleCall())
     {
-        m_heldOutcomes.push_back([this, token, error = std::string(message)] {
+        holdOutcome([this, token, error = std::string(message)] {
             rejectImageDecode(token, error.c_str());
         });
         return;
@@ -9069,10 +9074,9 @@ void WasmScriptingVM::resolveFetch(uint32_t token,
 {
     if (inModuleCall())
     {
-        m_heldOutcomes.push_back(
-            [this, token, response = std::move(response)]() mutable {
-                resolveFetch(token, std::move(response));
-            });
+        holdOutcome([this, token, response = std::move(response)]() mutable {
+            resolveFetch(token, std::move(response));
+        });
         return;
     }
     // Cancelled while held.
@@ -9109,7 +9113,7 @@ void WasmScriptingVM::rejectFetch(uint32_t token,
 {
     if (inModuleCall())
     {
-        m_heldOutcomes.push_back([this, token, code, message] {
+        holdOutcome([this, token, code, message] {
             rejectFetch(token, code, message);
         });
         return;
@@ -9136,18 +9140,44 @@ void WasmScriptingVM::deliverFetchFailure(uint32_t token,
 
 bool WasmScriptingVM::inModuleCall() const { return m_callDepth != 0; }
 
+void WasmScriptingVM::holdOutcome(std::function<void()> deliver)
+{
+    if (m_heldOutcomes.empty())
+    {
+        s_holdingVMs.push_back(this);
+    }
+    m_heldOutcomes.push_back(std::move(deliver));
+}
+
 void WasmScriptingVM::deliverHeldOutcomes()
 {
     if (inModuleCall() || m_heldOutcomes.empty())
     {
         return;
     }
+    s_holdingVMs.erase(
+        std::remove(s_holdingVMs.begin(), s_holdingVMs.end(), this),
+        s_holdingVMs.end());
     // Deliveries can hold more, which wait for the next pass.
     std::vector<std::function<void()>> held;
     held.swap(m_heldOutcomes);
     for (auto& deliver : held)
     {
         deliver();
+    }
+}
+
+void WasmScriptingVM::deliverAllHeldOutcomes()
+{
+    // A delivery runs script, which can destroy another holding VM.
+    auto holding = s_holdingVMs;
+    for (auto* vm : holding)
+    {
+        if (std::find(s_holdingVMs.begin(), s_holdingVMs.end(), vm) !=
+            s_holdingVMs.end())
+        {
+            vm->deliverHeldOutcomes();
+        }
     }
 }
 

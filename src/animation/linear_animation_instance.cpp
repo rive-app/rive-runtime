@@ -295,13 +295,17 @@ ScriptedInterpolator* LinearAnimationInstance::statefulInterpolator(
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
     RIVE_PROF_SCOPE_L(1)
+    // Scripted interpolators run in apply(), before Artboard::advance polls.
+    m_artboardInstance->pollAsyncWork();
     bool more = this->advance(seconds, this);
     this->apply();
     if (m_artboardInstance->advance(seconds))
     {
         more = true;
     }
-    return more || keepGoing();
+    // A host that stops ticking a finished animation would never poll its
+    // scripts' async work in.
+    return more || keepGoing() || m_artboardInstance->hasPendingAsyncWork();
 }
 
 bool LinearAnimationInstance::advance(float elapsedSeconds,

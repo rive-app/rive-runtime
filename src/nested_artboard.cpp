@@ -317,11 +317,7 @@ void NestedArtboard::updateArtboard(
         // which its bindable carries. This host's stateful instances are of
         // this file's view models: comparing ids across files, or looking
         // one up here, would bind it to the wrong properties.
-        const File* sourceFile =
-            m_mountedBindable != nullptr ? m_mountedBindable->file() : nullptr;
-        bool fromOtherFile =
-            sourceFile != nullptr && m_file != nullptr && sourceFile != m_file;
-        if (isStateful() && !fromOtherFile)
+        if (isStateful() && foreignFile() == nullptr)
         {
             auto statefulChild = findStatefulChildVmi();
             if (statefulChild != nullptr &&
@@ -1118,6 +1114,13 @@ void NestedArtboard::reset() {}
 void NestedArtboard::file(File* value) { m_file = value; }
 
 File* NestedArtboard::file() const { return m_file; }
+
+const File* NestedArtboard::foreignFile() const
+{
+    const File* source =
+        m_mountedBindable != nullptr ? m_mountedBindable->file() : nullptr;
+    return m_file != nullptr && source != m_file ? source : nullptr;
+}
 
 int NestedArtboard::referencedArtboardId() { return artboardId(); }
 

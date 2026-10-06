@@ -308,7 +308,7 @@ public:
     void setScriptingVM(rcp<ScriptingVM> vm);
 
     /// Returns the ScriptingVM, or nullptr if no VM is set.
-    ScriptingVM* scriptingVM() { return m_scriptingVM.get(); }
+    ScriptingVM* scriptingVM() const { return m_scriptingVM.get(); }
 
     /// Returns the lua_State from the current VM, or nullptr if no VM is set.
     /// Do not hold a reference to this as the lifecycle is owned by the
