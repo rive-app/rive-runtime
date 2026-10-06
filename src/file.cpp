@@ -146,18 +146,71 @@ size_t File::debugTotalFileCount = 0;
 // Import a single Rive runtime object.
 // Used by the file importer.
 #ifdef WITH_RIVE_SCRIPTING_WASM
+// Requires the script's module on vm and binds the result: a protocol
+// script's module result is its generator.
+static bool registerWasmScriptOn(WasmScriptingVM* vm,
+                                 ScriptAsset* script,
+                                 const std::string& registryName)
+{
+    int resultRef = 0;
+    bool required = vm->requireModule(registryName, &resultRef);
+    if (!required)
+    {
+        fprintf(stderr,
+                "wasm script module '%s' failed: %s\n",
+                registryName.c_str(),
+                vm->lastError().c_str());
+    }
+    else if (!script->isModule() && resultRef != 0)
+    {
+        script->registrationComplete(resultRef);
+    }
+    script->wasmBackend(vm);
+    return required;
+}
+
 void File::adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm)
 {
     m_wasmVMs.clear();
+    vm->viewModels(&m_ViewModels);
+    vm->file(this);
     WasmScriptingVM* raw = vm.get();
     m_wasmVMs.push_back(std::move(vm));
     for (auto& asset : m_fileAssets)
     {
         if (asset->is<ScriptAsset>())
         {
-            asset->as<ScriptAsset>()->wasmBackend(raw);
+            auto script = asset->as<ScriptAsset>();
+            script->wasmBackend(raw);
+            // Refs minted by the replaced VM mean nothing to this one.
+            script->generatorFunctionRef(0);
         }
     }
+}
+
+ScriptAsset* File::scriptAsset(const std::string& moduleName) const
+{
+    for (auto& asset : m_fileAssets)
+    {
+        if (asset->is<ScriptAsset>() &&
+            asset->as<ScriptAsset>()->moduleName() == moduleName)
+        {
+            return asset->as<ScriptAsset>();
+        }
+    }
+    return nullptr;
+}
+
+bool File::registerWasmScript(const std::string& moduleName,
+                              const std::string& registryName)
+{
+    WasmScriptingVM* vm = wasmScriptingVM();
+    ScriptAsset* script = scriptAsset(moduleName);
+    if (vm == nullptr || script == nullptr)
+    {
+        return false;
+    }
+    return registerWasmScriptOn(vm, script, registryName);
 }
 
 bool File::applyWasmRegistration(const std::string& moduleName, int ref)
@@ -1063,24 +1116,6 @@ void File::registerScripts()
     // arrive grouped, each module followed by its scripts; scripts before the
     // first module belong to it, which keeps older single-module files
     // working.
-    auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
-        int resultRef = 0;
-        if (!vm->requireModule(script->moduleName(), &resultRef))
-        {
-            fprintf(stderr,
-                    "wasm script module '%s' failed: %s\n",
-                    script->moduleName().c_str(),
-                    vm->lastError().c_str());
-        }
-        else if (!script->isModule() && resultRef != 0)
-        {
-            // The module's result is the protocol script's generator;
-            // storing the ref lets the standard lazy instantiation flow
-            // run against the wasm backend.
-            script->registrationComplete(resultRef);
-        }
-        script->wasmBackend(vm);
-    };
     std::vector<ScriptAsset*> pending;
     WasmScriptingVM* current = nullptr;
     for (auto& asset : m_fileAssets)
@@ -1107,7 +1142,7 @@ void File::registerScripts()
             m_wasmVMs.push_back(std::move(vm));
             for (auto* script : pending)
             {
-                registerOn(current, script);
+                registerWasmScriptOn(current, script, script->moduleName());
             }
             pending.clear();
         }
@@ -1117,7 +1152,8 @@ void File::registerScripts()
         }
         else if (asset->is<ScriptAsset>())
         {
-            registerOn(current, asset->as<ScriptAsset>());
+            auto script = asset->as<ScriptAsset>();
+            registerWasmScriptOn(current, script, script->moduleName());
         }
     }
     // Bytecode-only files can still run on the wasm backend: with
@@ -1173,7 +1209,9 @@ void File::registerScripts()
                     }
                     for (auto* script : pending)
                     {
-                        registerOn(current, script);
+                        registerWasmScriptOn(current,
+                                             script,
+                                             script->moduleName());
                     }
                 }
             }
@@ -1202,6 +1240,15 @@ void File::registerScripts()
         {
             continue;
         }
+#ifdef WITH_RIVE_SCRIPTING_WASM
+        // The editor decodes a wasm preview ahead of the VM it adopts; its
+        // scripts carry no bytecode and must not start a Luau VM here.
+        if (m_scriptingVM == nullptr &&
+            scriptAsset->moduleBytecode().size() == 0)
+        {
+            continue;
+        }
+#endif
         scripts.push_back(scriptAsset);
     }
     // Only make the ScriptingVM if we have any script assets

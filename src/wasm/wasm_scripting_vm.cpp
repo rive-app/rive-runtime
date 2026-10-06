@@ -1988,6 +1988,24 @@ struct HostShader
     rcp<RenderShader> shader;
 };
 
+// Both gradients read count colors and count stops from the module.
+bool resolveGradientStops(WasmScriptingVM* vm,
+                          uint32_t colorsPtr,
+                          uint32_t stopsPtr,
+                          uint32_t count,
+                          const ColorInt*& colors,
+                          const float*& stops)
+{
+    // A larger count wraps the byte size, which then passes the bounds check.
+    if (count > UINT32_MAX / 4)
+    {
+        return false;
+    }
+    colors = (const ColorInt*)vm->resolveModulePtr(colorsPtr, count * 4);
+    stops = (const float*)vm->resolveModulePtr(stopsPtr, count * 4);
+    return colors != nullptr && stops != nullptr;
+}
+
 uint32_t shaderLinearImpl(WasmScriptingVM* vm,
                           float sx,
                           float sy,
@@ -2001,9 +2019,9 @@ uint32_t shaderLinearImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    auto colors = (const ColorInt*)vm->resolveModulePtr(colorsPtr, count * 4);
-    auto stops = (const float*)vm->resolveModulePtr(stopsPtr, count * 4);
-    if (colors == nullptr || stops == nullptr)
+    const ColorInt* colors = nullptr;
+    const float* stops = nullptr;
+    if (!resolveGradientStops(vm, colorsPtr, stopsPtr, count, colors, stops))
     {
         return 0;
     }
@@ -2025,9 +2043,9 @@ uint32_t shaderRadialImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    auto colors = (const ColorInt*)vm->resolveModulePtr(colorsPtr, count * 4);
-    auto stops = (const float*)vm->resolveModulePtr(stopsPtr, count * 4);
-    if (colors == nullptr || stops == nullptr)
+    const ColorInt* colors = nullptr;
+    const float* stops = nullptr;
+    if (!resolveGradientStops(vm, colorsPtr, stopsPtr, count, colors, stops))
     {
         return 0;
     }
@@ -4781,7 +4799,7 @@ struct HostViewModelInstance
 
 // Forwards core value change notifications into the module's listener
 // registry by token.
-struct HostValueDelegate : public ViewModelInstanceValueDelegate
+struct HostValueDelegate final : public ViewModelInstanceValueDelegate
 {
     WasmScriptingVM* vm = nullptr;
     uint32_t token = 0;
@@ -10157,7 +10175,25 @@ bool WasmScriptingVM::callPathEffectUpdate(ScriptedObject* object,
         paint.feather = shapePaint->feather()->strength();
     }
     paint.blendMode = (uint32_t)shapePaint->blendModeValue();
+    return callPathEffectUpdate(object,
+                                selfRef,
+                                sourcePath,
+                                paint,
+                                shapePaint->parentTransformComponent(),
+                                outPath);
+}
 
+bool WasmScriptingVM::callPathEffectUpdate(ScriptedObject* object,
+                                           int selfRef,
+                                           const RawPath& sourcePath,
+                                           const PathEffectPaintWire& paint,
+                                           TransformComponent* shape,
+                                           RawPath* outPath)
+{
+    if (!valid() || outPath == nullptr)
+    {
+        return false;
+    }
     uint32_t verbCount = (uint32_t)sourcePath.verbs().size();
     uint32_t floatCount = (uint32_t)sourcePath.points().size() * 2;
     uint32_t pointBytes = floatCount * (uint32_t)sizeof(float);
@@ -10183,7 +10219,6 @@ bool WasmScriptingVM::callPathEffectUpdate(ScriptedObject* object,
                                      "host_obj_path_effect_v2") != nullptr;
     size_t scopeStart = m_scopedNodes.size();
     uint32_t nodeHandle = 0;
-    TransformComponent* shape = shapePaint->parentTransformComponent();
     if (withNode && shape != nullptr)
     {
         nodeHandle = mintNode(this, nullptr, shape);

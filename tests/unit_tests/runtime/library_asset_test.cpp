@@ -168,7 +168,9 @@ TEST_CASE("Library script exports flat under its mangle prefix", "[libraries]")
     REQUIRE(script != nullptr);
     REQUIRE(script->moduleName() == "FruitsLib@4/FruitModule");
 
-#ifdef WITH_RIVE_SCRIPTING_LUAU
+    // The script carries no bytecode, which a build with both backends
+    // leaves to a wasm VM.
+#if defined(WITH_RIVE_SCRIPTING_LUAU) && !defined(WITH_RIVE_SCRIPTING_WASM)
     // A file with scripts still makes a VM.
     REQUIRE(file->scriptingVM() != nullptr);
 #endif
@@ -201,7 +203,7 @@ TEST_CASE("Nested library scripts export flat under distinct prefixes",
     REQUIRE(mesh != nullptr);
     REQUIRE(mesh->moduleName() == "InnerLib@4/mesh");
 
-#ifdef WITH_RIVE_SCRIPTING_LUAU
+#if defined(WITH_RIVE_SCRIPTING_LUAU) && !defined(WITH_RIVE_SCRIPTING_WASM)
     REQUIRE(file->scriptingVM() != nullptr);
 #endif
 }

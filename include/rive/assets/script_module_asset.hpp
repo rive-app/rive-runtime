@@ -18,6 +18,9 @@ public:
         animaScript = 1,
     };
 
+    // What every writer names the AnimaScript module asset.
+    static constexpr const char* animaScriptName = "scripts_as";
+
     bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
     std::string fileExtension() const override { return "wasm"; }
 

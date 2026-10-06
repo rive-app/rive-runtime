@@ -75,6 +75,9 @@ if os.target() == 'windows' and not isNx then
     -- wasm_c_api.h otherwise declare every API dllimport.
     table.insert(wamrConfigDefines, 'WASM_RUNTIME_API_EXTERN=')
     table.insert(wamrConfigDefines, 'WASM_API_EXTERN=')
+    -- WAMR keys threaded dispatch on __GNUC__, which clang leaves undefined
+    -- for msvc targets even though it supports computed goto.
+    table.insert(wamrConfigDefines, 'WASM_ENABLE_LABELS_AS_VALUES=1')
 end
 
 -- os.target() stays the host under --for_android; the option is the
@@ -261,6 +264,17 @@ do
     if os.target() == 'windows' and not isNx then
         -- Linux perf-map support; leans on pid_t/getpid.
         removefiles({ wamr .. '/core/iwasm/aot/aot_perf_map.c' })
+        -- msbuild hands the GAS shim to clang-cl as C, so assemble it with
+        -- clang directly.
+        filter({ 'action:vs*', 'files:**.s' })
+        do
+            buildmessage('assembling %{file.name}')
+            buildcommands({
+                'clang --target=x86_64-pc-windows-msvc -c "%{file.abspath}" -o "%{cfg.objdir}/%{file.basename}.obj"',
+            })
+            buildoutputs({ '%{cfg.objdir}/%{file.basename}.obj' })
+        end
+        filter({})
     end
     if isNx then
         files({ platformPath .. '/*.cpp' })

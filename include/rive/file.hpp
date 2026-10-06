@@ -46,6 +46,7 @@ class BindableArtboard;
 class ScriptingVM;
 class ScriptingContext;
 #ifdef WITH_RIVE_SCRIPTING_WASM
+class ScriptAsset;
 class WasmScriptingVM;
 #endif
 class ScriptedInterpolator;
@@ -457,6 +458,13 @@ public:
     /// Apply a module registration ref from the editor lane to the
     /// ScriptAsset carrying moduleName; returns false when none matches.
     bool applyWasmRegistration(const std::string& moduleName, int ref);
+    /// Requires registryName on the adopted VM and binds the result to the
+    /// ScriptAsset carrying moduleName; the editor registers by workspace
+    /// id, which is not the asset's module name.
+    bool registerWasmScript(const std::string& moduleName,
+                            const std::string& registryName);
+    /// The ScriptAsset carrying moduleName, null when none does.
+    ScriptAsset* scriptAsset(const std::string& moduleName) const;
 
     WasmScriptingVM* wasmScriptingVM()
     {

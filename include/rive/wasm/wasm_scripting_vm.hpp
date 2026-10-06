@@ -29,9 +29,11 @@ class Factory;
 class File;
 class RenderPaint;
 class RenderPath;
+class TransformComponent;
 class ViewModel;
 class WorkTask;
 class WasmScriptingVM;
+struct PathEffectPaintWire;
 namespace scriptnet
 {
 struct HttpResponse;
@@ -290,6 +292,14 @@ public:
                               const RawPath& sourcePath,
                               const ShapePaint* shapePaint,
                               RawPath* outPath) override;
+    /// The same call with the paint already snapshotted, for hosts whose
+    /// paint is not a runtime ShapePaint; shape may be null.
+    bool callPathEffectUpdate(ScriptedObject* object,
+                              int selfRef,
+                              const RawPath& sourcePath,
+                              const PathEffectPaintWire& paint,
+                              TransformComponent* shape,
+                              RawPath* outPath);
     bool callDataConvert(ScriptedObject* object,
                          int selfRef,
                          const char* method,

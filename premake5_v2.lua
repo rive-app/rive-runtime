@@ -25,9 +25,13 @@ if _OPTIONS['scripting_vm'] ~= 'wasm' then
     end
     filter({})
 end
+-- WAMR has no emscripten platform layer, so the browser lane of the wasm
+-- flavors builds without a wasm VM until the browser engine backend lands.
+local wasmVmBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
-if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+if (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
+    and wasmVmBuildable
 then
     filter({ 'options:with_rive_scripting' })
     do
@@ -108,7 +112,8 @@ if _OPTIONS['with_rive_scripting'] then
     local scripting = require(path.join(path.getabsolute('scripting/'), 'premake5'))
     luau = scripting.luau
     libhydrogen = scripting.libhydrogen
-    if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
+    if (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
+        and wasmVmBuildable
     then
         local wamrLib =
             require(path.join(path.getabsolute('scripting/'), 'premake5_wamr'))
