@@ -62,8 +62,13 @@ static uint64_t processId()
 
 static void makeDir(const std::string& path)
 {
+#ifdef RIVE_NX
+    // Our NX libc++ has no std::filesystem directory ops.
+    mkdir(path.c_str(), 0755);
+#else
     std::error_code ec;
     std::filesystem::create_directory(path, ec);
+#endif
 }
 
 static bool fileExists(const std::string& path)
