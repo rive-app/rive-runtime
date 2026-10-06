@@ -14,8 +14,6 @@
 #include <unordered_map>
 #include <vector>
 
-struct wasm_val_t;
-
 namespace rive
 {
 
@@ -68,11 +66,13 @@ public:
     /// it must outlive the VM. print is installed before instantiation, the
     /// only way to see output from module start: rasc runs every script's top
     /// level there, riveRegister included.
+#ifndef __EMSCRIPTEN__
     static std::unique_ptr<WasmScriptingVM> make(
         Span<const uint8_t> module,
         Factory* factory,
         std::string& outError,
         std::function<void(const char*, size_t)> print = {});
+#endif
     ~WasmScriptingVM();
 
     /// One live host object per module handle: 24-bit slot, 8-bit generation,
@@ -257,6 +257,7 @@ public:
     bool valid() const override;
     bool utf16Strings() const { return m_utf16Strings; }
     bool utf16HostStrings() const { return m_utf16HostStrings; }
+    bool hostBudget() const { return m_hostBudget; }
     // An init that read data the host had not bound yet fails so it reruns,
     // as the Luau context's missingRequestedData does.
     void noteMissingRequestedData() { m_missingRequestedData = true; }
@@ -412,6 +413,7 @@ public:
     };
     ExecutionTier executionTier() const { return m_tier; }
 
+#ifndef __EMSCRIPTEN__
     /// Queue this module on the process tier ladder; arrivals are picked up
     /// by maybeUpgradeTier. laneId identifies the logical script so a newer
     /// module content supersedes in-flight compiles.
@@ -421,6 +423,7 @@ public:
     /// in the ladder cache, swap onto it, carrying all live state. Call with
     /// no wasm frames on the stack. Returns true when a swap happened.
     bool maybeUpgradeTier();
+#endif
 
     /// The per-frame collection point: frame collector modules scavenge
     /// here (call once during load after init so init promotion lands in
@@ -439,6 +442,7 @@ public:
     /// Current size of the module's linear memory in 64KB wasm pages.
     uint32_t memoryPages() const;
 
+#ifndef __EMSCRIPTEN__
     /// Swap execution onto a compiled artifact of this module, carrying
     /// memory, globals, and tables. No wasm frames may be live. On failure
     /// the current instance keeps running.
@@ -446,6 +450,7 @@ public:
                            ExecutionTier tier,
                            std::string& error,
                            bool hwBounds = false);
+#endif
 
     /// Backend seams: host code reaches module memory and module functions
     /// only through these, so a browser backend can substitute staged
@@ -463,11 +468,16 @@ public:
         return resolveModulePtr(appAddr, size);
     }
 
+    /// Writes size bytes into module memory, false when out of range. A
+    /// copying backend need not stage a range the host never reads.
+    virtual bool copyToModule(uint32_t appAddr, const void* src, uint32_t size);
+
+    /// The zero terminated string at appAddr, under the same contract.
+    virtual const char* resolveModuleString(uint32_t appAddr);
+
     /// Calls a module export with i32 args; returns the first result, or 0
     /// when the export is missing or the call traps.
-    virtual uint32_t callModule(const char* name,
-                                uint32_t argc,
-                                uint32_t* argv);
+    uint32_t callModule(const char* name, uint32_t argc, uint32_t* argv);
 
     /// The honest variant: distinguishes a missing export from a trap from
     /// a real zero result, for callers where the difference is a failure.
@@ -477,10 +487,16 @@ public:
         missing,
         trapped,
     };
-    CallOutcome callModuleChecked(const char* name,
-                                  uint32_t argc,
-                                  uint32_t* argv,
-                                  uint32_t* result);
+    virtual CallOutcome callModuleChecked(const char* name,
+                                          uint32_t argc,
+                                          uint32_t* argv,
+                                          uint32_t* result);
+
+    virtual bool hasExport(const char* name);
+
+    /// The module memory's size and declared ceiling in 64KB pages; false
+    /// when the module has no memory. A ceiling of 0 means unknown.
+    virtual bool memoryLimits(uint32_t* pages, uint32_t* maxPages) const;
 
     /// Ends module execution like a trap once the current native returns.
     virtual void raiseModuleError(const char* message);
@@ -575,9 +591,40 @@ protected:
     std::string m_moduleErrorDetail;
     Factory* m_factory = nullptr;
     uint32_t m_L = 0;
+    uint32_t m_callDepth = 0;
+    // Method names the module keeps past the frame, one copy per instance.
+    std::unordered_map<std::string, uint32_t> m_guestNames;
+    // console.time starts by label, in steady nanoseconds.
+    std::unordered_map<std::string, int64_t> m_consoleTimers;
+    bool m_advancedOnce = false;
+    bool m_missingRequestedData = false;
+    /// Module exports __riveUtf16Strings: its string arguments arrive as
+    /// UTF-16. Modules baked before that, and the Luau one, pass UTF-8.
+    bool m_utf16Strings = false;
+    /// Exports modules built before them lack, probed once at boot.
+    bool m_rawAllocExport = false;
+    bool m_inputSlotExport = false;
+    bool m_pathEffectV2 = false;
+    bool m_pointerEventV2 = false;
+    bool m_layoutResizeV2 = false;
+    bool m_transitionManagesToExport = false;
+    std::function<void(const char*, size_t)> m_print;
 
-private:
-    bool init(Span<const uint8_t> module);
+    /// Reads a flag export. Backends call it off the module before start,
+    /// which runs every script's top level and already passes strings.
+    void noteModuleExport(const char* name);
+    /// What follows instantiation on every backend: the optional export
+    /// probes, then the module side boot. False with m_lastError set.
+    bool bootModule();
+    /// Fills lastTrap from a backend's trap text and logs it unless quiet.
+    void recordTrap(const char* where, const char* exception);
+    /// Calls an export with args converted to its parameter types, for
+    /// exports that take floats. name must be a string literal: a backend
+    /// may cache the export by the pointer.
+    virtual CallOutcome callF64(const char* name,
+                                const double* args,
+                                uint32_t argc,
+                                double* result);
     uint32_t guestString(const char* text, const char* allocator = "malloc");
     void guestFree(uint32_t ptr);
     // A call scoped handle over a transition child, 0 for an empty one.
@@ -597,9 +644,6 @@ private:
         WasmScriptingVM* m_vm;
         bool m_owned = false;
     };
-    // The module's slot for an input name, resolved once per instance; -1
-    // when the instance declares no such input.
-    int32_t inputSlot(int selfRef, const char* name);
     // The input argument of a set or trigger call: the slot, or the name
     // itself for modules baked before the slot ABI, which owned then holds
     // for the caller to free. False when the instance lacks the input.
@@ -607,12 +651,22 @@ private:
                   const char* name,
                   uint32_t& arg,
                   uint32_t& owned);
-    bool legacyInputs() const;
+
+private:
+#ifndef __EMSCRIPTEN__
+    bool init(Span<const uint8_t> module);
+#endif
+    // The module's slot for an input name, resolved once per instance; -1
+    // when the instance declares no such input.
+    int32_t inputSlot(int selfRef, const char* name);
+    bool legacyInputs();
     std::unordered_map<int, std::unordered_map<std::string, int32_t>>
         m_inputSlots;
 
+#ifndef __EMSCRIPTEN__
     struct WamrState;
     std::unique_ptr<WamrState> m_state;
+#endif
     std::vector<uint8_t> m_moduleBytes;
     // Stable view of the module bytes once the shared cache owns them.
     Span<const uint8_t> m_scheduleBytes;
@@ -622,7 +676,6 @@ private:
     // compile is scheduled and no upgrade runs, so the module keeps
     // running the -O0 code a debugger and stable codegen want.
     bool m_tierPinned = false;
-    std::function<void(const char*, size_t)> m_print;
     WasmDebugHooks* m_debugHooks = nullptr;
     std::vector<std::string> m_unresolvedImports;
     static int sm_defaultTimeoutMs;
@@ -642,10 +695,15 @@ private:
     /// Object handles minted for the init scoped context, released once init
     /// completes or the context ref is released.
     std::unordered_map<int, uint32_t> m_contextObjects;
-    /// In-flight decodes by module token, for cancellation; the pool owns
-    /// execution, completed or cancelled entries erase themselves.
+    /// In-flight decodes by module token, for cancellation; completed or
+    /// cancelled entries erase themselves.
+#ifdef __EMSCRIPTEN__
+    /// The browser decodes, so each token keeps its browser request id.
+    std::unordered_map<uint32_t, uint32_t> m_pendingDecodes;
+#else
     std::unordered_map<uint32_t, rcp<WorkTask>> m_pendingDecodes;
     uint64_t m_decodeOwnerId = 0;
+#endif
     // Delivery is synchronous, so the pixels borrow the decoder's buffer.
     struct DecodeResult
     {
@@ -662,8 +720,8 @@ private:
     /// Calls a pointer or scroll export, whose 0 means unhandled and anything
     /// else is 1 + the HitResult the handler reported.
     bool callHitExport(const char* name,
-                       wasm_val_t* args,
-                       uint32_t argCount,
+                       const double* args,
+                       uint32_t argc,
                        HitResult* outResult);
     /// In-flight fetches: module token to scriptnet request id, for
     /// cancellation. The owner id scopes this VM's rate limits and lets
@@ -677,12 +735,7 @@ private:
     /// settling its promises there would run script under that call.
     bool inModuleCall() const;
     std::vector<std::function<void()>> m_heldOutcomes;
-    bool m_advancedOnce = false;
-    bool m_missingRequestedData = false;
     std::unique_ptr<BudgetSlot> m_budgetSlot;
-    /// Module exports __riveUtf16Strings: its string arguments arrive as
-    /// UTF-16. Modules baked before that, and the Luau one, pass UTF-8.
-    bool m_utf16Strings = false;
     /// Module exports __riveUtf16HostStrings: strings the host hands it are
     /// written as UTF-16 too.
     bool m_utf16HostStrings = false;

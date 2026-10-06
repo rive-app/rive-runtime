@@ -83,6 +83,9 @@
 #include "rive/assets/script_module_asset.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
 #include "rive/wasm/wasm_scripting_vm.hpp"
+#ifdef __EMSCRIPTEN__
+#include "rive/wasm/browser_scripting_vm.hpp"
+#endif
 #endif
 #include "rive/assets/shader_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -171,6 +174,10 @@ static bool registerWasmScriptOn(WasmScriptingVM* vm,
 
 void File::adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm)
 {
+#ifdef __EMSCRIPTEN__
+    // They point at the VMs being replaced.
+    m_deferredScripts.clear();
+#endif
     m_wasmVMs.clear();
     vm->viewModels(&m_ViewModels);
     vm->file(this);
@@ -1074,6 +1081,60 @@ const char* File::frameBoundary()
 }
 #endif
 
+#ifdef WITH_RIVE_SCRIPTING_WASM
+#ifdef __EMSCRIPTEN__
+void File::startScripts()
+{
+    for (auto vm = m_wasmVMs.begin(); vm != m_wasmVMs.end();)
+    {
+        auto browserVM = static_cast<BrowserScriptingVM*>(vm->get());
+        switch (browserVM->start())
+        {
+            case BrowserScriptingVM::Start::started:
+                ++vm;
+                break;
+            case BrowserScriptingVM::Start::preparing:
+                fprintf(stderr,
+                        "wasm script module is still being prepared, so its "
+                        "scripts wait for a later startScripts\n");
+                ++vm;
+                break;
+            case BrowserScriptingVM::Start::failed:
+                // Natively a module that fails to start never joins the file.
+                fprintf(stderr,
+                        "wasm script module failed to start: %s\n",
+                        browserVM->lastError().c_str());
+                m_deferredScripts.erase(
+                    std::remove_if(m_deferredScripts.begin(),
+                                   m_deferredScripts.end(),
+                                   [browserVM](const DeferredScript& deferred) {
+                                       return deferred.vm == browserVM;
+                                   }),
+                    m_deferredScripts.end());
+                vm = m_wasmVMs.erase(vm);
+                break;
+        }
+    }
+    // A vm still being prepared keeps its scripts for the next call.
+    std::vector<DeferredScript> waiting;
+    for (const DeferredScript& deferred : m_deferredScripts)
+    {
+        if (deferred.vm->valid())
+        {
+            registerWasmScriptOn(deferred.vm,
+                                 deferred.script,
+                                 deferred.script->moduleName());
+        }
+        else
+        {
+            waiting.push_back(deferred);
+        }
+    }
+    m_deferredScripts = std::move(waiting);
+}
+#endif
+#endif
+
 bool File::acceptsScript(bool verified) const
 {
     if (m_requireSignedScripts)
@@ -1116,6 +1177,15 @@ void File::registerScripts()
     // arrive grouped, each module followed by its scripts; scripts before the
     // first module belong to it, which keeps older single-module files
     // working.
+#ifdef __EMSCRIPTEN__
+    auto registerOn = [this](WasmScriptingVM* vm, ScriptAsset* script) {
+        m_deferredScripts.push_back({vm, script});
+    };
+#else
+    auto registerOn = [](WasmScriptingVM* vm, ScriptAsset* script) {
+        registerWasmScriptOn(vm, script, script->moduleName());
+    };
+#endif
     std::vector<ScriptAsset*> pending;
     WasmScriptingVM* current = nullptr;
     for (auto& asset : m_fileAssets)
@@ -1127,6 +1197,14 @@ void File::registerScripts()
             {
                 continue;
             }
+#ifdef __EMSCRIPTEN__
+            std::unique_ptr<WasmScriptingVM> vm =
+                BrowserScriptingVM::make(module->module(), m_factory);
+            if (vm == nullptr)
+            {
+                continue;
+            }
+#else
             std::string error;
             auto vm = WasmScriptingVM::make(module->module(), m_factory, error);
             if (vm == nullptr)
@@ -1136,13 +1214,14 @@ void File::registerScripts()
                         error.c_str());
                 continue;
             }
+#endif
             vm->viewModels(&m_ViewModels);
             vm->file(this);
             current = vm.get();
             m_wasmVMs.push_back(std::move(vm));
             for (auto* script : pending)
             {
-                registerWasmScriptOn(current, script, script->moduleName());
+                registerOn(current, script);
             }
             pending.clear();
         }
@@ -1152,10 +1231,10 @@ void File::registerScripts()
         }
         else if (asset->is<ScriptAsset>())
         {
-            auto script = asset->as<ScriptAsset>();
-            registerWasmScriptOn(current, script, script->moduleName());
+            registerOn(current, asset->as<ScriptAsset>());
         }
     }
+#ifndef __EMSCRIPTEN__
     // Bytecode-only files can still run on the wasm backend: with
     // RIVE_WASM_VM naming a stock vm module, every script registers
     // dynamically instead of arriving baked into a module asset. Dev and
@@ -1217,6 +1296,7 @@ void File::registerScripts()
             }
         }
     }
+#endif
     if (!m_wasmVMs.empty())
     {
         return;

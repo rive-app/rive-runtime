@@ -225,6 +225,10 @@ RIVE_BINDING_IMPORT("rive_rt_v1", "budget_exceeded")
 void rive_rt_budget_exceeded(uint32_t ms);
 RIVE_BINDING_IMPORT("rive_rt_v1", "error")
 void rive_rt_error(const char* message, uint32_t length);
+RIVE_BINDING_IMPORT("rive_rt_v1", "now")
+double rive_rt_now(void);
+RIVE_BINDING_IMPORT("rive_rt_v1", "date_now")
+double rive_rt_date_now(void);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_enter")
 void rive_rt_debug_enter(uint32_t func, uint32_t line);
 RIVE_BINDING_IMPORT("rive_rt_v1", "debug_line")

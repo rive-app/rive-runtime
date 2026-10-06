@@ -5,50 +5,88 @@
 
 #include "rive/wasm/wasm_scripting_vm.hpp"
 
+#ifdef __EMSCRIPTEN_PTHREADS__
+#include <pthread.h>
+#endif
+
 namespace rive
 {
 
-/// Runs the script module on the browser's own wasm engine: the module is
-/// instantiated JS-side into a slot table and librive reaches it only
-/// through the seams — resolveModulePtr returns copies staged through the
-/// librive heap and flushed at the next callModule, callModule dispatches
-/// over EM_JS to the slot's exports. Impl cores and the seam-routed
-/// ScriptBackend bodies are inherited from the WAMR backend; the entry
-/// points that call WAMR with typed f64 args (callUserInit, callAdvance,
-/// callPointerEvent, callScrollEvent, callLayoutResize, setInputNumber) still
-/// need browser overrides before this backend can go live. Not wired into
-/// File::import yet.
+/// Runs the script module on the browser's own wasm engine. The page side
+/// lives in web/rive_script_runner.mjs, which the host installs; librive
+/// reaches the module only through the seams. Impl cores and the seam
+/// routed ScriptBackend bodies are inherited from the shared backend.
+///
+/// Starting is two steps so the host can instantiate asynchronously in
+/// between: make() registers the module bytes with the runner, start()
+/// claims the instance the host prepared, or instantiates inline when the
+/// host prepared none, then boots the module.
 class BrowserScriptingVM : public WasmScriptingVM
 {
 public:
     static std::unique_ptr<BrowserScriptingVM> make(Span<const uint8_t> module,
-                                                    Factory* factory,
-                                                    std::string& outError);
+                                                    Factory* factory);
     ~BrowserScriptingVM() override;
+
+    /// Preparing while the page still instantiates the module, so a later
+    /// call can start it; failed with the reason in lastError().
+    enum class Start
+    {
+        started,
+        preparing,
+        failed,
+    };
+    Start start();
+
+    /// The runner announces the module's flag exports before it starts.
+    using WasmScriptingVM::noteModuleExport;
 
     bool valid() const override;
     void* resolveModulePtr(uint32_t appAddr, uint32_t size) override;
     void* resolveModuleWritePtr(uint32_t appAddr, uint32_t size) override;
-    uint32_t callModule(const char* name,
-                        uint32_t argc,
-                        uint32_t* argv) override;
+    bool copyToModule(uint32_t appAddr,
+                      const void* src,
+                      uint32_t size) override;
+    const char* resolveModuleString(uint32_t appAddr) override;
+    CallOutcome callModuleChecked(const char* name,
+                                  uint32_t argc,
+                                  uint32_t* argv,
+                                  uint32_t* result) override;
+    bool hasExport(const char* name) override;
     void raiseModuleError(const char* message) override;
+    bool memoryLimits(uint32_t* pages, uint32_t* maxPages) const override;
 
 private:
     BrowserScriptingVM() = default;
-    bool boot(Span<const uint8_t> module);
 
-    /// JS-side instance table slot; 0 means not instantiated.
-    uint32_t m_instanceSlot = 0;
-    /// Module-memory ranges staged into the librive heap; they flush back
-    /// and invalidate at the next callModule, the seam's coherence
-    /// contract.
+    /// Every entry into the module.
+    CallOutcome callF64(const char* name,
+                        const double* args,
+                        uint32_t argc,
+                        double* result) override;
+
+    // The runner keeps its modules per JS realm, so a VM stays on the thread
+    // that made it.
+    void assertOwnerThread() const;
+#ifdef __EMSCRIPTEN_PTHREADS__
+    pthread_t m_owner;
+#endif
+    bool m_started = false;
+    /// Set once JS unwound librive frames; the module never runs again.
+    bool m_hostFault = false;
+    std::unordered_map<std::string, bool> m_exports;
+    /// Module memory ranges copied into the librive heap. At the next call
+    /// into the module they go away, and the ones the host wrote through
+    /// write back. A range only read must not: natives stage while the
+    /// module runs, and it may have reused that memory by then.
     struct StagedRange
     {
         uint32_t appAddr = 0;
         std::vector<uint8_t> bytes;
+        std::vector<uint8_t> original;
     };
     std::vector<StagedRange> m_staged;
+    bool fitsModule(uint32_t appAddr, uint32_t size);
 };
 
 } // namespace rive

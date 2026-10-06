@@ -1,16 +1,20 @@
 #ifdef WITH_RIVE_SCRIPTING_WASM
 
+#include "rive/wasm/wasm_scripting_vm.hpp"
+#ifndef __EMSCRIPTEN__
 #include "rive/wasm/aot_artifact.hpp"
 #include "rive/wasm/module_tier_ladder.hpp"
 #include "rive/wasm/wamr_state_transplant.hpp"
-#include "rive/wasm/wasm_scripting_vm.hpp"
+#include "rive/wasm/prelinked_aot.hpp"
+#else
+#include <emscripten/emscripten.h>
+#endif
 #include <unordered_map>
 #ifdef WITH_RIVE_TEXT
 #include "rive/text/raw_text.hpp"
 #include "rive/text/cursor.hpp"
 #include "rive/text/font_hb.hpp"
 #endif
-#include "rive/wasm/prelinked_aot.hpp"
 #if WASM_ENABLE_PRELINKED_AOT != 0
 // AOT_MAGIC_NUMBER / AOT_CURRENT_VERSION for container validation; same
 // internal-header precedent as wamr_state_transplant.cpp.
@@ -99,7 +103,9 @@
 #include "rive/scriptnet/net.hpp"
 #endif
 
-#ifdef RIVE_DECODERS
+#ifdef __EMSCRIPTEN__
+#include "rive/async/browser_image_decode.hpp"
+#elif defined(RIVE_DECODERS)
 #include "rive/decoders/bitmap_decoder.hpp"
 
 #include <chrono>
@@ -137,7 +143,9 @@
 #include <cassert>
 #endif
 
+#ifndef __EMSCRIPTEN__
 #include "wasm_export.h"
+#endif
 
 #include <chrono>
 #include <cstddef>
@@ -151,10 +159,12 @@ namespace
 
 constexpr char kLongjmpTag[] = "rive-longjmp";
 
+#ifndef __EMSCRIPTEN__
 WasmScriptingVM* vmFromEnv(wasm_exec_env_t env)
 {
     return static_cast<WasmScriptingVM*>(wasm_runtime_get_user_data(env));
 }
+#endif
 
 // Module start runs inside wasm_runtime_instantiate, before an exec env
 // exists to carry the vm, so natives called from there resolve none. rasc
@@ -171,11 +181,16 @@ thread_local WasmScriptingVM::BootHook s_bootHook;
 struct rive::WasmScriptingVMNatives
 {
     static void print(WasmScriptingVM* vm, const char* data, size_t size);
+#ifndef __EMSCRIPTEN__
     static WasmScriptingVM* adoptBooting(wasm_exec_env_t env);
+#else
+    static void booting(WasmScriptingVM* vm);
+#endif
     static std::unordered_map<std::string, int64_t>& consoleTimers(
         WasmScriptingVM* vm);
 };
 
+#ifndef __EMSCRIPTEN__
 // Loaded modules are immutable and shared: fast-interp translation costs
 // ~11ms per load while instantiation is microseconds, and every file
 // instance of the same content reloads identical bytes. Entries live for
@@ -211,10 +226,6 @@ struct WasmScriptingVM::WamrState
     bool ownsModule = true;
     wasm_module_inst_t instance = nullptr;
     wasm_exec_env_t execEnv = nullptr;
-    uint32_t callDepth = 0;
-    std::unordered_map<std::string, uint32_t> guestNames;
-    // console.time starts by label, in steady nanoseconds.
-    std::unordered_map<std::string, int64_t> consoleTimers;
 
     // Export names reach callModule as literals, so the pointer is the key;
     // the owned copy lets debug builds catch a caller that reuses a buffer.
@@ -261,6 +272,7 @@ struct WasmScriptingVM::WamrState
         }
     }
 };
+#endif
 
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 namespace
@@ -289,9 +301,24 @@ struct WasmScriptingVM::BudgetSlot
     std::atomic<int64_t> deadline{0};
     // Set when the watchdog interrupted the last budgeted call.
     std::atomic<bool> fired{false};
+#ifndef __EMSCRIPTEN__
     wasm_exec_env_t env = nullptr;
+#endif
 };
 
+namespace
+{
+int64_t steadyNanos()
+{
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+} // namespace
+
+// The watchdog interrupts WAMR; the browser's engine has no such hook, so
+// there a call runs unbounded.
+#ifndef __EMSCRIPTEN__
 namespace
 {
 // One thread bounds every VM's calls, so modules need no fuel counters: it
@@ -299,13 +326,6 @@ namespace
 // flag so the interpreter or AOT code traps at its next loop back-edge.
 // Calls only store and swap an atomic, so the script thread never waits.
 constexpr int64_t kFiring = -1;
-
-int64_t steadyNanos()
-{
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(
-               std::chrono::steady_clock::now().time_since_epoch())
-        .count();
-}
 
 class ScriptWatchdog
 {
@@ -394,6 +414,7 @@ private:
     bool m_started = false;
 };
 } // namespace
+#endif
 
 WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
                                                   bool budgeted) :
@@ -404,13 +425,14 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
         vm->m_debugHooks->onCallBegin(*vm);
     }
     // The outermost scope sweeps what any nested call left open.
-    if (vm->m_state->callDepth++ != 0)
+    if (vm->m_callDepth++ != 0)
     {
         return;
     }
     // Paths that consume their own traps never reach reportTrap to clear it.
     vm->m_budgetRaised = false;
     vm->m_thrownRaised = false;
+#ifndef __EMSCRIPTEN__
     // A debugger pauses mid call, so its sessions run unbudgeted.
     if (budgeted && vm->m_hostBudget && vm->m_timeoutMs > 0 &&
         vm->m_debugHooks == nullptr)
@@ -428,6 +450,7 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
         ScriptWatchdog::instance().armed();
         m_budgeted = true;
     }
+#endif
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(vm);
     m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
@@ -439,6 +462,7 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
 
 WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 {
+#ifndef __EMSCRIPTEN__
     if (m_budgeted)
     {
         // Swapping out a zero means the watchdog claimed the deadline; wait
@@ -464,7 +488,8 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
         }
         wasm_runtime_rive_clear_interrupt(slot->env);
     }
-    if (--m_vm->m_state->callDepth == 0)
+#endif
+    if (--m_vm->m_callDepth == 0)
     {
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
         ore::Context* oreContext = gpuOreContext(m_vm);
@@ -494,13 +519,52 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
     if (m_vm->m_debugHooks != nullptr)
     {
         // Still set here when the call trapped; the caller clears it.
-        const char* trap =
-            m_vm->m_state != nullptr && m_vm->m_state->instance != nullptr
-                ? wasm_runtime_get_exception(m_vm->m_state->instance)
-                : nullptr;
+        const char* trap = nullptr;
+#ifndef __EMSCRIPTEN__
+        trap = m_vm->m_state != nullptr && m_vm->m_state->instance != nullptr
+                   ? wasm_runtime_get_exception(m_vm->m_state->instance)
+                   : nullptr;
+#endif
         m_vm->m_debugHooks->onCallEnd(*m_vm, trap);
     }
 }
+
+#ifndef __EMSCRIPTEN__
+namespace
+{
+// The 32 bit cells an export's parameters take, or ~0u when its parameters
+// or results would not fit in limit cells.
+uint32_t exportCells(wasm_module_inst_t inst,
+                     wasm_function_inst_t f,
+                     uint32_t limit)
+{
+    auto cells = [](wasm_valkind_t kind) -> uint32_t {
+        return kind == WASM_I64 || kind == WASM_F64 ? 2
+               : kind == WASM_V128                  ? 4
+                                                    : 1;
+    };
+    uint32_t params = wasm_func_get_param_count(f, inst);
+    uint32_t results = wasm_func_get_result_count(f, inst);
+    if (params > limit || results > limit)
+    {
+        return ~0u;
+    }
+    wasm_valkind_t kinds[8];
+    uint32_t paramCells = 0;
+    wasm_func_get_param_types(f, inst, kinds);
+    for (uint32_t i = 0; i < params; i++)
+    {
+        paramCells += cells(kinds[i]);
+    }
+    uint32_t resultCells = 0;
+    wasm_func_get_result_types(f, inst, kinds);
+    for (uint32_t i = 0; i < results; i++)
+    {
+        resultCells += cells(kinds[i]);
+    }
+    return resultCells > limit ? ~0u : paramCells;
+}
+} // namespace
 
 WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     const char* name,
@@ -519,6 +583,12 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
         // callModule folds this to zero, so probe before relying on it.
         return CallOutcome::missing;
     }
+    // WAMR writes results into the argument cells, so both must fit buf.
+    if (argc > 8 || exportCells(m_state->instance, f, 8) != argc)
+    {
+        recordTrap(name, "export signature mismatch");
+        return CallOutcome::trapped;
+    }
     uint32_t buf[8] = {0};
     for (uint32_t i = 0; i < argc; i++)
     {
@@ -528,7 +598,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     {
         // Runtime services, the collector among them, must never be cut off.
         ScriptCallScope callScope(this, strncmp(name, "__rive", 6) != 0);
-        ok = m_state->callDepth > 1
+        ok = m_callDepth > 1
                  ? wasm_runtime_call_wasm_nested(m_state->execEnv, f, argc, buf)
                  : wasm_runtime_call_wasm(m_state->execEnv, f, argc, buf);
     }
@@ -541,12 +611,117 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     return CallOutcome::ok;
 }
 
+WasmScriptingVM::CallOutcome WasmScriptingVM::callF64(const char* name,
+                                                      const double* args,
+                                                      uint32_t argc,
+                                                      double* result)
+{
+    if (m_poisoned)
+    {
+        return CallOutcome::trapped;
+    }
+    wasm_function_inst_t f = m_state->lookupExport(name);
+    if (f == nullptr)
+    {
+        return CallOutcome::missing;
+    }
+    wasm_module_inst_t inst = m_state->instance;
+    uint32_t retCount = wasm_func_get_result_count(f, inst);
+    // Unsigned modules load in tools builds, so the export may not match.
+    // host_obj_scroll_event takes the most.
+    constexpr uint32_t kMaxArgs = 10;
+    if (argc > kMaxArgs || wasm_func_get_param_count(f, inst) != argc ||
+        retCount > 1)
+    {
+        recordTrap(name, "export signature mismatch");
+        return CallOutcome::trapped;
+    }
+    wasm_valkind_t kinds[kMaxArgs];
+    wasm_func_get_param_types(f, inst, kinds);
+    wasm_val_t values[kMaxArgs];
+    for (uint32_t i = 0; i < argc; i++)
+    {
+        values[i].kind = kinds[i];
+        switch (kinds[i])
+        {
+            case WASM_F64:
+                values[i].of.f64 = args[i];
+                break;
+            case WASM_F32:
+                values[i].of.f32 = (float)args[i];
+                break;
+            case WASM_I64:
+                values[i].of.i64 = (int64_t)args[i];
+                break;
+            default:
+                values[i].of.i32 = (int32_t)(uint32_t)(int64_t)args[i];
+                break;
+        }
+    }
+    wasm_val_t ret[1];
+    bool ok;
+    {
+        ScriptCallScope callScope(this);
+        ok = wasm_runtime_call_wasm_a(m_state->execEnv,
+                                      f,
+                                      retCount,
+                                      ret,
+                                      argc,
+                                      values);
+    }
+    if (!ok)
+    {
+        reportTrap(name);
+        return CallOutcome::trapped;
+    }
+    *result = 0;
+    if (retCount != 0)
+    {
+        switch (ret[0].kind)
+        {
+            case WASM_F64:
+                *result = ret[0].of.f64;
+                break;
+            case WASM_F32:
+                *result = ret[0].of.f32;
+                break;
+            case WASM_I64:
+                *result = (double)ret[0].of.i64;
+                break;
+            default:
+                *result = ret[0].of.i32;
+                break;
+        }
+    }
+    return CallOutcome::ok;
+}
+
+bool WasmScriptingVM::hasExport(const char* name)
+{
+    return m_state->lookupExport(name) != nullptr;
+}
+
 void WasmScriptingVM::reportTrap(const char* where)
 {
     wasm_module_inst_t inst = m_state->instance;
+    recordTrap(where, wasm_runtime_get_exception(inst));
+#if WASM_ENABLE_DUMP_CALL_STACK != 0
+    if (!m_quietTraps)
+    {
+        wasm_runtime_dump_call_stack(m_state->execEnv);
+    }
+#endif
+    // A pending exception makes WAMR refuse the next call, the collector's
+    // included.
+    wasm_runtime_clear_exception(inst);
+}
+#endif
+
+void WasmScriptingVM::recordTrap(const char* where, const char* exception)
+{
     // A silent fold hides real traps; name them so a script that dies
     // mid-call is diagnosable instead of a mystery no-op.
-    const char* exception = fullTrapMessage(wasm_runtime_get_exception(inst));
+    exception = fullTrapMessage(exception);
     // AOT code traps as unreachable; both tiers name the timeout.
     m_lastTrap.budget = m_budgetRaised ||
                         (m_budgetSlot != nullptr && m_budgetSlot->fired.load());
@@ -558,18 +733,12 @@ void WasmScriptingVM::reportTrap(const char* where)
         exception = "execution exceeded timeout";
     }
     m_lastTrap.message = exception != nullptr ? exception : "";
-    if (exception == nullptr)
+    if (exception == nullptr || m_quietTraps)
     {
         return;
     }
-    if (!m_quietTraps)
-    {
-        fprintf(stderr, "wasm call trapped in %s: %s\n", where, exception);
-#if WASM_ENABLE_DUMP_CALL_STACK != 0
-        wasm_runtime_dump_call_stack(m_state->execEnv);
-#endif
-    }
-    if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted && !m_quietTraps)
+    fprintf(stderr, "wasm call trapped in %s: %s\n", where, exception);
+    if (m_leakWarningCount > 0 && !m_leakTrapContextPrinted)
     {
         // A bare trap after leak warnings is almost always the memory
         // ceiling; say so once for hosts that dropped the warning strings.
@@ -579,9 +748,6 @@ void WasmScriptingVM::reportTrap(const char* where)
                 "module likely hit its wasmMaxPages ceiling\n",
                 m_leakWarningCount);
     }
-    // A pending exception makes WAMR refuse the next call, the collector's
-    // included.
-    wasm_runtime_clear_exception(inst);
 }
 
 void WasmScriptingVM::unregisterOpenCanvasFrame(uint32_t canvas)
@@ -615,6 +781,7 @@ std::vector<uint32_t> WasmScriptingVM::takeOpenCanvasFramesFrom(uint64_t token)
     return taken;
 }
 
+#ifndef __EMSCRIPTEN__
 void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 {
     wasm_module_inst_t inst = m_state->instance;
@@ -624,6 +791,59 @@ void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
     }
     return wasm_runtime_addr_app_to_native(inst, appAddr);
 }
+
+const char* WasmScriptingVM::resolveModuleString(uint32_t appAddr)
+{
+    return (const char*)resolveModulePtr(appAddr, 1);
+}
+
+bool WasmScriptingVM::copyToModule(uint32_t appAddr,
+                                   const void* src,
+                                   uint32_t size)
+{
+    void* dst = resolveModulePtr(appAddr, size);
+    if (dst == nullptr)
+    {
+        return false;
+    }
+    memcpy(dst, src, size);
+    return true;
+}
+
+void WasmScriptingVM::raiseModuleError(const char* message)
+{
+    // The runtime's exception buffer truncates long messages (shader
+    // compiler output); keep the full text for trap reporting.
+    m_moduleErrorDetail = message;
+    wasm_runtime_set_exception(m_state->instance, message);
+}
+#else
+// The browser backend overrides every seam; these complete the vtable.
+WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(const char*,
+                                                                uint32_t,
+                                                                uint32_t*,
+                                                                uint32_t*)
+{
+    return CallOutcome::missing;
+}
+WasmScriptingVM::CallOutcome WasmScriptingVM::callF64(const char*,
+                                                      const double*,
+                                                      uint32_t,
+                                                      double*)
+{
+    return CallOutcome::missing;
+}
+bool WasmScriptingVM::hasExport(const char*) { return false; }
+void* WasmScriptingVM::resolveModulePtr(uint32_t, uint32_t) { return nullptr; }
+bool WasmScriptingVM::copyToModule(uint32_t, const void*, uint32_t)
+{
+    return false;
+}
+const char* WasmScriptingVM::resolveModuleString(uint32_t) { return nullptr; }
+void WasmScriptingVM::raiseModuleError(const char*) {}
+bool WasmScriptingVM::memoryLimits(uint32_t*, uint32_t*) const { return false; }
+bool WasmScriptingVM::valid() const { return false; }
+#endif
 
 void WasmScriptingVM::raiseBudgetExceeded()
 {
@@ -635,14 +855,6 @@ void WasmScriptingVM::raiseThrown(const char* message)
 {
     m_thrownRaised = true;
     raiseModuleError(message);
-}
-
-void WasmScriptingVM::raiseModuleError(const char* message)
-{
-    // The runtime's exception buffer truncates long messages (shader
-    // compiler output); keep the full text for trap reporting.
-    m_moduleErrorDetail = message;
-    wasm_runtime_set_exception(m_state->instance, message);
 }
 
 const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
@@ -668,6 +880,7 @@ const char* WasmScriptingVM::fullTrapMessage(const char* exception) const
     return text;
 }
 
+#ifndef __EMSCRIPTEN__
 WasmScriptingVM* WasmScriptingVMNatives::adoptBooting(wasm_exec_env_t env)
 {
     // Instantiate assigns the same instance on success and null on failure.
@@ -677,11 +890,18 @@ WasmScriptingVM* WasmScriptingVMNatives::adoptBooting(wasm_exec_env_t env)
     }
     return s_booting;
 }
+#else
+void WasmScriptingVMNatives::booting(WasmScriptingVM* vm)
+{
+    s_booting = vm;
+    s_bootPrint = vm != nullptr ? &vm->m_print : nullptr;
+}
+#endif
 
 std::unordered_map<std::string, int64_t>& WasmScriptingVMNatives::consoleTimers(
     WasmScriptingVM* vm)
 {
-    return vm->m_state->consoleTimers;
+    return vm->m_consoleTimers;
 }
 
 void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
@@ -868,6 +1088,7 @@ uint32_t fillModuleString(WasmScriptingVM* vm,
                                  capacity);
 }
 
+#ifndef __EMSCRIPTEN__
 // Module start runs inside wasm_runtime_instantiate, before the exec env
 // carries the vm, so a native that traps there adopts the booting one.
 WasmScriptingVM* bootVmFromEnv(wasm_exec_env_t env)
@@ -875,12 +1096,64 @@ WasmScriptingVM* bootVmFromEnv(wasm_exec_env_t env)
     WasmScriptingVM* vm = vmFromEnv(env);
     return vm != nullptr ? vm : WasmScriptingVMNatives::adoptBooting(env);
 }
+#else
+// As on WAMR, module start resolves no vm for the ops that do not trap.
+WasmScriptingVM* vmFromHandle(uint32_t handle)
+{
+    auto vm = (WasmScriptingVM*)(uintptr_t)handle;
+    return vm == s_booting ? nullptr : vm;
+}
+
+WasmScriptingVM* bootVmFromHandle(uint32_t handle)
+{
+    return (WasmScriptingVM*)(uintptr_t)handle;
+}
+#endif
 
 // Prototypes, descriptor PODs, and registration tables for the rive_*_v1
 // namespaces come from the binding IDL (src/wasm/idl/bindings.py); the
 // declarations pin each implementation below to the contract signature.
 #include "wasm_natives_gen.hpp"
 
+void consoleWrite(WasmScriptingVM* vm, const std::string& message)
+{
+    rtLogImpl(vm, 0, message.data(), (uint32_t)message.size());
+}
+
+void consoleTimeStart(WasmScriptingVM* vm, const std::string& label)
+{
+    if (vm != nullptr)
+    {
+        WasmScriptingVMNatives::consoleTimers(vm)[label] = steadyNanos();
+    }
+}
+
+void consoleTimeReport(WasmScriptingVM* vm, const std::string& name, bool end)
+{
+    if (vm == nullptr)
+    {
+        return;
+    }
+    auto& timers = WasmScriptingVMNatives::consoleTimers(vm);
+    auto itr = timers.find(name);
+    if (itr == timers.end())
+    {
+        consoleWrite(vm, "Timer '" + name + "' does not exist");
+        return;
+    }
+    char elapsed[32];
+    snprintf(elapsed,
+             sizeof(elapsed),
+             ": %.3fms",
+             (double)(steadyNanos() - itr->second) / 1e6);
+    if (end)
+    {
+        timers.erase(itr);
+    }
+    consoleWrite(vm, name + elapsed);
+}
+
+#ifndef __EMSCRIPTEN__
 // --- emscripten setjmp/longjmp glue -----------------------------------------
 
 void throwLongjmpNative(wasm_exec_env_t env)
@@ -936,7 +1209,7 @@ void memcpyJs(wasm_exec_env_t env, uint32_t dst, uint32_t src, uint32_t n)
     memmove(dstPtr, srcPtr, n);
 }
 
-double getNow(wasm_exec_env_t env)
+double rtNowImpl(WasmScriptingVM* vm)
 {
     // Same dev hook as dateNow: clock() feeds Luau's default RNG seed. A
     // pinned clock also parks the module's execution budget.
@@ -948,7 +1221,7 @@ double getNow(wasm_exec_env_t env)
     return std::chrono::duration<double, std::milli>(now).count();
 }
 
-double dateNow(wasm_exec_env_t env)
+double rtDateNowImpl(WasmScriptingVM* vm)
 {
     // Dev hook: a pinned date (epoch ms) keeps wasm lanes reproducible when
     // harnesses A/B the same module over wall-clock-seeded content.
@@ -960,6 +1233,11 @@ double dateNow(wasm_exec_env_t env)
     auto now = std::chrono::system_clock::now().time_since_epoch();
     return std::chrono::duration<double, std::milli>(now).count();
 }
+
+// The Luau host module reads the same clocks under the names emscripten
+// gives them.
+double getNow(wasm_exec_env_t env) { return rtNowImpl(nullptr); }
+double dateNow(wasm_exec_env_t env) { return rtDateNowImpl(nullptr); }
 
 // sbrk's growth request: enlarge linear memory to cover `size` bytes.
 // The module's declared maximum still caps the growth.
@@ -980,6 +1258,7 @@ uint32_t resizeHeap(wasm_exec_env_t env, uint32_t size)
     }
     return wasm_runtime_enlarge_memory(inst, wantPages - curPages) ? 1 : 0;
 }
+#endif
 
 static bool localTime(double epochSeconds, time_t& at, struct tm& local)
 {
@@ -1001,6 +1280,7 @@ static int32_t utcOffsetOf(struct tm local, time_t at)
 #endif
 }
 
+#ifndef __EMSCRIPTEN__
 // --- emscripten time imports: the Luau VM blob's os.date and os.time walk
 // through these, so they serve the host's real calendar. Without WASM_BIGINT
 // the module passes time_t as two i32 halves. struct tm is musl's wasm32
@@ -1333,11 +1613,6 @@ std::string consoleString(wasm_exec_env_t env, uint32_t text)
     return std::string(utf8.data(), utf8.size());
 }
 
-void consoleWrite(WasmScriptingVM* vm, const std::string& message)
-{
-    rtLogImpl(vm, 0, message.data(), (uint32_t)message.size());
-}
-
 void consoleLog(wasm_exec_env_t env, uint32_t text)
 {
     consoleWrite(vmFromEnv(env), consoleString(env, text));
@@ -1345,49 +1620,17 @@ void consoleLog(wasm_exec_env_t env, uint32_t text)
 
 void consoleTime(wasm_exec_env_t env, uint32_t label)
 {
-    WasmScriptingVM* vm = bootVmFromEnv(env);
-    if (vm != nullptr)
-    {
-        WasmScriptingVMNatives::consoleTimers(vm)[consoleString(env, label)] =
-            steadyNanos();
-    }
-}
-
-void consoleTimeReport(wasm_exec_env_t env, uint32_t label, bool end)
-{
-    WasmScriptingVM* vm = bootVmFromEnv(env);
-    if (vm == nullptr)
-    {
-        return;
-    }
-    auto& timers = WasmScriptingVMNatives::consoleTimers(vm);
-    std::string name = consoleString(env, label);
-    auto itr = timers.find(name);
-    if (itr == timers.end())
-    {
-        consoleWrite(vm, "Timer '" + name + "' does not exist");
-        return;
-    }
-    char elapsed[32];
-    snprintf(elapsed,
-             sizeof(elapsed),
-             ": %.3fms",
-             (double)(steadyNanos() - itr->second) / 1e6);
-    if (end)
-    {
-        timers.erase(itr);
-    }
-    consoleWrite(vm, name + elapsed);
+    consoleTimeStart(bootVmFromEnv(env), consoleString(env, label));
 }
 
 void consoleTimeLog(wasm_exec_env_t env, uint32_t label)
 {
-    consoleTimeReport(env, label, false);
+    consoleTimeReport(bootVmFromEnv(env), consoleString(env, label), false);
 }
 
 void consoleTimeEnd(wasm_exec_env_t env, uint32_t label)
 {
-    consoleTimeReport(env, label, true);
+    consoleTimeReport(bootVmFromEnv(env), consoleString(env, label), true);
 }
 
 NativeSymbol kEnvNatives[] = {
@@ -1493,6 +1736,8 @@ NativeSymbol kWasiNatives[] = {
     {"environ_get", (void*)environGet, "(**)i", nullptr},
     {"fd_close", (void*)fdClose, "(i)i", nullptr},
 };
+
+#endif
 
 // --- rive_path/paint/renderer_v1: handle-backed render objects --------------
 
@@ -8158,6 +8403,7 @@ void dataUnwatchImpl(WasmScriptingVM* vm, uint32_t handle)
     host->delegate = nullptr;
 }
 
+#ifndef __EMSCRIPTEN__
 bool ensureRuntime()
 {
     static bool initialized = false;
@@ -8207,6 +8453,7 @@ bool ensureRuntime()
     ok = true;
     return ok;
 }
+#endif
 
 } // namespace
 
@@ -8268,6 +8515,7 @@ int WasmScriptingVM::sm_defaultTimeoutMs = 200;
 
 WasmScriptingVM::WasmScriptingVM() = default;
 
+#ifndef __EMSCRIPTEN__
 std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
     Span<const uint8_t> module,
     Factory* factory,
@@ -8288,6 +8536,7 @@ std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
     }
     return vm;
 }
+#endif
 
 void WasmScriptingVM::callDraw(ScriptedObject* object,
                                int selfRef,
@@ -8303,10 +8552,12 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
 
 WasmScriptingVM::~WasmScriptingVM()
 {
+#ifndef __EMSCRIPTEN__
     if (m_budgetSlot != nullptr)
     {
         ScriptWatchdog::instance().remove(m_budgetSlot.get());
     }
+#endif
     if (m_debugHooks != nullptr)
     {
         m_debugHooks->onDetach(*this);
@@ -8315,6 +8566,12 @@ WasmScriptingVM::~WasmScriptingVM()
     // Flag in-flight decodes cancelled before teardown so a later poll
     // cannot call back into this dead VM, mirroring the Luau backend's
     // shutdownAsyncForState.
+#ifdef __EMSCRIPTEN__
+    for (const auto& pending : m_pendingDecodes)
+    {
+        cancelBrowserImageDecode(pending.second);
+    }
+#else
     if (m_decodeOwnerId != 0)
     {
         auto& pool = getGlobalWorkPoolIfExists();
@@ -8323,6 +8580,7 @@ WasmScriptingVM::~WasmScriptingVM()
             pool->cancelAllForOwner(m_decodeOwnerId);
         }
     }
+#endif
 #ifdef WITH_RIVE_SCRIPTNET
     // Same for fetches: their listeners hold this VM.
     if (m_netOwnerId != 0)
@@ -8330,6 +8588,7 @@ WasmScriptingVM::~WasmScriptingVM()
         scriptnet::cancelAllForOwner(m_netOwnerId);
     }
 #endif
+#ifndef __EMSCRIPTEN__
     // Coverage measurement: RIVE_WASM_EXEC_STATS=1 dumps how many frames ran
     // compiled, interpreted, and as guard-exit continuations.
     if (getenv("RIVE_WASM_EXEC_STATS") != nullptr && m_state != nullptr &&
@@ -8347,6 +8606,7 @@ WasmScriptingVM::~WasmScriptingVM()
                 interp,
                 guardExits);
     }
+#endif
     // The module never runs guest finalizers at teardown, so host objects
     // behind live handles are swept here; instance values in particular must
     // detach their delegates before the VM goes away.
@@ -8477,7 +8737,7 @@ void WasmScriptingVM::notifyDataValueChanged(uint32_t token)
 
 // --- context:decodeImage over the module ABI ---------------------------------
 
-#ifdef RIVE_DECODERS
+#if !defined(__EMSCRIPTEN__) && defined(RIVE_DECODERS)
 namespace
 {
 
@@ -8541,7 +8801,29 @@ bool WasmScriptingVM::startImageDecode(const uint8_t* bytes,
                                        uint32_t byteCount,
                                        uint32_t token)
 {
-#ifndef RIVE_DECODERS
+#ifdef __EMSCRIPTEN__
+    // Like the Luau lane on the web, the browser decodes.
+    m_pendingDecodes[token] =
+        startBrowserImageDecode(bytes,
+                                byteCount,
+                                [this, token](uint32_t,
+                                              uint32_t width,
+                                              uint32_t height,
+                                              Span<const uint8_t> pixels,
+                                              const char* error) {
+                                    if (error != nullptr)
+                                    {
+                                        rejectImageDecode(token, error);
+                                        return;
+                                    }
+                                    resolveImageDecode(token,
+                                                       width,
+                                                       height,
+                                                       pixels.data(),
+                                                       (uint32_t)pixels.size());
+                                });
+    return true;
+#elif !defined(RIVE_DECODERS)
     return false;
 #else
     if (m_decodeOwnerId == 0)
@@ -8564,7 +8846,11 @@ void WasmScriptingVM::cancelImageDecode(uint32_t token)
     auto it = m_pendingDecodes.find(token);
     if (it != m_pendingDecodes.end())
     {
+#ifdef __EMSCRIPTEN__
+        cancelBrowserImageDecode(it->second);
+#else
         it->second->cancel();
+#endif
         m_pendingDecodes.erase(it);
     }
 }
@@ -8584,9 +8870,7 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
             deliverDecodeResult(failure);
             return;
         }
-        memcpy(resolveModuleWritePtr(pixelsPtr, byteCount),
-               result.pixels.data(),
-               byteCount);
+        copyToModule(pixelsPtr, result.pixels.data(), byteCount);
         uint32_t args[6] = {m_L,
                             result.token,
                             result.width,
@@ -8826,10 +9110,7 @@ void WasmScriptingVM::deliverFetchFailure(uint32_t token,
     guestFree(messagePtr);
 }
 
-bool WasmScriptingVM::inModuleCall() const
-{
-    return m_state != nullptr && m_state->callDepth != 0;
-}
+bool WasmScriptingVM::inModuleCall() const { return m_callDepth != 0; }
 
 void WasmScriptingVM::deliverHeldOutcomes()
 {
@@ -8955,6 +9236,7 @@ static wasm_module_t loadPrelinkedModule(const PrelinkedAotModule& prelinked,
 }
 #endif
 
+#ifndef __EMSCRIPTEN__
 bool WasmScriptingVM::init(Span<const uint8_t> module)
 {
     if (!ensureRuntime())
@@ -9288,17 +9570,12 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
                                           "." + import.name);
         }
     }
-    // Read off the module, not the instance: module start runs every
-    // script's top level, which already passes strings.
     int32_t exportCount = wasm_runtime_get_export_count(m_state->module);
     for (int32_t i = 0; i < exportCount; i++)
     {
         wasm_export_t moduleExport;
         wasm_runtime_get_export_type(m_state->module, i, &moduleExport);
-        m_utf16Strings |= strcmp(moduleExport.name, "__riveUtf16Strings") == 0;
-        m_utf16HostStrings |=
-            strcmp(moduleExport.name, "__riveUtf16HostStrings") == 0;
-        m_hostBudget |= strcmp(moduleExport.name, "__riveHostBudget") == 0;
+        noteModuleExport(moduleExport.name);
     }
     s_bootPrint = &m_print;
     s_booting = this;
@@ -9337,30 +9614,40 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         return false;
     }
     wasm_runtime_set_user_data(m_state->execEnv, this);
+    return bootModule();
+}
+#endif
 
+void WasmScriptingVM::noteModuleExport(const char* name)
+{
+    m_utf16Strings |= strcmp(name, "__riveUtf16Strings") == 0;
+    m_utf16HostStrings |= strcmp(name, "__riveUtf16HostStrings") == 0;
+    m_hostBudget |= strcmp(name, "__riveHostBudget") == 0;
+}
+
+bool WasmScriptingVM::bootModule()
+{
     // The leak watch for rasc-linked modules (riveRegister marks one): the
     // stub baseline never frees, and sustained growth on a collecting
     // module is references accumulating.
     const char* leakEnv = getenv("RIVE_WASM_LEAK_WARN");
-    m_leakWatch = wasm_runtime_lookup_function(m_state->instance,
-                                               "riveRegister") != nullptr &&
+    m_leakWatch = hasExport("riveRegister") &&
                   (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
-    m_collectedRuntime =
-        wasm_runtime_lookup_function(m_state->instance, "__riveCollected") !=
-        nullptr;
-    m_handleWatch = wasm_runtime_lookup_function(m_state->instance,
-                                                 "riveRegister") != nullptr &&
-                    (leakEnv == nullptr || strcmp(leakEnv, "0") != 0);
+    m_collectedRuntime = hasExport("__riveCollected");
+    m_handleWatch = m_leakWatch;
     // Frame collector modules scavenge at every boundary instead of
     // rewinding or finalizing.
-    m_frameMinor = wasm_runtime_lookup_function(m_state->instance,
-                                                "__riveFrameMinor") != nullptr;
-    m_frameMajorsProbe =
-        wasm_runtime_lookup_function(m_state->instance, "__riveFrameMajors") !=
-        nullptr;
+    m_frameMinor = hasExport("__riveFrameMinor");
+    m_frameMajorsProbe = hasExport("__riveFrameMajors");
     // Stub modules report their bump position, finer than page counts.
-    m_heapUsedProbe = wasm_runtime_lookup_function(m_state->instance,
-                                                   "__riveHeapUsed") != nullptr;
+    m_heapUsedProbe = hasExport("__riveHeapUsed");
+
+    m_rawAllocExport = hasExport("__riveRawAlloc");
+    m_inputSlotExport = hasExport("host_obj_input_slot");
+    m_pathEffectV2 = hasExport("host_obj_path_effect_v2");
+    m_pointerEventV2 = hasExport("host_obj_pointer_event_v2");
+    m_layoutResizeV2 = hasExport("host_obj_layout_resize_v2");
+    m_transitionManagesToExport = hasExport("host_obj_transition_manages_to");
 
     callModule("__wasm_call_ctors", 0, nullptr);
     m_L = callModule("host_newstate", 0, nullptr);
@@ -9387,6 +9674,7 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
     return true;
 }
 
+#ifndef __EMSCRIPTEN__
 void WasmScriptingVM::scheduleTierCompiles(const std::string& laneId)
 {
     auto& ladder = ModuleTierLadder::instance();
@@ -9460,6 +9748,7 @@ bool WasmScriptingVM::maybeUpgradeTier()
     }
     return true;
 }
+#endif
 
 const char* WasmScriptingVM::frameBoundary()
 {
@@ -9499,17 +9788,17 @@ const char* WasmScriptingVM::heapGrowthWarning()
     {
         return nullptr;
     }
-    wasm_memory_inst_t memory =
-        wasm_runtime_get_default_memory(m_state->instance);
-    if (memory == nullptr)
+    uint32_t pages = 0;
+    uint32_t maxPages = 0;
+    if (!memoryLimits(&pages, &maxPages))
     {
         return nullptr;
     }
     // The stub bump position beats page counts when available.
-    uint32_t pages =
-        m_heapUsedProbe
-            ? std::max(1u, callModule("__riveHeapUsed", 0, nullptr) >> 16)
-            : (uint32_t)wasm_memory_get_cur_page_count(memory);
+    if (m_heapUsedProbe)
+    {
+        pages = std::max(1u, callModule("__riveHeapUsed", 0, nullptr) >> 16);
+    }
     if (m_leakBaselinePages == 0)
     {
         m_leakBaselinePages = pages;
@@ -9549,7 +9838,6 @@ const char* WasmScriptingVM::heapGrowthWarning()
     // Time to the wasmMaxPages trap from the average growth rate at 60fps.
     // Growth arrives in page-doubling steps, so this is an estimate.
     char projection[96] = {0};
-    uint32_t maxPages = (uint32_t)wasm_memory_get_max_page_count(memory);
     double pagesPerFrame =
         (double)(pages - m_leakFirstBaselinePages) / (double)m_leakTotalFrames;
     if (maxPages > pages && pagesPerFrame > 0.0)
@@ -9669,16 +9957,30 @@ static const char* handleTagName(WasmScriptingVM::HandleTable::Tag tag)
     return "unknown";
 }
 
-uint32_t WasmScriptingVM::memoryPages() const
+#ifndef __EMSCRIPTEN__
+bool WasmScriptingVM::memoryLimits(uint32_t* pages, uint32_t* maxPages) const
 {
     if (m_state == nullptr || m_state->instance == nullptr)
     {
-        return 0;
+        return false;
     }
     wasm_memory_inst_t memory =
         wasm_runtime_get_default_memory(m_state->instance);
-    return memory == nullptr ? 0
-                             : (uint32_t)wasm_memory_get_cur_page_count(memory);
+    if (memory == nullptr)
+    {
+        return false;
+    }
+    *pages = (uint32_t)wasm_memory_get_cur_page_count(memory);
+    *maxPages = (uint32_t)wasm_memory_get_max_page_count(memory);
+    return true;
+}
+#endif
+
+uint32_t WasmScriptingVM::memoryPages() const
+{
+    uint32_t pages = 0;
+    uint32_t maxPages = 0;
+    return memoryLimits(&pages, &maxPages) ? pages : 0;
 }
 
 uint32_t WasmScriptingVM::frameMajors()
@@ -9770,6 +10072,7 @@ const char* WasmScriptingVM::handleLeakWarning()
     return m_leakWarning.c_str();
 }
 
+#ifndef __EMSCRIPTEN__
 bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
                                         ExecutionTier tier,
                                         std::string& error,
@@ -9814,12 +10117,11 @@ bool WasmScriptingVM::applyTierArtifact(Span<const uint8_t> artifactBytes,
         return false;
     }
     wasm_runtime_set_user_data(next->execEnv, this);
-    next->guestNames = std::move(m_state->guestNames);
-    next->consoleTimers = std::move(m_state->consoleTimers);
     m_state = std::move(next);
     m_tier = tier;
     return true;
 }
+#endif
 
 bool WasmScriptingVM::registerBytecode(const std::string& name,
                                        Span<const uint8_t> bytecode)
@@ -9833,12 +10135,8 @@ bool WasmScriptingVM::registerBytecode(const std::string& name,
         m_lastError = "bytecode allocation failed";
         return false;
     }
-    memcpy(resolveModulePtr(namePtr, (uint32_t)name.size() + 1),
-           name.c_str(),
-           name.size() + 1);
-    memcpy(resolveModulePtr(bcPtr, (uint32_t)bytecode.size()),
-           bytecode.data(),
-           bytecode.size());
+    copyToModule(namePtr, name.c_str(), (uint32_t)name.size() + 1);
+    copyToModule(bcPtr, bytecode.data(), (uint32_t)bytecode.size());
 
     uint32_t args[4] = {m_L, namePtr, bcPtr, (uint32_t)bytecode.size()};
     callModule("host_register_module", 4, args);
@@ -9911,9 +10209,8 @@ bool WasmScriptingVM::requireModule(const std::string& name, int* outResultRef)
     {
         uint32_t strArgs[2] = {m_L, (uint32_t)-1};
         uint32_t messagePtr = callModule("host_tostring", 2, strArgs);
-        const char* message = messagePtr != 0
-                                  ? (const char*)resolveModulePtr(messagePtr, 1)
-                                  : nullptr;
+        const char* message =
+            messagePtr != 0 ? resolveModuleString(messagePtr) : nullptr;
         m_lastError = message != nullptr ? message : "module execution failed";
     }
     else if (outResultRef != nullptr)
@@ -9928,11 +10225,13 @@ bool WasmScriptingVM::requireModule(const std::string& name, int* outResultRef)
 
 // --- ScriptBackend over the module's host_obj_* exports ---------------------
 
+#ifndef __EMSCRIPTEN__
 bool WasmScriptingVM::valid() const
 {
     return m_state != nullptr && m_state->execEnv != nullptr && m_L != 0 &&
            !m_poisoned;
 }
+#endif
 
 void WasmScriptingVM::releaseRef(int ref)
 {
@@ -9987,78 +10286,43 @@ ScriptBackend::InitResult WasmScriptingVM::callUserInit(ScriptedObject* object,
                                                         int selfRef,
                                                         int contextRef)
 {
-    // callRet folds a trap into 0, which here would read as notImplemented
-    // and mark a crashed init as done; call directly so failure is failure.
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance, "host_obj_user_init");
-    if (f == nullptr)
-    {
-        return InitResult::notImplemented;
-    }
-    uint32_t buf[3] = {m_L, (uint32_t)selfRef, (uint32_t)contextRef};
-    uint32_t status = 2;
+    double args[3] = {(double)m_L, (double)selfRef, (double)contextRef};
+    double status = 0;
     // An init can run a nested one; each reads only its own misses.
     bool outerMissing = m_missingRequestedData;
     m_missingRequestedData = false;
-    ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm(m_state->execEnv, f, 3, buf))
-    {
-        const char* exception =
-            fullTrapMessage(wasm_runtime_get_exception(m_state->instance));
-        m_lastError = exception != nullptr ? exception : "script init trapped";
-        fprintf(stderr, "script init trapped: %s\n", m_lastError.c_str());
-#if WASM_ENABLE_DUMP_CALL_STACK
-        wasm_runtime_dump_call_stack(m_state->execEnv);
-#endif
-        wasm_runtime_clear_exception(m_state->instance);
-    }
-    else
-    {
-        status = buf[0];
-    }
+    CallOutcome outcome = callF64("host_obj_user_init", args, 3, &status);
     bool missing = m_missingRequestedData;
     m_missingRequestedData = outerMissing;
-    switch (status)
+    switch (outcome)
     {
-        case 0:
+        case CallOutcome::missing:
             return InitResult::notImplemented;
-        case 1:
-            return missing ? InitResult::failed : InitResult::succeeded;
-        default:
+        case CallOutcome::trapped:
+            m_lastError = lastTrap().message;
             return InitResult::failed;
+        case CallOutcome::ok:
+            break;
     }
+    if (status == 0)
+    {
+        return InitResult::notImplemented;
+    }
+    return status == 1 && !missing ? InitResult::succeeded : InitResult::failed;
 }
 
 bool WasmScriptingVM::callAdvance(ScriptedObject* object,
                                   int selfRef,
                                   float elapsedSeconds)
 {
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance, "host_obj_advance");
-    if (f == nullptr)
+    double args[3] = {(double)m_L, (double)selfRef, elapsedSeconds};
+    double keepGoing = 0;
+    if (callF64("host_obj_advance", args, 3, &keepGoing) != CallOutcome::ok)
     {
         return false;
     }
-    wasm_val_t args[3];
-    args[0].kind = WASM_I32;
-    args[0].of.i32 = (int32_t)m_L;
-    args[1].kind = WASM_I32;
-    args[1].of.i32 = selfRef;
-    args[2].kind = WASM_F64;
-    args[2].of.f64 = elapsedSeconds;
-    wasm_val_t results[1];
-    results[0].kind = WASM_I32;
-    ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm_a(m_state->execEnv, f, 1, results, 3, args))
-    {
-        reportTrap("host_obj_advance");
-        return false;
-    }
-    if (!m_advancedOnce)
-    {
-        m_advancedOnce = true;
-    }
-    return results[0].of.i32 != 0;
+    m_advancedOnce = true;
+    return keepGoing != 0;
 }
 
 void WasmScriptingVM::callUpdate(ScriptedObject* object, int selfRef)
@@ -10105,9 +10369,7 @@ bool WasmScriptingVM::callNumberMethod(ScriptedObject* object,
     {
         return false;
     }
-    memcpy(resolveModulePtr(scratch, scratchSize),
-           args,
-           argCount * sizeof(float));
+    copyToModule(scratch, args, (uint32_t)(argCount * sizeof(float)));
     uint32_t outPtr = scratch + (uint32_t)(argCount * sizeof(float));
     uint32_t callArgs[6] =
         {m_L, (uint32_t)selfRef, namePtr, scratch, (uint32_t)argCount, outPtr};
@@ -10214,9 +10476,7 @@ bool WasmScriptingVM::callPathEffectUpdate(ScriptedObject* object,
     m_pathEffectOut = outPath;
     // _v2 also gets a node over the shape, the Luau lane's NodeData; modules
     // built before it get the paint alone.
-    bool withNode =
-        wasm_runtime_lookup_function(m_state->instance,
-                                     "host_obj_path_effect_v2") != nullptr;
+    bool withNode = m_pathEffectV2;
     size_t scopeStart = m_scopedNodes.size();
     uint32_t nodeHandle = 0;
     if (withNode && shape != nullptr)
@@ -10319,33 +10579,16 @@ bool WasmScriptingVM::callDataConvert(ScriptedObject* object,
 }
 
 bool WasmScriptingVM::callHitExport(const char* name,
-                                    wasm_val_t* args,
-                                    uint32_t argCount,
+                                    const double* args,
+                                    uint32_t argc,
                                     HitResult* outResult)
 {
-    wasm_function_inst_t f = m_state->lookupExport(name);
-    if (f == nullptr)
+    double hit = 0;
+    if (callF64(name, args, argc, &hit) != CallOutcome::ok || hit == 0)
     {
         return false;
     }
-    wasm_val_t results[1];
-    results[0].kind = WASM_I32;
-    ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm_a(m_state->execEnv,
-                                  f,
-                                  1,
-                                  results,
-                                  argCount,
-                                  args))
-    {
-        reportTrap(name);
-        return false;
-    }
-    if (results[0].of.i32 == 0)
-    {
-        return false;
-    }
-    *outResult = (HitResult)(results[0].of.i32 - 1);
+    *outResult = (HitResult)((int)hit - 1);
     return true;
 }
 
@@ -10368,30 +10611,18 @@ bool WasmScriptingVM::callPointerEvent(ScriptedObject* object,
     {
         return false;
     }
-    wasm_val_t args[8];
-    args[0].kind = WASM_I32;
-    args[0].of.i32 = (int32_t)m_L;
-    args[1].kind = WASM_I32;
-    args[1].of.i32 = selfRef;
-    args[2].kind = WASM_I32;
-    args[2].of.i32 = (int32_t)methodPtr;
-    args[3].kind = WASM_I32;
-    args[3].of.i32 = pointerId;
-    args[4].kind = WASM_F64;
-    args[4].of.f64 = localPosition.x;
-    args[5].kind = WASM_F64;
-    args[5].of.f64 = localPosition.y;
-    args[6].kind = WASM_I32;
-    args[6].of.i32 = (int32_t)hitType;
-    args[7].kind = WASM_F64;
-    args[7].of.f64 = timeStamp;
-    // _v2 carries the listener type and time stamp; modules built before it
-    // export only the six-argument name, which must be called as such.
-    if (m_state->lookupExport("host_obj_pointer_event_v2") == nullptr)
-    {
-        return callHitExport("host_obj_pointer_event", args, 6, outResult);
-    }
-    return callHitExport("host_obj_pointer_event_v2", args, 8, outResult);
+    double args[8] = {(double)m_L,
+                      (double)selfRef,
+                      (double)methodPtr,
+                      (double)pointerId,
+                      localPosition.x,
+                      localPosition.y,
+                      (double)hitType,
+                      timeStamp};
+    // Modules built before _v2 take no listener type or time stamp.
+    return m_pointerEventV2
+               ? callHitExport("host_obj_pointer_event_v2", args, 8, outResult)
+               : callHitExport("host_obj_pointer_event", args, 6, outResult);
 }
 
 bool WasmScriptingVM::callScrollEvent(ScriptedObject* object,
@@ -10406,27 +10637,16 @@ bool WasmScriptingVM::callScrollEvent(ScriptedObject* object,
     {
         return false;
     }
-    wasm_val_t args[10];
-    args[0].kind = WASM_I32;
-    args[0].of.i32 = (int32_t)m_L;
-    args[1].kind = WASM_I32;
-    args[1].of.i32 = selfRef;
-    args[2].kind = WASM_I32;
-    args[2].of.i32 = pointerId;
-    args[3].kind = WASM_F64;
-    args[3].of.f64 = localPosition.x;
-    args[4].kind = WASM_F64;
-    args[4].of.f64 = localPosition.y;
-    args[5].kind = WASM_F64;
-    args[5].of.f64 = event.delta.x;
-    args[6].kind = WASM_F64;
-    args[6].of.f64 = event.delta.y;
-    args[7].kind = WASM_I32;
-    args[7].of.i32 = (int32_t)event.phase;
-    args[8].kind = WASM_I32;
-    args[8].of.i32 = event.precise ? 1 : 0;
-    args[9].kind = WASM_F64;
-    args[9].of.f64 = timeStamp;
+    double args[10] = {(double)m_L,
+                       (double)selfRef,
+                       (double)pointerId,
+                       localPosition.x,
+                       localPosition.y,
+                       event.delta.x,
+                       event.delta.y,
+                       (double)event.phase,
+                       event.precise ? 1.0 : 0.0,
+                       timeStamp};
     // Modules built before scroll input lack the export and never scroll.
     return callHitExport("host_obj_scroll_event", args, 10, outResult);
 }
@@ -10467,9 +10687,7 @@ bool WasmScriptingVM::callTextEvent(ScriptedObject* object,
     {
         return false;
     }
-    memcpy(resolveModulePtr(textPtr, (uint32_t)bytes.size() + 1),
-           bytes.data(),
-           bytes.size());
+    copyToModule(textPtr, bytes.data(), (uint32_t)bytes.size());
     uint32_t args[4] = {m_L,
                         (uint32_t)selfRef,
                         textPtr,
@@ -10601,9 +10819,7 @@ void WasmScriptingVM::callListenerPerform(ScriptedObject* object,
 // runtime keeps drawing it.
 bool WasmScriptingVM::transitionManagesTo(int selfRef)
 {
-    if (!valid() || wasm_runtime_lookup_function(
-                        m_state->instance,
-                        "host_obj_transition_manages_to") == nullptr)
+    if (!valid() || !m_transitionManagesToExport)
     {
         return false;
     }
@@ -10682,41 +10898,20 @@ void WasmScriptingVM::callLayoutResize(ScriptedObject* object,
     {
         return;
     }
-    // _v2 carries the surface scale; vm modules built before it export
-    // only the four-argument name, which must be called as such.
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance,
-                                     "host_obj_layout_resize_v2");
-    bool legacy = f == nullptr;
-    if (legacy)
+    double args[5] = {(double)m_L,
+                      (double)selfRef,
+                      size.x,
+                      size.y,
+                      displayScale()};
+    double unused = 0;
+    // Modules built before _v2 take no surface scale.
+    if (m_layoutResizeV2)
     {
-        f = wasm_runtime_lookup_function(m_state->instance,
-                                         "host_obj_layout_resize");
+        callF64("host_obj_layout_resize_v2", args, 5, &unused);
     }
-    if (f == nullptr)
+    else
     {
-        return;
-    }
-    wasm_val_t args[5];
-    args[0].kind = WASM_I32;
-    args[0].of.i32 = (int32_t)m_L;
-    args[1].kind = WASM_I32;
-    args[1].of.i32 = selfRef;
-    args[2].kind = WASM_F64;
-    args[2].of.f64 = size.x;
-    args[3].kind = WASM_F64;
-    args[3].of.f64 = size.y;
-    args[4].kind = WASM_F64;
-    args[4].of.f64 = displayScale();
-    ScriptCallScope callScope(this);
-    if (!wasm_runtime_call_wasm_a(m_state->execEnv,
-                                  f,
-                                  0,
-                                  nullptr,
-                                  legacy ? 4 : 5,
-                                  args))
-    {
-        reportTrap("host_obj_layout_resize");
+        callF64("host_obj_layout_resize", args, 4, &unused);
     }
 }
 
@@ -10771,11 +10966,7 @@ int32_t WasmScriptingVM::inputSlot(int selfRef, const char* name)
     return slot;
 }
 
-bool WasmScriptingVM::legacyInputs() const
-{
-    return wasm_runtime_lookup_function(m_state->instance,
-                                        "host_obj_input_slot") == nullptr;
-}
+bool WasmScriptingVM::legacyInputs() { return !m_inputSlotExport; }
 
 bool WasmScriptingVM::inputArg(int selfRef,
                                const char* name,
@@ -10818,25 +11009,9 @@ void WasmScriptingVM::setInputNumber(int selfRef, const char* name, float value)
     {
         return;
     }
-    wasm_function_inst_t f =
-        wasm_runtime_lookup_function(m_state->instance, "host_obj_set_number");
-    if (f != nullptr)
-    {
-        wasm_val_t args[4];
-        args[0].kind = WASM_I32;
-        args[0].of.i32 = (int32_t)m_L;
-        args[1].kind = WASM_I32;
-        args[1].of.i32 = selfRef;
-        args[2].kind = WASM_I32;
-        args[2].of.i32 = (int32_t)arg;
-        args[3].kind = WASM_F64;
-        args[3].of.f64 = value;
-        ScriptCallScope callScope(this);
-        if (!wasm_runtime_call_wasm_a(m_state->execEnv, f, 0, nullptr, 4, args))
-        {
-            reportTrap("host_obj_set_number");
-        }
-    }
+    double args[4] = {(double)m_L, (double)selfRef, (double)arg, value};
+    double unused = 0;
+    callF64("host_obj_set_number", args, 4, &unused);
     guestFree(owned);
 }
 
@@ -10965,9 +11140,7 @@ uint32_t WasmScriptingVM::guestString(const char* text, const char* allocator)
     uint32_t ptr = callModule(allocator, 1, sizeArgs);
     if (ptr != 0)
     {
-        memcpy(resolveModuleWritePtr(ptr, (uint32_t)bytes.size()),
-               bytes.data(),
-               bytes.size());
+        copyToModule(ptr, bytes.data(), (uint32_t)bytes.size());
     }
     return ptr;
 }
@@ -10975,13 +11148,13 @@ uint32_t WasmScriptingVM::guestString(const char* text, const char* allocator)
 WasmScriptingVM::GuestName::GuestName(WasmScriptingVM* vm, const char* name) :
     m_vm(vm)
 {
-    if (vm->m_state->lookupExport("__riveRawAlloc") == nullptr)
+    if (!vm->m_rawAllocExport)
     {
         ptr = vm->guestString(name);
         m_owned = true;
         return;
     }
-    auto& names = vm->m_state->guestNames;
+    auto& names = vm->m_guestNames;
     auto it = names.find(name);
     if (it != names.end())
     {
@@ -11012,6 +11185,37 @@ void WasmScriptingVM::guestFree(uint32_t ptr)
     uint32_t args[1] = {ptr};
     callModule("free", 1, args);
 }
+
+#ifdef __EMSCRIPTEN__
+// The runner sets the booting VM around a module's start.
+extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_booting(uint32_t handle)
+{
+    WasmScriptingVMNatives::booting((WasmScriptingVM*)(uintptr_t)handle);
+}
+
+// The std's console imports, by the method codes the page's env block uses.
+extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_console(uint32_t handle,
+                                                      uint32_t method,
+                                                      const char* text,
+                                                      uint32_t length)
+{
+    WasmScriptingVM* vm = bootVmFromHandle(handle);
+    WasmStringArg utf8(vm, text, length);
+    std::string value(utf8.data(), utf8.size());
+    switch (method)
+    {
+        case 0:
+            consoleWrite(vmFromHandle(handle), value);
+            break;
+        case 1:
+            consoleTimeStart(vm, value);
+            break;
+        default:
+            consoleTimeReport(vm, value, method == 3);
+            break;
+    }
+}
+#endif
 
 // Browser-lane exports over the same impl cores; nothing off emscripten.
 #include "wasm_natives_web_gen.hpp"

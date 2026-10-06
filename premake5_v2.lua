@@ -25,13 +25,12 @@ if _OPTIONS['scripting_vm'] ~= 'wasm' then
     end
     filter({})
 end
--- WAMR has no emscripten platform layer, so the browser lane of the wasm
--- flavors builds without a wasm VM until the browser engine backend lands.
-local wasmVmBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
+-- WAMR has no emscripten platform layer. On the web script modules run on
+-- the browser's own wasm engine, so the backend stays on and only WAMR is out.
+local wamrBuildable = _OPTIONS['arch'] ~= 'wasm' and _OPTIONS['arch'] ~= 'js'
 -- Workspace scope: gated members change class layout, so every project
 -- must agree on the define.
-if (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
-    and wasmVmBuildable
+if _OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both'
 then
     filter({ 'options:with_rive_scripting' })
     do
@@ -113,7 +112,7 @@ if _OPTIONS['with_rive_scripting'] then
     luau = scripting.luau
     libhydrogen = scripting.libhydrogen
     if (_OPTIONS['scripting_vm'] == 'wasm' or _OPTIONS['scripting_vm'] == 'both')
-        and wasmVmBuildable
+        and wamrBuildable
     then
         local wamrLib =
             require(path.join(path.getabsolute('scripting/'), 'premake5_wamr'))
@@ -335,6 +334,15 @@ do
         filter({})
         removefiles({ 'src/lua/**' })
     end
+    filter({ 'system:emscripten' })
+    do
+        removefiles({
+            'src/wasm/module_tier_ladder.cpp',
+            'src/wasm/prelinked_aot.cpp',
+            'src/wasm/wamr_state_transplant.cpp',
+        })
+    end
+    filter({})
     filter({
         'options:with_rive_scripting',
         'options:config=release',

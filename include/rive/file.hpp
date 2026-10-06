@@ -480,7 +480,22 @@ public:
     /// first warning to surface, if any.
     const char* frameBoundary();
 
+#ifdef __EMSCRIPTEN__
+    /// On the web import leaves the script VMs registered with the page but
+    /// not running, so the host can instantiate their modules asynchronously.
+    /// Call once that is done and before making artboard instances.
+    void startScripts();
+#endif
+
 private:
+#ifdef __EMSCRIPTEN__
+    struct DeferredScript
+    {
+        WasmScriptingVM* vm;
+        ScriptAsset* script;
+    };
+    std::vector<DeferredScript> m_deferredScripts;
+#endif
 #endif
 #ifdef WITH_RIVE_SCRIPTING
     WasmVMsSlot m_wasmVMs;

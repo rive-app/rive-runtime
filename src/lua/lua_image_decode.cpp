@@ -216,136 +216,52 @@ int context_decodeImage_impl(lua_State* L)
 
 #else // __EMSCRIPTEN__
 
-#include <emscripten.h>
+#include "rive/async/browser_image_decode.hpp"
 
 namespace
 {
 
-// Track in-flight decodes so the JS callback can find the Lua state + promise.
+// Track in-flight decodes so the callback can find the Lua state + promise.
 struct PendingDecode
 {
     lua_State* state;
     int promiseRef;
 };
 std::unordered_map<uint32_t, PendingDecode> s_pendingDecodes;
-uint32_t s_nextDecodeId = 1;
 
-// Generate a unique decode ID, skipping any that are still in-flight.
-uint32_t nextDecodeId()
-{
-    uint32_t id = s_nextDecodeId++;
-    // On wraparound, skip IDs that collide with in-flight decodes.
-    while (id == 0 || s_pendingDecodes.count(id))
-        id = s_nextDecodeId++;
-    return id;
-}
-
-} // namespace
-
-// The glue below reaches its callbacks by bare name, never as Module.*
-// properties: release builds run Closure, which renames a dotted
-// Module._wasm_image_decode_complete to an undefined one while the real
-// exports keep their names, so every decode threw and its promise never
-// settled. It calls only this file's own exports, so it needs no EM_JS_DEPS,
-// which Unity's oldest WebGL toolchain (Emscripten 3.1.8) predates.
-
-// Start a browser-native image decode. createImageBitmap is async; the JS
-// callback fires between frames and calls back into C++ to resolve the promise.
-EM_JS(void,
-      wasm_start_image_decode,
-      (uint32_t requestId, const uint8_t* data, int dataLen),
-      {
-          // Copy from WASM heap (SharedArrayBuffer can't be used for Blob).
-          var sourceView = new Uint8Array(wasmMemory.buffer, data, dataLen);
-          var buffer = new Uint8Array(dataLen);
-          buffer.set(sourceView);
-
-          var blob = new Blob([buffer]);
-          createImageBitmap(blob)
-              .then(function(bmp) {
-                  // Draw to OffscreenCanvas to extract raw RGBA pixels.
-                  var canvas = new OffscreenCanvas(bmp.width, bmp.height);
-                  var ctx2d = canvas.getContext("2d");
-                  ctx2d.drawImage(bmp, 0, 0);
-                  var imageData =
-                      ctx2d.getImageData(0, 0, bmp.width, bmp.height);
-
-                  // Allocate WASM memory and copy pixels.
-                  var numBytes = imageData.data.length;
-                  var ptr = _wasm_image_decode_alloc(numBytes);
-                  // malloc may grow memory, so view the buffer after it.
-                  new Uint8Array(wasmMemory.buffer, ptr, numBytes)
-                      .set(imageData.data);
-
-                  _wasm_image_decode_complete(requestId,
-                                              bmp.width,
-                                              bmp.height,
-                                              ptr,
-                                              numBytes);
-              })
-              .catch(function() { _wasm_image_decode_error(requestId); });
-      });
-
-// C callbacks invoked by JS when createImageBitmap resolves/rejects.
-extern "C"
+void settleDecode(uint32_t id,
+                  uint32_t width,
+                  uint32_t height,
+                  rive::Span<const uint8_t> pixels,
+                  const char* error)
 {
     using namespace rive;
 
-    // The glue allocates the pixel buffer through this rather than _malloc,
-    // which reaches JS only when something declares a dependency on it.
-    EMSCRIPTEN_KEEPALIVE
-    uint8_t* wasm_image_decode_alloc(int numBytes)
+    auto it = s_pendingDecodes.find(id);
+    if (it == s_pendingDecodes.end())
     {
-        return static_cast<uint8_t*>(malloc(numBytes));
+        return;
     }
+    auto [L, promiseRef] = it->second;
+    s_pendingDecodes.erase(it);
 
-    EMSCRIPTEN_KEEPALIVE
-    void wasm_image_decode_complete(uint32_t requestId,
-                                    int width,
-                                    int height,
-                                    uint8_t* pixels,
-                                    int numBytes)
+    lua_rawgeti(L, LUA_REGISTRYINDEX, promiseRef);
+    auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
+    lua_pop(L, 1);
+
+    if (promise && promise->isPending())
     {
-        auto it = s_pendingDecodes.find(requestId);
-        if (it == s_pendingDecodes.end())
+        if (error != nullptr)
         {
-            free(pixels);
-            return;
+            lua_pushstring(L, error);
+            promise->reject(L, lua_gettop(L));
         }
-
-        auto [state, promiseRef] = it->second;
-        s_pendingDecodes.erase(it);
-
-        if (!state)
+        else
         {
-            free(pixels);
-            return;
-        }
-
-        lua_State* L = state;
-        lua_rawgeti(L, LUA_REGISTRYINDEX, promiseRef);
-        auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
-        lua_pop(L, 1);
-
-        if (promise && promise->isPending())
-        {
-            // getImageData() returns straight RGBA; premultiply in-place so
-            // the scripting API always delivers premultiplied RGBA8.
-            for (int i = 0; i < numBytes; i += 4)
-            {
-                uint8_t a = pixels[i + 3];
-                if (a < 255)
-                {
-                    pixels[i + 0] = (uint16_t(pixels[i + 0]) * a + 127) / 255;
-                    pixels[i + 1] = (uint16_t(pixels[i + 1]) * a + 127) / 255;
-                    pixels[i + 2] = (uint16_t(pixels[i + 2]) * a + 127) / 255;
-                }
-            }
-
             lua_newtable(L);
 
-            void* buf = lua_newbuffer(L, numBytes);
-            memcpy(buf, pixels, numBytes);
+            void* buf = lua_newbuffer(L, pixels.size());
+            memcpy(buf, pixels.data(), pixels.size());
             lua_setfield(L, -2, "data");
 
             lua_pushnumber(L, width);
@@ -355,44 +271,13 @@ extern "C"
             lua_setfield(L, -2, "height");
 
             promise->resolve(L, lua_gettop(L));
-            lua_pop(L, 1);
         }
-
-        lua_unref(L, promiseRef);
-        free(pixels);
+        lua_pop(L, 1);
     }
+    lua_unref(L, promiseRef);
+}
 
-    // Rejects with the native path's message rather than the browser's, so a
-    // script sees the same error on every platform and the glue needs no
-    // string marshalling.
-    EMSCRIPTEN_KEEPALIVE
-    void wasm_image_decode_error(uint32_t requestId)
-    {
-        auto it = s_pendingDecodes.find(requestId);
-        if (it == s_pendingDecodes.end())
-            return;
-
-        auto [state, promiseRef] = it->second;
-        s_pendingDecodes.erase(it);
-
-        if (state)
-        {
-            lua_State* L = state;
-            lua_rawgeti(L, LUA_REGISTRYINDEX, promiseRef);
-            auto* promise = lua_torive<ScriptedPromise>(L, -1, true);
-            lua_pop(L, 1);
-
-            if (promise && promise->isPending())
-            {
-                lua_pushstring(L, "failed to decode image data");
-                promise->reject(L, lua_gettop(L));
-                lua_pop(L, 1);
-            }
-            lua_unref(L, promiseRef);
-        }
-    }
-
-} // extern "C"
+} // namespace
 
 // Cancel all pending decodes for a Lua state (called on shutdown).
 // Must be called while mainThread is still valid so we can unref promises.
@@ -404,6 +289,7 @@ void wasm_cancelPendingDecodes(lua_State* mainThread)
     {
         if (it->second.state == mainThread)
         {
+            cancelBrowserImageDecode(it->first);
             lua_unref(mainThread, it->second.promiseRef);
             it = s_pendingDecodes.erase(it);
         }
@@ -455,14 +341,11 @@ int context_decodeImage_impl(lua_State* L)
     int promiseRef = lua_ref(L, -1);
     lua_pop(L, 1);
 
-    // Register the pending decode so the JS callback can find the promise.
-    uint32_t id = nextDecodeId();
+    // The decode settles on a later event loop turn, after this registers.
+    uint32_t id = startBrowserImageDecode(static_cast<const uint8_t*>(data),
+                                          static_cast<uint32_t>(len),
+                                          settleDecode);
     s_pendingDecodes[id] = {mainThread, promiseRef};
-
-    // Start the browser-native decode. This returns immediately.
-    wasm_start_image_decode(id,
-                            static_cast<const uint8_t*>(data),
-                            static_cast<int>(len));
 
     // Register onCancel hook: erase from pending decodes so the JS
     // callback becomes a no-op (the browser will still finish decoding,
@@ -476,6 +359,7 @@ int context_decodeImage_impl(lua_State* L)
             uint32_t decodeId = (uint32_t)lua_tointeger(L, lua_upvalueindex(1));
             int pRef = (int)lua_tointeger(L, lua_upvalueindex(2));
             s_pendingDecodes.erase(decodeId);
+            cancelBrowserImageDecode(decodeId);
             lua_unref(L, pRef);
             return 0;
         },

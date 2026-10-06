@@ -1027,6 +1027,11 @@ bool CommandServer::processCommands()
 
                 if (file != nullptr)
                 {
+#if defined(__EMSCRIPTEN__) && defined(WITH_RIVE_SCRIPTING_WASM)
+                    // No host awaits a prepare step for a file the command
+                    // server loads, so its modules instantiate inline here.
+                    file->startScripts();
+#endif
                     auto fileAssets = fileAssetLoader->fileAssets();
                     m_globalAssetRegistry->addFileAssets(handle, fileAssets);
                     m_globalAssetRegistry->applyResourcesToFileAssets(

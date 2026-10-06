@@ -239,14 +239,17 @@ PODS = [
 ]
 
 
-def op(name, params=(), ret=None, stub=None, guard=None, boot=None):
+def op(name, params=(), ret=None, stub=None, guard=None, boot=None,
+       web_js=None):
     # guard: the host only carries the op when this macro is defined. Modules
     # import what they call, so one that never calls it links anywhere.
     # boot: the op traps and module start can reach it, before the exec env
     # carries the vm, so the WAMR wrapper resolves the booting one. With no
     # vm at all, as a tier swap reruns start, it traps with this text.
+    # web_js: the page answers the op itself; the expression goes straight
+    # into the web import object, so the call never enters librive.
     return {'name': name, 'params': list(params), 'ret': ret, 'stub': stub,
-            'guard': guard, 'boot': boot}
+            'guard': guard, 'boot': boot, 'web_js': web_js}
 
 
 def ns(module, short, ops):
@@ -263,6 +266,10 @@ NAMESPACES = [
         # A script's throw hands over its message just before it traps, so
         # the trap reports what was thrown.
         op('error', [string('message', 'length')], boot='script threw'),
+        # Milliseconds. now is monotonic and times the execution budget and
+        # os.clock; date_now is the wall clock since the epoch, for os.time.
+        op('now', ret='f64', web_js='performance.now()'),
+        op('date_now', ret='f64', web_js='Date.now()'),
         # Line probes a debug bake plants: function entry and exit keep a
         # shadow call stack, and each line asks whether to stop. line
         # returns nonzero when it did, so the module re-arms its budget.

@@ -208,6 +208,8 @@ void rtLogImpl(WasmScriptingVM* vm, int32_t level, const char* message, uint32_t
 void rtMarkNeedsUpdateImpl(WasmScriptingVM* vm, uint32_t object);
 void rtBudgetExceededImpl(WasmScriptingVM* vm, uint32_t ms);
 void rtErrorImpl(WasmScriptingVM* vm, const char* message, uint32_t length);
+double rtNowImpl(WasmScriptingVM* vm);
+double rtDateNowImpl(WasmScriptingVM* vm);
 void rtDebugEnterImpl(WasmScriptingVM* vm, uint32_t func, uint32_t line);
 uint32_t rtDebugLineImpl(WasmScriptingVM* vm, uint32_t line);
 void rtDebugLeaveImpl(WasmScriptingVM* vm);
@@ -537,6 +539,7 @@ uint32_t fileBindableNameImpl(WasmScriptingVM* vm, uint32_t bindable, char* buff
 uint32_t fileBindableDataImpl(WasmScriptingVM* vm, uint32_t bindable);
 uint32_t fileBindableEqualImpl(WasmScriptingVM* vm, uint32_t a, uint32_t b);
 
+#ifndef __EMSCRIPTEN__
 void rtLog(wasm_exec_env_t env, int32_t level, const char* message, uint32_t length)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -568,6 +571,16 @@ void rtError(wasm_exec_env_t env, const char* message, uint32_t length)
     }
     WasmStringArg messageUtf8(vm, message, length);
     rtErrorImpl(vm, messageUtf8.data(), messageUtf8.size());
+}
+double rtNow(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtNowImpl(vm);
+}
+double rtDateNow(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    return rtDateNowImpl(vm);
 }
 void rtDebugEnter(wasm_exec_env_t env, uint32_t func, uint32_t line)
 {
@@ -2256,6 +2269,8 @@ NativeSymbol kRtNatives[] = {
     {"mark_needs_update", (void*)rtMarkNeedsUpdate, "(i)", nullptr},
     {"budget_exceeded", (void*)rtBudgetExceeded, "(i)", nullptr},
     {"error", (void*)rtError, "(*~)", nullptr},
+    {"now", (void*)rtNow, "()F", nullptr},
+    {"date_now", (void*)rtDateNow, "()F", nullptr},
     {"debug_enter", (void*)rtDebugEnter, "(ii)", nullptr},
     {"debug_line", (void*)rtDebugLine, "(i)i", nullptr},
     {"debug_leave", (void*)rtDebugLeave, "()", nullptr},
@@ -2740,3 +2755,4 @@ inline bool registerRiveBindingNatives()
                kFileNatives,
                sizeof(kFileNatives) / sizeof(NativeSymbol));
 }
+#endif
