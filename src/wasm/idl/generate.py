@@ -380,13 +380,21 @@ def emit_host():
     return '\n'.join(lines)
 
 
+# The ops the browser lane serves from librive, in the order its host call
+# table and the page's binder share.
+def web_host_ops():
+    return [(namespace, op) for namespace in NAMESPACES
+            for op in namespace['ops'] if op['web_js'] is None]
+
+
 def emit_web_host():
     lines = [
         '// %s' % GENERATED_NOTE,
         '//',
-        '// Browser-lane host entry points: one exported C symbol per op,',
-        '// taking the owning VM as a u32 handle plus the native-convention',
-        '// args (pointers are librive-heap pointers, exactly what',
+        '// Browser-lane host entry points: one C function per op, found by',
+        '// the page through the kRiveWebCalls table, taking the owning VM',
+        '// as a u32 handle plus the native-convention args (pointers are',
+        '// librive-heap pointers, exactly what',
         '// web/rive_module_imports.mjs stages into). Included at the end of',
         '// wasm_scripting_vm.cpp so the impl cores are visible; expands to',
         '// nothing off emscripten.',
@@ -399,25 +407,33 @@ def emit_web_host():
         'extern "C" {',
         '',
     ]
-    for namespace in NAMESPACES:
-        for op in namespace['ops']:
-            if op['web_js'] is not None:
-                continue
-            sym = web_symbol(namespace, op)
-            params = ['uint32_t vmHandle'] + host_params(op['params'])
-            args = ['vm'] + host_args(op['params'])
-            call = '%sImpl(%s)' % (impl_name(namespace, op), ', '.join(args))
-            body = ['EMSCRIPTEN_KEEPALIVE',
-                    '%s %s(%s)' % (ret_ctype(op), sym, ', '.join(params)),
-                    '{',
-                    '    WasmScriptingVM* vm = %s(vmHandle);' %
-                    ('bootVmFromHandle' if op['boot'] else 'vmFromHandle')]
-            body += host_string_prologue(op['params'])
-            body += ['    %s%s;' %
-                     ('' if op['ret'] is None else 'return ', call),
-                     '}']
-            lines += guarded(op, body)
+    for namespace, op in web_host_ops():
+        sym = web_symbol(namespace, op)
+        params = ['uint32_t vmHandle'] + host_params(op['params'])
+        args = ['vm'] + host_args(op['params'])
+        call = '%sImpl(%s)' % (impl_name(namespace, op), ', '.join(args))
+        body = ['%s %s(%s)' % (ret_ctype(op), sym, ', '.join(params)),
+                '{',
+                '    WasmScriptingVM* vm = %s(vmHandle);' %
+                ('bootVmFromHandle' if op['boot'] else 'vmFromHandle')]
+        body += host_string_prologue(op['params'])
+        body += ['    %s%s;' %
+                 ('' if op['ret'] is None else 'return ', call),
+                 '}']
+        lines += guarded(op, body)
+    # One export for the table keeps the op names out of the binary; a
+    # missing op's null entry reads as unlinked on the page.
+    lines += ['', 'static void* const kRiveWebCalls[] = {']
+    for namespace, op in web_host_ops():
+        entry = '    (void*)%s,' % web_symbol(namespace, op)
+        lines += (['#ifdef ' + op['guard'], entry, '#else', '    nullptr,',
+                   '#endif'] if op['guard'] else [entry])
     lines += [
+        '    (void*)rive_web_console,',
+        '};',
+        '',
+        'EMSCRIPTEN_KEEPALIVE',
+        'void* const* rive_web_calls() { return kRiveWebCalls; }',
         '',
         '} // extern "C"',
         '',
@@ -904,9 +920,9 @@ def emit_web_imports():
         '    };',
         '}',
         '',
-        '// host.calls for one VM. exports is the emscripten Module, whose',
-        "// '_name' entries survive the export name minifying of optimized",
-        '// builds, which the raw wasm exports do not. ctx.vm is the VM',
+        '// host.calls for one VM. hostCall(index) is the librive function at',
+        '// that index of its kRiveWebCalls table, undefined for a missing op.',
+        '// ctx.vm is the VM',
         '// handle, zeroed when the VM goes away while its module is still',
         '// instantiating. ctx.raised holds a raiseModuleError message: it is',
         '// thrown once the host call has returned, so only module frames',
@@ -914,7 +930,7 @@ def emit_web_imports():
         '// without their destructors, so ctx.hostFault marks the VM done for.',
         '// ctx.counters, when given, tallies the calls into librive.',
         '// A fault in a nested script call unwinds the outer module frames too.',
-        'export function bindRiveHostCalls(exports, ctx) {',
+        'export function bindRiveHostCalls(hostCall, ctx) {',
         '    const counters = ctx.counters ?? { on: false };',
         '    const raise = () => {',
         '        const error = new Error(ctx.raised);',
@@ -934,7 +950,7 @@ def emit_web_imports():
         '    return {',
     ]
 
-    def host_call(name, argc, returns, symbol, unlinked=''):
+    def host_call(name, argc, returns, index, unlinked=''):
         args = ', '.join('a%d' % i for i in range(argc))
         call = 'fn(%s)' % ', '.join(filter(None, ['ctx.vm', args]))
         lines.append('        %s: ((fn) => %s(%s) => {' % (name, unlinked, args))
@@ -948,20 +964,17 @@ def emit_web_imports():
         lines.append('            if (ctx.raised !== null) raise();')
         if returns:
             lines.append('            return ret;')
-        lines.append("        })(exports['_%s'])," % symbol)
+        lines.append('        })(hostCall(%d)),' % index)
 
-    for namespace in NAMESPACES:
-        for op in namespace['ops']:
-            if op['web_js'] is not None:
-                continue
-            # Missing outright, so a call traps rather than faulting.
-            unlinked = ("fn === undefined ? unlinkedImport('%s', '%s') : " %
-                        (namespace['module'], op['name'])
-                        if op['guard'] else '')
-            host_call(c_symbol(namespace, op), len(host_params(op['params'])),
-                      op['ret'] is not None, web_symbol(namespace, op),
-                      unlinked)
-    host_call('rive_console', 3, False, 'rive_web_console')
+    ops = web_host_ops()
+    for index, (namespace, op) in enumerate(ops):
+        # Missing outright, so a call traps rather than faulting.
+        unlinked = ("fn === undefined ? unlinkedImport('%s', '%s') : " %
+                    (namespace['module'], op['name'])
+                    if op['guard'] else '')
+        host_call(c_symbol(namespace, op), len(host_params(op['params'])),
+                  op['ret'] is not None, index, unlinked)
+    host_call('rive_console', 3, False, len(ops))
     lines += [
         '    };',
         '}',

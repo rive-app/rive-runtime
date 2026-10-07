@@ -46,7 +46,9 @@ no change:
 
 - `rive_module_imports.mjs`, generated. The import object a script module is
   instantiated against, and `bindRiveHostCalls`, which binds librive's
-  `rive_web_*` exports to one VM.
+  `rive_web_*` functions to one VM. librive exports them as one table,
+  `rive_web_calls`, in the IDL's op order, so their names stay out of the
+  binary and the glue.
 - `rive_script_runner.mjs`, hand written. Keeps one entry per VM, prepares
   and starts modules, and makes every call into a module, catching traps.
 - `rive_scripting_pre.js`, generated from the two files above. One plain

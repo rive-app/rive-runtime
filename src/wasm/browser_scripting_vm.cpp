@@ -14,7 +14,7 @@ using namespace rive;
 // clang-format off
 EM_JS_DEPS(riveWebScripting,
            "$UTF8ToString,$stringToUTF8,$stringToNewUTF8,"
-           "$stackSave,$stackAlloc,$stackRestore,malloc,free");
+           "$stackSave,$stackAlloc,$stackRestore,$wasmTable,malloc,free");
 
 // The runner is web/rive_script_runner.mjs, installed by the host. Only code
 // inside librive can see its heap and exports, so they are handed over here.
@@ -26,6 +26,10 @@ EM_JS(int, riveWebRegister, (uint32_t vm, const uint8_t* bytes, uint32_t size), 
     }
     runner.attach({
         exports: Module,
+        hostCall: (index) => {
+            const fn = HEAPU32[(_rive_web_calls() >> 2) + index];
+            return fn === 0 ? undefined : wasmTable.get(fn);
+        },
         heapU8: () => HEAPU8,
         heapF64: () => HEAPF64,
         stackSave: stackSave,

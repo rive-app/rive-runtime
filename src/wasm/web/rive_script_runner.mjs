@@ -115,7 +115,7 @@ export function installRiveScripting(Module) {
     function importsFor(entry, module) {
         const imports = createRiveModuleImports(
             {
-                calls: bindRiveHostCalls(host.exports, entry.ctx),
+                calls: bindRiveHostCalls(host.hostCall, entry.ctx),
                 heapU8: host.heapU8,
                 stackSave: host.stackSave,
                 stackAlloc: host.stackAlloc,
