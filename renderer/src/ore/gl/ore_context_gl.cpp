@@ -4,6 +4,7 @@
 
 #include "rive/renderer/gl/load_gles_extensions.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
+#include "rive/math/math_types.hpp"
 #include "rive/renderer/ore/ore_context_gl.hpp"
 #include "ore_bind_group_gl.hpp"
 #include "ore_buffer_gl.hpp"
@@ -526,8 +527,17 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
     }
     else
     {
+        // std140 rounds a block up to 16 bytes, past the WGSL struct size, and
+        // WebGL refuses to draw with a buffer shorter than the block.
+        uint32_t size = desc.usage == BufferUsage::uniform
+                            ? math::round_up_to_multiple_of<16>(desc.size)
+                            : desc.size;
         glBindBuffer(GL_COPY_WRITE_BUFFER, buffer->m_glBuffer);
-        glBufferData(GL_COPY_WRITE_BUFFER, desc.size, desc.data, glUsage);
+        glBufferData(GL_COPY_WRITE_BUFFER, size, nullptr, glUsage);
+        if (desc.data != nullptr)
+        {
+            glBufferSubData(GL_COPY_WRITE_BUFFER, 0, desc.size, desc.data);
+        }
         glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
     }
 
@@ -1018,10 +1028,13 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
         assert(buf);
         binding.buffer = buf->m_glBuffer;
         binding.offset = entry.offset;
-        binding.size =
+        uint32_t size =
             entry.size != 0
                 ? entry.size
                 : static_cast<uint32_t>(entry.buffer->size() - entry.offset);
+        // GL aligns offsets to at least 16, so the rounded range stays inside
+        // the padded allocation from makeBuffer.
+        binding.size = math::round_up_to_multiple_of<16>(size);
         binding.binding = entry.slot;
         if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &binding.slot))
             continue;

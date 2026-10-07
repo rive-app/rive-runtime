@@ -477,6 +477,15 @@ rcp<Buffer> ContextD3D11::d3d11MakeBuffer(const BufferDesc& desc)
 
     D3D11_SUBRESOURCE_DATA initData{};
     initData.pSysMem = desc.data;
+    // CreateBuffer reads ByteWidth bytes, past the end of a short source.
+    std::vector<uint8_t> padded;
+    if (desc.data != nullptr && bd.ByteWidth > desc.size)
+    {
+        auto bytes = static_cast<const uint8_t*>(desc.data);
+        padded.assign(bytes, bytes + desc.size);
+        padded.resize(bd.ByteWidth);
+        initData.pSysMem = padded.data();
+    }
 
     HRESULT hr = m_d3d11Device->CreateBuffer(
         &bd,

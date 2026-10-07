@@ -299,6 +299,9 @@ public:
     bool hasAudio() const { return m_hasAudio; };
     void addFileViewModelInstance(ViewModelInstance* viewModelInstance);
 
+    /// Device pixels per layout point, passed to every script VM.
+    void displayScale(float scale);
+
     // When the runtime is hosted in the editor, we get a pointer
     // to the VM that we can use. If this is nullptr, we can assume
     // we are running in the runtime and should instance our own VMs

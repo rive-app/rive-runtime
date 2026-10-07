@@ -478,6 +478,16 @@ end
     }
 }
 
+TEST_CASE("file display scale reaches its scripting vm", "[scripting]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/script_layout_test.riv", &silver);
+    REQUIRE(file->scriptingVM() != nullptr);
+    CHECK(file->scriptingVM()->displayScale() == 1.0f);
+    file->displayScale(2.0f);
+    CHECK(file->scriptingVM()->displayScale() == 2.0f);
+}
+
 TEST_CASE("layout grid script", "[silver]")
 {
     rive::SerializingFactory silver;

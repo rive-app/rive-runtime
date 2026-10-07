@@ -1064,6 +1064,22 @@ void File::addFileViewModelInstance(ViewModelInstance* viewModelInstance)
     m_ViewModelInstances.push_back(rcp<ViewModelInstance>(viewModelInstance));
 }
 
+void File::displayScale([[maybe_unused]] float scale)
+{
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+    if (m_scriptingVM != nullptr)
+    {
+        m_scriptingVM->displayScale(scale);
+    }
+#endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    for (auto& vm : m_wasmVMs)
+    {
+        vm->displayScale(scale);
+    }
+#endif
+}
+
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_WASM
 const char* File::frameBoundary()
