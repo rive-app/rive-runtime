@@ -90,7 +90,15 @@ public:
     static const int invalidPropertyKey = 0;
     virtual ~Core();
     virtual uint16_t coreType() const = 0;
-    virtual bool isTypeOf(uint16_t typeKey) const = 0;
+    // Inlined so an exact match costs one virtual call, which hot host calls
+    // on the web measurably need.
+    RIVE_ALWAYS_INLINE bool isTypeOf(uint16_t typeKey) const
+    {
+        uint16_t type = coreType();
+        return type == typeKey || hasAncestor(type, typeKey);
+    }
+    // Whether an ancestor of type is typeKey, see core_type_tree.cpp.
+    static bool hasAncestor(uint16_t type, uint16_t typeKey);
     virtual bool deserialize(uint16_t propertyKey, BinaryReader& reader) = 0;
 
     template <typename T> inline bool is() const

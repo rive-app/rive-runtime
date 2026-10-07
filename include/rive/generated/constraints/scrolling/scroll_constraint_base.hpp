@@ -16,22 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 521;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScrollConstraintBase::typeKey:
-            case DraggableConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t scrollOffsetXPropertyKey = 759;
@@ -111,7 +95,6 @@ public:
             return;
         }
         setScrollPercentX(value);
-        scrollPercentXChanged();
         notifyPropertyChanged(scrollPercentXPropertyKey);
     }
 
@@ -124,7 +107,6 @@ public:
             return;
         }
         setScrollPercentY(value);
-        scrollPercentYChanged();
         notifyPropertyChanged(scrollPercentYPropertyKey);
     }
 
@@ -137,7 +119,6 @@ public:
             return;
         }
         setScrollIndex(value);
-        scrollIndexChanged();
         notifyPropertyChanged(scrollIndexPropertyKey);
     }
 
@@ -150,7 +131,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(snapPropertyKey, &m_Snap, &value);
         m_Snap = value;
-        RIVE_EDITOR_CHANGED(snapChanged());
         notifyPropertyChanged(snapPropertyKey);
     }
 
@@ -165,7 +145,6 @@ public:
                              &m_PhysicsTypeValue,
                              &value);
         m_PhysicsTypeValue = value;
-        RIVE_EDITOR_CHANGED(physicsTypeValueChanged());
         notifyPropertyChanged(physicsTypeValuePropertyKey);
     }
 
@@ -178,7 +157,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(physicsIdPropertyKey, &m_PhysicsId, &value);
         m_PhysicsId = value;
-        RIVE_EDITOR_CHANGED(physicsIdChanged());
         notifyPropertyChanged(physicsIdPropertyKey);
     }
 
@@ -219,7 +197,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(infinitePropertyKey, &m_Infinite, &value);
         m_Infinite = value;
-        RIVE_EDITOR_CHANGED(infiniteChanged());
         notifyPropertyChanged(infinitePropertyKey);
     }
 
@@ -232,7 +209,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(interactivePropertyKey, &m_Interactive, &value);
         m_Interactive = value;
-        RIVE_EDITOR_CHANGED(interactiveChanged());
         notifyPropertyChanged(interactivePropertyKey);
     }
 
@@ -245,7 +221,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(thresholdPropertyKey, &m_Threshold, &value);
         m_Threshold = value;
-        RIVE_EDITOR_CHANGED(thresholdChanged());
         notifyPropertyChanged(thresholdPropertyKey);
     }
 
@@ -258,7 +233,6 @@ public:
             return;
         }
         setVelocityX(value);
-        velocityXChanged();
         notifyPropertyChanged(velocityXPropertyKey);
     }
 
@@ -271,7 +245,6 @@ public:
             return;
         }
         setVelocityY(value);
-        velocityYChanged();
         notifyPropertyChanged(velocityYPropertyKey);
     }
 
@@ -284,7 +257,6 @@ public:
             return;
         }
         setScrollActive(value);
-        scrollActiveChanged();
         notifyPropertyChanged(scrollActivePropertyKey);
     }
 
@@ -299,7 +271,6 @@ public:
                              &m_DragMultiplier,
                              &value);
         m_DragMultiplier = value;
-        RIVE_EDITOR_CHANGED(dragMultiplierChanged());
         notifyPropertyChanged(dragMultiplierPropertyKey);
     }
 
@@ -312,7 +283,6 @@ public:
             return;
         }
         setComputedContentWidth(value);
-        computedContentWidthChanged();
         notifyPropertyChanged(computedContentWidthPropertyKey);
     }
 
@@ -325,7 +295,6 @@ public:
             return;
         }
         setComputedContentHeight(value);
-        computedContentHeightChanged();
         notifyPropertyChanged(computedContentHeightPropertyKey);
     }
 
@@ -338,7 +307,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(scrollFlagsPropertyKey, &m_ScrollFlags, &value);
         m_ScrollFlags = value;
-        RIVE_EDITOR_CHANGED(scrollFlagsChanged());
         notifyPropertyChanged(scrollFlagsPropertyKey);
     }
 
@@ -356,7 +324,6 @@ public:
         RIVE_EDITOR_CHANGING(wheelInteractivePropertyKey, &prev, &value);
         m_ScrollFlags = value ? (m_ScrollFlags | wheelInteractiveBitmask)
                               : (m_ScrollFlags & ~wheelInteractiveBitmask);
-        RIVE_EDITOR_CHANGED(scrollFlagsChanged());
         notifyPropertyChanged(scrollFlagsPropertyKey);
     }
     Core* clone() const override;
@@ -424,24 +391,8 @@ public:
 protected:
     virtual void scrollOffsetXChanged() {}
     virtual void scrollOffsetYChanged() {}
-    virtual void scrollPercentXChanged() {}
-    virtual void scrollPercentYChanged() {}
-    virtual void scrollIndexChanged() {}
-    virtual void snapChanged() {}
-    virtual void physicsTypeValueChanged() {}
-    virtual void physicsIdChanged() {}
     virtual void virtualizeChanged() {}
     virtual void virtualizeBufferChanged() {}
-    virtual void infiniteChanged() {}
-    virtual void interactiveChanged() {}
-    virtual void thresholdChanged() {}
-    virtual void velocityXChanged() {}
-    virtual void velocityYChanged() {}
-    virtual void scrollActiveChanged() {}
-    virtual void dragMultiplierChanged() {}
-    virtual void computedContentWidthChanged() {}
-    virtual void computedContentHeightChanged() {}
-    virtual void scrollFlagsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/scrolling/scroll_constraint_ext.inl"
 #endif

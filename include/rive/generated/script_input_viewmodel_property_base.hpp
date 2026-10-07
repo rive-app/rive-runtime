@@ -16,21 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 612;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScriptInputViewModelPropertyBase::typeKey:
-            case CustomPropertyBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t dataBindPathIdsPropertyKey = 866;
@@ -61,7 +46,6 @@ public:
     }
 
 protected:
-    virtual void dataBindPathIdsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/script_input_viewmodel_property_ext.inl"
 #endif

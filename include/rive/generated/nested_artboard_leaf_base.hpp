@@ -14,26 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 451;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NestedArtboardLeafBase::typeKey:
-            case NestedArtboardBase::typeKey:
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t fitPropertyKey = 538;
@@ -85,7 +65,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(alignmentXPropertyKey, &m_AlignmentX, &value);
         m_AlignmentX = value;
-        RIVE_EDITOR_CHANGED(alignmentXChanged());
         notifyPropertyChanged(alignmentXPropertyKey);
     }
 
@@ -98,7 +77,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(alignmentYPropertyKey, &m_AlignmentY, &value);
         m_AlignmentY = value;
-        RIVE_EDITOR_CHANGED(alignmentYChanged());
         notifyPropertyChanged(alignmentYPropertyKey);
     }
 
@@ -135,8 +113,6 @@ public:
 protected:
     virtual void fitChanged() {}
     virtual void fitToLayoutParentChanged() {}
-    virtual void alignmentXChanged() {}
-    virtual void alignmentYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/nested_artboard_leaf_ext.inl"
 #endif

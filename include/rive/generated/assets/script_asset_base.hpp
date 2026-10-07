@@ -16,22 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 529;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScriptAssetBase::typeKey:
-            case TextAssetBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t generatorFunctionRefPropertyKey = 893;
@@ -58,7 +42,6 @@ public:
                              &m_GeneratorFunctionRef,
                              &value);
         m_GeneratorFunctionRef = value;
-        RIVE_EDITOR_CHANGED(generatorFunctionRefChanged());
         notifyPropertyChanged(generatorFunctionRefPropertyKey);
     }
 
@@ -71,7 +54,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(isModulePropertyKey, &m_IsModule, &value);
         m_IsModule = value;
-        RIVE_EDITOR_CHANGED(isModuleChanged());
         notifyPropertyChanged(isModulePropertyKey);
     }
 
@@ -89,7 +71,6 @@ public:
                              &m_SerializedImplementedMethods,
                              &value);
         m_SerializedImplementedMethods = value;
-        RIVE_EDITOR_CHANGED(serializedImplementedMethodsChanged());
         notifyPropertyChanged(serializedImplementedMethodsPropertyKey);
     }
 
@@ -123,9 +104,6 @@ public:
     }
 
 protected:
-    virtual void generatorFunctionRefChanged() {}
-    virtual void isModuleChanged() {}
-    virtual void serializedImplementedMethodsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/script_asset_ext.inl"
 #endif

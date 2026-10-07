@@ -15,24 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 13;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t blendModeValuePropertyKey = 23;
@@ -56,7 +38,6 @@ public:
                              &m_BlendModeValue,
                              &value);
         m_BlendModeValue = value;
-        RIVE_EDITOR_CHANGED(blendModeValueChanged());
         notifyPropertyChanged(blendModeValuePropertyKey);
     }
 
@@ -86,7 +67,6 @@ public:
                              &m_DrawableFlags,
                              &value);
         m_DrawableFlags = value;
-        RIVE_EDITOR_CHANGED(drawableFlagsChanged());
         notifyPropertyChanged(drawableFlagsPropertyKey);
     }
 
@@ -118,9 +98,7 @@ public:
     }
 
 protected:
-    virtual void blendModeValueChanged() {}
     virtual void additiveAmountChanged() {}
-    virtual void drawableFlagsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/drawable_ext.inl"
 #endif

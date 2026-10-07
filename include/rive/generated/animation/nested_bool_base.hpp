@@ -12,21 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 123;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NestedBoolBase::typeKey:
-            case NestedInputBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t nestedValuePropertyKey = 238;
@@ -57,7 +42,6 @@ public:
     }
 
 protected:
-    virtual void nestedValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/nested_bool_ext.inl"
 #endif

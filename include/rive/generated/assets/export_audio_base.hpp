@@ -15,21 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 422;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ExportAudioBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t volumePropertyKey = 530;
@@ -47,7 +32,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(volumePropertyKey, &m_Volume, &value);
         m_Volume = value;
-        RIVE_EDITOR_CHANGED(volumeChanged());
         notifyPropertyChanged(volumePropertyKey);
     }
 
@@ -71,7 +55,6 @@ public:
     }
 
 protected:
-    virtual void volumeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/export_audio_ext.inl"
 #endif

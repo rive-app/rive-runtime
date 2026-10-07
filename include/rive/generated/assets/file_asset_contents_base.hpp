@@ -16,19 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 106;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case FileAssetContentsBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t bytesPropertyKey = 212;
@@ -66,8 +53,6 @@ public:
     }
 
 protected:
-    virtual void bytesChanged() {}
-    virtual void signatureChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/file_asset_contents_ext.inl"
 #endif

@@ -12,22 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 90;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransformSpaceConstraintBase::typeKey:
-            case TargetedConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t sourceSpaceValuePropertyKey = 179;
@@ -49,7 +33,6 @@ public:
                              &m_SourceSpaceValue,
                              &value);
         m_SourceSpaceValue = value;
-        RIVE_EDITOR_CHANGED(sourceSpaceValueChanged());
         notifyPropertyChanged(sourceSpaceValuePropertyKey);
     }
 
@@ -64,7 +47,6 @@ public:
                              &m_DestSpaceValue,
                              &value);
         m_DestSpaceValue = value;
-        RIVE_EDITOR_CHANGED(destSpaceValueChanged());
         notifyPropertyChanged(destSpaceValuePropertyKey);
     }
 
@@ -90,8 +72,6 @@ public:
     }
 
 protected:
-    virtual void sourceSpaceValueChanged() {}
-    virtual void destSpaceValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/transform_space_constraint_ext.inl"
 #endif

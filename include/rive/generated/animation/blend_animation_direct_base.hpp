@@ -18,20 +18,6 @@ protected:
 public:
     static const uint16_t typeKey = 77;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case BlendAnimationDirectBase::typeKey:
-            case BlendAnimationBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t inputIdPropertyKey = 168;
@@ -53,7 +39,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
         m_InputId = value;
-        RIVE_EDITOR_CHANGED(inputIdChanged());
         notifyPropertyChanged(inputIdPropertyKey);
     }
 
@@ -66,7 +51,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(mixValuePropertyKey, &m_MixValue, &value);
         m_MixValue = value;
-        RIVE_EDITOR_CHANGED(mixValueChanged());
         notifyPropertyChanged(mixValuePropertyKey);
     }
 
@@ -79,7 +63,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(blendSourcePropertyKey, &m_BlendSource, &value);
         m_BlendSource = value;
-        RIVE_EDITOR_CHANGED(blendSourceChanged());
         notifyPropertyChanged(blendSourcePropertyKey);
     }
 
@@ -112,9 +95,6 @@ public:
     }
 
 protected:
-    virtual void inputIdChanged() {}
-    virtual void mixValueChanged() {}
-    virtual void blendSourceChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/blend_animation_direct_ext.inl"
 #endif

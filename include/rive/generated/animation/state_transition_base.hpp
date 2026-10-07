@@ -17,20 +17,6 @@ protected:
 public:
     static const uint16_t typeKey = 65;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case StateTransitionBase::typeKey:
-            case StateMachineLayerComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t stateToIdPropertyKey = 151;
@@ -60,7 +46,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(stateToIdPropertyKey, &m_StateToId, &value);
         m_StateToId = value;
-        RIVE_EDITOR_CHANGED(stateToIdChanged());
         notifyPropertyChanged(stateToIdPropertyKey);
     }
 
@@ -99,7 +84,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(exitTimePropertyKey, &m_ExitTime, &value);
         m_ExitTime = value;
-        RIVE_EDITOR_CHANGED(exitTimeChanged());
         notifyPropertyChanged(exitTimePropertyKey);
     }
 
@@ -114,7 +98,6 @@ public:
                              &m_InterpolationType,
                              &value);
         m_InterpolationType = value;
-        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
@@ -129,7 +112,6 @@ public:
                              &m_InterpolatorId,
                              &value);
         m_InterpolatorId = value;
-        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -142,7 +124,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(randomWeightPropertyKey, &m_RandomWeight, &value);
         m_RandomWeight = value;
-        RIVE_EDITOR_CHANGED(randomWeightChanged());
         notifyPropertyChanged(randomWeightPropertyKey);
     }
 
@@ -191,13 +172,8 @@ public:
     }
 
 protected:
-    virtual void stateToIdChanged() {}
     virtual void flagsChanged() {}
     virtual void durationChanged() {}
-    virtual void exitTimeChanged() {}
-    virtual void interpolationTypeChanged() {}
-    virtual void interpolatorIdChanged() {}
-    virtual void randomWeightChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/state_transition_ext.inl"
 #endif

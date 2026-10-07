@@ -15,21 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 667;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransitionPropertyComponentComparatorBase::typeKey:
-            case TransitionPropertyComparatorBase::typeKey:
-            case TransitionComparatorBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t objectIdPropertyKey = 977;
@@ -49,7 +34,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
         m_ObjectId = value;
-        RIVE_EDITOR_CHANGED(objectIdChanged());
         notifyPropertyChanged(objectIdPropertyKey);
     }
 
@@ -62,7 +46,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
         m_PropertyKey = value;
-        RIVE_EDITOR_CHANGED(propertyKeyChanged());
         notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
@@ -89,8 +72,6 @@ public:
     }
 
 protected:
-    virtual void objectIdChanged() {}
-    virtual void propertyKeyChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/transition_property_component_comparator_ext.inl"
 #endif

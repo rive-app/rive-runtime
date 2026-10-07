@@ -11,7 +11,7 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <sstream>
+#include <string>
 #include <vector>
 
 namespace rive::ore
@@ -459,6 +459,19 @@ static const char* shaderKindName(ResourceKind k)
     return "?";
 }
 
+static std::string bindingTag(uint32_t group, uint32_t binding)
+{
+    return "@group(" + std::to_string(group) + ") @binding(" +
+           std::to_string(binding) + ")";
+}
+
+static std::string hexString(uint32_t value)
+{
+    char hex[9];
+    snprintf(hex, sizeof(hex), "%x", value);
+    return hex;
+}
+
 bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
                                       BindGroupLayout* const* layouts,
                                       uint32_t layoutCount,
@@ -485,43 +498,37 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
         if (group >= layoutCount || layouts == nullptr ||
             layouts[group] == nullptr)
         {
-            std::ostringstream oss;
-            oss << "@group(" << group << ") @binding(" << binding
-                << "): shader declares " << shaderKindName(shaderEntry.kind)
-                << " but PipelineDesc::bindGroupLayouts has no entry for "
-                   "group "
-                << group;
-            return fail(oss.str());
+            return fail(bindingTag(group, binding) + ": shader declares " +
+                        shaderKindName(shaderEntry.kind) +
+                        " but PipelineDesc::bindGroupLayouts has no entry for "
+                        "group " +
+                        std::to_string(group));
         }
 
         const BindGroupLayout* layout = layouts[group];
         if (layout->groupIndex() != group)
         {
-            std::ostringstream oss;
-            oss << "PipelineDesc::bindGroupLayouts[" << group
-                << "]->groupIndex == " << layout->groupIndex() << ", expected "
-                << group
-                << " (positional index must match layout's groupIndex)";
-            return fail(oss.str());
+            return fail(
+                "PipelineDesc::bindGroupLayouts[" + std::to_string(group) +
+                "]->groupIndex == " + std::to_string(layout->groupIndex()) +
+                ", expected " + std::to_string(group) +
+                " (positional index must match layout's groupIndex)");
         }
 
         const BindGroupLayoutEntry* layoutEntry = layout->findEntry(binding);
         if (layoutEntry == nullptr)
         {
-            std::ostringstream oss;
-            oss << "@group(" << group << ") @binding(" << binding
-                << "): layout has no entry for this binding (shader expects "
-                << shaderKindName(shaderEntry.kind) << ")";
-            return fail(oss.str());
+            return fail(bindingTag(group, binding) +
+                        ": layout has no entry for this binding (shader "
+                        "expects " +
+                        shaderKindName(shaderEntry.kind) + ")");
         }
 
         if (!kindsMatch(layoutEntry->kind, shaderEntry.kind))
         {
-            std::ostringstream oss;
-            oss << "@group(" << group << ") @binding(" << binding
-                << "): layout declares " << kindName(layoutEntry->kind)
-                << " but shader declares " << shaderKindName(shaderEntry.kind);
-            return fail(oss.str());
+            return fail(bindingTag(group, binding) + ": layout declares " +
+                        kindName(layoutEntry->kind) + " but shader declares " +
+                        shaderKindName(shaderEntry.kind));
         }
 
         // Visibility narrower than the shader's stageMask is rejected.
@@ -530,13 +537,10 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
         const uint8_t layoutVisibility = layoutEntry->visibility.mask;
         if ((shaderStageMask & ~layoutVisibility) != 0)
         {
-            std::ostringstream oss;
-            oss << "@group(" << group << ") @binding(" << binding
-                << "): layout visibility 0x" << std::hex
-                << static_cast<uint32_t>(layoutVisibility)
-                << " missing stages required by shader (stageMask=0x"
-                << static_cast<uint32_t>(shaderStageMask) << ")";
-            return fail(oss.str());
+            return fail(bindingTag(group, binding) + ": layout visibility 0x" +
+                        hexString(layoutVisibility) +
+                        " missing stages required by shader (stageMask=0x" +
+                        hexString(shaderStageMask) + ")");
         }
 
         // Texture dimension/sampleType compatibility (texture kinds only).
@@ -572,10 +576,8 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
                 !dimsMatch(layoutEntry->textureViewDim,
                            shaderEntry.textureViewDim))
             {
-                std::ostringstream oss;
-                oss << "@group(" << group << ") @binding(" << binding
-                    << "): texture view dimension mismatch";
-                return fail(oss.str());
+                return fail(bindingTag(group, binding) +
+                            ": texture view dimension mismatch");
             }
         }
     }
@@ -637,16 +639,15 @@ bool validateSplitStageSlots(bool stagesCompiledApart,
         // compiled source reads whatever sits at the number it baked.
         if (vs != BindingMap::kAbsent && fs != BindingMap::kAbsent && vs != fs)
         {
-            std::ostringstream oss;
-            oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
-                << static_cast<uint32_t>(e.binding)
-                << "): the vertex module put it on native slot " << vs
-                << " and the fragment module on " << fs
-                << ", and this backend shares one slot namespace between the "
-                   "stages. Declare the same bindings in both files, or "
-                   "compile both stages from one shader";
             if (outError != nullptr)
-                *outError = oss.str();
+                *outError =
+                    bindingTag(e.group, e.binding) +
+                    ": the vertex module put it on native slot " +
+                    std::to_string(vs) + " and the fragment module on " +
+                    std::to_string(fs) +
+                    ", and this backend shares one slot namespace between the "
+                    "stages. Declare the same bindings in both files, or "
+                    "compile both stages from one shader";
             return false;
         }
         const uint16_t slot = vs != BindingMap::kAbsent ? vs : fs;
@@ -659,18 +660,15 @@ bool validateSplitStageSlots(bool stagesCompiledApart,
         {
             if (c.scopeKey != scopeKey || c.slot != slot)
                 continue;
-            std::ostringstream oss;
-            oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
-                << static_cast<uint32_t>(e.binding) << ") and @group("
-                << static_cast<uint32_t>(c.group) << ") @binding("
-                << static_cast<uint32_t>(c.binding)
-                << ") both land on native slot " << slot
-                << ": the vertex and fragment modules were compiled apart, "
-                   "and this backend shares one slot namespace between them. "
-                   "Declare the same bindings in both, or compile both stages "
-                   "from one shader";
             if (outError != nullptr)
-                *outError = oss.str();
+                *outError =
+                    bindingTag(e.group, e.binding) + " and " +
+                    bindingTag(c.group, c.binding) +
+                    " both land on native slot " + std::to_string(slot) +
+                    ": the vertex and fragment modules were compiled apart, "
+                    "and this backend shares one slot namespace between them. "
+                    "Declare the same bindings in both, or compile both stages "
+                    "from one shader";
             return false;
         }
         claimed.push_back({scopeKey, slot, e.group, e.binding});
@@ -698,15 +696,13 @@ bool validateStagesAgree(const BindingMap& vertexMap,
                          std::string* outError)
 {
     auto fail = [&](const BindingMap::Entry& e, const char* what) {
-        std::ostringstream oss;
-        oss << "@group(" << static_cast<uint32_t>(e.group) << ") @binding("
-            << static_cast<uint32_t>(e.binding)
-            << "): the vertex and fragment files declare it with a different "
-            << what
-            << ". A pipeline carries one declaration per binding, so the stage "
-               "that loses reads what the other one bound";
         if (outError != nullptr)
-            *outError = oss.str();
+            *outError =
+                bindingTag(e.group, e.binding) +
+                ": the vertex and fragment files declare it with a different " +
+                what +
+                ". A pipeline carries one declaration per binding, so the "
+                "stage that loses reads what the other one bound";
         return false;
     };
 

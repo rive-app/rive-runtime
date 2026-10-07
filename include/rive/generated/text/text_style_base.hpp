@@ -17,21 +17,6 @@ protected:
 public:
     static const uint16_t typeKey = 573;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextStyleBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t fontSizePropertyKey = 274;
@@ -96,7 +81,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(fontAssetIdPropertyKey, &m_FontAssetId, &value);
         m_FontAssetId = value;
-        RIVE_EDITOR_CHANGED(fontAssetIdChanged());
         notifyPropertyChanged(fontAssetIdPropertyKey);
     }
 
@@ -136,7 +120,6 @@ protected:
     virtual void fontSizeChanged() {}
     virtual void lineHeightChanged() {}
     virtual void letterSpacingChanged() {}
-    virtual void fontAssetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_style_ext.inl"
 #endif

@@ -14,23 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 85;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransformComponentConstraintBase::typeKey:
-            case TransformSpaceConstraintBase::typeKey:
-            case TargetedConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t minMaxSpaceValuePropertyKey = 195;
@@ -64,7 +47,6 @@ public:
                              &m_MinMaxSpaceValue,
                              &value);
         m_MinMaxSpaceValue = value;
-        RIVE_EDITOR_CHANGED(minMaxSpaceValueChanged());
         notifyPropertyChanged(minMaxSpaceValuePropertyKey);
     }
 
@@ -77,7 +59,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(copyFactorPropertyKey, &m_CopyFactor, &value);
         m_CopyFactor = value;
-        RIVE_EDITOR_CHANGED(copyFactorChanged());
         notifyPropertyChanged(copyFactorPropertyKey);
     }
 
@@ -90,7 +71,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(minValuePropertyKey, &m_MinValue, &value);
         m_MinValue = value;
-        RIVE_EDITOR_CHANGED(minValueChanged());
         notifyPropertyChanged(minValuePropertyKey);
     }
 
@@ -103,7 +83,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(maxValuePropertyKey, &m_MaxValue, &value);
         m_MaxValue = value;
-        RIVE_EDITOR_CHANGED(maxValueChanged());
         notifyPropertyChanged(maxValuePropertyKey);
     }
 
@@ -129,7 +108,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(doesCopyPropertyKey, &m_DoesCopy, &value);
         m_DoesCopy = value;
-        RIVE_EDITOR_CHANGED(doesCopyChanged());
         notifyPropertyChanged(doesCopyPropertyKey);
     }
 
@@ -142,7 +120,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(minPropertyKey, &m_Min, &value);
         m_Min = value;
-        RIVE_EDITOR_CHANGED(minChanged());
         notifyPropertyChanged(minPropertyKey);
     }
 
@@ -155,7 +132,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(maxPropertyKey, &m_Max, &value);
         m_Max = value;
-        RIVE_EDITOR_CHANGED(maxChanged());
         notifyPropertyChanged(maxPropertyKey);
     }
 
@@ -205,14 +181,7 @@ public:
     }
 
 protected:
-    virtual void minMaxSpaceValueChanged() {}
-    virtual void copyFactorChanged() {}
-    virtual void minValueChanged() {}
-    virtual void maxValueChanged() {}
     virtual void offsetChanged() {}
-    virtual void doesCopyChanged() {}
-    virtual void minChanged() {}
-    virtual void maxChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/transform_component_constraint_ext.inl"
 #endif

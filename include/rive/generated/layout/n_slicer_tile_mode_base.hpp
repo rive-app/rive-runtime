@@ -15,20 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 491;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NSlicerTileModeBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t patchIndexPropertyKey = 672;
@@ -48,7 +34,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(patchIndexPropertyKey, &m_PatchIndex, &value);
         m_PatchIndex = value;
-        RIVE_EDITOR_CHANGED(patchIndexChanged());
         notifyPropertyChanged(patchIndexPropertyKey);
     }
 
@@ -61,7 +46,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(stylePropertyKey, &m_Style, &value);
         m_Style = value;
-        RIVE_EDITOR_CHANGED(styleChanged());
         notifyPropertyChanged(stylePropertyKey);
     }
 
@@ -90,8 +74,6 @@ public:
     }
 
 protected:
-    virtual void patchIndexChanged() {}
-    virtual void styleChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/layout/n_slicer_tile_mode_ext.inl"
 #endif

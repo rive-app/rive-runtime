@@ -14,20 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 44;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TendonBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t boneIdPropertyKey = 95;
@@ -57,7 +43,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(boneIdPropertyKey, &m_BoneId, &value);
         m_BoneId = value;
-        RIVE_EDITOR_CHANGED(boneIdChanged());
         notifyPropertyChanged(boneIdPropertyKey);
     }
 
@@ -70,7 +55,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(xxPropertyKey, &m_Xx, &value);
         m_Xx = value;
-        RIVE_EDITOR_CHANGED(xxChanged());
         notifyPropertyChanged(xxPropertyKey);
     }
 
@@ -83,7 +67,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(yxPropertyKey, &m_Yx, &value);
         m_Yx = value;
-        RIVE_EDITOR_CHANGED(yxChanged());
         notifyPropertyChanged(yxPropertyKey);
     }
 
@@ -96,7 +79,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(xyPropertyKey, &m_Xy, &value);
         m_Xy = value;
-        RIVE_EDITOR_CHANGED(xyChanged());
         notifyPropertyChanged(xyPropertyKey);
     }
 
@@ -109,7 +91,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(yyPropertyKey, &m_Yy, &value);
         m_Yy = value;
-        RIVE_EDITOR_CHANGED(yyChanged());
         notifyPropertyChanged(yyPropertyKey);
     }
 
@@ -122,7 +103,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(txPropertyKey, &m_Tx, &value);
         m_Tx = value;
-        RIVE_EDITOR_CHANGED(txChanged());
         notifyPropertyChanged(txPropertyKey);
     }
 
@@ -135,7 +115,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(tyPropertyKey, &m_Ty, &value);
         m_Ty = value;
-        RIVE_EDITOR_CHANGED(tyChanged());
         notifyPropertyChanged(tyPropertyKey);
     }
 
@@ -182,13 +161,6 @@ public:
     }
 
 protected:
-    virtual void boneIdChanged() {}
-    virtual void xxChanged() {}
-    virtual void yxChanged() {}
-    virtual void xyChanged() {}
-    virtual void yyChanged() {}
-    virtual void txChanged() {}
-    virtual void tyChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/bones/tendon_ext.inl"
 #endif

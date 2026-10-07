@@ -1761,6 +1761,18 @@ void Artboard::host(ArtboardHost* artboardHost)
 {
     addedToHost();
     m_host = artboardHost;
+#ifdef EXTERNAL_RIVE_AUDIO_ENGINE
+    // audioEngine(engine) only reaches artboards hosted at the time, so list
+    // items and swapped nested artboards pick up their host's engine here.
+    if (artboardHost != nullptr)
+    {
+        Artboard* parent = artboardHost->parentArtboard();
+        if (parent != nullptr && parent->audioEngine() != nullptr)
+        {
+            audioEngine(parent->audioEngine());
+        }
+    }
+#endif
 #ifdef WITH_RIVE_LAYOUT
     if (!sharesLayoutWithHost())
     {

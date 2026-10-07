@@ -16,21 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 158;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextModifierRangeBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t modifyFromPropertyKey = 327;
@@ -198,7 +183,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(runIdPropertyKey, &m_RunId, &value);
         m_RunId = value;
-        RIVE_EDITOR_CHANGED(runIdChanged());
         notifyPropertyChanged(runIdPropertyKey);
     }
 
@@ -271,7 +255,6 @@ protected:
     virtual void falloffFromChanged() {}
     virtual void falloffToChanged() {}
     virtual void offsetChanged() {}
-    virtual void runIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_modifier_range_ext.inl"
 #endif

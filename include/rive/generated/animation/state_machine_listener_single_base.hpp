@@ -19,21 +19,6 @@ protected:
 public:
     static const uint16_t typeKey = 114;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case StateMachineListenerSingleBase::typeKey:
-            case StateMachineListenerBase::typeKey:
-            case StateMachineComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t listenerTypeValuePropertyKey = 225;
@@ -56,7 +41,6 @@ public:
                              &m_ListenerTypeValue,
                              &value);
         m_ListenerTypeValue = value;
-        RIVE_EDITOR_CHANGED(listenerTypeValueChanged());
         notifyPropertyChanged(listenerTypeValuePropertyKey);
     }
 
@@ -69,7 +53,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(eventIdPropertyKey, &m_EventId, &value);
         m_EventId = value;
-        RIVE_EDITOR_CHANGED(eventIdChanged());
         notifyPropertyChanged(eventIdPropertyKey);
     }
 
@@ -106,9 +89,6 @@ public:
     }
 
 protected:
-    virtual void listenerTypeValueChanged() {}
-    virtual void eventIdChanged() {}
-    virtual void viewModelPathIdsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/state_machine_listener_single_ext.inl"
 #endif

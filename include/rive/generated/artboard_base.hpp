@@ -17,26 +17,6 @@ protected:
 public:
     static const uint16_t typeKey = 1;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ArtboardBase::typeKey:
-            case LayoutComponentBase::typeKey:
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t originXPropertyKey = 11;
@@ -88,7 +68,6 @@ public:
                              &m_DefaultStateMachineId,
                              &value);
         m_DefaultStateMachineId = value;
-        RIVE_EDITOR_CHANGED(defaultStateMachineIdChanged());
         notifyPropertyChanged(defaultStateMachineIdPropertyKey);
     }
 
@@ -141,7 +120,6 @@ public:
 protected:
     virtual void originXChanged() {}
     virtual void originYChanged() {}
-    virtual void defaultStateMachineIdChanged() {}
     virtual void viewModelIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/artboard_ext.inl"

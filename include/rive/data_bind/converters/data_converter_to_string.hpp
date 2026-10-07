@@ -6,7 +6,7 @@
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
 #include <stdio.h>
-#include <sstream>
+#include <string>
 #include <cmath>
 namespace rive
 {
@@ -57,30 +57,15 @@ public:
         }
         return std::to_string(s);
     }
-    std::string toHex(int value)
+    void appendHex(std::string& out, int value)
     {
-        std::stringstream ss;
-        ss << std::uppercase << std::hex << value;
-        std::string result = ss.str();
-        if (result.length() < 2)
-        {
-            result.insert(0, 2 - result.length(), '0');
-        }
-        return result;
+        out += "0123456789ABCDEF"[value >> 4];
+        out += "0123456789ABCDEF"[value & 0xF];
     }
-    void alphaHex(std::stringstream& stream)
-    {
-        stream << toHex(alphaComponent());
-    }
-    void redHex(std::stringstream& stream) { stream << toHex(redComponent()); }
-    void greenHex(std::stringstream& stream)
-    {
-        stream << toHex(greenComponent());
-    }
-    void blueHex(std::stringstream& stream)
-    {
-        stream << toHex(blueComponent());
-    }
+    void alphaHex(std::string& out) { appendHex(out, alphaComponent()); }
+    void redHex(std::string& out) { appendHex(out, redComponent()); }
+    void greenHex(std::string& out) { appendHex(out, greenComponent()); }
+    void blueHex(std::string& out) { appendHex(out, blueComponent()); }
 
 private:
     int h = 0;

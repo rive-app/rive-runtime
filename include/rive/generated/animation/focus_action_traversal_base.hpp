@@ -12,21 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 672;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case FocusActionTraversalBase::typeKey:
-            case FocusActionBase::typeKey:
-            case ListenerActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t traversalKindPropertyKey = 1011;
@@ -46,7 +31,6 @@ public:
                              &m_TraversalKind,
                              &value);
         m_TraversalKind = value;
-        RIVE_EDITOR_CHANGED(traversalKindChanged());
         notifyPropertyChanged(traversalKindPropertyKey);
     }
 
@@ -69,7 +53,6 @@ public:
     }
 
 protected:
-    virtual void traversalKindChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/focus_action_traversal_ext.inl"
 #endif

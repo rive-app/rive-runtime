@@ -14,20 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 48;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DrawTargetBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t drawableIdPropertyKey = 119;
@@ -47,7 +33,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(drawableIdPropertyKey, &m_DrawableId, &value);
         m_DrawableId = value;
-        RIVE_EDITOR_CHANGED(drawableIdChanged());
         notifyPropertyChanged(drawableIdPropertyKey);
     }
 
@@ -89,7 +74,6 @@ public:
     }
 
 protected:
-    virtual void drawableIdChanged() {}
     virtual void placementValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/draw_target_ext.inl"

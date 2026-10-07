@@ -1,5 +1,3 @@
-#include <sstream>
-#include <iomanip>
 #include <array>
 
 #include "rive/assets/file_asset.hpp"
@@ -65,15 +63,14 @@ std::string FileAsset::cdnUuidStr() const
     const std::array<const int, uuidSize>
         indices{3, 2, 1, 0, 5, 4, 7, 6, 9, 8, 15, 14, 13, 12, 11, 10};
 
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
+    std::string uuid;
     for (int idx : indices)
     {
-        ss << std::setw(2) // always 2 chars
-           << static_cast<unsigned int>(m_cdnUuid[idx]);
+        uuid += "0123456789abcdef"[m_cdnUuid[idx] >> 4];
+        uuid += "0123456789abcdef"[m_cdnUuid[idx] & 0xF];
         if (idx == 0 || idx == 4 || idx == 6 || idx == 8)
-            ss << '-';
+            uuid += '-';
     }
 
-    return ss.str();
+    return uuid;
 }

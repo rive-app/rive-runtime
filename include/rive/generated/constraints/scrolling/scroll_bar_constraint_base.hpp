@@ -14,22 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 522;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScrollBarConstraintBase::typeKey:
-            case DraggableConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t scrollConstraintIdPropertyKey = 725;
@@ -51,7 +35,6 @@ public:
                              &m_ScrollConstraintId,
                              &value);
         m_ScrollConstraintId = value;
-        RIVE_EDITOR_CHANGED(scrollConstraintIdChanged());
         notifyPropertyChanged(scrollConstraintIdPropertyKey);
     }
 
@@ -64,7 +47,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(autoSizePropertyKey, &m_AutoSize, &value);
         m_AutoSize = value;
-        RIVE_EDITOR_CHANGED(autoSizeChanged());
         notifyPropertyChanged(autoSizePropertyKey);
     }
 
@@ -91,8 +73,6 @@ public:
     }
 
 protected:
-    virtual void scrollConstraintIdChanged() {}
-    virtual void autoSizeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/scrolling/scroll_bar_constraint_ext.inl"
 #endif

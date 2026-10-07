@@ -7,11 +7,15 @@
 #include "rive_file_reader.hpp"
 #include "catch.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/artboard_component_list.hpp"
+#include "rive/nested_artboard.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/lua/scripting_vm.hpp"
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
 #endif
 #include <string>
+#include <vector>
 
 using namespace rive;
 
@@ -262,6 +266,81 @@ TEST_CASE("Artboard does not have audio", "[audio]")
     auto audioEvents = artboard->find<AudioEvent>();
     REQUIRE(audioEvents.size() == 0);
     REQUIRE(artboard->hasAudio() == false);
+}
+
+// List items are created after the engine is set, when the list's view model
+// fills in, so they have to pick it up from their host.
+TEST_CASE("List items use their host's audio engine", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("assets/component_list_1.riv");
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    artboard->audioEngine(engine);
+
+    auto list = artboard->find<ArtboardComponentList>("List");
+    REQUIRE(list != nullptr);
+    REQUIRE(list->artboardCount() == 0);
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    REQUIRE(list->artboardCount() > 0);
+    for (int i = 0; i < (int)list->artboardCount(); i++)
+    {
+        auto item = list->artboardInstance(i);
+        REQUIRE(item != nullptr);
+        CHECK(item->audioEngine() == engine);
+    }
+}
+
+// Same for a nested artboard swapped in by data binding after the engine is
+// set.
+TEST_CASE("Swapped nested artboards use their host's audio engine", "[audio]")
+{
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+
+    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    artboard->audioEngine(engine);
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto nestedArtboards = artboard->find<NestedArtboard>();
+    std::vector<ArtboardInstance*> before;
+    for (auto nested : nestedArtboards)
+    {
+        before.push_back(nested->artboardInstance());
+    }
+
+    auto vmiArtboard =
+        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+    vmiArtboard->asset(file->bindableArtboardNamed("ch1"));
+    stateMachine->advanceAndApply(0.1f);
+
+    bool swapped = false;
+    for (size_t i = 0; i < nestedArtboards.size(); i++)
+    {
+        auto instance = nestedArtboards[i]->artboardInstance();
+        if (instance == nullptr)
+        {
+            continue;
+        }
+        swapped = swapped || instance != before[i];
+        CHECK(instance->audioEngine() == engine);
+    }
+    REQUIRE(swapped);
 }
 
 // Scripted audio drives a Luau VM; the wasm backend covers audio through

@@ -13,20 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 116;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListenerInputChangeBase::typeKey:
-            case ListenerActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t inputIdPropertyKey = 227;
@@ -46,7 +32,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
         m_InputId = value;
-        RIVE_EDITOR_CHANGED(inputIdChanged());
         notifyPropertyChanged(inputIdPropertyKey);
     }
 
@@ -61,7 +46,6 @@ public:
                              &m_NestedInputId,
                              &value);
         m_NestedInputId = value;
-        RIVE_EDITOR_CHANGED(nestedInputIdChanged());
         notifyPropertyChanged(nestedInputIdPropertyKey);
     }
 
@@ -87,8 +71,6 @@ public:
     }
 
 protected:
-    virtual void inputIdChanged() {}
-    virtual void nestedInputIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/listener_input_change_ext.inl"
 #endif

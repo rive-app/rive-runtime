@@ -20,6 +20,8 @@
 #include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
 
+#include <cctype>
+#include <initializer_list>
 #include <vector>
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -3247,11 +3249,50 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedKHRSupported(
 }
 #endif
 
-#ifdef _MSC_VER
-#define SSCANF sscanf_s
-#else
-#define SSCANF sscanf
-#endif
+// The sscanf subset these fixed version strings need, %u and whitespace, so
+// the wasm does not link all of scanf. Returns how many values it read.
+static int scanVersion(const char* str,
+                       const char* format,
+                       std::initializer_list<uint32_t*> values)
+{
+    int count = 0;
+    auto value = values.begin();
+    for (; *format != '\0'; ++format)
+    {
+        if (*format == '%')
+        {
+            ++format;
+            while (isspace(static_cast<unsigned char>(*str)))
+            {
+                ++str;
+            }
+            if (!isdigit(static_cast<unsigned char>(*str)) ||
+                value == values.end())
+            {
+                break;
+            }
+            uint32_t number = 0;
+            while (isdigit(static_cast<unsigned char>(*str)))
+            {
+                number = number * 10 + (*str++ - '0');
+            }
+            **value++ = number;
+            ++count;
+        }
+        else if (isspace(static_cast<unsigned char>(*format)))
+        {
+            while (isspace(static_cast<unsigned char>(*str)))
+            {
+                ++str;
+            }
+        }
+        else if (*str++ != *format)
+        {
+            break;
+        }
+    }
+    return count;
+}
 
 std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const ContextOptions& contextOptions)
@@ -3298,28 +3339,28 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 
     if (!capabilities.isGLES)
     {
-        SSCANF(glVersionStr,
-               "%u.%u",
-               &capabilities.contextVersionMajor,
-               &capabilities.contextVersionMinor);
+        scanVersion(glVersionStr,
+                    "%u.%u",
+                    {&capabilities.contextVersionMajor,
+                     &capabilities.contextVersionMinor});
         capabilities.vendorDriverVersionMajor = 0;
         capabilities.vendorDriverVersionMinor = 0;
     }
     else if (capabilities.isPowerVR)
     {
-        SSCANF(glVersionStr,
-               "OpenGL ES %u.%u build %u.%u@",
-               &capabilities.contextVersionMajor,
-               &capabilities.contextVersionMinor,
-               &capabilities.vendorDriverVersionMajor,
-               &capabilities.vendorDriverVersionMinor);
+        scanVersion(glVersionStr,
+                    "OpenGL ES %u.%u build %u.%u@",
+                    {&capabilities.contextVersionMajor,
+                     &capabilities.contextVersionMinor,
+                     &capabilities.vendorDriverVersionMajor,
+                     &capabilities.vendorDriverVersionMinor});
     }
     else
     {
-        SSCANF(glVersionStr,
-               "OpenGL ES %u.%u",
-               &capabilities.contextVersionMajor,
-               &capabilities.contextVersionMinor);
+        scanVersion(glVersionStr,
+                    "OpenGL ES %u.%u",
+                    {&capabilities.contextVersionMajor,
+                     &capabilities.contextVersionMinor});
         capabilities.vendorDriverVersionMajor = 0;
         capabilities.vendorDriverVersionMinor = 0;
     }
@@ -3329,8 +3370,9 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     assert(capabilities.isGLES == static_cast<bool>(GLAD_GL_version_es));
 #endif
 
-    if (!capabilities.isAdreno ||
-        !sscanf(rendererString, "Adreno (TM) %d", &capabilities.adrenoSeries))
+    if (!capabilities.isAdreno || !scanVersion(rendererString,
+                                               "Adreno (TM) %u",
+                                               {&capabilities.adrenoSeries}))
     {
         capabilities.adrenoSeries = 0;
     }

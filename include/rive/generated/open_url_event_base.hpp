@@ -14,23 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 131;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case OpenUrlEventBase::typeKey:
-            case EventBase::typeKey:
-            case CustomPropertyGroupBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t urlPropertyKey = 248;
@@ -50,7 +33,6 @@ public:
         }
         RIVE_EDITOR_STRING_CHANGING(urlPropertyKey, m_Url, value);
         m_Url = value;
-        RIVE_EDITOR_CHANGED(urlChanged());
         notifyPropertyChanged(urlPropertyKey);
     }
 
@@ -63,7 +45,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(targetValuePropertyKey, &m_TargetValue, &value);
         m_TargetValue = value;
-        RIVE_EDITOR_CHANGED(targetValueChanged());
         notifyPropertyChanged(targetValuePropertyKey);
     }
 
@@ -90,8 +71,6 @@ public:
     }
 
 protected:
-    virtual void urlChanged() {}
-    virtual void targetValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/open_url_event_ext.inl"
 #endif

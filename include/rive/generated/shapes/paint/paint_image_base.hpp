@@ -18,20 +18,6 @@ protected:
 public:
     static const uint16_t typeKey = 113;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case PaintImageBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t imageAssetIdPropertyKey = 415;
@@ -67,7 +53,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(imageAssetIdPropertyKey, &m_ImageAssetId, &value);
         m_ImageAssetId = value;
-        RIVE_EDITOR_CHANGED(imageAssetIdChanged());
         notifyPropertyChanged(imageAssetIdPropertyKey);
     }
 
@@ -82,7 +67,6 @@ public:
                              &m_ImageSamplerFilter,
                              &value);
         m_ImageSamplerFilter = value;
-        RIVE_EDITOR_CHANGED(imageSamplerFilterChanged());
         notifyPropertyChanged(imageSamplerFilterPropertyKey);
     }
 
@@ -97,7 +81,6 @@ public:
                              &m_ImageSamplerWrapX,
                              &value);
         m_ImageSamplerWrapX = value;
-        RIVE_EDITOR_CHANGED(imageSamplerWrapXChanged());
         notifyPropertyChanged(imageSamplerWrapXPropertyKey);
     }
 
@@ -112,7 +95,6 @@ public:
                              &m_ImageSamplerWrapY,
                              &value);
         m_ImageSamplerWrapY = value;
-        RIVE_EDITOR_CHANGED(imageSamplerWrapYChanged());
         notifyPropertyChanged(imageSamplerWrapYPropertyKey);
     }
 
@@ -125,7 +107,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(imageScaleXPropertyKey, &m_ImageScaleX, &value);
         m_ImageScaleX = value;
-        RIVE_EDITOR_CHANGED(imageScaleXChanged());
         notifyPropertyChanged(imageScaleXPropertyKey);
     }
 
@@ -138,7 +119,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(imageScaleYPropertyKey, &m_ImageScaleY, &value);
         m_ImageScaleY = value;
-        RIVE_EDITOR_CHANGED(imageScaleYChanged());
         notifyPropertyChanged(imageScaleYPropertyKey);
     }
 
@@ -151,7 +131,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(imageOffsetXPropertyKey, &m_ImageOffsetX, &value);
         m_ImageOffsetX = value;
-        RIVE_EDITOR_CHANGED(imageOffsetXChanged());
         notifyPropertyChanged(imageOffsetXPropertyKey);
     }
 
@@ -164,7 +143,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(imageOffsetYPropertyKey, &m_ImageOffsetY, &value);
         m_ImageOffsetY = value;
-        RIVE_EDITOR_CHANGED(imageOffsetYChanged());
         notifyPropertyChanged(imageOffsetYPropertyKey);
     }
 
@@ -179,7 +157,6 @@ public:
                              &m_ImageRotation,
                              &value);
         m_ImageRotation = value;
-        RIVE_EDITOR_CHANGED(imageRotationChanged());
         notifyPropertyChanged(imageRotationPropertyKey);
     }
 
@@ -194,7 +171,6 @@ public:
                              &m_ImageSizeMode,
                              &value);
         m_ImageSizeMode = value;
-        RIVE_EDITOR_CHANGED(imageSizeModeChanged());
         notifyPropertyChanged(imageSizeModePropertyKey);
     }
 
@@ -255,16 +231,6 @@ public:
     }
 
 protected:
-    virtual void imageAssetIdChanged() {}
-    virtual void imageSamplerFilterChanged() {}
-    virtual void imageSamplerWrapXChanged() {}
-    virtual void imageSamplerWrapYChanged() {}
-    virtual void imageScaleXChanged() {}
-    virtual void imageScaleYChanged() {}
-    virtual void imageOffsetXChanged() {}
-    virtual void imageOffsetYChanged() {}
-    virtual void imageRotationChanged() {}
-    virtual void imageSizeModeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/paint_image_ext.inl"
 #endif

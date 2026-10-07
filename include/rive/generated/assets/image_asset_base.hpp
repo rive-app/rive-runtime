@@ -15,22 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 105;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ImageAssetBase::typeKey:
-            case DrawableAssetBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t samplerFilterPropertyKey = 1073;
@@ -54,7 +38,6 @@ public:
                              &m_SamplerFilter,
                              &value);
         m_SamplerFilter = value;
-        RIVE_EDITOR_CHANGED(samplerFilterChanged());
         notifyPropertyChanged(samplerFilterPropertyKey);
     }
 
@@ -67,7 +50,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(samplerWrapXPropertyKey, &m_SamplerWrapX, &value);
         m_SamplerWrapX = value;
-        RIVE_EDITOR_CHANGED(samplerWrapXChanged());
         notifyPropertyChanged(samplerWrapXPropertyKey);
     }
 
@@ -80,7 +62,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(samplerWrapYPropertyKey, &m_SamplerWrapY, &value);
         m_SamplerWrapY = value;
-        RIVE_EDITOR_CHANGED(samplerWrapYChanged());
         notifyPropertyChanged(samplerWrapYPropertyKey);
     }
 
@@ -113,9 +94,6 @@ public:
     }
 
 protected:
-    virtual void samplerFilterChanged() {}
-    virtual void samplerWrapXChanged() {}
-    virtual void samplerWrapYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/image_asset_ext.inl"
 #endif

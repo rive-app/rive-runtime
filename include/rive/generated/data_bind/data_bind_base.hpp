@@ -17,19 +17,6 @@ protected:
 public:
     static const uint16_t typeKey = 446;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataBindBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t propertyKeyPropertyKey = 586;
@@ -51,7 +38,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
         m_PropertyKey = value;
-        RIVE_EDITOR_CHANGED(propertyKeyChanged());
         notifyPropertyChanged(propertyKeyPropertyKey);
     }
 
@@ -77,7 +63,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(converterIdPropertyKey, &m_ConverterId, &value);
         m_ConverterId = value;
-        RIVE_EDITOR_CHANGED(converterIdChanged());
         notifyPropertyChanged(converterIdPropertyKey);
     }
 
@@ -110,9 +95,7 @@ public:
     }
 
 protected:
-    virtual void propertyKeyChanged() {}
     virtual void flagsChanged() {}
-    virtual void converterIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/data_bind_ext.inl"
 #endif

@@ -20,8 +20,41 @@
 // DeferredFactory), the Ore context, and the shared canvas registry.
 // Everything records into one ordered 2D stream, so a single replay pass is
 // byte identical by construction with no command reordering.
+
+// Only scripts and canvas hosts record ore commands; without either, or with no
+// ore backend to replay on, an always empty stand in records instead.
+#if !defined(RIVE_DEFERRED_NO_ORE) &&                                          \
+    (defined(WITH_RIVE_SCRIPTING) || defined(RIVE_ORE) ||                      \
+     defined(RIVE_CANVAS))
+#define RIVE_DEFERRED_ORE
+#endif
+
 namespace rive::cmd
 {
+
+#ifndef RIVE_DEFERRED_ORE
+class NoOreRecorder
+{
+public:
+    explicit NoOreRecorder(const ore::ReplayCaps& caps) : m_caps(caps) {}
+    void bindCaps(const ore::ReplayCaps& caps) { m_caps = caps; }
+    const ore::ReplayCaps& caps() const { return m_caps; }
+    const ore::cmd::OreCommandBuffer& stream() const { return m_stream; }
+    const std::vector<rcp<gpu::GPUResource>>& realResources() const
+    {
+        return m_realResources;
+    }
+    uint32_t drawnTargetSize() const { return 0; }
+    void setTarget(const ore::Context::TargetDesc&) {}
+    void drainPendingDestroys() {}
+    void resetFrame() {}
+
+private:
+    ore::ReplayCaps m_caps;
+    ore::cmd::OreCommandBuffer m_stream;
+    std::vector<rcp<gpu::GPUResource>> m_realResources;
+};
+#endif
 
 // One scheduler segment: a canvas or screen run plus the byte range
 // [begin, end) in the 2D stream. Replay runs every canvas segment before any
@@ -97,7 +130,12 @@ public:
     }
     size_t attachmentCount() const { return m_attachments.size(); }
 
-    ore::cmd::DeferredOreContext& oreContext() { return m_ore; }
+#ifdef RIVE_DEFERRED_ORE
+    using OreRecorder = ore::cmd::DeferredOreContext;
+#else
+    using OreRecorder = NoOreRecorder;
+#endif
+    OreRecorder& oreContext() { return m_ore; }
     void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
 
     // Cross session image sharing lives here, not in an id space: the
@@ -108,9 +146,11 @@ public:
     // because one session records it all.
     ForeignImageRegistry& canvases() { return m_canvases; }
 
+#ifdef RIVE_DEFERRED_ORE
     // Hosts that import through this session get the recording ore context
     // automatically.
     rive::ore::Context* ore() override { return &m_ore; }
+#endif
 
     // The context this session records for. Scripts imported through the
     // session talk to it directly for GPU state while their canvas work
@@ -492,6 +532,7 @@ public:
 private:
     void wireOreCanvases()
     {
+#ifdef RIVE_DEFERRED_ORE
         // Register wrapped canvases under the shared 2D id space so the
         // consumer can perform the real wrap at replay.
         m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
@@ -500,11 +541,12 @@ private:
             m_contentCanvases[id] = ref_rcp(canvas);
             return id;
         };
-        // The 2D stream shares the ore stream's single writer contract.
-        commandBuffer().bindRecordingThread();
         // Lets view() on a canvas backed image resolve its canvas id off the
         // registry.
         m_ore.canvasRegistry = &m_canvases;
+#endif
+        // The 2D stream shares the ore stream's single writer contract.
+        commandBuffer().bindRecordingThread();
         // Lets a paint's modulatedImage resolve a foreign/canvas image off the
         // same registry (mirrors how DeferredRenderer resolves drawImage).
         m_canvasRegistry = &m_canvases;
@@ -582,7 +624,7 @@ private:
                               streamSize()});
     }
 
-    ore::cmd::DeferredOreContext m_ore;
+    OreRecorder m_ore;
     // Set on texture attach, read by the producer's scripts. Written and read
     // on different threads in the worker build, exactly as m_ore's real
     // binding already is.

@@ -13,20 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 647;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScriptedTransitionConditionBase::typeKey:
-            case TransitionConditionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t scriptAssetIdPropertyKey = 931;
@@ -46,7 +32,6 @@ public:
                              &m_ScriptAssetId,
                              &value);
         m_ScriptAssetId = value;
-        RIVE_EDITOR_CHANGED(scriptAssetIdChanged());
         notifyPropertyChanged(scriptAssetIdPropertyKey);
     }
 
@@ -69,7 +54,6 @@ public:
     }
 
 protected:
-    virtual void scriptAssetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/scripted_transition_condition_ext.inl"
 #endif

@@ -13,26 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 619;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListPathBase::typeKey:
-            case PointsCommonPathBase::typeKey:
-            case PathBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t listSourcePropertyKey = 874;

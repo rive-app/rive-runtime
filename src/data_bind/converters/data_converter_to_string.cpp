@@ -9,8 +9,7 @@
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/animation/data_converter_to_string_flags.hpp"
 #include "rive/data_bind/converters/data_converter_string_remove_zeros.hpp"
-#include <iomanip>
-#include <sstream>
+#include <stdio.h>
 
 using namespace rive;
 
@@ -48,9 +47,10 @@ DataValue* DataConverterToString::convertNumber(DataValueNumber* input)
     if ((flagsValue & DataConverterToStringFlags::Round) ==
         DataConverterToStringFlags::Round)
     {
-        std::stringstream stream;
-        stream << std::fixed << std::setprecision(decimals()) << value;
-        outputValue = stream.str();
+        int precision = (int)decimals();
+        int length = snprintf(nullptr, 0, "%.*f", precision, value);
+        outputValue.resize(length);
+        snprintf(&outputValue[0], length + 1, "%.*f", precision, value);
     }
     else
     {
@@ -74,7 +74,6 @@ DataValue* DataConverterToString::convertColor(DataValueColor* input)
 {
     auto colorValue = input->value();
     std::string outputValue = "";
-    std::stringstream stream;
     if (colorFormat() != "")
     {
         m_converter.color(colorValue);
@@ -86,7 +85,7 @@ DataValue* DataConverterToString::convertColor(DataValueColor* input)
         {
             if (isEscaped)
             {
-                stream << c;
+                outputValue += c;
                 isEscaped = false;
             }
             // Escape
@@ -94,7 +93,7 @@ DataValue* DataConverterToString::convertColor(DataValueColor* input)
             {
                 if (isMarker)
                 {
-                    stream << '%';
+                    outputValue += '%';
                     isMarker = false;
                 }
                 isEscaped = true;
@@ -104,7 +103,7 @@ DataValue* DataConverterToString::convertColor(DataValueColor* input)
             {
                 if (isMarker)
                 {
-                    stream << '%';
+                    outputValue += '%';
                 }
                 isMarker = true;
             }
@@ -112,60 +111,59 @@ DataValue* DataConverterToString::convertColor(DataValueColor* input)
             {
                 if (c == 'r')
                 {
-                    stream << m_converter.red();
+                    outputValue += m_converter.red();
                 }
                 else if (c == 'g')
                 {
-                    stream << m_converter.green();
+                    outputValue += m_converter.green();
                 }
                 else if (c == 'b')
                 {
-                    stream << m_converter.blue();
+                    outputValue += m_converter.blue();
                 }
                 else if (c == 'a')
                 {
-                    stream << m_converter.alpha();
+                    outputValue += m_converter.alpha();
                 }
                 else if (c == 'R')
                 {
-                    m_converter.redHex(stream);
+                    m_converter.redHex(outputValue);
                 }
                 else if (c == 'G')
                 {
-                    m_converter.greenHex(stream);
+                    m_converter.greenHex(outputValue);
                 }
                 else if (c == 'B')
                 {
-                    m_converter.blueHex(stream);
+                    m_converter.blueHex(outputValue);
                 }
                 else if (c == 'A')
                 {
-                    m_converter.alphaHex(stream);
+                    m_converter.alphaHex(outputValue);
                 }
                 else if (c == 'h')
                 {
-                    stream << m_converter.hue();
+                    outputValue += m_converter.hue();
                 }
                 else if (c == 'l')
                 {
-                    stream << m_converter.luminance();
+                    outputValue += m_converter.luminance();
                 }
                 else if (c == 's')
                 {
-                    stream << m_converter.saturation();
+                    outputValue += m_converter.saturation();
                 }
                 else
                 {
-                    stream << '%';
-                    stream << c;
+                    outputValue += '%';
+                    outputValue += c;
                 }
                 isMarker = false;
             }
             else
             {
-                stream << c;
+                outputValue += c;
             }
-            outputValue = stream.str();
         }
     }
     else

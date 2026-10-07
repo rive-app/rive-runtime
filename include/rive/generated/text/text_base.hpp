@@ -19,25 +19,6 @@ protected:
 public:
     static const uint16_t typeKey = 134;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextBase::typeKey:
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t alignValuePropertyKey = 281;
@@ -212,7 +193,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(wrapValuePropertyKey, &m_WrapValue, &value);
         m_WrapValue = value;
-        RIVE_EDITOR_CHANGED(wrapValueChanged());
         notifyPropertyChanged(wrapValuePropertyKey);
     }
 
@@ -257,7 +237,6 @@ public:
                              &m_FitFromBaseline,
                              &value);
         m_FitFromBaseline = value;
-        RIVE_EDITOR_CHANGED(fitFromBaselineChanged());
         notifyPropertyChanged(fitFromBaselinePropertyKey);
     }
 
@@ -290,7 +269,6 @@ public:
                              &m_TextRunListSource,
                              &value);
         m_TextRunListSource = value;
-        RIVE_EDITOR_CHANGED(textRunListSourceChanged());
         notifyPropertyChanged(textRunListSourcePropertyKey);
     }
 
@@ -443,12 +421,9 @@ protected:
     virtual void originYChanged() {}
     virtual void paragraphSpacingChanged() {}
     virtual void originValueChanged() {}
-    virtual void wrapValueChanged() {}
     virtual void wordBreakValueChanged() {}
     virtual void verticalAlignValueChanged() {}
-    virtual void fitFromBaselineChanged() {}
     virtual void fitFontSizeResizesBoxChanged() {}
-    virtual void textRunListSourceChanged() {}
     virtual void verticalTrimValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_ext.inl"

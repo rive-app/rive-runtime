@@ -12,21 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 1071;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ScriptModuleAssetBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t languagePropertyKey = 1087;
@@ -44,7 +29,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(languagePropertyKey, &m_Language, &value);
         m_Language = value;
-        RIVE_EDITOR_CHANGED(languageChanged());
         notifyPropertyChanged(languagePropertyKey);
     }
 
@@ -67,7 +51,6 @@ public:
     }
 
 protected:
-    virtual void languageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/script_module_asset_ext.inl"
 #endif

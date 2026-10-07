@@ -12,20 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 664;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case KeyboardInputBase::typeKey:
-            case UserInputBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t keyTypePropertyKey = 971;
@@ -47,7 +33,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(keyTypePropertyKey, &m_KeyType, &value);
         m_KeyType = value;
-        RIVE_EDITOR_CHANGED(keyTypeChanged());
         notifyPropertyChanged(keyTypePropertyKey);
     }
 
@@ -60,7 +45,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(keyPhasePropertyKey, &m_KeyPhase, &value);
         m_KeyPhase = value;
-        RIVE_EDITOR_CHANGED(keyPhaseChanged());
         notifyPropertyChanged(keyPhasePropertyKey);
     }
 
@@ -73,7 +57,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(modifiersPropertyKey, &m_Modifiers, &value);
         m_Modifiers = value;
-        RIVE_EDITOR_CHANGED(modifiersChanged());
         notifyPropertyChanged(modifiersPropertyKey);
     }
 
@@ -104,9 +87,6 @@ public:
     }
 
 protected:
-    virtual void keyTypeChanged() {}
-    virtual void keyPhaseChanged() {}
-    virtual void modifiersChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/inputs/keyboard_input_ext.inl"
 #endif

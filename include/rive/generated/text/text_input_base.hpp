@@ -19,25 +19,6 @@ protected:
 public:
     static const uint16_t typeKey = 569;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextInputBase::typeKey:
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t textPropertyKey = 817;
@@ -151,7 +132,6 @@ public:
                              &m_SelectAllOnFocus,
                              &value);
         m_SelectAllOnFocus = value;
-        RIVE_EDITOR_CHANGED(selectAllOnFocusChanged());
         notifyPropertyChanged(selectAllOnFocusPropertyKey);
     }
 
@@ -206,7 +186,6 @@ protected:
     virtual void alignValueChanged() {}
     virtual void verticalAlignValueChanged() {}
     virtual void obscuredChanged() {}
-    virtual void selectAllOnFocusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_input_ext.inl"
 #endif

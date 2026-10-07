@@ -15,20 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 519;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataConverterRangeMapperBase::typeKey:
-            case DataConverterBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t interpolationTypePropertyKey = 713;
@@ -60,7 +46,6 @@ public:
                              &m_InterpolationType,
                              &value);
         m_InterpolationType = value;
-        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
@@ -75,7 +60,6 @@ public:
                              &m_InterpolatorId,
                              &value);
         m_InterpolatorId = value;
-        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -187,8 +171,6 @@ public:
     }
 
 protected:
-    virtual void interpolationTypeChanged() {}
-    virtual void interpolatorIdChanged() {}
     virtual void flagsChanged() {}
     virtual void minInputChanged() {}
     virtual void maxInputChanged() {}

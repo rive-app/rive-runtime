@@ -13,22 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 61;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case AnimationStateBase::typeKey:
-            case AdvanceableStateBase::typeKey:
-            case LayerStateBase::typeKey:
-            case StateMachineLayerComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t animationIdPropertyKey = 149;
@@ -46,7 +30,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(animationIdPropertyKey, &m_AnimationId, &value);
         m_AnimationId = value;
-        RIVE_EDITOR_CHANGED(animationIdChanged());
         notifyPropertyChanged(animationIdPropertyKey);
     }
 
@@ -69,7 +52,6 @@ public:
     }
 
 protected:
-    virtual void animationIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/animation_state_ext.inl"
 #endif

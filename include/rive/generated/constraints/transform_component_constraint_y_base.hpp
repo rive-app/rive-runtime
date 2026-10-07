@@ -13,24 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 86;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransformComponentConstraintYBase::typeKey:
-            case TransformComponentConstraintBase::typeKey:
-            case TransformSpaceConstraintBase::typeKey:
-            case TargetedConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t copyFactorYPropertyKey = 185;
@@ -58,7 +40,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(copyFactorYPropertyKey, &m_CopyFactorY, &value);
         m_CopyFactorY = value;
-        RIVE_EDITOR_CHANGED(copyFactorYChanged());
         notifyPropertyChanged(copyFactorYPropertyKey);
     }
 
@@ -71,7 +52,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(minValueYPropertyKey, &m_MinValueY, &value);
         m_MinValueY = value;
-        RIVE_EDITOR_CHANGED(minValueYChanged());
         notifyPropertyChanged(minValueYPropertyKey);
     }
 
@@ -84,7 +64,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(maxValueYPropertyKey, &m_MaxValueY, &value);
         m_MaxValueY = value;
-        RIVE_EDITOR_CHANGED(maxValueYChanged());
         notifyPropertyChanged(maxValueYPropertyKey);
     }
 
@@ -97,7 +76,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(doesCopyYPropertyKey, &m_DoesCopyY, &value);
         m_DoesCopyY = value;
-        RIVE_EDITOR_CHANGED(doesCopyYChanged());
         notifyPropertyChanged(doesCopyYPropertyKey);
     }
 
@@ -110,7 +88,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(minYPropertyKey, &m_MinY, &value);
         m_MinY = value;
-        RIVE_EDITOR_CHANGED(minYChanged());
         notifyPropertyChanged(minYPropertyKey);
     }
 
@@ -123,7 +100,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(maxYPropertyKey, &m_MaxY, &value);
         m_MaxY = value;
-        RIVE_EDITOR_CHANGED(maxYChanged());
         notifyPropertyChanged(maxYPropertyKey);
     }
 
@@ -165,12 +141,6 @@ public:
     }
 
 protected:
-    virtual void copyFactorYChanged() {}
-    virtual void minValueYChanged() {}
-    virtual void maxValueYChanged() {}
-    virtual void doesCopyYChanged() {}
-    virtual void minYChanged() {}
-    virtual void maxYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/transform_component_constraint_y_ext.inl"
 #endif

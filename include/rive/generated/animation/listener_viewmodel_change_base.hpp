@@ -15,20 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 487;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListenerViewModelChangeBase::typeKey:
-            case ListenerActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t inputValuePropertyKey = 453;
@@ -48,7 +34,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(inputValuePropertyKey, &m_InputValue, &value);
         m_InputValue = value;
-        RIVE_EDITOR_CHANGED(inputValueChanged());
         notifyPropertyChanged(inputValuePropertyKey);
     }
 
@@ -63,7 +48,6 @@ public:
                              &m_InputValueIndex,
                              &value);
         m_InputValueIndex = value;
-        RIVE_EDITOR_CHANGED(inputValueIndexChanged());
         notifyPropertyChanged(inputValueIndexPropertyKey);
     }
 
@@ -92,8 +76,6 @@ public:
     }
 
 protected:
-    virtual void inputValueChanged() {}
-    virtual void inputValueIndexChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/listener_viewmodel_change_ext.inl"
 #endif

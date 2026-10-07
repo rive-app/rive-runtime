@@ -14,20 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 126;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListenerAlignTargetBase::typeKey:
-            case ListenerActionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t targetIdPropertyKey = 240;
@@ -47,7 +33,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
         m_TargetId = value;
-        RIVE_EDITOR_CHANGED(targetIdChanged());
         notifyPropertyChanged(targetIdPropertyKey);
     }
 
@@ -62,7 +47,6 @@ public:
                              &m_PreserveOffset,
                              &value);
         m_PreserveOffset = value;
-        RIVE_EDITOR_CHANGED(preserveOffsetChanged());
         notifyPropertyChanged(preserveOffsetPropertyKey);
     }
 
@@ -89,8 +73,6 @@ public:
     }
 
 protected:
-    virtual void targetIdChanged() {}
-    virtual void preserveOffsetChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/listener_align_target_ext.inl"
 #endif

@@ -13,20 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 174;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ElasticInterpolatorBase::typeKey:
-            case KeyFrameInterpolatorBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t easingValuePropertyKey = 405;
@@ -48,7 +34,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(easingValuePropertyKey, &m_EasingValue, &value);
         m_EasingValue = value;
-        RIVE_EDITOR_CHANGED(easingValueChanged());
         notifyPropertyChanged(easingValuePropertyKey);
     }
 
@@ -61,7 +46,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(amplitudePropertyKey, &m_Amplitude, &value);
         m_Amplitude = value;
-        RIVE_EDITOR_CHANGED(amplitudeChanged());
         notifyPropertyChanged(amplitudePropertyKey);
     }
 
@@ -74,7 +58,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(periodPropertyKey, &m_Period, &value);
         m_Period = value;
-        RIVE_EDITOR_CHANGED(periodChanged());
         notifyPropertyChanged(periodPropertyKey);
     }
 
@@ -105,9 +88,6 @@ public:
     }
 
 protected:
-    virtual void easingValueChanged() {}
-    virtual void amplitudeChanged() {}
-    virtual void periodChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/elastic_interpolator_ext.inl"
 #endif

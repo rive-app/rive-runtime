@@ -263,6 +263,7 @@ do
         -- System/environment
         'HB_NO_EXTERN_HELPERS',
         'HB_NO_SETLOCALE',
+        'HB_NO_LANGUAGE_LONG', -- The language is always the C default; drop this once runs carry a language
         'HB_NO_MMAP',
         'HB_NO_ATEXIT',
         'HB_NO_ERRNO',
@@ -332,5 +333,11 @@ do
             harfbuzz .. '/src/hb-coretext-shape.cc',
             harfbuzz .. '/src/hb-coretext-font.cc',
         })
+    end
+
+    filter('system:emscripten')
+    do
+        -- Apple only AAT fonts lose morx, kerx and trak shaping on the web.
+        defines({ 'HB_NO_AAT' })
     end
 end

@@ -281,6 +281,7 @@ private:
             {
                 return;
             }
+#ifdef RIVE_DEFERRED_ORE
             ore::Context* realOre = sink.oreContext();
             if (realOre == nullptr)
             {
@@ -339,6 +340,7 @@ private:
             sink.endOreFrame();
             m_ore.releaseFrameTargets();
             sink.afterOreFrame();
+#endif
         };
 
         // Creates and mutations replay first over the whole stream in record

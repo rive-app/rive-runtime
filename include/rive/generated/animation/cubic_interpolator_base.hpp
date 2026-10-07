@@ -12,20 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 139;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case CubicInterpolatorBase::typeKey:
-            case KeyFrameInterpolatorBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t x1PropertyKey = 63;
@@ -49,7 +35,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(x1PropertyKey, &m_X1, &value);
         m_X1 = value;
-        RIVE_EDITOR_CHANGED(x1Changed());
         notifyPropertyChanged(x1PropertyKey);
     }
 
@@ -62,7 +47,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(y1PropertyKey, &m_Y1, &value);
         m_Y1 = value;
-        RIVE_EDITOR_CHANGED(y1Changed());
         notifyPropertyChanged(y1PropertyKey);
     }
 
@@ -75,7 +59,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(x2PropertyKey, &m_X2, &value);
         m_X2 = value;
-        RIVE_EDITOR_CHANGED(x2Changed());
         notifyPropertyChanged(x2PropertyKey);
     }
 
@@ -88,7 +71,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(y2PropertyKey, &m_Y2, &value);
         m_Y2 = value;
-        RIVE_EDITOR_CHANGED(y2Changed());
         notifyPropertyChanged(y2PropertyKey);
     }
 
@@ -122,10 +104,6 @@ public:
     }
 
 protected:
-    virtual void x1Changed() {}
-    virtual void y1Changed() {}
-    virtual void x2Changed() {}
-    virtual void y2Changed() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/cubic_interpolator_ext.inl"
 #endif

@@ -13,22 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 81;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case IKConstraintBase::typeKey:
-            case TargetedConstraintBase::typeKey:
-            case ConstraintBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t invertDirectionPropertyKey = 174;
@@ -65,7 +49,6 @@ public:
                              &m_ParentBoneCount,
                              &value);
         m_ParentBoneCount = value;
-        RIVE_EDITOR_CHANGED(parentBoneCountChanged());
         notifyPropertyChanged(parentBoneCountPropertyKey);
     }
 
@@ -93,7 +76,6 @@ public:
 
 protected:
     virtual void invertDirectionChanged() {}
-    virtual void parentBoneCountChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/ik_constraint_ext.inl"
 #endif

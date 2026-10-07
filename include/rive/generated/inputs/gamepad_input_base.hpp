@@ -12,20 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 974;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case GamepadInputBase::typeKey:
-            case UserInputBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t kindPropertyKey = 1021;
@@ -49,7 +35,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(kindPropertyKey, &m_Kind, &value);
         m_Kind = value;
-        RIVE_EDITOR_CHANGED(kindChanged());
         notifyPropertyChanged(kindPropertyKey);
     }
 
@@ -62,7 +47,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(mappingPropertyKey, &m_Mapping, &value);
         m_Mapping = value;
-        RIVE_EDITOR_CHANGED(mappingChanged());
         notifyPropertyChanged(mappingPropertyKey);
     }
 
@@ -75,7 +59,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(inputIndexPropertyKey, &m_InputIndex, &value);
         m_InputIndex = value;
-        RIVE_EDITOR_CHANGED(inputIndexChanged());
         notifyPropertyChanged(inputIndexPropertyKey);
     }
 
@@ -88,7 +71,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(buttonPhasePropertyKey, &m_ButtonPhase, &value);
         m_ButtonPhase = value;
-        RIVE_EDITOR_CHANGED(buttonPhaseChanged());
         notifyPropertyChanged(buttonPhasePropertyKey);
     }
 
@@ -123,10 +105,6 @@ public:
     }
 
 protected:
-    virtual void kindChanged() {}
-    virtual void mappingChanged() {}
-    virtual void inputIndexChanged() {}
-    virtual void buttonPhaseChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/inputs/gamepad_input_ext.inl"
 #endif

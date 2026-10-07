@@ -15,20 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 430;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ViewModelPropertyBase::typeKey:
-            case ViewModelComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t symbolTypeValuePropertyKey = 875;
@@ -50,7 +36,6 @@ public:
                              &m_SymbolTypeValue,
                              &value);
         m_SymbolTypeValue = value;
-        RIVE_EDITOR_CHANGED(symbolTypeValueChanged());
         notifyPropertyChanged(symbolTypeValuePropertyKey);
     }
 
@@ -65,7 +50,6 @@ public:
                              &m_ComponentProps,
                              &value);
         m_ComponentProps = value;
-        RIVE_EDITOR_CHANGED(componentPropsChanged());
         notifyPropertyChanged(componentPropsPropertyKey);
     }
 
@@ -94,8 +78,6 @@ public:
     }
 
 protected:
-    virtual void symbolTypeValueChanged() {}
-    virtual void componentPropsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/viewmodel_property_ext.inl"
 #endif

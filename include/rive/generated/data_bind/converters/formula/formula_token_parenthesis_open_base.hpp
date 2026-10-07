@@ -11,21 +11,6 @@ protected:
 public:
     static const uint16_t typeKey = 544;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case FormulaTokenParenthesisOpenBase::typeKey:
-            case FormulaTokenParenthesisBase::typeKey:
-            case FormulaTokenBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     Core* clone() const override;

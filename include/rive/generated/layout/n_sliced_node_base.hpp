@@ -12,24 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 508;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case NSlicedNodeBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t initialWidthPropertyKey = 697;
@@ -53,7 +35,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(initialWidthPropertyKey, &m_InitialWidth, &value);
         m_InitialWidth = value;
-        RIVE_EDITOR_CHANGED(initialWidthChanged());
         notifyPropertyChanged(initialWidthPropertyKey);
     }
 
@@ -68,7 +49,6 @@ public:
                              &m_InitialHeight,
                              &value);
         m_InitialHeight = value;
-        RIVE_EDITOR_CHANGED(initialHeightChanged());
         notifyPropertyChanged(initialHeightPropertyKey);
     }
 
@@ -129,8 +109,6 @@ public:
     }
 
 protected:
-    virtual void initialWidthChanged() {}
-    virtual void initialHeightChanged() {}
     virtual void widthChanged() {}
     virtual void heightChanged() {}
 #ifdef WITH_RIVE_EDITOR

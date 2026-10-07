@@ -12,21 +12,6 @@ protected:
 public:
     static const uint16_t typeKey = 69;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TransitionValueConditionBase::typeKey:
-            case TransitionInputConditionBase::typeKey:
-            case TransitionConditionBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t opValuePropertyKey = 156;
@@ -44,7 +29,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(opValuePropertyKey, &m_OpValue, &value);
         m_OpValue = value;
-        RIVE_EDITOR_CHANGED(opValueChanged());
         notifyPropertyChanged(opValuePropertyKey);
     }
 
@@ -66,7 +50,6 @@ public:
     }
 
 protected:
-    virtual void opValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/transition_value_condition_ext.inl"
 #endif

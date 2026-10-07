@@ -13,21 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 517;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case DataConverterOperationViewModelBase::typeKey:
-            case DataConverterOperationBase::typeKey:
-            case DataConverterBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t sourcePathIdsPropertyKey = 711;
@@ -56,7 +41,6 @@ public:
     }
 
 protected:
-    virtual void sourcePathIdsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/data_converter_operation_viewmodel_ext.inl"
 #endif

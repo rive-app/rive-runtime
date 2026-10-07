@@ -17,6 +17,28 @@ public:
     }
 };
 
+// The axis is data, not a separate lambda, so each element type needs only one
+// std::sort instantiation.
+struct RectEventAxisLess
+{
+    uint8_t axis;
+    bool operator()(const RectEvent& a, const RectEvent& b) const
+    {
+        return a.getValue(axis) < b.getValue(axis);
+    }
+};
+
+struct PointLess
+{
+    int major;
+    bool operator()(const Vec2D& a, const Vec2D& b) const
+    {
+        int minor = 1 - major;
+        return a[major] < b[major] ||
+               (a[major] == b[major] && a[minor] < b[minor]);
+    }
+};
+
 // Returns SpanOffset relative to result so it can be called in succession
 // (re-allocating) prior to accessing data.
 static SpanOffset sortRectEvents(const std::vector<AABB>& rects,
@@ -47,15 +69,10 @@ static SpanOffset sortRectEvents(const std::vector<AABB>& rects,
 
     std::sort(result.begin() + resultStart,
               result.end(),
-              [&](const RectEvent& a, const RectEvent& b) {
-                  return a.getValue(axisB) < b.getValue(axisB);
-              });
-
+              RectEventAxisLess{axisB});
     std::sort(result.begin() + resultStart,
               result.end(),
-              [&](const RectEvent& a, const RectEvent& b) {
-                  return a.getValue(axisA) < b.getValue(axisA);
-              });
+              RectEventAxisLess{axisA});
 
     return {resultStart, result.size() - resultStart};
 }
@@ -259,16 +276,8 @@ void RectanglesToContour::computeContours()
         m_sortedPointsX.push_back(pt);
         m_sortedPointsY.push_back(pt);
     }
-    std::sort(m_sortedPointsX.begin(),
-              m_sortedPointsX.end(),
-              [](const Vec2D& a, const Vec2D& b) {
-                  return a.x < b.x || (a.x == b.x && a.y < b.y);
-              });
-    std::sort(m_sortedPointsY.begin(),
-              m_sortedPointsY.end(),
-              [](const Vec2D& a, const Vec2D& b) {
-                  return a.y < b.y || (a.y == b.y && a.x < b.x);
-              });
+    std::sort(m_sortedPointsX.begin(), m_sortedPointsX.end(), PointLess{0});
+    std::sort(m_sortedPointsY.begin(), m_sortedPointsY.end(), PointLess{1});
 
     // std::unordered_map isn't guaranteed to reserve memory, so this clear
     // is more in prep for when we allow using allocators. We could also

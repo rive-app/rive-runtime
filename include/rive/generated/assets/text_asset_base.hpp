@@ -16,21 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 971;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextAssetBase::typeKey:
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t folderPathPropertyKey = 926;
@@ -48,7 +33,6 @@ public:
         }
         RIVE_EDITOR_STRING_CHANGING(folderPathPropertyKey, m_FolderPath, value);
         m_FolderPath = value;
-        RIVE_EDITOR_CHANGED(folderPathChanged());
         notifyPropertyChanged(folderPathPropertyKey);
     }
 
@@ -72,7 +56,6 @@ public:
     }
 
 protected:
-    virtual void folderPathChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/text_asset_ext.inl"
 #endif

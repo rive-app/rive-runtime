@@ -16,20 +16,6 @@ protected:
 public:
     static const uint16_t typeKey = 660;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ListenerInputTypeViewModelBase::typeKey:
-            case ListenerInputTypeBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t viewModelPathIdsPropertyKey = 963;
@@ -60,7 +46,6 @@ public:
     }
 
 protected:
-    virtual void viewModelPathIdsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/listener_types/listener_input_type_viewmodel_ext.inl"
 #endif

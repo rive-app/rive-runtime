@@ -19,20 +19,6 @@ protected:
 public:
     static const uint16_t typeKey = 103;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case FileAssetBase::typeKey:
-            case AssetBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t assetIdPropertyKey = 204;
@@ -69,7 +55,6 @@ public:
         }
         RIVE_EDITOR_STRING_CHANGING(cdnBaseUrlPropertyKey, m_CdnBaseUrl, value);
         m_CdnBaseUrl = value;
-        RIVE_EDITOR_CHANGED(cdnBaseUrlChanged());
         notifyPropertyChanged(cdnBaseUrlPropertyKey);
     }
 
@@ -102,8 +87,6 @@ public:
 
 protected:
     virtual void assetIdChanged() {}
-    virtual void cdnUuidChanged() {}
-    virtual void cdnBaseUrlChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/file_asset_ext.inl"
 #endif

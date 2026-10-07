@@ -13,21 +13,6 @@ protected:
 public:
     static const uint16_t typeKey = 546;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case TextTargetModifierBase::typeKey:
-            case TextModifierBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t targetIdPropertyKey = 778;
@@ -45,7 +30,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
         m_TargetId = value;
-        RIVE_EDITOR_CHANGED(targetIdChanged());
         notifyPropertyChanged(targetIdPropertyKey);
     }
 
@@ -67,7 +51,6 @@ public:
     }
 
 protected:
-    virtual void targetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_target_modifier_ext.inl"
 #endif

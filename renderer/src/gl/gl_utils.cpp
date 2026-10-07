@@ -7,9 +7,12 @@
 #include "rive/shapes/paint/image_sampler.hpp"
 
 #include <stdio.h>
-#include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
+#ifdef DEBUG
+#include <sstream>
+#endif
 
 #include "generated/shaders/glsl.glsl.hpp"
 
@@ -228,51 +231,54 @@ GLuint CompileShader(GLuint type,
                      const GLCapabilities& capabilities,
                      DebugPrintErrorAndAbort debugPrintErrornAndAbort)
 {
-    std::ostringstream shaderSource;
-    shaderSource << "#version " << capabilities.contextVersionMajor
-                 << capabilities.contextVersionMinor << '0';
+    const std::string version =
+        std::to_string(capabilities.contextVersionMajor) +
+        std::to_string(capabilities.contextVersionMinor) + '0';
+    std::string shaderSource = "#version " + version;
     if (capabilities.isGLES)
     {
-        shaderSource << " es";
+        shaderSource += " es";
     }
-    shaderSource << '\n';
+    shaderSource += '\n';
     // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm
     // incorrectly substitutes
     // __VERSION__ to 300.
-    shaderSource << "#define " << GLSL_GLSL_VERSION << ' '
-                 << capabilities.contextVersionMajor
-                 << capabilities.contextVersionMinor << "0\n";
+    shaderSource += "#define " GLSL_GLSL_VERSION " " + version + "\n";
     if (type == GL_VERTEX_SHADER)
     {
-        shaderSource << "#define " << GLSL_VERTEX "\n";
+        shaderSource += "#define " GLSL_VERTEX "\n";
     }
     else if (GL_FRAGMENT_SHADER)
     {
-        shaderSource << "#define " << GLSL_FRAGMENT "\n";
+        shaderSource += "#define " GLSL_FRAGMENT "\n";
     }
     for (size_t i = 0; i < numDefines; ++i)
     {
-        shaderSource << "#define " << defines[i] << " true\n";
+        shaderSource += "#define ";
+        shaderSource += defines[i];
+        shaderSource += " true\n";
     }
-    shaderSource << "#define " << GLSL_BASE_VERTEX_UNIFORM_NAME << ' '
-                 << BASE_VERTEX_UNIFORM_NAME << '\n';
+    shaderSource += "#define " GLSL_BASE_VERTEX_UNIFORM_NAME " ";
+    shaderSource += BASE_VERTEX_UNIFORM_NAME;
+    shaderSource += '\n';
     if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
-                     << BASE_INSTANCE_UNIFORM_NAME << '\n';
+        shaderSource += "#define " GLSL_BASE_INSTANCE_UNIFORM_NAME " ";
+        shaderSource += BASE_INSTANCE_UNIFORM_NAME;
+        shaderSource += '\n';
     }
     if (capabilities.isMali)
     {
-        shaderSource << "#define " << GLSL_GL_RENDERER_MALI << '\n';
+        shaderSource += "#define " GLSL_GL_RENDERER_MALI "\n";
     }
-    shaderSource << rive::gpu::glsl::glsl << "\n";
+    shaderSource += rive::gpu::glsl::glsl;
+    shaderSource += '\n';
     for (size_t i = 0; i < numInputSources; ++i)
     {
-        shaderSource << inputSources[i] << "\n";
+        shaderSource += inputSources[i];
+        shaderSource += '\n';
     }
-    return CompileRawGLSL(type,
-                          shaderSource.str().c_str(),
-                          debugPrintErrornAndAbort);
+    return CompileRawGLSL(type, shaderSource.c_str(), debugPrintErrornAndAbort);
 }
 
 #ifdef DEBUG

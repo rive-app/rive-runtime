@@ -54,21 +54,6 @@ protected:
 public:
     static const uint16_t typeKey = 420;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case LayoutComponentStyleBase::typeKey:
-            case LayoutSizingStyleBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t gapHorizontalPropertyKey = 498;
@@ -802,7 +787,6 @@ public:
                              &m_InterpolatorId,
                              &value);
         m_InterpolatorId = value;
-        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -832,7 +816,6 @@ public:
                              &m_FlexBasisUnitsValue,
                              &value);
         m_FlexBasisUnitsValue = value;
-        RIVE_EDITOR_CHANGED(flexBasisUnitsValueChanged());
         notifyPropertyChanged(flexBasisUnitsValuePropertyKey);
     }
 
@@ -862,7 +845,6 @@ public:
                              &m_AnimationStyleType,
                              &value);
         m_AnimationStyleType = value;
-        RIVE_EDITOR_CHANGED(animationStyleTypeChanged());
         notifyPropertyChanged(animationStyleTypePropertyKey);
     }
 
@@ -877,7 +859,6 @@ public:
                              &m_InterpolationType,
                              &value);
         m_InterpolationType = value;
-        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
@@ -1908,12 +1889,8 @@ protected:
     virtual void positionBottomUnitsValueChanged() {}
     virtual void flexBasisChanged() {}
     virtual void aspectRatioChanged() {}
-    virtual void interpolatorIdChanged() {}
     virtual void interpolationTimeChanged() {}
-    virtual void flexBasisUnitsValueChanged() {}
     virtual void layoutAlignmentTypeChanged() {}
-    virtual void animationStyleTypeChanged() {}
-    virtual void interpolationTypeChanged() {}
     virtual void positionTypeValueChanged() {}
     virtual void flexDirectionValueChanged() {}
     virtual void directionValueChanged() {}

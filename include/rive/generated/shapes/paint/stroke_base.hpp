@@ -14,22 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 24;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case StrokeBase::typeKey:
-            case ShapePaintBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t thicknessPropertyKey = 47;
@@ -99,7 +83,6 @@ public:
                              &m_TransformAffectsStroke,
                              &value);
         m_TransformAffectsStroke = value;
-        RIVE_EDITOR_CHANGED(transformAffectsStrokeChanged());
         notifyPropertyChanged(transformAffectsStrokePropertyKey);
     }
 
@@ -154,7 +137,6 @@ protected:
     virtual void thicknessChanged() {}
     virtual void capChanged() {}
     virtual void joinChanged() {}
-    virtual void transformAffectsStrokeChanged() {}
     virtual void positionChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/stroke_ext.inl"

@@ -15,25 +15,6 @@ protected:
 public:
     static const uint16_t typeKey = 100;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case ImageBase::typeKey:
-            case DrawableBase::typeKey:
-            case NodeBase::typeKey:
-            case TransformComponentBase::typeKey:
-            case WorldTransformComponentBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t assetIdPropertyKey = 206;
@@ -119,7 +100,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(alignmentXPropertyKey, &m_AlignmentX, &value);
         m_AlignmentX = value;
-        RIVE_EDITOR_CHANGED(alignmentXChanged());
         notifyPropertyChanged(alignmentXPropertyKey);
     }
 
@@ -132,7 +112,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(alignmentYPropertyKey, &m_AlignmentY, &value);
         m_AlignmentY = value;
-        RIVE_EDITOR_CHANGED(alignmentYChanged());
         notifyPropertyChanged(alignmentYPropertyKey);
     }
 
@@ -147,7 +126,6 @@ public:
                              &m_SamplerFilter,
                              &value);
         m_SamplerFilter = value;
-        RIVE_EDITOR_CHANGED(samplerFilterChanged());
         notifyPropertyChanged(samplerFilterPropertyKey);
     }
 
@@ -160,7 +138,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(samplerWrapXPropertyKey, &m_SamplerWrapX, &value);
         m_SamplerWrapX = value;
-        RIVE_EDITOR_CHANGED(samplerWrapXChanged());
         notifyPropertyChanged(samplerWrapXPropertyKey);
     }
 
@@ -173,7 +150,6 @@ public:
         }
         RIVE_EDITOR_CHANGING(samplerWrapYPropertyKey, &m_SamplerWrapY, &value);
         m_SamplerWrapY = value;
-        RIVE_EDITOR_CHANGED(samplerWrapYChanged());
         notifyPropertyChanged(samplerWrapYPropertyKey);
     }
 
@@ -232,11 +208,6 @@ protected:
     virtual void originXChanged() {}
     virtual void originYChanged() {}
     virtual void fitChanged() {}
-    virtual void alignmentXChanged() {}
-    virtual void alignmentYChanged() {}
-    virtual void samplerFilterChanged() {}
-    virtual void samplerWrapXChanged() {}
-    virtual void samplerWrapYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/image_ext.inl"
 #endif

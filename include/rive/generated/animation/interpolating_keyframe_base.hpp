@@ -14,20 +14,6 @@ protected:
 public:
     static const uint16_t typeKey = 170;
 
-    /// Helper to quickly determine if a core object extends another without
-    /// RTTI at runtime.
-    bool isTypeOf(uint16_t typeKey) const override
-    {
-        switch (typeKey)
-        {
-            case InterpolatingKeyFrameBase::typeKey:
-            case KeyFrameBase::typeKey:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t interpolationTypePropertyKey = 68;
@@ -49,7 +35,6 @@ public:
                              &m_InterpolationType,
                              &value);
         m_InterpolationType = value;
-        RIVE_EDITOR_CHANGED(interpolationTypeChanged());
         notifyPropertyChanged(interpolationTypePropertyKey);
     }
 
@@ -64,7 +49,6 @@ public:
                              &m_InterpolatorId,
                              &value);
         m_InterpolatorId = value;
-        RIVE_EDITOR_CHANGED(interpolatorIdChanged());
         notifyPropertyChanged(interpolatorIdPropertyKey);
     }
 
@@ -90,8 +74,6 @@ public:
     }
 
 protected:
-    virtual void interpolationTypeChanged() {}
-    virtual void interpolatorIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/interpolating_keyframe_ext.inl"
 #endif
