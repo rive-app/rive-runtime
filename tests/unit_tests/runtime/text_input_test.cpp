@@ -3,6 +3,7 @@
 #include "rive/text/font_hb.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/text/text_input.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/text/text_input_text.hpp"
@@ -1201,6 +1202,76 @@ TEST_CASE("undo reaches the first edit and stops at the initial text",
     CHECK(textInput->text() == "Hello");
     undo();
     CHECK(textInput->text() == "Hello");
+}
+
+// The library component hugs the text on both axes, so the input's own slot
+// is only as big as the text. The whole viewport is the field: a press in its
+// empty part still reaches the input and lands the caret at the end. The
+// fixture (source: assets/rml/text_input_viewport.rml) is that hierarchy with
+// a fixed 300pt-wide viewport; its font covers uppercase only.
+TEST_CASE("a press anywhere in the viewport reaches the text input",
+          "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input_viewport.riv");
+    for (const char* name : {"SingleLine", "Multiline"})
+    {
+        INFO(name);
+        auto artboard = file->artboardNamed(name);
+        REQUIRE(artboard != nullptr);
+        auto stateMachine = artboard->stateMachineAt(0);
+        REQUIRE(stateMachine != nullptr);
+        auto textInput = artboard->objects<TextInput>().first();
+        REQUIRE(textInput != nullptr);
+
+        // TextInput -> Text Container -> Scroll Content (+Scroll) -> Viewport.
+        auto container = textInput->parent();
+        REQUIRE(container != nullptr);
+        REQUIRE(container->is<LayoutComponent>());
+        auto content = container->parent();
+        REQUIRE(content != nullptr);
+        REQUIRE(content->is<LayoutComponent>());
+        REQUIRE(content->as<LayoutComponent>()
+                    ->constraints()
+                    .front()
+                    ->is<ScrollConstraint>());
+        auto viewportComponent = content->parent();
+        REQUIRE(viewportComponent != nullptr);
+        REQUIRE(viewportComponent->is<LayoutComponent>());
+        auto viewport = viewportComponent->as<LayoutComponent>();
+
+        textInput->text("HI");
+        stateMachine->advanceAndApply(0.0f);
+        REQUIRE(viewport->layoutWidth() == Approx(300.0f));
+
+        // The far corner of the viewport, well clear of the text's slot.
+        Vec2D farCorner =
+            viewport->worldTransform() * Vec2D(viewport->layoutWidth() - 2.0f,
+                                               viewport->layoutHeight() - 2.0f);
+        Mat2D inverseContainer;
+        REQUIRE(container->as<LayoutComponent>()->worldTransform().invert(
+            &inverseContainer));
+        REQUIRE_FALSE(container->as<LayoutComponent>()->localBounds().contains(
+            inverseContainer * farCorner));
+
+        textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(0)));
+        stateMachine->pointerDown(farCorner);
+        stateMachine->pointerUp(farCorner);
+        stateMachine->advanceAndApply(0.0f);
+        auto caret = textInput->rawTextInput()->cursor();
+        CHECK(caret.start().codePointIndex() == 2);
+        CHECK(caret.end().codePointIndex() == 2);
+        CHECK(textInput->isFocused());
+
+        // Just outside the viewport the press misses the input.
+        textInput->rawTextInput()->cursor(Cursor::collapsed(CursorPosition(0)));
+        Vec2D outside =
+            viewport->worldTransform() * Vec2D(viewport->layoutWidth() + 5.0f,
+                                               viewport->layoutHeight() * 0.5f);
+        stateMachine->pointerDown(outside);
+        stateMachine->pointerUp(outside);
+        stateMachine->advanceAndApply(0.0f);
+        CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 0);
+    }
 }
 
 #endif

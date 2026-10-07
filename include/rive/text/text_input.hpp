@@ -13,6 +13,7 @@ namespace rive
 {
 class TextStyle;
 class ScrollConstraint;
+class LayoutComponent;
 class TextInput : public TextInputBase,
                   public TextInterface,
                   public Focusable,
@@ -121,6 +122,9 @@ private:
     bool worldToLocalWithViewport(Vec2D worldPosition,
                                   Vec2D& outLocal,
                                   bool enableAutoScroll);
+
+    /// The scroll viewport the field is laid out in, if any.
+    LayoutComponent* fieldViewport() const;
 
     float edgeScrollSpeedForDistance(float distanceFromEdge) const;
     float edgeActivationDistance(float position, float edgeStart) const;

@@ -1,0 +1,92 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Source markup for assets/text_input_viewport.riv. Not an editor export:
+      rebuild the .riv from this file with the CLI, from a directory holding
+      this scene.rml, a rive.yaml naming it and label_font.ttf (copied from
+      packages/rive-cli/assets), then copy build/text_input_viewport.riv into
+      assets/.
+
+          rive . --once
+
+      What it is for: the TextInput library component's layout, which the
+      editor exports as Viewport -> Scroll Content (+ScrollConstraint) ->
+      Text Container -> TextInput, with the container hugging the text on
+      both axes. The input's own slot is only as big as its text, so a press
+      in the empty part of the viewport must still reach it. Two artboards:
+      a single-line field with a horizontal scroll, and a multiline field with
+      a vertical one. label_font covers digits and uppercase only, so the
+      text here and in the tests stays uppercase.
+    -->
+    <Artboard clip="true" width="400" height="200" styleId="1:2" defaultStateMachineId="1:60" name="SingleLine" id="1:1">
+        <LayoutComponentStyle name="Artboard Style" id="1:2"/>
+        <LayoutComponent clip="true" width="300" height="48" styleId="1:11" name="Viewport" id="1:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="1:11"/>
+            <LayoutComponent clip="false" styleId="1:21" name="Scroll Content" id="1:20">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="hug" name="Content Style" id="1:21"/>
+                <ScrollConstraint directionValue="horizontal" physicsId="0:90" name="Scroll"/>
+                <LayoutComponent clip="false" styleId="1:31" name="Text Container" id="1:30">
+                    <LayoutComponentStyle layoutWidthScaleType="hug" layoutHeightScaleType="hug" name="Container Style" id="1:31"/>
+                    <TextInput text="HELLO" name="Text Input" id="1:40">
+                        <TextStyle fontSize="20" fontAssetId="0:80" name="Style"/>
+                        <TextInputText name="Text">
+                            <Fill name="Fill">
+                                <SolidColor colorValue="FF000000" name="Color"/>
+                            </Fill>
+                        </TextInputText>
+                        <TextInputCursor name="Cursor">
+                            <Fill name="Fill">
+                                <SolidColor colorValue="FF000000" name="Color"/>
+                            </Fill>
+                        </TextInputCursor>
+                        <FocusData/>
+                    </TextInput>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="1:60">
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard clip="true" width="400" height="200" styleId="2:2" defaultStateMachineId="2:60" name="Multiline" id="2:1">
+        <LayoutComponentStyle name="Artboard Style" id="2:2"/>
+        <LayoutComponent clip="true" width="300" height="120" styleId="2:11" name="Viewport" id="2:10">
+            <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="2:11"/>
+            <LayoutComponent clip="false" styleId="2:21" name="Scroll Content" id="2:20">
+                <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="hug" name="Content Style" id="2:21"/>
+                <ScrollConstraint directionValue="vertical" physicsId="0:90" name="Scroll"/>
+                <LayoutComponent clip="false" styleId="2:31" name="Text Container" id="2:30">
+                    <LayoutComponentStyle layoutWidthScaleType="hug" layoutHeightScaleType="hug" name="Container Style" id="2:31"/>
+                    <TextInput text="HELLO" multiline="true" name="Text Input" id="2:40">
+                        <TextStyle fontSize="20" fontAssetId="0:80" name="Style"/>
+                        <TextInputText name="Text">
+                            <Fill name="Fill">
+                                <SolidColor colorValue="FF000000" name="Color"/>
+                            </Fill>
+                        </TextInputText>
+                        <TextInputCursor name="Cursor">
+                            <Fill name="Fill">
+                                <SolidColor colorValue="FF000000" name="Color"/>
+                            </Fill>
+                        </TextInputCursor>
+                        <FocusData/>
+                    </TextInput>
+                </LayoutComponent>
+            </LayoutComponent>
+        </LayoutComponent>
+        <StateMachine name="State Machine 1" id="2:60">
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <ElasticScrollPhysics name="Physics" id="0:90"/>
+    <FontAsset file="label_font.ttf" name="Label" id="0:80"/>
+</Rive>

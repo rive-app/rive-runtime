@@ -21,32 +21,64 @@ void TextInput::draw(Renderer* renderer) {}
 
 Core* TextInput::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
+LayoutComponent* TextInput::fieldViewport() const
+{
+    if (m_scrollConstraint == nullptr || !m_scrollConstraint->hasLayoutParent())
+    {
+        return nullptr;
+    }
+    auto content = m_scrollConstraint->content();
+    if (content->parent() == nullptr ||
+        !content->parent()->is<LayoutComponent>())
+    {
+        return nullptr;
+    }
+    return m_scrollConstraint->viewport();
+}
+
 bool TextInput::hitTestPoint(const Vec2D& position,
                              bool skipOnUnclipped,
                              bool isPrimaryHit)
 {
     // TextInput must check its own bounds before delegating to parent.
     // Unlike layouts, we always check bounds regardless of clip state.
-    Mat2D inverseWorld;
-    if (!worldTransform().invert(&inverseWorld))
+    //
+    // The whole field takes presses, as a platform text field does, and the
+    // drag places the caret at the nearest position: a press past the end of
+    // the text lands at the end. Inside a scroll viewport the field is the
+    // viewport, since the content hugs the text and its slot would miss.
+    LayoutComponent* viewport = fieldViewport();
+    if (viewport != nullptr)
     {
-        return false;
+        Mat2D inverseViewport;
+        if (!viewport->worldTransform().invert(&inverseViewport))
+        {
+            return false;
+        }
+        if (!viewport->localBounds().contains(inverseViewport * position))
+        {
+            return false;
+        }
     }
+    else
+    {
+        Mat2D inverseWorld;
+        if (!worldTransform().invert(&inverseWorld))
+        {
+            return false;
+        }
 
-    Vec2D localPosition = inverseWorld * position;
-    // A field laid out wider or taller than its text takes presses across
-    // its whole box, as a platform text field does, and the drag places the
-    // caret at the nearest position: a press past the end of the text lands
-    // at the end.
-    AABB bounds = localBounds();
-    if (!std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
-    {
-        AABB::expandTo(bounds, Vec2D(0.0f, 0.0f));
-        AABB::expandTo(bounds, Vec2D(m_layoutWidth, m_layoutHeight));
-    }
-    if (!bounds.contains(localPosition))
-    {
-        return false;
+        Vec2D localPosition = inverseWorld * position;
+        AABB bounds = localBounds();
+        if (!std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
+        {
+            AABB::expandTo(bounds, Vec2D(0.0f, 0.0f));
+            AABB::expandTo(bounds, Vec2D(m_layoutWidth, m_layoutHeight));
+        }
+        if (!bounds.contains(localPosition))
+        {
+            return false;
+        }
     }
 
     // Bounds check passed, now check parent hierarchy
