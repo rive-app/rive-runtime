@@ -258,6 +258,7 @@ public:
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride = mode.clockwiseFillOverride,
+            .inkbleedOverride = mode.inkbleed,
             .synthesizedFailureType = options.synthesizedFailureType,
         });
 
@@ -268,7 +269,8 @@ public:
     {
         return {m_backendParams.msaaSampleCount,
                 options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride};
+                m_backendParams.clockwise || options.clockwiseFillOverride,
+                m_backendParams.inkbleed};
     }
 
     // Ore and Rive must bind the same image, since scripts draw into it too.

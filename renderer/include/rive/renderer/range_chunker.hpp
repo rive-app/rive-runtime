@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/stack_vector.hpp"
 
 #include <stdint.h>
 #include <algorithm>
@@ -14,9 +15,8 @@ namespace rive::gpu
 {
 // This class breaks large ranges up into bite-size chunks that can be
 // accommodated by a single draw call (maxPerDrawCommand). This is needed for
-// depthStencil draws, which use repeating index patterns instead of instancing,
-// and for some Mali and PowerVR devices that crash when issuing draw commands
-// with a large instance count.
+// some Mali and PowerVR devices that crash when issuing draw commands with a
+// large instance count.
 class RangeChunker
 {
 public:
@@ -75,6 +75,9 @@ private:
     const uint32_t m_maxPerDrawCommand;
 };
 
+// This class walks the low-level indexed-draw commands needed by a depthStencil
+// batch and provides the direct arguments for them.
+//
 // depthStencil draws use repeating index patterns instead of instancing. Index
 // patterns are mapped to real patches via the "baseVertex" parameter. Once the
 // GPU adds in the baseVertex, the shader is able to derives all of its
@@ -83,15 +86,16 @@ private:
 // Since the index buffer only has a finite number of repetitions built in,
 // large draws may also need to be broken up into chunks.
 //
-// This class walks the draws needed by a depthStencil batch and provides the
-// direct arguments for the raw indexed-draw commands.
+// Additionally, depthAAStrokes render in (2 passes) x (N chunks): a depth-only
+// pass followed by color. We select the pass by vertex flags rather than
+// pipeline state.
 class DSIndexRangeChunker
 {
 public:
     struct Draw
     {
         uint32_t indexCount;
-        int32_t baseVertex;
+        int32_t baseVertex; // Also contains built-in vertex flags.
     };
 
     struct Iterator
@@ -99,24 +103,29 @@ public:
     public:
         Draw operator*() const
         {
-            auto [patchCount, firstPatch] = *chunk;
-            return {patchCount * indexCountPerPatch,
-                    (static_cast<int32_t>(firstPatch) << patchStrideLog2) |
-                        vertexFlags};
+            return {
+                chunkPatchCount() * chunker->m_indexCountPerPatch,
+                (chunker->m_baseVertex | chunker->m_passFlags[pass]) +
+                    (static_cast<int32_t>(basePatch)
+                     << chunker->m_patchStrideLog2),
+            };
         }
 
         Iterator& operator++()
         {
-            ++chunk;
+            basePatch += chunkPatchCount();
+            if (basePatch == chunker->m_patchCount)
+            {
+                ++pass;
+                basePatch = 0;
+            }
             return *this;
         }
 
         bool operator==(const Iterator& other) const
         {
-            assert(indexCountPerPatch == other.indexCountPerPatch);
-            assert(patchStrideLog2 == other.patchStrideLog2);
-            assert(vertexFlags == other.vertexFlags);
-            return chunk == other.chunk;
+            assert(chunker == other.chunker);
+            return pass == other.pass && basePatch == other.basePatch;
         }
 
         bool operator!=(const Iterator& other) const
@@ -124,58 +133,53 @@ public:
             return !(*this == other);
         }
 
-        const uint32_t indexCountPerPatch;
-        const uint32_t patchStrideLog2;
-        const int32_t vertexFlags;
-        RangeChunker::Iterator chunk;
+        const DSIndexRangeChunker* chunker;
+        uint32_t pass;
+        uint32_t basePatch;
+
+    private:
+        uint32_t chunkPatchCount() const
+        {
+            return std::min(chunker->m_patchCount - basePatch,
+                            chunker->m_maxPatchesPerDraw);
+        }
     };
 
-    DSIndexRangeChunker(DrawType drawType,
-                        uint32_t patchCount,
-                        uint32_t firstPatch,
-                        int32_t vertexFlags = 0) :
-        DSIndexRangeChunker(drawTypeSubmitsOuterCubicPatches(drawType),
-                            patchCount,
-                            firstPatch,
-                            vertexFlags)
-    {}
+    DSIndexRangeChunker(const DrawBatch& batch, int32_t vertexFlags = 0) :
+        m_patchCount(batch.elementCount),
+        m_maxPatchesPerDraw(dsPatchMaxReps(batch.drawType)),
+        m_indexCountPerPatch(batch.indexCountPerInstance),
+        m_patchStrideLog2(dsPatchStrideLog2(batch.drawType)),
+        m_baseVertex(static_cast<int32_t>(batch.baseElement) | vertexFlags)
+    {
+        if (batch.drawType == DrawType::depthAAStrokes)
+        {
+            // depthAAstrokes render in two passes: a depth-only pass followed
+            // by color. We differentiate the passes by vertex flags rather than
+            // pipeline state.
+            m_passFlags.push_back(DSVertexFlag_StrokeDepthPass |
+                                  DSVertexFlag_DisableColorWrite);
+        }
+        m_passFlags.push_back(0);
+        // Make sure the vertex indices won't stomp on the flags.
+        assert((batch.baseElement & ((1 << DSVertexFlagsShift) - 1)) +
+                   (batch.elementCount << m_patchStrideLog2) <=
+               1 << DSVertexFlagsShift);
+    }
 
     Iterator begin() const
     {
-        return {m_indexCountPerPatch,
-                m_patchStrideLog2,
-                m_vertexFlags,
-                m_chunker.begin()};
+        return m_patchCount == 0 ? end() : Iterator{this, 0, 0};
     }
 
-    Iterator end() const
-    {
-        return {m_indexCountPerPatch,
-                m_patchStrideLog2,
-                m_vertexFlags,
-                m_chunker.end()};
-    }
+    Iterator end() const { return {this, m_passFlags.size(), 0}; }
 
 private:
-    DSIndexRangeChunker(bool outerCubic,
-                        uint32_t patchCount,
-                        uint32_t firstPatch,
-                        int32_t vertexFlags) :
-        m_chunker(patchCount, firstPatch, dsFillPatchMaxReps(outerCubic)),
-        m_indexCountPerPatch(dsFillPatchIndexCount(outerCubic)),
-        m_patchStrideLog2(outerCubic ? DSOuterCubicFillPatchStrideLog2
-                                     : DSMidpointFanFillPatchStrideLog2),
-        m_vertexFlags(outerCubic ? vertexFlags | DSFillVertexFlagOuterCubic
-                                 : vertexFlags)
-    {
-        // Make sure the vertex indices won't stomp on the flags.
-        assert((firstPatch + patchCount) << m_patchStrideLog2 <=
-               1 << DSFillVertexFlagsShift);
-    }
-
-    const RangeChunker m_chunker;
+    const uint32_t m_patchCount;
+    const uint32_t m_maxPatchesPerDraw;
     const uint32_t m_indexCountPerPatch;
     const uint32_t m_patchStrideLog2;
-    const int32_t m_vertexFlags;
+    const int32_t m_baseVertex;
+    StackVector<int32_t, 2> m_passFlags;
 };
 } // namespace rive::gpu

@@ -73,7 +73,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
             return {std::max(m_backendParams.msaaSampleCount,
                              options.forceMSAA ? 4u : 0u),
                     m_backendParams.atomic || options.disableRasterOrdering,
-                    m_backendParams.clockwise || options.clockwiseFillOverride};
+                    m_backendParams.clockwise || options.clockwiseFillOverride,
+                    m_backendParams.inkbleed};
         }
 
         void beginFrame(const TestingWindow::FrameOptions& options) override
@@ -99,6 +100,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
                 .fillsDisabled = options.fillsDisabled,
                 .strokesDisabled = options.strokesDisabled,
                 .clockwiseFillOverride = mode.clockwiseFillOverride,
+                .inkbleedOverride = mode.inkbleed,
                 .synthesizedFailureType = options.synthesizedFailureType,
             };
             m_renderContext->beginFrame(frameDescriptor);

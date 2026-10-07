@@ -15,7 +15,7 @@
 #define OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE                             \
     (OUTER_CUBIC_PATCH_SEGMENT_SPAN + 1u)
 
-// depthStencil fills use repeating index patterns instead of instancing.
+// depthStencil draws use repeating index patterns instead of instancing.
 // Per-patch vertex IDs are aligned on pow2 strides, specifically so the
 // shader can decode gl_VertexID without divides and mods. (Using integer
 // division costs 10% total framerate on PowerVR and 3% on Adreno.)
@@ -24,21 +24,40 @@
 // and the beginning of another.
 #define DS_MIDPOINT_FAN_STRIDE_LOG2 4
 #define DS_OUTER_CUBIC_STRIDE_LOG2 5
-#define DS_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC)                                   \
+#define DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC)                              \
     ((IS_OUTER_CUBIC) ? DS_OUTER_CUBIC_STRIDE_LOG2                             \
                       : DS_MIDPOINT_FAN_STRIDE_LOG2)
-#define DS_PATCH_STRIDE(IS_OUTER_CUBIC)                                        \
-    (1 << DS_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
-#define DS_MIDPOINT_VERTEX_ID (int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN) + 1)
+#define DS_FILL_PATCH_STRIDE(IS_OUTER_CUBIC)                                   \
+    (1 << DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
+#define DS_STROKE_STRIDE_LOG2 5
+#define DS_AA_STROKE_STRIDE_LOG2 6
+#define DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE)                              \
+    ((IS_AA_STROKE) ? DS_AA_STROKE_STRIDE_LOG2 : DS_STROKE_STRIDE_LOG2)
+#define DS_STROKE_PATCH_STRIDE(IS_AA_STROKE)                                   \
+    (1 << DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE))
+// Normal strokes are a single triangle strip with 2 lanes of vertices (top,
+// bottom).
+// AA strokes have an AA band on top and bottom, making 4 lanes of vertices and
+// 3 bands of triangle strips (top AA ramp, body, bottom AA ramp).
+#define DS_STROKE_LANES_PER_SPOKE_LOG2(IS_AA_STROKE) ((IS_AA_STROKE) ? 2 : 1)
 
-// depthStencil fills encode some attributes as flags on gl_VertexID, in order
+// One vertex of the midpointFan pattern is reserved for the contour's midpoint
+// rather than tessellation points.
+#define DS_MIDPOINT_VERTEX_IDX (int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN) + 1)
+
+// depthStencil draws encode some attributes as flags on gl_VertexID, in order
 // to avoid input attribs.
 // NOTE: vertexIDs are 16-bit in the index buffer, but they get offset per draw
 // into the tessellation texture. So these flags have to live above the entire
-// tessellation range. Hence a shift of 29 and not 16.
-#define VERTEX_FLAGS_SHIFT 29
-#define VERTEX_FLAG_DISABLE_COLOR_WRITE (1 << VERTEX_FLAGS_SHIFT)
-#define VERTEX_FLAG_OUTER_CUBIC (1 << (VERTEX_FLAGS_SHIFT + 1))
+// tessellation range. Hence a shift of 28 and not 16.
+#define VERTEX_FLAGS_SHIFT 28
+#define VERTEX_FLAG_DISABLE_COLOR_WRITE (0x1 << VERTEX_FLAGS_SHIFT)
+#define VERTEX_FLAG_OUTER_CUBIC_FILL (0x2 << VERTEX_FLAGS_SHIFT)
+// Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
+#define VERTEX_FLAG_AA_STROKE VERTEX_FLAG_OUTER_CUBIC_FILL
+// depthAAstrokes render in two passes: a depth-only pass followed by color.
+// We select the pass by vertex flags rather than pipeline state.
+#define VERTEX_FLAG_STROKE_DEPTH_PASS (0x4 << VERTEX_FLAGS_SHIFT)
 
 #define GRAD_TEXTURE_WIDTH float(512)
 #define GRAD_TEXTURE_INVERSE_WIDTH float(0.001953125)
@@ -370,7 +389,8 @@
 #define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 12
 #define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 13
 #define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 14
-#define SPECIALIZATION_COUNT 15
+#define DS_STROKE_SPECIALIZATION_IDX 15
+#define SPECIALIZATION_COUNT 16
 
 // When rendering to an r32i feather atlas, use 16:16 fixed point.
 #define ATLAS_R32I_FIXED_POINT_FACTOR 65536.

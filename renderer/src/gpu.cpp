@@ -13,6 +13,7 @@
 #include "image_draw_attributes.hpp"
 #include "rive_render_paint.hpp"
 
+#include <cmath>
 #include <limits>
 
 #include "generated/shaders/draw_path.vert.exports.h"
@@ -29,22 +30,44 @@ static_assert(OuterCubicPatchSegmentSpanPlusBowtie ==
 
 static_assert(DSMidpointFanFillPatchStrideLog2 == DS_MIDPOINT_FAN_STRIDE_LOG2);
 static_assert(DSOuterCubicFillPatchStrideLog2 == DS_OUTER_CUBIC_STRIDE_LOG2);
-static_assert(DSFillVertexFlagsShift == VERTEX_FLAGS_SHIFT);
-static_assert(DSFillVertexFlagDisableColorWrite ==
+static_assert(DSVertexFlagsShift == VERTEX_FLAGS_SHIFT);
+static_assert(DSVertexFlag_DisableColorWrite ==
               VERTEX_FLAG_DISABLE_COLOR_WRITE);
-static_assert(DSFillVertexFlagOuterCubic == VERTEX_FLAG_OUTER_CUBIC);
+static_assert(DSVertexFlag_OuterCubicFill == VERTEX_FLAG_OUTER_CUBIC_FILL);
+static_assert(DSVertexFlag_StrokeDepthPass == VERTEX_FLAG_STROKE_DEPTH_PASS);
+static_assert(DSVertexFlag_AAStroke == VERTEX_FLAG_AA_STROKE);
+static_assert(DSStrokePatchStrideLog2 == DS_STROKE_STRIDE_LOG2);
+static_assert(DSAAStrokePatchStrideLog2 == DS_AA_STROKE_STRIDE_LOG2);
 
-static_assert(DS_MIDPOINT_VERTEX_ID == MIDPOINT_FAN_PATCH_SEGMENT_SPAN + 1);
-static_assert(DS_MIDPOINT_VERTEX_ID < DS_PATCH_STRIDE(/*outerCubic=*/false));
+// Fill constants.
+static_assert(DS_MIDPOINT_VERTEX_IDX == MIDPOINT_FAN_PATCH_SEGMENT_SPAN + 1);
+static_assert(DS_MIDPOINT_VERTEX_IDX <
+              DS_FILL_PATCH_STRIDE(/*outerCubic=*/false));
 static_assert(OUTER_CUBIC_PATCH_SEGMENT_SPAN <
-              DS_PATCH_STRIDE(/*outerCubic=*/true));
-// Since index patterns use a pow2 vertex stride, their vertex IDs span the
-// entire uint16 range.
-static_assert(DS_PATCH_STRIDE(/*outerCubic=*/false) *
+              DS_FILL_PATCH_STRIDE(/*outerCubic=*/true));
+// Since index patterns use a pow2 vertex stride, their (somewhat sparse) vertex
+// IDs span the entire uint16 range.
+static_assert(DS_FILL_PATCH_STRIDE(/*outerCubic=*/false) *
                   DSMidpointFanFillPatchMaxReps ==
               1u << 16);
-static_assert(DS_PATCH_STRIDE(/*outerCubic=*/true) *
+static_assert(DS_FILL_PATCH_STRIDE(/*outerCubic=*/true) *
                   DSOuterCubicFillPatchMaxReps ==
+              1u << 16);
+
+// Stroke constants. (A stroke that spans N segments has N+1 spokes.)
+static_assert((MIDPOINT_FAN_PATCH_SEGMENT_SPAN + 1)
+                  << DS_STROKE_LANES_PER_SPOKE_LOG2(/*aaStroke=*/false) <=
+              DS_STROKE_PATCH_STRIDE(/*aaStroke=*/false));
+static_assert((MIDPOINT_FAN_PATCH_SEGMENT_SPAN + 1)
+                  << DS_STROKE_LANES_PER_SPOKE_LOG2(/*aaStroke=*/true) <=
+              DS_STROKE_PATCH_STRIDE(/*aaStroke=*/true));
+// Since index patterns use a pow2 vertex stride, their (somewhat sparse) vertex
+// IDs span the entire uint16 range.
+static_assert(DS_STROKE_PATCH_STRIDE(/*aaStroke=*/false) *
+                  DSStrokePatchMaxReps ==
+              1u << 16);
+static_assert(DS_STROKE_PATCH_STRIDE(/*aaStroke=*/true) *
+                  DSAAStrokePatchMaxReps ==
               1u << 16);
 
 static_assert(sizeof(PaintAuxData) / StorageBufferElementSizeInBytes(
@@ -118,7 +141,6 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
             static constexpr DrawType types[] = {
                 DrawType::featherAtlasBlit,
                 DrawType::imageMesh,
-                DrawType::depthStrokes,
                 DrawType::stencilMidpointFanBorrowedCoverage,
                 DrawType::stencilMidpointFans,
                 DrawType::stencilMidpointFanReset,
@@ -131,6 +153,8 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::stencilDynamicOuterCubics,
                 DrawType::stencilOuterCubicWinding,
                 DrawType::stencilOuterCubicCover,
+                DrawType::depthStrokes,
+                DrawType::depthAAStrokes,
                 DrawType::clipReset,
                 DrawType::renderPassInitialize,
                 DrawType::renderPassResolve,
@@ -197,7 +221,6 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -210,6 +233,8 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             break;
     }
 
@@ -442,7 +467,6 @@ static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::depthStrokes:
             return 0;
         // depthStencil fills have their own, attribute-free vertex
         // shader, so they can't share a key with the patch draws above.
@@ -460,28 +484,34 @@ static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
         case DrawType::stencilOuterCubicCover:
             assert(interlockMode == InterlockMode::depthStencil);
             return 1;
-        case DrawType::interiorTriangulation:
+        // depthStencil strokes build from the same source as the fills, but
+        // specialized with @DS_STROKE, so they need their own shader.
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+            assert(interlockMode == InterlockMode::depthStencil);
             return 2;
-        case DrawType::featherAtlasBlit:
+        case DrawType::interiorTriangulation:
             return 3;
-        case DrawType::imageRect:
+        case DrawType::featherAtlasBlit:
             return 4;
-        case DrawType::imageMesh:
+        case DrawType::imageRect:
             return 5;
+        case DrawType::imageMesh:
+            return 6;
         case DrawType::clipReset:
             assert(interlockMode == InterlockMode::clockwiseAtomic ||
                    interlockMode == InterlockMode::depthStencil);
-            return 6;
+            return 7;
         case DrawType::renderPassInitialize:
             assert(interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil ||
                    interlockMode == InterlockMode::clockwiseAtomic);
-            return 7;
+            return 8;
         case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::rasterOrdering ||
                    interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil);
-            return 8;
+            return 9;
     }
     RIVE_UNREACHABLE();
 }
@@ -797,17 +827,29 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
 }
 
 // Writes one patch type's depthStencil fill region, at its own base within the
-// shared patch index buffer.
+// shared patch index buffer. Since multiple drawTypes may share one region,
+// this only needs to be called once per group.
 static void generateDepthStencilFillIndices(
-    PatchType patchType,
+    DrawType drawType,
     uint16_t indices[kPatchIndexBufferCount])
 {
-    const bool isOuterCubic = patchType == PatchType::outerCurves;
-    assert(isOuterCubic || patchType == PatchType::midpointFan);
-    const uint32_t patchCount = dsFillPatchMaxReps(isOuterCubic);
-    indices += dsFillBaseIndex(isOuterCubic);
+    bool isOuterCubic;
+    switch (drawType)
+    {
+        case DrawType::stencilMidpointFans:
+            isOuterCubic = false;
+            break;
+        case DrawType::stencilOuterCubics:
+            isOuterCubic = true;
+            break;
+        default:
+            RIVE_UNREACHABLE();
+    }
     const uint32_t fanSegmentSpan = isOuterCubic ? OuterCubicPatchSegmentSpan
                                                  : kMidpointFanPatchSegmentSpan;
+    const uint32_t patchCount = dsPatchMaxReps(drawType);
+    indices +=
+        isOuterCubic ? DSOuterCubicFillBaseIndex : DSMidpointFanFillBaseIndex;
 
     // Per-patch vertex IDs are aligned on pow2 strides, specifically so the
     // shader can decode gl_VertexID without divides and mods. (Using integer
@@ -815,7 +857,7 @@ static void generateDepthStencilFillIndices(
     // NOTE: The patches don't actually have pow2 numbers of vertices; the index
     // buffers just never reference those vertex IDs between the end of one
     // patch and the beginning of another.
-    const uint32_t patchStrideLog2 = DS_PATCH_STRIDE_LOG2(isOuterCubic);
+    const uint32_t patchStrideLog2 = dsPatchStrideLog2(drawType);
 
     size_t indexCount = 0;
     for (uint32_t patch = 0; patch < patchCount; ++patch)
@@ -841,7 +883,7 @@ static void generateDepthStencilFillIndices(
             // Triangle to the contour midpoint.
             emitPatchVertex(0);
             emitPatchVertex(fanSegmentSpan);
-            emitPatchVertex(DS_MIDPOINT_VERTEX_ID);
+            emitPatchVertex(DS_MIDPOINT_VERTEX_IDX);
         }
         else
         {
@@ -854,6 +896,49 @@ static void generateDepthStencilFillIndices(
     assert(indexCount == patchCount * (isOuterCubic
                                            ? DSOuterCubicFillPatchIndexCount
                                            : DSMidpointFanFillPatchIndexCount));
+}
+
+// Writes one depthStencil stroke region, at its own base within the shared
+// patch index buffer.
+static void generateDepthStencilStrokeIndices(
+    uint16_t indices[kPatchIndexBufferCount],
+    DrawType drawType)
+{
+    const bool isAAStroke = drawType == DrawType::depthAAStrokes;
+    assert(isAAStroke || drawType == DrawType::depthStrokes);
+    const uint32_t lanesPerSpoke =
+        1u << DS_STROKE_LANES_PER_SPOKE_LOG2(isAAStroke);
+    const uint32_t bandCount = lanesPerSpoke - 1;
+    const uint32_t patchCount = dsPatchMaxReps(drawType);
+    const uint32_t patchStrideLog2 = dsPatchStrideLog2(drawType);
+    indices += isAAStroke ? DSAAStrokePatchBaseIndex : DSStrokePatchBaseIndex;
+
+    size_t indexCount = 0;
+    for (uint32_t patch = 0; patch < patchCount; ++patch)
+    {
+        const uint32_t patchBaseVertex = patch << patchStrideLog2;
+        for (uint32_t seg = 0; seg < kMidpointFanPatchSegmentSpan; ++seg)
+        {
+            for (uint32_t b = 0; b < bandCount; ++b)
+            {
+                // Emit the 2-triangle quad for band 'b' at segment 'seg'.
+                // Column-major to keep shared vertices close together for
+                // the LRU post-transform vertex cache.
+                const uint32_t v0 = patchBaseVertex + seg * lanesPerSpoke + b;
+                const uint32_t v1 = v0 + 1;
+                const uint32_t v2 = v0 + lanesPerSpoke;
+                const uint32_t v3 = v2 + 1;
+                for (uint32_t v : {v0, v1, v2, v2, v1, v3})
+                {
+                    indices[indexCount++] =
+                        math::lossless_numeric_cast<uint16_t>(v);
+                }
+            }
+        }
+    }
+
+    assert(indexCount ==
+           patchCount * kMidpointFanPatchSegmentSpan * 6 * bandCount);
 }
 
 void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
@@ -875,9 +960,14 @@ void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
             kMidpointFanCenterAAPatchIndexCount,
         kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount);
 
-    for (auto patchType : {PatchType::midpointFan, PatchType::outerCurves})
+    for (auto drawType :
+         {DrawType::stencilMidpointFans, DrawType::stencilOuterCubics})
     {
-        generateDepthStencilFillIndices(patchType, indices);
+        generateDepthStencilFillIndices(drawType, indices);
+    }
+    for (auto drawType : {DrawType::depthStrokes, DrawType::depthAAStrokes})
+    {
+        generateDepthStencilStrokeIndices(indices, drawType);
     }
 }
 
@@ -907,6 +997,10 @@ static uint32_t paint_type_to_glsl_id(PaintType paintType)
     static_assert((int)PaintType::solidColor == SOLID_COLOR_PAINT_TYPE);
     static_assert((int)PaintType::linearGradient == LINEAR_GRADIENT_PAINT_TYPE);
     static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
+    // draw_depthstencil_path.glsl packs the gradient type into the top
+    // exponent bits of a float. [2, 6] keeps it normal and finite.
+    static_assert(LINEAR_GRADIENT_PAINT_TYPE >= 2 &&
+                  RADIAL_GRADIENT_PAINT_TYPE <= 6);
 }
 
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
@@ -1049,7 +1143,11 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_gradTextureYScale(1.f / flushDesc.gradTextureHeight),
     // Use a bias of -0.5 here as we encode the row+1 so we can negate it
     // robustly
-    m_gradTextureYBias(-0.5f / flushDesc.gradTextureHeight)
+    m_gradTextureYBias(-0.5f / flushDesc.gradTextureHeight),
+    m_gradTextureYScalePacked(
+        // Don't reuse m_gradTextureYScale because it's WRITEONLY, and reading
+        // it could cause an extremely slow load from GPU-mapped memory.
+        std::ldexp(1.f / flushDesc.gradTextureHeight, -17))
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
@@ -1617,10 +1715,6 @@ DepthState get_depth_state(InterlockMode interlockMode,
             return {.depthTestEnabled = true, .depthWriteEnabled = false};
             break;
 
-        case DrawType::depthStrokes:
-            return {.depthTestEnabled = true, .depthWriteEnabled = true};
-            break;
-
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilMidpointFans:
@@ -1642,6 +1736,11 @@ DepthState get_depth_state(InterlockMode interlockMode,
                     drawContents,
                     DrawContents::clockwiseFill | DrawContents::clipUpdate),
             };
+
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+            return {.depthTestEnabled = true, .depthWriteEnabled = true};
+            break;
 
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -1673,6 +1772,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
     switch (drawType)
     {
         case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             // depthStrokes could be a clip, so handle that.
             if (enums::is_flag_set(drawContents, DrawContents::clipUpdate))
             {
@@ -2009,12 +2109,13 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
-        case DrawType::depthStrokes:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilMidpointFans:
         case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             return CullFace::counterclockwise;
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFanReset:
@@ -2180,8 +2281,6 @@ bool get_color_write_enable(DrawType drawType,
             // Disable color writes when we're rendering only to PLS.
             return fixedFunctionColorOutput ||
                    interlockMode == InterlockMode::depthStencil;
-        case DrawType::depthStrokes:
-            return enums::no_flags_set(drawContents, DrawContents::clipUpdate);
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilOuterCubicBorrowedCoverage:
@@ -2202,6 +2301,9 @@ bool get_color_write_enable(DrawType drawType,
             return enums::no_flags_set(drawContents,
                                        DrawContents::clockwiseFill |
                                            DrawContents::clipUpdate);
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+            return enums::no_flags_set(drawContents, DrawContents::clipUpdate);
     }
 
     RIVE_UNREACHABLE();
@@ -2340,7 +2442,6 @@ PipelineState get_pipeline_state(DrawType drawType,
                    interlockMode == InterlockMode::clockwiseAtomic);
             break;
 
-        case DrawType::depthStrokes:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilMidpointFans:
@@ -2353,6 +2454,8 @@ PipelineState get_pipeline_state(DrawType drawType,
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             assert(interlockMode == InterlockMode::depthStencil);
             break;
 

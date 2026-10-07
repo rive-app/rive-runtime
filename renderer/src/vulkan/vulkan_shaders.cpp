@@ -102,12 +102,10 @@ namespace embedded
 
 // InterlockMode::depthStencil shaders.
 #include "generated/shaders/spirv/draw_depthstencil_path.vert.h"
+#include "generated/shaders/spirv/draw_depthstencil_path.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_depthstencil_path.frag.h"
 #include "generated/shaders/spirv/draw_depthstencil_path.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_depthstencil_path.msaa_frag.h"
-#include "generated/shaders/spirv/draw_depthstencil_fill.vert.h"
-#include "generated/shaders/spirv/draw_depthstencil_fill.noclipdistance_vert.h"
-#include "generated/shaders/spirv/draw_depthstencil_path.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.vert.h"
 #include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.frag.h"
 #include "generated/shaders/spirv/draw_depthstencil_triangles_nocolor.fixedcolor_frag.h"
@@ -312,10 +310,6 @@ rive::Span<const uint32_t> draw_depthstencil_path_fixedcolor_frag =
     rive::make_span(embedded::draw_depthstencil_path_fixedcolor_frag);
 rive::Span<const uint32_t> draw_depthstencil_path_msaa_frag =
     rive::make_span(embedded::draw_depthstencil_path_msaa_frag);
-rive::Span<const uint32_t> draw_depthstencil_fill_vert =
-    rive::make_span(embedded::draw_depthstencil_fill_vert);
-rive::Span<const uint32_t> draw_depthstencil_fill_noclipdistance_vert =
-    rive::make_span(embedded::draw_depthstencil_fill_noclipdistance_vert);
 rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_vert =
     rive::make_span(embedded::draw_depthstencil_triangles_nocolor_vert);
 rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_frag =
@@ -465,8 +459,6 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_depthstencil_path_frag = readNextBytecodeSpan();
     spirv::draw_depthstencil_path_fixedcolor_frag = readNextBytecodeSpan();
     spirv::draw_depthstencil_path_msaa_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_fill_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_fill_noclipdistance_vert = readNextBytecodeSpan();
     spirv::draw_depthstencil_triangles_nocolor_vert = readNextBytecodeSpan();
     spirv::draw_depthstencil_triangles_nocolor_frag = readNextBytecodeSpan();
     spirv::draw_depthstencil_triangles_nocolor_fixedcolor_frag =

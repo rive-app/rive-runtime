@@ -656,10 +656,7 @@ constexpr static uint32_t kOuterCurvePatchBaseIndex =
     kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-// depthStencil fills use repeating index patterns instead of instancing. They
-// otherwise draw the same basic patch geometry as other modes, but without the
-// AA border. (And rather than input attribs, the shader derives its vertex
-// attributes from gl_VertexID.)
+// Repeating middle-out index pattern for depthStencil midpointFans.
 constexpr static uint32_t DSMidpointFanFillPatchIndexCount =
     kMidpointFanPatchIndexCount - kMidpointFanPatchBorderIndexCount;
 // A single midpointFan patch is repeated multiple times in the index buffer,
@@ -673,6 +670,7 @@ constexpr static uint32_t DSMidpointFanFillBaseIndex =
 // Metal's indexBufferOffset has to be a multiple of 4 bytes.
 static_assert((DSMidpointFanFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
+// Repeating middle-out index pattern for depthStencil outerCubics.
 constexpr static uint32_t DSOuterCubicFillPatchIndexCount =
     kOuterCurvePatchIndexCount - kOuterCurvePatchBorderIndexCount;
 // A single outerCubic patch is repeated multiple times in the index buffer,
@@ -687,50 +685,56 @@ constexpr static uint32_t DSOuterCubicFillBaseIndex =
 // Metal's indexBufferOffset has to be a multiple of 4 bytes.
 static_assert((DSOuterCubicFillBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
-constexpr static uint32_t dsFillPatchIndexCount(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillPatchIndexCount
-                      : DSMidpointFanFillPatchIndexCount;
-}
-constexpr static uint32_t dsFillPatchMaxReps(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillPatchMaxReps
-                      : DSMidpointFanFillPatchMaxReps;
-}
-constexpr static uint32_t dsFillBaseIndex(bool outerCubic)
-{
-    return outerCubic ? DSOuterCubicFillBaseIndex : DSMidpointFanFillBaseIndex;
-}
+// Repeating triangle strip index pattern for DrawType::depthStrokes.
+constexpr static uint32_t DSStrokePatchIndexCount =
+    kMidpointFanPatchSegmentSpan * 6 /*2 triangles*/;
+constexpr static uint32_t DSStrokePatchMaxReps = 2048;
+constexpr static uint32_t DSStrokePatchBaseIndex =
+    DSOuterCubicFillBaseIndex +
+    DSOuterCubicFillPatchIndexCount * DSOuterCubicFillPatchMaxReps;
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSStrokePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
+// Repeating 3-band triangle strip index pattern for DrawType::depthAAStrokes.
+// (2 bands with AA ramps on top and bottom, and a solid band in the middle.)
+constexpr static uint32_t DSAAStrokePatchIndexCount =
+    DSStrokePatchIndexCount * 3 /*3 bands*/;
+constexpr static uint32_t DSAAStrokePatchMaxReps = 1024;
+constexpr static uint32_t DSAAStrokePatchBaseIndex =
+    DSStrokePatchBaseIndex + DSStrokePatchIndexCount * DSStrokePatchMaxReps;
+// Metal's indexBufferOffset has to be a multiple of 4 bytes.
+static_assert((DSAAStrokePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 
 // depthStencil vertex IDs are spaced on pow2 strides per patch so the shader
-// can decode them with shifts instead of divides. (DS_PATCH_STRIDE_LOG2 in
-// constants.glsl.)
+// can decode them with shifts instead of divides.
 constexpr static uint32_t DSMidpointFanFillPatchStrideLog2 = 4;
 constexpr static uint32_t DSOuterCubicFillPatchStrideLog2 = 5;
+constexpr static uint32_t DSStrokePatchStrideLog2 = 5;
+constexpr static uint32_t DSAAStrokePatchStrideLog2 = 6;
 
-// depthStencil fills encode some attributes as flags on gl_VertexID, in order
-// to avoid input attribs. (DS_PATCH_STRIDE_LOG2 in constants.glsl.)
-constexpr static int32_t DSFillVertexFlagsShift = 29;
-constexpr static int32_t DSFillVertexFlagDisableColorWrite =
-    1 << DSFillVertexFlagsShift;
-constexpr static int32_t DSFillVertexFlagOuterCubic =
-    1 << (DSFillVertexFlagsShift + 1);
-
-// Byte offset to bind the index buffer for a depthStencil fill. Every backend
-// that may see Adreno should use this rather than baseIndex. Using baseIndex on
-// Adreno drops the total framerate by 26%.
-constexpr static uint32_t dsFillIndexOffset(bool outerCubic)
-{
-    return static_cast<uint32_t>(dsFillBaseIndex(outerCubic) *
-                                 sizeof(uint16_t));
-}
+// depthStencil draws encode some attributes as flags on gl_VertexID, in order
+// to avoid input attribs. (The official flags are #defines in constants.glsl;
+// these are just aliases for headers that can't access that file.)
+constexpr static int32_t DSVertexFlagsShift = 28;
+constexpr static int32_t DSVertexFlag_DisableColorWrite = 0x1
+                                                          << DSVertexFlagsShift;
+constexpr static int32_t DSVertexFlag_OuterCubicFill = 0x2
+                                                       << DSVertexFlagsShift;
+// Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
+constexpr static int32_t DSVertexFlag_AAStroke = DSVertexFlag_OuterCubicFill;
+// depthAAstrokes render in two passes: a depth-only pass followed by color.
+// We select the pass by vertex flags rather than pipeline state.
+constexpr static int32_t DSVertexFlag_StrokeDepthPass = 0x4
+                                                        << DSVertexFlagsShift;
 
 constexpr static uint32_t kPatchVertexBufferCount =
     kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount +
     kOuterCurvePatchVertexCount;
+
 constexpr static uint32_t kPatchIndexBufferCount =
-    DSOuterCubicFillBaseIndex +
-    DSOuterCubicFillPatchIndexCount * DSOuterCubicFillPatchMaxReps;
+    DSAAStrokePatchBaseIndex +
+    DSAAStrokePatchIndexCount * DSAAStrokePatchMaxReps;
+
 void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount]);
 
@@ -749,10 +753,6 @@ enum class DrawType : uint8_t
     featherAtlasBlit,
     imageRect,
     imageMesh,
-
-    // Strokes that use the depth buffer to work out coverage and avoid double
-    // hits.
-    depthStrokes,
 
     // depthStencil "fast" path: (almost) single pass rendering.
     stencilMidpointFanBorrowedCoverage,
@@ -789,6 +789,12 @@ enum class DrawType : uint8_t
     stencilOuterCubicWinding,
     stencilOuterCubicCover,
 
+    // Strokes that use the depth buffer to reject double hits.
+    depthStrokes,
+
+    // Strokes that use the depth buffer to work out analytic coverage.
+    depthAAStrokes,
+
     // Clear or intersect (based on DrawContents) the clip value.
     clipReset,
 
@@ -820,7 +826,6 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFans:
         case DrawType::stencilMidpointFanReset:
@@ -834,36 +839,95 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             return false;
     }
     RIVE_UNREACHABLE();
 }
 
-constexpr static bool drawTypeSubmitsOuterCubicPatches(DrawType drawType)
+// depthStencil draws use repeating index patterns instead of instancing, with
+// runs of distinct index repetitions laid out in different regions of the
+// patchIndexBuffer. (And there are no vertex attribs; the vertex shader derives
+// all its attributes from gl_VertexID.)
+constexpr static uint32_t dsPatchMaxReps(DrawType drawType)
 {
     switch (drawType)
     {
-        case DrawType::outerCurvePatches:
-        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+            return DSMidpointFanFillPatchMaxReps;
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilOuterCubics:
         case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+            return DSOuterCubicFillPatchMaxReps;
+        case DrawType::depthStrokes:
+            return DSStrokePatchMaxReps;
+        case DrawType::depthAAStrokes:
+            return DSAAStrokePatchMaxReps;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+constexpr static uint32_t dsPatchStrideLog2(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+            return DSMidpointFanFillPatchStrideLog2;
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+            return DSOuterCubicFillPatchStrideLog2;
+        case DrawType::depthStrokes:
+            return DSStrokePatchStrideLog2;
+        case DrawType::depthAAStrokes:
+            return DSAAStrokePatchStrideLog2;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+constexpr static bool drawTypeIsDepthStencilStroke(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             return true;
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::depthStrokes:
-        case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFans:
         case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
@@ -884,7 +948,6 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -900,6 +963,8 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -1119,7 +1184,6 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -1132,6 +1196,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             mask = kAllShaderFeatures;
             break;
         case DrawType::clipReset:
@@ -1372,15 +1438,26 @@ struct DrawBatch
     const DrawType drawType;
     ShaderMiscFlags shaderMiscFlags;
     DrawContents drawContents;
+
     // elementCount/baseElement are the "splice axis": the run that grows when
-    // adjacent batches combine. For instanced draws (paths, image draws) that
-    // is instances; for non-indexed triangle runs (interiorTriangulation,
-    // featherAtlasBlit, clipReset) it is vertices.
-    uint32_t elementCount; // Instance count, or vertex count for triangle runs.
-    uint32_t baseElement;  // Base instance, or base vertex for triangle runs.
-    // Geometry parameters for indexed-instanced types (paths and image draws).
+    // adjacent batches combine. That is:
+    //   * Instances for instanced draws (paths, image draws).
+    //   * Vertices for non-indexed triangle runs (interiorTriangulation,
+    //     featherAtlasBlit, clipReset).
+    //   * For depthStencil index patterns, "Patches". (And baseElement is the
+    //     baseVertex.)
+    uint32_t elementCount;
+    uint32_t baseElement;
+
+    // Geometry parameters for indexed types (paths, including depthStencil, and
+    // image draws).
     uint32_t indexCountPerInstance = 0;
+    // Backends that may see Adreno should bind the index buffer at
+    // "baseIndex * sizeof(uint16_t)" rather than using the draw call's
+    // "baseIndex" parameter. Using baseIndex on Adreno drops the depthStencil
+    // total framerate by 26%.
     uint32_t baseIndex = 0;
+
     rive::BlendMode firstBlendMode;
     BarrierFlags barriers; // Barriers to execute before drawing this batch.
     std::optional<AABBu16> scissorRect;
@@ -1670,8 +1747,10 @@ private:
     // Scale and bias to get V coord of gradient from integral row value
     WRITEONLY float m_gradTextureYScale;
     WRITEONLY float m_gradTextureYBias;
+    // m_gradTextureYScale / (1 << 17), for when the row is packed at bit 17.
+    WRITEONLY float m_gradTextureYScalePacked;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 120];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

@@ -242,7 +242,6 @@ public:
             case DrawType::imageMesh:
                 namespacePrefix = 'm';
                 break;
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -258,6 +257,8 @@ public:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
             case DrawType::renderPassResolve:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
                 RIVE_UNREACHABLE();
         }
 
@@ -2021,7 +2022,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                             vertexCount:4];
                 break;
             }
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -2035,6 +2035,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
             {
                 RIVE_UNREACHABLE();
             }

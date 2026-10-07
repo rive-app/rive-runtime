@@ -98,6 +98,7 @@ static FiddleContextOptions options;
 static GLFWwindow* window = nullptr;
 static uint32_t msaa = 0;
 static bool forceAtomicMode = false;
+static bool inkbleed = false;
 static bool wireframe = false;
 static bool disableFill = false;
 static bool disableStroke = false;
@@ -556,6 +557,13 @@ int main(int argc, const char** argv)
             api = API::gl;
             clockwiseFill = true;
         }
+        else if (!strcmp(argv[i], "--glcwib"))
+        {
+            api = API::gl;
+            msaa = 1;
+            clockwiseFill = true;
+            inkbleed = true;
+        }
         else if (!strcmp(argv[i], "--metal"))
         {
             api = API::metal;
@@ -602,6 +610,13 @@ int main(int argc, const char** argv)
         {
             api = API::dawn;
         }
+        else if (!strcmp(argv[i], "--dawncwib"))
+        {
+            api = API::dawn;
+            msaa = 1;
+            clockwiseFill = true;
+            inkbleed = true;
+        }
         else if (!strcmp(argv[i], "--d3d"))
         {
             api = API::d3d;
@@ -638,6 +653,13 @@ int main(int argc, const char** argv)
             api = API::vulkan;
             clockwiseFill = true;
             forceAtomicMode = true;
+        }
+        else if (!strcmp(argv[i], "--vkcwib"))
+        {
+            api = API::vulkan;
+            msaa = 1;
+            clockwiseFill = true;
+            inkbleed = true;
         }
         else if (!strcmp(argv[i], "--vulkanatomic") ||
                  !strcmp(argv[i], "--vkatomic"))
@@ -904,7 +926,14 @@ static void update_window_title(double fps,
     }
     if (msaa)
     {
-        title << " (msaa" << msaa << ')';
+        if (inkbleed)
+        {
+            title << " (inkbleed)";
+        }
+        else
+        {
+            title << " (msaa" << msaa << ')';
+        }
     }
     else if (forceAtomicMode)
     {
@@ -1003,6 +1032,7 @@ void riveMainLoop()
         .fillsDisabled = disableFill,
         .strokesDisabled = disableStroke,
         .clockwiseFillOverride = clockwiseFill,
+        .inkbleedOverride = inkbleed,
     });
 
     int instances = 1;

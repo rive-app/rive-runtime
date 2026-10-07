@@ -16,6 +16,7 @@
 #include "rive/renderer/range_chunker.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
 
@@ -29,10 +30,10 @@
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/draw_clockwise_clip.frag.hpp"
 #include "generated/shaders/draw_clockwise_path.frag.hpp"
-#include "generated/shaders/draw_depthstencil_object.frag.hpp"
+#include "generated/shaders/draw_depthstencil_mesh.frag.hpp"
 #include "generated/shaders/draw_image_mesh.vert.hpp"
 #include "generated/shaders/draw_mesh.frag.hpp"
-#include "generated/shaders/draw_depthstencil_fill.vert.hpp"
+#include "generated/shaders/draw_depthstencil_path.glsl.hpp"
 #include "generated/shaders/draw_path.vert.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_raster_order_path.frag.hpp"
@@ -65,7 +66,6 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::midpointFanPatches:
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
-        case gpu::DrawType::depthStrokes:
         case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
         case gpu::DrawType::stencilDynamicMidpointFans:
         case gpu::DrawType::stencilDynamicOuterCubics:
@@ -78,6 +78,8 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::stencilOuterCubicWinding:
         case gpu::DrawType::stencilOuterCubicCover:
         case gpu::DrawType::stencilOuterCubics:
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::depthAAStrokes:
             return true;
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
@@ -1485,13 +1487,16 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::midpointFanPatches:
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
-        case gpu::DrawType::depthStrokes:
             if (shaderType == GL_VERTEX_SHADER)
             {
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
             }
             defines.push_back(GLSL_DRAW_PATH);
             break;
+        case gpu::DrawType::depthStrokes:
+        case gpu::DrawType::depthAAStrokes:
+            defines.push_back(GLSL_DS_STROKE);
+            [[fallthrough]];
         case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
         case gpu::DrawType::stencilDynamicMidpointFans:
         case gpu::DrawType::stencilDynamicOuterCubics:
@@ -1594,7 +1599,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_mesh_frag);
                     break;
                 case gpu::DrawType::imageRect:
-                case gpu::DrawType::depthStrokes:
                 case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
                 case gpu::DrawType::stencilDynamicMidpointFans:
                 case gpu::DrawType::stencilDynamicOuterCubics:
@@ -1610,6 +1614,8 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::clipReset:
                 case gpu::DrawType::renderPassInitialize:
                 case gpu::DrawType::renderPassResolve:
+                case gpu::DrawType::depthStrokes:
+                case gpu::DrawType::depthAAStrokes:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -1639,20 +1645,16 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::stencilOuterCubicWinding:
                 case gpu::DrawType::stencilOuterCubicCover:
                 case gpu::DrawType::stencilOuterCubics:
-                    sources.push_back(gpu::glsl::draw_path_common);
-                    sources.push_back(gpu::glsl::gradient_packing_common);
-                    sources.push_back(
-                        shaderType == GL_VERTEX_SHADER
-                            ? gpu::glsl::draw_depthstencil_fill_vert
-                            : gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
-                    break;
                 case gpu::DrawType::depthStrokes:
+                case gpu::DrawType::depthAAStrokes:
+                    sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::draw_depthstencil_path);
+                    break;
                 case gpu::DrawType::interiorTriangulation:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_mesh_frag);
                     break;
                 case gpu::DrawType::clipReset:
                     sources.push_back(gpu::glsl::stencil_draw);
@@ -1661,11 +1663,11 @@ RenderContextGLImpl::DrawShader::DrawShader(
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_path_vert);
-                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_mesh_frag);
                     break;
                 case gpu::DrawType::imageMesh:
                     sources.push_back(gpu::glsl::draw_image_mesh_vert);
-                    sources.push_back(gpu::glsl::draw_depthstencil_object_frag);
+                    sources.push_back(gpu::glsl::draw_depthstencil_mesh_frag);
                     break;
                 case gpu::DrawType::midpointFanPatches:
                 case gpu::DrawType::midpointFanCenterAAPatches:
@@ -2810,7 +2812,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::depthStrokes:
             {
                 m_state->bindVAO(m_drawVAO);
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
@@ -2838,16 +2839,16 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicWinding:
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
                 m_state->bindVAO(m_drawVAO);
                 for (auto [chunkIndexCount, chunkBaseVertex] :
-                     gpu::DSIndexRangeChunker(drawType,
-                                              batch.elementCount,
-                                              batch.baseElement))
+                     gpu::DSIndexRangeChunker(batch))
                 {
-                    const uintptr_t indexOffset = gpu::dsFillIndexOffset(
-                        gpu::drawTypeSubmitsOuterCubicPatches(drawType));
+                    const uintptr_t indexOffset =
+                        batch.baseIndex * sizeof(uint16_t);
                     // GL doesn't have a base vertex for indexed draws, so
                     // emulate it with a uniform.
                     glUniform1i(drawProgram->baseVertexUniformLocation(),
@@ -2886,21 +2887,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     // don't let a per-pass state change disturb it.
                     m_state->setPipelineState(passState, ScissorAction::ignore);
                     for (auto [chunkIndexCount, chunkBaseVertex] :
-                         // NOTE: Some backends use
-                         // VERTEX_FLAG_DISABLE_COLOR_WRITE instead of
-                         // explicitly disabling color writes, for performance
-                         // and/or support reasons.
-                         // However, glColorMask() seems to work great on GL,
-                         // even on the problem devices, so we just let the
-                         // above setPipelineState() handle it instead of
-                         // passing VERTEX_FLAG_DISABLE_COLOR_WRITE into the
-                         // DSIndexRangeChunker here.
-                         gpu::DSIndexRangeChunker(drawType,
-                                                  batch.elementCount,
-                                                  batch.baseElement))
+                         gpu::DSIndexRangeChunker(
+                             batch,
+                             // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
+                             // even though glColorMask() already masks color.
+                             // The flag lets the vertex shader skip paint
+                             // fetches.
+                             !passState.colorWriteEnabled
+                                 ? VERTEX_FLAG_DISABLE_COLOR_WRITE
+                                 : 0))
                     {
-                        const uintptr_t indexOffset = gpu::dsFillIndexOffset(
-                            gpu::drawTypeSubmitsOuterCubicPatches(drawType));
+                        const uintptr_t indexOffset =
+                            batch.baseIndex * sizeof(uint16_t);
                         // GL doesn't have a base vertex for indexed draws, so
                         // emulate it with a uniform.
                         glUniform1i(drawProgram->baseVertexUniformLocation(),

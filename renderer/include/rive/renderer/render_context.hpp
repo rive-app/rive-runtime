@@ -139,6 +139,10 @@ public:
         // Override all paths' fill rules (winding or even/odd) to emulate
         // clockwiseAtomic mode.
         bool clockwiseFillOverride = false;
+        // When msaaSampleCount == 1 (depthStencil w/o MSAA), strokes get
+        // analytic antialiasing by bleeding out 1/2 pixel, regardless of the
+        // view matrix. (Fills are not antialiased yet.) Ignored otherwise.
+        bool inkbleedOverride = false;
 #ifdef WITH_RIVE_TOOLS
         // Synthesize compilation failures to make sure the device handles them
         // gracefully. (e.g., by falling back on an uber shader or at least not

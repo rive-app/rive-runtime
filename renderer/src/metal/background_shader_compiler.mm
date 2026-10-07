@@ -215,7 +215,6 @@ void BackgroundShaderCompiler::threadMain()
                 }
 #endif
                 break;
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -229,6 +228,8 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
                 RIVE_UNREACHABLE();
         }
 
@@ -270,7 +271,6 @@ void BackgroundShaderCompiler::threadMain()
                     [source appendFormat:@"%s\n", gpu::glsl::draw_mesh_frag];
                     break;
                 case DrawType::imageRect:
-                case DrawType::depthStrokes:
                 case DrawType::stencilMidpointFanBorrowedCoverage:
                 case DrawType::stencilDynamicMidpointFans:
                 case DrawType::stencilDynamicOuterCubics:
@@ -286,6 +286,8 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::clipReset:
                 case DrawType::renderPassInitialize:
                 case DrawType::renderPassResolve:
+                case DrawType::depthStrokes:
+                case DrawType::depthAAStrokes:
                     RIVE_UNREACHABLE();
             }
         }

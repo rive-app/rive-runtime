@@ -194,7 +194,6 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
             break;
         case DrawType::renderPassResolve:
             break;
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -209,6 +208,8 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             RIVE_UNREACHABLE();
     }
 
@@ -260,7 +261,6 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::renderPassResolve:
             rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
             break;
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -275,6 +275,8 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             break;
     }
 

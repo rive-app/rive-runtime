@@ -185,6 +185,7 @@ public:
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride = mode.clockwiseFillOverride,
+            .inkbleedOverride = mode.inkbleed,
             .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
@@ -195,7 +196,8 @@ public:
     {
         return {m_backendParams.msaaSampleCount,
                 options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride};
+                m_backendParams.clockwise || options.clockwiseFillOverride,
+                m_backendParams.inkbleed};
     }
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final

@@ -21,4 +21,4 @@
 #include "Generated/common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
 #include "Generated/draw_image_mesh.minified.vert.ush"
-#include "Generated/draw_depthstencil_object.minified.frag.ush"
+#include "Generated/draw_depthstencil_mesh.minified.frag.ush"

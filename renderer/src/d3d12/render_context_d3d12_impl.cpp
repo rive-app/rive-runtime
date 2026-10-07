@@ -2069,7 +2069,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -2084,6 +2083,8 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
                 RIVE_UNREACHABLE();
         }
     }

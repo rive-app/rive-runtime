@@ -39,24 +39,52 @@ static uint32_t find_outer_cubic_subdivision_count(
 }
 
 constexpr static int NumSpokesInMiterOrBevelJoin = 4;
+// depthStencil bevels need 2 internal spokes: both colocated the ends, but with
+// AA outsets in the direction of the bevel.
+constexpr static int NumSpokesInDepthStencilBevelJoin = 2;
+// depthStencil miters need 3 internal spokes: all colocated on the miter
+// corner, with different AA outsets.
+constexpr static int NumSpokesInDepthStencilMiterJoin = 3;
+// depthStencil miterClip joins need 4 internal spokes: 2 colocated per corner,
+// with different AA outsets.
+constexpr static int NumSpokesInDepthStencilMiterClipJoin = 4;
 // "Fixed" join types, i.e., miter or bevel (not round), all have a fixed number
 // of spokes regardless of angle.
-constexpr static int numSpokesInFixedJoin(StrokeJoin join)
+constexpr static int numSpokesInFixedJoin(PathDraw::CoverageType coverageType,
+                                          StrokeJoin join)
 {
     assert(join != StrokeJoin::round);
+    if (coverageType == PathDraw::CoverageType::depthStencil)
+    {
+        switch (join)
+        {
+            case StrokeJoin::bevel:
+                return NumSpokesInDepthStencilBevelJoin;
+            case StrokeJoin::miter:
+                return NumSpokesInDepthStencilMiterJoin;
+            case StrokeJoin::round:
+                RIVE_UNREACHABLE();
+        }
+    }
     return NumSpokesInMiterOrBevelJoin;
 }
-constexpr static int numSegmentsInFixedJoin(StrokeJoin join)
+constexpr static int numSegmentsInFixedJoin(PathDraw::CoverageType coverageType,
+                                            StrokeJoin join)
 {
     // Since a join sits between 2 cubics, it already has an implicit spoke at
     // either end, shared with its cubic neighbor. A join SEGMENT count is
     // therefore its internal spoke count plus 1.
-    return numSpokesInFixedJoin(join) + 1;
+    return numSpokesInFixedJoin(coverageType, join) + 1;
 }
-constexpr static int numSegmentsInMiterClipJoin()
+constexpr static int numSegmentsInMiterClipJoin(
+    PathDraw::CoverageType coverageType)
 {
-    return NumSpokesInMiterOrBevelJoin + 1;
+    return (coverageType != PathDraw::CoverageType::depthStencil
+                ? NumSpokesInMiterOrBevelJoin
+                : NumSpokesInDepthStencilMiterClipJoin) +
+           1;
 }
+
 constexpr static int STROKE_OR_FEATHER_STYLE_FLAG = 8;
 constexpr static int ROUND_JOIN_STYLE_FLAG = STROKE_OR_FEATHER_STYLE_FLAG << 1;
 RIVE_ALWAYS_INLINE constexpr int style_flags(bool isStrokeOrFeather,
@@ -495,7 +523,12 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         return nullptr;
     }
 
-    if (!paint->getIsStroked() && paint->getFeather() == 0)
+    // Skip interior triangulation on inkbleed until we have a compute-based
+    // index generator. We're vertex bound on Android now, and outerCubic
+    // patches generate a lot of vertex waste, which then gets compounded by the
+    // multiple lanes and multiple passes of inkbleed hairlines.
+    if (!paint->getIsStroked() && paint->getFeather() == 0 &&
+        !context->frameDescriptor().inkbleedOverride)
     {
         // Use interior triangulation to draw filled paths if they're large
         // enough to benefit from it.
@@ -577,7 +610,9 @@ PathDraw::PathDraw(IAABB pixelBounds,
     assert(!m_pathRef->getRawPath().empty());
     assert(paint != nullptr);
 
-    if (paint->getIsOpaque())
+    if (paint->getIsOpaque() &&
+        // Inkbleed strokes introduce coverage, which is no longer opaque.
+        !(frameDesc.inkbleedOverride && paint->getIsStroked()))
     {
         m_drawContents |= gpu::DrawContents::opaquePaint;
     }
@@ -1279,8 +1314,9 @@ void PathDraw::initForMidpointFan(RenderContext* context,
             }
             else
             {
-                contourVertexCount += contour->strokeJoinCount *
-                                      numSpokesInFixedJoin(m_strokeJoin);
+                contourVertexCount +=
+                    contour->strokeJoinCount *
+                    numSpokesInFixedJoin(m_coverageType, m_strokeJoin);
             }
 
             // Count stroke caps, if any.
@@ -1321,8 +1357,9 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                     // miterClip joins.
                     contour->strokeCapSegmentCount =
                         (cap == StrokeCap::square
-                             ? numSegmentsInMiterClipJoin()
-                             : numSegmentsInFixedJoin(StrokeJoin::bevel));
+                             ? numSegmentsInMiterClipJoin(m_coverageType)
+                             : numSegmentsInFixedJoin(m_coverageType,
+                                                      StrokeJoin::bevel));
                 }
                 // +2 because caps emulated as joins need to emit spokes at T=0
                 // and T=1, unlike normal joins, which always have a cubic
@@ -1797,7 +1834,10 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                 {
                     if (isStroke())
                     {
-                        depthStencilDrawType = gpu::DrawType::depthStrokes;
+                        depthStencilDrawType =
+                            flush->frameDescriptor().inkbleedOverride
+                                ? gpu::DrawType::depthAAStrokes
+                                : gpu::DrawType::depthStrokes;
                     }
                     else if (enums::all_flags_set(m_drawContents,
                                                   gpu::kNestedClipUpdateMask))
@@ -2068,7 +2108,8 @@ void PathDraw::pushMidpointFanTessellationData(
         }
         else if (isStroke() && !roundJoinStroked)
         {
-            fixedJoinSegmentCount = numSegmentsInFixedJoin(m_strokeJoin);
+            fixedJoinSegmentCount =
+                numSegmentsInFixedJoin(m_coverageType, m_strokeJoin);
         }
 
         // Convert all curves in the contour to cubics and push them to the GPU.

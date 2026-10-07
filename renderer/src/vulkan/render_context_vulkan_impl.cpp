@@ -2563,7 +2563,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicWinding:
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -2571,6 +2570,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
             case DrawType::stencilMidpointFanCover:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
                 pendingTessPatchCount += batch.elementCount;
                 break;
             case DrawType::clipReset:
@@ -4073,7 +4074,6 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
-            case DrawType::depthStrokes:
             {
                 // Draw patches that connect the tessellation vertices.
                 pipelineBinder.bindVertexBuffer(commandBuffer,
@@ -4112,6 +4112,8 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
             case DrawType::stencilMidpointFanCover:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
                 pendingTessPatchCount -= batch.elementCount;
@@ -4120,18 +4122,15 @@ void RenderContextVulkanImpl::submitDrawList(
                     break;
                 }
 
-                const bool outerCubic =
-                    gpu::drawTypeSubmitsOuterCubicPatches(drawType);
-                pipelineBinder.bindIndexBufferU16(
-                    commandBuffer,
-                    *m_pathPatchIndexBuffer,
-                    gpu::dsFillIndexOffset(outerCubic));
-                // No vertex buffer. (depthStencil fills derive their vertex
+                pipelineBinder.bindIndexBufferU16(commandBuffer,
+                                                  *m_pathPatchIndexBuffer,
+                                                  batch.baseIndex *
+                                                      sizeof(uint16_t));
+                // No vertex buffer. (depthStencil draws derive their vertex
                 // data from gl_VertexID.)
+
                 for (auto [chunkIndexCount, chunkBaseVertex] :
-                     gpu::DSIndexRangeChunker(drawType,
-                                              batch.elementCount,
-                                              batch.baseElement))
+                     gpu::DSIndexRangeChunker(batch))
                 {
                     m_vk->CmdDrawIndexed(commandBuffer,
                                          chunkIndexCount,
@@ -4166,12 +4165,10 @@ void RenderContextVulkanImpl::submitDrawList(
                 // interruptIfNeeded would split the three passes across render
                 // passes, which the transient stencil buffer can't survive).
                 assert(!m_workarounds.needsInterruptibleRenderPasses());
-                const bool outerCubic =
-                    gpu::drawTypeSubmitsOuterCubicPatches(drawType);
-                pipelineBinder.bindIndexBufferU16(
-                    commandBuffer,
-                    *m_pathPatchIndexBuffer,
-                    gpu::dsFillIndexOffset(outerCubic));
+                pipelineBinder.bindIndexBufferU16(commandBuffer,
+                                                  *m_pathPatchIndexBuffer,
+                                                  batch.baseIndex *
+                                                      sizeof(uint16_t));
                 // The outer-cubic passes use identical dynamic state to their
                 // midpoint-fan counterparts, so drive both modes from the
                 // midpoint-fan types.
@@ -4193,15 +4190,11 @@ void RenderContextVulkanImpl::submitDrawList(
                                                    pipelineState);
                     for (auto [chunkIndexCount, chunkBaseVertex] :
                          gpu::DSIndexRangeChunker(
-                             drawType,
-                             batch.elementCount,
-                             batch.baseElement,
-                             // The color-write bit stands in for
-                             // VK_EXT_color_write_enable where we lack it;
-                             // where we have it, setDynamicState() just
-                             // handled color.
-                             !pipelineState.colorWriteEnabled &&
-                                     !m_vk->features.colorWriteEnable
+                             batch,
+                             // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
+                             // even when using VK_EXT_color_write_enable. The
+                             // flag lets the vertex shader skip paint fetches.
+                             !pipelineState.colorWriteEnabled
                                  ? VERTEX_FLAG_DISABLE_COLOR_WRITE
                                  : 0))
                     {

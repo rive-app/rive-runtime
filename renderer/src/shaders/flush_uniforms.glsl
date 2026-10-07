@@ -60,4 +60,6 @@ DECLARE_UNIFORM_UINT(renderTargetBottomUp)
 // Scale and Bias computes gradient V coord from integral row
 DECLARE_UNIFORM_FLOAT(gradTextureYScale)
 DECLARE_UNIFORM_FLOAT(gradTextureYBias)
+// gradTextureYScale / (1 << 17), for a row still packed at bit 17.
+DECLARE_UNIFORM_FLOAT(gradTextureYScalePacked)
 UNIFORM_BLOCK_END(uniforms)

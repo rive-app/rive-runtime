@@ -446,6 +446,10 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
         }();
         m_frameDescriptor.msaaSampleCount = 4;
     }
+    // Inkbleed is analytic antialiasing for 1x depthStencil. Don't let it
+    // through for MSAA.
+    m_frameDescriptor.inkbleedOverride = frameDescriptor.inkbleedOverride &&
+                                         m_frameDescriptor.msaaSampleCount == 1;
     // Republished for the producer thread; see the member's comment.
     m_frameCanApplyLayerMask.store(m_frameInterlockMode ==
                                        gpu::InterlockMode::rasterOrdering,
@@ -4002,24 +4006,20 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
             return kMidpointFanCenterAAPatchIndexCount;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchIndexCount;
-        case DrawType::depthStrokes:
-            return kMidpointFanPatchBorderIndexCount;
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilMidpointFans:
         case DrawType::stencilMidpointFanReset:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
-            return kMidpointFanPatchIndexCount -
-                   kMidpointFanPatchBorderIndexCount;
+            return DSMidpointFanFillPatchIndexCount;
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilOuterCubics:
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
-            return kOuterCurvePatchIndexCount -
-                   kOuterCurvePatchBorderIndexCount;
+            return DSOuterCubicFillPatchIndexCount;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
@@ -4028,6 +4028,10 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
+        case DrawType::depthStrokes:
+            return DSStrokePatchIndexCount;
+        case DrawType::depthAAStrokes:
+            return DSAAStrokePatchIndexCount;
     }
     RIVE_UNREACHABLE();
 }
@@ -4037,7 +4041,6 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
-        case DrawType::depthStrokes:
             return kMidpointFanPatchBaseIndex;
         case DrawType::midpointFanCenterAAPatches:
             return kMidpointFanCenterAAPatchBaseIndex;
@@ -4049,15 +4052,14 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::stencilMidpointFanReset:
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
-            return kMidpointFanPatchBaseIndex +
-                   kMidpointFanPatchBorderIndexCount;
+            return DSMidpointFanFillBaseIndex;
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilOuterCubics:
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
-            return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
+            return DSOuterCubicFillBaseIndex;
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
         case DrawType::imageRect:
@@ -4066,8 +4068,73 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::renderPassInitialize:
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
+        case DrawType::depthStrokes:
+            return DSStrokePatchBaseIndex;
+        case DrawType::depthAAStrokes:
+            return DSAAStrokePatchBaseIndex;
     }
     RIVE_UNREACHABLE();
+}
+
+constexpr bool drawTypeIsDepthStencilIndexPattern(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+            return true;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// Rive-specific vertex flags that a DrawType should OR into gl_VertexID.
+constexpr int32_t dsPatchVertexFlags(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::depthStrokes:
+            return 0;
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+            return VERTEX_FLAG_OUTER_CUBIC_FILL;
+        case DrawType::depthAAStrokes:
+            return VERTEX_FLAG_AA_STROKE;
+        default:
+            RIVE_UNREACHABLE();
+    }
 }
 
 static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
@@ -4077,7 +4144,6 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilMidpointFans:
@@ -4090,6 +4156,8 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::stencilOuterCubicReset:
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             batch->indexCountPerInstance = patchIndexCount(drawType);
             batch->baseIndex = patchBaseIndex(drawType);
             break;
@@ -4106,8 +4174,6 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
             batch->indexCountPerInstance = 0;
             batch->baseIndex = 0;
             break;
-        default:
-            RIVE_UNREACHABLE();
     }
 }
 
@@ -4162,6 +4228,23 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
     }
 
+    // DrawBatch::baseElement on a depthStencil draw means baseVertex.
+    uint32_t elementStrideLog2 = 0;
+    if (drawTypeIsDepthStencilIndexPattern(drawType))
+    {
+        elementStrideLog2 = dsPatchStrideLog2(drawType);
+        baseElement =
+            (baseElement << elementStrideLog2) | dsPatchVertexFlags(drawType);
+        if (!gpu::get_color_write_enable(drawType,
+                                         m_ctx->frameInterlockMode(),
+                                         shaderMiscFlags,
+                                         m_flushDesc.fixedFunctionColorOutput,
+                                         draw->drawContents()))
+        {
+            baseElement |= VERTEX_FLAG_DISABLE_COLOR_WRITE;
+        }
+    }
+
     bool canMergeWithPreviousBatch;
     switch (drawType)
     {
@@ -4170,7 +4253,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::featherAtlasBlit:
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilMidpointFans:
@@ -4184,6 +4266,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::stencilOuterCubicWinding:
         case DrawType::stencilOuterCubicCover:
         case DrawType::clipReset:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             if (!m_drawList.empty() &&
                 !enums::is_flag_set(m_pendingBarriers,
                                     gpu::BarrierFlags::drawBatchBreak))
@@ -4199,7 +4283,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                                             currentBatch->imageSampler,
                                             draw->imageSampler());
                 if (canMergeWithPreviousBatch &&
-                    currentBatch->baseElement + currentBatch->elementCount !=
+                    currentBatch->baseElement +
+                            (currentBatch->elementCount << elementStrideLog2) !=
                         baseElement)
                 {
                     // In depthStencil mode, multiple subpasses reference the
@@ -4251,7 +4336,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     {
         batch = m_drawList.tail();
         assert(batch->drawType == drawType);
-        assert(batch->baseElement + batch->elementCount == baseElement);
+        assert(batch->baseElement +
+                   (batch->elementCount << elementStrideLog2) ==
+               baseElement);
 
         batch->elementCount += elementCount;
 

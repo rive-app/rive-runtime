@@ -71,6 +71,7 @@ public:
         d.msaaSampleCount = mode.msaaSampleCount;
         d.disableRasterOrdering = mode.disableRasterOrdering;
         d.clockwiseFillOverride = mode.clockwiseFillOverride;
+        d.inkbleedOverride = mode.inkbleed;
         d.triangulationThresholds = m_options.triangulationThresholds;
         m_rc->beginFrame(d);
         m_canvasRenderer = std::make_unique<rive::RiveRenderer>(m_rc);

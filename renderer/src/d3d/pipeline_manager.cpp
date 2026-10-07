@@ -102,7 +102,6 @@ static std::string build_shader(DrawType drawType,
             s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
             s << "#define " << GLSL_RESOLVE_PLS << '\n';
             break;
-        case DrawType::depthStrokes:
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilDynamicMidpointFans:
         case DrawType::stencilDynamicOuterCubics:
@@ -117,6 +116,8 @@ static std::string build_shader(DrawType drawType,
         case DrawType::stencilOuterCubics:
         case DrawType::clipReset:
         case DrawType::renderPassInitialize:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
             RIVE_UNREACHABLE();
     }
     s << glsl::constants << '\n';
@@ -153,7 +154,6 @@ static std::string build_shader(DrawType drawType,
                 break;
             case DrawType::imageRect:
             case DrawType::renderPassResolve:
-            case DrawType::depthStrokes:
             case DrawType::stencilMidpointFanBorrowedCoverage:
             case DrawType::stencilDynamicMidpointFans:
             case DrawType::stencilDynamicOuterCubics:
@@ -168,6 +168,8 @@ static std::string build_shader(DrawType drawType,
             case DrawType::stencilOuterCubics:
             case DrawType::clipReset:
             case DrawType::renderPassInitialize:
+            case DrawType::depthStrokes:
+            case DrawType::depthAAStrokes:
                 RIVE_UNREACHABLE();
         }
     }

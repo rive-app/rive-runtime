@@ -504,7 +504,8 @@ public:
         return {std::max(m_backendParams.msaaSampleCount,
                          options.forceMSAA ? 4u : 0u),
                 options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride};
+                m_backendParams.clockwise || options.clockwiseFillOverride,
+                m_backendParams.inkbleed};
     }
 
     std::unique_ptr<rive::Renderer> beginFrame(
@@ -525,6 +526,7 @@ public:
             .fillsDisabled = options.fillsDisabled,
             .strokesDisabled = options.strokesDisabled,
             .clockwiseFillOverride = mode.clockwiseFillOverride,
+            .inkbleedOverride = mode.inkbleed,
 #ifdef WITH_RIVE_TOOLS
             .synthesizedFailureType = options.synthesizedFailureType,
 #endif

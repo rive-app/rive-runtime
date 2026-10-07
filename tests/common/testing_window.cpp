@@ -157,6 +157,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->msaaSampleCount = 1;
         return Backend::gl;
     }
+    if (nameStr == "glcwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
+        return Backend::gl;
+    }
     if (nameStr == "glmsaa")
     {
         params->msaaSampleCount = MSAASampleCount;
@@ -256,6 +263,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->msaaSampleCount = 1;
         return Backend::vk;
     }
+    if (nameStr == "vkcwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
+        return Backend::vk;
+    }
     if (nameStr == "moltenvk" || nameStr == "mvk")
     {
         return Backend::moltenvk;
@@ -269,6 +283,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     {
         params->clockwise = true;
         params->msaaSampleCount = 1;
+        return Backend::moltenvk;
+    }
+    if (nameStr == "mvkcwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
         return Backend::moltenvk;
     }
     if (nameStr == "swiftshader" || nameStr == "sw")
@@ -293,6 +314,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     {
         params->clockwise = true;
         params->msaaSampleCount = 1;
+        return Backend::dawn;
+    }
+    if (nameStr == "dawncwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
         return Backend::dawn;
     }
     if (nameStr == "wgpu")

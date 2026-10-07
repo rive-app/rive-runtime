@@ -27,6 +27,7 @@ layout(constant_id = LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX) const
     bool LoadColorFromDstTexture = false;
 layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
     bool VulkanVendorARM = false;
+layout(constant_id = DS_STROKE_SPECIALIZATION_IDX) const bool DSStroke = false;
 
 #define @ENABLE_CLIPPING EnableClipping
 #define @ENABLE_CLIP_RECT EnableClipRect
@@ -44,3 +45,4 @@ layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
 #define @STORE_COLOR_CLEAR StoreColorClear
 #define @LOAD_COLOR_FROM_DST_TEXTURE LoadColorFromDstTexture
 #define @VULKAN_VENDOR_ARM VulkanVendorARM
+#define @DS_STROKE DSStroke
