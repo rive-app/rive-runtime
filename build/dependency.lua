@@ -52,6 +52,15 @@ function m.github(project, tag, opts)
         end
     end
     assert(os.isdir(dependency_path))
+    if opts ~= nil and opts.submodules ~= nil and #opts.submodules > 0 then
+        local gitcmd = 'git -C '
+            .. dependency_path
+            .. ' submodule update --init --depth 1 -- '
+            .. table.concat(opts.submodules, ' ')
+        if not os.execute(gitcmd) then
+            error('\nError executing command:\n  ' .. gitcmd)
+        end
+    end
     return dependency_path
 end
 return m
