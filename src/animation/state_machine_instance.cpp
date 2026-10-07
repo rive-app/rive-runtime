@@ -76,6 +76,7 @@
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
 #include <array>
+#include <limits>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -3281,7 +3282,8 @@ SMIBindables& StateMachineInstance::ensureBindables()
     if (m_bindables.get() == nullptr)
     {
         m_bindables.ensureAllocated();
-        // Changes from before this instance existed aren't pending for it.
+        // Changes from before this instance existed aren't pending for it,
+        // beyond the frame it was made in (see forgetViewModelChanges).
         forgetViewModelChanges();
     }
     return *m_bindables.get();
@@ -3793,6 +3795,49 @@ void StateMachineInstance::fireSemanticAction(uint32_t semanticNodeId,
     }
 }
 
+namespace
+{
+// Where the change window of the innermost state machine advancing on this
+// thread starts (its SMIBindables::changeBaseline), or kNotAdvancing outside
+// any advance. A machine made or reset meanwhile starts in that window, see
+// StateMachineInstance::forgetViewModelChanges.
+constexpr uint64_t kNotAdvancing = std::numeric_limits<uint64_t>::max();
+thread_local uint64_t s_advancingChangeBaseline = kNotAdvancing;
+
+// Publishes a machine's change window while it advances. One that tracks no
+// view model changes has no window, and leaves the enclosing machine's without
+// touching the thread local, which most rows of a long list would otherwise
+// pay for every advance.
+class AdvancingChangeWindow
+{
+public:
+    explicit AdvancingChangeWindow(const SMIBindables* bindables) :
+        m_published(bindables != nullptr)
+    {
+        if (m_published)
+        {
+            m_outer = s_advancingChangeBaseline;
+            s_advancingChangeBaseline = bindables->changeBaseline;
+        }
+    }
+    // Restores rather than pops, so the next scope out undoes one a Luau
+    // error longjmped past.
+    ~AdvancingChangeWindow()
+    {
+        if (m_published)
+        {
+            s_advancingChangeBaseline = m_outer;
+        }
+    }
+    AdvancingChangeWindow(const AdvancingChangeWindow&) = delete;
+    AdvancingChangeWindow& operator=(const AdvancingChangeWindow&) = delete;
+
+private:
+    bool m_published;
+    uint64_t m_outer = 0;
+};
+} // namespace
+
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
     RIVE_PROF_SCOPE()
@@ -3802,18 +3847,22 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         m_drawOrderChangeCounter = m_artboardInstance->drawOrderChangeCounter();
         sortHitComponents();
     }
+    // View model changes the last frame's transition searches could see have
+    // had their frame. See viewModelValueChanged.
+    auto* bindables = m_bindables.get();
+    if (newFrame && bindables != nullptr)
+    {
+        bindables->changeBaseline = bindables->changeSearched;
+        bindables->changesUsed.clear();
+        // applyEvents below handles every listener report so far.
+        bindables->listenerBaseline =
+            ViewModelInstanceValue::latestChangeSequence();
+    }
+    // Machines made or reset while this one advances, such as the ones a list
+    // makes for its rows as its data binds apply, start in this frame.
+    AdvancingChangeWindow changeWindow(bindables);
     if (newFrame)
     {
-        // View model changes the last frame's transition searches could see
-        // have had their frame. See viewModelValueChanged.
-        if (auto* bindables = m_bindables.get())
-        {
-            bindables->changeBaseline = bindables->changeSearched;
-            bindables->changesUsed.clear();
-            // applyEvents below handles every listener report so far.
-            bindables->listenerBaseline =
-                ViewModelInstanceValue::latestChangeSequence();
-        }
         processFocusEvents();
         processSemanticEvents();
         applyEvents();
@@ -3875,6 +3924,9 @@ bool StateMachineInstance::advanceAndApply(float seconds,
     // Advancing by 0 could return false, when it shouldn't. Force keepGoing
     // to true.
     bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;
+    // The artboard's advances and updates below make machines too, in the
+    // frame advance just started.
+    AdvancingChangeWindow changeWindow(m_bindables.get());
     if (focusManager())
     {
         focusManager()->dropFocusIfFocusTargetHidden();
@@ -4192,6 +4244,18 @@ void StateMachineInstance::initScriptedObjects()
 
 void StateMachineInstance::internalDataContext(rcp<DataContext> dataContext)
 {
+    // A root machine whose artboard hosts others tracks view model changes
+    // from its bind on, however it is bound, even if none of its own
+    // conditions read them: the machines its lists and nested artboards make
+    // while it advances start in its frame (see forgetViewModelChanges). A
+    // hosted machine without a window of its own leaves them the enclosing
+    // machine's. Checked at bind rather than at creation, since a nested
+    // artboard makes its machines before it gets its host.
+    if (m_artboardInstance->host() == nullptr &&
+        m_artboardInstance->hostsArtboards())
+    {
+        ensureBindables();
+    }
     bindDataBindsFromContext(dataContext);
     if (auto* reporting = this->reporting())
     {
@@ -4755,9 +4819,17 @@ void StateMachineInstance::forgetViewModelChanges()
 {
     if (auto* bindables = m_bindables.get())
     {
+        auto latest = ViewModelInstanceValue::latestChangeSequence();
+        // Made or reset while another machine advances, as a list makes its
+        // rows' machines, this instance starts in that machine's frame: what
+        // is still pending there is pending here too, so a fire made just
+        // before the frame that makes a row reaches it. Otherwise nothing made
+        // so far is.
         bindables->changeBaseline = bindables->changeSearched =
-            bindables->listenerBaseline =
-                ViewModelInstanceValue::latestChangeSequence();
+            s_advancingChangeBaseline != kNotAdvancing
+                ? s_advancingChangeBaseline
+                : latest;
+        bindables->listenerBaseline = latest;
         bindables->changesUsed.clear();
     }
 }

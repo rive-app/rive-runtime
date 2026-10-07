@@ -85,6 +85,12 @@ typedef void (*ArtboardCallback)(void*);
 typedef uint8_t (*TestBoundsCallback)(void*, float, float, bool);
 typedef uint8_t (*IsAncestorCallback)(void*, uint16_t);
 typedef float (*RootTransformCallback)(void*, float, float, bool);
+
+/// Held by a source artboard and by every instance made from it, so the count
+/// above one is how many instances are alive. Lives apart from the source so
+/// an instance can let go of it after the source is gone.
+class ArtboardInstanceCount : public RefCnt<ArtboardInstanceCount>
+{};
 #endif
 
 // Called in place of Drawable::draw for each drawable that has custom
@@ -206,6 +212,11 @@ private:
     uint8_t m_drawOrderChangeCounter = 0;
 #ifdef WITH_RIVE_TOOLS
     uint16_t m_artboardId = 0;
+    // Instances borrow their source's animations and state machines, so
+    // File::replaceArtboard can't delete a source while this says any are
+    // alive. Set by the File on the artboards it imports, and shared by every
+    // instance made from them; null on artboards no file owns.
+    rcp<ArtboardInstanceCount> m_instanceCount;
 #endif
     const Artboard* m_artboardSource = nullptr;
 
@@ -545,6 +556,14 @@ public:
 #ifdef WITH_RIVE_TOOLS
     void artboardId(uint16_t id) { m_artboardId = id; }
     uint16_t artboardId() const { return m_artboardId; }
+
+    /// Whether any instance made from this source artboard, directly or from
+    /// another of its instances, is still alive.
+    bool hasLiveInstances() const
+    {
+        return m_instanceCount != nullptr &&
+               m_instanceCount->debugging_refcnt() > 1;
+    }
 #endif
 
     void artboardSource(const Artboard* artboard)
@@ -722,6 +741,9 @@ public:
     {
         return m_NestedArtboards;
     }
+    /// Whether this artboard holds nested artboards or artboard lists, which
+    /// make state machines of their own as they advance.
+    bool hostsArtboards() const { return !m_ArtboardHosts.empty(); }
     const std::vector<ArtboardComponentList*> artboardComponentLists() const
     {
         return m_ComponentLists;
@@ -907,6 +929,9 @@ public:
         artboardClone->m_originalHeight = m_originalHeight;
 #ifdef WITH_RIVE_TOOLS
         artboardClone->m_artboardId = m_artboardId;
+        // An instance of an instance borrows the same source, and already
+        // holds its count.
+        artboardClone->m_instanceCount = m_instanceCount;
 #endif
         artboardClone->m_artboardSource =
             isInstance() ? m_artboardSource : this;

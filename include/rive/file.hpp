@@ -189,13 +189,19 @@ public:
     /// holds. The artboard keeps its index, so everything referring to it by
     /// index stays correct.
     ///
-    /// The caller must have released every ArtboardInstance of this artboard
-    /// first: instances share their source's animations and state machines by
-    /// pointer, so they do not survive it being replaced. Instances of *other*
+    /// Instances share their source's animations and state machines by
+    /// pointer, so the outgoing artboard is retired rather than deleted while
+    /// any of its instances are alive. Those keep playing the old content until
+    /// the caller releases them; only instances made afterwards see the
+    /// replacement. A retired artboard is deleted by the next replacement once
+    /// its last instance is gone, or with the file. Instances of *other*
     /// artboards are unaffected.
     ///
     /// Returns malformed and leaves the file untouched if anything fails.
     ImportResult replaceArtboard(size_t index, Span<const uint8_t> bytes);
+
+    /// How many replaced artboards are still kept alive by their instances.
+    size_t retiredArtboardCount() const { return m_retiredArtboards.size(); }
 
     /// Byte extent of the artboard at [index] within the stream it was
     /// imported from, or {0, 0} if unknown.
@@ -411,6 +417,11 @@ private:
     std::vector<Artboard*> m_artboards;
 
 #ifdef WITH_RIVE_TOOLS
+    /// Artboards replaceArtboard() swapped out while instances of them were
+    /// still alive. Not in m_artboards, so nothing new resolves to them.
+    std::vector<Artboard*> m_retiredArtboards;
+    /// Deletes the retired artboards whose last instance is gone.
+    void deleteUnusedRetiredArtboards();
     /// Parallel to m_artboards; see artboardByteRange().
     std::vector<ArtboardByteRange> m_artboardByteRanges;
     /// Retained from read() so a single artboard can be decoded later.

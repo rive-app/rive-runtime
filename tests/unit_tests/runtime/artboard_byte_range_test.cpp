@@ -4,7 +4,11 @@
 #include "rive/runtime_header.hpp"
 #include "rive/core/binary_reader.hpp"
 #include <utils/no_op_renderer.hpp>
+#include <utils/serializing_factory.hpp>
 #include "rive/nested_artboard.hpp"
+#include "rive/script_input_artboard.hpp"
+#include "rive/scripted/scripted_drawable.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/shapes/image.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -303,6 +307,130 @@ TEST_CASE("a replaced artboard still resolves its file assets",
     REQUIRE(replaced != image);
     REQUIRE(replaced->imageAsset() != nullptr);
     REQUIRE(replaced->imageAsset() == assetBefore);
+}
+
+// The test asset below carries Luau bytecode scripts, which only the Luau
+// backend runs.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+// The index of the artboard the first script Artboard input in [file] points
+// at, or -1.
+static int scriptInputArtboardIndex(rive::File* file)
+{
+    for (size_t i = 0; i < file->artboardCount(); i++)
+    {
+        for (auto* object : file->artboard(i)->objects())
+        {
+            if (object != nullptr && object->is<rive::ScriptInputArtboard>())
+            {
+                return object->as<rive::ScriptInputArtboard>()
+                    ->referencedArtboardId();
+            }
+        }
+    }
+    return -1;
+}
+
+// The editor splices a changed artboard into the live file, and only releases
+// the instances it can see. A script in an artboard that isn't being replaced
+// can still hold instances of the one that is: this one takes it as an
+// Artboard input, instances it into a grid and advances every copy each frame.
+// Those copies share the replaced artboard's state machines by pointer, so
+// deleting it left the script advancing through freed transitions
+// (RIVE_NATIVE-13Q, RIVE_NATIVE-13P).
+TEST_CASE("a script keeps advancing its instances of a replaced artboard",
+          "[artboard-replace]")
+{
+    rive::SerializingFactory factory;
+    auto bytes = ReadFile("assets/script_artboard_test.riv");
+    auto file = ReadRiveFile("assets/script_artboard_test.riv", &factory);
+
+    const int inputIndex = scriptInputArtboardIndex(file.get());
+    REQUIRE(inputIndex >= 0);
+    REQUIRE(file->artboard((size_t)inputIndex)->defaultStateMachineIndex() >=
+            0);
+
+    auto host = file->artboardNamed("Artboard");
+    REQUIRE(host != nullptr);
+    auto machine = host->stateMachineAt(0);
+    REQUIRE(machine != nullptr);
+    auto renderer = factory.makeRenderer();
+    for (int i = 0; i < 10; i++)
+    {
+        machine->advanceAndApply(0.016f);
+        host->draw(renderer.get());
+    }
+
+    const size_t headerSize = headerSizeOf(bytes);
+    auto range = file->artboardByteRange((size_t)inputIndex);
+    rive::Span<const uint8_t> run(bytes.data() + headerSize + range.start,
+                                  range.end - range.start);
+    REQUIRE(file->replaceArtboard((size_t)inputIndex, run) ==
+            rive::ImportResult::success);
+    REQUIRE(file->retiredArtboardCount() == 1);
+
+    // The host was not replaced, so it is still mounted, and its script still
+    // holds the grid it built from the old artboard. The grid has settled by
+    // now; anything that wakes the script (a looping state, an input change,
+    // a pointer) has it advance those instances again.
+    rive::ScriptedDrawable* scripted = nullptr;
+    for (auto* object : host->objects())
+    {
+        if (object != nullptr && object->is<rive::ScriptedDrawable>())
+        {
+            scripted = object->as<rive::ScriptedDrawable>();
+            break;
+        }
+    }
+    REQUIRE(scripted != nullptr);
+    for (int i = 0; i < 10; i++)
+    {
+        scripted->wakeAdvance();
+        machine->advanceAndApply(0.016f);
+        host->draw(renderer.get());
+    }
+}
+#endif
+
+// Keeping every replaced artboard would grow the file on each edit, since the
+// editor splices as often as every 200ms while someone drags. A retired
+// artboard has to go as soon as nothing borrows from it.
+TEST_CASE("a retired artboard is deleted once its last instance is gone",
+          "[artboard-replace]")
+{
+    auto bytes = ReadFile("assets/artboardclipping.riv");
+    auto file = ReadRiveFile("assets/artboardclipping.riv");
+    REQUIRE(file->artboardCount() > 1);
+
+    const size_t target = 1;
+    const size_t headerSize = headerSizeOf(bytes);
+    auto range = file->artboardByteRange(target);
+    rive::Span<const uint8_t> run(bytes.data() + headerSize + range.start,
+                                  range.end - range.start);
+
+    // With nothing instanced, the outgoing artboard is deleted right away.
+    REQUIRE(file->replaceArtboard(target, run) == rive::ImportResult::success);
+    REQUIRE(file->retiredArtboardCount() == 0);
+
+    // An instance of an instance borrows the same source, so it alone keeps
+    // the source retired.
+    auto instance = file->artboardAt(target);
+    REQUIRE(instance != nullptr);
+    auto copy = instance->instance();
+    REQUIRE(copy != nullptr);
+    instance = nullptr;
+    REQUIRE(file->replaceArtboard(target, run) == rive::ImportResult::success);
+    REQUIRE(file->retiredArtboardCount() == 1);
+
+    // Still usable on its retired source.
+    rive::NoOpRenderer renderer;
+    copy->advance(0.016f);
+    copy->draw(&renderer);
+
+    // Once it's gone, the next replacement deletes the retired artboard, and
+    // the artboard it replaces has no instances either.
+    copy = nullptr;
+    REQUIRE(file->replaceArtboard(target, run) == rive::ImportResult::success);
+    REQUIRE(file->retiredArtboardCount() == 0);
 }
 
 // An instance skips the topological sort and replays its source's order

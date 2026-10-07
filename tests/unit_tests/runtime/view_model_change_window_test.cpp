@@ -8,18 +8,24 @@
 // the machine searched its transitions after it. A layer takes at most one
 // transition on a view model value in that frame. Changes from before the
 // machine was created or reset, or from while it was inactive, are never
-// pending for it. These cases pin down both ends of that window.
+// pending for it, unless another machine's advance made or reset it: then it
+// starts in that machine's frame. These cases pin down both ends of that
+// window.
 
 #include <rive/animation/animation_state.hpp>
 #include <rive/animation/linear_animation.hpp>
 #include <rive/animation/nested_state_machine.hpp>
 #include <rive/animation/state_machine_instance.hpp>
+#include <rive/artboard_component_list.hpp>
 #include <rive/custom_property_trigger.hpp>
+#include <rive/data_bind/data_context.hpp>
 #include <rive/event.hpp>
 #include <rive/file.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/viewmodel/viewmodel.hpp>
 #include <rive/viewmodel/viewmodel_instance_boolean.hpp>
+#include <rive/viewmodel/viewmodel_instance_list.hpp>
+#include <rive/viewmodel/viewmodel_instance_list_item.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include <rive/viewmodel/viewmodel_instance_string.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
@@ -27,6 +33,7 @@
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <string>
+#include <vector>
 
 using namespace rive;
 
@@ -582,4 +589,104 @@ TEST_CASE("a component trigger fired before a state machine's first advance "
     fire(press);
     fresh->advanceAndApply(0.0f);
     CHECK(layerStateName(fresh.get(), 0) == "pressed");
+}
+
+// The state the machine of each row of `artboard`'s list is in, in list order.
+static std::vector<std::string> rowStates(ArtboardInstance* artboard)
+{
+    auto list = artboard->find<ArtboardComponentList>("Rows");
+    REQUIRE(list != nullptr);
+    std::vector<std::string> states;
+    for (size_t i = 0; i < list->artboardCount(); i++)
+    {
+        auto row = list->stateMachineInstance((int)i);
+        states.push_back(row == nullptr ? "" : layerStateName(row, 0));
+    }
+    return states;
+}
+
+TEST_CASE("a fire made before a list's first advance reaches the rows it makes",
+          "[data binding]")
+{
+    // Main's list makes its rows' machines in its first advance, after the
+    // app bound the view model and fired `play`. The rows start in the frame
+    // the fire is pending in, so it's pending for them as it is for Main.
+    auto file = ReadRiveFile("assets/list_item_parent_trigger.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto machine = artboard->stateMachineAt(0);
+    auto viewModel = file->createDefaultViewModelInstance(artboard.get());
+    machine->bindViewModelInstance(viewModel);
+
+    trigger(viewModel, "play")->trigger();
+    machine->advanceAndApply(0.0f);
+    CHECK(layerStateName(machine.get(), 0) == "played");
+    CHECK(rowStates(artboard.get()) ==
+          std::vector<std::string>{"played", "played"});
+}
+
+TEST_CASE("a host machine that reads no values still sets its rows' frame, "
+          "however it is bound",
+          "[data binding]")
+{
+    // Quiet's own machine reads no view model values. Whether the app binds
+    // its view model or a script binds it to a data context (as one does an
+    // artboard it made under its own context), its rows start in its frame.
+    auto file = ReadRiveFile("assets/list_item_parent_trigger.riv");
+    for (bool toDataContext : {false, true})
+    {
+        INFO("bound to a data context: " << toDataContext);
+        auto artboard = file->artboardNamed("Quiet");
+        REQUIRE(artboard != nullptr);
+        auto machine = artboard->stateMachineAt(0);
+        auto viewModel = file->createDefaultViewModelInstance(artboard.get());
+        if (toDataContext)
+        {
+            machine->bindDataContext(make_rcp<DataContext>(viewModel));
+        }
+        else
+        {
+            machine->bindViewModelInstance(viewModel);
+        }
+
+        trigger(viewModel, "play")->trigger();
+        machine->advanceAndApply(0.0f);
+        CHECK(rowStates(artboard.get()) ==
+              std::vector<std::string>{"played", "played"});
+    }
+}
+
+TEST_CASE("a fire reaches a row added in its frame but not one added later",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/list_item_parent_trigger.riv");
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+    auto machine = artboard->stateMachineAt(0);
+    auto viewModel = file->createDefaultViewModelInstance(artboard.get());
+    machine->bindViewModelInstance(viewModel);
+    machine->advanceAndApply(0.0f);
+    REQUIRE(rowStates(artboard.get()) ==
+            std::vector<std::string>{"waiting", "waiting"});
+
+    auto items = viewModel->propertyValue("items")->as<ViewModelInstanceList>();
+    auto addRow = [&]() {
+        auto item = make_rcp<ViewModelInstanceListItem>();
+        item->viewModelInstance(
+            file->createDefaultViewModelInstance(file->viewModel("Item")));
+        items->addItem(item);
+    };
+
+    // Added with the fire: its machine is made in the fire's frame.
+    trigger(viewModel, "play")->trigger();
+    addRow();
+    machine->advanceAndApply(0.016f);
+    CHECK(rowStates(artboard.get()) ==
+          std::vector<std::string>{"played", "played", "played"});
+
+    // Added a frame later: the fire's frame has passed, so it isn't replayed.
+    addRow();
+    machine->advanceAndApply(0.016f);
+    CHECK(rowStates(artboard.get()) ==
+          std::vector<std::string>{"played", "played", "played", "waiting"});
 }

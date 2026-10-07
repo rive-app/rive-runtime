@@ -357,6 +357,12 @@ File::~File()
     {
         delete artboard;
     }
+#ifdef WITH_RIVE_TOOLS
+    for (auto artboard : m_retiredArtboards)
+    {
+        delete artboard;
+    }
+#endif
     for (auto& viewModel : m_ViewModels)
     {
         // Instances can keep a view model alive past its file; createInstance
@@ -551,6 +557,10 @@ ImportResult File::readObjects(BinaryReader& reader,
                 {
                     Artboard* ab = object->as<Artboard>();
                     ab->m_Factory = m_factory;
+#ifdef WITH_RIVE_TOOLS
+                    // Before any instance exists, so every one is counted.
+                    ab->m_instanceCount = make_rcp<ArtboardInstanceCount>();
+#endif
                     if (wholeFile)
                     {
 #ifdef WITH_RIVE_TOOLS
@@ -1007,7 +1017,7 @@ ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
     // m_scriptedInterpolators is not rebuilt by a partial read (see
     // readObjects), so swap the outgoing artboard's entries for the
     // replacement's by hand -- leaving them would point the list at objects
-    // the delete below frees.
+    // that are leaving the file, and are freed once nothing uses them.
     Artboard* outgoing = m_artboards[index];
     m_scriptedInterpolators.erase(
         std::remove_if(m_scriptedInterpolators.begin(),
@@ -1032,13 +1042,27 @@ ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
         }
     }
 
-    delete m_artboards[index];
     m_artboards[index] = imported;
+    deleteUnusedRetiredArtboards();
+    // Instances share their source's animations and state machines by
+    // pointer, and the caller can't always release them all first: a script
+    // in an artboard that isn't being replaced may hold instances of this one,
+    // from an Artboard input or copies it made with instance(). Deleting it
+    // now would leave those advancing through freed state machines.
+    if (outgoing->hasLiveInstances())
+    {
+        m_retiredArtboards.push_back(outgoing);
+    }
+    else
+    {
+        delete outgoing;
+    }
 
     // Other artboards hold a resolved pointer to the artboard that was just
-    // deleted (BackboardImporter::resolve stamped it in at import time), so
-    // re-point every referencer of this index at the replacement. Missing one
-    // would leave a dangling pointer rather than a visible failure.
+    // swapped out (BackboardImporter::resolve stamped it in at import time),
+    // so re-point every referencer of this index at the replacement. Missing
+    // one would leave a pointer that dangles once the outgoing artboard is
+    // deleted, rather than a visible failure.
     for (auto* artboard : m_artboards)
     {
         for (auto* object : artboard->objects())
@@ -1056,6 +1080,23 @@ ImportResult File::replaceArtboard(size_t index, Span<const uint8_t> bytes)
         }
     }
     return ImportResult::success;
+}
+
+void File::deleteUnusedRetiredArtboards()
+{
+    size_t kept = 0;
+    for (auto* artboard : m_retiredArtboards)
+    {
+        if (artboard->hasLiveInstances())
+        {
+            m_retiredArtboards[kept++] = artboard;
+        }
+        else
+        {
+            delete artboard;
+        }
+    }
+    m_retiredArtboards.resize(kept);
 }
 #endif
 

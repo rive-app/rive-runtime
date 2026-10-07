@@ -298,7 +298,10 @@ public:
     /// transition could take it then. And within that frame only until a
     /// transition `layer` takes has read the value (useViewModelValue).
     /// Changes made before this instance was created or reset, or while a host
-    /// above it was collapsed or paused, are never pending for it.
+    /// above it was collapsed or paused, are never pending for it. Except when
+    /// it is created or reset while another machine advances (a list making
+    /// its rows' machines): what is pending for that machine then is pending
+    /// for it too.
     bool viewModelValueChanged(const ViewModelInstanceValue* value,
                                const StateMachineLayerInstance* layer) const;
     /// Whether a fire of `trigger` happened after this instance last handled
