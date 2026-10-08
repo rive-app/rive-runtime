@@ -133,8 +133,9 @@ private:
     /// user is typing or moving it around.
     void restartCursorBlink();
 
-    /// Toggle the caret when the blink interval elapses. Returns true while
-    /// focused so frames keep coming and the caret keeps blinking.
+    /// Toggle the caret when the blink interval elapses, dirtying the cursor
+    /// drawables whenever that changes whether the caret shows. Returns true
+    /// while focused so frames keep coming and the caret keeps blinking.
     bool advanceCursorBlink(float elapsedSeconds);
 
     /// Whether the focus being granted came from Tab or directional traversal.

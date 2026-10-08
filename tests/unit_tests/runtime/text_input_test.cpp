@@ -17,6 +17,7 @@
 #include "rive/input/focus_node.hpp"
 #include "rive_testing.hpp"
 #include "utils/no_op_factory.hpp"
+#include "utils/no_op_renderer.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 using namespace rive;
@@ -897,6 +898,63 @@ TEST_CASE("the caret blink accounts for every elapsed phase", "[text_input]")
     stateMachine->advanceAndApply(0.2f);
     CHECK(cursor->localClockwisePath() != nullptr);
 }
+
+// The caret reads its blink phase at draw time, so a toggle has to mark the
+// artboard changed or a host that only redraws on didChange() never shows it.
+TEST_CASE("the caret blink marks the artboard changed", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input.riv");
+    auto artboard = file->artboardNamed("Text Input - Multiline");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    NoOpRenderer renderer;
+
+    stateMachine->advanceAndApply(0.0f);
+
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+    auto focusData = artboard->objects<FocusData>().first();
+    REQUIRE(focusData != nullptr);
+
+    stateMachine->setFocus(focusData);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(&renderer);
+    REQUIRE(!artboard->didChange());
+
+    // Mid-phase nothing moved, so there is nothing to redraw.
+    stateMachine->advanceAndApply(0.2f);
+    CHECK(!artboard->didChange());
+
+    // Hiding and showing the caret both count as a change.
+    stateMachine->advanceAndApply(0.3f);
+    REQUIRE(cursor->localClockwisePath() == nullptr);
+    CHECK(artboard->didChange());
+    artboard->draw(&renderer);
+
+    stateMachine->advanceAndApply(0.5f);
+    REQUIRE(cursor->localClockwisePath() != nullptr);
+    CHECK(artboard->didChange());
+    artboard->draw(&renderer);
+
+    // An even number of phases in one advance leaves the caret where it was.
+    stateMachine->advanceAndApply(1.0f);
+    REQUIRE(cursor->localClockwisePath() != nullptr);
+    CHECK(!artboard->didChange());
+
+    // A selection hides the caret whatever the blink phase, so its toggles
+    // change nothing on screen.
+    textInput->rawTextInput()->text("hello world");
+    textInput->rawTextInput()->selectAll();
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(&renderer);
+    REQUIRE(!artboard->didChange());
+    stateMachine->advanceAndApply(0.5f);
+    CHECK(!artboard->didChange());
+}
+
 TEST_CASE("obscured text input keeps selected text off the clipboard",
           "[text_input]")
 {

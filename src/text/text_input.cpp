@@ -1,5 +1,6 @@
 #include "rive/text/text_input.hpp"
 #include "rive/text/text_style.hpp"
+#include "rive/text/text_input_cursor.hpp"
 #include "rive/text/text_input_drawable.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/artboard.hpp"
@@ -228,12 +229,24 @@ bool TextInput::advanceCursorBlink(float elapsedSeconds)
             std::fmod(m_cursorBlinkSeconds, kCursorBlinkSeconds);
         if (std::fmod(phases, 2.0f) != 0.0f)
         {
+            bool wasVisible = isCursorVisible();
             m_cursorBlinkVisible = !m_cursorBlinkVisible;
+            // The cursor drawable reads isCursorVisible() when it draws, so
+            // nothing else marks the toggle. Without dirt, a host that skips
+            // frames while Artboard::didChange() is false would never show it.
+            // Dirty the cursor rather than markPaintDirty(), which would
+            // restart the blink and re-scroll a scrolled field to the caret.
+            // A selection hides the caret, so its toggles change nothing.
+            if (isCursorVisible() != wasVisible)
+            {
+                for (auto cursor : children<TextInputCursor>())
+                {
+                    cursor->addDirt(ComponentDirt::Paint);
+                }
+            }
         }
     }
-    // Keep advancing while focused so the caret keeps toggling. The cursor
-    // drawable reads isCursorVisible() when it builds its path, so no dirt is
-    // needed for the toggle itself.
+    // Keep advancing while focused so the caret keeps toggling.
     return true;
 }
 
