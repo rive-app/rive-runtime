@@ -53,7 +53,6 @@ public:
         return m_emptyDescriptorSetLayout;
     }
 
-    VkSampler linearSampler() const { return m_linearSampler; }
     VkSampler imageSampler(uint32_t i) const { return m_imageSamplers[i]; }
 
     VkDescriptorSet nullImageDescriptorSet() const
@@ -135,7 +134,6 @@ private:
     VkFormat m_featherAtlasFormat;
 
     // Samplers.
-    VkSampler m_linearSampler = VK_NULL_HANDLE;
     VkSampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS] = {};
 
     // With the exception of PLS texture bindings, which differ by interlock

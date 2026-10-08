@@ -3,7 +3,6 @@
 // Only for the ScriptingVM to ScriptBackend conversion in backend().
 #include "rive/lua/scripting_vm.hpp"
 #endif
-#include "libhydrogen.h"
 #include "rive/importers/text_asset_importer.hpp"
 #endif
 #include "rive/assets/script_asset.hpp"
@@ -218,12 +217,7 @@ bool ScriptAsset::bytecode(Span<uint8_t> data)
         return true;
     }
 
-    auto signature = header.signature();
-    if (hydro_sign_verify(signature.data(),
-                          bytecode.data(),
-                          bytecode.size(),
-                          "RiveCode",
-                          g_scriptVerificationPublicKey) != 0)
+    if (!verifiesContentSignature(header.signature(), bytecode))
     {
         // Forged.
         m_verified = false;

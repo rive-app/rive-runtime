@@ -1795,10 +1795,8 @@ private:
     // Scale and bias to get V coord of gradient from integral row value
     WRITEONLY float m_gradTextureYScale;
     WRITEONLY float m_gradTextureYBias;
-    // m_gradTextureYScale / (1 << 17), for when the row is packed at bit 17.
-    WRITEONLY float m_gradTextureYScalePacked;
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 120];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 116];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1899,7 +1897,6 @@ public:
     void set(DrawContents singleDrawContents,
              PaintType,
              SimplePaintValue,
-             GradTextureLayout,
              uint32_t clipID,
              bool hasClipRect,
              bool hasImage,
@@ -1913,13 +1910,8 @@ private:
     WRITEONLY uint32_t m_params; // [clipID, flags, paintType]
     union
     {
-        WRITEONLY uint32_t m_color; // PaintType::solidColor
-        WRITEONLY float
-            m_gradTextureRowAndAdditiveness; // Paintype::linearGradient,
-                                             // Paintype::radialGradient
-                                             // Int part: gradient texture row
-                                             // Fraction: additiveness,
-                                             // pre-quantized to 0/256..255/256
+        WRITEONLY uint32_t m_color; // PaintType::solidColor, *Gradient
+        WRITEONLY float m_gradientAdditivenessComplement; // Paintype::*Gradient
         WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
     };
 };
@@ -1941,6 +1933,7 @@ public:
              const Mat2D& imageMatrix,
              PaintType,
              SimplePaintValue,
+             GradTextureLayout,
              const Gradient*,
              const Mat2D& inverseGradientTransform,
              const Texture*,
@@ -1950,8 +1943,9 @@ public:
 
 private:
     WRITEONLY float m_paintMatrix[6]; // Maps _fragCoord to paint coordinates.
-    WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
-                                                    // Paintype::radialGradient
+    WRITEONLY float m_gradTextureX;   // Paintype::*Gradient, negative for a
+                                      // complex gradient
+    WRITEONLY float m_gradTextureY;   // Paintype::*Gradient
     WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized
                                                 // clipRect coords.
     WRITEONLY Vec2D m_inverseFwidth;  // -1 / fwidth(matrix * _fragCoord) -- for
@@ -2106,18 +2100,19 @@ public:
 
     ImageRectInstance() = default;
 
-    ImageRectInstance(const Mat2D&,
-                      ColorInt color,
-                      const ClipRectInverseMatrix*,
-                      uint32_t clipID,
-                      BlendMode,
-                      uint32_t zIndex,
-                      const Mat2D& imageMatrix,
-                      const Mat2D& gradientMatrix,
-                      uint32_t gradientType,
-                      const float (&gradTextureHorizontalSpan)[2],
-                      float gradTextureY,
-                      float additiveness);
+    ImageRectInstance(
+        const Mat2D&,
+        ColorInt color,
+        const ClipRectInverseMatrix*,
+        uint32_t clipID,
+        BlendMode,
+        uint32_t zIndex,
+        const Mat2D& imageMatrix,
+        const Mat2D& gradientMatrix,
+        uint32_t gradientType,
+        int32_t gradTextureX, // sign used to indicate complex gradient
+        uint32_t gradTextureY,
+        float additiveness);
 
 private:
     ImageDrawInstanceBase m_commons;
@@ -2125,9 +2120,10 @@ private:
     WRITEONLY float m_gradientMatrix[4];
     WRITEONLY float m_imageTranslate[2];
     WRITEONLY float m_gradientTranslate[2];
-    WRITEONLY float m_gradTextureHorizontalSpan[2];
+    WRITEONLY float m_gradTextureX;
     WRITEONLY float m_gradTextureY;
-    WRITEONLY float m_gradientType;
+    WRITEONLY uint32_t m_gradientType;
+    WRITEONLY float m_padding;
 };
 
 class ImageMeshInstance
@@ -2506,22 +2502,18 @@ void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
 
-// Get the integer row in the gradient texture.
-uint32_t getGradientRow(ColorRampLocation, GradTextureLayout);
-
-// Get the Y coordinate in the gradient texture.
-float getGradientY(ColorRampLocation, GradTextureLayout);
-
 // Get the paint matrix and gradient texture horizontal span for a given
 // gradient.
-void getGradientMatrixAndSpan(const Gradient*,
-                              ColorRampLocation,
-                              const Mat2D& inverseGradientTransform,
-                              const Mat2D& viewMatrix,
-                              const RenderTarget*,
-                              const PlatformFeatures&,
-                              Mat2D& paintMatrixOut,
-                              float (&gradTextureHorizontalSpanOut)[2]);
+void getGradientMatrixAndCoord(const Gradient*,
+                               ColorRampLocation,
+                               GradTextureLayout,
+                               const Mat2D& inverseGradientTransform,
+                               const Mat2D& viewMatrix,
+                               const RenderTarget*,
+                               const PlatformFeatures&,
+                               Mat2D& paintMatrixOut,
+                               int32_t& gradXOut,
+                               uint32_t& gradYOut);
 
 float featherRadiusFromFeather(float feather);
 

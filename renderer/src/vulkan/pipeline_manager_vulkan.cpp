@@ -71,25 +71,7 @@ PipelineManagerVulkan::PipelineManagerVulkan(rcp<VulkanContext> vk,
 
 bool PipelineManagerVulkan::init(VkImageView nullTextureView)
 {
-    // Create the immutable samplers.
-    VkSamplerCreateInfo linearSamplerCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .minLod = 0,
-        .maxLod = 0,
-    };
-
-    m_linearSampler =
-        VK_CREATE_HANDLE(m_vk, CreateSampler, &linearSamplerCreateInfo);
-    if (m_linearSampler == VK_NULL_HANDLE)
-    {
-        return false;
-    }
-
+    // Create the samplers.
     for (size_t i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
     {
         ImageWrap wrapX = ImageSampler::GetWrapXOptionFromKey(i);
@@ -168,7 +150,8 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
+            .pImmutableSamplers =
+                &m_imageSamplers[BilinearRepeatImageSamplerKey],
         },
         {
             .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
@@ -176,14 +159,16 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
             .descriptorCount = 1,
             .stageFlags =
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
+            .pImmutableSamplers =
+                &m_imageSamplers[BilinearClampImageSamplerKey],
         },
         {
             .binding = FEATHER_ATLAS_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_linearSampler,
+            .pImmutableSamplers =
+                &m_imageSamplers[BilinearClampImageSamplerKey],
         },
     };
 
@@ -281,7 +266,7 @@ bool PipelineManagerVulkan::init(VkImageView nullTextureView)
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
         {{
-            .sampler = m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY],
+            .sampler = m_imageSamplers[BilinearClampImageSamplerKey],
             .imageView = nullTextureView,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
@@ -308,7 +293,6 @@ PipelineManagerVulkan::~PipelineManagerVulkan()
     {
         m_vk->DestroySampler(m_vk->device, sampler, nullptr);
     }
-    m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
 }
 
 DrawPipelineLayoutVulkan& PipelineManagerVulkan::

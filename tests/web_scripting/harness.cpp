@@ -60,6 +60,7 @@ extern "C"
             artboard->draw(&renderer);
             s_file->frameBoundary();
         }
+        printf("artboard drew %d frames\n", frames);
         if (s_scroll && machine != nullptr)
         {
             ScrollEvent event;

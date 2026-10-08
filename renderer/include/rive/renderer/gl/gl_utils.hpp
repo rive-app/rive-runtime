@@ -282,7 +282,10 @@ private:
     glutils::Shader m_fragmentShader;
 };
 
-void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter);
+void SetTexture2DSamplingParams(GLenum minFilter,
+                                GLenum magFilter,
+                                GLint wrapU = GL_CLAMP_TO_EDGE,
+                                GLint wrapV = GL_CLAMP_TO_EDGE);
 void SetTexture2DSamplingParams(rive::ImageSampler);
 
 void BlitFramebuffer(rive::IAABB bounds,

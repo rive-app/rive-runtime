@@ -278,6 +278,11 @@ do
         -- 'HB_NO_PAINT', -- Needed for COLRv1 emoji support
     })
 
+    filter('options:for_unreal')
+    do
+        defines({ 'HB_NO_PRAGMA_GCC_DIAGNOSTIC_ERROR' })
+    end
+
     filter('toolset:not msc')
     do
         fatalwarnings({ 'All' })

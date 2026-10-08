@@ -295,18 +295,23 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain,
 #endif
 
     // @a_imageRectPackedGradientData contains:
-    //  xy = horizontal span, z = y, w = type
-    if (@a_imageRectPackedGradientData.w != 0.0)
+    //  xy = gradient uv, z = type, w = unused
+    //   (x is negative for a complex gradient)
+    uint paintType = floatBitsToUint(@a_imageRectPackedGradientData.z);
+    if (paintType != 0)
     {
         float2x2 gradientMatrix = make_float2x2(@a_imageRectGradientMatrix);
         float2 gradientTranslate = @a_imageRectImageAndGradientTranslates.zw;
 
-        v_gradient = packGradientData(fragCoord,
-                                      gradientMatrix,
-                                      gradientTranslate,
-                                      @a_imageRectPackedGradientData.w,
-                                      @a_imageRectPackedGradientData.xy,
-                                      @a_imageRectPackedGradientData.z);
+        v_gradient =
+            packGradientData(fragCoord,
+                             gradientMatrix,
+                             gradientTranslate,
+                             @a_imageRectPackedGradientData.xy,
+                             paintType,
+                             1.0,  // additivenessComplement (Additiveness
+                                   // is handled elsewhere for ImageRect)
+                             1.0); // coverage
     }
     else
     {
@@ -670,7 +675,7 @@ INLINE void resolve_paint(uint pathID,
         }
 #endif
     }
-    else // LINEAR_GRADIENT_PAINT_TYPE or RADIAL_GRADIENT_PAINT_TYPE
+    else // *_GRADIENT_PAINT_TYPE
     {
         float2x2 M = make_float2x2(
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
@@ -679,25 +684,23 @@ INLINE void resolve_paint(uint pathID,
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
         float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
-        float t = paintType == LINEAR_GRADIENT_PAINT_TYPE
-                      ? /*linear*/ paintCoord.x
-                      : /*radial*/ length(paintCoord);
-        t = clamp(t, .0, 1.);
-        float x = t * translate.z + translate.w;
-        // paintData.y has (gradient Y row + 1) in the integer part,
-        // additiveness in range 0/256 to 255/256 in the fraction
-        float gradRowAndAdditiveness = uintBitsToFloat(paintData.y);
-        float gradY =
-            floor(gradRowAndAdditiveness) * uniforms.gradTextureYScale +
-            uniforms.gradTextureYBias;
-        fragColorOut =
-            TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, gradY), .0);
+        float2 gradOrigin = translate.zw;
+        bool isComplex = gradOrigin.x < 0.0;
+        gradOrigin.x = max(0.0, gradOrigin.x);
+
+        float2 uv = getGradientUVFromOriginTexel(float(paintType),
+                                                 paintCoord,
+                                                 gradOrigin,
+                                                 isComplex,
+                                                 uniforms.gradTextureYScale,
+                                                 uniforms.gradTextureYBias);
+
+        fragColorOut = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, uv, 0.0);
         if (!paintHasAdvancedBlend) // If not advanced blend then premultiply.
         {
             fragColorOut.rgb *= fragColorOut.a;
-            half additiveness = cast_float_to_half(
-                fract(gradRowAndAdditiveness) * (256. / 255.));
-            fragColorOut.a *= additiveness;
+            float additivenessComplement = uintBitsToFloat(paintData.y);
+            fragColorOut.a *= abs(additivenessComplement);
         }
     }
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@ENABLE_ADVANCED_BLEND)
@@ -1035,7 +1038,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #ifdef @DRAW_IMAGE_RECT
     if (v_gradient.w != 0.0)
     {
-        float2 gradientTexCoord = getGradientCoord(v_gradient);
+        // Additiveness is packed via v_imageModulatedColor so we can ignore it
+        // here.
+        float2 gradientTexCoord = getGradientUV(v_gradient,
+                                                uniforms.gradTextureYScale,
+                                                uniforms.gradTextureYBias);
 
         // Our gradient texture is not mipmapped. Issue a texture sample that
         // explicitly does not find derivatives for LOD computation.

@@ -70,8 +70,8 @@ or `--scripting_vm=both`. No web build passes that by default.
 Scripts decode images with the browser's decoder on every web build, like
 the Luau lane, and with our decoders natively.
 
-Runtime builds only run signed modules. A file baked locally by rive-cli is
-unsigned, so it only runs in a tools build.
+Modules are trusted like shaders, so a file baked locally by rive-cli runs
+in any build.
 
 ## Gates
 

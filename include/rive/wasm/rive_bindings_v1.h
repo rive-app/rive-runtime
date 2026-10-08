@@ -665,6 +665,8 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_asset_bytes")
 uint32_t rive_gpu_shader_asset_bytes(uint32_t object, const char* name, uint32_t nameLength, uint8_t* out, uint32_t outCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_asset_id")
 uint32_t rive_gpu_shader_asset_id(uint32_t object, const char* name, uint32_t nameLength);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_from_asset")
+uint32_t rive_gpu_shader_module_from_asset(uint32_t object, const char* name, uint32_t nameLength, uint32_t entry);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_new")
 uint32_t rive_gpu_shader_module_new(const rive_gpu_shader_module_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "shader_module_release")

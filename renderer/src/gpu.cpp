@@ -1146,13 +1146,7 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_wireframeEnabled(flushDesc.wireframe),
     m_renderTargetBottomUp(flushDesc.renderTarget->bottomUp(platformFeatures)),
     m_gradTextureYScale(1.f / flushDesc.gradTextureHeight),
-    // Use a bias of -0.5 here as we encode the row+1 so we can negate it
-    // robustly
-    m_gradTextureYBias(-0.5f / flushDesc.gradTextureHeight),
-    m_gradTextureYScalePacked(
-        // Don't reuse m_gradTextureYScale because it's WRITEONLY, and reading
-        // it could cause an extremely slow load from GPU-mapped memory.
-        std::ldexp(1.f / flushDesc.gradTextureHeight, -17))
+    m_gradTextureYBias(0.5f / flushDesc.gradTextureHeight)
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
@@ -1202,32 +1196,9 @@ void PathData::set(const Mat2D& m,
     m_coverageBufferRange.offsetY = coverageBufferRange.offsetY;
 }
 
-// Returns integral row number
-uint32_t getGradientRow(ColorRampLocation rampLocation,
-                        GradTextureLayout gradTextureLayout)
-{
-    uint32_t row = rampLocation.row;
-    if (rampLocation.isComplex())
-    {
-        // Complex gradients rows are offset after the simple gradients.
-        row += gradTextureLayout.complexOffsetY;
-    }
-
-    return row;
-}
-
-// Returns Normalized value for row in the texture
-float getGradientY(ColorRampLocation rampLocation,
-                   GradTextureLayout gradTextureLayout)
-{
-    uint32_t row = getGradientRow(rampLocation, gradTextureLayout);
-    return (static_cast<float>(row) + .5f) * gradTextureLayout.inverseHeight;
-}
-
 void PaintData::set(DrawContents singleDrawContents,
                     PaintType paintType,
                     SimplePaintValue simplePaintValue,
-                    GradTextureLayout gradTextureLayout,
                     uint32_t clipID,
                     bool hasClipRect,
                     bool hasImage,
@@ -1268,18 +1239,7 @@ void PaintData::set(DrawContents singleDrawContents,
         case PaintType::linearGradient:
         case PaintType::radialGradient:
         {
-            // Pack the gradient texture row in the integer part and
-            // Additiveness in range 0/256 to 255/256, in the fraction.
-            // The row is biased +1 so we can always negate a non zero value
-            uint32_t gradTextureRow =
-                getGradientRow(simplePaintValue.colorRampLocation,
-                               gradTextureLayout);
-            assert(gradTextureRow <= 0xffffu);
-            m_gradTextureRowAndAdditiveness =
-                static_cast<float>(gradTextureRow + 1) +
-                static_cast<float>(static_cast<uint32_t>(
-                    complementAdditiveness * 255.f + .5f)) *
-                    (1.f / 256.f);
+            m_gradientAdditivenessComplement = 1.0f - additiveness;
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }
@@ -1317,14 +1277,16 @@ void PaintData::set(DrawContents singleDrawContents,
     m_params = localParams;
 }
 
-void getGradientMatrixAndSpan(const Gradient* gradient,
-                              ColorRampLocation rampLocation,
-                              const Mat2D& inverseGradientTransform,
-                              const Mat2D& viewMatrix,
-                              const RenderTarget* renderTarget,
-                              const PlatformFeatures& platformFeatures,
-                              Mat2D& paintMatrixOut,
-                              float (&gradTextureHorizontalSpanOut)[2])
+void getGradientMatrixAndCoord(const Gradient* gradient,
+                               ColorRampLocation rampLocation,
+                               GradTextureLayout gradTextureLayout,
+                               const Mat2D& inverseGradientTransform,
+                               const Mat2D& viewMatrix,
+                               const RenderTarget* renderTarget,
+                               const PlatformFeatures& platformFeatures,
+                               Mat2D& paintMatrixOut,
+                               int32_t& gradXOut,
+                               uint32_t& gradYOut)
 {
     assert(gradient != nullptr);
     const float* gradCoeffs = gradient->coeffs();
@@ -1359,31 +1321,25 @@ void getGradientMatrixAndSpan(const Gradient* gradient,
             paintMatrixOut;
     }
 
-    float left, right;
+    gradYOut = rampLocation.row;
+
     if (rampLocation.isComplex())
     {
-        left = 0;
-        right = kGradTextureWidth;
+        // a negative X signifies a complex gradient.
+        gradXOut = -1;
+        gradYOut += gradTextureLayout.complexOffsetY;
     }
     else
     {
-        left = rampLocation.col;
-        right = left + 2;
+        gradXOut = rampLocation.col;
     }
-
-    // TODO: This could be simplified (both here and in the shader) - the shader
-    // only uses value [0] to check whether or not it's a full span (i.e.
-    // complex) - which could be done just as effectively with a single value
-    // ("-1" for complex, positive left coordinate for simple gradients).
-    gradTextureHorizontalSpanOut[0] =
-        (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
-    gradTextureHorizontalSpanOut[1] = (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
 }
 
 void PaintAuxData::set(const Mat2D& viewMatrix,
                        const Mat2D& imageMatrix,
                        PaintType paintType,
                        SimplePaintValue simplePaintValue,
+                       GradTextureLayout gradTextureLayout,
                        const Gradient* gradient,
                        const Mat2D& inverseGradientTransform,
                        const Texture* imageTexture,
@@ -1398,17 +1354,22 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
         {
             assert(gradient != nullptr);
             Mat2D paintMatrix;
-            float gradTextureHorizontalSpan[2];
-            getGradientMatrixAndSpan(gradient,
-                                     simplePaintValue.colorRampLocation,
-                                     inverseGradientTransform,
-                                     viewMatrix,
-                                     renderTarget,
-                                     platformFeatures,
-                                     paintMatrix,
-                                     gradTextureHorizontalSpan);
-            m_gradTextureHorizontalSpan[0] = gradTextureHorizontalSpan[0];
-            m_gradTextureHorizontalSpan[1] = gradTextureHorizontalSpan[1];
+            // Need local versions of these because the members are `volatile`
+            // and won't pass by reference to the function.
+            int32_t gradTextureX;
+            uint32_t gradTextureY;
+            getGradientMatrixAndCoord(gradient,
+                                      simplePaintValue.colorRampLocation,
+                                      gradTextureLayout,
+                                      inverseGradientTransform,
+                                      viewMatrix,
+                                      renderTarget,
+                                      platformFeatures,
+                                      paintMatrix,
+                                      gradTextureX,
+                                      gradTextureY);
+            m_gradTextureX = float(gradTextureX);
+            m_gradTextureY = float(gradTextureY);
             write_matrix(m_paintMatrix, paintMatrix);
         }
 
@@ -1560,8 +1521,8 @@ ImageRectInstance::ImageRectInstance(
     const Mat2D& imageMatrix,
     const Mat2D& gradientMatrix,
     uint32_t gradientType,
-    const float (&gradTextureHorizontalSpan)[2],
-    float gradTextureY,
+    int32_t gradTextureX,
+    uint32_t gradTextureY,
     float additiveness) :
     m_commons{matrix,
               color,
@@ -1589,25 +1550,27 @@ ImageRectInstance::ImageRectInstance(
                   offsetof(ImageRectInstance, m_imageTranslate) +
                       2 * sizeof(float));
 
-    // Same with these three values
+    // Same with these three values (plus the leftover padding value)
     STATIC_ASSERT_ATTRIB(ImageRectInstance,
-                         m_gradTextureHorizontalSpan,
+                         m_gradTextureX,
                          IMAGE_RECT_PACKED_GRADIENT_DATA);
     static_assert(offsetof(ImageRectInstance, m_gradTextureY) ==
-                  offsetof(ImageRectInstance, m_gradTextureHorizontalSpan) +
-                      2 * sizeof(float));
+                  offsetof(ImageRectInstance, m_gradTextureX) +
+                      1 * sizeof(float));
     static_assert(offsetof(ImageRectInstance, m_gradientType) ==
-                  offsetof(ImageRectInstance, m_gradTextureHorizontalSpan) +
+                  offsetof(ImageRectInstance, m_gradTextureX) +
+                      2 * sizeof(float));
+    static_assert(offsetof(ImageRectInstance, m_padding) ==
+                  offsetof(ImageRectInstance, m_gradTextureX) +
                       3 * sizeof(float));
 
     write2x2(m_imageMatrix, imageMatrix);
     write2x2(m_gradientMatrix, gradientMatrix);
     writeTranslate(m_imageTranslate, imageMatrix);
     writeTranslate(m_gradientTranslate, gradientMatrix);
-    m_gradTextureHorizontalSpan[0] = gradTextureHorizontalSpan[0];
-    m_gradTextureHorizontalSpan[1] = gradTextureHorizontalSpan[1];
-    m_gradTextureY = gradTextureY;
-    m_gradientType = float(gradientType);
+    m_gradTextureX = float(gradTextureX);
+    m_gradTextureY = float(gradTextureY);
+    m_gradientType = gradientType;
 }
 
 const std::array<VertexAttribute, ImageRectInstance::AttributeCount>&

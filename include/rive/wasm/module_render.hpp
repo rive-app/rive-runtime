@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <stdint.h>
+#include <string>
 
 namespace rive
 {
@@ -25,14 +26,22 @@ Factory* wasmModuleFactory();
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 namespace ore
 {
+class ShaderModule;
+struct ShaderModuleDesc;
 class TextureView;
-}
+} // namespace ore
 namespace gpu
 {
 class RenderCanvas;
 }
 /// The module's ore context; factories realize against rive_gpu_v1 handles.
 ore::Context* wasmModuleOreContext();
+
+/// The asset shader loads build from until the next call; the host makes
+/// every module from it, the desc only feeds module-side reflection.
+void wasmModuleShaderSource(uint32_t object, const std::string& name);
+rcp<ore::ShaderModule> wasmModuleShaderModule(const ore::ShaderModuleDesc& desc,
+                                              uint32_t entry);
 
 /// Module-side canvas pair over a host canvas handle: a RenderCanvas whose
 /// target owns the handle, and a color view carrying real attachment

@@ -2,7 +2,7 @@
 // script runner's prepare(), then start scripts and run frames.
 //   node run.mjs <harness.mjs> <file.riv> [--sync] [--early] [--settle]
 //                [--decoder-throws] [--fault <method>] [--deep] [--vms <count>]
-//                [--scroll] [--expect <log line>]...
+//                [--scroll] [--lacks simd|relaxed] [--expect <log line>]...
 // --early starts scripts once before prepare() settles, as a host that does
 // not wait for it would. --deep runs the frames with little stack left.
 // --vms is how many script vms must run, else one. --scroll sends one scroll
@@ -11,6 +11,8 @@
 // land before the file is released. --decoder-throws settles with a decoder
 // that throws as librive starts it. --fault makes librive's first call to the
 // named script runner method throw, a JS error raised under librive frames.
+// --lacks stands in for an engine without that SIMD flavor, which node always
+// has: it refuses any module using its opcodes.
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { pathToFileURL } from 'url';
@@ -26,6 +28,22 @@ const early = rest.includes('--early');
 const deep = rest.includes('--deep');
 const vms = valueOf('--vms');
 const scroll = rest.includes('--scroll');
+const lacks = valueOf('--lacks');
+
+// The relaxed opcodes are 0xfd then 0x80 to 0x93 and 0x02; a stray byte match
+// only refuses more, and no case here expects a scalar module to run.
+function usesSimd(bytes, relaxed) {
+    for (let i = 0; i + 2 < bytes.length; i++) {
+        if (bytes[i] !== 0xfd) {
+            continue;
+        }
+        if (!relaxed ||
+            (bytes[i + 1] >= 0x80 && bytes[i + 1] <= 0x93 && bytes[i + 2] === 0x02)) {
+            return true;
+        }
+    }
+    return false;
+}
 
 if (settle && !decoderThrows) {
     // Accepts bytes that start with a PNG signature byte as a 2x1 image whose
@@ -59,6 +77,10 @@ const createHarness = (await import(pathToFileURL(resolve(harnessPath)))).defaul
 const Module = await createHarness({
     print: (text) => lines.push(text),
     printErr: (text) => lines.push(text),
+    ...(lacks === undefined ? {} : {
+        riveScriptingValidate: (bytes) =>
+            !usesSimd(bytes, lacks === 'relaxed') && WebAssembly.validate(bytes),
+    }),
 });
 if (fault !== undefined) {
     const runner = Module.riveScripting;

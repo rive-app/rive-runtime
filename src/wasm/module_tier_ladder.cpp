@@ -517,8 +517,11 @@ static const char* const* crossTargetArgs(const std::string& target)
                                                  "--cpu=generic",
                                                  "--cpu-features=+reserve-x18",
                                                  nullptr};
+    // wamrc compiles SIMD only for SSE4.1, which the NDK x86_64 ABI
+    // guarantees.
     static const char* const androidX64[] = {"--target=x86_64",
                                              "--target-abi=gnu",
+                                             "--cpu=x86-64-v2",
                                              nullptr};
     if (target == kAotTargetAndroidAarch64)
     {

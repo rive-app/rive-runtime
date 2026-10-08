@@ -6,8 +6,6 @@ using namespace rive;
 bool ScriptModuleAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
 {
 #ifdef WITH_RIVE_SCRIPTING
-    m_verified = false;
-
     SignedContentHeader header(Span<const uint8_t>(data.data(), data.size()));
     if (!header.isValid())
     {

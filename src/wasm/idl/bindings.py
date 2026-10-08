@@ -824,23 +824,33 @@ NAMESPACES = [
         # Which RSTB variant the replay backend consumes; the module mirrors
         # it so entry selection matches the host.
         op('shader_target', ret='u32'),
-        # Copies the named ShaderAsset's RSTB container; returns the full
-        # length for the retrying copy-out convention, 0 when absent.
+        # Copies the named ShaderAsset's RSTB container, which modules read
+        # only for its entry table; returns the full length for the retrying
+        # copy-out convention, 0 when absent.
         op('shader_asset_bytes', [
             handle('object'),
             string('name', 'nameLength'),
             mutbuf('uint8_t', 'out', 'outCount'),
         ], ret='u32'),
-        # The asset's core id; re-decoded module-side assets lose it, and it
-        # rides the recorded shader module descriptor.
+        # The asset's core id; re-decoded module-side assets lose it.
         op('shader_asset_id', [
             handle('object'),
             string('name', 'nameLength'),
         ], ret='u32'),
+        # The host builds the module from the named ShaderAsset, so no
+        # module bytes reach a shader compiler. entry indexes the asset's
+        # entry container; a whole module target's module serves them all.
+        op('shader_module_from_asset', [
+            handle('object'),
+            string('name', 'nameLength'),
+            u32('entry'),
+        ], ret='u32'),
+        # Raw module bytes skip the shader signature check, so only edit
+        # time hosts link it.
         op('shader_module_new', [
             podref('gpu_shader_module_desc', 'desc'),
             buf('uint8_t', 'blob', 'blobCount'),
-        ], ret='u32'),
+        ], ret='u32', guard='WITH_RIVE_TOOLS'),
         op('shader_module_release', [handle('shaderModule')]),
         op('bind_group_layout_new', [
             u32('groupIndex'),

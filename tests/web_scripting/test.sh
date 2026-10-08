@@ -65,6 +65,11 @@ UNLINKED=(--expect "init without the missing op"
     --expect "last trap: failed to call unlinked import function rive_web_gate_v1.missing")
 node run.mjs $HARNESS fixture/unlinked.riv "${UNLINKED[@]}"
 node run.mjs $HARNESS fixture/unlinked.riv --sync "${UNLINKED[@]}"
+# This tools build links the raw shader op; runtime_wasm's own suite has no
+# tools and checks that the call traps there.
+node run.mjs $HARNESS fixture/raw_shader.riv \
+    --expect "init reaches the raw shader op" \
+    --expect "raw shader op returned 0"
 # The browser decodes images for scripts, and its results arrive premultiplied
 # on a later event loop turn.
 DECODE=(--settle --expect "decoded 2x1 first pixel 100,128"
@@ -92,3 +97,16 @@ node run.mjs $HARNESS fixture/trap.riv --fault read \
     --expect "wasm call trapped in host_obj_user_init: librive faulted in a host call" \
     --expect "last trap: librive faulted in a host call" \
     --expect "script vms alive after the frames: 0"
+# A SIMD module runs where the engine has SIMD. Where it lacks the flavor the
+# module was baked with, the file's scripts are off with one message saying
+# why, and the artboard still draws.
+node run.mjs $HARNESS fixture/simd.riv --expect "simd lane 22"
+node run.mjs $HARNESS fixture/relaxed_simd.riv --expect "relaxed lane 7"
+for MODE in "" --sync; do
+    node run.mjs $HARNESS fixture/simd.riv $MODE --lacks simd --vms 0 \
+        --expect "this browser lacks WebAssembly SIMD, so this file's scripts are off; bake with wasmSimd: off to support it" \
+        --expect "artboard drew 5 frames"
+    node run.mjs $HARNESS fixture/relaxed_simd.riv $MODE --lacks relaxed --vms 0 \
+        --expect "this browser lacks WebAssembly relaxed SIMD, so this file's scripts are off; bake with wasmSimd: on to support it" \
+        --expect "artboard drew 5 frames"
+done

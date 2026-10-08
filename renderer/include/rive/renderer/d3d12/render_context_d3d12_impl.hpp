@@ -308,7 +308,6 @@ private:
     rcp<D3D12Buffer> m_imageRectVertexBuffer;
     rcp<D3D12Buffer> m_imageRectIndexBuffer;
 
-    D3D12_SAMPLER_DESC m_linearSampler;
     D3D12_SAMPLER_DESC
     m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 

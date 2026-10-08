@@ -11,4 +11,5 @@
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "advanced_blend.minified.glsl"
+#include "gradient_packing_common.minified.glsl"
 #include "draw_depthstencil_path.minified.glsl"

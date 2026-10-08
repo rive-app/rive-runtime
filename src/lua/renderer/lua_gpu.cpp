@@ -11,6 +11,7 @@
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
+#include "rive/renderer/ore/ore_shader_asset_modules.hpp"
 #include "rive/renderer/ore/ore_render_pass.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_render_pass.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
@@ -534,9 +535,8 @@ static ShaderTarget currentShaderTarget(Context* oreCtx)
 }
 
 /// Build a ScriptedShader's entry list from a decoded ShaderAsset for the
-/// active backend target. Parses the RSTB v4 entry-point container
-/// (ore_rstb_entry_container.hpp): whole-module targets (WGSL/MSL/SPIR-V) share
-/// one ShaderModule across all entries; per-entry targets (GLSL/HLSL) build one
+/// active backend target: whole-module targets (WGSL/MSL/SPIR-V) share one
+/// ShaderModule across all entries; per-entry targets (GLSL/HLSL) build one
 /// module per entry. Returns true if at least one entry/module was created.
 static bool buildShaderEntries(Context* oreCtx,
                                const ShaderAsset& asset,
@@ -549,158 +549,50 @@ static bool buildShaderEntries(Context* oreCtx,
     // preview) and stale entry records would corrupt entry-point resolution.
     out->entries.clear();
 
-    ShaderTarget target = currentShaderTarget(oreCtx);
-    auto blob = asset.findShader(static_cast<uint8_t>(target));
-    if (blob.empty())
-        return false;
-    const uint8_t* blobData = blob.data();
-    uint32_t blobSize = static_cast<uint32_t>(blob.size());
-    const uint32_t assetId = asset.assetId();
-
-    // Binding-map sidecar (mandatory for module creation) + GL fixup sidecars
-    // (GLSL only). Every shipped shader carries a sidecar per source variant.
-    auto bindingMapTargetFor = [](ShaderTarget t) -> uint8_t {
-        switch (t)
-        {
-            case ShaderTarget::wgsl:
-                return 16;
-            case ShaderTarget::glsl:
-                return 11;
-            case ShaderTarget::msl:
-                return 10;
-            case ShaderTarget::hlsl:
-                return 12;
-            case ShaderTarget::spirv:
-                return 13;
-        }
-        return 255;
-    };
-    uint8_t bmTarget = bindingMapTargetFor(target);
-    auto bindingMapBlob =
-        (bmTarget == 255) ? Span<const uint8_t>{} : asset.findShader(bmTarget);
-    const uint8_t* bindingMapBytes =
-        bindingMapBlob.empty() ? nullptr : bindingMapBlob.data();
-    uint32_t bindingMapSize = static_cast<uint32_t>(bindingMapBlob.size());
-    auto vsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(14)
-                                                        : Span<const uint8_t>{};
-    auto fsGLFixupBlob = (target == ShaderTarget::glsl) ? asset.findShader(15)
-                                                        : Span<const uint8_t>{};
-
-    // Texture-sampler pairs, handed to every module created below through the
-    // desc so deferred replay rebuilds them too.
-    std::vector<uint8_t> pairBytes;
-    {
-        auto pairs = asset.textureSamplerPairs();
-        pairBytes.reserve(pairs.size() * 4);
-        for (size_t i = 0; i < pairs.size(); i++)
-        {
-            pairBytes.push_back(pairs[i].texGroup);
-            pairBytes.push_back(pairs[i].texBinding);
-            pairBytes.push_back(pairs[i].sampGroup);
-            pairBytes.push_back(pairs[i].sampBinding);
-        }
-    }
-
-    // Per-entry targets: one ShaderModule per entry (GL compiles a `main`,
-    // HLSL D3DCompiles against the cleansed physical name).
-    if (target == ShaderTarget::glsl || target == ShaderTarget::hlsl)
-    {
-        std::vector<rive::ore::RstbEntryView> views;
-        if (!rive::ore::parsePerEntryContainer(blobData, blobSize, views))
-            return false;
-        for (const auto& v : views)
-        {
-            // GL/HLSL containers only carry vertex/fragment entries; ignore any
-            // other stage rather than misclassifying it as a fragment module.
-            if (v.stage != 0 && v.stage != 1)
-                continue;
-            ShaderModuleDesc desc;
-            desc.stage =
-                (v.stage == 0) ? ShaderStage::vertex : ShaderStage::fragment;
-            desc.bindingMapBytes = bindingMapBytes;
-            desc.bindingMapSize = bindingMapSize;
-            desc.texSamplerPairBytes =
-                pairBytes.empty() ? nullptr : pairBytes.data();
-            desc.texSamplerPairSize = (uint32_t)pairBytes.size();
-            desc.shaderAssetId = assetId;
-            if (target == ShaderTarget::hlsl)
-            {
-                desc.hlslSource = reinterpret_cast<const char*>(v.source);
-                desc.hlslSourceSize = v.sourceSize;
-                desc.hlslEntryPoint = v.physical.c_str();
-            }
-            else // glsl
-            {
-                desc.code = v.source;
-                desc.codeSize = v.sourceSize;
-                auto fx = (v.stage == 0) ? vsGLFixupBlob : fsGLFixupBlob;
-                desc.glFixupBytes = fx.empty() ? nullptr : fx.data();
-                desc.glFixupSize = static_cast<uint32_t>(fx.size());
-            }
-
+    bool failed = false;
+    bool parsed = visitShaderAssetModules(
+        currentShaderTarget(oreCtx),
+        asset,
+        [&](const ShaderModuleDesc& desc,
+            uint32_t first,
+            uint32_t count,
+            const std::vector<RstbEntryView>& views) {
+#ifdef RIVE_WASM_MODULE
+            auto mod = wasmModuleShaderModule(desc, first);
+#else
             auto mod = oreCtx->makeShaderModule(desc);
+#endif
             if (!mod)
+            {
+                failed = true;
                 return false;
-            ScriptedShaderEntry e;
-            e.stage = v.stage;
-            e.logical = v.logical;
-            e.physical = v.physical;
-            e.module = std::move(mod);
-            out->entries.push_back(std::move(e));
-        }
-        return !out->entries.empty();
-    }
-
-    // Whole-module targets: one shared module, one entry record per entry, all
-    // referencing it. The driver selects the entry by its physical name.
-    std::vector<rive::ore::RstbEntryView> views;
-    const uint8_t* src = nullptr;
-    uint32_t srcLen = 0;
-    if (!rive::ore::parseWholeModuleContainer(blobData,
-                                              blobSize,
-                                              views,
-                                              &src,
-                                              &srcLen))
-        return false;
-    ShaderModuleDesc desc;
-    desc.code = src;
-    desc.codeSize = srcLen;
-    desc.bindingMapBytes = bindingMapBytes;
-    desc.bindingMapSize = bindingMapSize;
-    desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
-    desc.texSamplerPairSize = (uint32_t)pairBytes.size();
-    desc.shaderAssetId = assetId;
-    auto mod = oreCtx->makeShaderModule(desc);
-    if (!mod)
-        return false;
-    for (const auto& v : views)
-    {
-        ScriptedShaderEntry e;
-        e.stage = v.stage;
-        e.logical = v.logical;
-        e.physical = v.physical;
-        e.module = mod;
-        out->entries.push_back(std::move(e));
-    }
-    return !out->entries.empty();
+            }
+            for (uint32_t i = first; i < first + count; i++)
+            {
+                ScriptedShaderEntry e;
+                e.stage = views[i].stage;
+                e.logical = views[i].logical;
+                e.physical = views[i].physical;
+                e.module = mod;
+                out->entries.push_back(std::move(e));
+            }
+            return true;
+        });
+    return parsed && !failed && !out->entries.empty();
 }
 
 #ifdef WITH_RIVE_TOOLS
-/// Editor live-preview: decode raw RSTB bytes then build entries. The workspace
-/// hands us unsigned bytes, so prepend a zero SignedContentHeader envelope byte
-/// (`[flags:1][inner]`) to produce ShaderAsset::decode's expected input.
+/// Editor live-preview: decode the workspace's raw RSTB bytes then build
+/// entries.
 static bool makeShaderFromRstb(Context* oreCtx,
                                const uint8_t* data,
                                uint32_t len,
                                ScriptedShader* out)
 {
-    if (oreCtx == nullptr || data == nullptr || len == 0 || out == nullptr)
+    if (oreCtx == nullptr || out == nullptr)
         return false;
     ShaderAsset asset;
-    SimpleArray<uint8_t> bytes(static_cast<size_t>(len) + 1);
-    bytes[0] = 0x00; // flags: unsigned, version 0
-    memcpy(bytes.data() + 1, data, len);
-    if (!asset.decode(bytes, nullptr))
+    if (!decodeBareRstb(asset, data, len))
         return false;
     return buildShaderEntries(oreCtx, asset, out);
 }

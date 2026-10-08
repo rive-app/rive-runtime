@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace rive
@@ -454,46 +455,13 @@ public:
         }
         return make_rcp<ModuleOreSampler>(handle);
     }
+    // The host builds shaders only from admitted assets, through
+    // wasmModuleShaderModule.
     rcp<ore::ShaderModule> makeShaderModule(
-        const ore::ShaderModuleDesc& desc) override
+        const ore::ShaderModuleDesc&) override
     {
-        rive_gpu_shader_module_desc_v1 pod;
-        pod.language = (uint32_t)desc.language;
-        pod.stage = (uint32_t)desc.stage;
-        pod.codeSize = desc.codeSize;
-        pod.hlslSourceSize = desc.hlslSourceSize;
-        pod.hlslEntryPointSize = desc.hlslEntryPoint != nullptr
-                                     ? (uint32_t)strlen(desc.hlslEntryPoint)
-                                     : 0;
-        pod.bindingMapSize = desc.bindingMapSize;
-        pod.glFixupSize = desc.glFixupSize;
-        pod.shaderAssetId = desc.shaderAssetId;
-        std::vector<uint8_t> blob;
-        blob.reserve(pod.codeSize + pod.hlslSourceSize +
-                     pod.hlslEntryPointSize + pod.bindingMapSize +
-                     pod.glFixupSize);
-        auto append = [&blob](const void* data, uint32_t size) {
-            if (size != 0)
-            {
-                const uint8_t* bytes = static_cast<const uint8_t*>(data);
-                blob.insert(blob.end(), bytes, bytes + size);
-            }
-        };
-        append(desc.code, pod.codeSize);
-        append(desc.hlslSource, pod.hlslSourceSize);
-        append(desc.hlslEntryPoint, pod.hlslEntryPointSize);
-        append(desc.bindingMapBytes, pod.bindingMapSize);
-        append(desc.glFixupBytes, pod.glFixupSize);
-        uint32_t handle = rive_gpu_shader_module_new(&pod,
-                                                     sizeof(pod),
-                                                     blob.data(),
-                                                     (uint32_t)blob.size());
-        if (handle == 0)
-        {
-            setLastError("host rejected shader module");
-            return nullptr;
-        }
-        return make_rcp<ModuleOreShaderModule>(handle, desc);
+        setLastError("host builds shader modules only from shader assets");
+        return nullptr;
     }
     rcp<ore::BindGroupLayout> makeBindGroupLayout(
         const ore::BindGroupLayoutDesc& desc) override
@@ -960,6 +928,33 @@ uint32_t wasmModuleCanvasImageHandle(const rcp<gpu::RenderCanvas>& canvas)
     }
     auto* target = static_cast<ModuleRenderTarget*>(canvas->renderTarget());
     return rive_gpu_canvas_image(target->handle());
+}
+
+namespace
+{
+uint32_t g_shaderObject = 0;
+std::string g_shaderName;
+} // namespace
+
+void wasmModuleShaderSource(uint32_t object, const std::string& name)
+{
+    g_shaderObject = object;
+    g_shaderName = name;
+}
+
+rcp<ore::ShaderModule> wasmModuleShaderModule(const ore::ShaderModuleDesc& desc,
+                                              uint32_t entry)
+{
+    uint32_t handle =
+        rive_gpu_shader_module_from_asset(g_shaderObject,
+                                          g_shaderName.data(),
+                                          (uint32_t)g_shaderName.size(),
+                                          entry);
+    if (handle == 0)
+    {
+        return nullptr;
+    }
+    return make_rcp<ModuleOreShaderModule>(handle, desc);
 }
 
 ore::Context* wasmModuleOreContext()

@@ -1141,7 +1141,10 @@ void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
         glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
         glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
         glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
-        glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
+        glutils::SetTexture2DSamplingParams(GL_LINEAR,
+                                            GL_LINEAR,
+                                            GL_REPEAT,
+                                            GL_REPEAT);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
@@ -1656,6 +1659,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::depthAAStrokes:
                 case gpu::DrawType::depthAAOuterHairline:
                     sources.push_back(gpu::glsl::draw_path_common);
+                    sources.push_back(gpu::glsl::gradient_packing_common);
                     sources.push_back(gpu::glsl::draw_depthstencil_path);
                     break;
                 case gpu::DrawType::interiorTriangulation:

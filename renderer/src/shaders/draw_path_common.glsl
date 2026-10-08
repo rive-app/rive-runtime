@@ -70,7 +70,7 @@ DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+SAMPLER_LINEAR_WRAP(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
 // definition of gaussianIntegralSampler in this case.
 #ifdef @FEATHER_ATLAS_BLIT

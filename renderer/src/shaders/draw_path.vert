@@ -252,18 +252,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer,
                                  pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
 
-        // paintData.y (gradient texture row + 1) in the integer part
-        // additiveness in range 0/256 to 255/256 in the fraction.
+        float additivenessComplement = uintBitsToFloat(paintData.y);
         v_paint = packGradientData(fragCoord,
                                    paintMatrix,
                                    paintTranslate.xy,
-                                   float(paintType),
                                    paintTranslate.zw,
-                                   uintBitsToFloat(paintData.y));
-
-        // Make this negative to signal to the fragment shader that it's a
-        // gradient
-        v_paint.a = -v_paint.a;
+                                   paintType,
+                                   additivenessComplement,
+                                   1.0); // coverage
     }
 
 #if defined(@ENABLE_MODULATED_IMAGE)
@@ -411,15 +407,9 @@ INLINE half4 find_paint_color(
     }
     else // Paint is a gradient (linear or radial)?
     {
-        // Flip this back to positive (it was only negative to signal that this
-        // is a gradient)
-        paint.a = -paint.a;
-        // paint.a stores (gradient texture row + 1) in the integer part and
-        // additiveness, in range 0/256 to 255/256 in the fraction.
-        half additiveness = cast_float_to_half(fract(paint.a) * (256. / 255.));
-        paint.a = floor(paint.a) * uniforms.gradTextureYScale +
-                  uniforms.gradTextureYBias;
-        float2 gradientTexCoord = getGradientCoord(paint);
+        float2 gradientTexCoord = getGradientUV(paint,
+                                                uniforms.gradTextureYScale,
+                                                uniforms.gradTextureYBias);
         color =
             TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradientTexCoord, .0);
 
@@ -427,8 +417,10 @@ INLINE half4 find_paint_color(
         // doing the hardware filter.
         if (!paintHasAdvancedBlend)
         {
+            half additivenessComplement =
+                getGradientAdditivenessComplement(paint);
             color.rgb *= color.a;
-            color.a *= additiveness;
+            color.a *= additivenessComplement;
         }
     }
 

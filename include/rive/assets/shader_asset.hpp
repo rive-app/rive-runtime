@@ -36,8 +36,25 @@ public:
         return decode(Span<const uint8_t>(data.data(), data.size()), factory);
     }
 
+    /// An imported shader stays unindexed, its accessors empty like a missing
+    /// shader's, until File::acceptsScript passes its signature.
     bool decode(Span<const uint8_t> data, Factory* factory);
     std::string fileExtension() const override { return "rstb"; }
+
+#ifdef WITH_RIVE_SCRIPTING
+    /// Judges the signature by File::acceptsScript from here on.
+    void importedWith(bool requireSignedScripts)
+    {
+        m_imported = true;
+        m_requireSignedScripts = requireSignedScripts;
+    }
+
+    /// Called once the file has checked every signature it carries; logs
+    /// the shader if it stays refused.
+    void finishImport();
+#endif
+    /// Indexes the content once it is accepted; false when malformed.
+    bool admit();
 
     /// Returns the blob for the given target, or an empty span if not present.
     /// The span is valid for the lifetime of this asset.
@@ -55,6 +72,10 @@ public:
     /// Texture-sampler pairs decoded from the RSTB tagged-section payload.
     Span<const TextureSamplerPair> textureSamplerPairs() const
     {
+        if (!m_indexed)
+        {
+            return {};
+        }
         return Span<const TextureSamplerPair>(m_pairs.data(), m_pairs.size());
     }
 
@@ -62,11 +83,28 @@ public:
     /// process or module boundary.
     Span<const uint8_t> rstb() const
     {
+        if (!m_indexed)
+        {
+            return {};
+        }
         return Span<const uint8_t>(m_bytes.data(), m_bytes.size());
     }
 
 private:
+    bool accepted() const;
+    bool index();
+#ifdef WITH_RIVE_SCRIPTING
+    void logRefusal();
+#endif
+
     SimpleArray<uint8_t> m_bytes;
+    bool m_indexed = false;
+#ifdef WITH_RIVE_SCRIPTING
+    bool m_imported = false;
+    bool m_requireSignedScripts = false;
+    bool m_importFinished = false;
+    bool m_refusalLogged = false;
+#endif
 
     struct ShaderVariant
     {

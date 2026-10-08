@@ -126,6 +126,7 @@
 #include "rive/renderer/ore/ore_texture.hpp"
 #include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
+#include "rive/renderer/ore/ore_shader_asset_modules.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_bind_group.hpp"
 #include "rive/renderer/ore/ore_pipeline.hpp"
@@ -212,8 +213,10 @@ struct SharedWasmModule
 
 static std::unordered_map<uint64_t, SharedWasmModule>& sharedModuleCache()
 {
-    static std::unordered_map<uint64_t, SharedWasmModule> cache;
-    return cache;
+    // Never destroyed, so modules stay reachable until exit and threads still
+    // booting at exit never see it torn down.
+    static auto* cache = new std::unordered_map<uint64_t, SharedWasmModule>();
+    return *cache;
 }
 
 // Hosts boot modules on more than one thread, such as a build thread and
@@ -654,7 +657,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callF64(const char* name,
     }
     wasm_module_inst_t inst = m_state->instance;
     uint32_t retCount = wasm_func_get_result_count(f, inst);
-    // Unsigned modules load in tools builds, so the export may not match.
+    // Modules load unsigned, so the export may not match.
     // host_obj_scroll_event takes the most.
     constexpr uint32_t kMaxArgs = 10;
     if (argc > kMaxArgs || wasm_func_get_param_count(f, inst) != argc ||
@@ -3498,6 +3501,74 @@ uint32_t gpuShaderAssetIdImpl(WasmScriptingVM* vm,
     return asset != nullptr ? asset->assetId() : 0;
 }
 
+uint32_t mintShaderModule(WasmScriptingVM* vm,
+                          ore::Context* oreContext,
+                          const ore::ShaderModuleDesc& desc)
+{
+    oreContext->clearLastError();
+    auto shaderModule = oreContext->makeShaderModule(desc);
+    if (shaderModule == nullptr)
+    {
+        return gpuRejected(vm, oreContext, "Shader");
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::gpuShaderModule,
+        new HostGpuShaderModule{std::move(shaderModule)});
+}
+
+uint32_t gpuShaderModuleFromAssetImpl(WasmScriptingVM* vm,
+                                      uint32_t objectHandle,
+                                      const char* name,
+                                      uint32_t nameLength,
+                                      uint32_t entry)
+{
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (oreContext == nullptr)
+    {
+        return 0;
+    }
+    const ShaderAsset* fileAsset =
+        findFileAsset<ShaderAsset>(vm, objectHandle, name, nameLength);
+    const ShaderAsset* asset = fileAsset;
+#ifdef WITH_RIVE_TOOLS
+    // Editor path first, matching shader_asset_bytes.
+    ShaderAsset compiled;
+    if (const std::vector<uint8_t>* rstb =
+            vm->findShaderRstb(std::string(name, nameLength)))
+    {
+        if (!ore::decodeBareRstb(compiled,
+                                 rstb->data(),
+                                 (uint32_t)rstb->size()))
+        {
+            return 0;
+        }
+        compiled.assetId(fileAsset != nullptr ? fileAsset->assetId() : 0);
+        asset = &compiled;
+    }
+#endif
+    if (asset == nullptr)
+    {
+        return 0;
+    }
+    uint32_t handle = 0;
+    ore::visitShaderAssetModules(
+        oreContext->shaderTarget(),
+        *asset,
+        [&](const ore::ShaderModuleDesc& desc,
+            uint32_t first,
+            uint32_t count,
+            const std::vector<ore::RstbEntryView>&) {
+            if (entry < first || entry - first >= count)
+            {
+                return true;
+            }
+            handle = mintShaderModule(vm, oreContext, desc);
+            return false;
+        });
+    return handle;
+}
+
+#ifdef WITH_RIVE_TOOLS
 uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm,
                                 const rive_gpu_shader_module_desc_v1* podDesc,
                                 uint32_t descByteCount,
@@ -3556,31 +3627,17 @@ uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm,
             if (asset->is<ShaderAsset>() &&
                 asset->assetId() == podDesc->shaderAssetId)
             {
-                auto pairs = asset->as<ShaderAsset>()->textureSamplerPairs();
-                pairBytes.reserve(pairs.size() * 4);
-                for (size_t i = 0; i < pairs.size(); i++)
-                {
-                    pairBytes.push_back(pairs[i].texGroup);
-                    pairBytes.push_back(pairs[i].texBinding);
-                    pairBytes.push_back(pairs[i].sampGroup);
-                    pairBytes.push_back(pairs[i].sampBinding);
-                }
+                pairBytes =
+                    ore::textureSamplerPairBytes(*asset->as<ShaderAsset>());
                 break;
             }
         }
     }
     desc.texSamplerPairBytes = pairBytes.empty() ? nullptr : pairBytes.data();
     desc.texSamplerPairSize = (uint32_t)pairBytes.size();
-    oreContext->clearLastError();
-    auto shaderModule = oreContext->makeShaderModule(desc);
-    if (shaderModule == nullptr)
-    {
-        return gpuRejected(vm, oreContext, "Shader");
-    }
-    return vm->handles().mint(
-        WasmScriptingVM::HandleTable::Tag::gpuShaderModule,
-        new HostGpuShaderModule{std::move(shaderModule)});
+    return mintShaderModule(vm, oreContext, desc);
 }
+#endif
 
 void gpuShaderModuleReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 {
@@ -4138,6 +4195,15 @@ uint32_t gpuShaderAssetIdImpl(WasmScriptingVM*, uint32_t, const char*, uint32_t)
 {
     return 0;
 }
+uint32_t gpuShaderModuleFromAssetImpl(WasmScriptingVM*,
+                                      uint32_t,
+                                      const char*,
+                                      uint32_t,
+                                      uint32_t)
+{
+    return 0;
+}
+#ifdef WITH_RIVE_TOOLS
 uint32_t gpuShaderModuleNewImpl(WasmScriptingVM*,
                                 const rive_gpu_shader_module_desc_v1*,
                                 uint32_t,
@@ -4146,6 +4212,7 @@ uint32_t gpuShaderModuleNewImpl(WasmScriptingVM*,
 {
     return 0;
 }
+#endif
 void gpuShaderModuleReleaseImpl(WasmScriptingVM*, uint32_t) {}
 uint32_t gpuBindGroupLayoutNewImpl(WasmScriptingVM*,
                                    uint32_t,
@@ -9202,6 +9269,13 @@ static wasm_module_t loadPrelinkedModule(const PrelinkedAotModule& prelinked,
 #ifndef __EMSCRIPTEN__
 bool WasmScriptingVM::init(Span<const uint8_t> module)
 {
+    // Unsigned modules are safe only as bytecode WAMR compiles itself; AOT
+    // comes solely from our own artifacts, found by this bytecode's hash.
+    if (module.size() < 4 || memcmp(module.data(), "\0asm", 4) != 0)
+    {
+        m_lastError = "script module is not wasm bytecode";
+        return false;
+    }
     if (!ensureRuntime())
     {
         m_lastError = "wamr runtime init failed";

@@ -2056,16 +2056,6 @@ void RenderContextWebGPUImpl::initGPUObjects()
     };
     m_nullStorageBuffer = m_device.CreateBuffer(&nullStorageBufferDesc);
 
-    wgpu::SamplerDescriptor linearSamplerDesc = {
-        .addressModeU = wgpu::AddressMode::ClampToEdge,
-        .addressModeV = wgpu::AddressMode::ClampToEdge,
-        .magFilter = wgpu::FilterMode::Linear,
-        .minFilter = wgpu::FilterMode::Linear,
-        .mipmapFilter = wgpu::MipmapFilterMode::Nearest,
-    };
-
-    m_linearSampler = m_device.CreateSampler(&linearSamplerDesc);
-
     for (size_t i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
     {
         ImageWrap wrapX = ImageSampler::GetWrapXOptionFromKey(i);
@@ -2087,15 +2077,15 @@ void RenderContextWebGPUImpl::initGPUObjects()
     wgpu::BindGroupEntry samplerBindingEntries[] = {
         {
             .binding = GRAD_TEXTURE_IDX,
-            .sampler = m_linearSampler,
+            .sampler = m_imageSamplers[BilinearRepeatImageSamplerKey],
         },
         {
             .binding = GAUSSIAN_INTEGRAL_TEXTURE_IDX,
-            .sampler = m_linearSampler,
+            .sampler = m_imageSamplers[BilinearClampImageSamplerKey],
         },
         {
             .binding = FEATHER_ATLAS_TEXTURE_IDX,
-            .sampler = m_linearSampler,
+            .sampler = m_imageSamplers[BilinearClampImageSamplerKey],
         },
     };
 
@@ -2728,7 +2718,7 @@ void RenderContextWebGPUImpl::generateMipmaps(wgpu::Texture texture)
             },
             {
                 .binding = WEBGPU_IMAGE_SAMPLER_IDX,
-                .sampler = m_linearSampler,
+                .sampler = m_imageSamplers[BilinearClampImageSamplerKey],
             },
         };
 

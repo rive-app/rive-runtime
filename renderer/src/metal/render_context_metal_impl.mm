@@ -1862,8 +1862,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
         else
         {
-            [encoder setFragmentSamplerState:
-                         m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY]
+            [encoder setFragmentSamplerState:m_imageSamplers
+                                                 [BilinearClampImageSamplerKey]
                                      atIndex:IMAGE_TEXTURE_IDX];
         }
 

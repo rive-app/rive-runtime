@@ -254,7 +254,6 @@ TEST_CASE("layer_mask_mode_stays_out_of_the_clip_id", "[gpu]")
         data.set(gpu::DrawContents::none,
                  gpu::PaintType::solidColor,
                  gpu::SimplePaintValue{},
-                 gpu::GradTextureLayout{},
                  /*clipID=*/2,
                  /*hasClipRect=*/false,
                  /*hasImage=*/true,

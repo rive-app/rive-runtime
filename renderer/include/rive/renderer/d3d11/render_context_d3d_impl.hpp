@@ -302,7 +302,6 @@ private:
     ComPtr<ID3D11Buffer> m_flushUniforms;
     ComPtr<ID3D11Buffer> m_drawUniforms;
 
-    ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState>
         m_samplerStates[rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 

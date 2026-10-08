@@ -151,6 +151,7 @@ $typedef $uint ushort;
 // parameters are defined at the API level.
 #define SAMPLER(IDX, NAME) $SamplerState NAME;
 #define SAMPLER_LINEAR SAMPLER
+#define SAMPLER_LINEAR_WRAP SAMPLER
 #define SAMPLER_DYNAMIC(SET, IDX, NAME) SAMPLER(IDX, NAME)
 #define SAMPLER_DYNAMIC_IMAGE(NAME) SAMPLER(IMAGE_TEXTURE_IDX, NAME)
 

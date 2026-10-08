@@ -148,6 +148,10 @@
 
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
+#define SAMPLER_LINEAR_WRAP(TEXTURE_IDX, NAME)                                 \
+    $constexpr $sampler NAME($filter::$linear,                                 \
+                             $mip_filter::$none,                               \
+                             $address::$repeat);
 #define SAMPLER_DYNAMIC(SET, IDX, NAME) [[$sampler(IDX)]] $sampler NAME;
 #define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
     [[$sampler(IMAGE_TEXTURE_IDX)]] $sampler NAME;

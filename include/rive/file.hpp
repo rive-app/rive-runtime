@@ -121,10 +121,11 @@ public:
     /// @param vm is an optional ScriptingVM that should be made per file. This
     /// is the environment that any script instances in the file will be
     /// created in.
-    /// @param requireSignedScripts runs only Rive-signed scripts, even in
-    /// builds that otherwise run unsigned ones (WITH_RIVE_TOOLS). Set it for
-    /// bytes that did not come from the embedder, such as a file a script
-    /// downloaded.
+    /// @param requireSignedScripts uses only Rive-signed Luau scripts and
+    /// shaders, even in builds that otherwise use unsigned ones
+    /// (WITH_RIVE_TOOLS). Set it for bytes that did not come from the
+    /// embedder, such as a file a script downloaded. Wasm modules are never
+    /// gated.
     /// @returns a pointer to the file, or null on failure.
     static rcp<File> import(Span<const uint8_t> data,
                             Factory* factory,
@@ -363,6 +364,16 @@ public:
         ImportResult* result = nullptr);
 #endif
 
+#ifdef WITH_RIVE_SCRIPTING
+    /// Whether a Luau script or shader with this signature status may be
+    /// used. See import()'s requireSignedScripts.
+    bool acceptsScript(bool verified) const
+    {
+        return acceptsScript(verified, m_requireSignedScripts);
+    }
+    static bool acceptsScript(bool verified, bool requireSignedScripts);
+#endif
+
 #ifdef TESTING
     FileAssetLoader* testing_getAssetLoader() const
     {
@@ -448,9 +459,6 @@ private:
 
 #ifdef WITH_RIVE_SCRIPTING
     void registerScripts();
-    /// Whether a script asset (or wasm module) with this signature status may
-    /// run. See import()'s requireSignedScripts.
-    bool acceptsScript(bool verified) const;
     bool m_requireSignedScripts = false;
 #endif
 #ifdef WITH_RIVE_SCRIPTING

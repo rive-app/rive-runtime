@@ -1,5 +1,12 @@
 #include "rive/assets/shader_asset.hpp"
 #include "rive/signed_content_header.hpp"
+// The script module's copy only reads bytes its host already admitted.
+#if defined(WITH_RIVE_SCRIPTING) && !defined(RIVE_WASM_MODULE)
+#define RIVE_SHADER_SIGNATURE_GATE
+#include "rive/file.hpp"
+#include "rive/importers/text_asset_importer.hpp"
+#endif
+#include <cstdio>
 
 using namespace rive;
 
@@ -14,7 +21,68 @@ bool rive::ShaderAsset::decode(Span<const uint8_t> data, Factory* factory)
         return false;
     }
     auto inner = envelope.content();
+#ifdef RIVE_SHADER_SIGNATURE_GATE
+    // Referenced shaders carry their own signature; in-band ones verify as a
+    // group once the file reaches its signature.
+    m_verified = envelope.isSigned() &&
+                 verifiesContentSignature(envelope.signature(), inner);
+    m_refusalLogged = false;
+#endif
     m_bytes = SimpleArray<uint8_t>(inner.data(), inner.size());
+    m_indexed = false;
+    bool indexed = admit();
+#ifdef WITH_RIVE_SCRIPTING
+    // Loaded after its file, so its own signature was the last to check.
+    if (m_importFinished)
+    {
+        logRefusal();
+    }
+#endif
+    return indexed;
+}
+
+bool ShaderAsset::accepted() const
+{
+#ifdef RIVE_SHADER_SIGNATURE_GATE
+    return !m_imported ||
+           File::acceptsScript(m_verified, m_requireSignedScripts);
+#else
+    return true;
+#endif
+}
+
+bool ShaderAsset::admit()
+{
+    if (m_indexed || !accepted())
+    {
+        return true;
+    }
+    m_indexed = index();
+    return m_indexed;
+}
+
+#ifdef WITH_RIVE_SCRIPTING
+void ShaderAsset::finishImport()
+{
+    m_importFinished = true;
+    logRefusal();
+}
+
+void ShaderAsset::logRefusal()
+{
+    if (m_indexed || m_refusalLogged || m_bytes.empty() || accepted())
+    {
+        return;
+    }
+    m_refusalLogged = true;
+    fprintf(stderr,
+            "Shader '%s' is unavailable: its signature did not verify.\n",
+            name().c_str());
+}
+#endif
+
+bool ShaderAsset::index()
+{
     m_index.clear();
     m_pairs.clear();
 
@@ -115,6 +183,10 @@ bool rive::ShaderAsset::decode(Span<const uint8_t> data, Factory* factory)
 
 Span<const uint8_t> ShaderAsset::findShader(uint8_t target) const
 {
+    if (!m_indexed)
+    {
+        return {};
+    }
     auto it = m_index.find(target);
     if (it == m_index.end())
     {

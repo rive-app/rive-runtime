@@ -28,6 +28,29 @@ const kTrapped = 2;
 const kHostFault = 3;
 const kLiftedStart = '__riveLiftedStart';
 
+// One function returning v128.const zero, then one returning the relaxed
+// swizzle of two: the smallest modules each SIMD flavor needs.
+const kV128Zero = [0xfd, 0x0c, ...new Array(16).fill(0)];
+const kSimdProbe = probeModule([...kV128Zero]);
+const kRelaxedSimdProbe = probeModule([
+    ...kV128Zero,
+    ...kV128Zero,
+    0xfd,
+    0x80,
+    0x02,
+]);
+
+function probeModule(body) {
+    const code = [0, ...body, 0x0b];
+    return new Uint8Array([
+        0x00, 0x61, 0x73, 0x6d, 1, 0, 0, 0,
+        // One type, () -> v128, and one function of it.
+        1, 5, 1, 0x60, 0, 1, 0x7b,
+        3, 2, 1, 0,
+        10, code.length + 2, 1, code.length, ...code,
+    ]);
+}
+
 function readLeb(bytes, at) {
     let value = 0;
     let shift = 0;
@@ -111,6 +134,28 @@ export function installRiveScripting(Module) {
         bytesRead: 0,
         bytesWritten: 0,
     };
+
+    // Tests stand in for an engine without SIMD with their own validator.
+    const validate =
+        Module['riveScriptingValidate'] ??
+        ((bytes) => WebAssembly.validate(bytes));
+    let features = null;
+    // Why this engine refuses a module, when a SIMD flavor it lacks is the
+    // reason; null otherwise. The probes run once per page.
+    function missingSimd(bytes) {
+        features ??= {
+            simd: validate(kSimdProbe),
+            relaxed: validate(kRelaxedSimdProbe),
+        };
+        if ((features.simd && features.relaxed) || validate(bytes)) {
+            return null;
+        }
+        return features.simd
+            ? "this browser lacks WebAssembly relaxed SIMD, so this file's " +
+                  'scripts are off; bake with wasmSimd: on to support it'
+            : "this browser lacks WebAssembly SIMD, so this file's scripts " +
+                  'are off; bake with wasmSimd: off to support it';
+    }
 
     function importsFor(entry, module) {
         const imports = createRiveModuleImports(
@@ -210,13 +255,14 @@ export function installRiveScripting(Module) {
         },
 
         register(vm, bytes) {
+            const copy = bytes.slice();
             vms.set(vm, {
                 ctx: { vm, raised: null, hostFault: false, counters },
-                bytes: bytes.slice(),
+                bytes: copy,
                 instance: null,
                 memory: null,
                 preparing: null,
-                error: null,
+                error: missingSimd(copy),
                 names: new Map(),
             });
         },

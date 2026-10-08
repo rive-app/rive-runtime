@@ -235,7 +235,6 @@ private:
     // Draw paths and image meshes using the gradient and tessellation textures.
     class DrawPipeline;
     std::map<uint64_t, DrawPipeline> m_drawPipelines;
-    wgpu::Sampler m_linearSampler;
     wgpu::Sampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
     wgpu::BindGroup m_samplerBindings;
     wgpu::BindGroupLayout m_emptyBindingsLayout; // For when a set is unused.

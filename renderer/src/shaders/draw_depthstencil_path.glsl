@@ -35,55 +35,6 @@ VARYING_BLOCK_END
 
 #ifdef @VERTEX
 
-// We pack the following into the result:
-//  xy = gradient-space coordinate
-//   z = coverage, plus 2 if a radial gradient, negated if a complex gradient
-//   w = packed value (then negated)
-//       bits 0-7:   additivenessComplement [8 bits]
-//       bits 8-16:  left texel x [9 bits]
-//       bits 17-27: row [11 bits]
-//       bits 28-30: gradient type [3 bits]
-//       bit  31:    set (sign used to signify a gradient vs. solid color)
-INLINE float4 packGradientUVAndData(float2 fragCoord,
-                                    float2x2 mat,
-                                    float2 translate,
-                                    uint type,
-                                    float2 hSpan,
-                                    float rowAndAdditiveness,
-                                    float coverage)
-{
-    float4 gradient;
-    gradient.xy = MUL(mat, fragCoord) + translate;
-
-    gradient.z = coverage;
-    if (type != LINEAR_GRADIENT_PAINT_TYPE)
-    {
-        gradient.z += 2.0; // z+2 indicates a radial gradient.
-    }
-    if (hSpan.x > 0.9)
-    {
-        // A span of ~1 coming in indicates a complex gradient.
-        // "-z" is what indicates the complex gradient going out.
-        gradient.z = -gradient.z;
-    }
-
-    // rowAndAdditiveness is (row + 1) in the integer part and
-    // additivenessComplement in 256ths in the fraction. The row fits in 11 bits
-    // because textures are at most 2048 rows tall.
-    uint row = uint(rowAndAdditiveness) - 1u;
-    uint additivenessComplement = uint(fract(rowAndAdditiveness) * 256.0);
-    // hSpan.y is (leftTexel + .5) / GRAD_TEXTURE_WIDTH.
-    // NOTE: uint() truncates back to leftTexel exactly.
-    uint leftTexel = uint(hSpan.y * GRAD_TEXTURE_WIDTH);
-    // "type" must be in [2, 6] to guarantee this float won't be denormal, Inf,
-    // or NaN. (This is static_asserted in gpu.cpp.)
-    uint gradData =
-        (type << 28) | (row << 17) | (leftTexel << 8) | additivenessComplement;
-    gradient.w = -uintBitsToFloat(gradData);
-
-    return gradient;
-}
-
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 {
     VARYING_INIT(v_paint, float4);
@@ -456,13 +407,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
                 @paintAuxBuffer,
                 pathID * PAINT_AUX_ENTRY_ELEMENT_COUNT + 1u);
 
-            v_paint = packGradientUVAndData(fragCoord,
-                                            paintMatrix,
-                                            paintTranslate.xy,
-                                            paintType,
-                                            paintTranslate.zw,
-                                            uintBitsToFloat(paintData.y),
-                                            coverage);
+            float additivenessComplement = uintBitsToFloat(paintData.y);
+            v_paint = packGradientData(fragCoord,
+                                       paintMatrix,
+                                       paintTranslate.xy,
+                                       paintTranslate.zw,
+                                       paintType,
+                                       additivenessComplement,
+                                       coverage);
         }
 
 #ifdef @ENABLE_MODULATED_IMAGE
@@ -522,70 +474,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 #endif // @VERTEX
 
 #ifdef @FRAGMENT
-// Given packed gradient information, this gets the uv coordinate in the
-// gradient texture, the coverage, and the raw gradData.
-// The caller can use unpackGradientAdditivenessComplement(gradData) if it needs
-// to handle additiveness.
-INLINE float2 getGradientUVAndData(float4 gradient,
-                                   float gradTextureYScalePacked,
-                                   float gradTextureYBias,
-                                   OUT(half) coverage,
-                                   OUT(uint) gradData)
-{
-    const float OneTexelX = GRAD_TEXTURE_INVERSE_WIDTH;
-    const float HalfTexelX = 0.5 * GRAD_TEXTURE_INVERSE_WIDTH;
-
-    // Don't negate w back. Every field below is masked, and the negate costs
-    // 1.3% on PowerVR.
-    gradData = floatBitsToUint(gradient.w);
-
-    float2 uv;
-    // gradTextureYBias assumes a row + 1 encoding. We encode the row itself, so
-    // subtract it instead.
-    uv.y = float(gradData & (0x7ffu << 17)) * gradTextureYScalePacked -
-           gradTextureYBias;
-
-    float t;
-    coverage = abs(gradient.z);
-    if (coverage < 1.5) // linear
-    {
-        t = gradient.x;
-    }
-    else // nonlinear
-    {
-        // TODO: When ENABLE_ANGULAR_GRADIENTS is set, an integer test here is
-        // quicker than another float compare. e.g.:
-        // t = (gradData & (4u << 28)) != 0u ? atan() : length();
-        t = length(gradient.xy);
-
-        // Remove the "nonlinear" tag from coverage.
-        coverage -= 2.0;
-    }
-
-    t = clamp(t, 0.0, 1.0);
-    if (gradient.z < 0.0)
-    {
-        // A complex gradient spans the whole row.
-        uv.x = t * (1.0 - OneTexelX) + HalfTexelX;
-    }
-    else
-    {
-        // A simple gradient is a two-texel ramp starting at texel x.
-        float originX =
-            float(gradData & 0x1ff00u) * (OneTexelX / 256.0) + HalfTexelX;
-        uv.x = t * OneTexelX + originX;
-    }
-
-    return uv;
-}
-
-// Only non-advanced blend supports additiveness, so the caller unpacks it
-// separately as needed, passing the gradData returned by
-// getGradientUVAndData().
-INLINE half unpackGradientAdditivenessComplement(uint gradData)
-{
-    return cast_uint_to_half(gradData & 0xffu) * (1.0 / 255.0);
-}
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
@@ -616,18 +504,14 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     }
     else // Paint is a gradient.
     {
-        half coverage;
-        uint gradData;
-        float2 gradTexCoord =
-            getGradientUVAndData(v_paint,
-                                 uniforms.gradTextureYScalePacked,
-                                 uniforms.gradTextureYBias,
-                                 coverage,
-                                 gradData);
+        float2 gradTexCoord = getGradientUV(v_paint,
+                                            uniforms.gradTextureYScale,
+                                            uniforms.gradTextureYBias);
         color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradTexCoord, .0);
-        // Only strokes (polar and hairline) have coverage in depthStencil.
         if (isStroke())
-            color.a *= coverage;
+        {
+            color.a *= getGradientCoverage(v_paint);
+        }
 
         if (!paintHasAdvancedBlend)
         {
@@ -636,7 +520,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
             // lose color data while doing the hardware filter.)
             color.rgb *= color.a;
             // Only non-advanced blend supports additiveness.
-            color.a *= unpackGradientAdditivenessComplement(gradData);
+            color.a *= getGradientAdditivenessComplement(v_paint);
         }
     }
 

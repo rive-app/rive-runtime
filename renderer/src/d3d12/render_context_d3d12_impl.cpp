@@ -676,16 +676,6 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_pipelineManager.compileTesselationPipeline();
     m_pipelineManager.compileFeatherAtlasPipeline();
 
-    m_linearSampler.Filter = D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    m_linearSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_linearSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_linearSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_linearSampler.MipLODBias = 0.0f;
-    m_linearSampler.MaxAnisotropy = 1;
-    m_linearSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    m_linearSampler.MinLOD = 0;
-    m_linearSampler.MaxLOD = 0;
-
     for (int i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
     {
         auto wrapX = ImageSampler::GetWrapXOptionFromKey(i);
@@ -1242,24 +1232,28 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
 
         // setup samplers, these don't change,
         // image sampler will eventually but for now keep it here
-        m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                          m_linearSampler,
-                                          TESS_SAMPLER_HEAP_OFFSET);
-        m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                          m_linearSampler,
-                                          GRAD_SAMPLER_HEAP_OFFSET);
         m_samplerHeap->markSamplerToIndex(
             m_device.Get(),
-            m_linearSampler,
+            m_imageSamplers[BilinearClampImageSamplerKey],
+            TESS_SAMPLER_HEAP_OFFSET);
+        m_samplerHeap->markSamplerToIndex(
+            m_device.Get(),
+            m_imageSamplers[BilinearRepeatImageSamplerKey],
+            GRAD_SAMPLER_HEAP_OFFSET);
+        m_samplerHeap->markSamplerToIndex(
+            m_device.Get(),
+            m_imageSamplers[BilinearClampImageSamplerKey],
             GAUSSIAN_INTEGRAL_SAMPLER_HEAP_OFFSET);
-        m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                          m_linearSampler,
-                                          FEATHER_ATLAS_SAMPLER_HEAP_OFFSET);
+        m_samplerHeap->markSamplerToIndex(
+            m_device.Get(),
+            m_imageSamplers[BilinearClampImageSamplerKey],
+            FEATHER_ATLAS_SAMPLER_HEAP_OFFSET);
 
         // this SHOULD be m_mipSampler but we don't currently generate mips
-        m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                          m_linearSampler,
-                                          IMAGE_SAMPLER_HEAP_OFFSET);
+        m_samplerHeap->markSamplerToIndex(
+            m_device.Get(),
+            m_imageSamplers[BilinearClampImageSamplerKey],
+            IMAGE_SAMPLER_HEAP_OFFSET);
 
         cmdList->SetGraphicsRootDescriptorTable(
             STATIC_SRV_SIG_INDEX,
@@ -1907,19 +1901,21 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     // garbage descriptors (validation fires id=654, GPU
                     // eventually TDRs). Mirror the initial-flush block that
                     // creates these from m_linearSampler directly.
-                    m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                                      m_linearSampler,
-                                                      TESS_SAMPLER_HEAP_OFFSET);
-                    m_samplerHeap->markSamplerToIndex(m_device.Get(),
-                                                      m_linearSampler,
-                                                      GRAD_SAMPLER_HEAP_OFFSET);
                     m_samplerHeap->markSamplerToIndex(
                         m_device.Get(),
-                        m_linearSampler,
+                        m_imageSamplers[BilinearClampImageSamplerKey],
+                        TESS_SAMPLER_HEAP_OFFSET);
+                    m_samplerHeap->markSamplerToIndex(
+                        m_device.Get(),
+                        m_imageSamplers[BilinearRepeatImageSamplerKey],
+                        GRAD_SAMPLER_HEAP_OFFSET);
+                    m_samplerHeap->markSamplerToIndex(
+                        m_device.Get(),
+                        m_imageSamplers[BilinearClampImageSamplerKey],
                         GAUSSIAN_INTEGRAL_SAMPLER_HEAP_OFFSET);
                     m_samplerHeap->markSamplerToIndex(
                         m_device.Get(),
-                        m_linearSampler,
+                        m_imageSamplers[BilinearClampImageSamplerKey],
                         FEATHER_ATLAS_SAMPLER_HEAP_OFFSET);
 
                     ID3D12DescriptorHeap* ppHeaps[] = {m_srvUavCbvHeap->heap(),

@@ -201,12 +201,14 @@
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     layout(set = WEBGPU_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)           \
         uniform mediump sampler NAME;
+#define SAMPLER_LINEAR_WRAP SAMPLER_LINEAR
 #define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
     SAMPLER_DYNAMIC(PER_DRAW_BINDINGS_SET, WEBGPU_IMAGE_SAMPLER_IDX, NAME)
 #else
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     layout(set = PER_FLUSH_BINDINGS_SET, binding = TEXTURE_IDX)                \
         uniform mediump sampler NAME;
+#define SAMPLER_LINEAR_WRAP SAMPLER_LINEAR
 #define SAMPLER_DYNAMIC_IMAGE(NAME)                                            \
     SAMPLER_DYNAMIC(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, NAME)
 #endif
@@ -229,6 +231,7 @@
 // SAMPLER_LINEAR is a no-op because in GL, sampling parameters are API-level
 // state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
+#define SAMPLER_LINEAR_WRAP(TEXTURE_IDX, NAME)
 #define SAMPLER_DYNAMIC(SET, IDX, NAME)
 #define SAMPLER_DYNAMIC_IMAGE(NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)

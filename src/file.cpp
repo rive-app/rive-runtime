@@ -480,6 +480,13 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         return result;
     }
 #ifdef WITH_RIVE_SCRIPTING
+    for (const auto& asset : m_fileAssets)
+    {
+        if (asset->is<ShaderAsset>())
+        {
+            asset->as<ShaderAsset>()->finishImport();
+        }
+    }
     registerScripts();
 #endif
     return result;
@@ -757,15 +764,13 @@ ImportResult File::readObjects(BinaryReader& reader,
                 break;
             }
             case ScriptModuleAsset::typeKey:
-            {
-                stackObject = std::make_unique<TextAssetImporter>(
+                // The wasm module is trusted, so it joins no signed group.
+                stackObject = std::make_unique<FileAssetImporter>(
                     object->as<ScriptModuleAsset>(),
                     m_assetLoader,
-                    m_factory,
-                    &inBandContent);
+                    m_factory);
                 stackType = FileAsset::typeKey;
                 break;
-            }
             case ShaderAsset::typeKey:
             {
                 auto shaderAsset = object->as<ShaderAsset>();
@@ -775,6 +780,7 @@ ImportResult File::readObjects(BinaryReader& reader,
                                                         m_factory,
                                                         &inBandContent);
                 stackType = FileAsset::typeKey;
+                shaderAsset->importedWith(m_requireSignedScripts);
                 break;
             }
 #endif
@@ -1192,9 +1198,9 @@ void File::startScripts()
 #endif
 #endif
 
-bool File::acceptsScript(bool verified) const
+bool File::acceptsScript(bool verified, bool requireSignedScripts)
 {
-    if (m_requireSignedScripts)
+    if (requireSignedScripts)
     {
 #ifdef WITH_RIVE_TEST_SIGNATURE
         // The test key's private half is public, so its signatures prove
@@ -1250,10 +1256,6 @@ void File::registerScripts()
         if (asset->is<ScriptModuleAsset>())
         {
             auto module = asset->as<ScriptModuleAsset>();
-            if (!acceptsScript(module->verified()))
-            {
-                continue;
-            }
 #ifdef __EMSCRIPTEN__
             std::unique_ptr<WasmScriptingVM> vm =
                 BrowserScriptingVM::make(module->module(), m_factory);

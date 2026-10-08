@@ -1649,7 +1649,6 @@ void RenderContext::LogicalFlush::writeResources()
     m_ctx->m_paintData.set_back(gpu::DrawContents::none,
                                 PaintType::solidColor,
                                 clearColorValue,
-                                GradTextureLayout(),
                                 /*clipID =*/0,
                                 /*hasClipRect =*/false,
                                 /*hasImage =*/false,
@@ -3213,7 +3212,6 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
         drawContents,
         draw->paintType(),
         draw->simplePaintValue(),
-        m_gradTextureLayout,
         draw->clipID(),
         draw->hasClipRect(),
         draw->hasImageTexture(),
@@ -3230,6 +3228,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
                                    draw->imageMatrix(),
                                    draw->paintType(),
                                    draw->simplePaintValue(),
+                                   m_gradTextureLayout,
                                    draw->gradient(),
                                    draw->inverseGradientTransform(),
                                    draw->imageTexture(),
@@ -3730,8 +3729,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
 
     uint32_t gradientType = 0;
     Mat2D gradientMatrix;
-    float gradientHorizontalSpan[2]{};
-    float gradientY = 0;
+    int32_t gradientX = 0;
+    uint32_t gradientY = 0;
     if (draw->gradient() != nullptr)
     {
         // a gradientType of 0 is used to signify "no gradient" so these had
@@ -3739,15 +3738,16 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
         static_assert(int(PaintType::linearGradient) != 0);
         static_assert(int(PaintType::radialGradient) != 0);
         gradientType = uint32_t(draw->gradient()->paintType());
-        getGradientMatrixAndSpan(draw->gradient(),
-                                 draw->rampLocation(),
-                                 draw->inverseGradientTransform(),
-                                 draw->gradientMatrix(),
-                                 m_flushDesc.renderTarget,
-                                 m_ctx->platformFeatures(),
-                                 gradientMatrix,
-                                 gradientHorizontalSpan);
-        gradientY = getGradientY(draw->rampLocation(), m_gradTextureLayout);
+        getGradientMatrixAndCoord(draw->gradient(),
+                                  draw->rampLocation(),
+                                  m_gradTextureLayout,
+                                  draw->inverseGradientTransform(),
+                                  draw->gradientMatrix(),
+                                  m_flushDesc.renderTarget,
+                                  m_ctx->platformFeatures(),
+                                  gradientMatrix,
+                                  gradientX,
+                                  gradientY);
     }
 
     m_ctx->m_imageRectInstanceData.emplace_back(draw->paintMatrix(),
@@ -3759,7 +3759,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
                                                 draw->imageMatrix(),
                                                 gradientMatrix,
                                                 gradientType,
-                                                gradientHorizontalSpan,
+                                                gradientX,
                                                 gradientY,
                                                 draw->additiveness());
 

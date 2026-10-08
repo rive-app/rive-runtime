@@ -735,21 +735,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
                                       m_drawUniforms.ReleaseAndGetAddressOf()));
     }
 
-    // Create a linear sampler for the gradient & gaussian integral textures.
-    D3D11_SAMPLER_DESC linearSamplerDesc;
-    linearSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
-    linearSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    linearSamplerDesc.MipLODBias = 0.0f;
-    linearSamplerDesc.MaxAnisotropy = 1;
-    linearSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    linearSamplerDesc.MinLOD = 0;
-    linearSamplerDesc.MaxLOD = 0;
-    VERIFY_OK(
-        m_gpu->CreateSamplerState(&linearSamplerDesc,
-                                  m_linearSampler.ReleaseAndGetAddressOf()));
-
     // Create a mipmap sampler for each sampler permutation option.
     for (int samplerKey = 0;
          samplerKey < ImageSampler::MAX_SAMPLER_PERMUTATIONS;
@@ -775,9 +760,10 @@ RenderContextD3DImpl::RenderContextD3DImpl(
             m_samplerStates[samplerKey].ReleaseAndGetAddressOf()));
     }
 
-    m_gpuContext->VSSetSamplers(GAUSSIAN_INTEGRAL_TEXTURE_IDX,
-                                1,
-                                m_linearSampler.GetAddressOf());
+    m_gpuContext->VSSetSamplers(
+        GAUSSIAN_INTEGRAL_TEXTURE_IDX,
+        1,
+        m_samplerStates[BilinearClampImageSamplerKey].GetAddressOf());
 
     D3D11_BLEND_DESC srcOverDesc{};
     srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
@@ -1741,13 +1727,13 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         1,
         m_gaussianIntegralTextureSRV.GetAddressOf());
 
-    // All programs use the same samplers.
+    // The gradient, gaussian, and feather atlas samplers are the same for all
+    // programs.
     ID3D11SamplerState* samplers[4] = {
-        m_linearSampler.Get(),
-        m_linearSampler.Get(),
-        m_linearSampler.Get(),
-        // 0 is the default which is MIN_MAG_MIP_LINEAR
-        m_samplerStates[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY].Get(),
+        m_samplerStates[BilinearRepeatImageSamplerKey].Get(), // gradient
+        m_samplerStates[BilinearClampImageSamplerKey].Get(),  // gaussian
+        m_samplerStates[BilinearClampImageSamplerKey].Get(),  // feather atlas
+        m_samplerStates[BilinearClampImageSamplerKey].Get(),  // default image
     };
 
     static_assert(GAUSSIAN_INTEGRAL_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);

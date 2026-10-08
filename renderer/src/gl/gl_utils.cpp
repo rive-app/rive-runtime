@@ -415,12 +415,15 @@ void Shader::compile(GLenum type,
                         capabilities));
 }
 
-void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
+void SetTexture2DSamplingParams(GLenum minFilter,
+                                GLenum magFilter,
+                                GLint wrapU,
+                                GLint wrapV)
 {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapU);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapV);
 }
 
 GLint gl_wrap_from_image_wrap(rive::ImageWrap wrap)
