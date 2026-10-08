@@ -190,7 +190,28 @@ bool ViewportDraggableProxy::scroll(const ScrollEvent& event, float timeStamp)
             }
             // Platform momentum lands as-is; flinging on top would double it.
             m_constraint->beginScrollGesture();
-            m_constraint->scrollBy(event.delta);
+            if (m_constraint->canStretch(event.delta) &&
+                m_constraint->canConsume(event.delta))
+            {
+                // The coast is tracked like a finger, so the delta that
+                // reaches an end stretches the band and then releases at
+                // the coast's speed, exactly as a drag does. A view already
+                // at its end stays put. A primed clock has no earlier
+                // sample to measure against.
+                bool primed = m_constraint->ensurePhysicsPrimed();
+                m_constraint->dragView(event.delta, timeStamp, !primed);
+                // Landing exactly on the end counts: the next delta could
+                // not move it, and the release carries it past from there.
+                if (m_constraint->isOverscrolled() ||
+                    !m_constraint->canConsume(event.delta))
+                {
+                    m_constraint->startPhysics();
+                }
+            }
+            else
+            {
+                m_constraint->scrollBy(event.delta);
+            }
             return true;
         }
         case ScrollPhase::end:

@@ -237,7 +237,8 @@ TEST_CASE("Platform momentum never starts a fling", "[scrollinput]")
 
     REQUIRE(scroll->offsetY() == -50.0f);
     REQUIRE(scroll->physics()->isRunning() == false);
-    REQUIRE(scroll->velocityY() == 0.0f);
+    // The coast is tracked like a finger, so it reports its speed.
+    REQUIRE(scroll->velocityY() <= 0.0f);
 
     delete smi;
 }
@@ -568,8 +569,76 @@ TEST_CASE("A precise gesture stretches an elastic view at its edge",
     delete smi;
 }
 
-TEST_CASE("A settle mid-gesture does not leave the view rendering pinned",
+TEST_CASE("Momentum crossing an end releases at the coast's speed",
           "[scrollinput]")
+{
+    // Wall-clock velocity, as in the other velocity tests here: in
+    // deterministic mode the clock truncates sub-second stamps to zero.
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+    auto artboard = file->artboard();
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+    rive::StateMachineInstance* smi =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+    auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+    smi->advanceAndApply(0.0f);
+    REQUIRE(scroll->maxOffsetY() == -610.0f);
+
+    rive::Vec2D over(50.0f, 250.0f);
+    auto send = [&](rive::ScrollEvent event) {
+        smi->pointerScroll(over, event);
+    };
+
+    // macOS: begin, updates, then its own momentum; never an end. The coast
+    // reaches the end and keeps going, and like a finger it stretches the
+    // band rather than landing clamped there and dying.
+    send(trackpad(rive::ScrollPhase::begin, 0, 0));
+    send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+    send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+    for (int i = 0; i < 13; i++)
+    {
+        send(trackpad(rive::ScrollPhase::momentum, 0, -40.0f));
+    }
+    REQUIRE(scroll->offsetY() == -600.0f);
+    REQUIRE(scroll->isOverscrolled() == false);
+    REQUIRE(scroll->physics()->isRunning() == false);
+    // Nothing flings from the coast, but it is tracked like a finger.
+    REQUIRE(scroll->velocityY() < 0.0f);
+
+    send(trackpad(rive::ScrollPhase::momentum, 0, -40.0f));
+    REQUIRE(scroll->offsetY() == -640.0f);
+    REQUIRE(scroll->isOverscrolled() == true);
+    REQUIRE(scroll->clampedOffsetY() > scroll->offsetY());
+    REQUIRE(scroll->clampedOffsetY() < scroll->maxOffsetY());
+    // The coast ends there and the view releases at its speed, as a drag
+    // would, rather than the tail stretching the band for its whole length.
+    REQUIRE(scroll->physics()->isRunning() == true);
+    REQUIRE(scroll->isScrolling() == true);
+    send(trackpad(rive::ScrollPhase::momentum, 0, -20.0f));
+    REQUIRE(scroll->offsetY() == -640.0f);
+
+    // It carries on past the end before the brake, like a released fling.
+    smi->advanceAndApply(0.016f);
+    REQUIRE(scroll->offsetY() < -640.0f);
+
+    for (int i = 0; i < 300 && scroll->physics()->isRunning(); i++)
+    {
+        smi->advanceAndApply(0.016f);
+        send(trackpad(rive::ScrollPhase::momentum, 0, -10.0f));
+    }
+    REQUIRE(scroll->offsetY() == Approx(scroll->maxOffsetY()));
+    REQUIRE(scroll->isOverscrolled() == false);
+
+    // What is left of the tail cannot pull a view already at its end.
+    send(trackpad(rive::ScrollPhase::momentum, 0, -10.0f));
+    send(trackpad(rive::ScrollPhase::momentum, 0, -5.0f));
+    REQUIRE(scroll->offsetY() == scroll->maxOffsetY());
+    REQUIRE(scroll->physics()->isRunning() == false);
+
+    delete smi;
+}
+
+TEST_CASE("Momentum landing exactly on an end still releases", "[scrollinput]")
 {
     auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
     auto artboard = file->artboard();
@@ -581,31 +650,37 @@ TEST_CASE("A settle mid-gesture does not leave the view rendering pinned",
     smi->advanceAndApply(0.0f);
 
     rive::Vec2D over(50.0f, 250.0f);
+    auto send = [&](rive::ScrollEvent event) {
+        smi->pointerScroll(over, event);
+    };
 
-    // Overscroll, then let inertia bounce it back.
-    smi->pointerScroll(over, trackpad(rive::ScrollPhase::begin, 0, 0));
-    smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -900.0f));
-    smi->pointerScroll(over, trackpad(rive::ScrollPhase::momentum, 0, -20.0f));
+    send(trackpad(rive::ScrollPhase::begin, 0, 0));
+    send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+    send(trackpad(rive::ScrollPhase::update, 0, -40.0f));
+    for (int i = 0; i < 13; i++)
+    {
+        send(trackpad(rive::ScrollPhase::momentum, 0, -40.0f));
+    }
+    REQUIRE(scroll->offsetY() == -600.0f);
+
+    // A delta that lands on the end leaves nothing overscrolled, so the
+    // next one could never move the view. It has to release here, or the
+    // coast would stop dead on the edge.
+    send(trackpad(rive::ScrollPhase::momentum, 0, -10.0f));
+    REQUIRE(scroll->offsetY() == scroll->maxOffsetY());
+    REQUIRE(scroll->isOverscrolled() == false);
     REQUIRE(scroll->physics()->isRunning() == true);
 
-    // Run the settle out, with the coast still feeding momentum as a real
-    // one does -- those events are what hold the gesture open, since the idle
-    // timer is reset by events and not by frames. Finishing the settle calls
-    // reset(), which destroys the elastic helpers mid-gesture.
+    // The release carries it past the end from there.
+    smi->advanceAndApply(0.016f);
+    REQUIRE(scroll->offsetY() < scroll->maxOffsetY());
+
     for (int i = 0; i < 300 && scroll->physics()->isRunning(); i++)
     {
         smi->advanceAndApply(0.016f);
-        smi->pointerScroll(over,
-                           trackpad(rive::ScrollPhase::momentum, 0, -1.0f));
+        send(trackpad(rive::ScrollPhase::momentum, 0, -10.0f));
     }
-    REQUIRE(scroll->isScrolling() == true);
-    REQUIRE(scroll->physics()->enabled() == false);
-
-    // A new pull in the same gesture has to re-prime, or the offset
-    // accumulates while the rendered position stays hard-clamped at the edge.
-    smi->pointerScroll(over, trackpad(rive::ScrollPhase::update, 0, -60.0f));
-    REQUIRE(scroll->physics()->enabled() == true);
-    REQUIRE(scroll->clampedOffsetY() < scroll->maxOffsetY());
+    REQUIRE(scroll->offsetY() == Approx(scroll->maxOffsetY()));
 
     delete smi;
 }
