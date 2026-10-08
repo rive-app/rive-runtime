@@ -1819,8 +1819,6 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
                 areDrawContentsValid,
             };
 
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
         case DrawType::stencilMidpointFans:
         case DrawType::stencilOuterCubics:
             return {
@@ -1833,6 +1831,17 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
         case DrawType::stencilOuterCubicReset:
             return {
                 StencilType::backwardTriangleCleanup,
+                DrawContents::clockwiseFill | DrawContents::activeClip |
+                    DrawContents::clipUpdate,
+                areDrawContentsValid,
+            };
+
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilDynamicOuterCubics:
+            // The dynamic types do the union of the above 3 sets of drawTypes,
+            // so their drawContentsMask are the union of all 3.
+            return {
+                StencilType::forwardClippedByBackward,
                 DrawContents::clockwiseFill | DrawContents::activeClip |
                     DrawContents::clipUpdate,
                 areDrawContentsValid,

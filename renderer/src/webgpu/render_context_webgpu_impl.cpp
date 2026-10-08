@@ -18,6 +18,7 @@
 
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "generated/shaders/wgsl/blit_texture_as_draw_filtered.webgpu_vert.hpp"
 #include "generated/shaders/wgsl/blit_texture_as_draw_filtered.webgpu_frag.hpp"
@@ -1248,10 +1249,44 @@ public:
                  gpu::ShaderFeatures shaderFeatures,
                  gpu::InterlockMode interlockMode,
                  gpu::ShaderMiscFlags shaderMiscFlags,
-                 const gpu::PipelineState& pipelineState,
+                 gpu::DrawContents drawContents,
+                 rive::BlendMode blendMode,
+                 bool flushFixedFunctionColorOutput,
+                 wgpu::TextureFormat framebufferFormat,
                  bool msaa,
                  bool targetIsGLFBO0)
     {
+        StackVector<DrawType, 3> passTypes;
+        if (gpu::drawTypeHasPipelineDynamicState(drawType))
+        {
+            // A dynamic-state fill draws in three passes. Their midpoint-fan
+            // and outer-cubic forms use identical state, so drive both from the
+            // midpoint-fan types.
+            assert(interlockMode == gpu::InterlockMode::depthStencil);
+            passTypes.push_back(DrawType::stencilMidpointFanBorrowedCoverage);
+            passTypes.push_back(DrawType::stencilMidpointFans);
+            passTypes.push_back(DrawType::stencilMidpointFanReset);
+        }
+        else
+        {
+            passTypes.push_back(drawType);
+        }
+
+        m_passes.reserve(passTypes.size());
+        for (DrawType passDrawType : passTypes)
+        {
+            m_passes.push_back({
+                .pipelineState =
+                    makePipelineState(context,
+                                      passDrawType,
+                                      interlockMode,
+                                      shaderMiscFlags,
+                                      drawContents,
+                                      flushFixedFunctionColorOutput,
+                                      blendMode),
+            });
+        }
+
         const bool fixedFunctionColorOutput =
             enums::is_flag_set(shaderMiscFlags,
                                gpu::ShaderMiscFlags::fixedFunctionColorOutput);
@@ -1747,40 +1782,105 @@ public:
                 compile_shader_module_wgsl(context->m_device, *fragmentShader);
         }
 
-        for (auto framebufferFormat :
-             {wgpu::TextureFormat::BGRA8Unorm, wgpu::TextureFormat::RGBA8Unorm})
+        for (Pass& pass : m_passes)
         {
-            int pipelineIdx = RenderPipelineIdx(framebufferFormat);
-            m_renderPipelines[pipelineIdx] =
-                context->makeDrawPipeline(drawType,
-                                          shaderFeatures,
-                                          interlockMode,
-                                          shaderMiscFlags,
-                                          framebufferFormat,
-                                          vertexModule,
-                                          fragmentModule,
-                                          vertexShader,
-                                          fragmentShader,
-                                          pipelineState,
-                                          msaa);
+            pass.renderPipeline = context->makeDrawPipeline(drawType,
+                                                            shaderFeatures,
+                                                            interlockMode,
+                                                            shaderMiscFlags,
+                                                            framebufferFormat,
+                                                            vertexModule,
+                                                            fragmentModule,
+                                                            vertexShader,
+                                                            fragmentShader,
+                                                            pass.pipelineState,
+                                                            msaa);
         }
     }
 
-    wgpu::RenderPipeline renderPipeline(
-        wgpu::TextureFormat framebufferFormat) const
+    // WebGPU doesn't have dynamic state, so we emulate it for the dynamic draw
+    // types with multiple wgpu::RenderPipelines.
+    // Only the dynamic draw types will have more than one pass.
+    uint32_t passCount() const
     {
-        return m_renderPipelines[RenderPipelineIdx(framebufferFormat)];
+        return static_cast<uint32_t>(m_passes.size());
+    }
+
+    const gpu::PipelineState& pipelineState(uint32_t passIdx = 0) const
+    {
+        return m_passes[passIdx].pipelineState;
+    }
+
+    // Binds the given pass's pipeline and the state that WebGPU keeps outside
+    // the pipeline object.
+    void bind(wgpu::RenderPassEncoder& encoder, uint32_t passIdx = 0) const
+    {
+        const Pass& pass = m_passes[passIdx];
+        encoder.SetPipeline(pass.renderPipeline);
+        if (pass.pipelineState.stencilTestEnabled)
+        {
+            encoder.SetStencilReference(pass.pipelineState.stencilReference);
+        }
     }
 
 private:
-    static int RenderPipelineIdx(wgpu::TextureFormat framebufferFormat)
+    static gpu::PipelineState makePipelineState(
+        RenderContextWebGPUImpl* context,
+        DrawType drawType,
+        gpu::InterlockMode interlockMode,
+        gpu::ShaderMiscFlags shaderMiscFlags,
+        gpu::DrawContents drawContents,
+        bool flushFixedFunctionColorOutput,
+        rive::BlendMode blendMode)
     {
-        assert(framebufferFormat == wgpu::TextureFormat::BGRA8Unorm ||
-               framebufferFormat == wgpu::TextureFormat::RGBA8Unorm);
-        return framebufferFormat == wgpu::TextureFormat::BGRA8Unorm ? 1 : 0;
+        gpu::PipelineState pipelineState =
+            gpu::get_pipeline_state(drawType,
+                                    interlockMode,
+                                    shaderMiscFlags,
+                                    drawContents,
+                                    flushFixedFunctionColorOutput,
+                                    blendMode,
+                                    context->m_platformFeatures);
+        if (interlockMode == gpu::InterlockMode::atomics &&
+            !flushFixedFunctionColorOutput)
+        {
+            // atomic mode without fixedFunctionColorOutput renders to storage
+            // buffers, so colorWriteEnabled is false. We turn it back on when
+            // using coalescedResolveAndTransfer because that's the only case
+            // where we render directly to the color buffer.
+            if (drawType == gpu::DrawType::renderPassResolve)
+            {
+                assert(enums::is_flag_set(
+                    shaderMiscFlags,
+                    gpu::ShaderMiscFlags::coalescedResolveAndTransfer));
+                pipelineState.colorWriteEnabled = true;
+            }
+            else
+            {
+                assert(!pipelineState.colorWriteEnabled);
+            }
+        }
+#ifdef RIVE_WAGYU
+        else if (using_pls(interlockMode) && !flushFixedFunctionColorOutput)
+        {
+            // PLS render modes disable color writes by default on !FFCO, but
+            // since we implement PLS via color attachments in Wagyu, we turn it
+            // back on.
+            assert(!pipelineState.colorWriteEnabled);
+            pipelineState.colorWriteEnabled = true;
+        }
+#endif
+        return pipelineState;
     }
 
-    wgpu::RenderPipeline m_renderPipelines[2];
+    // WebGPU doesn't have dynamic state, so we emulate it for the dynamic draw
+    // types using multiple wgpu::RenderPipelines.
+    struct Pass
+    {
+        gpu::PipelineState pipelineState;
+        wgpu::RenderPipeline renderPipeline;
+    };
+    std::vector<Pass> m_passes;
 };
 
 #ifdef RIVE_WAGYU
@@ -1929,6 +2029,9 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.msaaColorPreserveNeedsDraw = true;
+    // WebGPU doesn't have dynamic state but we emulate it with multiple
+    // wgpu::RenderPipelines on a single DrawPipeline.
+    m_platformFeatures.supportsPipelineDynamicState = true;
 
     m_platformFeatures.supportsTextureCompressionBC =
         m_device.HasFeature(wgpu::FeatureName::TextureCompressionBC);
@@ -4775,39 +4878,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        gpu::PipelineState pipelineState;
-        gpu::get_pipeline_state(batch,
-                                desc,
-                                m_platformFeatures,
-                                &pipelineState);
-        if (desc.interlockMode == gpu::InterlockMode::atomics &&
-            !desc.fixedFunctionColorOutput)
-        {
-            // atomic mode without fixedFunctionColorOutput renders to storage
-            // buffers, so colorWriteEnabled is false. We turn it back on when
-            // using coalescedResolveAndTransfer because that's the only case
-            // where we render directly to the color buffer.
-            assert(!pipelineState.colorWriteEnabled);
-            if (drawType == gpu::DrawType::renderPassResolve)
-            {
-                assert(enums::is_flag_set(
-                    shaderMiscFlags,
-                    gpu::ShaderMiscFlags::coalescedResolveAndTransfer));
-                pipelineState.colorWriteEnabled = true;
-            }
-        }
-#ifdef RIVE_WAGYU
-        else if (using_pls(desc.interlockMode) &&
-                 !desc.fixedFunctionColorOutput)
-        {
-            // PLS render modes disable color writes by default on !FFCO, but
-            // since we implement PLS via color attachments in Wagyu, we turn it
-            // back on.
-            assert(!pipelineState.colorWriteEnabled);
-            pipelineState.colorWriteEnabled = true;
-        }
-#endif
-
         uint64_t pipelineKey =
             gpu::getPipelineUniqueKey(drawType,
                                       shaderFeatures,
@@ -4820,24 +4890,39 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
         pipelineKey = math::add_bits_to_key(pipelineKey, renderPass->msaa(), 1);
         pipelineKey = math::add_bits_to_key(pipelineKey, targetIsGLFBO0, 1);
+        const wgpu::TextureFormat framebufferFormat =
+            renderTarget->framebufferFormat();
+        assert(framebufferFormat == wgpu::TextureFormat::BGRA8Unorm ||
+               framebufferFormat == wgpu::TextureFormat::RGBA8Unorm);
+        pipelineKey = math::add_bits_to_key(pipelineKey,
+                                            framebufferFormat ==
+                                                wgpu::TextureFormat::BGRA8Unorm,
+                                            1);
+        // Dynamic draw types use the same shader keys as their non-dynamic
+        // counterparts because they use the exact same shaders. But their
+        // wgpu::RenderPipelines differ. Make sure their keys are different so
+        // we don't collide.
+        pipelineKey = math::add_bits_to_key(
+            pipelineKey,
+            gpu::drawTypeHasPipelineDynamicState(drawType),
+            1);
 
-        const DrawPipeline& drawPipeline = m_drawPipelines
-                                               .try_emplace(pipelineKey,
-                                                            this,
-                                                            drawType,
-                                                            shaderFeatures,
-                                                            desc.interlockMode,
-                                                            shaderMiscFlags,
-                                                            pipelineState,
-                                                            renderPass->msaa(),
-                                                            targetIsGLFBO0)
-                                               .first->second;
-        drawEncoder.SetPipeline(
-            drawPipeline.renderPipeline(renderTarget->framebufferFormat()));
-        if (pipelineState.stencilTestEnabled)
-        {
-            drawEncoder.SetStencilReference(pipelineState.stencilReference);
-        }
+        const DrawPipeline& drawPipeline =
+            m_drawPipelines
+                .try_emplace(pipelineKey,
+                             this,
+                             drawType,
+                             shaderFeatures,
+                             desc.interlockMode,
+                             shaderMiscFlags,
+                             batch.drawContents,
+                             batch.firstBlendMode,
+                             desc.fixedFunctionColorOutput,
+                             framebufferFormat,
+                             renderPass->msaa(),
+                             targetIsGLFBO0)
+                .first->second;
+        drawPipeline.bind(drawEncoder);
 
         switch (drawType)
         {
@@ -4847,8 +4932,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubicCover:
             case DrawType::stencilOuterCubics:
             case DrawType::stencilMidpointFanBorrowedCoverage:
-            case DrawType::stencilDynamicMidpointFans:
-            case DrawType::stencilDynamicOuterCubics:
             case DrawType::stencilMidpointFans:
             case DrawType::stencilMidpointFanReset:
             case DrawType::stencilMidpointFanWinding:
@@ -4868,6 +4951,44 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                             0,
                                             chunkBaseVertex,
                                             0);
+                }
+                break;
+            }
+
+            case DrawType::stencilDynamicMidpointFans:
+            case DrawType::stencilDynamicOuterCubics:
+            {
+                // Combined fast-path fill: borrowed coverage, main fill, and
+                // stencil reset are one batch. But since WebGPU doesn't
+                // actually have dynamic state, the drawPipeline just has 3
+                // different renderPipelines.
+                drawEncoder.SetIndexBuffer(m_pathPatchIndexBuffer,
+                                           wgpu::IndexFormat::Uint16,
+                                           batch.baseIndex * sizeof(uint16_t));
+                for (uint32_t i = 0; i < drawPipeline.passCount(); ++i)
+                {
+                    // Pass 0 was already bound above with everything else.
+                    if (i != 0)
+                    {
+                        drawPipeline.bind(drawEncoder, i);
+                    }
+                    for (auto [chunkIndexCount, chunkBaseVertex] :
+                         gpu::DSIndexRangeChunker(
+                             batch,
+                             // Always send VERTEX_FLAG_DISABLE_COLOR_WRITE,
+                             // even though the WebGPU pipeline already masks
+                             // color. The flag lets the vertex shader skip
+                             // paint fetches.
+                             !drawPipeline.pipelineState(i).colorWriteEnabled
+                                 ? VERTEX_FLAG_DISABLE_COLOR_WRITE
+                                 : 0))
+                    {
+                        drawEncoder.DrawIndexed(chunkIndexCount,
+                                                1,
+                                                0,
+                                                chunkBaseVertex,
+                                                0);
+                    }
                 }
                 break;
             }
