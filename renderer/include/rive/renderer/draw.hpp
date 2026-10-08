@@ -12,6 +12,8 @@
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "rive/refcnt.hpp"
 
+#include <array>
+
 namespace rive
 {
 class RiveRenderPath;
@@ -68,25 +70,29 @@ public:
     bool isLayerMask() const { return m_isLayerMask; }
     LayerMaskMode layerMaskMode() const { return m_layerMaskMode; }
     Type type() const { return m_type; }
-    gpu::DrawContents drawContents() const { return m_drawContents; }
+    // Bitwise OR of every subpass's subpassDrawContents().
+    gpu::DrawContents combinedDrawContents() const
+    {
+        return m_combinedDrawContents;
+    }
     bool isOpaque() const
     {
-        return enums::is_flag_set(m_drawContents,
+        return enums::is_flag_set(m_combinedDrawContents,
                                   gpu::DrawContents::opaquePaint);
     }
     bool isClipUpdate() const
     {
-        return enums::is_flag_set(m_drawContents,
+        return enums::is_flag_set(m_combinedDrawContents,
                                   gpu::DrawContents::clipUpdate);
     }
     bool hasActiveClip() const
     {
-        return enums::is_flag_set(m_drawContents,
+        return enums::is_flag_set(m_combinedDrawContents,
                                   gpu::DrawContents::activeClip);
     }
     bool hasAdvancedBlend() const
     {
-        return enums::is_flag_set(m_drawContents,
+        return enums::is_flag_set(m_combinedDrawContents,
                                   gpu::DrawContents::advancedBlend);
     }
 
@@ -144,13 +150,29 @@ public:
     };
     const Draw* nextDstRead() const { return m_nextDstRead; }
 
-    // Finalizes m_prepassCount and m_subpassCount.
+    // Finalizes m_prepassCount, m_subpassCount, and m_passDrawContents.
     virtual void countSubpasses(const gpu::PlatformFeatures&)
     {
         // The subclass must set m_prepassCount and m_subpassCount in this call
         // if they are not 0 & 1.
         assert(m_prepassCount == 0);
         assert(m_subpassCount == 1);
+        m_passDrawContents[0] = m_combinedDrawContents;
+    }
+
+    // (m_prepassCount + m_subpassCount.)
+    constexpr static int MaxSubpassCount = 4;
+
+    // DrawContents for one prepass or subpass.
+    //
+    // signedSubpassIdx is in the range [-prepassCount(), subpassCount()).
+    //
+    // Not valid until after countSubpasses().
+    gpu::DrawContents subpassDrawContents(int signedSubpassIdx) const
+    {
+        assert(-m_prepassCount <= signedSubpassIdx &&
+               signedSubpassIdx < m_subpassCount);
+        return m_passDrawContents[m_prepassCount + signedSubpassIdx];
     }
 
     // Allocates any remaining resources necessary for the draw (gradients,
@@ -163,14 +185,16 @@ public:
         return true;
     }
 
-    // Pushes the data for the given subpassIndex of this draw to the
+    // Pushes the data for the given signedSubpassIdx of this draw to the
     // renderContext. Called once the GPU buffers have been counted and
     // allocated, and the draws have been sorted.
+    //
+    // signedSubpassIdx is in the range [-prepassCount(), subpassCount()).
     //
     // NOTE: Subpasses are not necessarily rendered one after the other.
     // Separate, non-overlapping draws may have gotten sorted between subpasses.
     virtual gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                                int subpassIndex,
+                                                int signedSubpassIdx,
                                                 uint32_t zIndex) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the
@@ -198,7 +222,9 @@ protected:
     const gpu::ClipRectInverseMatrix* m_clipRectInverseMatrix = nullptr;
     std::optional<AABBu16> m_scissorRect;
 
-    gpu::DrawContents m_drawContents = gpu::DrawContents::none;
+    gpu::DrawContents m_combinedDrawContents = gpu::DrawContents::none;
+    // Indexed in the range "m_prepassCount + [-prepassCount(), subpassCount())"
+    std::array<gpu::DrawContents, MaxSubpassCount> m_passDrawContents{};
 
     // Filled in by the subclass constructor.
     ResourceCounters m_resourceCounts;
@@ -207,7 +233,7 @@ protected:
     // pass. Any draw who wants to participate in front-to-back rendering can
     // register a positive prepass count during countSubpasses().
     //
-    // For prepasses, pushToRenderContext() gets called with subpassIndex
+    // For prepasses, pushToRenderContext() gets called with signedSubpassIdx
     // values: [-m_prepassCount, .., -1].
     int m_prepassCount = 0;
 
@@ -215,7 +241,7 @@ protected:
     // (back-to-front) rendering. A draw can register the number of subpasses it
     // requires during countSubpasses().
     //
-    // For subpasses, pushToRenderContext() gets called with subpassIndex
+    // For subpasses, pushToRenderContext() gets called with signedSubpassIdx
     // values: [0, .., m_subpassCount - 1].
     int m_subpassCount = 1;
 
@@ -253,7 +279,8 @@ public:
     // The pixels a draw of `path` with `paint` can touch, before any clipping.
     static IAABB calculatePixelBounds(const Mat2D& paintMatrix,
                                       const RiveRenderPath* path,
-                                      const RiveRenderPaint* paint);
+                                      const RiveRenderPaint* paint,
+                                      bool inkbleed = false);
 
     // Determines how coverage is calculated for antialiasing and feathers.
     // CoverageType is mostly decided by the InterlockMode, but we keep these
@@ -312,8 +339,8 @@ public:
     // subtracting coverage from what's already there.
     bool isOutermostClipUpdate() const
     {
-        return (m_drawContents & (gpu::DrawContents::clipUpdate |
-                                  gpu::DrawContents::activeClip)) ==
+        return (m_combinedDrawContents & (gpu::DrawContents::clipUpdate |
+                                          gpu::DrawContents::activeClip)) ==
                gpu::DrawContents::clipUpdate;
     }
 
@@ -368,7 +395,7 @@ public:
     void countSubpasses(const gpu::PlatformFeatures&) override;
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override;
 
     // Called after pushToRenderContext(), and only when this draw uses an atlas
@@ -445,6 +472,9 @@ protected:
     const Mat2D m_inverseGradientTransform;
     const gpu::PaintType m_paintType;
     const CoverageType m_coverageType;
+    // This fill draws its AA as a final, separate hairline stroke in its own
+    // subpass. (depthStencil only).
+    bool m_hasHairlinePass = false;
     float m_strokeRadius = 0;
     float m_featherRadius = 0;
     gpu::ContourDirections m_contourDirections;
@@ -549,7 +579,7 @@ public:
     }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override;
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
@@ -619,7 +649,7 @@ public:
     Vec2D uvScale() const { return m_uvScale; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override;
 
 private:
@@ -650,7 +680,7 @@ public:
     float modulatedOpacity() const { return m_modulatedOpacity; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override;
 
     void releaseRefs() override;
@@ -688,7 +718,7 @@ public:
     uint32_t previousClipID() const { return m_previousClipID; }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush*,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override;
 
 protected:

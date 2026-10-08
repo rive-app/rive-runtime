@@ -2,6 +2,21 @@
  * Copyright 2026 Rive
  */
 
+// Defined as a function because Naga doesn't accept
+// "@DS_POLAR_STROKE || @DS_HAIRLINE_STROKE".
+INLINE bool isStroke()
+{
+#ifdef @DS_POLAR_STROKE
+    if (@DS_POLAR_STROKE)
+        return true;
+#endif
+#ifdef @DS_HAIRLINE_STROKE
+    if (@DS_HAIRLINE_STROKE)
+        return true;
+#endif
+    return false;
+}
+
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 // No attributes: everything comes from the vertex index.
@@ -79,10 +94,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     VARYING_INIT(v_image, float3);
 #endif
 
-#ifdef @DS_STROKE
-    const bool isStroke = @DS_STROKE;
+#ifdef @DS_POLAR_STROKE
+    const bool isPolarStroke = @DS_POLAR_STROKE;
 #else
-    const bool isStroke = false;
+    const bool isPolarStroke = false;
+#endif
+
+#ifdef @DS_HAIRLINE_STROKE
+    const bool isHairlineStroke = @DS_HAIRLINE_STROKE;
+#else
+    const bool isHairlineStroke = false;
 #endif
 
     // Since there are no actual vertex attrib buffers, Rive smuggles in flags
@@ -92,11 +113,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     bool colorWriteDisabled =
         (_vertexIdx & VERTEX_FLAG_DISABLE_COLOR_WRITE) != 0;
     bool isStrokeDepthPass = (_vertexIdx & VERTEX_FLAG_STROKE_DEPTH_PASS) != 0;
-    // NOTE: spirv-opt verifiably folds isOuterCubicPatch and isAAStroke into a
-    // single value because VERTEX_FLAG_OUTER_CUBIC_FILL and
-    // VERTEX_FLAG_AA_STROKE are equal.
+    // NOTE: spirv-opt verifiably folds isOuterCubicPatch and isAAPolarStroke
+    // into a single value because VERTEX_FLAG_OUTER_CUBIC_FILL and
+    // VERTEX_FLAG_AA_POLAR_STROKE are equal aliases.
     bool isOuterCubicPatch = (_vertexIdx & VERTEX_FLAG_OUTER_CUBIC_FILL) != 0;
-    bool isAAStroke = (_vertexIdx & VERTEX_FLAG_AA_STROKE) != 0;
+    bool isAAPolarStroke = (_vertexIdx & VERTEX_FLAG_AA_POLAR_STROKE) != 0;
     int vertexIdxNoFlags = _vertexIdx & ((1 << VERTEX_FLAGS_SHIFT) - 1);
 
     // The index buffers align per-patch vertex IDs on pow2 strides,
@@ -110,21 +131,23 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     float outset = .0;
     float coverage = 1.;
     bool isFillMidpointVertex = false;
-    if (isStroke)
+    if (isStroke())
     {
-        int patchStrideLog2 = DS_STROKE_PATCH_STRIDE_LOG2(isAAStroke);
+        int patchStrideLog2 = DS_STROKE_PATCH_STRIDE_LOG2(isAAPolarStroke);
         patchIdx = vertexIdxNoFlags >> patchStrideLog2;
         int patchVertexIdx = vertexIdxNoFlags & ((1 << patchStrideLog2) - 1);
-        int lanesPerSpokeLog2 = DS_STROKE_LANES_PER_SPOKE_LOG2(isAAStroke);
+        int lanesPerSpokeLog2 = DS_STROKE_LANES_PER_SPOKE_LOG2(isAAPolarStroke);
         localVertexIdx = patchVertexIdx >> lanesPerSpokeLog2; // spoke
         int lane = patchVertexIdx & ((1 << lanesPerSpokeLog2) - 1);
-        if (!isAAStroke)
+        // Lanes run outside to inside, so localVertexIdx is already correct for
+        // AA polar strokes and outer hairlines.
+        if (isPolarStroke && !isAAPolarStroke)
         {
-            // Non-AA strokes only draw the solid body band (no AA bands). The
-            // body band is lanes 1 & 2.
+            // Non-AA strokes only draw the solid body band (no AA bands).
+            // The body band is lanes 1 & 2.
             ++lane;
         }
-        outset = lane < 2 ? -1. : 1.;
+        outset = lane < 2 ? 1. : -1.;
         coverage = (lane == 0 || lane == 3) ? .0 : 1.;
         patchTessVertexStride = int(MIDPOINT_FAN_PATCH_SEGMENT_SPAN);
     }
@@ -180,18 +203,26 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     // mirrored, so they only preserve the flag.)
     uint mirroredContourFlag =
         contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG;
-    if (isStroke)
+    bool hasAlternateVertexPosition;
+    if (isPolarStroke)
     {
-        // Strokes are never mirrored. (naga doesn't accept "if (!specConst)".)
+        hasAlternateVertexPosition = false;
+    }
+    else if (isHairlineStroke)
+    {
+        hasAlternateVertexPosition = mirroredContourFlag != 0u;
+        // A mirrored contour runs backwards, so its outside flips.
+        if (hasAlternateVertexPosition)
+            outset = -outset;
     }
     else
     {
-        if (mirroredContourFlag != 0u && !isOuterCubicPatch &&
-            !isFillMidpointVertex)
-        {
-            localVertexIdx = localVertexIdx - 1;
-        }
+        hasAlternateVertexPosition = mirroredContourFlag != 0u &&
+                                     !isOuterCubicPatch &&
+                                     !isFillMidpointVertex;
     }
+    if (hasAlternateVertexPosition)
+        localVertexIdx = localVertexIdx - 1;
     if (localVertexIdx != vertexIDOnContour)
     {
         // This can peek one vertex before or after the contour, but the
@@ -210,13 +241,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
             // wrap to the first vertex in the contour; a stroke either wraps
             // too or stays clamped at the final vertex of the contour.
             //
-            // i.e., "bool isClosed = !isStroke || (midpoint.x != 0.0);"
+            // i.e., "bool isClosed = !isPolarStroke || (midpoint.x != 0.0);"
             //
             // Unfortunately, we can't word it the obvious way because Naga
             // blows up if we emit any sort of operation on a specialization
-            // constant. Including "!isStroke".
+            // constant. Including "!isPolarStroke".
             bool isClosed;
-            if (isStroke)
+            if (isPolarStroke)
                 isClosed = midpoint.x != .0;
             else
                 isClosed = true;
@@ -240,85 +271,90 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     }
 
     float2 vertexPosition;
-    if (isStroke)
+    if (isStroke())
     {
+        // Ensure strokes always emit clockwise triangles.
+        outset *= sign(determinant(M));
+
         // Find the tangent angle of the curve at our vertex.
         float theta = unpackTessTheta(tessVertexData.z);
         float2 norm = float2(sin(theta), -cos(theta));
         float2 origin = uintBitsToFloat(tessVertexData.xy);
-
-        // Ensure strokes always emit clockwise triangles.
-        outset *= sign(determinant(M));
-
-        // Joins only emanate from the outer side of the stroke.
-        if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
-            outset = min(outset, .0);
-        if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
-            outset = max(outset, .0);
 
         float2 vertexOffset = norm;
         float2 aaOutsetDir = norm;
         // NOTE: 'outset' is only ever -1, 0, or +1.
         float aaOutsetMagnitude = (coverage == .0) ? outset : .0;
 
-        uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
-        if (joinType > ROUND_JOIN_CONTOUR_FLAG)
+        if (isPolarStroke)
         {
-            bool isTan0 =
-                (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
-            bool isLeftJoin =
-                (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
-            // This vertex belongs to a miter or bevel join. Begin by finding
-            // the bisector, which is the same as norm rotated by joinAngle/2.
-            // The tessellator already packed cos(joinAngle/2) (the
-            // miterRatio), so we use that.
-            float miterRatio = unpackTessMiterJoinRatio(tessVertexData.z);
-            // Trig identity to find sin(joinAngle/2).
-            // (miterRatio == cos(joinAngle/2).)
-            float sinJoinAngleOver2 =
-                sqrt(max(1. - miterRatio * miterRatio, .0));
-            if (isTan0 == isLeftJoin)
-                sinJoinAngleOver2 = -sinJoinAngleOver2;
-            // Rotate norm by joinAngle/2 using a sin/cos rotation matrix.
-            float2x2 rot = float2x2(miterRatio,
-                                    sinJoinAngleOver2,
-                                    -sinJoinAngleOver2,
-                                    miterRatio);
-            float2 bisector = MUL(rot, norm);
-            // Miter joins that are further away than 4x the stroke radius
-            // snap to bevel joins. A miter clip is a cap, and never snaps.
-            bool isBevel =
-                joinType == BEVEL_JOIN_CONTOUR_FLAG ||
-                (joinType != MITER_CLIP_JOIN_CONTOUR_FLAG && miterRatio < .25);
-            // Bevels have 2 spokes and miters 3; a miter clip has 4, carrying
-            // an inner pair instead of a single center.
-            bool isInnerJoinSpoke =
-                (contourIDWithFlags & JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u;
-            if (joinType == MITER_CLIP_JOIN_CONTOUR_FLAG)
+            // Joins only emanate from the outer side of the stroke.
+            if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
+                outset = min(outset, .0);
+            if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)
+                outset = max(outset, .0);
+
+            uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
+            if (joinType > ROUND_JOIN_CONTOUR_FLAG)
             {
-                // For now, square caps are the only miter-clip: a 180-degree
-                // join whose miterLimit is 1. Simplify the miter-clip to only
-                // handle this specific case.
-                vertexOffset = norm + bisector;
+                bool isTan0 =
+                    (contourIDWithFlags & JOIN_TANGENT_0_CONTOUR_FLAG) != 0u;
+                bool isLeftJoin =
+                    (contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u;
+                // This vertex belongs to a miter or bevel join. Begin by
+                // finding the bisector, which is the same as norm rotated by
+                // joinAngle/2. The tessellator already packed cos(joinAngle/2)
+                // (the miterRatio), so we use that.
+                float miterRatio = unpackTessMiterJoinRatio(tessVertexData.z);
+                // Trig identity to find sin(joinAngle/2).
+                // (miterRatio == cos(joinAngle/2).)
+                float sinJoinAngleOver2 =
+                    sqrt(max(1. - miterRatio * miterRatio, .0));
+                if (isTan0 == isLeftJoin)
+                    sinJoinAngleOver2 = -sinJoinAngleOver2;
+                // Rotate norm by joinAngle/2 using a sin/cos rotation matrix.
+                float2x2 rot = float2x2(miterRatio,
+                                        sinJoinAngleOver2,
+                                        -sinJoinAngleOver2,
+                                        miterRatio);
+                float2 bisector = MUL(rot, norm);
+                // Miter joins that are further away than 4x the stroke radius
+                // snap to bevel joins. A miter clip is a cap, and never snaps.
+                bool isBevel = joinType == BEVEL_JOIN_CONTOUR_FLAG ||
+                               (joinType != MITER_CLIP_JOIN_CONTOUR_FLAG &&
+                                miterRatio < .25);
+                // Bevels have 2 spokes and miters 3; a miter clip has 4,
+                // carrying an inner pair instead of a single center.
+                bool isInnerJoinSpoke = (contourIDWithFlags &
+                                         JOIN_TANGENT_INNER_CONTOUR_FLAG) != 0u;
+                if (joinType == MITER_CLIP_JOIN_CONTOUR_FLAG)
+                {
+                    // For now, square caps are the only miter-clip: a
+                    // 180-degree join whose miterLimit is 1. Simplify the
+                    // miter-clip to only handle this specific case.
+                    vertexOffset = norm + bisector;
+                }
+                else if (isInnerJoinSpoke || !isBevel)
+                {
+                    // Fun little mathematical relationship: distance along the
+                    // bisector to the bevel edge and to the miter corner turn
+                    // out to be reciprocals of one another.
+                    float t = isBevel ? miterRatio : 1. / miterRatio;
+                    vertexOffset = bisector * t;
+                }
+                // Bevel spokes, the miter's center spoke, and the miter-clip's
+                // inner pair all outset their AA in the direction of the
+                // bisector.
+                if (isBevel || isInnerJoinSpoke)
+                    aaOutsetDir = bisector;
+                // Rive always inkbleeds butt caps and bevel joins (partly to
+                // avoid hairline cracks and partly because it just makes the AA
+                // easier). This is not necessary for MSAA, but bleed out half a
+                // pixel anyway in MSAA so that strokes look the same in all
+                // modes.
+                if (!isAAPolarStroke && isBevel)
+                    aaOutsetMagnitude = .5 * outset;
             }
-            else if (isInnerJoinSpoke || !isBevel)
-            {
-                // Fun little mathematical relationship: distance along the
-                // bisector to the bevel edge and to the miter corner turn out
-                // to be reciprocals of one another.
-                float t = isBevel ? miterRatio : 1. / miterRatio;
-                vertexOffset = bisector * t;
-            }
-            // Bevel spokes, the miter's center spoke, and the miter-clip's
-            // inner pair all outset their AA in the direction of the bisector.
-            if (isBevel || isInnerJoinSpoke)
-                aaOutsetDir = bisector;
-            // Rive always inkbleeds butt caps and bevel joins (partly to avoid
-            // hairline cracks and partly because it just makes the AA easier).
-            // This is not necessary for MSAA, but bleed out half a pixel anyway
-            // in MSAA so that strokes look the same in all modes.
-            if (!isAAStroke && isBevel)
-                aaOutsetMagnitude = .5 * outset;
         }
 
         vertexPosition =
@@ -459,7 +495,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
     pos.y = -pos.y;
 #endif
     uint depthCoverage8;
-    if (isStroke)
+    if (isStroke())
     {
         // Quantize depth coverage to 254 discrete values. This way, the color
         // pass can be exactly 1 (8-bit) ULP larger, allowing exactly 1 fragment
@@ -589,10 +625,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                                  coverage,
                                  gradData);
         color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, gradTexCoord, .0);
-#ifdef @DS_STROKE
-        if (@DS_STROKE)
+        // Only strokes (polar and hairline) have coverage in depthStencil.
+        if (isStroke())
             color.a *= coverage;
-#endif
 
         if (!paintHasAdvancedBlend)
         {

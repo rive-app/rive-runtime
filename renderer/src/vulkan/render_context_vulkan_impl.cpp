@@ -2572,6 +2572,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilMidpointFanCover:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 pendingTessPatchCount += batch.elementCount;
                 break;
             case DrawType::clipReset:
@@ -4114,6 +4115,7 @@ void RenderContextVulkanImpl::submitDrawList(
             case DrawType::stencilMidpointFanCover:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
                 pendingTessPatchCount -= batch.elementCount;

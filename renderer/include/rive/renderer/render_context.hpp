@@ -779,7 +779,9 @@ private:
         // This method does not add the path to the draw list. The caller must
         // define that draw specifically with a separate call to
         // pushMidpointFanDraw() or pushOuterCubicsDraw().
-        [[nodiscard]] uint32_t pushPath(const PathDraw* draw, uint32_t zIndex);
+        [[nodiscard]] uint32_t pushPath(const PathDraw* draw,
+                                        gpu::DrawContents,
+                                        uint32_t zIndex);
 
         // Pushes a contour record to the GPU that references the given path.
         //
@@ -811,6 +813,7 @@ private:
         gpu::DrawBatch& pushMidpointFanDraw(
             const PathDraw*,
             gpu::DrawType,
+            gpu::DrawContents,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -823,6 +826,7 @@ private:
         gpu::DrawBatch& pushOuterCubicsDraw(
             const PathDraw*,
             gpu::DrawType,
+            gpu::DrawContents,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -832,6 +836,7 @@ private:
         // Returns the number of vertices actually written.
         gpu::DrawBatch* pushInteriorTriangulationDraw(
             const PathDraw*,
+            gpu::DrawContents,
             uint32_t pathID,
             gpu::WindingFaces,
             gpu::ShaderMiscFlags RIVE_DEBUG_CODE(, size_t* vertexCounter));
@@ -839,23 +844,32 @@ private:
         // Pushes a screen-space rectangle to the draw list, whose pixel
         // coverage is determined by the feather atlas region associated with
         // the given pathID.
-        gpu::DrawBatch& pushFeatherAtlasBlit(PathDraw*, uint32_t pathID);
+        gpu::DrawBatch& pushFeatherAtlasBlit(PathDraw*,
+                                             gpu::DrawContents,
+                                             uint32_t pathID);
 
         // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
         // should be drawn as rectangular paths with an image paint.
-        gpu::DrawBatch& pushImageRectDraw(ImageRectDraw*, uint32_t zIndex);
+        gpu::DrawBatch& pushImageRectDraw(ImageRectDraw*,
+                                          gpu::DrawContents,
+                                          uint32_t zIndex);
 
         // Pushes an "imageMesh" draw to the list.
-        gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*, uint32_t zIndex);
+        gpu::DrawBatch& pushImageMeshDraw(ImageMeshDraw*,
+                                          gpu::DrawContents,
+                                          uint32_t zIndex);
 
         // Pushes an "imageMesh" draw with one instance per entry in the
         // draw's ImageMeshInstances.
         gpu::DrawBatch& pushImageMeshInstancedDraw(ImageMeshInstancedDraw*,
+                                                   gpu::DrawContents,
                                                    uint32_t zIndex);
 
         // Pushes a "clipReset" draw to the list.
-        gpu::DrawBatch& pushClipResetDraw(ClipReset*, uint32_t zIndex);
+        gpu::DrawBatch& pushClipResetDraw(ClipReset*,
+                                          gpu::DrawContents,
+                                          uint32_t zIndex);
 
     private:
         friend class TessellationWriter;
@@ -867,11 +881,13 @@ private:
         // the passed parameters.
         DrawBatch& pushPathDraw(const PathDraw*,
                                 DrawType,
+                                gpu::DrawContents,
                                 gpu::ShaderMiscFlags,
                                 uint32_t vertexCount,
                                 uint32_t baseVertex);
         DrawBatch& pushDraw(const Draw*,
                             DrawType,
+                            gpu::DrawContents,
                             gpu::ShaderMiscFlags,
                             gpu::PaintType,
                             uint32_t elementCount,

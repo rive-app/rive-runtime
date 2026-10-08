@@ -82,6 +82,7 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::stencilOuterCubics:
         case gpu::DrawType::depthStrokes:
         case gpu::DrawType::depthAAStrokes:
+        case gpu::DrawType::depthAAOuterHairline:
             return true;
         case gpu::DrawType::imageRect:
         case gpu::DrawType::imageMesh:
@@ -1497,7 +1498,10 @@ RenderContextGLImpl::DrawShader::DrawShader(
             break;
         case gpu::DrawType::depthStrokes:
         case gpu::DrawType::depthAAStrokes:
-            defines.push_back(GLSL_DS_STROKE);
+        case gpu::DrawType::depthAAOuterHairline:
+            defines.push_back(drawType == gpu::DrawType::depthAAOuterHairline
+                                  ? GLSL_DS_HAIRLINE_STROKE
+                                  : GLSL_DS_POLAR_STROKE);
             [[fallthrough]];
         case gpu::DrawType::stencilMidpointFanBorrowedCoverage:
         case gpu::DrawType::stencilDynamicMidpointFans:
@@ -1618,6 +1622,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::renderPassResolve:
                 case gpu::DrawType::depthStrokes:
                 case gpu::DrawType::depthAAStrokes:
+                case gpu::DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -1649,6 +1654,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 case gpu::DrawType::stencilOuterCubics:
                 case gpu::DrawType::depthStrokes:
                 case gpu::DrawType::depthAAStrokes:
+                case gpu::DrawType::depthAAOuterHairline:
                     sources.push_back(gpu::glsl::draw_path_common);
                     sources.push_back(gpu::glsl::draw_depthstencil_path);
                     break;
@@ -2843,6 +2849,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilOuterCubics:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
                 m_state->bindVAO(m_drawVAO);

@@ -721,7 +721,8 @@ constexpr static int32_t DSVertexFlag_DisableColorWrite = 0x1
 constexpr static int32_t DSVertexFlag_OuterCubicFill = 0x2
                                                        << DSVertexFlagsShift;
 // Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
-constexpr static int32_t DSVertexFlag_AAStroke = DSVertexFlag_OuterCubicFill;
+constexpr static int32_t DSVertexFlag_AAPolarStroke =
+    DSVertexFlag_OuterCubicFill;
 // depthAAstrokes render in two passes: a depth-only pass followed by color.
 // We select the pass by vertex flags rather than pipeline state.
 constexpr static int32_t DSVertexFlag_StrokeDepthPass = 0x4
@@ -795,6 +796,10 @@ enum class DrawType : uint8_t
     // Strokes that use the depth buffer to work out analytic coverage.
     depthAAStrokes,
 
+    // Only the outer AA band of a depthAAStroke. Used in inkbleed mode to
+    // antialias clockwise fills.
+    depthAAOuterHairline,
+
     // Clear or intersect (based on DrawContents) the clip value.
     clipReset,
 
@@ -841,6 +846,7 @@ constexpr static bool drawTypeHasPipelineDynamicState(DrawType drawType)
         case DrawType::renderPassResolve:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -869,6 +875,7 @@ constexpr static uint32_t dsPatchMaxReps(DrawType drawType)
         case DrawType::stencilOuterCubicCover:
             return DSOuterCubicFillPatchMaxReps;
         case DrawType::depthStrokes:
+        case DrawType::depthAAOuterHairline:
             return DSStrokePatchMaxReps;
         case DrawType::depthAAStrokes:
             return DSAAStrokePatchMaxReps;
@@ -895,6 +902,7 @@ constexpr static uint32_t dsPatchStrideLog2(DrawType drawType)
         case DrawType::stencilOuterCubicCover:
             return DSOuterCubicFillPatchStrideLog2;
         case DrawType::depthStrokes:
+        case DrawType::depthAAOuterHairline:
             return DSStrokePatchStrideLog2;
         case DrawType::depthAAStrokes:
             return DSAAStrokePatchStrideLog2;
@@ -902,13 +910,51 @@ constexpr static uint32_t dsPatchStrideLog2(DrawType drawType)
             RIVE_UNREACHABLE();
     }
 }
-constexpr static bool drawTypeIsDepthStencilStroke(DrawType drawType)
+constexpr static bool drawTypeIsDepthStencilPolarStroke(DrawType drawType)
 {
     switch (drawType)
     {
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
             return true;
+        case DrawType::depthAAOuterHairline:
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::clipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// depthStencil draws whose analytic AA renders in two passes: depth only, then
+// color.
+constexpr static bool drawTypeIsDepthAAStroke(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
+            return true;
+        case DrawType::depthStrokes:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
@@ -965,6 +1011,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::renderPassResolve:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -1198,6 +1245,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::stencilOuterCubicCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             mask = kAllShaderFeatures;
             break;
         case DrawType::clipReset:
@@ -1324,7 +1372,7 @@ void ForEachUbershaderPermutation(
 //
 // These also affect the draw sort order, so we attempt associate more expensive
 // shader branch misses with higher flags.
-enum class DrawContents
+enum class DrawContents : uint16_t
 {
     none = 0,
     opaquePaint = 1 << 0,

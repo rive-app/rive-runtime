@@ -118,6 +118,7 @@ static std::string build_shader(DrawType drawType,
         case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             RIVE_UNREACHABLE();
     }
     s << glsl::constants << '\n';
@@ -170,6 +171,7 @@ static std::string build_shader(DrawType drawType,
             case DrawType::renderPassInitialize:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 RIVE_UNREACHABLE();
         }
     }

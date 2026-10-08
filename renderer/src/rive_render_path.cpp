@@ -473,7 +473,8 @@ float RiveRenderPath::calculateBoundsOutset(
 IAABB RiveRenderPath::calculatePixelBounds(
     const Mat2D& matrix,
     const std::optional<StrokeParams>& stroke,
-    float feather) const
+    float feather,
+    bool inkbleed) const
 {
     AABB mappedBounds = matrix.mapBoundingBox(getRawPath().points());
 
@@ -502,6 +503,12 @@ IAABB RiveRenderPath::calculatePixelBounds(
         //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
         mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
                                            strokePixelOutset.height() + 1);
+    }
+
+    if (inkbleed)
+    {
+        // Inkbleed pushes AA borders out an additional 1/2 pixel.
+        mappedBounds = mappedBounds.outset(.5f, .5f);
     }
 
     return mappedBounds.roundOut();

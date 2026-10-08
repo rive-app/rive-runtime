@@ -1362,6 +1362,7 @@ public:
                     case DrawType::renderPassResolve:
                     case DrawType::depthStrokes:
                     case DrawType::depthAAStrokes:
+                    case DrawType::depthAAOuterHairline:
                         RIVE_UNREACHABLE();
                         break;
                 }
@@ -1457,6 +1458,7 @@ public:
                     case DrawType::renderPassResolve:
                     case DrawType::depthStrokes:
                     case DrawType::depthAAStrokes:
+                    case DrawType::depthAAOuterHairline:
                         RIVE_UNREACHABLE();
                 }
 
@@ -1586,6 +1588,7 @@ public:
                     case DrawType::clipReset:
                     case DrawType::depthStrokes:
                     case DrawType::depthAAStrokes:
+                    case DrawType::depthAAOuterHairline:
                         RIVE_UNREACHABLE();
                 }
                 break;
@@ -1614,6 +1617,7 @@ public:
                     case DrawType::stencilMidpointFanCover:
                     case DrawType::depthStrokes:
                     case DrawType::depthAAStrokes:
+                    case DrawType::depthAAOuterHairline:
                         if (context->m_capabilities
                                 .polyfillVertexStorageBuffers)
                         {
@@ -3224,6 +3228,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::stencilMidpointFanCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
         {
             // depthStencil fills don't have attributes (everything is derived
             // from the vertex index). Leave the attributes empty.
@@ -3459,7 +3464,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         0.0, // VULKAN_VENDOR_ARM — ignored for now, but we may want to detect
              // this if it we find ARM bugs on WebGPU that get fixed by shader
              // modifications.
-        static_cast<double>(gpu::drawTypeIsDepthStencilStroke(drawType)),
+        static_cast<double>(gpu::drawTypeIsDepthStencilPolarStroke(drawType)),
+        static_cast<double>(drawType == gpu::DrawType::depthAAOuterHairline),
     };
     static_assert(std::size(shaderPermutationFlags) == SPECIALIZATION_COUNT);
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -3477,8 +3483,9 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
     static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
     static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
-    static_assert(DS_STROKE_SPECIALIZATION_IDX == 15);
-    static_assert(SPECIALIZATION_COUNT == 16);
+    static_assert(DS_POLAR_STROKE_SPECIALIZATION_IDX == 15);
+    static_assert(DS_HAIRLINE_STROKE_SPECIALIZATION_IDX == 16);
+    static_assert(SPECIALIZATION_COUNT == 17);
 
     // Build a per-stage WGPUConstantEntry[] from the shader's own override
     // list.
@@ -3506,6 +3513,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             "13",
             "14",
             "15",
+            "16",
         };
         static_assert(std::size(SpecializationIdxIDs) == SPECIALIZATION_COUNT);
 
@@ -4847,6 +4855,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::stencilMidpointFanCover:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
             {
                 drawEncoder.SetIndexBuffer(m_pathPatchIndexBuffer,
                                            wgpu::IndexFormat::Uint16,

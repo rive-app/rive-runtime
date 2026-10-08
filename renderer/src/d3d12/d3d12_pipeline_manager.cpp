@@ -210,6 +210,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             RIVE_UNREACHABLE();
     }
 
@@ -277,6 +278,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             break;
     }
 

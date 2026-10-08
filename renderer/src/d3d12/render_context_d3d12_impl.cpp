@@ -2085,6 +2085,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::renderPassInitialize:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 RIVE_UNREACHABLE();
         }
     }

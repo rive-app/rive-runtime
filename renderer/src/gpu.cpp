@@ -35,7 +35,7 @@ static_assert(DSVertexFlag_DisableColorWrite ==
               VERTEX_FLAG_DISABLE_COLOR_WRITE);
 static_assert(DSVertexFlag_OuterCubicFill == VERTEX_FLAG_OUTER_CUBIC_FILL);
 static_assert(DSVertexFlag_StrokeDepthPass == VERTEX_FLAG_STROKE_DEPTH_PASS);
-static_assert(DSVertexFlag_AAStroke == VERTEX_FLAG_AA_STROKE);
+static_assert(DSVertexFlag_AAPolarStroke == VERTEX_FLAG_AA_POLAR_STROKE);
 static_assert(DSStrokePatchStrideLog2 == DS_STROKE_STRIDE_LOG2);
 static_assert(DSAAStrokePatchStrideLog2 == DS_AA_STROKE_STRIDE_LOG2);
 
@@ -155,6 +155,7 @@ static Span<const DrawType> get_valid_draw_types(InterlockMode mode)
                 DrawType::stencilOuterCubicCover,
                 DrawType::depthStrokes,
                 DrawType::depthAAStrokes,
+                DrawType::depthAAOuterHairline,
                 DrawType::clipReset,
                 DrawType::renderPassInitialize,
                 DrawType::renderPassResolve,
@@ -235,6 +236,7 @@ static ShaderMiscFlags get_valid_shader_misc_flags(DrawType drawType,
         case DrawType::stencilOuterCubicCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             break;
     }
 
@@ -484,34 +486,37 @@ static uint32_t drawTypeKey(DrawType drawType, InterlockMode interlockMode)
         case DrawType::stencilOuterCubicCover:
             assert(interlockMode == InterlockMode::depthStencil);
             return 1;
-        // depthStencil strokes build from the same source as the fills, but
-        // specialized with @DS_STROKE, so they need their own shader.
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
             assert(interlockMode == InterlockMode::depthStencil);
+            // Specialized with @DS_POLAR_STROKE, so need their own shader.
             return 2;
-        case DrawType::interiorTriangulation:
+        case DrawType::depthAAOuterHairline:
+            assert(interlockMode == InterlockMode::depthStencil);
+            // Specialized with @DS_HAIRLINE_STROKE, so needs its own shader.
             return 3;
-        case DrawType::featherAtlasBlit:
+        case DrawType::interiorTriangulation:
             return 4;
-        case DrawType::imageRect:
+        case DrawType::featherAtlasBlit:
             return 5;
-        case DrawType::imageMesh:
+        case DrawType::imageRect:
             return 6;
+        case DrawType::imageMesh:
+            return 7;
         case DrawType::clipReset:
             assert(interlockMode == InterlockMode::clockwiseAtomic ||
                    interlockMode == InterlockMode::depthStencil);
-            return 7;
+            return 8;
         case DrawType::renderPassInitialize:
             assert(interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil ||
                    interlockMode == InterlockMode::clockwiseAtomic);
-            return 8;
+            return 9;
         case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::rasterOrdering ||
                    interlockMode == InterlockMode::atomics ||
                    interlockMode == InterlockMode::depthStencil);
-            return 9;
+            return 10;
     }
     RIVE_UNREACHABLE();
 }
@@ -925,9 +930,9 @@ static void generateDepthStencilStrokeIndices(
                 // Column-major to keep shared vertices close together for
                 // the LRU post-transform vertex cache.
                 const uint32_t v0 = patchBaseVertex + seg * lanesPerSpoke + b;
-                const uint32_t v1 = v0 + 1;
-                const uint32_t v2 = v0 + lanesPerSpoke;
-                const uint32_t v3 = v2 + 1;
+                const uint32_t v1 = v0 + lanesPerSpoke;
+                const uint32_t v2 = v0 + 1;
+                const uint32_t v3 = v1 + 1;
                 for (uint32_t v : {v0, v1, v2, v2, v1, v3})
                 {
                     indices[indexCount++] =
@@ -1739,6 +1744,7 @@ DepthState get_depth_state(InterlockMode interlockMode,
 
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return {.depthTestEnabled = true, .depthWriteEnabled = true};
             break;
 
@@ -1773,6 +1779,7 @@ StencilInfo get_stencil_info(InterlockMode interlockMode,
     {
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             // depthStrokes could be a clip, so handle that.
             if (enums::is_flag_set(drawContents, DrawContents::clipUpdate))
             {
@@ -2116,6 +2123,7 @@ CullFace get_cull_face(DrawType drawType)
         case DrawType::clipReset:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return CullFace::counterclockwise;
         case DrawType::stencilMidpointFanBorrowedCoverage:
         case DrawType::stencilMidpointFanReset:
@@ -2303,6 +2311,7 @@ bool get_color_write_enable(DrawType drawType,
                                            DrawContents::clipUpdate);
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return enums::no_flags_set(drawContents, DrawContents::clipUpdate);
     }
 
@@ -2456,6 +2465,7 @@ PipelineState get_pipeline_state(DrawType drawType,
         case DrawType::stencilOuterCubicCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             assert(interlockMode == InterlockMode::depthStencil);
             break;
 

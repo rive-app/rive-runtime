@@ -343,6 +343,13 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->msaaSampleCount = 1;
         return Backend::wgpu;
     }
+    if (nameStr == "wgpucwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
+        return Backend::wgpu;
+    }
     if (nameStr == "coregraphics")
     {
         return Backend::coregraphics;

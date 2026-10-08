@@ -1280,7 +1280,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         }
         clipDraw->setClipID(clip.clipID);
 
-        gpu::DrawContents clipDrawContents = clipDraw->drawContents();
+        gpu::DrawContents clipDrawContents = clipDraw->combinedDrawContents();
         if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
         {
             m_internalDrawBatch.push_back(std::move(clipDraw));

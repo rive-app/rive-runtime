@@ -143,7 +143,7 @@ static int32_t patchFlags(DrawType drawType)
         case DrawType::stencilOuterCubics:
             return DSVertexFlag_OuterCubicFill;
         case DrawType::depthAAStrokes:
-            return DSVertexFlag_AAStroke;
+            return DSVertexFlag_AAPolarStroke;
         default:
             return 0;
     }

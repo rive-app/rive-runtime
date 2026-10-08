@@ -656,7 +656,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
         // Note: not updating m_combinedDrawBounds here because it will get done
         // in tightenClipBounds later, after we've determined the minimal write
         // sizes for any clips.
-        m_combinedDrawContents |= m_draws.back()->drawContents();
+        m_combinedDrawContents |= m_draws.back()->combinedDrawContents();
     }
 
     m_resourceCounts = countsWithNewBatch;
@@ -1892,8 +1892,7 @@ void RenderContext::LogicalFlush::writeResources()
                 drawBounds);
             if (m_ctx->frameInterlockMode() ==
                     gpu::InterlockMode::clockwiseAtomic &&
-                enums::is_flag_set(draw->drawContents(),
-                                   gpu::DrawContents::clipUpdate))
+                draw->isClipUpdate())
             {
                 // ***FIXME***: until we implement scissors for clipping,
                 // clockwiseAtomic clip updates can't be reordered. Expand their
@@ -1924,82 +1923,58 @@ void RenderContext::LogicalFlush::writeResources()
                 (draw->imageTexture() != nullptr)
                     ? draw->imageTexture()->textureResourceHash()
                     : 0;
-            int64_t key = keyBuilder.buildKey({
+            // The parts of the key that every subpass shares.
+            const int64_t drawKeyCommon = keyBuilder.buildPartialKey({
                 {SortEntry::blendMode,
                  gpu::ConvertBlendModeToPLSBlendMode(draw->blendMode())},
-                {SortEntry::drawContents, draw->drawContents()},
-                {SortEntry::drawGroup, drawGroupIdx},
                 {SortEntry::drawType, draw->type()},
                 {SortEntry::scissorID, scissorID},
-                {SortEntry::subpassIndex, 0}, // This gets added later
 
                 // The hash may lose bits in the key
                 {SortEntry::textureHash, textureHash, ValidateKeyEntry::no},
             });
-
-            // Add the first prepass and subpass, if any.
-            if (draw->prepassCount() > 0)
+            for (int8_t i = 0; i < maxSubpasses; ++i)
             {
-                // Negating the key is an easy way to sort the prepasses
-                // front-to-back, and before the subpasses.
-                indirectDrawList.push_back({
-                    .sortKey = -key,
-                    .drawIndex = drawIndex,
-                });
-            }
-            if (draw->subpassCount() > 0)
-            {
-                indirectDrawList.push_back({
-                    .sortKey = key,
-                    .drawIndex = drawIndex,
-                });
-            }
-
-            // Add any additional passes.
-            if (maxSubpasses > 1)
-            {
-                const auto subpassKeyIncrement =
-                    allSubpassesInSameDrawGroup
-                        // Special case: All subpasses belong to the same
-                        // drawGroup, so only increment subpassIndex.
-                        ? keyBuilder.buildPartialKey({
-                              {SortEntry::subpassIndex, 1},
-                          })
-                        // Usual case: Increment the drawGroup and subpassIndex
-                        // both at once. (The intersectionBoard already reserved
-                        // "maxPasses" layers of drawGroupIndices for us.)
-                        : keyBuilder.buildPartialKey({
-                              {SortEntry::drawGroup, 1},
-                              {SortEntry::subpassIndex, 1},
-                          });
-
-                for (int8_t subpassIndex = 1; subpassIndex < maxSubpasses;
-                     ++subpassIndex)
+                // Usually each subpass gets its own drawGroup. (The
+                // intersectionBoard already reserved "maxPasses" layers of
+                // drawGroupIndices for us.) Special case: all subpasses belong
+                // to the same drawGroup, so only the subpassIndex and
+                // drawContents can differ.
+                const int16_t subpassDrawGroup = allSubpassesInSameDrawGroup
+                                                     ? drawGroupIdx
+                                                     : drawGroupIdx + i;
+                auto subpassKey = [&](int signedSubpassIdx) {
+                    // drawContents are higher order in the key than
+                    // subpassIndex. So when subpasses share a drawGroup,
+                    // mismatched drawContents could cause subpasses to go out
+                    // of order. In this case, make them all use the same
+                    // combinedDrawContents so subpasses stay in order.
+                    const auto drawContents =
+                        allSubpassesInSameDrawGroup
+                            ? draw->combinedDrawContents()
+                            : draw->subpassDrawContents(signedSubpassIdx);
+                    return drawKeyCommon +
+                           int64_t(keyBuilder.buildPartialKey({
+                               {SortEntry::drawGroup, subpassDrawGroup},
+                               {SortEntry::subpassIndex, i},
+                               {SortEntry::drawContents, drawContents},
+                           }));
+                };
+                if (i < draw->prepassCount())
                 {
-                    key += subpassKeyIncrement;
-
-                    assert(keyBuilder.extract<int16_t>(SortEntry::drawGroup,
-                                                       key) ==
-                           int16_t(allSubpassesInSameDrawGroup
-                                       ? drawGroupIdx
-                                       : drawGroupIdx + subpassIndex));
-
-                    if (subpassIndex < draw->prepassCount())
-                    {
-                        // Negating the key is an easy way to sort the prepasses
-                        // front-to-back, and before the subpasses.
-                        indirectDrawList.push_back({
-                            .sortKey = -key,
-                            .drawIndex = drawIndex,
-                        });
-                    }
-                    if (subpassIndex < draw->subpassCount())
-                    {
-                        indirectDrawList.push_back({
-                            .sortKey = key,
-                            .drawIndex = drawIndex,
-                        });
-                    }
+                    // Negating the key is an easy way to sort the prepasses
+                    // front-to-back, and before the subpasses.
+                    indirectDrawList.push_back({
+                        .sortKey = -subpassKey(-1 - i),
+                        .drawIndex = drawIndex,
+                    });
+                }
+                if (i < draw->subpassCount())
+                {
+                    indirectDrawList.push_back({
+                        .sortKey = subpassKey(i),
+                        .drawIndex = drawIndex,
+                    });
                 }
             }
         }
@@ -2213,39 +2188,39 @@ void RenderContext::LogicalFlush::writeResources()
 
             auto key = abs(signedKey);
             auto drawIndex = sortEntry.drawIndex;
-            auto subpassIndex =
+            const int8_t keySubpassIdx =
                 keyBuilder.extract<int8_t>(SortEntry::subpassIndex, key);
             const int16_t drawGroup =
                 keyBuilder.extract<int16_t>(SortEntry::drawGroup, key);
             assert(drawGroup > 0);
             // All subpasses of a draw have the same zIndex, even though they're
             // in different drawGroups. Use the zIndex of the lowest subpass.
-            assert(subpassIndex >= 0);
+            assert(keySubpassIdx >= 0);
             const int16_t baseDrawGroup = allSubpassesInSameDrawGroup
                                               ? drawGroup
-                                              : drawGroup - subpassIndex;
+                                              : drawGroup - keySubpassIdx;
             assert(baseDrawGroup > 0);
             const uint32_t zIndex = uint32_t(baseDrawGroup) << zIndexShift;
             assert(zIndex < (1u << DEPTH_Z_INDEX_BIT_COUNT));
 
-            if (signedKey < 0)
-            {
-                // Negative keys are a prepass. Update the subpassIndex to be
-                // negative.
-                subpassIndex = -1 - subpassIndex;
-            }
+            // Negative keys are a prepass, which pushToRenderContext() indexes
+            // negatively.
+            const int8_t signedSubpassIdx =
+                signedKey < 0 ? -1 - keySubpassIdx : keySubpassIdx;
 
             Draw* draw = m_draws[drawIndex].get();
 
             assert(
-                draw->drawContents() ==
+                (allSubpassesInSameDrawGroup
+                     ? draw->combinedDrawContents()
+                     : draw->subpassDrawContents(signedSubpassIdx)) ==
                 keyBuilder.extract<gpu::DrawContents>(SortEntry::drawContents,
                                                       key));
             assert(draw->blendMode() != BlendMode::srcOver ==
                    draw->hasAdvancedBlend());
 
             DrawBatch* batch =
-                draw->pushToRenderContext(this, subpassIndex, zIndex);
+                draw->pushToRenderContext(this, signedSubpassIdx, zIndex);
 
             if (batch != nullptr && platformFeatures.supportsClipScissor)
             {
@@ -2258,7 +2233,7 @@ void RenderContext::LogicalFlush::writeResources()
                      gpu::InterlockMode::clockwiseAtomic ||
                  m_ctx->frameInterlockMode() ==
                      gpu::InterlockMode::depthStencil) &&
-                subpassIndex == 0 && batch != nullptr)
+                signedSubpassIdx == 0 && batch != nullptr)
             {
                 // Barriers at this level have to go on the first batch in the
                 // current drawGroup. Otherwise we might see something get
@@ -3219,6 +3194,7 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
 }
 
 uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
+                                               gpu::DrawContents drawContents,
                                                uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -3234,7 +3210,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw,
                                draw->featherAtlasTransform(),
                                draw->coverageBufferRange());
     m_ctx->m_paintData.set_back(
-        draw->drawContents(),
+        drawContents,
         draw->paintType(),
         draw->simplePaintValue(),
         m_gradTextureLayout,
@@ -3621,6 +3597,7 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
 gpu::DrawBatch& RenderContext::LogicalFlush::pushMidpointFanDraw(
     const PathDraw* draw,
     gpu::DrawType drawType,
+    gpu::DrawContents drawContents,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -3639,6 +3616,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushMidpointFanDraw(
 
     return pushPathDraw(draw,
                         drawType,
+                        drawContents,
                         shaderMiscFlags,
                         instanceCount,
                         baseInstance);
@@ -3647,6 +3625,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushMidpointFanDraw(
 gpu::DrawBatch& RenderContext::LogicalFlush::pushOuterCubicsDraw(
     const PathDraw* draw,
     gpu::DrawType drawType,
+    gpu::DrawContents drawContents,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -3667,6 +3646,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushOuterCubicsDraw(
 
     return pushPathDraw(draw,
                         drawType,
+                        drawContents,
                         shaderMiscFlags,
                         instanceCount,
                         baseInstance);
@@ -3674,6 +3654,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushOuterCubicsDraw(
 
 gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
     const PathDraw* draw,
+    gpu::DrawContents drawContents,
     uint32_t pathID,
     gpu::WindingFaces windingFaces,
     gpu::ShaderMiscFlags shaderMiscFlags RIVE_DEBUG_CODE(,
@@ -3700,6 +3681,7 @@ gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
         return &pushPathDraw(
             draw,
             DrawType::interiorTriangulation,
+            drawContents,
             shaderMiscFlags,
             math::lossless_numeric_cast<uint32_t>(actualVertexCount),
             baseVertex);
@@ -3709,6 +3691,7 @@ gpu::DrawBatch* RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushFeatherAtlasBlit(
     PathDraw* draw,
+    gpu::DrawContents drawContents,
     uint32_t pathID)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -3723,6 +3706,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushFeatherAtlasBlit(
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 1, pathID);
     return pushPathDraw(draw,
                         DrawType::featherAtlasBlit,
+                        drawContents,
                         m_baselineShaderMiscFlags,
                         6,
                         baseVertex);
@@ -3730,6 +3714,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushFeatherAtlasBlit(
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
     ImageRectDraw* draw,
+    gpu::DrawContents drawContents,
     uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -3780,6 +3765,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageRect,
+                                drawContents,
                                 m_baselineShaderMiscFlags,
                                 PaintType::solidColor,
                                 1,
@@ -3789,6 +3775,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageRectDraw(
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
     ImageMeshDraw* draw,
+    gpu::DrawContents drawContents,
     uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -3809,6 +3796,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
 
     DrawBatch& batch = pushDraw(draw,
                                 DrawType::imageMesh,
+                                drawContents,
                                 m_baselineShaderMiscFlags,
                                 PaintType::solidColor,
                                 1, // one instance (the mesh)
@@ -3822,6 +3810,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshDraw(
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshInstancedDraw(
     ImageMeshInstancedDraw* draw,
+    gpu::DrawContents drawContents,
     uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -3859,6 +3848,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshInstancedDraw(
     DrawBatch& batch =
         pushDraw(draw,
                  DrawType::imageMesh,
+                 drawContents,
                  m_baselineShaderMiscFlags,
                  PaintType::solidColor,
                  math::lossless_numeric_cast<uint32_t>(instances.size()),
@@ -3870,8 +3860,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushImageMeshInstancedDraw(
     return batch;
 }
 
-gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw,
-                                                               uint32_t zIndex)
+gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(
+    ClipReset* draw,
+    gpu::DrawContents drawContents,
+    uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
     assert(m_hasDoneLayout);
@@ -3890,6 +3882,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw,
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 0, zIndex);
     return pushDraw(draw,
                     DrawType::clipReset,
+                    drawContents,
                     gpu::ShaderMiscFlags::none,
                     PaintType::clipUpdate,
                     6,
@@ -3899,6 +3892,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushClipResetDraw(ClipReset* draw,
 gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     const PathDraw* draw,
     DrawType drawType,
+    gpu::DrawContents drawContents,
     gpu::ShaderMiscFlags shaderMiscFlags,
     uint32_t vertexCount,
     uint32_t baseVertex)
@@ -3911,14 +3905,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     // draws in rasterOrdering mode, instead of just making a variant of
     // draw_raster_order_path.frag.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering &&
-        enums::is_flag_set(draw->drawContents(),
-                           gpu::DrawContents::clockwiseFill))
+        enums::is_flag_set(drawContents, gpu::DrawContents::clockwiseFill))
     {
         shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
     }
 
     DrawBatch& batch = pushDraw(draw,
                                 drawType,
+                                drawContents,
                                 shaderMiscFlags,
                                 draw->paintType(),
                                 vertexCount,
@@ -3931,8 +3925,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     {
         pathShaderFeatures |= ShaderFeatures::ENABLE_FEATHER;
     }
-    if (enums::is_flag_set(draw->drawContents(),
-                           gpu::DrawContents::evenOddFill))
+    if (enums::is_flag_set(drawContents, gpu::DrawContents::evenOddFill))
     {
         assert(!enums::is_flag_set(batch.shaderMiscFlags,
                                    gpu::ShaderMiscFlags::clockwiseFill));
@@ -3940,7 +3933,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     }
     constexpr static gpu::DrawContents NESTED_CLIP_FLAGS =
         gpu::DrawContents::clipUpdate | gpu::DrawContents::activeClip;
-    if ((draw->drawContents() & NESTED_CLIP_FLAGS) == NESTED_CLIP_FLAGS)
+    if (enums::all_flags_set(drawContents, NESTED_CLIP_FLAGS))
     {
         pathShaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
     }
@@ -3956,7 +3949,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
 
 RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
     const gpu::DrawBatch* batch,
-    const Draw* draw,
+    gpu::DrawContents drawContents,
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
     // If a path doesn't have ANY_PATH_FILL bits, it means it's a stroke.
@@ -3969,7 +3962,7 @@ RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
     // Strokes draw identically in the clockwise and legacy shaders, so strokes
     // can be combined with paths of any fill type.
     if ((enums::no_flags_set(batch->drawContents, ANY_PATH_FILL) ||
-         enums::no_flags_set(draw->drawContents(), ANY_PATH_FILL)))
+         enums::no_flags_set(drawContents, ANY_PATH_FILL)))
     {
         compareMask &= ~gpu::ShaderMiscFlags::clockwiseFill;
     }
@@ -4029,6 +4022,7 @@ constexpr uint32_t patchIndexCount(DrawType drawType)
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
         case DrawType::depthStrokes:
+        case DrawType::depthAAOuterHairline:
             return DSStrokePatchIndexCount;
         case DrawType::depthAAStrokes:
             return DSAAStrokePatchIndexCount;
@@ -4069,6 +4063,7 @@ constexpr uint32_t patchBaseIndex(DrawType drawType)
         case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
         case DrawType::depthStrokes:
+        case DrawType::depthAAOuterHairline:
             return DSStrokePatchBaseIndex;
         case DrawType::depthAAStrokes:
             return DSAAStrokePatchBaseIndex;
@@ -4094,6 +4089,7 @@ constexpr bool drawTypeIsDepthStencilIndexPattern(DrawType drawType)
         case DrawType::stencilOuterCubicCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             return true;
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
@@ -4122,6 +4118,7 @@ constexpr int32_t dsPatchVertexFlags(DrawType drawType)
         case DrawType::stencilMidpointFanWinding:
         case DrawType::stencilMidpointFanCover:
         case DrawType::depthStrokes:
+        case DrawType::depthAAOuterHairline:
             return 0;
         case DrawType::stencilOuterCubicBorrowedCoverage:
         case DrawType::stencilOuterCubics:
@@ -4131,7 +4128,7 @@ constexpr int32_t dsPatchVertexFlags(DrawType drawType)
         case DrawType::stencilOuterCubicCover:
             return VERTEX_FLAG_OUTER_CUBIC_FILL;
         case DrawType::depthAAStrokes:
-            return VERTEX_FLAG_AA_STROKE;
+            return VERTEX_FLAG_AA_POLAR_STROKE;
         default:
             RIVE_UNREACHABLE();
     }
@@ -4158,6 +4155,7 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
         case DrawType::stencilOuterCubicCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             batch->indexCountPerInstance = patchIndexCount(drawType);
             batch->baseIndex = patchBaseIndex(drawType);
             break;
@@ -4180,6 +4178,7 @@ static void assignDrawIndices(DrawType drawType, gpu::DrawBatch* batch)
 gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     const Draw* draw,
     DrawType drawType,
+    gpu::DrawContents drawContents,
     gpu::ShaderMiscFlags shaderMiscFlags,
     gpu::PaintType paintType,
     uint32_t elementCount,
@@ -4195,15 +4194,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
          (m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic &&
           !enums::is_flag_set(shaderMiscFlags,
                               gpu::ShaderMiscFlags::borrowedCoveragePass))) &&
-        enums::is_flag_set(draw->drawContents(), gpu::DrawContents::clipUpdate))
+        enums::is_flag_set(drawContents, gpu::DrawContents::clipUpdate))
     {
         // Clockwise modes give clip updates a dedicated draw by setting
         // gpu::ShaderMiscFlags::clipUpdateOnly.
         shaderMiscFlags |= gpu::ShaderMiscFlags::clipUpdateOnly;
         if (m_ctx->frameInterlockMode() ==
                 gpu::InterlockMode::clockwiseAtomic &&
-            enums::is_flag_set(draw->drawContents(),
-                               gpu::DrawContents::activeClip))
+            enums::is_flag_set(drawContents, gpu::DrawContents::activeClip))
         {
             // clockwiseAtomic takes it a step futher and separates out nested
             // clip updates into their own draw type.
@@ -4239,7 +4237,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                                          m_ctx->frameInterlockMode(),
                                          shaderMiscFlags,
                                          m_flushDesc.fixedFunctionColorOutput,
-                                         draw->drawContents()))
+                                         drawContents))
         {
             baseElement |= VERTEX_FLAG_DISABLE_COLOR_WRITE;
         }
@@ -4268,6 +4266,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::clipReset:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             if (!m_drawList.empty() &&
                 !enums::is_flag_set(m_pendingBarriers,
                                     gpu::BarrierFlags::drawBatchBreak))
@@ -4276,7 +4275,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                 canMergeWithPreviousBatch =
                     currentBatch->drawType == drawType &&
                     can_combine_shader_misc_flags(currentBatch,
-                                                  draw,
+                                                  drawContents,
                                                   shaderMiscFlags) &&
                     can_combine_draw_images(currentBatch->imageTexture,
                                             draw->imageTexture(),
@@ -4324,7 +4323,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         batch = m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                         drawType,
                                         shaderMiscFlags,
-                                        draw->drawContents(),
+                                        drawContents,
                                         elementCount,
                                         baseElement,
                                         draw->blendMode(),
@@ -4345,20 +4344,20 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         // clockwise doesn't mix regular draws and clip updates.
         assert(m_ctx->frameInterlockMode() != gpu::InterlockMode::clockwise ||
                (batch->drawContents & gpu::DrawContents::clipUpdate) ==
-                   (draw->drawContents() & gpu::DrawContents::clipUpdate));
+                   (drawContents & gpu::DrawContents::clipUpdate));
 
         // Feathered fills should never combine with fills, strokes, or
         // feathered strokes because they use a different DrawType.
         assert((batch->drawContents & gpu::DrawContents::featheredFill) ==
-               (draw->drawContents() & gpu::DrawContents::featheredFill));
+               (drawContents & gpu::DrawContents::featheredFill));
 
         // depthStencil can't mix drawContents in a batch.
         assert(m_ctx->frameInterlockMode() !=
                    gpu::InterlockMode::depthStencil ||
-               batch->drawContents == draw->drawContents());
+               batch->drawContents == drawContents);
 
         batch->shaderMiscFlags |= shaderMiscFlags;
-        batch->drawContents |= draw->drawContents();
+        batch->drawContents |= drawContents;
         batch->barriers |= m_pendingBarriers;
     }
     m_pendingBarriers = gpu::BarrierFlags::none;

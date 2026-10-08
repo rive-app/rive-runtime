@@ -54,7 +54,7 @@
 #define VERTEX_FLAG_DISABLE_COLOR_WRITE (0x1 << VERTEX_FLAGS_SHIFT)
 #define VERTEX_FLAG_OUTER_CUBIC_FILL (0x2 << VERTEX_FLAGS_SHIFT)
 // Strokes alias the outerCubic bit bc stroke vs. fill is decided by spec const.
-#define VERTEX_FLAG_AA_STROKE VERTEX_FLAG_OUTER_CUBIC_FILL
+#define VERTEX_FLAG_AA_POLAR_STROKE VERTEX_FLAG_OUTER_CUBIC_FILL
 // depthAAstrokes render in two passes: a depth-only pass followed by color.
 // We select the pass by vertex flags rather than pipeline state.
 #define VERTEX_FLAG_STROKE_DEPTH_PASS (0x4 << VERTEX_FLAGS_SHIFT)
@@ -389,8 +389,9 @@
 #define STORE_COLOR_CLEAR_SPECIALIZATION_IDX 12
 #define LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX 13
 #define VULKAN_VENDOR_ARM_SPECIALIZATION_IDX 14
-#define DS_STROKE_SPECIALIZATION_IDX 15
-#define SPECIALIZATION_COUNT 16
+#define DS_POLAR_STROKE_SPECIALIZATION_IDX 15
+#define DS_HAIRLINE_STROKE_SPECIALIZATION_IDX 16
+#define SPECIALIZATION_COUNT 17
 
 // When rendering to an r32i feather atlas, use 16:16 fixed point.
 #define ATLAS_R32I_FIXED_POINT_FACTOR 65536.

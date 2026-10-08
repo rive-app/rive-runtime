@@ -96,7 +96,8 @@ public:
 
     IAABB calculatePixelBounds(const Mat2D& matrix,
                                const std::optional<StrokeParams>& strokeParams,
-                               float feather) const;
+                               float feather,
+                               bool inkbleed = false) const;
 
 private:
     FillRule m_fillRule = FillRule::nonZero;

@@ -259,6 +259,7 @@ public:
             case DrawType::renderPassResolve:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 RIVE_UNREACHABLE();
         }
 
@@ -2037,6 +2038,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             case DrawType::clipReset:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
             {
                 RIVE_UNREACHABLE();
             }

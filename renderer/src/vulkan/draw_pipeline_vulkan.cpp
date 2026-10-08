@@ -177,6 +177,7 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::clipReset:
         case gpu::DrawType::depthStrokes:
         case gpu::DrawType::depthAAStrokes:
+        case gpu::DrawType::depthAAOuterHairline:
             return mainSubpassIdx;
         case gpu::DrawType::renderPassResolve:
             return mainSubpassIdx + 1;
@@ -275,7 +276,8 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         enums::is_flag_set(props.shaderMiscFlags,
                            gpu::ShaderMiscFlags::loadColorFromDstTexture),
         pipelineManager->vendorID() == vkutil::vendors::ARM,
-        gpu::drawTypeIsDepthStencilStroke(props.drawType),
+        gpu::drawTypeIsDepthStencilPolarStroke(props.drawType),
+        props.drawType == gpu::DrawType::depthAAOuterHairline,
     };
     static_assert(std::size(shaderPermutationFlags) == SPECIALIZATION_COUNT);
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -293,8 +295,9 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     static_assert(STORE_COLOR_CLEAR_SPECIALIZATION_IDX == 12);
     static_assert(LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX == 13);
     static_assert(VULKAN_VENDOR_ARM_SPECIALIZATION_IDX == 14);
-    static_assert(DS_STROKE_SPECIALIZATION_IDX == 15);
-    static_assert(SPECIALIZATION_COUNT == 16);
+    static_assert(DS_POLAR_STROKE_SPECIALIZATION_IDX == 15);
+    static_assert(DS_HAIRLINE_STROKE_SPECIALIZATION_IDX == 16);
+    static_assert(SPECIALIZATION_COUNT == 17);
 
     VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
     for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -569,6 +572,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         case DrawType::stencilMidpointFanCover:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             // depthStencil paths don't have vertex attributes. They derive
             // everything from the vertex index.
             pipelineCreateInfo.pVertexInputState =

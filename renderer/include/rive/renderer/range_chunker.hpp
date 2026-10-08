@@ -152,11 +152,11 @@ public:
         m_patchStrideLog2(dsPatchStrideLog2(batch.drawType)),
         m_baseVertex(static_cast<int32_t>(batch.baseElement) | vertexFlags)
     {
-        if (batch.drawType == DrawType::depthAAStrokes)
+        if (drawTypeIsDepthAAStroke(batch.drawType))
         {
-            // depthAAstrokes render in two passes: a depth-only pass followed
-            // by color. We differentiate the passes by vertex flags rather than
-            // pipeline state.
+            // depthAAstrokes (and hairlines) render in two passes: a depth-only
+            // pass followed by color. We select the pass by vertex flags rather
+            // than pipeline state.
             m_passFlags.push_back(DSVertexFlag_StrokeDepthPass |
                                   DSVertexFlag_DisableColorWrite);
         }

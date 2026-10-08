@@ -99,10 +99,14 @@ public:
             &context->perFrameAllocator());
     }
 
-    void countSubpasses(const gpu::PlatformFeatures&) override
+    void countSubpasses(const gpu::PlatformFeatures& platformFeatures) override
     {
-        assert(m_prepassCount == 0);
-        assert(m_subpassCount == 1);
+        // Skip PathDraw's version of countSubpasses, which works out pass
+        // counts based on path and coverage types.
+        // This GM is a handwritten hack to specifically draw retrofitted
+        // triangle strips, which aren't a thing that PathDraw renders in
+        // isolation.
+        Draw::countSubpasses(platformFeatures);
     }
 
     bool allocateResources(RenderContext::LogicalFlush* flush) override
@@ -115,20 +119,22 @@ public:
     }
 
     gpu::DrawBatch* pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        int subpassIndex,
+                                        int signedSubpassIdx,
                                         uint32_t zIndex) override
     {
         // Make sure the rawPath in our path reference hasn't changed since we
         // began holding!
         assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
         assert(!m_pathRef->getRawPath().empty());
-        assert(subpassIndex == 0);
+        assert(signedSubpassIdx == 0);
 
         uint32_t tessVertexCount = math::lossless_numeric_cast<uint32_t>(
             m_resourceCounts.outerCubicTessVertexCount);
         if (tessVertexCount > 0)
         {
-            m_pathID = flush->pushPath(this, zIndex);
+            gpu::DrawContents drawContents =
+                subpassDrawContents(signedSubpassIdx);
+            m_pathID = flush->pushPath(this, drawContents, zIndex);
 
             uint32_t tessLocation =
                 flush->allocateOuterCubicTessVertices(tessVertexCount);
@@ -175,7 +181,7 @@ public:
 
             if (flush->frameDescriptor().clockwiseFillOverride)
             {
-                m_drawContents |= gpu::DrawContents::clockwiseFill;
+                drawContents |= gpu::DrawContents::clockwiseFill;
             }
 
             return &flush->pushOuterCubicsDraw(
@@ -183,6 +189,7 @@ public:
                 m_coverageType == CoverageType::depthStencil
                     ? gpu::DrawType::stencilOuterCubics
                     : gpu::DrawType::outerCurvePatches,
+                drawContents,
                 tessVertexCount,
                 tessLocation,
                 gpu::ShaderMiscFlags::none);

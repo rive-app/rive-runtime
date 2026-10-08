@@ -230,6 +230,7 @@ void BackgroundShaderCompiler::threadMain()
             case DrawType::clipReset:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 RIVE_UNREACHABLE();
         }
 
@@ -288,6 +289,7 @@ void BackgroundShaderCompiler::threadMain()
                 case DrawType::renderPassResolve:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
         }

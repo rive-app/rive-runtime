@@ -91,6 +91,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::renderPassInitialize:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -176,6 +177,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::renderPassInitialize:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -255,6 +257,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::renderPassInitialize:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -404,6 +407,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::renderPassResolve:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -435,6 +439,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::stencilMidpointFanCover:
                 case DrawType::depthStrokes:
                 case DrawType::depthAAStrokes:
+                case DrawType::depthAAOuterHairline:
                 {
                     const bool clipRect =
                         enums::is_flag_set(shaderFeatures,

@@ -400,7 +400,7 @@ Draw::Draw(IAABB pixelBounds,
 {
     if (m_blendMode != BlendMode::srcOver)
     {
-        m_drawContents |= gpu::DrawContents::advancedBlend;
+        m_combinedDrawContents |= gpu::DrawContents::advancedBlend;
     }
 }
 
@@ -411,15 +411,16 @@ void Draw::setClipID(uint32_t clipID)
     // For clipUpdates, m_clipID refers to the ID we are writing to the stencil
     // buffer (NOT the ID we are clipping against). It therefore doesn't affect
     // the activeClip flag in that case.
-    if (!enums::is_flag_set(m_drawContents, gpu::DrawContents::clipUpdate))
+    if (!enums::is_flag_set(m_combinedDrawContents,
+                            gpu::DrawContents::clipUpdate))
     {
         if (m_clipID != 0)
         {
-            m_drawContents |= gpu::DrawContents::activeClip;
+            m_combinedDrawContents |= gpu::DrawContents::activeClip;
         }
         else
         {
-            m_drawContents &= ~gpu::DrawContents::activeClip;
+            m_combinedDrawContents &= ~gpu::DrawContents::activeClip;
         }
     }
 }
@@ -461,14 +462,19 @@ PathDraw::CoverageType PathDraw::SelectCoverageType(
 
 IAABB PathDraw::calculatePixelBounds(const Mat2D& paintMatrix,
                                      const RiveRenderPath* path,
-                                     const RiveRenderPaint* paint)
+                                     const RiveRenderPaint* paint,
+                                     bool inkbleed)
 {
     std::optional<StrokeParams> stroke;
     if (paint->getIsStroked())
     {
         stroke = paint->getStrokeParams();
     }
-    return path->calculatePixelBounds(paintMatrix, stroke, paint->getFeather());
+    return path->calculatePixelBounds(
+        paintMatrix,
+        stroke,
+        paint->getFeather(),
+        inkbleed && paint->getType() != gpu::PaintType::clipUpdate);
 }
 
 DrawUniquePtr PathDraw::Make(RenderContext* context,
@@ -505,7 +511,11 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
 #endif
     {
         // We weren't given pre-computed bounds, so calculate them.
-        pixelBounds = calculatePixelBounds(paintMatrix, path.get(), paint);
+        pixelBounds =
+            calculatePixelBounds(paintMatrix,
+                                 path.get(),
+                                 paint,
+                                 context->frameDescriptor().inkbleedOverride);
     }
 
     // In debug mode, we always compute the pixel bounds, so validate that the
@@ -614,8 +624,14 @@ PathDraw::PathDraw(IAABB pixelBounds,
         // Inkbleed strokes introduce coverage, which is no longer opaque.
         !(frameDesc.inkbleedOverride && paint->getIsStroked()))
     {
-        m_drawContents |= gpu::DrawContents::opaquePaint;
+        m_combinedDrawContents |= gpu::DrawContents::opaquePaint;
     }
+
+    m_hasHairlinePass = frameDesc.inkbleedOverride &&
+                        m_coverageType == CoverageType::depthStencil &&
+                        m_pathFillRule == FillRule::clockwise &&
+                        !paint->getIsStroked() && paint->getFeather() == 0 &&
+                        paint->getType() != gpu::PaintType::clipUpdate;
 
     if (paint->getIsLayerMask())
     {
@@ -643,42 +659,43 @@ PathDraw::PathDraw(IAABB pixelBounds,
         assert(m_strokeRadius > 0);
     }
 
-    // For atlased paths, m_drawContents refers to the rectangle being drawn
-    // into the main render target, not the step that generates the atlas mask.
+    // For atlased paths, m_combinedDrawContents refer to the rectangle being
+    // drawn into the main render target (not the step that generates the atlas
+    // mask, which uses, e.g., fill rules, etc.).
     if (m_coverageType != CoverageType::featherAtlas)
     {
         if (isStroke())
         {
-            m_drawContents |= gpu::DrawContents::stroke;
+            m_combinedDrawContents |= gpu::DrawContents::stroke;
         }
         else
         {
             if (m_featherRadius)
             {
-                m_drawContents |= gpu::DrawContents::featheredFill;
+                m_combinedDrawContents |= gpu::DrawContents::featheredFill;
             }
             if (initialFillRule == FillRule::clockwise ||
                 frameDesc.clockwiseFillOverride)
             {
-                m_drawContents |= gpu::DrawContents::clockwiseFill;
+                m_combinedDrawContents |= gpu::DrawContents::clockwiseFill;
             }
             else if (initialFillRule == FillRule::nonZero)
             {
-                m_drawContents |= gpu::DrawContents::nonZeroFill;
+                m_combinedDrawContents |= gpu::DrawContents::nonZeroFill;
             }
             else if (initialFillRule == FillRule::evenOdd)
             {
-                m_drawContents |= gpu::DrawContents::evenOddFill;
+                m_combinedDrawContents |= gpu::DrawContents::evenOddFill;
             }
         }
     }
 
     if (paint->getType() == gpu::PaintType::clipUpdate)
     {
-        m_drawContents |= gpu::DrawContents::clipUpdate;
+        m_combinedDrawContents |= gpu::DrawContents::clipUpdate;
         if (paint->getSimpleValue().outerClipID != 0)
         {
-            m_drawContents |= gpu::DrawContents::activeClip;
+            m_combinedDrawContents |= gpu::DrawContents::activeClip;
         }
     }
 
@@ -1587,14 +1604,14 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
             {
                 m_subpassCount = 1; // Strokes can be rendered in a single pass.
             }
-            else if (enums::all_flags_set(m_drawContents,
+            else if (enums::all_flags_set(m_combinedDrawContents,
                                           gpu::kNestedClipUpdateMask))
             {
                 // Nested clip updates only have a stencil pass. (The reset is
                 // handled by a separate ClipReset draw.)
                 m_subpassCount = 1;
             }
-            else if (enums::is_flag_set(m_drawContents,
+            else if (enums::is_flag_set(m_combinedDrawContents,
                                         gpu::DrawContents::evenOddFill))
             {
                 // depthStencil "slow" path: stencil-then-cover.
@@ -1619,7 +1636,7 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
             if (isOpaque())
             {
                 const bool usesClipping =
-                    enums::any_flag_set(m_drawContents,
+                    enums::any_flag_set(m_combinedDrawContents,
                                         gpu::DrawContents::activeClip |
                                             gpu::DrawContents::clipUpdate);
                 if (!usesClipping)
@@ -1630,13 +1647,28 @@ void PathDraw::countSubpasses(const gpu::PlatformFeatures& platformFeatures)
                     m_subpassCount = 0;
                 }
             }
+            if (m_hasHairlinePass)
+            {
+                // The hairline is always a subpass (never a prepass because the
+                // AA makes it non-opaque).
+                ++m_subpassCount;
+            }
         }
+    }
+
+    const int passCount = m_prepassCount + m_subpassCount;
+    assert(passCount <= MaxSubpassCount);
+    std::fill_n(m_passDrawContents.begin(), passCount, m_combinedDrawContents);
+    if (m_hasHairlinePass)
+    {
+        // The hairline is never opaque because it has AA.
+        m_passDrawContents[passCount - 1] &= ~gpu::DrawContents::opaquePaint;
     }
 }
 
 gpu::DrawBatch* PathDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex,
+    int signedSubpassIdx,
     uint32_t zIndex)
 {
     RIVE_PROF_SCOPE_L(2)
@@ -1655,10 +1687,13 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
         return nullptr;
     }
 
+    const gpu::DrawContents subpassDrawContents =
+        this->subpassDrawContents(signedSubpassIdx);
+
     if (m_pathID == 0)
     {
         // Reserve our pathID and write out a path record.
-        m_pathID = flush->pushPath(this, zIndex);
+        m_pathID = flush->pushPath(this, subpassDrawContents, zIndex);
     }
 
     switch (m_coverageType)
@@ -1671,7 +1706,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                  m_triangulator != nullptr)
                     ? 1
                     : 0;
-            if (subpassIndex == mainSubpassIdx)
+            if (signedSubpassIdx == mainSubpassIdx)
             {
                 // Tessellation (midpoint fan or outer cubic).
                 uint32_t tessLocation =
@@ -1686,19 +1721,20 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                 // Interior triangles.
                 assert(m_triangulator != nullptr);
                 assert((m_coverageType == CoverageType::pixelLocalStorage &&
-                        subpassIndex == 1) ||
+                        signedSubpassIdx == 1) ||
                        (m_coverageType == CoverageType::clockwise &&
-                        (subpassIndex == 0 || subpassIndex == 2)));
+                        (signedSubpassIdx == 0 || signedSubpassIdx == 2)));
                 gpu::DrawBatch* batch = flush->pushInteriorTriangulationDraw(
                     this,
+                    subpassDrawContents,
                     m_pathID,
                     (m_coverageType == CoverageType::clockwise)
                         // Clockwise mode renders counterclockwise (borrowed
                         // coverage) interior triangles in a separate pass.
-                        ? (subpassIndex == 0) ? gpu::WindingFaces::negative
-                                              : gpu::WindingFaces::positive
+                        ? (signedSubpassIdx == 0) ? gpu::WindingFaces::negative
+                                                  : gpu::WindingFaces::positive
                         : gpu::WindingFaces::all,
-                    (subpassIndex == 0) // => CoverageType::clockwise
+                    (signedSubpassIdx == 0) // => CoverageType::clockwise
                         ? gpu::ShaderMiscFlags::borrowedCoveragePass
                         : gpu::ShaderMiscFlags::none RIVE_DEBUG_CODE(
                               ,
@@ -1720,7 +1756,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                 assert(needsBorrowedCoveragePrepass());
                 tessVertexCount /= 2;
             }
-            switch (subpassIndex)
+            switch (signedSubpassIdx)
             {
                 case -1: // Tessellation (borrowed, midpointFan or outerCubic).
                     assert(!isStroke());
@@ -1750,11 +1786,13 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                     gpu::DrawBatch* batch =
                         flush->pushInteriorTriangulationDraw(
                             this,
+                            subpassDrawContents,
                             m_pathID,
                             m_prepassCount == 0 ? gpu::WindingFaces::all
-                            : subpassIndex < 0  ? gpu::WindingFaces::negative
-                                                : gpu::WindingFaces::positive,
-                            subpassIndex < 0
+                            : signedSubpassIdx < 0
+                                ? gpu::WindingFaces::negative
+                                : gpu::WindingFaces::positive,
+                            signedSubpassIdx < 0
                                 ? gpu::ShaderMiscFlags::borrowedCoveragePass
                                 : gpu::ShaderMiscFlags::none RIVE_DEBUG_CODE(
                                       ,
@@ -1769,9 +1807,13 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
 
         case CoverageType::depthStencil:
         {
-            assert(m_prepassCount == 0 || m_subpassCount == 0);
-            int passCount = m_prepassCount | m_subpassCount;
-            int passIdx = subpassIndex + m_prepassCount;
+            // The fill passes are either all opaque prepasses or else all
+            // subpasses. The hairline adds one extra subpass on top of either.
+            assert(m_prepassCount == 0 ||
+                   m_subpassCount == int(m_hasHairlinePass));
+            int fillPassCount =
+                m_prepassCount + m_subpassCount - int(m_hasHairlinePass);
+            int passIdx = signedSubpassIdx + m_prepassCount;
             if (passIdx == 0)
             {
                 m_depthStencilTessLocation =
@@ -1780,17 +1822,30 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                      tessVertexCount,
                                      m_depthStencilTessLocation);
             }
-            assert(1 <= passCount && passCount <= 3);
-            assert(passIdx < passCount);
+            if (m_hasHairlinePass && passIdx == fillPassCount)
+            {
+                // Hairline pass: unlike polar strokes, hairlines have no polar
+                // spokes, no join spokes, and tessellate identically to
+                // midpointFans.
+                assert(m_triangulator == nullptr);
+                return &flush->pushMidpointFanDraw(
+                    this,
+                    gpu::DrawType::depthAAOuterHairline,
+                    subpassDrawContents,
+                    tessVertexCount,
+                    m_depthStencilTessLocation);
+            }
+            assert(1 <= fillPassCount && fillPassCount <= 3);
+            assert(passIdx < fillPassCount);
             if (m_triangulator != nullptr)
             {
                 // depthStencil interior triangulation: the path interior is
                 // filled by smuggling its triangles in with outerCubic patches,
                 // rather than introducing a distinct triangle-buffer draw.
                 gpu::DrawType outerCubicDrawType;
-                if (passCount == 1)
+                if (fillPassCount == 1)
                 {
-                    if (enums::all_flags_set(m_drawContents,
+                    if (enums::all_flags_set(subpassDrawContents,
                                              gpu::kNestedClipUpdateMask))
                     {
                         outerCubicDrawType =
@@ -1807,12 +1862,12 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                 else
                 {
                     constexpr static gpu::DrawType OuterCubicFillTypes[][3] = {
-                        // Slow path (passCount == 2): stencil-then-cover.
+                        // Slow path (fillPassCount == 2): stencil-then-cover.
                         {
                             gpu::DrawType::stencilOuterCubicWinding,
                             gpu::DrawType::stencilOuterCubicCover,
                         },
-                        // Fast path (passCount == 3).
+                        // Fast path (fillPassCount == 3).
                         {
                             gpu::DrawType::stencilOuterCubicBorrowedCoverage,
                             gpu::DrawType::stencilOuterCubics,
@@ -1820,17 +1875,18 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                         },
                     };
                     outerCubicDrawType =
-                        OuterCubicFillTypes[passCount - 2][passIdx];
+                        OuterCubicFillTypes[fillPassCount - 2][passIdx];
                 }
                 return &flush->pushOuterCubicsDraw(this,
                                                    outerCubicDrawType,
+                                                   subpassDrawContents,
                                                    tessVertexCount,
                                                    m_depthStencilTessLocation);
             }
             else
             {
                 gpu::DrawType depthStencilDrawType;
-                if (passCount == 1)
+                if (fillPassCount == 1)
                 {
                     if (isStroke())
                     {
@@ -1839,7 +1895,7 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                                 ? gpu::DrawType::depthAAStrokes
                                 : gpu::DrawType::depthStrokes;
                     }
-                    else if (enums::all_flags_set(m_drawContents,
+                    else if (enums::all_flags_set(subpassDrawContents,
                                                   gpu::kNestedClipUpdateMask))
                     {
                         depthStencilDrawType =
@@ -1856,13 +1912,13 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                 else
                 {
                     constexpr static gpu::DrawType MidpointFanFillTypes[][3] = {
-                        // Slow path (passCount == 2): stencil-then-cover
+                        // Slow path (fillPassCount == 2): stencil-then-cover
                         {
                             gpu::DrawType::stencilMidpointFanWinding,
                             gpu::DrawType::stencilMidpointFanCover,
                         },
 
-                        // Fast path (passCount == 3): (mostly) single pass
+                        // Fast path (fillPassCount == 3): (mostly) single pass
                         // rendering.
                         {
                             gpu::DrawType::stencilMidpointFanBorrowedCoverage,
@@ -1871,10 +1927,11 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
                         },
                     };
                     depthStencilDrawType =
-                        MidpointFanFillTypes[passCount - 2][passIdx];
+                        MidpointFanFillTypes[fillPassCount - 2][passIdx];
                 }
                 return &flush->pushMidpointFanDraw(this,
                                                    depthStencilDrawType,
+                                                   subpassDrawContents,
                                                    tessVertexCount,
                                                    m_depthStencilTessLocation);
             }
@@ -1885,8 +1942,10 @@ gpu::DrawBatch* PathDraw::pushToRenderContext(
             // the atlas to the screen. The step that renders coverage to the
             // offscreen atlas is handled separately, outside the subpass
             // system.
-            assert(subpassIndex == 0);
-            return &flush->pushFeatherAtlasBlit(this, m_pathID);
+            assert(signedSubpassIdx == 0);
+            return &flush->pushFeatherAtlasBlit(this,
+                                                subpassDrawContents,
+                                                m_pathID);
     }
 
     RIVE_UNREACHABLE();
@@ -1903,6 +1962,7 @@ gpu::DrawBatch& PathDraw::pushTessellationDraw(
         assert(!isStroke());
         return flush->pushOuterCubicsDraw(this,
                                           gpu::DrawType::outerCurvePatches,
+                                          m_combinedDrawContents,
                                           tessVertexCount,
                                           tessLocation,
                                           shaderMiscFlags);
@@ -1913,6 +1973,7 @@ gpu::DrawBatch& PathDraw::pushTessellationDraw(
             this,
             isFeatheredFill() ? gpu::DrawType::midpointFanCenterAAPatches
                               : gpu::DrawType::midpointFanPatches,
+            m_combinedDrawContents,
             tessVertexCount,
             tessLocation,
             shaderMiscFlags);
@@ -2757,11 +2818,11 @@ void ImageRectDraw::releaseRefs()
 
 gpu::DrawBatch* ImageRectDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex,
+    int signedSubpassIdx,
     uint32_t zIndex)
 {
-    assert(subpassIndex == 0);
-    return &flush->pushImageRectDraw(this, zIndex);
+    assert(signedSubpassIdx == 0);
+    return &flush->pushImageRectDraw(this, subpassDrawContents(0), zIndex);
 }
 
 ImageMeshDrawBase::ImageMeshDrawBase(IAABB pixelBounds,
@@ -2832,11 +2893,11 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
 
 gpu::DrawBatch* ImageMeshDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex,
+    int signedSubpassIdx,
     uint32_t zIndex)
 {
-    assert(subpassIndex == 0);
-    return &flush->pushImageMeshDraw(this, zIndex);
+    assert(signedSubpassIdx == 0);
+    return &flush->pushImageMeshDraw(this, subpassDrawContents(0), zIndex);
 }
 
 ImageMeshInstancedDraw::ImageMeshInstancedDraw(
@@ -2874,11 +2935,13 @@ ImageMeshInstancedDraw::ImageMeshInstancedDraw(
 
 gpu::DrawBatch* ImageMeshInstancedDraw::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex,
+    int signedSubpassIdx,
     uint32_t zIndex)
 {
-    assert(subpassIndex == 0);
-    return &flush->pushImageMeshInstancedDraw(this, zIndex);
+    assert(signedSubpassIdx == 0);
+    return &flush->pushImageMeshInstancedDraw(this,
+                                              subpassDrawContents(0),
+                                              zIndex);
 }
 
 void ImageMeshInstancedDraw::releaseRefs()
@@ -2904,14 +2967,14 @@ ClipReset::ClipReset(RenderContext* context,
     constexpr static gpu::DrawContents FILL_RULE_FLAGS =
         gpu::DrawContents::nonZeroFill | gpu::DrawContents::evenOddFill |
         gpu::DrawContents::clockwiseFill;
-    m_drawContents |= previousClipDrawContents & FILL_RULE_FLAGS;
+    m_combinedDrawContents |= previousClipDrawContents & FILL_RULE_FLAGS;
     switch (resetAction)
     {
         case ResetAction::intersectPreviousClip:
-            m_drawContents |= gpu::DrawContents::activeClip;
+            m_combinedDrawContents |= gpu::DrawContents::activeClip;
             [[fallthrough]];
         case ResetAction::clearPreviousClip:
-            m_drawContents |= gpu::DrawContents::clipUpdate;
+            m_combinedDrawContents |= gpu::DrawContents::clipUpdate;
             break;
     }
     m_resourceCounts.maxTriangleVertexCount = 6;
@@ -2919,10 +2982,10 @@ ClipReset::ClipReset(RenderContext* context,
 
 gpu::DrawBatch* ClipReset::pushToRenderContext(
     RenderContext::LogicalFlush* flush,
-    int subpassIndex,
+    int signedSubpassIdx,
     uint32_t zIndex)
 {
-    assert(subpassIndex == 0);
-    return &flush->pushClipResetDraw(this, zIndex);
+    assert(signedSubpassIdx == 0);
+    return &flush->pushClipResetDraw(this, subpassDrawContents(0), zIndex);
 }
 } // namespace rive::gpu

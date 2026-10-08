@@ -27,7 +27,10 @@ layout(constant_id = LOAD_COLOR_FROM_DST_TEXTURE_SPECIALIZATION_IDX) const
     bool LoadColorFromDstTexture = false;
 layout(constant_id = VULKAN_VENDOR_ARM_SPECIALIZATION_IDX) const
     bool VulkanVendorARM = false;
-layout(constant_id = DS_STROKE_SPECIALIZATION_IDX) const bool DSStroke = false;
+layout(constant_id = DS_POLAR_STROKE_SPECIALIZATION_IDX) const
+    bool DSPolarStroke = false;
+layout(constant_id = DS_HAIRLINE_STROKE_SPECIALIZATION_IDX) const
+    bool DSHairlineStroke = false;
 
 #define @ENABLE_CLIPPING EnableClipping
 #define @ENABLE_CLIP_RECT EnableClipRect
@@ -45,4 +48,5 @@ layout(constant_id = DS_STROKE_SPECIALIZATION_IDX) const bool DSStroke = false;
 #define @STORE_COLOR_CLEAR StoreColorClear
 #define @LOAD_COLOR_FROM_DST_TEXTURE LoadColorFromDstTexture
 #define @VULKAN_VENDOR_ARM VulkanVendorARM
-#define @DS_STROKE DSStroke
+#define @DS_POLAR_STROKE DSPolarStroke
+#define @DS_HAIRLINE_STROKE DSHairlineStroke

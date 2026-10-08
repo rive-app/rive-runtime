@@ -387,6 +387,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
         case DrawType::renderPassInitialize:
         case DrawType::depthStrokes:
         case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
             RIVE_UNREACHABLE();
     }
 
@@ -2362,6 +2363,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case DrawType::renderPassInitialize:
             case DrawType::depthStrokes:
             case DrawType::depthAAStrokes:
+            case DrawType::depthAAOuterHairline:
                 RIVE_UNREACHABLE();
         }
     }
