@@ -304,6 +304,7 @@ public:
             m_overflowTexture = {};
             m_overflowTextureView = {};
             m_pixelReadBuff = {};
+            m_renderTarget = nullptr;
             TestingWindow::resize(width, height);
 
 #ifndef RIVE_WAGYU
@@ -367,17 +368,29 @@ public:
             assert(m_overflowTexture.GetWidth() == m_width);
             assert(m_overflowTexture.GetHeight() == m_height);
 
-            m_renderTarget =
-                m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                    ->makeRenderTarget(m_format, m_width, m_height);
+            if (m_renderTarget == nullptr)
+            {
+                m_renderTarget =
+                    m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+                        ->makeRenderTarget(m_format, m_width, m_height);
+            }
+            assert(m_renderTarget->width() == m_width);
+            assert(m_renderTarget->height() == m_height);
             m_renderTarget->setTargetTextureView(m_overflowTextureView,
                                                  m_overflowTexture);
         }
         else
         {
-            m_renderTarget =
-                m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                    ->makeRenderTarget(m_format, surfaceWidth, surfaceHeight);
+            if (m_renderTarget == nullptr)
+            {
+                m_renderTarget =
+                    m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+                        ->makeRenderTarget(m_format,
+                                           surfaceWidth,
+                                           surfaceHeight);
+            }
+            assert(m_renderTarget->width() == surfaceWidth);
+            assert(m_renderTarget->height() == surfaceHeight);
             m_renderTarget->setTargetTextureView(m_currentCanvasTextureView,
                                                  m_currentCanvasTexture);
         }
