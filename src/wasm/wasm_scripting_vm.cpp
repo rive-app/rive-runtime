@@ -8649,8 +8649,22 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
     // The handle is scoped to this call; releasing bumps the generation so a
     // stashed renderer goes stale instead of ghost drawing.
     uint32_t handle = m_handles.mint(HandleTable::Tag::renderer, renderer);
+    // Count the saves the script opens on this renderer, as a draw visit
+    // does, and close whatever it leaves open. A draw trapped mid-way -- the
+    // time budget, most often -- returns with its saves still on the stack,
+    // and the script can never restore them: its renderer handle dies with
+    // this call. Hosts reuse a renderer frame to frame, so a leaked save
+    // would leave its transform and clip under everything drawn after it,
+    // in every later frame.
+    VisitSaves outer = m_visitSaves;
+    m_visitSaves = {renderer, 0};
     uint32_t args[3] = {m_L, (uint32_t)selfRef, handle};
     callModule("host_obj_draw", 3, args);
+    for (; m_visitSaves.open > 0; m_visitSaves.open--)
+    {
+        renderer->restore();
+    }
+    m_visitSaves = outer;
     m_handles.release(handle, HandleTable::Tag::renderer);
 }
 
