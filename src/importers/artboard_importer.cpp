@@ -11,9 +11,15 @@ using namespace rive;
 
 ArtboardImporter::ArtboardImporter(Artboard* artboard) : m_Artboard(artboard) {}
 
-void ArtboardImporter::addComponent(Core* object)
+size_t ArtboardImporter::addComponent(Core* object)
 {
     m_Artboard->addObject(object);
+    return m_Artboard->m_Objects.size() - 1;
+}
+
+void ArtboardImporter::releaseSlot(size_t index)
+{
+    m_Artboard->m_Objects[index] = nullptr;
 }
 
 void ArtboardImporter::addAnimation(LinearAnimation* animation)

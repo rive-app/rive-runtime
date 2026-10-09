@@ -138,13 +138,14 @@ StatusCode Component::import(ImportStack& importStack)
         return Super::import(importStack);
     }
 
+    // File::readObjects already put this in the artboard's object list (see
+    // claimsArtboardSlot); a component still needs an artboard to belong to.
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
-    artboardImporter->addComponent(this);
     return Super::import(importStack);
 }
 

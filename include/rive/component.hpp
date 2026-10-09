@@ -212,6 +212,10 @@ public:
     }
 
     StatusCode import(ImportStack& importStack) override;
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return true;
+    }
 
     virtual bool isCollapsed() const
     {

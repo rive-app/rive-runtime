@@ -1702,9 +1702,15 @@ void ArtboardComponentList::updateConstraints()
 
 void ArtboardComponentList::internalDataContext(rcp<DataContext> value)
 {
-    // Reconcile the existing data contexts with the new parent
+    // Reconcile the existing data contexts with the new parent. A row can have
+    // no artboard (nothing bound to its view model) or no state machine (its
+    // artboard has none), and both maps keep those rows as null entries.
     for (auto& artboard : m_artboardInstancesMap)
     {
+        if (artboard.second == nullptr)
+        {
+            continue;
+        }
         auto dataContext = artboard.second->dataContext();
         if (dataContext != nullptr)
         {
@@ -1714,6 +1720,10 @@ void ArtboardComponentList::internalDataContext(rcp<DataContext> value)
     }
     for (auto& sm : m_stateMachinesMap)
     {
+        if (sm.second == nullptr)
+        {
+            continue;
+        }
         auto dataContext = sm.second->dataContext();
         if (dataContext != nullptr)
         {
@@ -2107,7 +2117,10 @@ void ArtboardComponentList::removeVirtualizable(int index)
             pool.push_back(std::move(artboardInstance));
         }
         auto smInstanceIterator = m_stateMachinesMap.find(listItem);
-        if (smInstanceIterator != m_stateMachinesMap.end())
+        // A row without a state machine has nothing to pool, and a null in
+        // the pool would be reused as one.
+        if (smInstanceIterator != m_stateMachinesMap.end() &&
+            smInstanceIterator->second != nullptr)
         {
             auto& smPool = m_stateMachinesPool[artboard];
             smPool.push_back(std::move(smInstanceIterator->second));

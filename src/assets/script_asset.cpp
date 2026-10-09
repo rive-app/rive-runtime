@@ -7,7 +7,10 @@
 #endif
 #include "rive/assets/script_asset.hpp"
 #include "rive/signed_content_header.hpp"
+#include "rive/component.hpp"
 #include "rive/file.hpp"
+#include "rive/importers/import_stack.hpp"
+#include "rive/importers/scripted_object_importer.hpp"
 #ifdef WITH_RIVE_SCRIPTING_WASM
 #include "rive/wasm/wasm_scripting_vm.hpp"
 #endif
@@ -53,6 +56,27 @@ ScriptInput* ScriptInput::from(Core* component)
             return component->as<ScriptInputViewModelProperty>();
     }
     return nullptr;
+}
+
+bool ScriptInput::takesArtboardSlot(const Component* input)
+{
+    return input->parentId() != 0u;
+}
+
+ScriptedObjectImporter* ScriptInput::ownerImporter(ImportStack& importStack,
+                                                   const Component* input)
+{
+    // The importer stays open until the next scripted object replaces it, so
+    // after an owner this runtime can't read it still holds the one before.
+    // Only hand it to inputs whose parent matches what that owner gives its
+    // own inputs.
+    auto importer =
+        importStack.latest<ScriptedObjectImporter>(ScriptedDrawable::typeKey);
+    if (importer == nullptr || input->parentId() != importer->inputParentId())
+    {
+        return nullptr;
+    }
+    return importer;
 }
 
 void ScriptInput::initScriptedValue() {}

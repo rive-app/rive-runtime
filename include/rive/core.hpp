@@ -147,6 +147,15 @@ public:
         return StatusCode::Ok;
     }
 
+    /// Whether this object takes the next index in the open artboard's
+    /// object list, which is how the exporter numbers it. File::readObjects
+    /// claims that index before import() runs and empties it if the import
+    /// fails, so every id after a failed object still lines up.
+    virtual bool claimsArtboardSlot(ImportStack& importStack) const
+    {
+        return false;
+    }
+
     // Push-notification hook for target→source data binds. Property setters
     // generated in *_base.hpp call this with the affected property key after a
     // value changes. Default impl walks the intrusive observer list and

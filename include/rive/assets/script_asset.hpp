@@ -15,7 +15,9 @@ namespace rive
 class Artboard;
 class Component;
 class DataBind;
+class ImportStack;
 class ScriptedObject;
+class ScriptedObjectImporter;
 class ScriptBackend;
 
 enum ScriptProtocol
@@ -64,6 +66,16 @@ public:
     }
     ScriptedObject* scriptedObject() { return m_scriptedObject; }
     void scriptedObject(ScriptedObject* object) { m_scriptedObject = object; }
+    /// Shared ScriptInput*::claimsArtboardSlot. The exporter numbers an input
+    /// as an artboard child only when its owner is a Component, and gives it
+    /// that owner's index as its parent; every other owner's inputs have
+    /// parent 0. So the parent alone answers, even when the owner itself
+    /// could not be read.
+    static bool takesArtboardSlot(const Component* input);
+    /// The open ScriptedObjectImporter if it belongs to input's owner, else
+    /// null.
+    static ScriptedObjectImporter* ownerImporter(ImportStack& importStack,
+                                                 const Component* input);
 };
 
 class OptionalScriptedMethods

@@ -549,6 +549,21 @@ ImportResult File::readObjects(BinaryReader& reader,
         {
             object->as<DataBind>()->target(lastBindableObject);
         }
+        // Ids are indices into the artboard's object list, numbered by the
+        // exporter in stream order. Claim this object's index before import()
+        // can fail, so a failed object still holds its place and every id
+        // after it keeps pointing at the right object.
+        auto slotImporter =
+            importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+        size_t slot = 0;
+        if (slotImporter != nullptr && object->claimsArtboardSlot(importStack))
+        {
+            slot = slotImporter->addComponent(object);
+        }
+        else
+        {
+            slotImporter = nullptr;
+        }
         if (object->import(importStack) == StatusCode::Ok)
         {
             switch (object->coreType())
@@ -638,6 +653,12 @@ ImportResult File::readObjects(BinaryReader& reader,
             fprintf(stderr,
                     "Failed to import object of type %d\n",
                     object->coreType());
+            if (slotImporter != nullptr)
+            {
+                // Keep the index, but the artboard must not hold an object
+                // that discarded is about to free.
+                slotImporter->releaseSlot(slot);
+            }
             discarded.emplace_back(object);
             continue;
         }
@@ -866,8 +887,16 @@ ImportResult File::readObjects(BinaryReader& reader,
                 auto scriptedObject = ScriptedObject::from(object);
                 if (scriptedObject != nullptr)
                 {
-                    stackObject = std::make_unique<ScriptedObjectImporter>(
-                        scriptedObject);
+                    // A Component owner's inputs are its artboard children
+                    // and name its slot as their parent; other owners' name 0.
+                    uint32_t inputParentId =
+                        scriptedObject->component() != nullptr &&
+                                slotImporter != nullptr
+                            ? (uint32_t)slot
+                            : 0;
+                    stackObject =
+                        std::make_unique<ScriptedObjectImporter>(scriptedObject,
+                                                                 inputParentId);
                     stackType = ScriptedDrawable::typeKey;
                 }
                 // A ScriptedTransition additionally resolves list-source

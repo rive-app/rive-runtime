@@ -25,6 +25,10 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     bool validateForScriptInit() override { return true; }
     StatusCode import(ImportStack& importStack) override;
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return ScriptInput::takesArtboardSlot(this);
+    }
 };
 } // namespace rive
 

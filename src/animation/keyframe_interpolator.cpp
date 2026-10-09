@@ -23,13 +23,11 @@ InterpolatorHost* InterpolatorHost::from(Core* component)
 
 StatusCode KeyFrameInterpolator::import(ImportStack& importStack)
 {
+    // Inside an artboard, File::readObjects already put this in the artboard's
+    // object list (see claimsArtboardSlot).
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter != nullptr)
-    {
-        artboardImporter->addComponent(this);
-    }
-    else
+    if (artboardImporter == nullptr)
     {
         auto backboardImporter =
             importStack.latest<BackboardImporter>(BackboardBase::typeKey);

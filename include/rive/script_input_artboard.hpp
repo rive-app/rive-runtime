@@ -29,6 +29,10 @@ public:
     bool hydrateScriptInput() override;
     bool validateHydrationPrerequisites() override;
     StatusCode import(ImportStack& importStack) override;
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return ScriptInput::takesArtboardSlot(this);
+    }
     Core* clone() const override;
     StatusCode onAddedClean(CoreContext* context) override;
     void file(File* value) { m_file = value; };

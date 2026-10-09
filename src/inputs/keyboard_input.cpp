@@ -17,12 +17,13 @@ StatusCode KeyboardInput::import(ImportStack& importStack)
     }
     litImporter->listenerInputTypeKeyboard()->addKeyboardInput(this);
 
+    // File::readObjects already put this in the artboard's object list (see
+    // UserInput::claimsArtboardSlot), which owns it.
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
-    artboardImporter->addComponent(this);
     return Super::import(importStack);
 }

@@ -40,6 +40,12 @@ void ViewModelInstanceViewModel::setRoot(rcp<ViewModelInstance> value)
 StatusCode ViewModelInstanceViewModel::import(ImportStack& importStack)
 {
     auto status = Super::import(importStack);
+    if (status != StatusCode::Ok)
+    {
+        // Super fails without a ViewModelInstanceImporter, which the lookup
+        // below dereferences.
+        return status;
+    }
     auto artboardImporter =
         importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter != nullptr)

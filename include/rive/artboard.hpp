@@ -1040,6 +1040,12 @@ public:
     }
 
     StatusCode import(ImportStack& importStack) override;
+    // An artboard is slot 0 of its own list (Component::import), never a slot
+    // in the artboard read before it.
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return false;
+    }
 
     float volume() const;
     void volume(float value);

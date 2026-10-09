@@ -25,6 +25,11 @@ public:
     virtual float transform(float factor) const = 0;
 
     StatusCode import(ImportStack& importStack) override;
+    // Keyframes look interpolators up by artboard index.
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return true;
+    }
 
     virtual void initialize() {};
 };

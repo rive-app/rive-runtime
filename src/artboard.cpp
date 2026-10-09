@@ -272,7 +272,10 @@ static bool canContinue(StatusCode code)
 bool Artboard::validateObjects()
 {
     auto size = m_Objects.size();
-    std::vector<bool> valid(size);
+    // Start every slot valid so an object that fails on the first cycle
+    // registers as a change. Starting invalid meant an artboard whose objects
+    // all fail never changed, so its orphans survived into initialize().
+    std::vector<bool> valid(size, true);
 
     // Max iterations..
     for (int cycle = 0; cycle < 100; cycle++)

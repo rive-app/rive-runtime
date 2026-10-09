@@ -74,6 +74,11 @@ public:
     void clearVelocity() { m_speed = Vec2D(); }
 
     StatusCode import(ImportStack& importStack) override;
+    // Physics live on the backboard, never in an artboard's object list.
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return false;
+    }
 
     /// Initiate animated scroll to target position.
     virtual void scrollToPosition(Vec2D current,

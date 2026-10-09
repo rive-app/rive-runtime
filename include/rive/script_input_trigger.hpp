@@ -15,6 +15,10 @@ public:
     ~ScriptInputTrigger();
     bool validateForScriptInit() override { return true; }
     StatusCode import(ImportStack& importStack) override;
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return ScriptInput::takesArtboardSlot(this);
+    }
     StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive

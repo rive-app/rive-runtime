@@ -2,6 +2,7 @@
 #define _RIVE_ARTBOARD_IMPORTER_HPP_
 
 #include "rive/importers/import_stack.hpp"
+#include <cstddef>
 
 namespace rive
 {
@@ -19,7 +20,11 @@ private:
 
 public:
     ArtboardImporter(Artboard* artboard);
-    void addComponent(Core* object);
+    // Appends object (or an empty slot) and returns its index.
+    size_t addComponent(Core* object);
+    // Empties a slot whose object failed to import. The index stays taken so
+    // every later id still lines up; the object itself is freed elsewhere.
+    void releaseSlot(size_t index);
     void addAnimation(LinearAnimation* animation);
     void addStateMachine(StateMachine* stateMachine);
     void addDataBind(DataBind* dataBind);

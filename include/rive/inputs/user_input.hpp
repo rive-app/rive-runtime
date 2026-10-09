@@ -7,6 +7,11 @@ namespace rive
 class UserInput : public UserInputBase
 {
 public:
+    // Not a Component, but the artboard's object list owns it.
+    bool claimsArtboardSlot(ImportStack& importStack) const override
+    {
+        return true;
+    }
 };
 } // namespace rive
 
