@@ -224,6 +224,10 @@ public:
     // recording context hands one out, wrapped again each frame at replay.
     virtual rcp<TextureView> targetView() { return nullptr; }
 
+    // False where the host can never expose its target, so scripts get nil
+    // and keep a gpuCanvas instead.
+    virtual bool exposesTarget() const { return false; }
+
     // Set by the host around each Ore frame it replays.
     void setRenderTarget(gpu::RenderTarget* target) { m_renderTarget = target; }
     gpu::RenderTarget* renderTarget() const { return m_renderTarget; }

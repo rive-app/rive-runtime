@@ -7,6 +7,7 @@
 #include "rive/renderer/ore/ore_context.hpp"
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace rive::gpu
 {
@@ -86,6 +87,10 @@ private:
 
     // An incomplete framebuffer repeats every frame; print each message once.
     std::string m_lastReportedError;
+
+    // Attachment sets already found complete. Checking again is a GPU sync on
+    // WebGL, and a scene reattaches the same sets every frame.
+    std::unordered_set<uint64_t> m_completeAttachmentKeys;
 
     // ── Scratch pass objects ───────────────────────────────────────────
     //

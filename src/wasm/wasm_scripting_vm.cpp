@@ -2720,7 +2720,7 @@ uint32_t gpuTargetViewImpl(WasmScriptingVM* vm,
     ore::Context* oreContext = gpuOreContext(vm);
     // Props stay unwritten where no host could ever expose a target.
     if (vm == nullptr || oreContext == nullptr || !oreContext->isRecording() ||
-        propCount < 4)
+        !oreContext->exposesTarget() || propCount < 4)
     {
         return 0;
     }

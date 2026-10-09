@@ -68,6 +68,24 @@ end
     CHECK(runInit(vm));
 }
 
+TEST_CASE("context:gpuTarget is nil where the host can never expose one",
+          "[scripting]")
+{
+    TargetFactory factory;
+    factory.oreContext.setExposesTarget(false);
+    ScriptingTest vm(R"(
+function init(self, context)
+  return context:gpuTarget() == nil
+end
+)",
+                     1,
+                     false,
+                     {},
+                     true,
+                     &factory);
+    CHECK(runInit(vm));
+}
+
 TEST_CASE("a hidden target still validates the pass it drops", "[scripting]")
 {
     TargetFactory factory;

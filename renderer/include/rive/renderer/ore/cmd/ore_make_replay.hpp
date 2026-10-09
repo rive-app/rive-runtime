@@ -631,19 +631,27 @@ inline bool replayOreLifecycle(Context& ctx,
             }
             rive::gpu::RenderCanvas* canvas =
                 canvasAt ? canvasAt(pod.canvasId) : nullptr;
-            assert(canvas != nullptr);
-            rcp<TextureView> wrapped;
-            if (canvas != nullptr)
+            if (canvas == nullptr)
             {
-                wrapped = pod.mode == static_cast<uint32_t>(
-                                          WrapCanvasViewMode::sampleView)
-                              ? ctx.wrapCanvasSampleView(canvas)
-                              : ctx.wrapCanvasTexture(canvas);
+                // Unregistered or unbacked. Noted like an image, so the pass
+                // that binds it says why it dropped.
+                return skipUnresolvedMake(pod.id,
+                                          pod.generation,
+                                          "wrapCanvasView",
+                                          nullptr);
             }
-            table.set(pod.id,
-                      std::move(wrapped),
-                      pod.generation,
-                      OreKind::textureView);
+            rcp<TextureView> wrapped =
+                pod.mode ==
+                        static_cast<uint32_t>(WrapCanvasViewMode::sampleView)
+                    ? ctx.wrapCanvasSampleView(canvas)
+                    : ctx.wrapCanvasTexture(canvas);
+            setMade(pod.id,
+                    pod.generation,
+                    OreKind::textureView,
+                    std::move(wrapped),
+                    "wrapCanvasView",
+                    nullptr,
+                    "the backend could not wrap the canvas");
             return true;
         }
         case CommandType::destroyResource:

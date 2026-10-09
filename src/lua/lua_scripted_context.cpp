@@ -670,7 +670,8 @@ static int context_namecall(lua_State* L)
                         ->oreContext());
                 // Available whenever a host could expose its target, so
                 // init can hold it before the first frame declares one.
-                if (oreCtx != nullptr && oreCtx->isRecording())
+                if (oreCtx != nullptr && oreCtx->isRecording() &&
+                    oreCtx->exposesTarget())
                 {
                     // The target holds no state, so one userdata serves
                     // every call.

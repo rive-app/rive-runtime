@@ -430,6 +430,18 @@ void ContextGL::beginFrame(const FrameDescriptor&)
     // element buffer that was associated with it.
 }
 
+// Emscripten binds a deleted name as null, and there each probe is a GPU sync.
+template <typename Probe> static bool savedNameAlive(Probe probe, int name)
+{
+#ifdef RIVE_WEBGL
+    (void)probe;
+    (void)name;
+    return true;
+#else
+    return name == 0 || probe(static_cast<GLuint>(name)) == GL_TRUE;
+#endif
+}
+
 void ContextGL::waitForGPU() {} // GL is synchronous after glFinish/flush.
 
 void ContextGL::endFrame()
@@ -454,23 +466,19 @@ void ContextGL::endFrame()
     // between our `beginFrame` save and this restore. Guard each bind
     // with the matching `glIs*` probe; name == 0 always refers to the
     // default object (no validation error).
-    if (m_savedState.program == 0 ||
-        glIsProgram(m_savedState.program) == GL_TRUE)
+    if (savedNameAlive(glIsProgram, m_savedState.program))
     {
         glUseProgram(m_savedState.program);
     }
-    if (m_savedState.vertexArray == 0 ||
-        glIsVertexArray(m_savedState.vertexArray) == GL_TRUE)
+    if (savedNameAlive(glIsVertexArray, m_savedState.vertexArray))
     {
         glBindVertexArray(m_savedState.vertexArray);
     }
-    if (m_savedState.arrayBuffer == 0 ||
-        glIsBuffer(m_savedState.arrayBuffer) == GL_TRUE)
+    if (savedNameAlive(glIsBuffer, m_savedState.arrayBuffer))
     {
         glBindBuffer(GL_ARRAY_BUFFER, m_savedState.arrayBuffer);
     }
-    if (m_savedState.uniformBuffer == 0 ||
-        glIsBuffer(m_savedState.uniformBuffer) == GL_TRUE)
+    if (savedNameAlive(glIsBuffer, m_savedState.uniformBuffer))
     {
         glBindBuffer(GL_UNIFORM_BUFFER, m_savedState.uniformBuffer);
     }
@@ -479,8 +487,7 @@ void ContextGL::endFrame()
     // element buffer association. Explicitly binding it here would modify
     // the active VAO's element buffer, which can corrupt the host
     // renderer's VAO state if the saved value doesn't match.
-    if (m_savedState.framebuffer == 0 ||
-        glIsFramebuffer(m_savedState.framebuffer) == GL_TRUE)
+    if (savedNameAlive(glIsFramebuffer, m_savedState.framebuffer))
     {
         glBindFramebuffer(GL_FRAMEBUFFER, m_savedState.framebuffer);
     }
@@ -1142,6 +1149,24 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     }
     glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
 
+    // Hashes what decides completeness. A stale match only skips the report.
+    uint64_t attachmentKey = 14695981039346656037ull;
+    auto mixKey = [&attachmentKey](uint64_t v) {
+        attachmentKey = (attachmentKey ^ v) * 1099511628211ull;
+    };
+    auto mixAttachment =
+        [&mixKey](GLenum point, const TextureGL* tex, const TextureView& view) {
+            mixKey(point);
+            mixKey(tex->m_glTexture);
+            mixKey(tex->m_glRenderbuffer);
+            mixKey(static_cast<uint64_t>(tex->type()));
+            mixKey(static_cast<uint64_t>(tex->format()));
+            mixKey((uint64_t(tex->width()) << 32) | tex->height());
+            mixKey(tex->sampleCount());
+            mixKey((uint64_t(view.baseMipLevel()) << 32) | view.baseLayer());
+        };
+    mixKey(desc.colorCount);
+
     // Attach color targets.
     GLenum drawBuffers[4] = {};
     for (uint32_t i = 0; i < desc.colorCount; ++i)
@@ -1152,6 +1177,7 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
             auto* texGL = lite_rtti_cast<TextureGL*>(ca.view->texture());
             assert(texGL);
             GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+            mixAttachment(attachment, texGL, *ca.view);
 
             if (texGL->m_glRenderbuffer != 0)
             {
@@ -1232,6 +1258,7 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
                            depthFmt == TextureFormat::depth32floatStencil8);
         depthAttachment =
             hasStencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
+        mixAttachment(depthAttachment, depthTexGL, *desc.depthStencil.view);
 
         if (depthTexGL->m_glRenderbuffer != 0)
         {
@@ -1256,8 +1283,19 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     // An incomplete FBO drops every draw of the pass with no other signal
     // (WebGL2, unlike Metal, also rejects attachments of differing sizes),
     // so report it instead of silently rendering nothing.
-    GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+    bool knownComplete = m_completeAttachmentKeys.count(attachmentKey) != 0;
+    GLenum fboStatus = knownComplete ? GL_FRAMEBUFFER_COMPLETE
+                                     : glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (fboStatus == GL_FRAMEBUFFER_COMPLETE && !knownComplete)
+    {
+        // Bounds the set when a script churns through transient targets.
+        if (m_completeAttachmentKeys.size() >= 256)
+        {
+            m_completeAttachmentKeys.clear();
+        }
+        m_completeAttachmentKeys.insert(attachmentKey);
+    }
+    else if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
     {
         setLastError("beginRenderPass: GL framebuffer incomplete (0x%x); "
                      "color/depth attachments must share size and "

@@ -263,6 +263,10 @@ public:
         }
     }
 
+    // Set before scripts init, which is when they decide on a fallback.
+    void setExposesTarget(bool exposes) { m_exposesTarget = exposes; }
+    bool exposesTarget() const override { return m_exposesTarget; }
+
     rcp<TextureView> targetView() override
     {
         if (m_targetHidden)
@@ -719,6 +723,7 @@ private:
     bool m_targetWrapped = false;
     bool m_targetDrawn = false;
     bool m_targetHidden = true;
+    bool m_exposesTarget = true;
 };
 
 } // namespace rive::ore::cmd
