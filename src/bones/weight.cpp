@@ -1,9 +1,16 @@
 #include "rive/bones/weight.hpp"
+#include "rive/bones/cubic_weight.hpp"
 #include "rive/bones/skinnable.hpp"
 #include "rive/container_component.hpp"
+#include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/vertex.hpp"
 
 using namespace rive;
+
+bool Weight::fitsVertex(const Vertex* vertex) const
+{
+    return !vertex->is<CubicVertex>() || is<CubicWeight>();
+}
 
 StatusCode Weight::onAddedDirty(CoreContext* context)
 {
@@ -15,7 +22,7 @@ StatusCode Weight::onAddedDirty(CoreContext* context)
 #ifndef WITH_RIVE_EDITOR
     // Runtime-only path; editor build registers via
     // `editorParentChanged` (dispatcher Pass 4.5).
-    if (!parent()->is<Vertex>())
+    if (!parent()->is<Vertex>() || !fitsVertex(parent()->as<Vertex>()))
     {
         return StatusCode::MissingObject;
     }

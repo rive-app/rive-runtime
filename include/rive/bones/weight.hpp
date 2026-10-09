@@ -6,6 +6,7 @@
 
 namespace rive
 {
+class Vertex;
 class Weight : public WeightBase
 {
 private:
@@ -13,6 +14,10 @@ private:
 
 public:
     Vec2D& translation() { return m_Translation; }
+
+    /// Whether [vertex] can deform through this weight: a cubic vertex reads
+    /// its weight as a CubicWeight, so a base Weight under one can't be used.
+    bool fitsVertex(const Vertex* vertex) const;
 
     StatusCode onAddedDirty(CoreContext* context) override;
 #ifdef WITH_RIVE_EDITOR
