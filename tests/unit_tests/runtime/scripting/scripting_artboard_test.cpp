@@ -587,3 +587,36 @@ TEST_CASE(
 
     CHECK(silver.matches("scripted_viewmodel_cache"));
 }
+TEST_CASE("an Artboard input that leads back to its own artboard instances",
+          "[scripting]")
+{
+    // Built by rive-cli from:
+    //   <Artboard name="Host">
+    //       <ScriptedDrawable scriptAssetId="0:80" name="Probe">
+    //           <ScriptInputArtboard artboardId="<Holder>" name="other"/>
+    //       </ScriptedDrawable>
+    //   </Artboard>
+    //   <Artboard name="Holder">
+    //       <NestedArtboard artboardId="<Host>" name="Nested Host"/>
+    //   </Artboard>
+    // Setting an Artboard input instances the artboard, which sets its own
+    // scripts' Artboard inputs in turn, so instancing either artboard recursed
+    // until the stack overflowed (RIVE_NATIVE-143).
+    rive::SerializingFactory factory;
+    auto file =
+        ReadRiveFile("assets/script_input_artboard_cycle.riv", &factory);
+    // Only the repeat is left unset: Host's own input still holds a Holder.
+    REQUIRE_FALSE(file->artboard("Holder")->hasLiveInstances());
+    auto host = file->artboardNamed("Host");
+    REQUIRE(host != nullptr);
+    CHECK(file->artboard("Holder")->hasLiveInstances());
+
+    auto holder = file->artboardNamed("Holder");
+    REQUIRE(holder != nullptr);
+    auto renderer = factory.makeRenderer();
+    for (auto artboard : {host.get(), holder.get()})
+    {
+        artboard->advance(0.016f);
+        artboard->draw(renderer.get());
+    }
+}

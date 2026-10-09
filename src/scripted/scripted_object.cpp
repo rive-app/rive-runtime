@@ -51,6 +51,23 @@ void ScriptedObject::setArtboardInput(std::string name, Artboard* artboard)
     {
         return;
     }
+    // The input is an instance of the artboard, and initializing it sets the
+    // Artboard inputs of its own scripts, nested ones included. An artboard
+    // that leads back to itself that way would recurse until the stack
+    // overflows, so leave the input unset where it repeats.
+    static thread_local std::vector<const Artboard*> instancing;
+    const Artboard* source = artboard->artboardSource();
+    if (std::find(instancing.begin(), instancing.end(), source) !=
+        instancing.end())
+    {
+        return;
+    }
+    // Popped on unwind too: Luau raises errors as exceptions.
+    struct Instancing
+    {
+        Instancing(const Artboard* source) { instancing.push_back(source); }
+        ~Instancing() { instancing.pop_back(); }
+    } scope(source);
     m_vm->setInputArtboard(m_self, name.c_str(), this, artboard);
     addScriptedDirt(ComponentDirt::ScriptUpdate);
 }
