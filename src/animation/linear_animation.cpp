@@ -1,10 +1,13 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/keyed_object.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/keyframe.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/artboard.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/math/math_types.hpp"
+#include <algorithm>
 #include <cmath>
 
 using namespace rive;
@@ -76,8 +79,54 @@ StatusCode LinearAnimation::onAddedClean(CoreContext* context)
     {
         object->onAddedClean(context);
     }
+#else
+    // The keyed objects and their keyframes are final now (onAddedDirty dropped
+    // the ones that failed). The editor edits keyframes after this point, so it
+    // keeps the defaults, which only ever hold at time 0.
+    uint32_t first = UINT32_MAX;
+    uint32_t last = 0;
+    for (const auto& object : m_KeyedObjects)
+    {
+        for (size_t i = 0; i < object->numKeyedProperties(); i++)
+        {
+            const KeyedProperty* property = object->getProperty(i);
+            size_t count = property->numKeyFrames();
+            if (count < 2)
+            {
+                continue;
+            }
+            first = std::min(first, property->getKeyFrame(0)->frame());
+            last = std::max(last, property->getKeyFrame(count - 1)->frame());
+        }
+    }
+    m_isStaticPose = !m_KeyedObjects.empty() && first == UINT32_MAX;
+    if (first != UINT32_MAX)
+    {
+        m_firstKeyFrame = (uint16_t)std::min<uint32_t>(first, UINT16_MAX);
+        m_lastKeyFrame =
+            last < kNoLastKeyFrame ? (uint16_t)last : kNoLastKeyFrame;
+    }
 #endif
     return StatusCode::Ok;
+}
+
+bool LinearAnimation::appliesKeyFrameValuesAt(float seconds) const
+{
+    if (m_isStaticPose)
+    {
+        return true;
+    }
+    // The same time apply() evaluates, and the same seconds the keyframes were
+    // given (KeyFrame::computeSeconds), so the comparisons match
+    // KeyedProperty::apply's choice of keyframe exactly.
+    float ffps = (float)fps();
+    if (quantize())
+    {
+        seconds = std::floor(seconds * ffps) / ffps;
+    }
+    return seconds <= m_firstKeyFrame / ffps ||
+           (m_lastKeyFrame != kNoLastKeyFrame &&
+            seconds >= m_lastKeyFrame / ffps);
 }
 
 void LinearAnimation::addKeyedObject(std::unique_ptr<KeyedObject> object)
@@ -180,6 +229,12 @@ void LinearAnimation::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
                                            float speedDirection,
                                            bool fromPong) const
 {
+#ifndef WITH_RIVE_EDITOR
+    if (!m_hasKeyedCallbacks)
+    {
+        return;
+    }
+#endif
     float startingTime = startTime(speedDirection);
     bool isAtStartFrame = startingTime == secondsFrom;
 

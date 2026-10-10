@@ -5,6 +5,16 @@
 #include "rive/animation/any_state.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/keyed_object.hpp"
+#ifdef TESTING
+#include "rive/animation/keyframe_bool.hpp"
+#include "rive/animation/keyframe_color.hpp"
+#include "rive/animation/keyframe_double.hpp"
+#include "rive/animation/keyframe_id.hpp"
+#include "rive/animation/keyframe_int.hpp"
+#include "rive/animation/keyframe_string.hpp"
+#include "rive/animation/keyframe_uint.hpp"
+#include "rive/generated/core_registry.hpp"
+#endif
 #include "rive/animation/keyed_property.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
@@ -233,7 +243,11 @@ public:
     // has stopped keeping itself going and has no exit time to wait on: its
     // advance would only move a clock nothing reads, apply nothing and skip a
     // search that can't pass, so it returns what that advance would have.
-    bool isFrozen() const
+    // The same holds for a state whose animation holds its keyframe values and
+    // has already applied them (see isPoseInPlace): a pose, or a finished
+    // one-shot. poseSince is the artboard's change serial when the previous
+    // advance started.
+    bool isFrozen(const StateMachineInstance* smi, uint32_t poseSince) const
     {
         if (!m_settled || m_mix != 1.0f || m_animationReset != nullptr ||
             m_holdAnimation != nullptr ||
@@ -256,28 +270,199 @@ public:
             case AnyStateBase::typeKey:
                 return true;
             case AnimationStateBase::typeKey:
+            {
                 // An animation state without an animation plays an empty one.
-                return static_cast<const AnimationStateInstance*>(
-                           m_currentState)
-                           ->animationInstance()
-                           ->animation()
-                           ->numKeyedObjects() == 0;
+                auto instance =
+                    static_cast<const AnimationStateInstance*>(m_currentState)
+                        ->animationInstance();
+                return instance->animation()->numKeyedObjects() == 0 ||
+                       isPoseInPlace(smi, instance, poseSince);
+            }
             default:
                 return false;
         }
     }
 
-    bool advance(StateMachineInstance* smi, float seconds, bool newFrame)
+    // A one-shot that has finished sits clamped to its end (its start, playing
+    // backwards), crosses no more keyframes and so fires no more callbacks.
+    // Where that time writes keyframe values as they are (a pose, or a time at
+    // or outside every property's keyframes), applying it again changes
+    // nothing once it has been applied at full mix -- until something else
+    // writes to the artboard: another layer, a bind, a script, the host. Every
+    // such write bumps the artboard's change serial, so the pose is still in
+    // place while the serial hasn't moved since the previous advance started
+    // (this advance's earlier layers included). Keyframe values bound to data
+    // change without that, so their artboards keep re-applying, and so does a
+    // transition whose interpolator doesn't end at exactly 1 (its "full" mix
+    // still blends). Finished is the animation's own word for it: the state's
+    // keepGoing() also reads false after an advance by zero, before the
+    // animation has played at all.
+    bool isPoseInPlace(const StateMachineInstance* smi,
+                       const LinearAnimationInstance* instance,
+                       uint32_t poseSince) const
+    {
+        if (instance->keepGoing() ||
+            !instance->animation()->appliesKeyFrameValuesAt(instance->time()))
+        {
+            return false;
+        }
+        const ArtboardInstance* artboard = artboardOf(smi);
+        if (artboard->changeSerial() != poseSince)
+        {
+            return false;
+        }
+        const Artboard* source = artboard->artboardSource();
+        if ((source != nullptr ? source : artboard)->hasKeyFrameSourceBinds())
+        {
+            return false;
+        }
+        if (m_transition != nullptr &&
+            m_transition->interpolator() != nullptr &&
+            m_transition->interpolator()->transform(1.0f) != 1.0f)
+        {
+            return false;
+        }
+        return true;
+    }
+
+#ifdef TESTING
+    // Every value the skipped pose would have written is already there.
+    void verifyFrozenPose(const StateMachineInstance* smi) const
+    {
+        if (m_currentState == nullptr ||
+            m_currentState->state()->coreType() != AnimationStateBase::typeKey)
+        {
+            return;
+        }
+        auto instance =
+            static_cast<const AnimationStateInstance*>(m_currentState)
+                ->animationInstance();
+        auto animation = instance->animation();
+        if (animation->numKeyedObjects() == 0)
+        {
+            return;
+        }
+        StateMachineInstance::sm_frozenPoseAdvances++;
+        float seconds = instance->time();
+        if (animation->quantize())
+        {
+            float ffps = (float)animation->fps();
+            seconds = std::floor(seconds * ffps) / ffps;
+        }
+        ArtboardInstance* artboard = artboardOf(smi);
+        for (size_t o = 0; o < animation->numKeyedObjects(); o++)
+        {
+            const KeyedObject* keyedObject = animation->getObject(o);
+            Core* object = artboard->resolve(keyedObject->objectId());
+            if (object == nullptr)
+            {
+                continue;
+            }
+            for (size_t p = 0; p < keyedObject->numKeyedProperties(); p++)
+            {
+                const KeyedProperty* property = keyedObject->getProperty(p);
+                int key = property->propertyKey();
+                size_t count = property->numKeyFrames();
+                if (count == 0 || CoreRegistry::isCallback(key))
+                {
+                    continue;
+                }
+                // At or before the first keyframe apply writes the first, at
+                // or after the last it writes the last.
+                const KeyFrame* keyFrame =
+                    count == 1 || seconds <= property->getKeyFrame(0)->seconds()
+                        ? property->getKeyFrame(0)
+                        : property->getKeyFrame(count - 1);
+                if (count > 1 && keyFrame == property->getKeyFrame(count - 1) &&
+                    seconds < keyFrame->seconds())
+                {
+                    fprintf(stderr,
+                            "Frozen animation %s is between keyframes of "
+                            "property %d at %f\n",
+                            animation->name().c_str(),
+                            key,
+                            seconds);
+                    abort();
+                }
+                bool inPlace;
+                if (keyFrame->is<KeyFrameDouble>())
+                {
+                    inPlace = CoreRegistry::getDouble(object, key) ==
+                              keyFrame->as<KeyFrameDouble>()->value();
+                }
+                else if (keyFrame->is<KeyFrameColor>())
+                {
+                    inPlace = CoreRegistry::getColor(object, key) ==
+                              keyFrame->as<KeyFrameColor>()->value();
+                }
+                else if (keyFrame->is<KeyFrameId>())
+                {
+                    inPlace = CoreRegistry::getUint(object, key) ==
+                              keyFrame->as<KeyFrameId>()->value();
+                }
+                else if (keyFrame->is<KeyFrameUint>())
+                {
+                    inPlace = CoreRegistry::getUint(object, key) ==
+                              keyFrame->as<KeyFrameUint>()->value();
+                }
+                else if (keyFrame->is<KeyFrameInt>())
+                {
+                    inPlace = CoreRegistry::getInt(object, key) ==
+                              keyFrame->as<KeyFrameInt>()->value();
+                }
+                else if (keyFrame->is<KeyFrameBool>())
+                {
+                    inPlace = CoreRegistry::getBool(object, key) ==
+                              keyFrame->as<KeyFrameBool>()->value();
+                }
+                else if (keyFrame->is<KeyFrameString>())
+                {
+                    inPlace = CoreRegistry::getString(object, key) ==
+                              keyFrame->as<KeyFrameString>()->value();
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "Frozen animation %s keys property %d with an "
+                            "unverifiable keyframe type %d\n",
+                            animation->name().c_str(),
+                            key,
+                            (int)keyFrame->coreType());
+                    abort();
+                }
+                if (!inPlace)
+                {
+                    fprintf(
+                        stderr,
+                        "Frozen animation %s in layer %s on artboard %s would "
+                        "have changed property %d of object %u\n",
+                        animation->name().c_str(),
+                        m_layer->name().c_str(),
+                        artboard->name().c_str(),
+                        key,
+                        keyedObject->objectId());
+                    abort();
+                }
+            }
+        }
+    }
+#endif
+
+    bool advance(StateMachineInstance* smi,
+                 float seconds,
+                 bool newFrame,
+                 uint32_t poseSince)
     {
         RIVE_WRITE_SOURCE(layer, m_layer, smi);
         if (newFrame)
         {
             m_stateMachineChangedOnAdvance = false;
         }
-        if (isFrozen())
+        if (isFrozen(smi, poseSince))
         {
 #ifdef TESTING
             StateMachineInstance::sm_frozenLayerAdvances++;
+            verifyFrozenPose(smi);
 #endif
             return false;
         }
@@ -2698,14 +2883,21 @@ bool StateMachineInstance::hasScrollLatch()
 #ifdef TESTING
 uint64_t StateMachineInstance::sm_settledLayerSkips = 0;
 uint64_t StateMachineInstance::sm_frozenLayerAdvances = 0;
+uint64_t StateMachineInstance::sm_frozenPoseAdvances = 0;
 
 const LayerState* StateMachineInstance::layerState(size_t index)
 {
-    if (index < m_machine->layerCount())
+    if (index < m_layerCount)
     {
         return m_layers[index].currentState();
     }
     return nullptr;
+}
+
+bool StateMachineInstance::isLayerFrozen(size_t index) const
+{
+    return index < m_layerCount &&
+           m_layers[index].isFrozen(this, m_advanceChangeSerial);
 }
 #endif
 
@@ -2801,6 +2993,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
     Scene(instance),
     m_machine(machine),
+    m_needsAdvance(false),
     m_bindsPending(false),
     m_anySettled(false),
     m_destroying(false)
@@ -2857,7 +3050,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         srand((unsigned int)nanos);
     }
 
-    m_layerCount = static_cast<uint32_t>(machine->layerCount());
+    // Import refuses a machine with more (StateMachineImporter::resolve).
+    assert(machine->layerCount() <= UINT16_MAX);
+    m_layerCount = static_cast<uint16_t>(
+        std::min<size_t>(machine->layerCount(), UINT16_MAX));
     m_layers = new StateMachineLayerInstance[m_layerCount];
     for (size_t i = 0; i < m_layerCount; i++)
     {
@@ -3868,10 +4064,14 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         applyEvents();
         m_needsAdvance = false;
     }
+    // Poses re-apply when anything reached the artboard since the previous
+    // advance started (see StateMachineLayerInstance::isPoseInPlace).
+    const uint32_t poseSince = m_advanceChangeSerial;
+    m_advanceChangeSerial = m_artboardInstance->changeSerial();
     updateDataBinds(false);
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].advance(this, seconds, newFrame))
+        if (m_layers[i].advance(this, seconds, newFrame, poseSince))
         {
             m_needsAdvance = true;
         }
@@ -4367,7 +4567,8 @@ AdvancingComponent::QuietState StateMachineInstance::rowQuietState()
     // advance clears that).
     for (uint32_t i = 0; i < m_layerCount; i++)
     {
-        if (!m_layers[i].isFrozen() || m_layers[i].stateChangedOnAdvance())
+        if (!m_layers[i].isFrozen(this, m_advanceChangeSerial) ||
+            m_layers[i].stateChangedOnAdvance())
         {
             return QuietState::busy;
         }

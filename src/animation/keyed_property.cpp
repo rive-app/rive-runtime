@@ -6,6 +6,9 @@
 #include "rive/animation/keyed_callback_reporter.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/keyed_object_importer.hpp"
+#include "rive/importers/linear_animation_importer.hpp"
+#include "rive/animation/linear_animation.hpp"
+#include "rive/generated/core_registry.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -243,5 +246,14 @@ StatusCode KeyedProperty::import(ImportStack& importStack)
         return StatusCode::MissingObject;
     }
     importer->addKeyedProperty(std::unique_ptr<KeyedProperty>(this));
+    if (CoreRegistry::isCallback(propertyKey()))
+    {
+        auto animationImporter = importStack.latest<LinearAnimationImporter>(
+            LinearAnimationBase::typeKey);
+        if (animationImporter != nullptr)
+        {
+            animationImporter->animation()->hasKeyedCallbacks(true);
+        }
+    }
     return Super::import(importStack);
 }

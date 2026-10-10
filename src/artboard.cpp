@@ -1566,6 +1566,7 @@ void Artboard::onComponentDirty(Component* component)
     wakeIfQuietRow();
     m_didChange = true;
     ++m_contentRevision;
+    m_changeSerial++;
     m_Dirt |= ComponentDirt::Components;
 
     /// If the order of the component is less than the current dirt
@@ -1582,6 +1583,11 @@ void Artboard::onComponentDirty(Component* component)
 // addDirt's dedupe); semantics re-read their bounds through the boundary.
 void Artboard::selfTransformChanged()
 {
+    // Rasters leave self rotation/scale out of m_contentRevision, but a state
+    // machine holding a pose that keys them has to hear about it, even on a
+    // quiet list row.
+    m_changeSerial++;
+    wakeIfQuietRow();
     // Hosts cache mesh bounds and visibility from the pose. Only an update
     // pass clears the flag, and none follows without dirt: re-arm it, or the
     // host hears only the first change.
@@ -4627,6 +4633,13 @@ bool Artboard::isAncestor(const Artboard* artboard)
 void Artboard::changed()
 {
     ++m_contentRevision;
+    // Counted on every call: a change can land after m_didChange is already
+    // set and still has to reach state machines holding a pose. Those may sit
+    // on a quiet list row, which has to advance to hear it: changed() raises
+    // no component dirt (SolidColor uses it for exactly that), so wake the row
+    // here as onComponentDirty does.
+    m_changeSerial++;
+    wakeIfQuietRow();
     if (!m_didChange)
     {
         m_didChange = true;

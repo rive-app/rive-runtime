@@ -13,6 +13,28 @@ class LinearAnimationInstance;
 class LinearAnimation : public LinearAnimationBase
 {
 private:
+    // Whether any keyed property is a callback (events, audio...), so
+    // reportKeyedCallbacks has something to report. Import clears it when the
+    // animation is read and each callback KeyedProperty sets it again; an
+    // animation that isn't imported keeps scanning. Declared first so it lands
+    // in the base's tail padding.
+    bool m_hasKeyedCallbacks = true;
+    // Every keyed property has a single keyframe, so applying it writes the
+    // same values whatever the time. Set in onAddedClean.
+    bool m_isStaticPose = false;
+    // The earliest first and latest last keyframe among the keyed properties
+    // that have more than one, set in onAddedClean (a property with a single
+    // keyframe writes it as it is at any time). Applied at or before the first,
+    // or at or after the last, every property writes a keyframe's value as it
+    // is and interpolates nothing, so the values hold for as long as the time
+    // does -- a finished one-shot, or a pose. A state machine layer resting on
+    // one stops re-applying it while nothing else changes (see
+    // StateMachineLayerInstance::isFrozen). The first may only underestimate,
+    // which stays correct; a last that doesn't fit is kNoLastKeyFrame, which
+    // never holds.
+    uint16_t m_firstKeyFrame = 0;
+    uint16_t m_lastKeyFrame = kNoLastKeyFrame;
+    static constexpr uint16_t kNoLastKeyFrame = UINT16_MAX;
     std::vector<std::unique_ptr<KeyedObject>> m_KeyedObjects;
 #ifdef WITH_RIVE_EDITOR
     // Non-owning parallel list populated by `EditorFile::finalizeBatch`
@@ -38,6 +60,10 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
     void addKeyedObject(std::unique_ptr<KeyedObject>);
+    void hasKeyedCallbacks(bool value) { m_hasKeyedCallbacks = value; }
+    /// Whether applying at `seconds` writes every keyed property's keyframe
+    /// values as they are, interpolating nothing (see m_firstKeyFrame).
+    bool appliesKeyFrameValuesAt(float seconds) const;
     /// `context` is the running LinearAnimationInstance, threaded down so
     /// scripted interpolators can vend per-(LAI, keyframe) stateful clones.
     /// Default-null keeps direct callers (state-machine hold animations,

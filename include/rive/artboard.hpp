@@ -165,6 +165,12 @@ private:
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
     bool m_didChange = true;
+    // In the padding after the flags above. Bumped by every change that
+    // reaches this artboard -- component dirt, changed() and its own
+    // rotation/scale, which m_contentRevision leaves out -- so a state machine
+    // can tell whether anything moved since it last re-applied a held pose.
+    // Wraps; only compared for equality.
+    uint32_t m_changeSerial = 0;
     // Each raster records the revision it drew, so one draw path can't consume
     // another's change. Self rotation/scale don't bump it; rasters omit them.
     uint64_t m_contentRevision = 1;
@@ -461,6 +467,7 @@ public:
     bool validateObjects();
     StatusCode initialize();
     bool didChange() { return m_didChange; }
+    uint32_t changeSerial() const { return m_changeSerial; }
 
     // The BitmapCache child of this artboard, if one exists. Its presence
     // enables cache-as-bitmap rendering. Populated during initialize().

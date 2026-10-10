@@ -44,4 +44,11 @@ void StateMachineImporter::addScriptedObject(ScriptedObject* object)
     m_StateMachine->addScriptedObject(object);
 }
 
-StatusCode StateMachineImporter::resolve() { return StatusCode::Ok; }
+StatusCode StateMachineImporter::resolve()
+{
+    // StateMachineInstance counts its layers in 16 bits; a machine with more
+    // can't be played as authored, so it fails the import rather than lose
+    // layers.
+    return m_StateMachine->layerCount() > UINT16_MAX ? StatusCode::InvalidObject
+                                                     : StatusCode::Ok;
+}

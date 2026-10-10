@@ -474,12 +474,18 @@ public:
         return nullptr;
     }
     const LayerState* layerState(size_t index);
+    // Whether the layer would skip its next advance (see
+    // StateMachineLayerInstance::isFrozen), given nothing changes before it.
+    bool isLayerFrozen(size_t index) const;
     // Transition searches skipped because the layer had settled, across every
     // instance (see StateMachineLayerInstance::updateState).
     static uint64_t sm_settledLayerSkips;
     // Layer advances skipped because the layer was frozen: settled in a state
     // that keys nothing and waits on no exit time.
     static uint64_t sm_frozenLayerAdvances;
+    // The subset of those resting on a pose whose values were already in place
+    // (each one verified against the artboard).
+    static uint64_t sm_frozenPoseAdvances;
 #endif
     void enablePointerEvents(int pointerId = 0);
     void disablePointerEvents(int pointerId = 0);
@@ -489,22 +495,27 @@ private:
     const StateMachine* m_machine;
     std::vector<SMIInput*> m_inputInstances; // we own each pointer
     StateMachineLayerInstance* m_layers = nullptr;
-    // Set once from machine->layerCount() and never mutated, so a uint32_t is
-    // ample. Kept adjacent to the other scalars so they share one 8 B slot
-    // instead of opening three.
-    uint32_t m_layerCount = 0;
+    // Set once from machine->layerCount() and never mutated; a machine has far
+    // fewer than 65536 layers. Kept adjacent to the other scalars so they
+    // share one 8 B slot with m_advanceChangeSerial instead of opening more.
+    uint16_t m_layerCount = 0;
     uint8_t m_drawOrderChangeCounter = 0;
-    bool m_needsAdvance = false;
-    // One bit each, sharing the byte after m_needsAdvance; bit-fields can't
-    // have default member initializers before C++20, so the constructor sets
-    // them. Settled layers, see StateMachineLayerInstance::updateState: a bind
-    // was dirtied and not yet applied, so bindables may still hold old values.
+    // One bit each, sharing the byte after m_drawOrderChangeCounter; bit-fields
+    // can't have default member initializers before C++20, so the constructor
+    // sets them.
+    bool m_needsAdvance : 1;
+    // Settled layers, see StateMachineLayerInstance::updateState: a bind was
+    // dirtied and not yet applied, so bindables may still hold old values.
     bool m_bindsPending : 1;
     // Some layer is settled, so unsettleLayers has work to do.
     bool m_anySettled : 1;
     // Set as the destructor starts. The artboard may already be gone (a host
     // can destroy it first), so nothing may wake its row from then on.
     bool m_destroying : 1;
+    // The artboard's changeSerial() when the last advance started. A layer
+    // resting on a pose re-applies it only if the serial moved since then
+    // (see StateMachineLayerInstance::isFrozen).
+    uint32_t m_advanceChangeSerial = 0;
     std::vector<std::unique_ptr<HitComponent>> m_hitComponents;
     std::vector<std::unique_ptr<ListenerGroup>> m_listenerGroups;
     // Owns the in-flight scroll gesture. Latched for the whole gesture:
