@@ -6,7 +6,7 @@
 #include "rive/layout/n_slicer_tile_mode.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/n_slicer_helpers.hpp"
-#include "rive/shapes/image.hpp"
+#include "rive/shapes/mesh_host.hpp"
 #include "rive/shapes/slice_mesh.hpp"
 
 using namespace rive;
@@ -29,7 +29,8 @@ void SliceMesh::draw(Renderer* renderer,
                      float opacity,
                      float additiveness)
 {
-    if (m_nslicer == nullptr || m_nslicer->image() == nullptr)
+    MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
+    if (host == nullptr)
     {
         return;
     }
@@ -37,10 +38,10 @@ void SliceMesh::draw(Renderer* renderer,
     {
         return;
     }
-    Image* image = m_nslicer->image();
-    renderer->transform(image->worldTransform());
-    renderer->translate(-image->width() * image->originX(),
-                        -image->height() * image->originY());
+    const Vec2D origin = host->meshHostOrigin();
+    renderer->transform(host->meshHostWorldTransform());
+    renderer->translate(-host->meshHostWidth() * origin.x,
+                        -host->meshHostHeight() * origin.y);
     renderer->drawImageMesh(renderImage,
                             ImageSampler,
                             m_VertexRenderBuffer,
@@ -54,6 +55,8 @@ void SliceMesh::draw(Renderer* renderer,
 }
 
 void SliceMesh::onAssetLoaded(RenderImage* renderImage) {}
+
+void SliceMesh::uvTransformChanged(const Mat2D& uvTransform) { update(); }
 
 void SliceMesh::updateBuffers()
 {
@@ -106,9 +109,7 @@ void SliceMesh::updateBuffers()
 
     if (m_UVRenderBuffer)
     {
-        auto renderImage = m_nslicer->image()->imageAsset()->renderImage();
-        Mat2D uvTransform =
-            renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
+        Mat2D uvTransform = m_nslicer->host()->meshHostUVTransform();
 
         Vec2D* mappedUVs = reinterpret_cast<Vec2D*>(m_UVRenderBuffer->map());
         if (mappedUVs != nullptr)
@@ -150,11 +151,12 @@ void SliceMesh::updateBuffers()
 
 std::vector<float> SliceMesh::uvStops(AxisType forAxis)
 {
-    float imageSize = forAxis == AxisType::X ? m_nslicer->image()->width()
-                                             : m_nslicer->image()->height();
+    MeshHost* host = m_nslicer->host();
+    float imageSize =
+        forAxis == AxisType::X ? host->meshHostWidth() : host->meshHostHeight();
     float imageScale =
-        std::abs(forAxis == AxisType::X ? m_nslicer->image()->renderScaleX()
-                                        : m_nslicer->image()->renderScaleY());
+        std::abs(forAxis == AxisType::X ? host->meshHostScaleX()
+                                        : host->meshHostScaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
@@ -170,13 +172,15 @@ std::vector<float> SliceMesh::vertexStops(
     const std::vector<float>& normalizedStops,
     AxisType forAxis)
 {
-    Image* image = m_nslicer->image();
-    float imageSize = forAxis == AxisType::X ? image->width() : image->height();
+    MeshHost* host = m_nslicer->host();
+    float imageSize =
+        forAxis == AxisType::X ? host->meshHostWidth() : host->meshHostHeight();
 
     // When doing calculations, we assume scale is always non-negative to keep
     // everything in image space.
-    float imageScale = std::abs(forAxis == AxisType::X ? image->renderScaleX()
-                                                       : image->renderScaleY());
+    float imageScale =
+        std::abs(forAxis == AxisType::X ? host->meshHostScaleX()
+                                        : host->meshHostScaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
@@ -234,17 +238,17 @@ uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
     const float endV = box[2].uv.y;
 
     // The size of each repeated tile in image space
-    Image* image = m_nslicer->image();
-    float scaleX = std::abs(image->renderScaleX());
-    float scaleY = std::abs(image->renderScaleY());
+    MeshHost* host = m_nslicer->host();
+    float scaleX = std::abs(host->meshHostScaleX());
+    float scaleY = std::abs(host->meshHostScaleY());
 
     if (scaleX == 0 || scaleY == 0)
     {
         return 0;
     }
 
-    const float sizeX = image->width() * (endU - startU) / scaleX;
-    const float sizeY = image->height() * (endV - startV) / scaleY;
+    const float sizeX = host->meshHostWidth() * (endU - startU) / scaleX;
+    const float sizeY = host->meshHostHeight() * (endV - startV) / scaleY;
 
     if (std::abs(sizeX) < 1 || std::abs(sizeY) < 1)
     {
@@ -390,9 +394,8 @@ void SliceMesh::calc()
 
 void SliceMesh::update()
 {
-    // Make sure the image is loaded
-    if (m_nslicer == nullptr || m_nslicer->image() == nullptr ||
-        m_nslicer->image()->imageAsset() == nullptr)
+    MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
+    if (host == nullptr || !host->meshHostReady())
     {
         return;
     }

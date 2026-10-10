@@ -8,6 +8,7 @@
 
 #include <rive/animation/state_machine_instance.hpp>
 #include <rive/artboard.hpp>
+#include <rive/artboard_component_list.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/semantic/semantic_manager.hpp>
 #include <rive/semantic/semantic_node.hpp>
@@ -615,4 +616,39 @@ TEST_CASE("Swapping a data-bound nested artboard rehomes its semantic subtree",
     swap("Swappable1");
     swap("Swappable2");
     CHECK(mgr->nodeCount() == nodesAfterFirstSwap);
+}
+
+TEST_CASE("A hosted artboard's own rotation updates semantic bounds",
+          "[semantics][artboard]")
+{
+    // The self transform cascades no dirt, so the semantic boundary has to be
+    // marked for list-item bounds to follow it.
+    auto f = loadFixture("assets/semantic/data_binding_lists.riv");
+    REQUIRE(f.sm != nullptr);
+    auto* mgr = f.sm->semanticManager();
+    REQUIRE(mgr != nullptr);
+    mgr->drainDiff();
+
+    std::vector<ArtboardInstance*> hosted;
+    for (Core* o : f.artboard->objects())
+    {
+        if (o != nullptr && o->is<ArtboardComponentList>())
+        {
+            auto* list = o->as<ArtboardComponentList>();
+            for (size_t i = 0; i < list->artboardCount(); i++)
+            {
+                if (auto* ab = list->artboardInstance(static_cast<int>(i)))
+                {
+                    hosted.push_back(ab);
+                }
+            }
+        }
+    }
+    REQUIRE(!hosted.empty());
+    for (auto* ab : hosted)
+    {
+        ab->rotation(0.7f);
+    }
+    advance(f.sm.get(), 3);
+    CHECK(!mgr->drainDiff().updatedGeometry.empty());
 }

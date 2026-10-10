@@ -5,6 +5,7 @@
 #include "rive/generated/shapes/image_base.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+#include "rive/shapes/mesh_host.hpp"
 
 namespace rive
 {
@@ -28,7 +29,7 @@ class MeshDrawable;
 #ifdef TESTING
 class Mesh;
 #endif
-class Image : public ImageBase, public FileAssetReferencer
+class Image : public ImageBase, public FileAssetReferencer, public MeshHost
 {
 private:
     MeshDrawable* m_Mesh = nullptr;
@@ -52,17 +53,26 @@ private:
     void updateImageScale();
 
 public:
-    void setMesh(MeshDrawable* mesh);
+    void setMesh(MeshDrawable* mesh) override;
+    MeshDrawable* hostedMesh() const override { return m_Mesh; }
+    float meshHostWidth() const override { return width(); }
+    float meshHostHeight() const override { return height(); }
+    Vec2D meshHostOrigin() const override
+    {
+        return Vec2D(originX(), originY());
+    }
+    float meshHostScaleX() const override { return renderScaleX(); }
+    float meshHostScaleY() const override { return renderScaleY(); }
+    Mat2D meshHostWorldTransform() const override { return worldTransform(); }
+    bool meshHostReady() const override { return imageAsset() != nullptr; }
+    Mat2D meshHostUVTransform() const override;
 #ifdef WITH_RIVE_EDITOR
     /// Mesh / NSlicer call this from `editorParentChanged(_, this)`
     /// to register on transition to. Both share `m_Mesh` — the
     /// runtime invariant is one Mesh OR one NSlicer per Image, so
     /// the second one overrides.
-    void setMeshForEditor(MeshDrawable* mesh) { m_Mesh = mesh; }
-    /// Clear `m_Mesh` only if it currently points at `expected`.
-    /// Called from `editorParentChanged(this, _)` to safely detach
-    /// without clobbering a sibling's setter that ran more recently.
-    void clearMeshIfForEditor(MeshDrawable* expected)
+    void setMeshForEditor(MeshDrawable* mesh) override { m_Mesh = mesh; }
+    void clearMeshIfForEditor(MeshDrawable* expected) override
     {
         if (m_Mesh == expected)
         {

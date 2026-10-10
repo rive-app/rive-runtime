@@ -1,4 +1,5 @@
 #include "rive/nested_artboard.hpp"
+#include "rive/nested_artboard_mesh_host.hpp"
 #include "rive/component_origin.hpp"
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
@@ -131,6 +132,10 @@ void NestedArtboard::nest(Artboard* artboard)
     m_referencedArtboard->hostOpacity(renderOpacity());
     m_referencedArtboard->volume(artboard->volume());
     m_Instance = nullptr;
+    if (m_meshHost != nullptr)
+    {
+        m_meshHost->resetRaster();
+    }
     if (artboard->isInstance())
     {
         m_Instance.reset(
@@ -286,6 +291,10 @@ void NestedArtboard::updateArtboard(
         m_referencedArtboard = nullptr;
         m_Instance = nullptr;
         m_mountedBindable = nullptr;
+        if (m_meshHost != nullptr)
+        {
+            m_meshHost->resetRaster();
+        }
         setActiveViewModelInstance(nullptr, false);
         return;
     }
@@ -544,14 +553,43 @@ static Mat2D makeTranslate(const Artboard* artboard)
                                 -artboard->originY() * artboard->height());
 }
 
+NestedArtboardMeshHost* NestedArtboard::meshHost()
+{
+    if (m_meshHost == nullptr)
+    {
+        m_meshHost = std::make_unique<NestedArtboardMeshHost>(this);
+    }
+    return m_meshHost.get();
+}
+
+MeshDrawable* NestedArtboard::hostedMesh() const
+{
+    return m_meshHost != nullptr ? m_meshHost->hostedMesh() : nullptr;
+}
+
 void NestedArtboard::draw(Renderer* renderer)
 {
+    bool bypassCache = false;
+#ifdef RIVE_CANVAS
+    // A visitor needs drawables to visit, so it gets the undeformed vectors,
+    // as with Bitmap Cache.
+    if (hostedMesh() != nullptr && !artboard()->hasDrawVisitor())
+    {
+        // Any composite would drop the clip, the source's own cache included:
+        // draw clipped vectors.
+        bypassCache = m_meshHost->compositeDropsClip();
+        if (!bypassCache && m_meshHost->draw(renderer))
+        {
+            return;
+        }
+    }
+#endif
     if (needsSaveOperation())
     {
         renderer->save();
     }
     renderer->transform(worldTransform());
-    artboard()->drawHosted(m_referencedArtboard, renderer);
+    artboard()->drawHosted(m_referencedArtboard, renderer, bypassCache);
     if (needsSaveOperation())
     {
         renderer->restore();
@@ -1134,6 +1172,11 @@ void NestedArtboard::referencedArtboard(Artboard* artboard)
 
 BoundsFidelity NestedArtboard::paintedWorldBounds(AABB* out)
 {
+    if (hostedMesh() != nullptr)
+    {
+        // The mesh moves pixels anywhere; the box doesn't bound them.
+        return BoundsFidelity::none;
+    }
     ArtboardInstance* nested = artboardInstance();
     if (nested == nullptr)
     {

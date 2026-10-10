@@ -1565,6 +1565,7 @@ void Artboard::onComponentDirty(Component* component)
 #endif
     wakeIfQuietRow();
     m_didChange = true;
+    ++m_contentRevision;
     m_Dirt |= ComponentDirt::Components;
 
     /// If the order of the component is less than the current dirt
@@ -1575,6 +1576,31 @@ void Artboard::onComponentDirty(Component* component)
         m_DirtDepth = component->graphOrder();
     }
 }
+
+// Not in the dependency graph: draw and hit test read selfTransform(). Redraw
+// without content dirt (a cascade hides children's same-frame dirt behind
+// addDirt's dedupe); semantics re-read their bounds through the boundary.
+void Artboard::selfTransformChanged()
+{
+    // Hosts cache mesh bounds and visibility from the pose. Only an update
+    // pass clears the flag, and none follows without dirt: re-arm it, or the
+    // host hears only the first change.
+    m_hostTransformMarkedDirty = false;
+    markHostTransformDirty();
+    markSemanticBoundaryTransformDirty();
+    if (!m_didChange)
+    {
+        m_didChange = true;
+        if (parentArtboard())
+        {
+            parentArtboard()->changed();
+        }
+    }
+}
+
+void Artboard::rotationChanged() { selfTransformChanged(); }
+void Artboard::scaleXChanged() { selfTransformChanged(); }
+void Artboard::scaleYChanged() { selfTransformChanged(); }
 
 void Artboard::onDirty(ComponentDirt dirt)
 {
@@ -2442,7 +2468,9 @@ const File* Artboard::drawVisitorFile() const
                                         : artboardFile().get();
 }
 
-void Artboard::drawHosted(Artboard* hosted, Renderer* renderer)
+void Artboard::drawHosted(Artboard* hosted,
+                          Renderer* renderer,
+                          bool bypassCache)
 {
     DrawVisitor visitor = m_drawVisitor;
     if (visitor != nullptr)
@@ -2456,6 +2484,11 @@ void Artboard::drawHosted(Artboard* hosted, Renderer* renderer)
             visitor = nullptr;
         }
         hosted->m_drawVisitorFile = file;
+    }
+    if (bypassCache)
+    {
+        hosted->drawContent(renderer, visitor, m_drawVisitorContext);
+        return;
     }
     hosted->drawInternal(renderer, visitor, m_drawVisitorContext);
 }
@@ -2505,7 +2538,7 @@ void Artboard::drawContent(Renderer* renderer,
     } visitorScope{this, m_drawVisitor, m_drawVisitorContext};
     m_drawVisitor = visitor;
     m_drawVisitorContext = visitorContext;
-    bool hasSelf = hasSelfTransform();
+    bool hasSelf = hasSelfTransform() && !m_skipSelfTransform;
     bool save = clip() || m_FrameOrigin || hasSelf;
     if (save)
     {
@@ -2557,6 +2590,29 @@ void Artboard::drawContent(Renderer* renderer,
     {
         renderer->restore();
     }
+}
+
+Mat2D Artboard::compositeSelfTransform() const
+{
+    // The self transform pivots on the frame origin, which a raster drawn
+    // without it has inside, so conjugate by it.
+    if (!m_FrameOrigin)
+    {
+        return selfTransform();
+    }
+    const Mat2D toOrigin = Mat2D::fromTranslate(layoutWidth() * originX(),
+                                                layoutHeight() * originY());
+    const Mat2D fromOrigin = Mat2D::fromTranslate(-layoutWidth() * originX(),
+                                                  -layoutHeight() * originY());
+    return toOrigin * selfTransform() * fromOrigin;
+}
+
+void Artboard::drawContentUntransformed(Renderer* renderer)
+{
+    const bool previous = m_skipSelfTransform;
+    m_skipSelfTransform = true;
+    drawContent(renderer);
+    m_skipSelfTransform = previous;
 }
 
 void Artboard::drawDrawableRange(Renderer* renderer,
@@ -3202,114 +3258,59 @@ bool Artboard::drawCachedAsBitmap(Renderer* renderer)
         return false;
     }
 
-    if (childOpacity() == 0.0f)
+    if (consumeInvisibleChange())
     {
-        // Fully transparent: nothing to draw, and no need to (re)rasterize.
-        // The pending change still has to be consumed the way drawContent()
-        // would have on the vector path -- a host that gates frame submission
-        // on didChange() (Unity does) otherwise resubmits this invisible
-        // artboard every frame, forever. Fold it into the cache rather than
-        // dropping it, so content that moved while it was transparent still
-        // re-rasterizes when it becomes visible again instead of compositing
-        // the raster it had before.
-        cache.m_dirty = cache.m_dirty || didChange();
-        m_didChange = false;
         return true;
     }
 
-    Factory* f = factory();
-    // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
-    // rasterize into, and an immediate renderer can provide that without
-    // claiming its content is being recorded. The host also allocates the
-    // canvas, so nothing here has to go looking for a device.
-    auto* deferredHost = f ? f->canvasContentHost() : nullptr;
-    // No host means nobody can give us an offscreen frame (a plain non-GPU or
-    // test factory), so fall back to a normal vector draw.
-    if (deferredHost == nullptr)
+    // The raster is untransformed; the self transform applies at composite, so
+    // rotated or scaled art keeps its footprint. Set before planning: the pixel
+    // snap reads the CTM.
+    const bool hasSelf = hasSelfTransform();
+    if (hasSelf)
     {
-        return false;
+        renderer->save();
+        renderer->transform(compositeSelfTransform());
     }
-
-    // The artboard's own box, which is not [0,0,width,height] in general: with
-    // frameOrigin off, bounds() is offset by the origin -- and NestedArtboard
-    // turns frameOrigin off on everything it hosts, which is the only way to
-    // reach this path. Rasterizing [0,0,w,h] there would capture the wrong
-    // region and composite it in the wrong place. bounds() also tracks the
-    // resolved layout size rather than the authored width/height.
-    const AABB box = bounds();
-    const float w = box.width();
-    const float h = box.height();
-    if (w <= 0.0f || h <= 0.0f)
+    struct SelfScope
     {
-        return false;
-    }
+        Renderer* renderer;
+        bool active;
+        ~SelfScope()
+        {
+            if (active)
+            {
+                renderer->restore();
+            }
+        }
+    } selfScope{renderer, hasSelf};
 
-    // drawContent applies the artboard's own rotation/scale, so a self
-    // transform ends up baked into the raster -- while the target and the
-    // composite below are both sized and placed from the untransformed box.
-    // A scaled artboard would be cropped to its original extent, and a rotated
-    // one flattened into an axis-aligned texture whose footprint no longer
-    // matches what the vector path draws. Caching that correctly needs the
-    // target sized from the transformed bounds and the composite placed by the
-    // same transform; until then these artboards draw as vectors.
-    if (hasSelfTransform())
-    {
-        return false;
-    }
-
-    // Chooses the raster size from the scale the artboard is actually viewed
-    // at, and captures the CTM and modulated opacity the composite below needs.
-    // See offscreen_raster.hpp for why each of those has to be read here,
-    // while recording, rather than at replay.
     offscreen::RasterPlan plan;
-    if (!offscreen::planRaster(renderer, box, cache.resolution(), &plan))
-    {
-        return false;
-    }
-
-    // Rebuild when there is no cache, it was explicitly invalidated (resolution
-    // changed), the target size or raster scale changed (artboard resized, or
-    // the artboard is being viewed at a different zoom), or the content changed
-    // this frame.
-    bool geomChanged = plan.widthPx != cache.m_widthPx ||
-                       plan.heightPx != cache.m_heightPx ||
-                       plan.rasterScale != cache.m_rasterScale;
-    if (cache.m_canvas == nullptr || cache.m_dirty || geomChanged ||
-        didChange())
-    {
-        renderIntoCanvas(deferredHost, plan);
-    }
-    if (cache.m_canvas == nullptr)
-    {
-        return false; // allocation failed; fall back to vector draw.
-    }
-
-    // Composite the cached texture in place of the vector content. The
-    // renderer's CTM already includes the mount transform; drawImage() spans
-    // (widthPx, heightPx), so undoing the raster's fit -- scale back to the
-    // box, then move it to the box's corner -- maps a local point (lx,ly) to
-    // CTM * (lx,ly), pixel-exact with the vector path.
-    // The artboard's own opacity is already baked into the raster (host/render
-    // opacity propagate to children and invalidate the cache via didChange()),
-    // so the only opacity left to apply is an enclosing modulateOpacity()
-    // scope -- and only on the fresh-renderer path, which does not inherit it.
-    // Not necessarily the canvas's own image: some backends cannot sample
-    // their canvas textures directly and stand in a companion for it.
-    rcp<RenderImage> image =
-        deferredHost->contentCanvasImage(cache.m_canvas.get());
+    cmd::DeferredCanvasHost* host = nullptr;
+    rcp<RenderImage> image = rasterImage(renderer,
+                                         cache.m_raster,
+                                         cache.resolution(),
+                                         /*fixedSize=*/false,
+                                         &plan,
+                                         &host);
     if (image == nullptr)
     {
         return false;
     }
-    // Picks the renderer to composite through, saves, pixel snaps, and maps the
-    // raster's pixel span back onto the box. m_rasterScale, not
-    // plan.rasterScale: the raster being composited may have been built on an
-    // earlier frame, and the mapping has to invert the scale it was actually
-    // drawn at.
+
+    // Composite the cached texture in place of the vector content. The
+    // artboard's own opacity is already baked into the raster (host/render
+    // opacity propagate to children and invalidate the cache via
+    // onComponentDirty), so the only opacity left to apply is an enclosing
+    // modulateOpacity() scope -- and only on the fresh-renderer path, which
+    // does not inherit it. m_raster's scale, not plan.rasterScale: the raster
+    // being composited may have been built on an earlier frame, and the mapping
+    // has to invert the scale it was actually drawn at.
     auto placement = offscreen::beginComposite(renderer,
-                                               deferredHost,
+                                               host,
                                                plan,
-                                               cache.m_rasterScale);
+                                               cache.m_raster.rasterScale,
+                                               cache.m_raster.box);
     placement.renderer->drawImage(image.get(),
                                   ImageSampler::LinearClamp(),
                                   BlendMode::srcOver,
@@ -3318,23 +3319,95 @@ bool Artboard::drawCachedAsBitmap(Renderer* renderer)
     return true;
 }
 
-void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
-                                const offscreen::RasterPlan& plan)
+bool Artboard::consumeInvisibleChange()
 {
-    BitmapCache& cache = *m_BitmapCache;
+    if (childOpacity() != 0.0f)
+    {
+        return false;
+    }
+    // Fully transparent: consume the change as drawContent() would, or a host
+    // gating on didChange() (Unity) resubmits forever. Fold it into the raster
+    // so moved content re-rasterizes once visible.
+    m_didChange = false;
+    return true;
+}
+
+rcp<RenderImage> Artboard::rasterImage(Renderer* renderer,
+                                       offscreen::CachedRaster& raster,
+                                       float resolution,
+                                       bool fixedSize,
+                                       offscreen::RasterPlan* planOut,
+                                       cmd::DeferredCanvasHost** hostOut)
+{
+    Factory* f = factory();
+    // canvasContentHost, not deferredCanvasHost: this only needs somewhere to
+    // rasterize into, and an immediate renderer can provide that without
+    // claiming its content is being recorded. No host means nobody can give
+    // us an offscreen frame (a plain non-GPU or test factory).
+    auto* host = f ? f->canvasContentHost() : nullptr;
+    if (host == nullptr)
+    {
+        return nullptr;
+    }
+
+    // The artboard's own box, which is not [0,0,width,height] in general: with
+    // frameOrigin off, bounds() is offset by the origin -- and every host turns
+    // frameOrigin off on the artboards it nests. bounds() also tracks the
+    // resolved layout size rather than the authored width/height.
+    offscreen::RasterPlan plan;
+    const bool planned =
+        fixedSize
+            ? offscreen::planFixedRaster(renderer, bounds(), resolution, &plan)
+            : offscreen::planRaster(renderer, bounds(), resolution, &plan);
+    if (!planned)
+    {
+        return nullptr;
+    }
+
+    const bool geomChanged = plan.widthPx != raster.widthPx ||
+                             plan.heightPx != raster.heightPx ||
+                             plan.rasterScale != raster.rasterScale;
+    // Consumes a self-transform-only change. Cleared before the draw so a
+    // change raised while drawing stays pending.
+    m_didChange = false;
+    if (raster.canvas == nullptr || raster.dirty || geomChanged ||
+        raster.contentRevision != m_contentRevision)
+    {
+        renderIntoCanvas(host, plan, raster);
+    }
+    if (raster.canvas == nullptr)
+    {
+        return nullptr; // allocation failed
+    }
+    // Not necessarily the canvas's own image: some backends cannot sample
+    // their canvas textures directly and stand in a companion for it.
+    rcp<RenderImage> image = host->contentCanvasImage(raster.canvas.get());
+    if (image == nullptr)
+    {
+        return nullptr;
+    }
+    *planOut = plan;
+    *hostOut = host;
+    return image;
+}
+
+void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
+                                const offscreen::RasterPlan& plan,
+                                offscreen::CachedRaster& raster)
+{
     // Reuse the texture whenever it is already the right size. This runs on
     // every frame the artboard changes, and on an immediate host each of these
     // is a real GPU allocation -- re-minting one per frame both defeats the
     // point of a cache and thrashes the driver.
-    if (cache.m_canvas == nullptr || cache.m_widthPx != plan.widthPx ||
-        cache.m_heightPx != plan.heightPx)
+    if (raster.canvas == nullptr || raster.widthPx != plan.widthPx ||
+        raster.heightPx != plan.heightPx)
     {
         // The host decides whether this needs real pixels now or can defer
         // them to whoever replays.
-        cache.m_canvas =
+        raster.canvas =
             deferredHost->makeContentCanvas(plan.widthPx, plan.heightPx);
     }
-    if (cache.m_canvas == nullptr)
+    if (raster.canvas == nullptr)
     {
         return;
     }
@@ -3343,15 +3416,17 @@ void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
     // drawContent (not drawInternal) so we never re-enter the cache hook.
     // clearColor is transparent black.
     bool opened = false;
+    uint64_t revision = 0;
     {
         offscreen::CanvasContentScope scope(deferredHost,
-                                            cache.m_canvas.get(),
+                                            raster.canvas.get(),
                                             plan,
                                             0);
         if (Renderer* r = scope.renderer())
         {
             opened = true;
-            drawContent(r);
+            revision = m_contentRevision;
+            drawContentUntransformed(r);
         }
     }
     if (!opened)
@@ -3360,19 +3435,18 @@ void Artboard::renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
         // host that cannot nest one). Nothing was drawn, so the canvas holds
         // whatever it held before -- uninitialized on the first attempt. Drop
         // it rather than end a bracket that never began: the caller's null
-        // check then takes the vector path, and leaving the cache dirty means
+        // check then takes the vector path, and leaving the raster dirty means
         // a later frame retries instead of compositing this hole forever.
-        cache.m_canvas.reset();
-        cache.m_widthPx = 0;
-        cache.m_heightPx = 0;
-        cache.m_dirty = true;
+        raster.release();
         return;
     }
 
-    cache.m_widthPx = plan.widthPx;
-    cache.m_heightPx = plan.heightPx;
-    cache.m_rasterScale = plan.rasterScale;
-    cache.m_dirty = false;
+    raster.widthPx = plan.widthPx;
+    raster.heightPx = plan.heightPx;
+    raster.rasterScale = plan.rasterScale;
+    raster.box = plan.box;
+    raster.contentRevision = revision;
+    raster.dirty = false;
 }
 #endif
 
@@ -4552,6 +4626,7 @@ bool Artboard::isAncestor(const Artboard* artboard)
 
 void Artboard::changed()
 {
+    ++m_contentRevision;
     if (!m_didChange)
     {
         m_didChange = true;

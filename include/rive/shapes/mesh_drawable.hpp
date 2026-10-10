@@ -2,6 +2,7 @@
 #define _RIVE_MESH_DRAWABLE_HPP_
 #include "rive/refcnt.hpp"
 #include "rive/renderer.hpp"
+#include "rive/math/mat2d.hpp"
 #include <vector>
 
 namespace rive
@@ -25,6 +26,9 @@ public:
     virtual MeshType type() { return MeshType::vertex; }
     virtual ~MeshDrawable() = default;
     virtual void onAssetLoaded(RenderImage* image) = 0;
+    // For textures made at draw time (an artboard bitmap). Rebuilds UVs and
+    // indices against `uvTransform`.
+    virtual void uvTransformChanged(const Mat2D& uvTransform) = 0;
     virtual void draw(Renderer* renderer,
                       const RenderImage* image,
                       ImageSampler,

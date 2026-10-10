@@ -7,6 +7,7 @@
 #include "rive/renderer/render_canvas.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 
@@ -14,6 +15,18 @@ namespace rive
 {
 namespace offscreen
 {
+
+namespace
+{
+// NaN passes through (std::max/min return their first argument when the
+// comparison fails), which the callers' finiteness checks then reject.
+float clampResolution(float resolution)
+{
+    constexpr float kMinRes = 0.01f;
+    constexpr float kMaxRes = 8.0f;
+    return std::min<float>(std::max<float>(resolution, kMinRes), kMaxRes);
+}
+} // namespace
 
 bool planRasterScale(Renderer* renderer, float resolution, RasterPlan* out)
 {
@@ -43,15 +56,15 @@ bool planRasterScale(Renderer* renderer, float resolution, RasterPlan* out)
             // as fine as the screen, and the scales a user actually rests at
             // (1, 1.5, 2, 3, 4) are already multiples of 1/16, so the cases
             // that matter stay pixel exact rather than merely close.
+            // The slack absorbs float noise at a boundary (a rotated 1.5 reads
+            // as 1.50000012), which would otherwise flip buckets per frame.
             constexpr float kScaleQuantum = 16.0f;
-            deviceScale = std::ceil(s * kScaleQuantum) / kScaleQuantum;
+            constexpr float kSlack = 1.0f / 1024.0f;
+            deviceScale = std::ceil(s * kScaleQuantum - kSlack) / kScaleQuantum;
         }
     }
 
-    constexpr float kMinRes = 0.01f;
-    constexpr float kMaxRes = 8.0f;
-    const float res =
-        std::min<float>(std::max<float>(resolution, kMinRes), kMaxRes);
+    const float res = clampResolution(resolution);
 
     // Texels per local unit. resolution 1 means one texel per screen pixel, so
     // the composite is a 1:1 blit; 2 is a genuine 2x supersample of what the
@@ -253,6 +266,57 @@ bool planRaster(Renderer* renderer,
     return true;
 }
 
+namespace
+{
+std::atomic<float> s_displayScale{1.0f};
+} // namespace
+
+void setDisplayScale(float scale)
+{
+    if (!std::isfinite(scale) || scale <= 0.0f)
+    {
+        return;
+    }
+    s_displayScale.store(std::min(std::max(scale, 1.0f), 4.0f),
+                         std::memory_order_relaxed);
+}
+
+float displayScale() { return s_displayScale.load(std::memory_order_relaxed); }
+
+bool planFixedRasterSize(const AABB& box, float resolution, RasterPlan* out)
+{
+    RasterPlan plan;
+    const float res = clampResolution(resolution) * displayScale();
+    if (!(res > 0.0f) || !std::isfinite(res))
+    {
+        return false;
+    }
+    plan.rasterScale = res;
+    if (!fitRasterToBox(box, 0, RasterFit::exact, &plan))
+    {
+        return false;
+    }
+    *out = plan;
+    return true;
+}
+
+bool planFixedRaster(Renderer* renderer,
+                     const AABB& box,
+                     float resolution,
+                     RasterPlan* out)
+{
+    RasterPlan plan;
+    if (!planFixedRasterSize(box, resolution, &plan))
+    {
+        return false;
+    }
+    plan.haveCtm = renderer->currentTransform(&plan.ctm);
+    plan.haveOpacity =
+        renderer->currentModulatedOpacity(&plan.modulatedOpacity);
+    *out = plan;
+    return true;
+}
+
 CanvasContentScope::CanvasContentScope(cmd::DeferredCanvasHost* host,
                                        gpu::RenderCanvas* canvas,
                                        const RasterPlan& plan,
@@ -364,6 +428,44 @@ CompositePlacement beginComposite(Renderer* renderer,
 void endComposite(const CompositePlacement& placement)
 {
     placement.renderer->restore();
+}
+
+CompositePlacement beginPlacement(Renderer* renderer,
+                                  cmd::DeferredCanvasHost* host,
+                                  const RasterPlan& plan)
+{
+    // Same renderer choice as beginComposite.
+    Renderer* target = renderer;
+    float opacity = 1.0f;
+    if (host != nullptr)
+    {
+        if (Renderer* fresh = host->compositeRenderer())
+        {
+            if (plan.haveCtm && plan.haveOpacity)
+            {
+                target = fresh;
+                opacity = plan.modulatedOpacity;
+            }
+        }
+    }
+    target->save();
+    if (target != renderer)
+    {
+        target->transform(plan.ctm);
+    }
+    return {target, opacity};
+}
+
+CachedRaster::CachedRaster() = default;
+CachedRaster::~CachedRaster() = default;
+
+void CachedRaster::release()
+{
+    canvas.reset();
+    widthPx = 0;
+    heightPx = 0;
+    contentRevision = 0;
+    dirty = true;
 }
 
 } // namespace offscreen

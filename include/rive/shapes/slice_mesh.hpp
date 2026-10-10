@@ -62,6 +62,7 @@ public:
               float opacity,
               float additiveness) override;
     void onAssetLoaded(RenderImage* renderImage) override;
+    void uvTransformChanged(const Mat2D& uvTransform) override;
 
     void update(); // not Component::update() as SliceMesh is not in core.
 };

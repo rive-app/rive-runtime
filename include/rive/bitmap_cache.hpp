@@ -2,7 +2,7 @@
 #define _RIVE_BITMAP_CACHE_HPP_
 #include "rive/generated/bitmap_cache_base.hpp"
 #ifdef RIVE_CANVAS
-#include "rive/refcnt.hpp"
+#include "rive/offscreen_raster.hpp"
 #endif
 #include <cstdint>
 
@@ -40,14 +40,7 @@ public:
 
 #ifdef RIVE_CANVAS
 private:
-    rcp<gpu::RenderCanvas> m_canvas;
-    uint32_t m_widthPx = 0;
-    uint32_t m_heightPx = 0;
-    // Texels per artboard unit baked into m_canvas. The composite inverts this
-    // to place the raster, so it has to be the scale that was actually drawn
-    // with, not one re-derived from the rounded pixel dimensions.
-    float m_rasterScale = 1.0f;
-    bool m_dirty = true;
+    offscreen::CachedRaster m_raster;
 #endif
 
 protected:

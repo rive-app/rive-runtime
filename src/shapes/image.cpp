@@ -168,6 +168,14 @@ Core* Image::clone() const
     return twin;
 }
 
+Mat2D Image::meshHostUVTransform() const
+{
+    ImageAsset* asset = imageAsset();
+    RenderImage* renderImage =
+        asset != nullptr ? asset->renderImage() : nullptr;
+    return renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
+}
+
 void Image::setMesh(MeshDrawable* mesh)
 {
     if (m_Mesh == mesh)

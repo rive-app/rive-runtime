@@ -1,5 +1,5 @@
 #include "rive/shapes/mesh.hpp"
-#include "rive/shapes/image.hpp"
+#include "rive/shapes/mesh_host.hpp"
 #include "rive/shapes/vertex.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
 #include "rive/bones/skin.hpp"
@@ -32,14 +32,15 @@ StatusCode Mesh::onAddedDirty(CoreContext* context)
         return result;
     }
 
-    if (!parent()->is<Image>())
+    MeshHost* host = MeshHost::from(parent());
+    if (host == nullptr)
     {
         return StatusCode::MissingObject;
     }
 
 #ifndef WITH_RIVE_EDITOR
     // Runtime-only; editor build registers via editorParentChanged.
-    parent()->as<Image>()->setMesh(this);
+    host->setMesh(this);
 #endif
 
     return StatusCode::Ok;
@@ -104,16 +105,25 @@ Core* Mesh::clone() const
 
 void Mesh::onAssetLoaded(RenderImage* renderImage)
 {
-    Mat2D uvTransform =
-        renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
-
     auto factory = artboard()->factory();
     m_VertexRenderBufferDirty = true;
     m_VertexRenderBuffer =
         factory->makeRenderBuffer(RenderBufferType::vertex,
                                   RenderBufferFlags::none,
                                   m_Vertices.size() * sizeof(Vec2D));
+    buildUVAndIndexBuffers(renderImage != nullptr ? renderImage->uvTransform()
+                                                  : Mat2D());
+}
 
+void Mesh::uvTransformChanged(const Mat2D& uvTransform)
+{
+    // New buffers: clone() shares UVs and indices with other instances.
+    buildUVAndIndexBuffers(uvTransform);
+}
+
+void Mesh::buildUVAndIndexBuffers(const Mat2D& uvTransform)
+{
+    auto factory = artboard()->factory();
     m_UVRenderBuffer =
         factory->makeRenderBuffer(RenderBufferType::vertex,
                                   RenderBufferFlags::mappedOnceAtInitialization,
@@ -209,8 +219,11 @@ void Mesh::draw(Renderer* renderer,
 
     if (skin() == nullptr)
     {
+        MeshHost* host = MeshHost::from(parent());
         renderer->transform(
-            parent()->as<WorldTransformComponent>()->worldTransform());
+            host != nullptr
+                ? host->meshHostWorldTransform()
+                : parent()->as<WorldTransformComponent>()->worldTransform());
     }
     renderer->drawImageMesh(image,
                             ImageSampler,

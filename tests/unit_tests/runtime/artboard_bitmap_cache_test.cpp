@@ -26,6 +26,7 @@
 #include "rive/artboard.hpp"
 #include "rive/bitmap_cache.hpp"
 #include "rive/node.hpp"
+#include "rive/offscreen_raster.hpp"
 #include "rive/file.hpp"
 #include "rive/generated/core_registry.hpp"
 #include "rive/renderer/cmd/deferred_replayer.hpp"
@@ -569,61 +570,76 @@ TEST_CASE("cacheEnabled off falls back to a vector draw", "[bitmap-cache]")
            h.lastRaster().height);
 }
 
-TEST_CASE("a rotated or scaled artboard falls back to a vector draw",
+TEST_CASE("a rotated or scaled artboard stays cached under its transform",
           "[bitmap-cache]")
 {
     Harness h;
     h.setResolution(1.0f);
-    // Baseline: an identity self transform caches as usual.
+    // Hosted artboards, the only ones that reach the cache in production,
+    // always have frameOrigin off.
+    h.artboard->frameOrigin(false);
     REQUIRE(h.frame(0.0f).canvasOpens() == 1);
-    REQUIRE(h.rasterCount() == 1);
+    const auto identityRaster = h.lastRaster();
 
-    // drawContent applies the artboard's own rotation/scale, so a self
-    // transform is baked into the raster -- while the target and the composite
-    // are both sized and placed from the untransformed bounds. A scaled
-    // artboard would be cropped to its original extent and a rotated one
-    // flattened into an axis-aligned box whose footprint no longer matches the
-    // vector draw, so these take the vector path instead.
+    // The self transform goes on the composite. The raster follows the
+    // on-screen scale, so scaleX 2 doubles it rather than magnifying.
     h.artboard->rotation(0.4f);
-    REQUIRE(h.artboard->hasSelfTransform());
-    Census rotated = h.frame(0.0f);
-    CHECK(h.rasterCount() == 1); // no new raster
-    CHECK(rotated.canvasOpens() == 0);
-    CHECK(rotated.drawImages() == 0);
-    CHECK(rotated.drawPaths() > 0);
-
-    // Scale on its own is enough; rotation is not the only way in.
-    h.artboard->rotation(0.0f);
     h.artboard->scaleX(2.0f);
     REQUIRE(h.artboard->hasSelfTransform());
-    Census scaled = h.frame(0.0f);
-    CHECK(h.rasterCount() == 1);
-    CHECK(scaled.canvasOpens() == 0);
-    CHECK(scaled.drawImages() == 0);
-    CHECK(scaled.drawPaths() > 0);
+    Census transformed = h.frame(0.0f);
+    CHECK(transformed.canvasOpens() == 1);
+    CHECK(transformed.drawImages() == 1);
+    const auto transformedRaster = h.lastRaster();
+    CHECK(transformedRaster.width == 2 * identityRaster.width);
 
-    // And the same artboard drawn uncached records the same vector content, so
-    // the fallback really is "as though it had no BitmapCache".
-    Harness uncached(/*cached=*/false);
-    uncached.artboard->scaleX(2.0f);
-    CHECK(scaled.drawPaths() == uncached.frame(0.0f).drawPaths());
+    Mat2D ctm;
+    REQUIRE(compositeTransform(h.lastFrame, &ctm));
+    const Mat2D self = h.artboard->compositeSelfTransform();
+    REQUIRE(self == h.artboard->selfTransform());
+    const AABB box = h.artboard->bounds();
+    const Vec2D gotOrigin = ctm * Vec2D(0, 0);
+    const Vec2D wantOrigin = self * Vec2D(box.left(), box.top());
+    CHECK(gotOrigin.x == Approx(wantOrigin.x).margin(0.01));
+    CHECK(gotOrigin.y == Approx(wantOrigin.y).margin(0.01));
+    const Vec2D gotCorner =
+        ctm * Vec2D(static_cast<float>(transformedRaster.width),
+                    static_cast<float>(transformedRaster.height));
+    const Vec2D wantCorner = self * Vec2D(box.right(), box.bottom());
+    CHECK(gotCorner.x == Approx(wantCorner.x).margin(1.0));
+    CHECK(gotCorner.y == Approx(wantCorner.y).margin(1.0));
 
-    // Back at identity the cache engages again. It rasterizes rather than
-    // reusing the texture from the first frame: changing the transform marks
-    // the artboard changed, and didChange() is the invalidation hook.
-    h.artboard->scaleX(1.0f);
-    REQUIRE(!h.artboard->hasSelfTransform());
-    Census identity = h.frame(0.0f);
-    CHECK(h.rasterCount() == 2);
-    CHECK(identity.canvasOpens() == 1);
-    CHECK(identity.drawImages() >= 1);
-
-    // ...and once it settles, back to one composite and no vector content.
+    // Once settled it composites without re-rasterizing.
+    const size_t rasters = h.rasterCount();
     Census settled = h.frame(0.0f);
-    CHECK(h.rasterCount() == 2);
+    CHECK(h.rasterCount() == rasters);
     CHECK(settled.canvasOpens() == 0);
     CHECK(settled.drawPaths() == 0);
     CHECK(settled.drawOps() == 1);
+}
+
+TEST_CASE("a transformed artboard with frameOrigin on pivots on its origin",
+          "[bitmap-cache]")
+{
+    // The top-left texel lands where the vector draw puts the top-left corner.
+    Harness h;
+    h.setResolution(1.0f);
+    REQUIRE(h.artboard->frameOrigin());
+    h.artboard->originX(0.5f);
+    h.artboard->originY(0.25f);
+    h.artboard->rotation(0.3f);
+    h.artboard->scaleY(1.5f);
+    h.frame(0.0f);
+    Mat2D ctm;
+    REQUIRE(compositeTransform(h.lastFrame, &ctm));
+
+    const float w = h.artboard->layoutWidth();
+    const float hgt = h.artboard->layoutHeight();
+    const Mat2D toOrigin = Mat2D::fromTranslate(w * 0.5f, hgt * 0.25f);
+    const Vec2D contentTopLeft(-w * 0.5f, -hgt * 0.25f);
+    const Vec2D want = toOrigin * h.artboard->selfTransform() * contentTopLeft;
+    const Vec2D got = ctm * Vec2D(0, 0);
+    CHECK(got.x == Approx(want.x).margin(0.01));
+    CHECK(got.y == Approx(want.y).margin(0.01));
 }
 
 TEST_CASE("the flag bits are independent within the mask", "[bitmap-cache]")
@@ -776,7 +792,7 @@ TEST_CASE("a transparent cached artboard still consumes its change",
 TEST_CASE("an artboard re-rasterizes every frame its content changes",
           "[bitmap-cache]")
 {
-    // The invalidation hook is didChange(), so content that moves pays the
+    // The invalidation hook is a content change, so content that moves pays the
     // raster every frame plus the composite. Recording this is what makes the
     // feature's cost model legible: it is a win for static subtrees and a loss
     // for animating ones.
@@ -1687,4 +1703,97 @@ TEST_CASE("kMaxDim caps the device scale a large artboard can be cached at",
            c.raster.width,
            c.raster.height,
            magnification);
+}
+
+TEST_CASE("kMaxDim caps a fixed-size raster uniformly", "[bitmap-cache]")
+{
+    // Meshed Components use the fixed size. The cap shrinks the scale, not one
+    // axis, so 3200x1800 keeps its aspect.
+    offscreen::RasterPlan plan;
+    REQUIRE(offscreen::planFixedRasterSize(AABB(0, 0, 1600, 900), 2.0f, &plan));
+    CHECK(plan.widthPx == kMaxDim);
+    CHECK(plan.heightPx == 1152);
+    CHECK(plan.rasterScale == Approx(2048.0f / 1600.0f));
+
+    REQUIRE(offscreen::planFixedRasterSize(AABB(-10, -5, 90, 45), 2.0f, &plan));
+    CHECK(plan.widthPx == 200);
+    CHECK(plan.heightPx == 100);
+    CHECK(plan.rasterScale == 2.0f);
+}
+
+TEST_CASE("animating rotation composites the same raster", "[bitmap-cache]")
+{
+    Harness h;
+    h.setResolution(1.0f);
+    h.artboard->frameOrigin(false);
+    h.artboard->rotation(0.1f);
+    h.frame(0.0f);
+    const size_t rasters = h.rasterCount();
+    for (int i = 0; i < 5; i++)
+    {
+        h.artboard->rotation(0.2f + 0.1f * i);
+        Census c = h.frame(0.0f);
+        CHECK(c.drawImages() == 1);
+        CHECK(!h.artboard->didChange());
+    }
+    CHECK(h.rasterCount() == rasters);
+
+    // A content change in the same frame still re-rasterizes.
+    h.artboard->rotation(1.0f);
+    h.artboard->opacity(0.5f);
+    h.frame(0.0f);
+    CHECK(h.rasterCount() == rasters + 1);
+}
+
+TEST_CASE("child dirt in the same frame as a self rotation re-rasterizes",
+          "[bitmap-cache]")
+{
+    Harness h;
+    h.setResolution(1.0f);
+    h.artboard->frameOrigin(false);
+    h.frame(0.0f);
+    h.frame(0.0f);
+    Node* node = nullptr;
+    for (Core* object : h.artboard->objects())
+    {
+        if (object != nullptr && object->is<Node>() && !object->is<Artboard>())
+        {
+            node = object->as<Node>();
+            break;
+        }
+    }
+    REQUIRE(node != nullptr);
+    size_t n = h.rasterCount();
+
+    // World-transform-only dirt, as a scroll offset or layout tween raises.
+    h.artboard->rotation(0.3f);
+    node->markWorldTransformDirty();
+    h.frame(0.0f);
+    CHECK(h.rasterCount() == n + 1);
+    n = h.rasterCount();
+
+    node->markWorldTransformDirty();
+    h.artboard->rotation(0.7f);
+    h.frame(0.0f);
+    CHECK(h.rasterCount() == n + 1);
+}
+
+TEST_CASE("rotating at a non-integer view scale keeps one raster size",
+          "[bitmap-cache]")
+{
+    Harness h;
+    h.setResolution(1.0f);
+    h.artboard->frameOrigin(false);
+    // A 1.5x view: a rotated CTM's max scale reads a hair over 1.5 for some
+    // angles, which must not cross the 1/16 bucket boundary.
+    const Mat2D view = Mat2D::fromScale(1.5f, 1.5f);
+    h.artboard->rotation(0.1f);
+    h.frame(0.0f, &view);
+    const size_t rasters = h.rasterCount();
+    for (float r : {0.3f, 0.1f, 0.7f, 1.1f, 0.3f})
+    {
+        h.artboard->rotation(r);
+        h.frame(0.0f, &view);
+    }
+    CHECK(h.rasterCount() == rasters);
 }

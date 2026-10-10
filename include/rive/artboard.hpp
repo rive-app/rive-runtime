@@ -53,6 +53,7 @@ class DeferredCanvasHost;
 namespace offscreen
 {
 struct RasterPlan;
+struct CachedRaster;
 } // namespace offscreen
 class LayerMask;
 class LayerMaskProxyDrawable;
@@ -164,6 +165,9 @@ private:
     bool m_updatesOwnLayout = true;
     bool m_hostTransformMarkedDirty = false;
     bool m_didChange = true;
+    // Each raster records the revision it drew, so one draw path can't consume
+    // another's change. Self rotation/scale don't bump it; rasters omit them.
+    uint64_t m_contentRevision = 1;
     DrawVisitor m_drawVisitor = nullptr;
     void* m_drawVisitorContext = nullptr;
     // The file the visit's keys belong to, handed down because a nested
@@ -593,6 +597,10 @@ public:
     Vec2D rootTransform(const Vec2D&);
 
     void onComponentDirty(Component* component);
+    void rotationChanged() override;
+    void scaleXChanged() override;
+    void scaleYChanged() override;
+    void selfTransformChanged();
 
     /// Update components that depend on each other in DAG order.
     bool updateComponents();
@@ -665,7 +673,11 @@ public:
 
     // Draws an artboard hosted inside this one, passing on the visitor this
     // one is being drawn with so it reaches nested content of the same file.
-    void drawHosted(Artboard* hosted, Renderer* renderer);
+    // `bypassCache` draws vectors even when `hosted` caches as a bitmap.
+    void drawHosted(Artboard* hosted,
+                    Renderer* renderer,
+                    bool bypassCache = false);
+    bool hasDrawVisitor() const { return m_drawVisitor != nullptr; }
     void draw(Renderer* renderer) override;
 
     /// Attach a watermark pre-roll. While it plays this artboard neither
@@ -1094,12 +1106,30 @@ public:
     // falls back to drawContent.
     bool drawCachedAsBitmap(Renderer* renderer);
     void renderIntoCanvas(cmd::DeferredCanvasHost* deferredHost,
-                          const offscreen::RasterPlan& plan);
+                          const offscreen::RasterPlan& plan,
+                          offscreen::CachedRaster& raster);
+
+    // Rasterizes untransformed content into `raster` when stale; null without
+    // an offscreen host. `fixedSize` keeps a mesh's UVs stable; otherwise the
+    // size follows the on-screen scale.
+    rcp<RenderImage> rasterImage(Renderer* renderer,
+                                 offscreen::CachedRaster& raster,
+                                 float resolution,
+                                 bool fixedSize,
+                                 offscreen::RasterPlan* planOut,
+                                 cmd::DeferredCanvasHost** hostOut);
+    // True when fully transparent; consumes the change like a draw would.
+    bool consumeInvisibleChange();
 #endif
+    // drawContent without the self transform, applied at composite instead.
+    void drawContentUntransformed(Renderer* renderer);
+    // The self transform as seen from outside a raster drawn without it.
+    Mat2D compositeSelfTransform() const;
 
 private:
     float m_volume = 1.0f;
     float m_hostOpacity = 1.0f;
+    bool m_skipSelfTransform = false;
     // The BitmapCache child, collected in initialize(). Null unless the
     // artboard has one; the object itself owns the offscreen render state
     // (freed when the object is deleted).

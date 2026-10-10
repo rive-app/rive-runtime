@@ -73,6 +73,9 @@ public:
     // against the resumed frame can. The caller re-applies the current
     // transform, since a fresh renderer shares no state with the original.
     virtual Renderer* compositeRenderer() { return nullptr; }
+    // True when compositeRenderer() hands back a fresh renderer, which
+    // inherits no clip. Asked without allocating one.
+    virtual bool compositeDropsClips() const { return false; }
 
     // Emits the content begin bracket and returns a recording renderer owned
     // by the host and valid until endCanvasContent. clearColor is ARGB.

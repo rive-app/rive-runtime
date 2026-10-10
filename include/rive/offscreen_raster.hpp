@@ -5,6 +5,7 @@
 
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
+#include "rive/refcnt.hpp"
 
 #include <cstdint>
 
@@ -95,6 +96,20 @@ bool planRaster(Renderer* renderer,
                 const AABB& box,
                 float resolution,
                 RasterPlan* out);
+
+// planRaster sized like an exported image: resolution x displayScale() texels
+// per unit, independent of zoom and mount scale.
+bool planFixedRaster(Renderer* renderer,
+                     const AABB& box,
+                     float resolution,
+                     RasterPlan* out);
+
+// planFixedRaster's size, without a renderer (mesh UVs before first draw).
+bool planFixedRasterSize(const AABB& box, float resolution, RasterPlan* out);
+
+// Display pixel ratio for fixed rasters; the host reports it, default 1.
+void setDisplayScale(float scale);
+float displayScale();
 
 // The box-independent half of planRaster: reads the CTM and the modulated
 // opacity off `renderer` and works out how many texels per local unit this
@@ -221,6 +236,33 @@ CompositePlacement beginComposite(Renderer* renderer,
                                   const AABB& compositedBox);
 
 void endComposite(const CompositePlacement& placement);
+
+// beginComposite without mapping onto a box, for callers that place the image
+// themselves (a mesh). Pair with endComposite.
+CompositePlacement beginPlacement(Renderer* renderer,
+                                  cmd::DeferredCanvasHost* host,
+                                  const RasterPlan& plan);
+
+// Ctor/dtor out of line: RenderCanvas is incomplete here.
+struct CachedRaster
+{
+    CachedRaster();
+    ~CachedRaster();
+    CachedRaster(const CachedRaster&) = delete;
+    CachedRaster& operator=(const CachedRaster&) = delete;
+
+    void release();
+
+    rcp<gpu::RenderCanvas> canvas;
+    uint32_t widthPx = 0;
+    uint32_t heightPx = 0;
+    // Texels per unit actually drawn with; the composite inverts it.
+    float rasterScale = 1.0f;
+    AABB box;
+    // The artboard content revision this raster holds.
+    uint64_t contentRevision = 0;
+    bool dirty = true;
+};
 
 } // namespace offscreen
 } // namespace rive

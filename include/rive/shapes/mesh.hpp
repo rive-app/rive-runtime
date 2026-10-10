@@ -20,6 +20,7 @@ protected:
     bool m_VertexRenderBufferDirty = true;
     rcp<IndexBuffer> m_IndexBuffer;
     std::vector<MeshVertex*> m_Vertices;
+    void buildUVAndIndexBuffers(const Mat2D& uvTransform);
 
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
@@ -43,6 +44,7 @@ public:
     /// Initialize the any buffers that will be shared amongst instances (the
     /// instance are guaranteed to use the same RenderImage).
     void onAssetLoaded(RenderImage* renderImage) override;
+    void uvTransformChanged(const Mat2D& uvTransform) override;
 
 #ifdef TESTING
     std::vector<MeshVertex*>& vertices() { return m_Vertices; }

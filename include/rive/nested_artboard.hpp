@@ -30,6 +30,8 @@ class ComponentOrigin;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
+class MeshDrawable;
+class NestedArtboardMeshHost;
 class NestedArtboard : public NestedArtboardBase,
                        public AdvancingComponent,
                        public ResettingComponent,
@@ -66,6 +68,10 @@ protected:
     void cloneReferencesInto(NestedArtboard* clone) const;
 
 private:
+    friend class NestedArtboardMeshHost;
+    // Null until a mesh or N-Slice attaches, so other instances pay a pointer.
+    std::unique_ptr<NestedArtboardMeshHost> m_meshHost;
+    MeshDrawable* hostedMesh() const;
     void clearNestedAnimations();
     float m_cumulatedSeconds = 0;
     // True if m_activeViewModelInstance is a dynamically-created bound VMI
@@ -119,6 +125,10 @@ public:
 
     NestedArtboard();
     ~NestedArtboard() override;
+
+    // Creates the mesh host on first use; only MeshHost::from should call it.
+    NestedArtboardMeshHost* meshHost();
+    NestedArtboardMeshHost* meshHostIfAny() const { return m_meshHost.get(); }
     StatusCode onAddedClean(CoreContext* context) override;
     void draw(Renderer* renderer) override;
     bool willDraw() override;

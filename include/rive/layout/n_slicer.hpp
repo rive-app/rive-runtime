@@ -7,7 +7,7 @@
 
 namespace rive
 {
-class Image;
+class MeshHost;
 class SliceMesh;
 
 class NSlicer : public NSlicerBase, public NSlicerDetails
@@ -21,7 +21,7 @@ public:
     void update(ComponentDirt value) override;
     void buildDependencies() override;
 
-    Image* image();
+    MeshHost* host();
     SliceMesh* sliceMesh() { return m_sliceMesh.get(); };
     void axisChanged() override;
 #ifdef WITH_RIVE_EDITOR
