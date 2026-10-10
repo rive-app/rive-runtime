@@ -1,0 +1,21 @@
+<Rive version="1" kind="fragment">
+<Artboard defaultStateMachineId="0:40" width="400" height="300" name="Deck" id="0:20">
+    <Shape x="0" y="0" name="Backdrop" id="0:21"><Rectangle width="400" height="300" originX="0" originY="0" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF000000" name="C"/></Fill><FocusData canTraverse="false"/></Shape>
+    <StateMachine name="SM" id="0:40">
+        <StateMachineLayer name="L" id="0:41">
+            <EntryState x="0" y="0" id="0:42"/>
+        </StateMachineLayer>
+        <StateMachineListener targetId="0:21" name="Key_right" id="0:43"><ListenerInputTypeKeyboard listenerTypeValue="keyboard"><KeyboardInput keyType="right" keyPhase="1"/></ListenerInputTypeKeyboard></StateMachineListener>
+    </StateMachine>
+</Artboard>
+<Artboard width="400" height="300" styleId="0:3" name="Main" id="0:2">
+    <LayoutComponentStyle name="s" id="0:3"/>
+    <LayoutComponent width="400" height="300" styleId="0:11" name="Root" id="0:10">
+        <LayoutComponentStyle layoutWidthScaleType="fill" layoutHeightScaleType="fill" widthUnitsValue="auto" heightUnitsValue="auto" name="rs" id="0:11"/>
+        <ScriptedLayout scriptAssetId="0:80" name="Engine" id="0:12">
+            <ScriptInputArtboard artboardId="0:20" name="deck" id="0:13"/>
+        </ScriptedLayout>
+    </LayoutComponent>
+</Artboard>
+<ScriptAsset file="main.as" name="main" id="0:80"/>
+</Rive>

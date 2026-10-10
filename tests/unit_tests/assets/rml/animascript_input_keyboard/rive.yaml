@@ -1,0 +1,3 @@
+name: animascript_input_keyboard
+scripting: wasm
+main: Main

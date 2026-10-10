@@ -353,6 +353,20 @@ File::~File()
 #ifdef WITH_RIVE_SCRIPTING_LUAU
     cleanupScriptingVM();
 #endif
+#ifdef WITH_RIVE_SCRIPTING_WASM
+    // Release the wasm VMs before the artboards, as cleanupScriptingVM does
+    // the Luau one. A VM sweeps the host objects behind its live handles when
+    // it goes, and those include artboard instances its scripts were handed
+    // (an Artboard input, instance()): their state machines' listener groups
+    // read this file's StateMachineListener and FocusData definitions on the
+    // way out, so the VMs must not outlive the artboards that own them. The
+    // VM's ScriptBackend detaches its remaining scripted objects, so those in
+    // the artboards deleted below find no VM to call.
+#ifdef __EMSCRIPTEN__
+    m_deferredScripts.clear();
+#endif
+    m_wasmVMs.clear();
+#endif
     for (auto artboard : m_artboards)
     {
         delete artboard;
