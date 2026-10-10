@@ -633,12 +633,15 @@ inline bool replayOreLifecycle(Context& ctx,
                 canvasAt ? canvasAt(pod.canvasId) : nullptr;
             if (canvas == nullptr)
             {
-                // Unregistered or unbacked. Noted like an image, so the pass
-                // that binds it says why it dropped.
-                return skipUnresolvedMake(pod.id,
-                                          pod.generation,
-                                          "wrapCanvasView",
-                                          nullptr);
+                // Not churn, so the pass that binds it names the real cause.
+                setMade(pod.id,
+                        pod.generation,
+                        OreKind::textureView,
+                        nullptr,
+                        "wrapCanvasView",
+                        nullptr,
+                        "canvas unregistered or unbacked");
+                return true;
             }
             rcp<TextureView> wrapped =
                 pod.mode ==

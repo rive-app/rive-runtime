@@ -38,10 +38,9 @@ public:
     // one override it.
     virtual ore::Context* oreContext() { return factory()->ore(); }
 
-    // The device replay runs against. Null leaves a canvas recorded without a
-    // backing texture unbacked, so its content is dropped rather than drawn
-    // into whatever the producer's texture id happens to name here.
-    virtual gpu::RenderContext* renderContext() { return nullptr; }
+    // Backs canvases at replay. Pure because null drops all canvas content,
+    // so only a sink with no device should choose it.
+    virtual gpu::RenderContext* renderContext() = 0;
 
     // Open the screen frame for one render target and return its renderer.
     // A session drives every target its render context owns, so replay asks
@@ -245,6 +244,14 @@ private:
                 if (auto* rc = sink.renderContext())
                 {
                     rc->impl()->ensureCanvasBacking(canvas);
+                }
+                else
+                {
+                    RIVE_WARN_THROTTLED(
+                        "rive deferred: canvas %u has no backing and the sink "
+                        "returned no renderContext(); its content is "
+                        "dropped\n",
+                        id);
                 }
             }
 #endif

@@ -23,6 +23,7 @@ public:
 
     rive::Factory* factory() override { return &serializingFactory; }
     rive::ore::Context* oreContext() override { return nullptr; }
+    rive::gpu::RenderContext* renderContext() override { return nullptr; }
     // A serialized frame per target, so a multi target replay is legible as
     // separate frames instead of one merged stream.
     rive::Renderer* beginScreenFrame(uint64_t target) override

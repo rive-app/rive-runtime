@@ -34,8 +34,6 @@ public:
         m_clear(clear), m_color(color), m_target(target), m_replayOre(replayOre)
     {}
 
-    // The real render context replay runs against.
-    rive::gpu::RenderContext* renderContext() override = 0;
     // Open the platform screen frame for one render target and return its
     // renderer, called once per target per replayed frame.
     virtual rive::Renderer* beginScreen(uint64_t target,

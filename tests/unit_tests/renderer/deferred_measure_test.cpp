@@ -199,6 +199,7 @@ public:
     MFactory f;
     Factory* factory() override { return &f; }
     ore::Context* oreContext() override { return nullptr; }
+    gpu::RenderContext* renderContext() override { return nullptr; }
     // The harness measures one session against one screen, and a no-op
     // renderer has nothing to dispatch per target anyway.
     Renderer* beginScreenFrame(uint64_t target) override

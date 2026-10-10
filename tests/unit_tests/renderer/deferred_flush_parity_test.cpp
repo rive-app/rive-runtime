@@ -163,6 +163,8 @@ public:
 
     Factory* factory() override { return m_ctx; }
     ore::Context* oreContext() override { return nullptr; }
+    // Opens no canvas frames, so a backing would stay empty.
+    gpu::RenderContext* renderContext() override { return nullptr; }
     // Parity is defined against the single render target the immediate side
     // draws, so a second target would have nothing to compare with.
     Renderer* beginScreenFrame(uint64_t target) override
