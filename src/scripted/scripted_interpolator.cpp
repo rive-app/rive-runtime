@@ -1,5 +1,8 @@
 #include "rive/component_dirt.hpp"
 #include "rive/assets/script_asset.hpp"
+#include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include "rive/scripted/scripted_interpolator.hpp"
 
 using namespace rive;
@@ -131,4 +134,144 @@ ScriptedObject* ScriptedInterpolator::cloneScriptedObject(
     cloneProperties(cloned, dataBindContainer);
     cloned->reinit();
     return cloned;
+}
+
+namespace rive
+{
+// Exposes the bind plumbing a self-contained StatefulScriptedInterpolator
+// forwards from its owner.
+class StatefulScriptedInterpolatorBinds final : public DataBindContainer
+{
+public:
+    void bind(const rcp<DataContext>& dataContext)
+    {
+        bindDataBindsFromContext(dataContext);
+    }
+    void unbind() { unbindDataBinds(); }
+};
+} // namespace rive
+
+StatefulScriptedInterpolator::StatefulScriptedInterpolator(
+    const ScriptedInterpolator* source,
+    DataBindContainer* container,
+    const rcp<DataContext>& dataContext) :
+    m_container(container)
+{
+    cloneFrom(source, dataContext);
+}
+
+StatefulScriptedInterpolator::StatefulScriptedInterpolator(
+    const ScriptedInterpolator* source,
+    const rcp<DataContext>& dataContext) :
+    m_ownedContainer(new StatefulScriptedInterpolatorBinds()),
+    m_container(m_ownedContainer.get())
+{
+    cloneFrom(source, dataContext);
+}
+
+void StatefulScriptedInterpolator::cloneFrom(
+    const ScriptedInterpolator* source,
+    const rcp<DataContext>& dataContext)
+{
+    if (source == nullptr || m_container == nullptr)
+    {
+        return;
+    }
+    auto* cloned = source->cloneScriptedObject(m_container);
+    if (cloned == nullptr)
+    {
+        return;
+    }
+    m_clone.reset(static_cast<ScriptedInterpolator*>(cloned));
+    m_clone->dataContext(dataContext);
+
+    // cloneProperties() just parked a bind on `container` for every bound
+    // input, and wired the cloned input's back-pointer to it. Record them so
+    // the destructor can pull them out before the clone (their target) dies.
+    for (auto* prop : m_clone->customProperties())
+    {
+        if (auto* input = ScriptInput::from(prop))
+        {
+            if (auto* bind = input->dataBind())
+            {
+                m_dataBinds.push_back(bind);
+            }
+        }
+    }
+
+    // Late-binding safety net: reinit() inside cloneScriptedObject is a no-op
+    // when scriptAsset() is null at clone time. If the asset became available
+    // later (editor live-edit), init now.
+    if (m_clone->scriptAsset() != nullptr && !m_clone->userLuaInitDone())
+    {
+        m_clone->scriptAsset()->initScriptedObject(m_clone.get());
+        m_clone->hydrateScriptInputs();
+    }
+}
+
+StatefulScriptedInterpolator::~StatefulScriptedInterpolator()
+{
+    for (auto* bind : m_dataBinds)
+    {
+        m_container->removeDataBind(bind);
+        delete bind;
+    }
+}
+
+void StatefulScriptedInterpolator::dataContext(
+    const rcp<DataContext>& dataContext)
+{
+    if (m_clone == nullptr)
+    {
+        return;
+    }
+    m_clone->dataContext(dataContext);
+    initialize();
+}
+
+void StatefulScriptedInterpolator::bindFromContext(
+    const rcp<DataContext>& dataContext)
+{
+    if (m_ownedContainer == nullptr || m_clone == nullptr)
+    {
+        return;
+    }
+    m_ownedContainer->bind(dataContext);
+    // Binding only marks the input binds dirty; apply them now so the inputs
+    // hold this context's values before init() reads them.
+    m_ownedContainer->updateDataBinds(false);
+    // The clone first ran init() in cloneFrom, before its inputs had a context
+    // to resolve against. Run it again now that they do, and on every rebind,
+    // as ScriptedDataConverter does in its own bindFromContext.
+    m_clone->resetLuaInit();
+    this->dataContext(dataContext);
+}
+
+void StatefulScriptedInterpolator::unbind()
+{
+    if (m_ownedContainer != nullptr)
+    {
+        m_ownedContainer->unbind();
+    }
+}
+
+void StatefulScriptedInterpolator::updateDataBinds()
+{
+    if (m_ownedContainer != nullptr)
+    {
+        m_ownedContainer->updateDataBinds(false);
+    }
+}
+
+void StatefulScriptedInterpolator::initialize()
+{
+    if (m_clone == nullptr || m_clone->scriptAsset() == nullptr)
+    {
+        return;
+    }
+    if (!m_clone->userLuaInitDone())
+    {
+        m_clone->scriptAsset()->initScriptedObject(m_clone.get());
+    }
+    m_clone->hydrateScriptInputs();
 }

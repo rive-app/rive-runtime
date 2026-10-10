@@ -20,6 +20,7 @@
 #include "rive/solo.hpp"
 #include "rive/layout/layout_data.hpp"
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "rive/transform_component.hpp"
 #include "yoga/YGEnums.h"
@@ -1650,13 +1651,39 @@ KeyFrameInterpolator* LayoutComponent::interpolator()
             auto* inherited = m_animation != nullptr
                                   ? m_animation->inheritedInterpolator
                                   : nullptr;
-            return inherited != nullptr ? inherited : m_style->interpolator();
+            return inherited != nullptr ? inherited : styleInterpolator();
         }
         case LayoutAnimationStyle::custom:
-            return m_style->interpolator();
+            return styleInterpolator();
         default:
             return nullptr;
     }
+}
+
+KeyFrameInterpolator* LayoutComponent::styleInterpolator()
+{
+    auto* interpolator = m_style->interpolator();
+    if (interpolator == nullptr || !interpolator->is<ScriptedInterpolator>())
+    {
+        return interpolator;
+    }
+    // The style resolved its id against this instance, whose copy of the
+    // interpolator has neither inputs nor a Lua instance. Clone the source
+    // artboard's (which has both) instead, once per artboard instance.
+    auto* artboard = this->artboard();
+    if (artboard == nullptr)
+    {
+        return interpolator;
+    }
+    auto* source =
+        artboard->artboardSource()->resolve(m_style->interpolatorId());
+    if (source == nullptr || !source->is<ScriptedInterpolator>())
+    {
+        return interpolator;
+    }
+    auto* stateful =
+        artboard->statefulInterpolator(source->as<ScriptedInterpolator>());
+    return stateful != nullptr ? stateful : interpolator;
 }
 
 LayoutStyleInterpolation LayoutComponent::interpolation()

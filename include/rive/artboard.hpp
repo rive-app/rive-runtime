@@ -77,6 +77,8 @@ class SMITrigger;
 class DataBind;
 class DataBindContainer;
 class ScriptedObject;
+class ScriptedInterpolator;
+struct ArtboardScriptedInterpolators;
 class FocusManager;
 class SemanticManager;
 class SemanticNode;
@@ -160,6 +162,9 @@ private:
     std::unordered_set<LayoutComponent*> m_dirtyLayout;
     bool m_isCleaningDirtyLayouts = false;
     std::unique_ptr<KeyFrameInterpolator> m_ownedInheritedInterpolator;
+    // Live clones of the scripted interpolators this instance's layout styles
+    // use. Allocated on first use; see statefulInterpolator().
+    std::unique_ptr<ArtboardScriptedInterpolators> m_scriptedInterpolators;
     float m_originalWidth = 0;
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
@@ -635,6 +640,13 @@ public:
     {
         return m_ownedInheritedInterpolator;
     }
+    /// The live clone of `source` (an interpolator of this instance's source
+    /// artboard) that this instance's layouts run, created on first use and
+    /// kept until the artboard is destroyed so layouts that inherit it --
+    /// including those in nested artboards and list items -- can hold the
+    /// pointer. Null on a non-instance, or when no clone could be vended.
+    ScriptedInterpolator* statefulInterpolator(
+        const ScriptedInterpolator* source);
     void calculateLayout();
     bool canHaveOverrides() override { return true; }
 

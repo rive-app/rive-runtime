@@ -23,30 +23,23 @@ class BindableProperty;
 class DataBind;
 class InterpolatingKeyFrame;
 class KeyFrame;
-class ScriptedInterpolator;
+class StatefulScriptedInterpolator;
 
 /// The cold cluster of LinearAnimationInstance. Allocated the first time this
 /// instance vends a stateful scripted interpolator or a data-bound keyframe
 /// value; never allocated otherwise.
 ///
-/// Teardown of these four is order sensitive — see the comment in
+/// Teardown of these is order sensitive — see the comment in
 /// ~LinearAnimationInstance, which does it explicitly rather than leaning on
 /// declaration order.
 struct LAIBindingExtras
 {
     /// Per-(this LAI, keyframe) stateful clones of the shared
-    /// ScriptedInterpolator templates. The unique_ptr destroys the clone (and
-    /// its Lua ref) with this cluster.
+    /// ScriptedInterpolator templates. Each holder pulls the input binds it
+    /// parked on the artboard before destroying its clone (and Lua ref).
     std::unordered_map<const InterpolatingKeyFrame*,
-                       std::unique_ptr<ScriptedInterpolator>>
+                       std::unique_ptr<StatefulScriptedInterpolator>>
         scriptedInterpolators;
-
-    /// Data binds that cloneProperties() appended to the artboard on our
-    /// behalf for the clones above. ~LinearAnimationInstance must
-    /// removeDataBind + delete each of these BEFORE `scriptedInterpolators`
-    /// tears down, because the bind targets point at CustomPropertys owned by
-    /// the clones.
-    std::vector<DataBind*> clonedArtboardDataBinds;
 
     /// Per-keyframe holders receiving data-bound values for this instance,
     /// keyed by the shared KeyFrame*. Built lazily by keyFrameValueHolder() on
@@ -57,7 +50,7 @@ struct LAIBindingExtras
     /// above and appended to the artboard's data-bind container, keyed by the
     /// keyframe so keyFrameValueHolder can refresh a holder at read time.
     /// Removed + deleted BEFORE the holders they target, same discipline as
-    /// `clonedArtboardDataBinds`.
+    /// the input binds of `scriptedInterpolators`.
     std::unordered_map<const KeyFrame*, DataBind*> keyFrameValueBinds;
 };
 } // namespace rive

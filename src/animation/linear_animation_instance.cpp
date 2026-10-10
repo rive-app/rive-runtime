@@ -63,35 +63,33 @@ LinearAnimationInstance::~LinearAnimationInstance()
     }
     auto& extras = *m_bindingExtras;
     // Critical teardown order, mirroring the SMI pattern at
-    // state_machine_instance.cpp:2011-2044: pull cloned data binds out of
-    // the artboard and delete them BEFORE extras.scriptedInterpolators
-    // destroys the clones whose CustomPropertys are those binds' targets.
+    // state_machine_instance.cpp:2011-2044: every cloned data bind must leave
+    // the artboard and be deleted BEFORE the object owning its target dies.
     // Without this, the next Artboard::updateDataBinds() (which runs every
     // frame from updatePass) reads through DataBind::target() into freed
     // memory.
     //
-    // The four containers now share one struct, so declaration order alone
-    // would decide this. Do it explicitly instead — the ordering is load
-    // bearing and must not be silently broken by reordering a field.
+    // The containers share one struct, so declaration order alone would
+    // decide this. Do it explicitly instead — the ordering is load bearing and
+    // must not be silently broken by reordering a field.
+    //
+    // ~Artboard deletes m_Objects — which own the LAIs (nested animations,
+    // joysticks) — before deleteDataBinds(), so the artboard's bind list is
+    // still valid here.
+    //
+    // Each StatefulScriptedInterpolator removes + deletes the binds it parked
+    // on the artboard before it destroys its clone.
+    extras.scriptedInterpolators.clear();
     if (m_artboardInstance != nullptr)
     {
-        for (auto* bind : extras.clonedArtboardDataBinds)
-        {
-            m_artboardInstance->removeDataBind(bind);
-            delete bind;
-        }
         // Keyframe value bind clones target the holders below, so remove +
-        // delete them from the artboard BEFORE freeing the holders (mirrors the
-        // scripted-interpolator teardown above). ~Artboard deletes m_Objects —
-        // which own the LAIs (nested animations, joysticks) — before
-        // deleteDataBinds(), so the artboard's bind list is still valid here.
+        // delete them from the artboard BEFORE freeing the holders.
         for (auto& pair : extras.keyFrameValueBinds)
         {
             m_artboardInstance->removeDataBind(pair.second);
             delete pair.second;
         }
     }
-    extras.clonedArtboardDataBinds.clear();
     extras.keyFrameValueBinds.clear();
 
     // Keyframe value holders are owned here; safe to delete now that the clones
@@ -102,8 +100,6 @@ LinearAnimationInstance::~LinearAnimationInstance()
     }
     extras.keyFrameValueHolders.clear();
 
-    // extras.scriptedInterpolators destructs with the cluster below; safe now
-    // that no DataBind still points at the clones' CustomPropertys.
     m_bindingExtras.reset();
 }
 
@@ -231,7 +227,7 @@ BindableProperty* LinearAnimationInstance::buildKeyFrameValueHolder(
 // keyed by the keyframe pointer so distinct keyframes that share a script
 // each get their own Lua `self` table. Lazily allocates the map and the
 // clone on first hit; subsequent calls return the cached clone. Cleanup
-// runs in ~LinearAnimationInstance via unique_ptr.
+// runs in ~LinearAnimationInstance.
 ScriptedInterpolator* LinearAnimationInstance::statefulInterpolator(
     const InterpolatingKeyFrame* keyframe,
     const ScriptedInterpolator* shared) const
@@ -244,52 +240,19 @@ ScriptedInterpolator* LinearAnimationInstance::statefulInterpolator(
     auto it = map.find(keyframe);
     if (it != map.end())
     {
-        return it->second.get();
+        return it->second->get();
     }
-
-    // cloneScriptedObject is non-const on the source; the shared template is
-    // logically read-only here so the const_cast is safe and matches the
-    // ScriptedListenerAction pattern.
-    auto* cloneAsObj =
-        const_cast<ScriptedInterpolator*>(shared)->cloneScriptedObject(
-            m_artboardInstance);
-    if (cloneAsObj == nullptr)
+    auto stateful = std::unique_ptr<StatefulScriptedInterpolator>(
+        new StatefulScriptedInterpolator(shared,
+                                         m_artboardInstance,
+                                         m_artboardInstance->dataContext()));
+    auto* clone = stateful->get();
+    if (clone == nullptr)
     {
         return nullptr;
     }
-    auto* clone = static_cast<ScriptedInterpolator*>(cloneAsObj);
-    clone->dataContext(m_artboardInstance->dataContext());
-
-    // Walk the clone's ScriptInputs to discover the binds cloneProperties
-    // just parked on the artboard for this clone. The back-pointer is set
-    // inside cloneProperties (scripted_object.cpp) immediately after
-    // dataBindContainer->addDataBind(...). We track these so ~LAI can
-    // removeDataBind + delete each one BEFORE the clone — whose
-    // CustomProperty is the bind's target — is destroyed.
-    for (auto* prop : clone->customProperties())
-    {
-        if (auto* input = ScriptInput::from(prop))
-        {
-            if (auto* bind = input->dataBind())
-            {
-                m_bindingExtras->clonedArtboardDataBinds.push_back(bind);
-            }
-        }
-    }
-
-    // Late-binding safety net: reinit() inside cloneScriptedObject is a no-op
-    // when scriptAsset() is null at clone time. If the asset became available
-    // later (editor live-edit), init now. ensureScriptInitialized
-    // short-circuits when already initialized so this stays cheap.
-    if (clone->scriptAsset() != nullptr && !clone->userLuaInitDone())
-    {
-        clone->scriptAsset()->initScriptedObject(clone);
-        clone->hydrateScriptInputs();
-    }
-
-    auto* raw = clone;
-    map.emplace(keyframe, std::unique_ptr<ScriptedInterpolator>(clone));
-    return raw;
+    map.emplace(keyframe, std::move(stateful));
+    return clone;
 }
 
 bool LinearAnimationInstance::advanceAndApply(float seconds)

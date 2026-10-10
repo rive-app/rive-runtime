@@ -67,6 +67,7 @@
 #include "rive/layout/layout_data.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #ifdef WITH_RIVE_SCRIPTING
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 #include "rive/lua/rive_lua_libs.hpp"
@@ -90,6 +91,19 @@
 #include <unordered_map>
 
 using namespace rive;
+
+namespace rive
+{
+// The live scripted interpolators an ArtboardInstance's layouts run, keyed by
+// the source artboard's interpolator they were cloned from. See
+// Artboard::statefulInterpolator.
+struct ArtboardScriptedInterpolators
+{
+    std::unordered_map<const ScriptedInterpolator*,
+                       std::unique_ptr<StatefulScriptedInterpolator>>
+        bySource;
+};
+} // namespace rive
 
 uint64_t Artboard::sm_frameId = 0;
 #ifdef TESTING
@@ -148,6 +162,11 @@ Artboard::~Artboard()
         audioEngine->stop(this);
     }
 #endif
+    // Layouts here, and in the nested artboards and list items below them,
+    // only borrow these clones, and none of them calls an interpolator while
+    // tearing down. Each clone pulls the input binds it parked on this
+    // artboard before it dies, so do it while the bind list is intact.
+    m_scriptedInterpolators.reset();
     unbind();
 
     // ViewModelInstance and ViewModelInstanceValue inherit from RefCnt.
@@ -1430,6 +1449,35 @@ void Artboard::addStateMachine(StateMachine* object)
 void Artboard::addScriptedObject(ScriptedObject* object)
 {
     m_ScriptedObjects.push_back(object);
+}
+
+ScriptedInterpolator* Artboard::statefulInterpolator(
+    const ScriptedInterpolator* source)
+{
+    // Only instances run layouts, and a clone parks its input binds on us.
+    if (source == nullptr || !isInstance())
+    {
+        return nullptr;
+    }
+    if (m_scriptedInterpolators == nullptr)
+    {
+        m_scriptedInterpolators =
+            std::unique_ptr<ArtboardScriptedInterpolators>(
+                new ArtboardScriptedInterpolators());
+    }
+    auto& bySource = m_scriptedInterpolators->bySource;
+    auto itr = bySource.find(source);
+    if (itr != bySource.end())
+    {
+        return itr->second->get();
+    }
+    // Cache a failed clone too, so a runtime without scripting doesn't retry
+    // every frame; get() stays null and callers fall back to the template.
+    auto stateful = std::unique_ptr<StatefulScriptedInterpolator>(
+        new StatefulScriptedInterpolator(source, this, dataContext()));
+    auto* clone = stateful->get();
+    bySource.emplace(source, std::move(stateful));
+    return clone;
 }
 
 void Artboard::initScriptedObjects()
@@ -4382,6 +4430,13 @@ void Artboard::internalDataContext(rcp<DataContext> value)
         scriptedObject->dataContext(value);
     }
     initScriptedObjects();
+    if (m_scriptedInterpolators != nullptr)
+    {
+        for (auto& pair : m_scriptedInterpolators->bySource)
+        {
+            pair.second->dataContext(value);
+        }
+    }
 }
 
 void Artboard::rebind() { internalDataContext(dataBindContext()); }
@@ -4439,6 +4494,16 @@ void Artboard::clearDataContext()
     for (auto* scriptedObject : m_ScriptedObjects)
     {
         scriptedObject->resetLuaInit();
+    }
+    if (m_scriptedInterpolators != nullptr)
+    {
+        for (auto& pair : m_scriptedInterpolators->bySource)
+        {
+            if (auto* clone = pair.second->get())
+            {
+                clone->resetLuaInit();
+            }
+        }
     }
 }
 

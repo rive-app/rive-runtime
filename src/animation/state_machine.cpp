@@ -5,6 +5,7 @@
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_listener.hpp"
 #include "rive/scripted/scripted_object.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #ifndef WITH_RIVE_EDITOR
 #include "rive/animation/layer_state.hpp"
@@ -32,6 +33,8 @@
 #include "rive/data_bind_flags.hpp"
 #include <unordered_set>
 #endif
+
+#include <algorithm>
 
 using namespace rive;
 
@@ -277,11 +280,42 @@ StatusCode StateMachine::onAddedClean(CoreContext* context)
                 state->transitionsIgnoreTime(transitionsIgnoreTime(state));
                 m_readsComponentTriggers =
                     m_readsComponentTriggers || readsComponentTrigger(state);
+                addScriptedInterpolators(state);
             }
         }
     }
 #endif
     return StatusCode::Ok;
+}
+
+// A scripted interpolator on a transition runs per StateMachineInstance, like
+// the machine's other scripted objects: registering it here makes every
+// instance clone it (inputs bound against that instance) and initialize it.
+// Transitions resolved their interpolator in onAddedDirty. Several
+// transitions can share one, so each is registered once.
+void StateMachine::addScriptedInterpolators(const LayerState* state)
+{
+    for (size_t i = 0, count = state->transitionCount(); i < count; i++)
+    {
+        auto transition = state->transition(i);
+        if (transition == nullptr)
+        {
+            continue;
+        }
+        auto interpolator = transition->interpolator();
+        if (interpolator == nullptr ||
+            !interpolator->is<ScriptedInterpolator>())
+        {
+            continue;
+        }
+        ScriptedObject* scripted = interpolator->as<ScriptedInterpolator>();
+        if (std::find(m_scriptedObjects.begin(),
+                      m_scriptedObjects.end(),
+                      scripted) == m_scriptedObjects.end())
+        {
+            addScriptedObject(scripted);
+        }
+    }
 }
 
 StatusCode StateMachine::import(ImportStack& importStack)

@@ -9,6 +9,7 @@ namespace rive
 {
 
 class DataConverterInterpolator;
+class StatefulScriptedInterpolator;
 
 class InterpolatorAnimationData
 {
@@ -118,11 +119,22 @@ class DataConverterInterpolator : public DataConverterInterpolatorBase
 {
 protected:
     KeyFrameInterpolator* m_interpolator = nullptr;
+    // This converter's live clone of a scripted m_interpolator, made on the
+    // first bind. Owned. Keeps its input binds out of this converter's own
+    // list, which copy() clones.
+    StatefulScriptedInterpolator* m_scriptedInterpolator = nullptr;
 
 public:
     ~DataConverterInterpolator();
     void interpolator(KeyFrameInterpolator* interpolator);
+    /// The authored (shared) interpolator.
     KeyFrameInterpolator* interpolator() const { return m_interpolator; };
+    /// The interpolator to run: the live clone of a scripted one once bound,
+    /// otherwise interpolator().
+    KeyFrameInterpolator* activeInterpolator() const;
+    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+    void unbind() override;
+    void update() override;
     DataType outputType() override { return DataType::input; };
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;

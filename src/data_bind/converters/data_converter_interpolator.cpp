@@ -2,6 +2,7 @@
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 
 using namespace rive;
 
@@ -38,9 +39,9 @@ void InterpolatorAdvancer::advanceAnimationData(float elapsedTime)
                                 ? m_animationDataA.elapsedSeconds /
                                       m_converter->duration()
                                 : 1.0f);
-        if (m_converter->interpolator() != nullptr)
+        if (auto* interpolator = m_converter->activeInterpolator())
         {
-            f = m_converter->interpolator()->transform(f);
+            f = interpolator->transform(f);
         }
         m_animationDataA.interpolate(f, m_animationDataB.from);
         if (f == 1)
@@ -76,9 +77,9 @@ void InterpolatorAdvancer::advanceAnimationData(float elapsedTime)
                   m_converter->duration() > 0
                       ? animationData->elapsedSeconds / m_converter->duration()
                       : 1.0f);
-    if (m_converter->interpolator() != nullptr)
+    if (auto* interpolator = m_converter->activeInterpolator())
     {
-        f = m_converter->interpolator()->transform(f);
+        f = interpolator->transform(f);
     }
     animationData->interpolate(f, m_currentValue);
 }
@@ -111,6 +112,56 @@ DataConverterInterpolator::~DataConverterInterpolator()
         delete m_output;
     }
     m_advancer.dispose();
+    delete m_scriptedInterpolator;
+}
+
+KeyFrameInterpolator* DataConverterInterpolator::activeInterpolator() const
+{
+    if (m_scriptedInterpolator != nullptr)
+    {
+        if (auto* clone = m_scriptedInterpolator->get())
+        {
+            return clone;
+        }
+    }
+    return m_interpolator;
+}
+
+void DataConverterInterpolator::bindFromContext(DataContext* dataContext,
+                                                DataBind* dataBind)
+{
+    Super::bindFromContext(dataContext, dataBind);
+    if (m_interpolator == nullptr ||
+        !m_interpolator->is<ScriptedInterpolator>())
+    {
+        return;
+    }
+    auto context = rcp<DataContext>(safe_ref(dataContext));
+    if (m_scriptedInterpolator == nullptr)
+    {
+        m_scriptedInterpolator = new StatefulScriptedInterpolator(
+            m_interpolator->as<ScriptedInterpolator>(),
+            context);
+    }
+    m_scriptedInterpolator->bindFromContext(context);
+}
+
+void DataConverterInterpolator::unbind()
+{
+    Super::unbind();
+    if (m_scriptedInterpolator != nullptr)
+    {
+        m_scriptedInterpolator->unbind();
+    }
+}
+
+void DataConverterInterpolator::update()
+{
+    Super::update();
+    if (m_scriptedInterpolator != nullptr)
+    {
+        m_scriptedInterpolator->updateDataBinds();
+    }
 }
 
 void DataConverterInterpolator::copy(

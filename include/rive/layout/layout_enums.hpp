@@ -17,7 +17,9 @@ enum class LayoutStyleInterpolation : uint8_t
     hold,
     linear,
     cubic,
-    elastic
+    elastic,
+    // The style's interpolator is a ScriptedInterpolator.
+    scripted
 };
 
 enum class LayoutAlignmentType : uint8_t

@@ -316,6 +316,11 @@ private:
     //   layout built outside of import isn't stuck on the legacy path. See
     //   File::minorVersion.
 
+    /// This layout's own style interpolator. A scripted one resolves to the
+    /// artboard instance's live clone of it, which layouts that inherit it
+    /// then borrow through cascadeLayoutStyle.
+    KeyFrameInterpolator* styleInterpolator();
+
     /// Where the layout engine placed us, in the parent's transform frame.
     Vec2D layoutTranslation() const;
     /// The stored x/y offset plus rotation/scale about the pivot.

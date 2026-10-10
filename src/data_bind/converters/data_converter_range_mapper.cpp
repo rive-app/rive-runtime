@@ -2,8 +2,63 @@
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/animation/data_converter_range_mapper_flags.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 
 using namespace rive;
+
+DataConverterRangeMapper::~DataConverterRangeMapper()
+{
+    delete m_scriptedInterpolator;
+}
+
+KeyFrameInterpolator* DataConverterRangeMapper::activeInterpolator() const
+{
+    if (m_scriptedInterpolator != nullptr)
+    {
+        if (auto* clone = m_scriptedInterpolator->get())
+        {
+            return clone;
+        }
+    }
+    return m_interpolator;
+}
+
+void DataConverterRangeMapper::bindFromContext(DataContext* dataContext,
+                                               DataBind* dataBind)
+{
+    Super::bindFromContext(dataContext, dataBind);
+    if (m_interpolator == nullptr ||
+        !m_interpolator->is<ScriptedInterpolator>())
+    {
+        return;
+    }
+    auto context = rcp<DataContext>(safe_ref(dataContext));
+    if (m_scriptedInterpolator == nullptr)
+    {
+        m_scriptedInterpolator = new StatefulScriptedInterpolator(
+            m_interpolator->as<ScriptedInterpolator>(),
+            context);
+    }
+    m_scriptedInterpolator->bindFromContext(context);
+}
+
+void DataConverterRangeMapper::unbind()
+{
+    Super::unbind();
+    if (m_scriptedInterpolator != nullptr)
+    {
+        m_scriptedInterpolator->unbind();
+    }
+}
+
+void DataConverterRangeMapper::update()
+{
+    Super::update();
+    if (m_scriptedInterpolator != nullptr)
+    {
+        m_scriptedInterpolator->updateDataBinds();
+    }
+}
 
 void DataConverterRangeMapper::copy(const DataConverterRangeMapperBase& object)
 {
@@ -63,7 +118,7 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
             // Apply interpolator if exists and value is within range
             if (m_interpolator != nullptr && perc > 0 && perc < 1)
             {
-                perc = m_interpolator->transform(perc);
+                perc = activeInterpolator()->transform(perc);
             }
             // hold keyframe interpolation
             else if (interpolationType() == 0)

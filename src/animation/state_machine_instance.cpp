@@ -66,6 +66,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/process_event_result.hpp"
 #include "rive/scripted/scripted_drawable.hpp"
+#include "rive/scripted/scripted_interpolator.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text.hpp"
 #include "rive/math/math_types.hpp"
@@ -994,6 +995,16 @@ public:
         if (m_transition != nullptr && m_transition->interpolator() != nullptr)
         {
             interpolator = m_transition->interpolator();
+            // A scripted one runs as this instance's clone (StateMachine
+            // registers it with its scripted objects).
+            if (interpolator->is<ScriptedInterpolator>())
+            {
+                if (auto* stateful = smi->scriptedObject(
+                        interpolator->as<ScriptedInterpolator>()))
+                {
+                    interpolator = static_cast<ScriptedInterpolator*>(stateful);
+                }
+            }
         }
 
         if (m_stateFrom != nullptr && m_mix < 1.0f)

@@ -12,6 +12,7 @@ class StateMachineListener;
 class StateMachineImporter;
 class ScriptedObject;
 class DataBind;
+class LayerState;
 class StateMachine : public StateMachineBase
 {
     friend class StateMachineImporter;
@@ -27,6 +28,7 @@ private:
     void addInput(std::unique_ptr<StateMachineInput>);
     void addListener(std::unique_ptr<StateMachineListener>);
     void addDataBind(std::unique_ptr<DataBind>);
+    void addScriptedInterpolators(const LayerState* state);
 
 public:
     StateMachine();
