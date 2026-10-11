@@ -41,6 +41,99 @@ public:
 // Basic lifecycle
 // ============================================================================
 
+#ifndef WITH_RIVE_THREADING
+// Submits another task as it completes, as a decode listener starting the
+// next decode does.
+class ChainTask : public TestTask
+{
+public:
+    WorkPool* pool = nullptr;
+    rcp<WorkTask> next;
+
+    void onComplete() override
+    {
+        TestTask::onComplete();
+        pool->submit(next);
+    }
+};
+
+TEST_CASE("Work submitted during delivery waits for the next poll",
+          "[workpool]")
+{
+    WorkPool pool;
+    auto second = make_rcp<TestTask>();
+    auto first = make_rcp<ChainTask>();
+    first->pool = &pool;
+    first->next = second;
+    pool.submit(first);
+
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(first->completed);
+    CHECK_FALSE(second->executed);
+    CHECK(pool.hasPendingWork());
+
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(second->completed);
+    CHECK_FALSE(pool.hasPendingWork());
+}
+
+// Polls again as it completes, as a promise callback advancing a scripted
+// artboard does.
+class NestedPollTask : public TestTask
+{
+public:
+    WorkPool* pool = nullptr;
+    uint32_t nested = 0;
+
+    void onComplete() override
+    {
+        TestTask::onComplete();
+        nested = pool->pollCompletedWork(16);
+    }
+};
+
+TEST_CASE("A poll nested in a completion leaves the outer poll consistent",
+          "[workpool]")
+{
+    WorkPool pool;
+    auto first = make_rcp<NestedPollTask>();
+    first->pool = &pool;
+    auto second = make_rcp<TestTask>();
+    pool.submit(first);
+    pool.submit(second);
+
+    // The nested poll delivers the second task; the outer one stops at the
+    // emptied queue rather than reading past it.
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(first->nested == 1);
+    CHECK(first->completed);
+    CHECK(second->completed);
+    CHECK_FALSE(pool.hasPendingWork());
+}
+
+TEST_CASE("Work submitted during a nested poll waits for a later poll",
+          "[workpool]")
+{
+    WorkPool pool;
+    auto first = make_rcp<NestedPollTask>();
+    first->pool = &pool;
+    auto second = make_rcp<ChainTask>();
+    auto third = make_rcp<TestTask>();
+    second->pool = &pool;
+    second->next = third;
+    pool.submit(first);
+    pool.submit(second);
+
+    // The nested poll delivers the second task, which submits the third;
+    // neither poll that was running then may run it.
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(second->completed);
+    CHECK_FALSE(third->executed);
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(third->completed);
+}
+#endif
+
 TEST_CASE("WorkPool executes task on poll", "[workpool]")
 {
     WorkPool pool;
@@ -223,8 +316,10 @@ TEST_CASE("nextOwnerId generates unique IDs", "[workpool]")
 // ============================================================================
 
 #ifdef WITH_RIVE_THREADING
-#include <mutex>
+#include <chrono>
 #include <condition_variable>
+#include <mutex>
+#include <thread>
 
 // A task that blocks in execute() until signalled, so we can observe
 // in-flight state.
@@ -305,6 +400,55 @@ TEST_CASE("owner-cancel of in-flight task sets status to Cancelled",
     // onComplete should NOT have been called.
     CHECK(task->completed == false);
 }
+// Submits the next task as it is delivered and waits for a worker to finish
+// it, so it completes while the poll delivering this one is still running.
+class ChainWaitTask : public TestTask
+{
+public:
+    WorkPool* pool = nullptr;
+    rcp<TestTask> next;
+
+    void onComplete() override
+    {
+        TestTask::onComplete();
+        pool->submit(next);
+        auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (next->status() != WorkStatus::Completed &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::yield();
+        }
+        // The worker queues it right after setting its status.
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+};
+
+TEST_CASE("Work completing during delivery waits for the next poll",
+          "[workpool]")
+{
+    WorkPool pool;
+    auto second = make_rcp<TestTask>();
+    auto first = make_rcp<ChainWaitTask>();
+    first->pool = &pool;
+    first->next = second;
+    pool.submit(first);
+
+    uint32_t delivered = 0;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (delivered == 0 && std::chrono::steady_clock::now() < deadline)
+    {
+        delivered = pool.pollCompletedWork(16);
+    }
+    CHECK(delivered == 1);
+    CHECK(first->completed);
+    CHECK(second->executed);
+    CHECK_FALSE(second->completed);
+
+    CHECK(pool.pollCompletedWork(16) == 1);
+    CHECK(second->completed);
+}
+
 #endif // WITH_RIVE_THREADING
 
 // ============================================================================

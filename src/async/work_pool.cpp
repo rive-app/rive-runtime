@@ -50,6 +50,7 @@ uint64_t WorkPool::submit(rcp<WorkTask> task)
     if (!task)
         return 0;
     task->setStatus(WorkStatus::Pending);
+    task->setSubmitGeneration(m_nextHandle);
     m_workQueue.push_back(std::move(task));
     return m_nextHandle++;
 }
@@ -57,8 +58,15 @@ uint64_t WorkPool::submit(rcp<WorkTask> task)
 uint32_t WorkPool::pollCompletedWork(uint32_t maxCallbacks)
 {
     uint32_t processed = 0;
+    // Only what was submitted before this poll: a task submitted while
+    // another completes runs on a later poll, as it would behind worker
+    // threads, so a chain of decodes spreads over polls rather than landing in
+    // one. Stamped by submit order, so a completion that polls again neither
+    // drains this loop's queue from under it nor lets it run later work.
+    const uint64_t submittedBefore = m_nextHandle;
 
-    while (processed < maxCallbacks && !m_workQueue.empty())
+    while (processed < maxCallbacks && !m_workQueue.empty() &&
+           m_workQueue.front()->submitGeneration() < submittedBefore)
     {
         auto task = std::move(m_workQueue.front());
         m_workQueue.pop_front();
@@ -236,8 +244,17 @@ void WorkPool::workerLoop()
 uint32_t WorkPool::pollCompletedWork(uint32_t maxCallbacks)
 {
     uint32_t processed = 0;
+    // Only what had completed before this poll, as the single threaded pool
+    // delivers only what was queued before it.
+    // Workers can finish several decodes a frame, each held twice in the wasm
+    // heap until the boundary: budget this by decoded bytes, not task count.
+    size_t completed;
+    {
+        std::lock_guard<std::mutex> lock(m_completedMutex);
+        completed = m_completedQueue.size();
+    }
 
-    while (processed < maxCallbacks)
+    while (processed < maxCallbacks && processed < completed)
     {
         rcp<WorkTask> task;
         {

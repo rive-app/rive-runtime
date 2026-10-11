@@ -25,6 +25,8 @@ namespace rive
 ///
 /// WITH_RIVE_THREADING: spawns worker threads; submit() queues work;
 /// pollCompletedWork() delivers callbacks on the main thread.
+/// No build enables it yet; before one does, read the delivery note in the
+/// threaded pollCompletedWork and fix the tests that assume a synchronous pool.
 ///
 /// Without threading: submit() just enqueues; pollCompletedWork() dequeues,
 /// calls execute() synchronously, then delivers callbacks — all on the main
