@@ -86,6 +86,65 @@ TEST_CASE("children load correctly", "[solo]")
     REQUIRE(red->isHidden());
 }
 
+TEST_CASE("updates skip a solo's hidden options and reach them once shown",
+          "[solo]")
+{
+    // A Solo's inactive options are collapsed, and updates skip them a whole
+    // run at a time. One moved while hidden still lands where the same move
+    // lands once it is shown.
+    auto file = ReadRiveFile("assets/solo_test.riv");
+    struct Scene
+    {
+        std::unique_ptr<rive::ArtboardInstance> artboard;
+        rive::Solo* solo;
+        rive::Shape* blue;
+        rive::Shape* green;
+    };
+    auto load = [&]() {
+        Scene scene;
+        scene.artboard = file->artboard()->instance();
+        scene.artboard->advance(0.0f);
+        scene.solo = scene.artboard->find<rive::Solo>()[0];
+        scene.blue = scene.solo->children()[0]->as<rive::Shape>();
+        scene.green = scene.solo->children()[1]->as<rive::Shape>();
+        REQUIRE(!scene.blue->isCollapsed());
+        REQUIRE(scene.green->isCollapsed());
+        return scene;
+    };
+    auto show = [](Scene& scene, rive::Shape* option) {
+        scene.solo->activeComponentId(scene.artboard->idOf(option));
+        scene.artboard->advance(0.0f);
+    };
+
+    // Reference: green shown first, then moved.
+    auto reference = load();
+    show(reference, reference.green);
+    reference.green->x(reference.green->x() + 100.0f);
+    reference.artboard->advance(0.0f);
+
+    // Green moved while hidden, alongside a move of the shown blue: the
+    // update skips green's run and reaches blue.
+    auto scene = load();
+    float blueX = scene.blue->worldTransform()[4];
+    auto skips = rive::Artboard::sm_collapsedRunSkips;
+    scene.blue->x(scene.blue->x() + 10.0f);
+    scene.green->x(scene.green->x() + 100.0f);
+    scene.artboard->advance(0.0f);
+    CHECK(rive::Artboard::sm_collapsedRunSkips > skips);
+    CHECK(scene.blue->worldTransform()[4] == Approx(blueX + 10.0f));
+
+    show(scene, scene.green);
+    CHECK(scene.blue->isCollapsed());
+    CHECK(scene.green->worldTransform() == reference.green->worldTransform());
+
+    // Back to blue: green's run is skipped again, and blue still updates.
+    show(scene, scene.blue);
+    scene.blue->x(scene.blue->x() + 10.0f);
+    scene.artboard->advance(0.0f);
+    CHECK(scene.green->isCollapsed());
+    CHECK(scene.blue->worldTransform()[4] == Approx(blueX + 20.0f));
+}
+
 TEST_CASE("nested solos work", "[solo]")
 {
     auto file = ReadRiveFile("assets/nested_solo.riv");

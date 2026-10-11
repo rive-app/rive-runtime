@@ -52,6 +52,7 @@ LinearAnimationInstance::LinearAnimationInstance(
     m_spilledTime(lhs.m_spilledTime),
     m_direction(lhs.m_direction),
     m_didLoop(lhs.m_didLoop),
+    m_noKeyFrameBinds(lhs.m_noKeyFrameBinds),
     m_loopValue(lhs.m_loopValue)
 {}
 
@@ -149,9 +150,16 @@ LAIBindingExtras& LinearAnimationInstance::ensureBindingExtras() const
     return *m_bindingExtras;
 }
 
-BindableProperty* LinearAnimationInstance::keyFrameValueHolder(
+#ifdef TESTING
+uint64_t LinearAnimationInstance::sm_keyFrameHolderResolves = 0;
+#endif
+
+BindableProperty* LinearAnimationInstance::resolveKeyFrameValueHolder(
     const KeyFrame* keyframe) const
 {
+#ifdef TESTING
+    sm_keyFrameHolderResolves++;
+#endif
     // Already resolved for this LAI (holder cached).
     if (m_bindingExtras != nullptr)
     {
@@ -183,6 +191,9 @@ BindableProperty* LinearAnimationInstance::keyFrameValueHolder(
     const Artboard* source = m_artboardInstance->artboardSource();
     if (source == nullptr || !source->hasKeyFrameSourceBinds())
     {
+#ifndef WITH_RIVE_EDITOR
+        m_noKeyFrameBinds = true;
+#endif
         return nullptr;
     }
     DataBind* sourceBind = source->keyFrameSourceBind(keyframe);

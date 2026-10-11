@@ -166,9 +166,26 @@ bool Component::collapse(bool value)
     }
     onDirty(m_Dirt);
     onComponentDirty(this);
+    if (m_Artboard != nullptr)
+    {
+        m_Artboard->collapseChanged();
+    }
     updateCollapsables();
     return true;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void Component::clearDirtForEditor()
+{
+    bool wasCollapsed =
+        (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
+    m_Dirt = ComponentDirt::None;
+    if (wasCollapsed && m_Artboard != nullptr)
+    {
+        m_Artboard->collapseChanged();
+    }
+}
+#endif
 
 bool Component::hitTestPoint(const Vec2D& position,
                              bool skipOnUnclipped,

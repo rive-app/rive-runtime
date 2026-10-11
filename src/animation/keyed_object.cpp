@@ -1,5 +1,6 @@
 #include "rive/animation/keyed_object.hpp"
 #include "rive/animation/keyed_property.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/artboard.hpp"
 #include "rive/layout_component.hpp"
@@ -141,13 +142,15 @@ void KeyedObject::apply(Artboard* artboard,
     {
         return;
     }
+    // Every property here keys the same object; ask it once.
+    InterpolatorHost* interpolatorHost = InterpolatorHost::from(object);
     for (std::unique_ptr<KeyedProperty>& property : m_keyedProperties)
     {
         if (CoreRegistry::isCallback(property->propertyKey()))
         {
             continue;
         }
-        property->apply(object, time, mix, context);
+        property->apply(object, time, mix, context, interpolatorHost);
     }
 #ifdef WITH_RIVE_EDITOR
     for (auto* property : m_editorKeyedProperties)

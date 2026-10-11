@@ -4,6 +4,7 @@
 #include <vector>
 namespace rive
 {
+class InterpolatorHost;
 class KeyFrame;
 class KeyedCallbackReporter;
 class LinearAnimationInstance;
@@ -31,6 +32,14 @@ public:
                float time,
                float mix,
                const LinearAnimationInstance* context = nullptr);
+    /// The same, with `interpolatorHost` already resolved from `object`
+    /// (InterpolatorHost::from), so a keyed object resolves it once for all
+    /// of its properties.
+    void apply(Core* object,
+               float time,
+               float mix,
+               const LinearAnimationInstance* context,
+               InterpolatorHost* interpolatorHost);
 
     StatusCode import(ImportStack& importStack) override;
     KeyFrame* first() const

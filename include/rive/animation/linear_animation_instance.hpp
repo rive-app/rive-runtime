@@ -51,7 +51,19 @@ public:
     // binding work for ANY playback path (state machine, joystick, nested,
     // standalone), mirroring the scripted-interpolator mechanism below. Holders
     // and clones are owned by this LAI and torn down in the destructor.
-    BindableProperty* keyFrameValueHolder(const KeyFrame* keyframe) const;
+    BindableProperty* keyFrameValueHolder(const KeyFrame* keyframe) const
+    {
+        // Asked for every keyframe applied, and most artboards bind none.
+        if (m_noKeyFrameBinds)
+        {
+            return nullptr;
+        }
+        return resolveKeyFrameValueHolder(keyframe);
+    }
+#ifdef TESTING
+    // Lookups that got past keyFrameValueHolder's no-binds check.
+    static uint64_t sm_keyFrameHolderResolves;
+#endif
 
     // Where this instance's number and color writes go instead of straight to
     // the objects, when a blend state owns it; see BlendAccumulator.
@@ -164,6 +176,11 @@ private:
     // Initialized here because the primary ctor does not set it; didLoop()
     // is readable before the first advance().
     bool m_didLoop = false;
+    // The source artboard binds no keyframe values, so keyFrameValueHolder
+    // has nothing to find. Set by its first lookup, which builds the source's
+    // index; the index is never rebuilt. The editor adds binds live and
+    // always looks.
+    mutable bool m_noKeyFrameBinds = false;
     int m_loopValue = -1;
 
     // The four data-binding / scripted-interpolator containers this instance
@@ -177,6 +194,10 @@ private:
 
     // Allocates the cold cluster on first use and returns it.
     LAIBindingExtras& ensureBindingExtras() const;
+
+    // keyFrameValueHolder past its no-binds check.
+    BindableProperty* resolveKeyFrameValueHolder(
+        const KeyFrame* keyframe) const;
 
     // Lazily clones the source bind onto a holder and parks it on the artboard.
     BindableProperty* buildKeyFrameValueHolder(const KeyFrame* keyframe,

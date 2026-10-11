@@ -4,6 +4,8 @@
 #include <rive/viewmodel/viewmodel_instance_color.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/animation/keyed_property.hpp"
+#include "rive/animation/keyed_object.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/node.hpp"
@@ -223,6 +225,44 @@ TEST_CASE("standalone animation instance resolves keyframe value binds",
     REQUIRE(run != nullptr);
     CHECK(run->text() == "STANDALONE_BOUND");
     CHECK(anyNodeHasX(artboard.get(), 424242.0f));
+}
+
+TEST_CASE("only artboards that bind keyframe values look them up",
+          "[data binding]")
+{
+    // Every keyframe applied asks its animation instance for a bound value.
+    // On an artboard that binds none, the first lookup finds that out and
+    // the rest stop early; an artboard that binds them keeps finding them.
+    auto plainFile = ReadRiveFile("assets/frozen_pose.riv");
+    auto plainArtboard = plainFile->artboard()->instance();
+    auto plain = plainArtboard->animationAt(0);
+    REQUIRE(plain != nullptr);
+    const KeyFrame* plainKeyFrame =
+        plain->animation()->getObject(0)->getProperty(0)->getKeyFrame(0);
+    auto resolves = LinearAnimationInstance::sm_keyFrameHolderResolves;
+    CHECK(plain->keyFrameValueHolder(plainKeyFrame) == nullptr);
+    CHECK(LinearAnimationInstance::sm_keyFrameHolderResolves == resolves + 1);
+    // The second lookup stops at the instance's flag.
+    CHECK(plain->keyFrameValueHolder(plainKeyFrame) == nullptr);
+    CHECK(LinearAnimationInstance::sm_keyFrameHolderResolves == resolves + 1);
+
+    auto file = ReadRiveFile("assets/data_bind_keyframes_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+    setStartX(vmi, 10.0f);
+    artboard->bindViewModelInstance(vmi);
+    auto animation = artboard->animationAt(0);
+    REQUIRE(animation != nullptr);
+    animation->advanceAndApply(0.0f);
+    CHECK(anyNodeHasX(artboard.get(), 10.0f));
+
+    // Its later lookups still look, and find the bound value.
+    resolves = LinearAnimationInstance::sm_keyFrameHolderResolves;
+    setStartX(vmi, 987.0f);
+    animation->advanceAndApply(0.0f);
+    CHECK(LinearAnimationInstance::sm_keyFrameHolderResolves > resolves);
+    CHECK(anyNodeHasX(artboard.get(), 987.0f));
 }
 
 TEST_CASE("Data binding keyframes animated by joysticks", "[silver]")

@@ -70,6 +70,14 @@ private:
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
+    /// While this component is collapsed: how many places on in the
+    /// dependency order its run of collapsed components ends, so the update
+    /// loop skips the run in one step. Capped at UINT16_MAX: a longer run
+    /// lands on another of its components, which skips on. Written by
+    /// Artboard::markCollapsedRuns; current only while the artboard's
+    /// m_collapsedRunsDirty is clear. 0 never jumps. Fills the padding after
+    /// m_Dirt, so Component doesn't grow on any ABI.
+    uint16_t m_collapsedRunSkip = 0;
     void updateCollapsables();
 
 public:
@@ -251,8 +259,9 @@ public:
     /// them forever, so m_Dirt never clears and subsequent
     /// `addDirt` calls early-out — the dirty cascade silently
     /// breaks for collapsed subtrees and any sibling that shares
-    /// dependents with them.
-    void clearDirtForEditor() { m_Dirt = ComponentDirt::None; }
+    /// dependents with them. Clearing Collapsed tells the artboard, as
+    /// collapse() does (see Artboard::collapseChanged).
+    void clearDirtForEditor();
 
     /// Editor-only `ComponentFlags` bit positions. Mirrors dart's
     /// [packages/rive_core/lib/component_flags.dart](packages/rive_core/lib/component_flags.dart)

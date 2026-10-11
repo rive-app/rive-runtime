@@ -109,6 +109,7 @@ uint64_t Artboard::sm_frameId = 0;
 #ifdef TESTING
 uint64_t Artboard::sm_layoutPassCount = 0;
 uint64_t Artboard::sm_dirtNotifications = 0;
+uint64_t Artboard::sm_collapsedRunSkips = 0;
 #endif
 
 Artboard::Artboard()
@@ -1431,6 +1432,7 @@ void Artboard::sortDependencies()
     }
     m_DependencyOrderRecipe.clear();
     m_RecipeState = RecipeState::unbuilt;
+    m_collapsedRunsDirty = true;
     m_Dirt |= ComponentDirt::Components;
 }
 
@@ -2007,6 +2009,66 @@ void Artboard::updateDataBinds(bool applyTargetToSource)
     DataBindContainer::updateDataBinds(applyTargetToSource);
 }
 
+// How far the collapsed component at `index` jumps for a run ending at
+// `runEnd` (see Component::m_collapsedRunSkip).
+static uint16_t collapsedRunSkip(unsigned int runEnd, unsigned int index)
+{
+    return (uint16_t)std::min<unsigned int>(runEnd - index, UINT16_MAX);
+}
+
+void Artboard::markCollapsedRuns()
+{
+    m_collapsedRunsDirty = false;
+    auto runEnd = (unsigned int)m_DependencyOrder.size();
+    for (auto i = runEnd; i-- > 0;)
+    {
+        Component* component = m_DependencyOrder[i];
+        // The dirt bit, as updateComponents reads it: isCollapsed() also
+        // reports a display-hidden layout, which still updates.
+        if ((component->m_Dirt & ComponentDirt::Collapsed) !=
+            ComponentDirt::Collapsed)
+        {
+            runEnd = i;
+            continue;
+        }
+        // Only stored when it moved, so an unchanged run leaves its
+        // components' cache lines clean.
+        uint16_t skip = collapsedRunSkip(runEnd, i);
+        if (component->m_collapsedRunSkip != skip)
+        {
+            component->m_collapsedRunSkip = skip;
+        }
+    }
+}
+
+#ifdef TESTING
+void Artboard::verifyCollapsedRuns() const
+{
+    auto runEnd = (unsigned int)m_DependencyOrder.size();
+    for (auto i = runEnd; i-- > 0;)
+    {
+        Component* component = m_DependencyOrder[i];
+        if ((component->m_Dirt & ComponentDirt::Collapsed) !=
+            ComponentDirt::Collapsed)
+        {
+            runEnd = i;
+        }
+        else if (component->m_collapsedRunSkip != collapsedRunSkip(runEnd, i))
+        {
+            fprintf(stderr,
+                    "Collapsed '%s' at %u in artboard '%s' skips %u, not %u: "
+                    "a collapse change didn't reach collapseChanged()\n",
+                    component->name().c_str(),
+                    i,
+                    name().c_str(),
+                    (unsigned int)component->m_collapsedRunSkip,
+                    (unsigned int)collapsedRunSkip(runEnd, i));
+            abort();
+        }
+    }
+}
+#endif
+
 bool Artboard::updateComponents()
 {
     if (!hasDirt(ComponentDirt::Components))
@@ -2019,6 +2081,16 @@ bool Artboard::updateComponents()
     while (hasDirt(ComponentDirt::Components) && step < maxSteps)
     {
         m_Dirt = m_Dirt & ~ComponentDirt::Components;
+        if (m_collapsedRunsDirty)
+        {
+            markCollapsedRuns();
+        }
+#ifdef TESTING
+        else
+        {
+            verifyCollapsedRuns();
+        }
+#endif
 
         // Track dirt depth here so that if something else marks
         // dirty, we restart.
@@ -2027,8 +2099,23 @@ bool Artboard::updateComponents()
             auto component = m_DependencyOrder[i];
             m_DirtDepth = i;
             auto d = component->m_Dirt;
-            if (d == ComponentDirt::None ||
-                (d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
+            if ((d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
+            {
+                // Collapsed components aren't updated, and they sit in long
+                // runs (a Solo's inactive options): skip the whole run. If
+                // anything collapsed or uncollapsed during this pass, the
+                // skips are stale, so step one by one until the next pass
+                // marks them again.
+                if (!m_collapsedRunsDirty && component->m_collapsedRunSkip > 1)
+                {
+#ifdef TESTING
+                    sm_collapsedRunSkips++;
+#endif
+                    i += component->m_collapsedRunSkip - 1;
+                }
+                continue;
+            }
+            if (d == ComponentDirt::None)
             {
                 continue;
             }

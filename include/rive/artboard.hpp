@@ -151,6 +151,16 @@ private:
     [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
     bool m_JoysticksApplyBeforeUpdate = true;
+    // Something collapsed or uncollapsed, or the dependency order changed,
+    // since markCollapsedRuns: the run ends on collapsed components are
+    // stale. Sits in padding.
+    bool m_collapsedRunsDirty = true;
+    // Writes each collapsed component's run end; clears m_collapsedRunsDirty.
+    void markCollapsedRuns();
+#ifdef TESTING
+    // Aborts if a run end updateComponents would jump by is wrong.
+    void verifyCollapsedRuns() const;
+#endif
 
     unsigned int m_DirtDepth = 0;
     Factory* m_Factory = nullptr;
@@ -304,6 +314,8 @@ public:
     static uint64_t layoutPassCount() { return sm_layoutPassCount; }
     // Dirt reported to any artboard (onComponentDirty and onDirty calls).
     static uint64_t sm_dirtNotifications;
+    // Runs of collapsed components updateComponents skipped in one step.
+    static uint64_t sm_collapsedRunSkips;
     static void incFrameId() { sm_frameId++; }
 #elif WITH_RIVE_TOOLS
     static void incFrameId() { sm_frameId++; }
@@ -609,6 +621,8 @@ public:
     Vec2D rootTransform(const Vec2D&);
 
     void onComponentDirty(Component* component);
+    /// A component in this artboard collapsed or uncollapsed.
+    void collapseChanged() { m_collapsedRunsDirty = true; }
     void rotationChanged() override;
     void scaleXChanged() override;
     void scaleYChanged() override;

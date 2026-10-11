@@ -115,6 +115,15 @@ void KeyedProperty::apply(Core* object,
                           float mix,
                           const LinearAnimationInstance* context)
 {
+    apply(object, seconds, mix, context, InterpolatorHost::from(object));
+}
+
+void KeyedProperty::apply(Core* object,
+                          float seconds,
+                          float mix,
+                          const LinearAnimationInstance* context,
+                          InterpolatorHost* interpolatorHost)
+{
 #ifdef WITH_RIVE_EDITOR
     // A given KeyedProperty instance is either runtime-loaded (uses
     // m_keyFrames unique_ptr owned) or coop-loaded (uses
@@ -150,7 +159,6 @@ void KeyedProperty::apply(Core* object,
     const int closestIdx = closestFrameIndex(seconds);
 #endif
 
-    auto interpolatorHost = InterpolatorHost::from(object);
     auto actualMix = mix;
     if (interpolatorHost != nullptr &&
         interpolatorHost->overridesKeyedInterpolation(propertyKey()))
