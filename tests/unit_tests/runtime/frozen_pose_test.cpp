@@ -6,6 +6,7 @@
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/viewmodel/viewmodel_instance_boolean.hpp>
+#include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <memory>
@@ -203,4 +204,54 @@ TEST_CASE("Writes to a quiet list row bring its pose back", "[state machine]")
     row->rotation(0.5f);
     machine->advanceAndApply(1.0f / 60.0f);
     CHECK(row->rotation() == 0.0f);
+}
+
+// reverse_state_freeze.riv: a square, hidden at design time, that one 15-frame
+// one-shot fades in. The layer's any state goes to that animation when the view
+// model's show trigger fires, and to the same animation at speed -1 when hide
+// fires; its entry state goes nowhere.
+TEST_CASE("A state playing backwards from its forward twin's end still plays",
+          "[state machine]")
+{
+    auto file = ReadRiveFile("assets/reverse_state_freeze.riv");
+    auto artboard = file->artboard()->instance();
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    machine->advanceAndApply(0.0f);
+    auto advance = [&](int frames) {
+        for (int i = 0; i < frames; i++)
+        {
+            machine->advanceAndApply(1.0f / 60.0f);
+        }
+    };
+    auto fire = [&](const char* name) {
+        auto property = viewModelInstance->propertyValue(name);
+        REQUIRE(property != nullptr);
+        REQUIRE(property->is<ViewModelInstanceTrigger>());
+        property->as<ViewModelInstanceTrigger>()->trigger();
+    };
+    auto shape = square(artboard.get());
+    REQUIRE(shape->opacity() == 0.0f);
+
+    fire("show");
+    advance(30);
+    REQUIRE(shape->opacity() == 1.0f);
+    CHECK(machine->isLayerFrozen(0));
+
+    // The backwards state starts at the animation's end, so its first apply
+    // writes the pose the forward state left and nothing on the artboard
+    // changes. It has the whole animation left to play all the same.
+    fire("hide");
+    advance(1);
+    CHECK_FALSE(machine->isLayerFrozen(0));
+    advance(4);
+    CHECK(shape->opacity() < 1.0f);
+    CHECK(shape->opacity() > 0.0f);
+
+    // Played back to its start, it is a finished one-shot like any other.
+    advance(30);
+    CHECK(shape->opacity() == 0.0f);
+    CHECK(machine->isLayerFrozen(0));
 }

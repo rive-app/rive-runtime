@@ -277,7 +277,10 @@ public:
                     static_cast<const AnimationStateInstance*>(m_currentState)
                         ->animationInstance();
                 return instance->animation()->numKeyedObjects() == 0 ||
-                       isPoseInPlace(smi, instance, poseSince);
+                       isPoseInPlace(smi,
+                                     instance,
+                                     state->as<AnimationState>()->speed(),
+                                     poseSince);
             }
             default:
                 return false;
@@ -297,12 +300,15 @@ public:
     // transition whose interpolator doesn't end at exactly 1 (its "full" mix
     // still blends). Finished is the animation's own word for it: the state's
     // keepGoing() also reads false after an advance by zero, before the
-    // animation has played at all.
+    // animation has played at all. It is asked in the direction the state
+    // plays it (stateSpeed): a state playing backwards starts at the
+    // animation's end, where a forward one-shot would be done.
     bool isPoseInPlace(const StateMachineInstance* smi,
                        const LinearAnimationInstance* instance,
+                       float stateSpeed,
                        uint32_t poseSince) const
     {
-        if (instance->keepGoing() ||
+        if (instance->keepGoing(stateSpeed) ||
             !instance->animation()->appliesKeyFrameValuesAt(instance->time()))
         {
             return false;
