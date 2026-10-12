@@ -509,6 +509,11 @@ public:
     {
         return m_layerMasks;
     }
+    // Every Drawable in the artboard (plus layout proxies). Much smaller than
+    // objects(), so prefer it when looking for a Drawable type. The editor's
+    // CommandDispatcher::handleHitTest walks it back-to-front for
+    // component-level selection (later index = higher z).
+    const std::vector<Drawable*>& drawables() const { return m_Drawables; }
 #ifdef WITH_RIVE_EDITOR
     // Install / remove an auxiliary resolver for CoopId-backed
     // references (see `m_editorResolver`). `editor_native::EditorFile`
@@ -535,11 +540,6 @@ public:
     // Clear the drawables list so `finalizeBatch` can rebuild it
     // idempotently when a follow-on coop batch adds more Drawables.
     void clearDrawables() { m_Drawables.clear(); }
-    // Editor-side iteration over registered drawables. Used by
-    // CommandDispatcher::handleHitTest to walk components inside an
-    // artboard back-to-front for component-level selection. Vector
-    // order matches draw order (later index = higher z).
-    const std::vector<Drawable*>& drawables() const { return m_Drawables; }
     // Editor-only: clear/rebuild the animation + state-machine lists.
     // Runtime `.riv` loads populate these via `ArtboardImporter::
     // addAnimation` / `addStateMachine` during import; coop-hydrated

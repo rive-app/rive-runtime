@@ -141,11 +141,13 @@ static void collectSelectable(Artboard* artboard, std::vector<Text*>& result)
 {
     if (artboard == nullptr)
         return;
-    for (auto* object : artboard->objects())
+    // Every Text is a Drawable, and drawables() keeps their relative object
+    // order while skipping the vertices, paints and other non-drawables that
+    // make up most of objects(). Hosts synchronize on every pointer move.
+    for (auto* drawable : artboard->drawables())
     {
-        if (object != nullptr && object->is<Text>() &&
-            object->as<Text>()->isSelectable())
-            result.push_back(object->as<Text>());
+        if (drawable->is<Text>() && drawable->isSelectable())
+            result.push_back(drawable->as<Text>());
     }
     for (auto* nested : artboard->nestedArtboards())
         collectSelectable(nested->artboardInstance(), result);
