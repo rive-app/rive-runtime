@@ -9656,6 +9656,7 @@ bool WasmScriptingVM::bootModule()
     // Frame collector modules scavenge at every boundary instead of
     // rewinding or finalizing.
     m_frameMinor = hasExport("__riveFrameMinor");
+    m_frameRelease = m_frameMinor && hasExport("__riveFrameRelease");
     m_frameMajorsProbe = hasExport("__riveFrameMajors");
     // Stub modules report their bump position, finer than page counts.
     m_heapUsedProbe = hasExport("__riveHeapUsed");
@@ -9705,6 +9706,15 @@ const char* WasmScriptingVM::frameBoundary()
         {
             fprintf(stderr, "frameMinor promoted=%u\n", promoted);
             callModule("__riveFrameVerify", 0, nullptr);
+        }
+        if (m_frameRelease)
+        {
+            // The handles the collection found dead. Releasing one can
+            // destroy an artboard instance whose scripted objects call
+            // back into the module (host_obj_dispose, host_unref), so this
+            // runs after the collection, never inside it. (A host that
+            // skips it gets them released at the next boundary.)
+            callModule("__riveFrameRelease", 0, nullptr);
         }
         if (!m_frameMinorAnnounced)
         {

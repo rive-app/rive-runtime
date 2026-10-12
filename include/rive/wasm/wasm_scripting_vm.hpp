@@ -725,6 +725,9 @@ private:
     VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
+    /// Module exports __riveFrameRelease: its reap queues the handles it
+    /// finds dead and the host releases them right after each collection.
+    bool m_frameRelease = false;
     /// Module exports __riveHeapUsed; the leak watch reads bump bytes
     /// instead of page counts.
     bool m_heapUsedProbe = false;
