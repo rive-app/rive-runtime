@@ -1,4 +1,6 @@
 #include <rive/file.hpp>
+#include <rive/draw_rules.hpp>
+#include <rive/draw_target.hpp>
 #include <rive/node.hpp>
 #include <rive/shapes/clipping_shape.hpp>
 #include <rive/shapes/rectangle.hpp>
@@ -34,6 +36,32 @@ TEST_CASE("draw rules load and sort correctly", "[draw rules]")
     for (int i = 0; i < frames; i++)
     {
         animation->advanceAndApply(frameDuration);
+        rive::NoOpRenderer renderer;
+        artboard->draw(&renderer);
+    }
+}
+
+TEST_CASE("draw targets without a drawable are dropped on load", "[draw rules]")
+{
+    // draw_rule_cycle.riv with drawableId stripped from every DrawTarget, which
+    // is what the editor exports when a rule targets a drawable that doesn't
+    // export (e.g. one in a guide layer). Used to crash Artboard::initialize.
+    auto file = ReadRiveFile("assets/draw_target_missing_drawable.riv");
+
+    std::unique_ptr<rive::ArtboardInstance> artboard = file->artboardDefault();
+    REQUIRE(artboard->find<rive::DrawTarget>().empty());
+    auto rules = artboard->find<rive::DrawRules>();
+    REQUIRE(!rules.empty());
+    for (auto rule : rules)
+    {
+        CHECK(rule->activeTarget() == nullptr);
+    }
+
+    std::unique_ptr<rive::LinearAnimationInstance> animation =
+        artboard->animationAt(0);
+    for (int i = 0; i < 10; i++)
+    {
+        animation->advanceAndApply(1.0f);
         rive::NoOpRenderer renderer;
         artboard->draw(&renderer);
     }

@@ -5,6 +5,19 @@
 
 using namespace rive;
 
+bool DrawTarget::validate(CoreContext* context)
+{
+    if (!Super::validate(context))
+    {
+        return false;
+    }
+    // Artboard::initialize and sortDrawOrder dereference drawable()
+    // unconditionally, so a target without one (missing from the file, or
+    // culled as invalid itself) must not make it into the artboard.
+    auto coreObject = context->resolve(drawableId());
+    return coreObject != nullptr && coreObject->is<Drawable>();
+}
+
 StatusCode DrawTarget::onAddedDirty(CoreContext* context)
 {
     StatusCode code = Super::onAddedDirty(context);

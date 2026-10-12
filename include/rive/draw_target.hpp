@@ -35,6 +35,7 @@ public:
 #else
     inline Drawable* drawable() const { return m_Drawable; }
 #endif
+    bool validate(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
 
