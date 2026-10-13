@@ -84,6 +84,10 @@ public:
                                     const float stops[],     // [count]
                                     size_t count);
 
+    static rcp<Gradient> MakeAngular(const ColorInt colors[], // [count]
+                                     const float stops[],     // [count]
+                                     size_t count);
+
     PaintType paintType() const { return m_paintType; }
     const float* coeffs() const { return m_coeffs.data(); }
     const ColorInt* colors() const { return m_colors.get(); }
@@ -113,7 +117,8 @@ private:
         m_coeffs{coeffX, coeffY, coeffZ}
     {
         assert(paintType == gpu::PaintType::linearGradient ||
-               paintType == gpu::PaintType::radialGradient);
+               paintType == gpu::PaintType::radialGradient ||
+               paintType == gpu::PaintType::angularGradient);
     }
 
     PaintType m_paintType; // Specifically, linearGradient or radialGradient.

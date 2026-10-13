@@ -138,6 +138,7 @@ public:
                                               &m_buffer,
                                               &m_shaderIds);
     }
+
     rcp<RenderShader> makeRadialGradient(float cx,
                                          float cy,
                                          float radius,
@@ -156,6 +157,25 @@ public:
                                           static_cast<uint32_t>(count),
                                           g.colorsOffset,
                                           g.stopsOffset});
+        return make_rcp<DeferredRenderShader>(a.id,
+                                              a.generation,
+                                              &m_buffer,
+                                              &m_shaderIds);
+    }
+
+    rcp<RenderShader> makeAngularGradient(const ColorInt colors[],
+                                          const float stops[],
+                                          size_t count) override
+    {
+        auto a = m_shaderIds.alloc();
+        GradientBlobs g = appendGradientStops(colors, stops, count);
+        m_buffer.append(static_cast<uint8_t>(RenderCmd::makeAngularGradient),
+                        AngularGradientPOD{a.id,
+                                           a.generation,
+                                           0, // pad
+                                           static_cast<uint32_t>(count),
+                                           g.colorsOffset,
+                                           g.stopsOffset});
         return make_rcp<DeferredRenderShader>(a.id,
                                               a.generation,
                                               &m_buffer,

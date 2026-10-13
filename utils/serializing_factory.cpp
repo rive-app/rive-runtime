@@ -44,6 +44,8 @@ static const char* opToName(SerializeOp op)
             return "makeLinearGradient";
         case SerializeOp::makeRadialGradient:
             return "makeRadialGradient";
+        case SerializeOp::makeAngularGradient:
+            return "makeAngularGradient";
         case SerializeOp::makeRenderPath:
             return "makeRenderPath";
         case SerializeOp::makeRenderPaint:
@@ -605,6 +607,24 @@ rcp<RenderShader> SerializingFactory::makeRadialGradient(
     m_writer.writeFloat(cx);
     m_writer.writeFloat(cy);
     m_writer.writeFloat(radius);
+
+    return make_rcp<SerializingRenderShader>(id);
+}
+
+rcp<RenderShader> SerializingFactory::makeAngularGradient(
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
+{
+    auto id = m_renderShaderId++;
+    m_writer.writeVarUint((uint32_t)SerializeOp::makeAngularGradient);
+    m_writer.writeVarUint(id);
+    m_writer.writeVarUint((uint64_t)count);
+    for (auto i = 0; i < count; i++)
+    {
+        m_writer.writeVarUint(colors[i]);
+        m_writer.writeFloat(stops[i]);
+    }
 
     return make_rcp<SerializingRenderShader>(id);
 }
@@ -1252,6 +1272,12 @@ bool advancedMatch(std::vector<uint8_t>& fileA, std::vector<uint8_t>& fileB)
                                   "make_lineargradient_radius",
                                   readerA,
                                   readerB))
+                {
+                    return false;
+                }
+                break;
+            case SerializeOp::makeAngularGradient:
+                if (!gradientMatches(opA, "angulargradient", readerA, readerB))
                 {
                     return false;
                 }

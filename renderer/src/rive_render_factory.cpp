@@ -33,6 +33,14 @@ rcp<RenderShader> RiveRenderFactory::makeRadialGradient(
     return gpu::Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 
+rcp<RenderShader> RiveRenderFactory::makeAngularGradient(
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
+{
+    return gpu::Gradient::MakeAngular(colors, stops, count);
+}
+
 rcp<RenderPath> RiveRenderFactory::makeRenderPath(RawPath& rawPath,
                                                   FillRule fillRule)
 {

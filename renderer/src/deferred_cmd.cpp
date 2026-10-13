@@ -271,6 +271,30 @@ void replayRenderCommands(Factory* factory,
                             c.generation);
                 break;
             }
+            case RenderCmd::makeAngularGradient:
+            {
+                auto c = reader.read<AngularGradientPOD>();
+                const ColorInt* colors = reinterpret_cast<const ColorInt*>(
+                    reader
+                        .blobAt(c.blobOffset,
+                                c.count *
+                                    static_cast<uint32_t>(sizeof(ColorInt)))
+                        .data());
+                const float* stops = reinterpret_cast<const float*>(
+                    reader
+                        .blobAt(c.stopsOffset,
+                                c.count * static_cast<uint32_t>(sizeof(float)))
+                        .data());
+                if (colors == nullptr || stops == nullptr)
+                {
+                    break; // blob out of range (corrupt stream)
+                }
+                shaders.set(
+                    c.id,
+                    factory->makeAngularGradient(colors, stops, c.count),
+                    c.generation);
+                break;
+            }
             case RenderCmd::decodeImage:
             {
                 auto c = reader.read<DecodeImagePOD>();

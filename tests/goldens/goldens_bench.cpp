@@ -139,6 +139,9 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
             case RenderCmd::makeRadialGradient:
                 r.read<RadialGradientPOD>();
                 break;
+            case RenderCmd::makeAngularGradient:
+                r.read<AngularGradientPOD>();
+                break;
             case RenderCmd::decodeImage:
                 r.read<DecodeImagePOD>();
                 break;

@@ -675,10 +675,14 @@ bool RenderContext::LogicalFlush::allocateGradient(
     size_t stopCount = gradient->count();
     assert(stopCount > 0); // RiveRenderFactory guarantees this.
 
-    if (stopCount == 1 || (stopCount == 2 && stops[0] == 0 && stops[1] == 1))
+    if (gradient->paintType() != PaintType::angularGradient &&
+        (stopCount == 1 || (stopCount == 2 && stops[0] == 0 && stops[1] == 1)))
     {
         // This is a simple gradient that can be implemented by a two-texel
         // color ramp.
+        // Note that angular gradients rely on being complex always (even if the
+        // stops would otherwise play nice), as it uses texture wrapping to wrap
+        // back around.
         const ColorInt* colors = gradient->colors();
         TwoTexelRamp colorRamp = {colors[0],
                                   // Handle ramps with a single stop.
@@ -2730,11 +2734,15 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
         size_t m_totalSizeInBytes = 0;
         bool m_hasChanged = false;
     } logger;
+// Disabling clang format here because it's mis-formatting these in the
+// version we have on CI (which is fighting with newer versions).
+// clang-format off
 #define LOG_BUFFER_RING_SIZE(NAME, ITEM_SIZE_IN_BYTES)                         \
     logger.logSize(#NAME,                                                      \
                    m_currentResourceAllocations.NAME,                          \
                    allocs.NAME,                                                \
-                   allocs.NAME* ITEM_SIZE_IN_BYTES* gpu::kBufferRingSize)
+                   allocs.NAME * ITEM_SIZE_IN_BYTES * gpu::kBufferRingSize)
+// clang-format on
 #define LOG_TEXTURE_SIZE(NAME, BYTES_PER_VALUE)                                \
     logger.logSize(#NAME,                                                      \
                    m_currentResourceAllocations.NAME,                          \

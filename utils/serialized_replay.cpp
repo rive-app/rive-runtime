@@ -301,6 +301,22 @@ bool rive::replaySerializedCommands(Span<const uint8_t> stream,
                 }
                 break;
             }
+            case SerializeOp::makeAngularGradient:
+            {
+                uint64_t id = reader.readVarUint64();
+                size_t count = static_cast<size_t>(reader.readVarUint64());
+                std::vector<ColorInt> colors(count);
+                std::vector<float> stops(count);
+                for (size_t i = 0; i < count; ++i)
+                {
+                    colors[i] = static_cast<ColorInt>(reader.readVarUint64());
+                    stops[i] = reader.readFloat32();
+                }
+                shaders[id] = factory->makeAngularGradient(colors.data(),
+                                                           stops.data(),
+                                                           count);
+                break;
+            }
             case SerializeOp::decodeImage:
             {
                 uint64_t id = reader.readVarUint64();

@@ -434,6 +434,7 @@ enum class PaintType : uint32_t
     solidColor,
     linearGradient,
     radialGradient,
+    angularGradient,
 };
 
 // Specifies the location of a simple or complex horizontal color ramp within

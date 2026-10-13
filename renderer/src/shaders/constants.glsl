@@ -176,6 +176,7 @@
 #define SOLID_COLOR_PAINT_TYPE 1u
 #define LINEAR_GRADIENT_PAINT_TYPE 2u
 #define RADIAL_GRADIENT_PAINT_TYPE 3u
+#define ANGULAR_GRADIENT_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
 #define PAINT_FLAG_NON_ZERO_FILL 0x100u

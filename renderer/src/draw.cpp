@@ -789,6 +789,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
                 break;
             case gpu::PaintType::linearGradient:
             case gpu::PaintType::radialGradient:
+            case gpu::PaintType::angularGradient:
             case gpu::PaintType::clipUpdate:
                 break;
         }

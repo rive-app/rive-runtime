@@ -19,14 +19,15 @@ enum class RenderCmd : uint8_t
     // ---- resource creation ----
     // Each make* carries an explicit id and generation so ids can be reused
     // without the consumer table growing unboundedly.
-    makePath,           // MakePathPOD (+ rawpath blob)
-    makeEmptyPath,      // MakeIdPOD
-    makePaint,          // MakeIdPOD
-    makeLinearGradient, // LinearGradientPOD (+ colors[]+stops[] blob)
-    makeRadialGradient, // RadialGradientPOD (+ colors[]+stops[] blob)
-    decodeImage,        // DecodeImagePOD (+ encoded-bytes blob)
-    makeBuffer,         // MakeBufferPOD
-    bufferData,         // BufferDataPOD (+ data blob), a map()/unmap() write
+    makePath,            // MakePathPOD (+ rawpath blob)
+    makeEmptyPath,       // MakeIdPOD
+    makePaint,           // MakeIdPOD
+    makeLinearGradient,  // LinearGradientPOD (+ colors[]+stops[] blob)
+    makeRadialGradient,  // RadialGradientPOD (+ colors[]+stops[] blob)
+    makeAngularGradient, // AngualrGradientPOD (+ colors[]+stops[] blob)
+    decodeImage,         // DecodeImagePOD (+ encoded-bytes blob)
+    makeBuffer,          // MakeBufferPOD
+    bufferData,          // BufferDataPOD (+ data blob), a map()/unmap() write
     makeImageMeshInstances, // MakeImageMeshInstancesPOD
     imageMeshInstancesData, // ImageMeshInstancesDataPOD (+ data blob)
 
@@ -166,6 +167,18 @@ struct RadialGradientPOD
     uint64_t stopsOffset; // stops (own blob, 8-aligned)
 };
 static_assert(sizeof(RadialGradientPOD) == 10 * sizeof(uint32_t),
+              "wire POD must be pointer-free and padding-free");
+
+struct AngularGradientPOD
+{
+    RenderHandle id;
+    uint32_t generation;
+    uint32_t pad;
+    uint32_t count;
+    uint64_t blobOffset;  // colors
+    uint64_t stopsOffset; // stops (own blob, 8-aligned)
+};
+static_assert(sizeof(AngularGradientPOD) == 8 * sizeof(uint32_t),
               "wire POD must be pointer-free and padding-free");
 
 struct PathFillRulePOD
@@ -373,6 +386,7 @@ struct CanvasContentPOD
     X(makePaint, MakeIdPOD)                                                    \
     X(makeLinearGradient, LinearGradientPOD)                                   \
     X(makeRadialGradient, RadialGradientPOD)                                   \
+    X(makeAngularGradient, AngularGradientPOD)                                 \
     X(decodeImage, DecodeImagePOD)                                             \
     X(makeBuffer, MakeBufferPOD)                                               \
     X(bufferData, BufferDataPOD)                                               \

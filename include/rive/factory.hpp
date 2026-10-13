@@ -61,6 +61,26 @@ public:
         const float stops[],     // [count]
         size_t count) = 0;
 
+    virtual rcp<RenderShader> makeAngularGradient(
+        const ColorInt colors[], // [count]
+        const float stops[],     // [count]
+        size_t count)
+    {
+        // TODO: This is defaulted to make a linear gradient with a single stop
+        // (i.e. it's solid color) for platforms where angular gradients are not
+        // yet implemented, mostly to have it do *something*. This defaulting
+        // should get removed once there's an implementation everywhere (which
+        // may still be doing something like this if, as with the SVG renderer,
+        // this isn't possible to implement properly).
+        return makeLinearGradient(0.0f,
+                                  0.0f,
+                                  1.0f,
+                                  0.0f,
+                                  colors,
+                                  stops,
+                                  std::min(size_t(1), count));
+    }
+
     // Returns a full-formed RenderPath -- can be treated as immutable
     // This call might swap out the arrays backing the points and verbs in the
     // given RawPath, so the caller can expect it to be in an undefined state

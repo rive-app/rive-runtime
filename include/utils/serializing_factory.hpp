@@ -85,6 +85,10 @@ public:
                                          const float stops[],     // [count]
                                          size_t count) override;
 
+    rcp<RenderShader> makeAngularGradient(const ColorInt colors[], // [count]
+                                          const float stops[],     // [count]
+                                          size_t count) override;
+
     rcp<RenderPath> makeRenderPath(RawPath&, FillRule) override;
 
     rcp<RenderPath> makeEmptyRenderPath() override;

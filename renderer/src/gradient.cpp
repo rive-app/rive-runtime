@@ -173,6 +173,27 @@ rcp<Gradient> Gradient::MakeRadial(float cx,
                             radius));
 }
 
+rcp<Gradient> Gradient::MakeAngular(const ColorInt colors[], // [count]
+                                    const float stops[],     // [count]
+                                    size_t count)
+{
+    if (!validate_gradient_stops(colors, stops, count))
+    {
+        return nullptr;
+    }
+
+    GradDataArray<ColorInt> newColors(colors, count);
+    GradDataArray<float> newStops(stops, count);
+
+    return rcp(new Gradient(gpu::PaintType::angularGradient,
+                            std::move(newColors),
+                            std::move(newStops),
+                            count,
+                            0.0f,   // coeffX
+                            0.0f,   // coeffY
+                            0.0f)); // coeffZ
+}
+
 bool Gradient::isOpaque() const
 {
     if (m_isOpaque == gpu::TriState::unknown)

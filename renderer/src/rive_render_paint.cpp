@@ -126,6 +126,7 @@ bool RiveRenderPaint::getIsOpaque() const
             return colorAlpha(m_data.m_simpleValue.color) == 0xff;
         case gpu::PaintType::linearGradient:
         case gpu::PaintType::radialGradient:
+        case gpu::PaintType::angularGradient:
             return m_data.m_gradient->isOpaque();
         case gpu::PaintType::clipUpdate:
             return false;

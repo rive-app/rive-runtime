@@ -1002,10 +1002,14 @@ static uint32_t paint_type_to_glsl_id(PaintType paintType)
     static_assert((int)PaintType::solidColor == SOLID_COLOR_PAINT_TYPE);
     static_assert((int)PaintType::linearGradient == LINEAR_GRADIENT_PAINT_TYPE);
     static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
-    // draw_depthstencil_path.glsl packs the gradient type into the top
-    // exponent bits of a float. [2, 6] keeps it normal and finite.
-    static_assert(LINEAR_GRADIENT_PAINT_TYPE >= 2 &&
-                  RADIAL_GRADIENT_PAINT_TYPE <= 6);
+    static_assert((int)PaintType::angularGradient ==
+                  ANGULAR_GRADIENT_PAINT_TYPE);
+
+    // These all need to fit inside of 3 bits for the packing in
+    // gradient_packing_common.hlsl to work.
+    static_assert(LINEAR_GRADIENT_PAINT_TYPE < 8u);
+    static_assert(RADIAL_GRADIENT_PAINT_TYPE < 8u);
+    static_assert(ANGULAR_GRADIENT_PAINT_TYPE < 8u);
 }
 
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
@@ -1238,6 +1242,7 @@ void PaintData::set(DrawContents singleDrawContents,
         }
         case PaintType::linearGradient:
         case PaintType::radialGradient:
+        case PaintType::angularGradient:
         {
             m_gradientAdditivenessComplement = 1.0f - additiveness;
             localParams |= shiftedClipID | shiftedBlendMode;
@@ -1306,19 +1311,29 @@ void getGradientMatrixAndCoord(const Gradient* gradient,
 
     paintMatrixOut = inverseGradientTransform * paintMatrixOut;
 
-    if (gradient->paintType() == PaintType::linearGradient)
+    switch (gradient->paintType())
     {
-        paintMatrixOut =
-            Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) *
-            paintMatrixOut;
-    }
-    else
-    {
-        assert(gradient->paintType() == PaintType::radialGradient);
-        float w = 1 / gradCoeffs[2];
-        paintMatrixOut =
-            Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) *
-            paintMatrixOut;
+        case PaintType::linearGradient:
+            paintMatrixOut =
+                Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) *
+                paintMatrixOut;
+            break;
+        case PaintType::radialGradient:
+        {
+            float w = 1 / gradCoeffs[2];
+            paintMatrixOut =
+                Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) *
+                paintMatrixOut;
+            break;
+        }
+
+        case PaintType::angularGradient:
+            // paintMatrixOut is unchanged.
+            break;
+
+        case PaintType::clipUpdate:
+        case PaintType::solidColor:
+            RIVE_UNREACHABLE();
     }
 
     gradYOut = rampLocation.row;
@@ -1351,6 +1366,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     {
         case PaintType::linearGradient:
         case PaintType::radialGradient:
+        case PaintType::angularGradient:
         {
             assert(gradient != nullptr);
             Mat2D paintMatrix;

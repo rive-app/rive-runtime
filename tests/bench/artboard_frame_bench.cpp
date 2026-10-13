@@ -207,6 +207,14 @@ public:
         return make_rcp<CountingRenderShader>();
     }
 
+    rcp<RenderShader> makeAngularGradient(const ColorInt[],
+                                          const float[],
+                                          size_t) override
+    {
+        g_counters.gradientsMade++;
+        return make_rcp<CountingRenderShader>();
+    }
+
     rcp<RenderPath> makeRenderPath(RawPath&, FillRule) override
     {
         g_counters.renderPathsMade++;

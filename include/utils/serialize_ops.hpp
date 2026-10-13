@@ -93,6 +93,8 @@ enum class SerializeOp : uint32_t
     // Note: logically this should be placed next to `shader`, but existing
     // .sriv files encode these values, so this list is append-only.
     shaderTransform = 44,
+
+    makeAngularGradient = 45,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)

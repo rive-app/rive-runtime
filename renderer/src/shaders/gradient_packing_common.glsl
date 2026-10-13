@@ -61,17 +61,37 @@ INLINE float2 getGradientUVFromOriginUV(float type,
                                         bool isComplex)
 {
     // Calculate the gradient t value based on the type.
-    float t = (type == float(LINEAR_GRADIENT_PAINT_TYPE))
-                  ? /*linear*/ gradientCoord.x
-                  : /*radial*/ length(gradientCoord.xy);
-    t = clamp(t, 0.0, 1.0);
+    if (type == float(ANGULAR_GRADIENT_PAINT_TYPE))
+    {
+        // angular gradient types always span the whole texture, *including* to
+        // the next texel (i.e. it's not first to last texel, there's always a
+        // wrap involved).
+        float t =
+            atan2(float2(gradientCoord.x, -gradientCoord.y)) / (3.14159 * 2.0);
 
-    // Complex gradients span from the first to last texel center, simple
-    // gradients span a single texel.
-    float span = isComplex ? (1.0 - GRAD_TEXTURE_INVERSE_WIDTH)
-                           : GRAD_TEXTURE_INVERSE_WIDTH;
-    float x = t * span + originUV.x;
-    return float2(x, originUV.y);
+        // Note: don't add the half-texel offset here, it causes the angle to be
+        // slightly off - we actually want angle 0 to be directly in between
+        // first and last texel (i.e. right at u == 0).
+        //
+        // PERF: We could potentially not ever unpack originUV.x for angular
+        // gradients (outside of this function) since it's unused here, but that
+        // makes the structure of this code a little trickier.
+        return float2(t, originUV.y);
+    }
+    else
+    {
+        float t = (type == float(LINEAR_GRADIENT_PAINT_TYPE))
+                      ? /*linear*/ gradientCoord.x
+                      : /*radial*/ length(gradientCoord.xy);
+        t = clamp(t, 0.0, 1.0);
+
+        // Complex gradients span from the first to last texel center, simple
+        // gradients span a single texel.
+        float span = isComplex ? (1.0 - GRAD_TEXTURE_INVERSE_WIDTH)
+                               : GRAD_TEXTURE_INVERSE_WIDTH;
+        float x = t * span + originUV.x;
+        return float2(x, originUV.y);
+    }
 }
 
 // This is used by atomic_draw in the image rect case to get the proper uv
