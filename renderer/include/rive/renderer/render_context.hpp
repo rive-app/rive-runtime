@@ -492,7 +492,10 @@ private:
     struct DrawSortEntry
     {
         int64_t sortKey;
-        int16_t drawIndex;
+        // Negated for prepasses, like sortKey.
+        // This is the tiebreaker when sortKeys are equal, so signing it makes
+        // (opaque) prepasses go front-to-back as intended.
+        int16_t signedDrawIndex;
     };
 
     // A simple class to allow std::unordered_map to use the scissor AABB as a

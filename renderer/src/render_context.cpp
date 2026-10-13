@@ -1965,14 +1965,15 @@ void RenderContext::LogicalFlush::writeResources()
                     // front-to-back, and before the subpasses.
                     indirectDrawList.push_back({
                         .sortKey = -subpassKey(-1 - i),
-                        .drawIndex = drawIndex,
+                        // (because of course "-int16_t" is an "int".)
+                        .signedDrawIndex = static_cast<int16_t>(-drawIndex),
                     });
                 }
                 if (i < draw->subpassCount())
                 {
                     indirectDrawList.push_back({
                         .sortKey = subpassKey(i),
-                        .drawIndex = drawIndex,
+                        .signedDrawIndex = drawIndex,
                     });
                 }
             }
@@ -1980,14 +1981,28 @@ void RenderContext::LogicalFlush::writeResources()
         assert(indirectDrawList.size() == m_drawPassCount);
 
         // Re-order the draws
-        // TODO: If we have any overlappable draws, then we will actually need
-        // to sort using the draw index as well (negatively to go front-to-back
-        // for pre-passes and positively for standard passes). Otherwise, the
-        // order of draws *within* a given sorted key does not matter at all.
-        std::sort(
-            indirectDrawList.begin(),
-            indirectDrawList.end(),
-            [](const auto& a, const auto& b) { return a.sortKey < b.sortKey; });
+        std::sort(indirectDrawList.begin(),
+                  indirectDrawList.end(),
+                  [](const auto& a, const auto& b) {
+                      // Break ties by signedDrawIndex. This is needed for
+                      // overlappable draws, as well as so multi-pass draws all
+                      // execute their subpasses in the same order
+                      // (front-to-back for (opaque) prepasses, back-to-front
+                      // otherwise).
+                      //
+                      // The first pass of a draw allocates its tessellation
+                      // vertices, and subsequent passes reuse those same
+                      // vertices from pass 1.
+                      //
+                      // Since batching is only possible when the tessellation
+                      // vertices are in order and contiguous, subsequent passes
+                      // (hairline strokes, non-dynamic-state fills) are highly
+                      // likely to not batch unless we guarantee their ordering
+                      // by breaking the tie here.
+                      return a.sortKey != b.sortKey
+                                 ? a.sortKey < b.sortKey
+                                 : a.signedDrawIndex < b.signedDrawIndex;
+                  });
 
         assert(m_pendingBarriers == BarrierFlags::none);
         if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics &&
@@ -2186,7 +2201,7 @@ void RenderContext::LogicalFlush::writeResources()
             }
 
             auto key = abs(signedKey);
-            auto drawIndex = sortEntry.drawIndex;
+            auto drawIndex = abs(sortEntry.signedDrawIndex);
             const int8_t keySubpassIdx =
                 keyBuilder.extract<int8_t>(SortEntry::subpassIndex, key);
             const int16_t drawGroup =
@@ -3947,10 +3962,47 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     return batch;
 }
 
-RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
-    const gpu::DrawBatch* batch,
-    gpu::DrawContents drawContents,
-    gpu::ShaderMiscFlags shaderMiscFlags)
+static bool drawTypeIsBatchable(gpu::DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::featherAtlasBlit:
+        case DrawType::stencilMidpointFanBorrowedCoverage:
+        case DrawType::stencilDynamicMidpointFans:
+        case DrawType::stencilMidpointFans:
+        case DrawType::stencilMidpointFanReset:
+        case DrawType::stencilMidpointFanWinding:
+        case DrawType::stencilMidpointFanCover:
+        case DrawType::stencilOuterCubicBorrowedCoverage:
+        case DrawType::stencilDynamicOuterCubics:
+        case DrawType::stencilOuterCubics:
+        case DrawType::stencilOuterCubicReset:
+        case DrawType::stencilOuterCubicWinding:
+        case DrawType::stencilOuterCubicCover:
+        case DrawType::clipReset:
+        case DrawType::depthStrokes:
+        case DrawType::depthAAStrokes:
+        case DrawType::depthAAOuterHairline:
+            return true;
+
+        // Image draws can't be combined for now because they each have their
+        // own unique uniforms.
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static bool canCombineShaderMiscFlags(const gpu::DrawBatch* batch,
+                                      gpu::DrawContents drawContents,
+                                      gpu::ShaderMiscFlags shaderMiscFlags)
 {
     // If a path doesn't have ANY_PATH_FILL bits, it means it's a stroke.
     constexpr static auto ANY_PATH_FILL = gpu::DrawContents::clockwiseFill |
@@ -3971,11 +4023,10 @@ RIVE_ALWAYS_INLINE static bool can_combine_shader_misc_flags(
            (shaderMiscFlags & compareMask);
 }
 
-RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
-    const Texture* currentDrawTexture,
-    const Texture* nextDrawTexture,
-    const ImageSampler currentImageSamplerKey,
-    const ImageSampler nextImageSamplerKey)
+static bool canCombineDrawImages(const Texture* currentDrawTexture,
+                                 const Texture* nextDrawTexture,
+                                 const ImageSampler currentImageSamplerKey,
+                                 const ImageSampler nextImageSamplerKey)
 {
     if (currentDrawTexture == nullptr || nextDrawTexture == nullptr)
     {
@@ -4243,83 +4294,54 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         }
     }
 
-    bool canMergeWithPreviousBatch;
-    switch (drawType)
+    DrawBatch* batch = nullptr;
+    if (drawTypeIsBatchable(drawType) && !m_drawList.empty() &&
+        !enums::is_flag_set(m_pendingBarriers,
+                            gpu::BarrierFlags::drawBatchBreak))
     {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilOuterCubics:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::clipReset:
-        case DrawType::depthStrokes:
-        case DrawType::depthAAStrokes:
-        case DrawType::depthAAOuterHairline:
-            if (!m_drawList.empty() &&
-                !enums::is_flag_set(m_pendingBarriers,
-                                    gpu::BarrierFlags::drawBatchBreak))
+        DrawBatch* currentBatch = m_drawList.tail();
+        if (currentBatch->drawType == drawType &&
+            canCombineShaderMiscFlags(currentBatch,
+                                      drawContents,
+                                      shaderMiscFlags) &&
+            canCombineDrawImages(currentBatch->imageTexture,
+                                 draw->imageTexture(),
+                                 currentBatch->imageSampler,
+                                 draw->imageSampler()) &&
+            (!m_ctx->platformFeatures().supportsClipScissor ||
+             currentBatch->scissorRect == draw->scissorRect()))
+        {
+            if (currentBatch->baseElement +
+                    (currentBatch->elementCount << elementStrideLog2) ==
+                baseElement)
             {
-                const DrawBatch* currentBatch = m_drawList.tail();
-                canMergeWithPreviousBatch =
-                    currentBatch->drawType == drawType &&
-                    can_combine_shader_misc_flags(currentBatch,
-                                                  drawContents,
-                                                  shaderMiscFlags) &&
-                    can_combine_draw_images(currentBatch->imageTexture,
-                                            draw->imageTexture(),
-                                            currentBatch->imageSampler,
-                                            draw->imageSampler());
-                if (canMergeWithPreviousBatch &&
-                    currentBatch->baseElement +
-                            (currentBatch->elementCount << elementStrideLog2) !=
-                        baseElement)
-                {
-                    // In depthStencil mode, multiple subpasses reference the
-                    // same tessellation data. Although rare, this breaks the
-                    // guarantee we have in other modes that mergeable batches
-                    // will always have contiguous patches.
-                    assert(m_ctx->frameInterlockMode() ==
-                           gpu::InterlockMode::depthStencil);
-                    canMergeWithPreviousBatch = false;
-                }
-
-                // Also break if there is a scissor rect mismatch
-                if (m_ctx->platformFeatures().supportsClipScissor)
-                {
-                    if (currentBatch->scissorRect != draw->scissorRect())
-                    {
-                        canMergeWithPreviousBatch = false;
-                    }
-                }
-                break;
+                // We are immediately after currentBatch.
+                batch = currentBatch;
             }
-            [[fallthrough]];
-
-        // Image draws can't be combined for now because they each have their
-        // own unique uniforms.
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::renderPassInitialize:
-        case DrawType::renderPassResolve:
-            canMergeWithPreviousBatch = false;
-            break;
+            else if (baseElement + (elementCount << elementStrideLog2) ==
+                     currentBatch->baseElement)
+            {
+                // We are immediately before currentBatch.
+                batch = currentBatch;
+                batch->baseElement = baseElement;
+            }
+            else
+            {
+                // In depthStencil mode, multiple subpasses reference the same
+                // tessellation data (e.g., a hairline subpass reuses its fill's
+                // tessellation, and an opaque fill allocates during prepasses).
+                // So depthStencil can't guarantee that mergeable batches will
+                // always have contiguous tessellation patches like the other
+                // modes do.
+                assert(m_ctx->frameInterlockMode() ==
+                       gpu::InterlockMode::depthStencil);
+            }
+        }
     }
 
-    DrawBatch* batch;
-    if (!canMergeWithPreviousBatch)
+    if (batch == nullptr)
     {
+        // We did not combine with the previous batch. Make a new one.
         batch = m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                         drawType,
                                         shaderMiscFlags,
@@ -4333,12 +4355,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
     else
     {
-        batch = m_drawList.tail();
-        assert(batch->drawType == drawType);
-        assert(batch->baseElement +
-                   (batch->elementCount << elementStrideLog2) ==
-               baseElement);
-
+        // We combined with the previous batch. Update elementCount.
         batch->elementCount += elementCount;
 
         // clockwise doesn't mix regular draws and clip updates.
@@ -4356,19 +4373,21 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                    gpu::InterlockMode::depthStencil ||
                batch->drawContents == drawContents);
 
+        // Update flags after asserts.
         batch->shaderMiscFlags |= shaderMiscFlags;
         batch->drawContents |= drawContents;
         batch->barriers |= m_pendingBarriers;
     }
+
     m_pendingBarriers = gpu::BarrierFlags::none;
 
     // If the batch was merged into a previous one, this ensures it was a valid
     // merge.
     assert(batch->drawType == drawType);
-    assert(can_combine_draw_images(batch->imageTexture,
-                                   draw->imageTexture(),
-                                   batch->imageSampler,
-                                   draw->imageSampler()));
+    assert(canCombineDrawImages(batch->imageTexture,
+                                draw->imageTexture(),
+                                batch->imageSampler,
+                                draw->imageSampler()));
     assert(m_pendingBarriers == BarrierFlags::none);
 
     auto shaderFeatures = ShaderFeatures::NONE;
