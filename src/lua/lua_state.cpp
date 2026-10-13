@@ -81,6 +81,17 @@ void rive::initializeLuaData(lua_State* state,
 
         for (auto& viewModel : viewModels)
         {
+            // The first view model carrying a name keeps it, like
+            // File::viewModel and the editor's Data, which the generated
+            // Data.* types are declared from.
+            if (lua_rawgetfield(state, -1, viewModel->name().c_str()) !=
+                LUA_TNIL)
+            {
+                lua_pop(state, 1);
+                continue;
+            }
+            lua_pop(state, 1);
+
             // Create a new table for this viewModel
             lua_createtable(state, 0, 1);
 

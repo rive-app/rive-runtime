@@ -279,6 +279,16 @@ bool DataBindContextTargetValue::syncTargetValue(DataBind* dataBind)
                 {
                     return updateValue<DataValueNumber, float>((float)value);
                 }
+                // initialize() picks a view model value when the source is a
+                // view model reference, so a plain uint target whose path
+                // lands on one pairs them wrongly. Writing an integer through
+                // that value would overwrite the ViewModelInstance pointer it
+                // holds. Asset values are integers and pass.
+                if (m_targetValue == nullptr ||
+                    !m_targetValue->is<DataValueInteger>())
+                {
+                    return false;
+                }
                 return updateValue<DataValueInteger, int>(value);
             }
         }

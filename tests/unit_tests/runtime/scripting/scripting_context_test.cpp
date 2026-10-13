@@ -287,6 +287,35 @@ TEST_CASE("Data global is initialized when a ScriptingVM is provided to import",
     lua_pop(L, 3);
 }
 
+// Two view models can share a name: a host's and one a library ships, or two
+// snapshots of one library. Data resolves the name to the first, like
+// File::viewModel and the editor's Data, rather than letting a later one
+// replace it.
+TEST_CASE("Data keeps the first view model carrying a name", "[scripting]")
+{
+    auto context =
+        std::make_unique<rive::CPPRuntimeScriptingContext>(&gNoOpFactory);
+    auto vm = rive::make_rcp<rive::ScriptingVM>(std::move(context));
+    auto first = rive::make_rcp<rive::ViewModel>();
+    first->name("Dup");
+    auto second = rive::make_rcp<rive::ViewModel>();
+    second->name("Dup");
+    std::vector<rive::ViewModel*> viewModels = {first.get(), second.get()};
+
+    lua_State* L = vm->state();
+    rive::initializeLuaData(L, viewModels);
+    lua_getglobal(L, "Data");
+    REQUIRE(lua_istable(L, -1));
+    lua_getfield(L, -1, "Dup");
+    REQUIRE(lua_istable(L, -1));
+    lua_getfield(L, -1, "new");
+    REQUIRE(lua_isfunction(L, -1));
+    // The constructor closes over the view model it builds.
+    REQUIRE(lua_getupvalue(L, -1, 1) != nullptr);
+    CHECK(lua_touserdata(L, -1) == first.get());
+    lua_pop(L, 4);
+}
+
 TEST_CASE("script has access to the data bound view model", "[silver]")
 {
     rive::SerializingFactory silver;
