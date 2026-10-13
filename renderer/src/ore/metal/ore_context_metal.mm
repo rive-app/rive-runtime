@@ -1242,7 +1242,7 @@ rcp<TextureView> ContextMetal::makeTextureViewImpl(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextMetal::makeSampler(const SamplerDesc& desc)
 {
-    return mtlMakeSampler(desc);
+    return describedSampler(mtlMakeSampler(desc), desc);
 }
 
 // ============================================================================

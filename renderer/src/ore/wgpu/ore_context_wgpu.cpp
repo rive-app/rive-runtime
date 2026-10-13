@@ -634,6 +634,7 @@ rcp<Sampler> ContextWGPU::makeSampler(const SamplerDesc& desc)
         static_cast<uint16_t>(desc.maxAnisotropy < 1 ? 1 : desc.maxAnisotropy);
 
     sampler->m_wgpuSampler = m_wgpuDevice.CreateSampler(&wDesc);
+    sampler->recordDesc(desc);
 
     return sampler;
 }

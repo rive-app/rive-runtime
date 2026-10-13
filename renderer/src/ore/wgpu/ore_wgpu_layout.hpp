@@ -29,6 +29,7 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <vector>
 
 namespace rive::ore
 {
@@ -262,10 +263,8 @@ inline wgpu::BindGroupLayout buildWGPUBindGroupLayoutFromDesc(
     const wgpu::Device& device,
     const BindGroupLayoutDesc& desc)
 {
-    constexpr uint32_t kMaxEntriesPerGroup = 16;
-    wgpu::BindGroupLayoutEntry entries[kMaxEntriesPerGroup];
-    const uint32_t n =
-        std::min(desc.entryCount, static_cast<uint32_t>(kMaxEntriesPerGroup));
+    const uint32_t n = desc.entryCount;
+    std::vector<wgpu::BindGroupLayoutEntry> entries(n);
     for (uint32_t i = 0; i < n; ++i)
     {
         entries[i] = makeWGPUBGLEntryFromDesc(desc.entries[i]);
@@ -274,7 +273,7 @@ inline wgpu::BindGroupLayout buildWGPUBindGroupLayoutFromDesc(
     wgpu::BindGroupLayoutDescriptor bglDesc{};
     bglDesc.label = desc.label ? desc.label : "";
     bglDesc.entryCount = n;
-    bglDesc.entries = n > 0 ? entries : nullptr;
+    bglDesc.entries = n > 0 ? entries.data() : nullptr;
     return device.CreateBindGroupLayout(&bglDesc);
 }
 

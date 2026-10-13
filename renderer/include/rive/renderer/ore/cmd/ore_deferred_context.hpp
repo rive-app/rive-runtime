@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/ore/cmd/ore_command_buffer.hpp"
+#include "rive/renderer/ore/cmd/ore_creation_observer.hpp"
 #include "rive/renderer/ore/cmd/ore_deferred_resource.hpp"
 #include "rive/renderer/ore/cmd/ore_make_recording.hpp"
 #include "rive/renderer/ore/cmd/ore_make_replay.hpp"
@@ -108,7 +109,9 @@ public:
     {
         auto a = m_ids.alloc();
         recordMakeSampler(m_render, a.id, a.generation, desc);
-        return make_rcp<DeferredSampler>(a.id, a.generation, &m_render, &m_ids);
+        return describedSampler(
+            make_rcp<DeferredSampler>(a.id, a.generation, &m_render, &m_ids),
+            desc);
     }
 
     rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& desc) override
@@ -125,6 +128,8 @@ public:
         {
             obj->applyBindingMapFromDesc(desc);
         }
+        if (CreationObserver* observer = creationObserver())
+            observer->onShaderModule(obj.get(), desc);
         return obj;
     }
 
@@ -133,16 +138,29 @@ public:
     {
         auto a = m_ids.alloc();
         recordMakeBindGroupLayout(m_render, a.id, a.generation, desc);
-        return make_rcp<DeferredBindGroupLayout>(a.id,
-                                                 a.generation,
-                                                 &m_render,
-                                                 &m_ids,
-                                                 desc);
+        auto layout = make_rcp<DeferredBindGroupLayout>(a.id,
+                                                        a.generation,
+                                                        &m_render,
+                                                        &m_ids,
+                                                        desc);
+        if (CreationObserver* observer = creationObserver())
+            observer->onBindGroupLayout(layout.get(), desc);
+        return layout;
     }
 
     rcp<Pipeline> makePipeline(const PipelineDesc& desc,
-                               std::string* /*outError*/ = nullptr) override
+                               std::string* outError = nullptr) override
     {
+        // Replay cannot reach the script, so the limit check runs here.
+        if (std::string err; !validateStageLimits(desc.bindGroupLayouts,
+                                                  desc.bindGroupLayoutCount,
+                                                  &err))
+        {
+            setLastError("makePipeline: %s", err.c_str());
+            if (outError != nullptr)
+                *outError = err;
+            return nullptr;
+        }
         std::vector<ResourceHandle> bgls(desc.bindGroupLayoutCount);
         for (uint32_t i = 0; i < desc.bindGroupLayoutCount; ++i)
         {
@@ -157,15 +175,30 @@ public:
             handleFor(desc.vertexModule),
             handleFor(desc.fragmentModule),
             Span<const ResourceHandle>(bgls.data(), bgls.size()));
-        return make_rcp<DeferredPipeline>(a.id,
-                                          a.generation,
-                                          &m_render,
-                                          &m_ids,
-                                          desc);
+        auto pipeline = make_rcp<DeferredPipeline>(a.id,
+                                                   a.generation,
+                                                   &m_render,
+                                                   &m_ids,
+                                                   desc);
+        if (CreationObserver* observer = creationObserver())
+            observer->onPipeline(pipeline.get(), desc);
+        return pipeline;
     }
 
     rcp<BindGroup> makeBindGroup(const BindGroupDesc& desc) override
     {
+        for (uint32_t i = 0; i < desc.textureCount; ++i)
+        {
+            // The target is rewrapped every frame and may not be sampleable.
+            auto* d = rive::lite_rtti_cast<DeferredTextureView*>(
+                desc.textures[i].view);
+            if (d != nullptr && d->hostTarget)
+            {
+                setLastError("makeBindGroup: the target view cannot be "
+                             "sampled");
+                return nullptr;
+            }
+        }
         // Replay cannot reach the script, so the range check runs here.
         if (std::string err; !validateBindGroupDesc(desc, &err))
         {
@@ -180,15 +213,6 @@ public:
         }
         for (uint32_t i = 0; i < desc.textureCount; ++i)
         {
-            // The target is rewrapped every frame and may not be sampleable.
-            auto* d = rive::lite_rtti_cast<DeferredTextureView*>(
-                desc.textures[i].view);
-            if (d != nullptr && d->hostTarget)
-            {
-                setLastError("makeBindGroup: the target view cannot be "
-                             "sampled");
-                return nullptr;
-            }
             texs[i] = handleFor(desc.textures[i].view);
         }
         for (uint32_t i = 0; i < desc.samplerCount; ++i)
@@ -205,11 +229,14 @@ public:
             Span<const ResourceHandle>(ubos.data(), ubos.size()),
             Span<const ResourceHandle>(texs.data(), texs.size()),
             Span<const ResourceHandle>(samps.data(), samps.size()));
-        return make_rcp<DeferredBindGroup>(a.id,
-                                           a.generation,
-                                           &m_render,
-                                           &m_ids,
-                                           desc);
+        auto group = make_rcp<DeferredBindGroup>(a.id,
+                                                 a.generation,
+                                                 &m_render,
+                                                 &m_ids,
+                                                 desc);
+        if (CreationObserver* observer = creationObserver())
+            observer->onBindGroup(group.get(), desc);
+        return group;
     }
 
     std::unique_ptr<RenderPass> beginRenderPass(

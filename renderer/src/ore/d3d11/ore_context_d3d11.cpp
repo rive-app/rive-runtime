@@ -1594,7 +1594,7 @@ rcp<TextureView> ContextD3D11::makeTextureViewImpl(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextD3D11::makeSampler(const SamplerDesc& desc)
 {
-    return d3d11MakeSampler(desc);
+    return describedSampler(d3d11MakeSampler(desc), desc);
 }
 
 rcp<ShaderModule> ContextD3D11::makeShaderModule(const ShaderModuleDesc& desc)

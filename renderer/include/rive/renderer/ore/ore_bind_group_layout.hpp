@@ -169,15 +169,20 @@ bool validateColorRequiresFragment(uint32_t colorCount,
                                    bool hasFragmentModule,
                                    std::string* outError);
 
+// WebGPU's per stage binding limits, counted from the layouts the way Dawn
+// counts them, so a pipeline the web refuses fails on every backend.
+bool validateStageLimits(BindGroupLayout* const* layouts,
+                         uint32_t layoutCount,
+                         std::string* outError);
+
 // Every backend's `makePipeline` runs the same checks; only `scope` differs.
 bool validatePipelineDesc(const PipelineDesc& desc,
                           const BindingMap& mergedMap,
                           NativeSlotScope scope,
                           std::string* outError);
 
-// Every backend's `makeBindGroup` runs this before touching native
-// objects. A UBO whose bound range is shorter than the shader's block is
-// undefined on every API and only WebGL says so, at draw time.
+// Every backend's `makeBindGroup` runs this before touching native objects,
+// so a group Dawn refuses, or a UBO shorter than its block, fails everywhere.
 bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError);
 
 } // namespace rive::ore

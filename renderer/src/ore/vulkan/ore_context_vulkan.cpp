@@ -1332,6 +1332,7 @@ rcp<Sampler> ContextVulkan::makeSampler(const SamplerDesc& desc)
 
     m_vk->CreateSampler(m_vk->device, &sCI, nullptr, &sampler->m_vkSampler);
     sampler->m_vkDestroySampler = m_vk->DestroySampler;
+    sampler->recordDesc(desc);
 
     return sampler;
 }

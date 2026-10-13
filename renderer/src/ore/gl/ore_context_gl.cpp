@@ -723,6 +723,7 @@ rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
                             GL_TEXTURE_COMPARE_FUNC,
                             oreCompareFunctionToGL(desc.compare));
     }
+    sampler->recordDesc(desc);
 
     return sampler;
 }

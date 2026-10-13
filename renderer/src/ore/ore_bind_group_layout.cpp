@@ -6,10 +6,13 @@
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
+#include "rive/renderer/ore/ore_sampler.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_shader_module.hpp"
+#include "rive/renderer/ore/ore_texture.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -216,74 +219,18 @@ uint32_t populateBindGroupLayoutEntriesFromShader(
                                           dynamicUBOCount);
 }
 
-// WebGPU rejects a filtering-typed sampler binding statically paired with a
-// depth texture. A sampler whose every pairing across the given modules
-// reads a depth texture declares non-filtering; mixed use keeps filtering
-// and surfaces as the WebGPU validation error the spec mandates.
-static bool samplerPairsDepthOnly(const BindingMap& bm,
-                                  const ShaderModule* vertexPairSource,
-                                  const ShaderModule* fragmentPairSource,
-                                  uint32_t groupIndex,
-                                  uint32_t binding)
-{
-    const ShaderModule* modules[2] = {
-        vertexPairSource,
-        fragmentPairSource != vertexPairSource ? fragmentPairSource : nullptr};
-    bool paired = false;
-    for (const ShaderModule* module : modules)
-    {
-        if (module == nullptr)
-            continue;
-        for (const auto& p : module->m_textureSamplerPairs)
-        {
-            if (p.samplerGroup != groupIndex || p.samplerBinding != binding)
-                continue;
-            const BindingMap::Entry* tex =
-                bm.lookupEntry(p.textureGroup, p.textureBinding);
-            if (tex == nullptr ||
-                tex->textureSampleType != TextureSampleType::Depth)
-                return false;
-            paired = true;
-        }
-    }
-    return paired;
-}
-
-// The group's non-filtering sampler bindings, gathered once for both the
-// intern id and the entry flags.
-static std::vector<uint32_t> collectDepthOnlySamplers(
-    const BindingMap& bm,
-    const ShaderModule* vertexPairSource,
-    const ShaderModule* fragmentPairSource,
-    uint32_t groupIndex)
-{
-    std::vector<uint32_t> bindings;
-    for (size_t i = 0; i < bm.size(); ++i)
-    {
-        const BindingMap::Entry& e = bm.at(i);
-        if (e.group == groupIndex && e.kind == ResourceKind::Sampler &&
-            samplerPairsDepthOnly(bm,
-                                  vertexPairSource,
-                                  fragmentPairSource,
-                                  groupIndex,
-                                  e.binding))
-            bindings.push_back(e.binding);
-    }
-    return bindings;
-}
-
-// Distinguishes a non-filtering-sampler layout from its twins in the intern
-// table; the pairing is module state the baked id cannot see. Folded per
-// flagged binding so two maps that flag different samplers intern apart.
+// The baked id cannot see what the module pairings inferred, so each inferred
+// binding salts it and layouts that differ only there intern apart.
 static constexpr uint64_t kNonFilteringLayoutIdSalt = 0x9e3779b97f4a7c15ull;
+static constexpr uint64_t kUnfilterableLayoutIdSalt = 0xc2b2ae3d27d4eb4full;
 
 static uint64_t saltLayoutId(uint64_t layoutId,
-                             const std::vector<uint32_t>& nonFiltering)
+                             const std::vector<uint32_t>& bindings,
+                             uint64_t salt)
 {
-    for (uint32_t binding : nonFiltering)
+    for (uint32_t binding : bindings)
     {
-        layoutId = (layoutId ^ (kNonFilteringLayoutIdSalt + binding)) *
-                   0x100000001b3ull;
+        layoutId = (layoutId ^ (salt + binding)) * 0x100000001b3ull;
     }
     return layoutId;
 }
@@ -297,14 +244,24 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     const ShaderModule* vertexPairSource,
     const ShaderModule* fragmentPairSource)
 {
-    std::vector<uint32_t> nonFiltering;
-    if (vertexPairSource != nullptr || fragmentPairSource != nullptr)
-    {
-        nonFiltering = collectDepthOnlySamplers(bindingMap,
-                                                vertexPairSource,
-                                                fragmentPairSource,
-                                                groupIndex);
-    }
+    // Gathered once for both the intern id and the entry flags.
+    const std::vector<TextureSamplerPair>* vertexPairs =
+        vertexPairSource != nullptr ? &vertexPairSource->m_textureSamplerPairs
+                                    : nullptr;
+    const std::vector<TextureSamplerPair>* fragmentPairs =
+        fragmentPairSource != nullptr
+            ? &fragmentPairSource->m_textureSamplerPairs
+            : nullptr;
+    const std::vector<uint32_t> nonFiltering =
+        depthOnlySamplerBindings(bindingMap,
+                                 vertexPairs,
+                                 fragmentPairs,
+                                 groupIndex);
+    const std::vector<uint32_t> unfilterable =
+        unsampledFloatTextureBindings(bindingMap,
+                                      vertexPairs,
+                                      fragmentPairs,
+                                      groupIndex);
 
     // The baked id never covers dynamic offsets, so those skip interning.
     // A map merged across two modules carries no ids either, so split-stage
@@ -312,9 +269,12 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
     uint64_t layoutId = dynamicUBOCount == 0
                             ? bindingMap.layoutIdForGroup(groupIndex)
                             : BindingMap::kNoLayoutId;
-    if (layoutId != BindingMap::kNoLayoutId && !nonFiltering.empty())
+    if (layoutId != BindingMap::kNoLayoutId)
     {
-        layoutId = saltLayoutId(layoutId, nonFiltering);
+        layoutId =
+            saltLayoutId(layoutId, nonFiltering, kNonFilteringLayoutIdSalt);
+        layoutId =
+            saltLayoutId(layoutId, unfilterable, kUnfilterableLayoutIdSalt);
     }
     if (layoutId != BindingMap::kNoLayoutId)
     {
@@ -348,13 +308,18 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromBindingMap(
         entries = spilled.data();
     }
 
-    for (uint32_t i = 0; i < n && !nonFiltering.empty(); ++i)
+    auto flagged = [](const std::vector<uint32_t>& bindings, uint32_t b) {
+        return std::find(bindings.begin(), bindings.end(), b) != bindings.end();
+    };
+    for (uint32_t i = 0; i < n; ++i)
     {
         BindGroupLayoutEntry& e = entries[i];
         e.samplerNonFiltering =
-            e.kind == BindingKind::sampler &&
-            std::find(nonFiltering.begin(), nonFiltering.end(), e.binding) !=
-                nonFiltering.end();
+            e.kind == BindingKind::sampler && flagged(nonFiltering, e.binding);
+        if (e.kind == BindingKind::sampledTexture &&
+            flagged(unfilterable, e.binding))
+            e.textureSampleType =
+                BindGroupLayoutEntry::SampleType::floatUnfilterable;
     }
 
     BindGroupLayoutDesc desc;
@@ -746,6 +711,145 @@ bool validateStagesAgree(const BindingMap& vertexMap,
     return true;
 }
 
+bool validateStageLimits(BindGroupLayout* const* layouts,
+                         uint32_t layoutCount,
+                         std::string* outError)
+{
+    struct Limit
+    {
+        const char* what;
+        uint32_t max;
+    };
+    static constexpr Limit kLimits[] = {
+        {"uniform buffers", 12},
+        {"storage buffers", 8},
+        {"sampled textures", 16},
+        {"storage textures", 4},
+        {"samplers", 16},
+    };
+    auto limitIndex = [](BindingKind kind) {
+        switch (kind)
+        {
+            case BindingKind::uniformBuffer:
+                return 0;
+            case BindingKind::storageBufferRO:
+            case BindingKind::storageBufferRW:
+                return 1;
+            case BindingKind::sampledTexture:
+                return 2;
+            case BindingKind::storageTexture:
+                return 3;
+            case BindingKind::sampler:
+            case BindingKind::comparisonSampler:
+                return 4;
+        }
+        return 0;
+    };
+    constexpr uint32_t kMaxDynamicUniformBuffers = 8;
+    char message[192];
+    auto fail = [&]() {
+        if (outError != nullptr)
+            *outError = message;
+        return false;
+    };
+
+    uint32_t dynamicUniformBuffers = 0;
+    for (uint32_t g = 0; g < layoutCount && layouts != nullptr; ++g)
+    {
+        if (layouts[g] == nullptr)
+            continue;
+        for (const BindGroupLayoutEntry& e : layouts[g]->entries())
+            dynamicUniformBuffers += e.hasDynamicOffset ? 1 : 0;
+    }
+    if (dynamicUniformBuffers > kMaxDynamicUniformBuffers)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "the layouts declare %u dynamic uniform buffers, and WebGPU "
+                 "allows %u per pipeline",
+                 dynamicUniformBuffers,
+                 kMaxDynamicUniformBuffers);
+        return fail();
+    }
+
+    for (uint8_t stage : {StageVisibility::kVertex, StageVisibility::kFragment})
+    {
+        uint32_t counts[std::size(kLimits)] = {};
+        for (uint32_t g = 0; g < layoutCount && layouts != nullptr; ++g)
+        {
+            if (layouts[g] == nullptr)
+                continue;
+            for (const BindGroupLayoutEntry& e : layouts[g]->entries())
+            {
+                if (e.visibility.mask & stage)
+                    counts[limitIndex(e.kind)]++;
+            }
+        }
+        for (size_t i = 0; i < std::size(kLimits); ++i)
+        {
+            if (counts[i] <= kLimits[i].max)
+                continue;
+            snprintf(message,
+                     sizeof(message),
+                     "the layouts give the %s stage %u %s, and WebGPU allows "
+                     "%u per stage",
+                     stage == StageVisibility::kVertex ? "vertex" : "fragment",
+                     counts[i],
+                     kLimits[i].what,
+                     kLimits[i].max);
+            return fail();
+        }
+    }
+    return true;
+}
+
+// Only a layout built from another file can trip this: a texture that file
+// never samples is unfilterable, and WebGPU refuses one sampled with filtering.
+static bool validateUnfilterableSampling(const PipelineDesc& desc,
+                                         std::string* outError)
+{
+    auto entryFor = [&](uint32_t group,
+                        uint32_t binding) -> const BindGroupLayoutEntry* {
+        if (desc.bindGroupLayouts == nullptr ||
+            group >= desc.bindGroupLayoutCount ||
+            desc.bindGroupLayouts[group] == nullptr)
+            return nullptr;
+        return desc.bindGroupLayouts[group]->findEntry(binding);
+    };
+    for (const ShaderModule* module : {desc.vertexModule, desc.fragmentModule})
+    {
+        if (module == nullptr)
+            continue;
+        for (const TextureSamplerPair& p : module->m_textureSamplerPairs)
+        {
+            const BindGroupLayoutEntry* tex =
+                entryFor(p.textureGroup, p.textureBinding);
+            const BindGroupLayoutEntry* sampler =
+                entryFor(p.samplerGroup, p.samplerBinding);
+            if (tex == nullptr || sampler == nullptr ||
+                sampler->kind != BindingKind::sampler ||
+                sampler->samplerNonFiltering ||
+                tex->textureSampleType !=
+                    BindGroupLayoutEntry::SampleType::floatUnfilterable)
+                continue;
+            char message[224];
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): the layout declares this "
+                     "texture unfilterable, but the shader samples it with "
+                     "filtering sampler @binding(%u), which WebGPU refuses; "
+                     "derive the layout from this shader",
+                     p.textureGroup,
+                     p.textureBinding,
+                     p.samplerBinding);
+            if (outError != nullptr)
+                *outError = message;
+            return false;
+        }
+    }
+    return true;
+}
+
 bool validatePipelineDesc(const PipelineDesc& desc,
                           const BindingMap& mergedMap,
                           NativeSlotScope scope,
@@ -768,6 +872,10 @@ bool validatePipelineDesc(const PipelineDesc& desc,
                                             desc.bindGroupLayouts,
                                             desc.bindGroupLayoutCount,
                                             outError) &&
+           validateStageLimits(desc.bindGroupLayouts,
+                               desc.bindGroupLayoutCount,
+                               outError) &&
+           validateUnfilterableSampling(desc, outError) &&
            validateColorRequiresFragment(desc.colorCount,
                                          desc.fragmentModule != nullptr,
                                          outError) &&
@@ -782,6 +890,124 @@ bool validatePipelineDesc(const PipelineDesc& desc,
 namespace rive::ore
 {
 
+namespace
+{
+using SampleType = BindGroupLayoutEntry::SampleType;
+
+// No WebGPU host of ours requests float32-filterable, so 32 bit float formats
+// never filter there.
+bool viewSupportsSampleType(const TextureView& view, SampleType type)
+{
+    switch (view.texture()->format())
+    {
+        case TextureFormat::depth24plusStencil8:
+        case TextureFormat::depth32floatStencil8:
+            if (view.aspect() == TextureAspect::stencilOnly)
+                return type == SampleType::uint;
+            return type == SampleType::depth ||
+                   type == SampleType::floatUnfilterable;
+        case TextureFormat::depth16unorm:
+        case TextureFormat::depth32float:
+            return type == SampleType::depth ||
+                   type == SampleType::floatUnfilterable;
+        case TextureFormat::rgba32float:
+        case TextureFormat::rg32float:
+        case TextureFormat::r32float:
+            return type == SampleType::floatUnfilterable;
+        default:
+            return type == SampleType::floatFilterable ||
+                   type == SampleType::floatUnfilterable;
+    }
+}
+
+const char* sampleTypeName(SampleType type)
+{
+    switch (type)
+    {
+        case SampleType::floatFilterable:
+            return "float";
+        case SampleType::floatUnfilterable:
+            return "unfilterable float";
+        case SampleType::depth:
+            return "depth";
+        case SampleType::sint:
+            return "sint";
+        case SampleType::uint:
+            return "uint";
+    }
+    return "?";
+}
+
+const char* viewDimensionName(TextureViewDimension dimension)
+{
+    switch (dimension)
+    {
+        case TextureViewDimension::texture2D:
+            return "2d";
+        case TextureViewDimension::cube:
+            return "cube";
+        case TextureViewDimension::texture3D:
+            return "3d";
+        case TextureViewDimension::array2D:
+            return "2d array";
+        case TextureViewDimension::cubeArray:
+            return "cube array";
+    }
+    return "?";
+}
+
+bool isBufferKind(BindingKind kind)
+{
+    return kind == BindingKind::uniformBuffer ||
+           kind == BindingKind::storageBufferRO ||
+           kind == BindingKind::storageBufferRW;
+}
+
+bool isTextureKind(BindingKind kind)
+{
+    return kind == BindingKind::sampledTexture ||
+           kind == BindingKind::storageTexture;
+}
+
+bool isSamplerKind(BindingKind kind)
+{
+    return kind == BindingKind::sampler ||
+           kind == BindingKind::comparisonSampler;
+}
+
+const char* bindingNoun(BindingKind kind)
+{
+    switch (kind)
+    {
+        case BindingKind::uniformBuffer:
+            return "uniform buffer";
+        case BindingKind::storageBufferRO:
+        case BindingKind::storageBufferRW:
+            return "storage buffer";
+        case BindingKind::sampledTexture:
+            return "texture";
+        case BindingKind::storageTexture:
+            return "storage texture";
+        case BindingKind::sampler:
+            return "sampler";
+        case BindingKind::comparisonSampler:
+            return "comparison sampler";
+    }
+    return "binding";
+}
+
+template <typename Entry>
+uint32_t countSlot(const Entry* entries, uint32_t count, uint32_t slot)
+{
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < count; ++i)
+        n += entries[i].slot == slot ? 1 : 0;
+    return n;
+}
+
+constexpr uint32_t kWebGpuUniformOffsetAlignment = 256;
+} // namespace
+
 // snprintf, not a stream: the wasm module lane links this too, and libc++
 // stream formatting drags locale imports the host does not provide.
 bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
@@ -789,17 +1015,77 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
     // A null layout is the backend's own error to name.
     if (desc.layout == nullptr)
         return true;
+    const uint32_t group = desc.layout->groupIndex();
+    char message[256];
+    auto fail = [&]() {
+        if (outError != nullptr)
+            *outError = message;
+        return false;
+    };
+
+    for (const BindGroupLayoutEntry& e : desc.layout->entries())
+    {
+        const uint32_t n =
+            isBufferKind(e.kind)
+                ? countSlot(desc.ubos, desc.uboCount, e.binding)
+            : isTextureKind(e.kind)
+                ? countSlot(desc.textures, desc.textureCount, e.binding)
+                : countSlot(desc.samplers, desc.samplerCount, e.binding);
+        if (n != 1)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     n == 0 ? "@group(%u) @binding(%u): the bind group leaves "
+                              "this %s empty, and WebGPU requires every entry "
+                              "of the layout"
+                            : "@group(%u) @binding(%u): the bind group binds "
+                              "this %s more than once",
+                     group,
+                     e.binding,
+                     bindingNoun(e.kind));
+            return fail();
+        }
+    }
+
     for (uint32_t i = 0; i < desc.uboCount; ++i)
     {
         const BindGroupDesc::UBOEntry& ubo = desc.ubos[i];
         const BindGroupLayoutEntry* entry = desc.layout->findEntry(ubo.slot);
-        if (entry == nullptr || entry->kind != BindingKind::uniformBuffer ||
-            ubo.buffer == nullptr)
+        if (entry == nullptr || entry->kind != BindingKind::uniformBuffer)
         {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): the layout has no uniform "
+                     "buffer here",
+                     group,
+                     ubo.slot);
+            return fail();
+        }
+        if (ubo.buffer == nullptr)
             continue;
+        if (ubo.buffer->usage() != BufferUsage::uniform)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): binds a buffer made without "
+                     "uniform usage",
+                     group,
+                     ubo.slot);
+            return fail();
+        }
+        if (ubo.offset % kWebGpuUniformOffsetAlignment != 0)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): offset %u is not a multiple of "
+                     "%u, which WebGPU requires of uniform buffers",
+                     group,
+                     ubo.slot,
+                     ubo.offset,
+                     kWebGpuUniformOffsetAlignment);
+            return fail();
         }
         const uint64_t bufferSize = ubo.buffer->size();
-        char message[192];
         if (ubo.offset > bufferSize ||
             uint64_t(ubo.offset) + ubo.size > bufferSize)
         {
@@ -807,14 +1093,12 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
                      sizeof(message),
                      "@group(%u) @binding(%u): offset %u + size %u exceeds "
                      "the %llu byte buffer",
-                     desc.layout->groupIndex(),
+                     group,
                      ubo.slot,
                      ubo.offset,
                      ubo.size,
                      static_cast<unsigned long long>(bufferSize));
-            if (outError != nullptr)
-                *outError = message;
-            return false;
+            return fail();
         }
         const uint64_t bound =
             ubo.size != 0 ? ubo.size : bufferSize - ubo.offset;
@@ -824,13 +1108,126 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
                      sizeof(message),
                      "@group(%u) @binding(%u): binds %llu bytes but the "
                      "shader's uniform block needs %u",
-                     desc.layout->groupIndex(),
+                     group,
                      ubo.slot,
                      static_cast<unsigned long long>(bound),
                      entry->minBindingSize);
-            if (outError != nullptr)
-                *outError = message;
-            return false;
+            return fail();
+        }
+    }
+
+    for (uint32_t i = 0; i < desc.textureCount; ++i)
+    {
+        const BindGroupDesc::TexEntry& tex = desc.textures[i];
+        const BindGroupLayoutEntry* entry = desc.layout->findEntry(tex.slot);
+        if (entry == nullptr || !isTextureKind(entry->kind))
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): the layout has no texture here",
+                     group,
+                     tex.slot);
+            return fail();
+        }
+        // Wrapped canvas views carry no texture to check.
+        if (entry->kind != BindingKind::sampledTexture || tex.view == nullptr ||
+            tex.view->texture() == nullptr)
+            continue;
+        const TextureView& view = *tex.view;
+        if (view.dimension() != entry->textureViewDim)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): binds a %s view where the "
+                     "shader declares a %s texture",
+                     group,
+                     tex.slot,
+                     viewDimensionName(view.dimension()),
+                     viewDimensionName(entry->textureViewDim));
+            return fail();
+        }
+        if ((view.texture()->sampleCount() > 1) != entry->textureMultisampled)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     entry->textureMultisampled
+                         ? "@group(%u) @binding(%u): the shader declares a "
+                           "multisampled texture but the view has 1 sample"
+                         : "@group(%u) @binding(%u): binds a multisampled "
+                           "view where the shader declares a single sampled "
+                           "texture",
+                     group,
+                     tex.slot);
+            return fail();
+        }
+        const TextureFormat format = view.texture()->format();
+        if ((format == TextureFormat::depth24plusStencil8 ||
+             format == TextureFormat::depth32floatStencil8) &&
+            view.aspect() == TextureAspect::all)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): the view selects both depth "
+                     "and stencil, and WebGPU binds one aspect; make it depth "
+                     "only",
+                     group,
+                     tex.slot);
+            return fail();
+        }
+        if (!viewSupportsSampleType(view, entry->textureSampleType))
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): WebGPU cannot read this "
+                     "view's format as a %s texture",
+                     group,
+                     tex.slot,
+                     sampleTypeName(entry->textureSampleType));
+            return fail();
+        }
+    }
+
+    for (uint32_t i = 0; i < desc.samplerCount; ++i)
+    {
+        const BindGroupDesc::SampEntry& samp = desc.samplers[i];
+        const BindGroupLayoutEntry* entry = desc.layout->findEntry(samp.slot);
+        if (entry == nullptr || !isSamplerKind(entry->kind))
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): the layout has no sampler here",
+                     group,
+                     samp.slot);
+            return fail();
+        }
+        if (samp.sampler == nullptr || !samp.sampler->described())
+            continue;
+        const bool wantsComparison =
+            entry->kind == BindingKind::comparisonSampler;
+        if (samp.sampler->comparison() != wantsComparison)
+        {
+            snprintf(message,
+                     sizeof(message),
+                     wantsComparison
+                         ? "@group(%u) @binding(%u): the shader declares a "
+                           "sampler_comparison but the sampler has no compare "
+                           "function"
+                         : "@group(%u) @binding(%u): binds a comparison "
+                           "sampler where the shader declares a plain sampler",
+                     group,
+                     samp.slot);
+            return fail();
+        }
+        if (entry->samplerNonFiltering && samp.sampler->filtering())
+        {
+            snprintf(message,
+                     sizeof(message),
+                     "@group(%u) @binding(%u): this sampler only reads depth "
+                     "textures, so WebGPU needs it non-filtering; give it "
+                     "nearest filters",
+                     group,
+                     samp.slot);
+            return fail();
         }
     }
     return true;

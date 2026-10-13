@@ -14,16 +14,15 @@
 #include <vulkan/vulkan.h>
 #include <cassert>
 #include <cstdint>
+#include <vector>
 
 namespace rive::ore
 {
 
 constexpr uint32_t kVkMaxGroups = kMaxBindGroups;
 
-// Upper bound on bindings per group. WebGPU's default
-// `maxBindingsPerBindGroup` is 1000, but Ore doesn't need that much
-// headroom — a generous fixed ceiling keeps the pipeline-create path
-// off the heap. If we ever blow past this, bump it.
+// Bindings per group the descriptor pool budgets for. A wider group still
+// builds; it only spends the budget faster.
 constexpr uint32_t kVkMaxBindingsPerGroup = 16;
 
 inline VkDescriptorType oreBindingKindToVk(BindingKind kind, bool dynamic)
@@ -75,8 +74,8 @@ inline VkDescriptorSetLayout createDSLFromLayoutDesc(
     VkDevice device,
     const BindGroupLayoutDesc& desc)
 {
-    VkDescriptorSetLayoutBinding bindings[kVkMaxBindingsPerGroup];
-    const uint32_t n = std::min(desc.entryCount, kVkMaxBindingsPerGroup);
+    const uint32_t n = desc.entryCount;
+    std::vector<VkDescriptorSetLayoutBinding> bindings(n);
 
     for (uint32_t i = 0; i < n; ++i)
     {
@@ -102,7 +101,7 @@ inline VkDescriptorSetLayout createDSLFromLayoutDesc(
     VkDescriptorSetLayoutCreateInfo ci{};
     ci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     ci.bindingCount = n;
-    ci.pBindings = bindings;
+    ci.pBindings = bindings.data();
 
     VkDescriptorSetLayout dsl = VK_NULL_HANDLE;
     pfnCreateDSL(device, &ci, nullptr, &dsl);

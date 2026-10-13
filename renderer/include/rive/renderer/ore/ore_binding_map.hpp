@@ -367,4 +367,45 @@ inline uint16_t lookupBackendSlot(const BindingMap& map,
     return slot;
 }
 
+// A texture the shader samples through a sampler, from the RSTB's
+// texture-sampler pair section.
+struct TextureSamplerPair
+{
+    uint8_t textureGroup;
+    uint8_t textureBinding;
+    uint8_t samplerGroup;
+    uint8_t samplerBinding;
+
+    bool operator==(const TextureSamplerPair& o) const
+    {
+        return textureGroup == o.textureGroup &&
+               textureBinding == o.textureBinding &&
+               samplerGroup == o.samplerGroup &&
+               samplerBinding == o.samplerBinding;
+    }
+};
+
+// Samplers whose every pairing reads a depth texture, which WebGPU requires to
+// be non-filtering. The WGSL linter shares this so it cannot disagree.
+std::vector<uint32_t> depthOnlySamplerBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex);
+
+// Float textures that no sampler reads, which take the unfilterable sample
+// type as WebGPU's auto layout gives them, so 32 bit float views can bind.
+std::vector<uint32_t> unsampledFloatTextureBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex);
+
+// Pairs WebGPU rejects under that inference: a depth or unfilterable texture
+// read through a filtering sampler.
+std::vector<TextureSamplerPair> filteringSamplerConflicts(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs);
+
 } // namespace rive::ore

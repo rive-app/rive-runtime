@@ -6,6 +6,7 @@
 #include "ore_buffer_vulkan.hpp"
 
 #include <cassert>
+#include <vector>
 
 namespace rive::ore
 {
@@ -45,11 +46,10 @@ VkDescriptorSet BindGroupVulkan::resolveDescriptorSet()
     if (alloc.set == VK_NULL_HANDLE)
         return VK_NULL_HANDLE;
 
-    constexpr uint32_t kMaxWrites = 32;
-    assert(m_uboWrites.size() + m_imageWrites.size() <= kMaxWrites);
-    VkWriteDescriptorSet writes[kMaxWrites] = {};
-    VkDescriptorBufferInfo bufferInfos[kMaxWrites] = {};
-    VkDescriptorImageInfo imageInfos[kMaxWrites] = {};
+    const size_t writeCount = m_uboWrites.size() + m_imageWrites.size();
+    std::vector<VkWriteDescriptorSet> writes(writeCount);
+    std::vector<VkDescriptorBufferInfo> bufferInfos(writeCount);
+    std::vector<VkDescriptorImageInfo> imageInfos(writeCount);
     uint32_t writeIdx = 0;
 
     CachedSet cached;
@@ -93,7 +93,7 @@ VkDescriptorSet BindGroupVulkan::resolveDescriptorSet()
     if (writeIdx > 0)
         ctx->m_vk->UpdateDescriptorSets(ctx->m_vk->device,
                                         writeIdx,
-                                        writes,
+                                        writes.data(),
                                         0,
                                         nullptr);
 

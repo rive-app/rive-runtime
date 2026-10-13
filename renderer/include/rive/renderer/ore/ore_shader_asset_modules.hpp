@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rive/assets/shader_asset.hpp"
+#include "rive/renderer/ore/cmd/ore_creation_observer.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/simple_array.hpp"
@@ -85,6 +86,8 @@ bool visitShaderAssetModules(ShaderTarget target,
         {
             return false;
         }
+        if (cmd::CreationObserver* observer = cmd::creationObserver())
+            observer->onShaderAsset(asset, entries);
         for (uint32_t i = 0; i < entries.size(); i++)
         {
             const auto& entry = entries[i];
@@ -129,6 +132,8 @@ bool visitShaderAssetModules(ShaderTarget target,
     {
         return false;
     }
+    if (cmd::CreationObserver* observer = cmd::creationObserver())
+        observer->onShaderAsset(asset, entries);
     desc.code = source;
     desc.codeSize = sourceSize;
     visit(desc, 0u, static_cast<uint32_t>(entries.size()), entries);

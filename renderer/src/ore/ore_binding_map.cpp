@@ -358,4 +358,120 @@ void BindingMap::finalize()
 
 #endif // WITH_RIVE_TOOLS
 
+static bool samplerPairsDepthOnly(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* const (&pairSets)[2],
+    uint32_t groupIndex,
+    uint32_t binding)
+{
+    bool paired = false;
+    for (const std::vector<TextureSamplerPair>* pairs : pairSets)
+    {
+        if (pairs == nullptr)
+            continue;
+        for (const TextureSamplerPair& p : *pairs)
+        {
+            if (p.samplerGroup != groupIndex || p.samplerBinding != binding)
+                continue;
+            const BindingMap::Entry* tex =
+                bm.lookupEntry(p.textureGroup, p.textureBinding);
+            if (tex == nullptr ||
+                tex->textureSampleType != TextureSampleType::Depth)
+                return false;
+            paired = true;
+        }
+    }
+    return paired;
+}
+
+std::vector<uint32_t> depthOnlySamplerBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex)
+{
+    const std::vector<TextureSamplerPair>* pairSets[2] = {vertexPairs,
+                                                          fragmentPairs};
+    std::vector<uint32_t> bindings;
+    for (size_t i = 0; i < bm.size(); ++i)
+    {
+        const BindingMap::Entry& e = bm.at(i);
+        if (e.group == groupIndex && e.kind == ResourceKind::Sampler &&
+            samplerPairsDepthOnly(bm, pairSets, groupIndex, e.binding))
+            bindings.push_back(e.binding);
+    }
+    return bindings;
+}
+
+std::vector<uint32_t> unsampledFloatTextureBindings(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs,
+    uint32_t groupIndex)
+{
+    std::vector<uint32_t> bindings;
+    // No pair source means the pairings are unknown, not absent.
+    if (vertexPairs == nullptr && fragmentPairs == nullptr)
+        return bindings;
+    auto sampled = [&](uint32_t binding) {
+        for (const std::vector<TextureSamplerPair>* pairs :
+             {vertexPairs, fragmentPairs})
+        {
+            if (pairs == nullptr)
+                continue;
+            for (const TextureSamplerPair& p : *pairs)
+            {
+                if (p.textureGroup == groupIndex && p.textureBinding == binding)
+                    return true;
+            }
+        }
+        return false;
+    };
+    for (size_t i = 0; i < bm.size(); ++i)
+    {
+        const BindingMap::Entry& e = bm.at(i);
+        if (e.group == groupIndex && e.kind == ResourceKind::SampledTexture &&
+            e.textureSampleType == TextureSampleType::Float &&
+            !sampled(e.binding))
+            bindings.push_back(e.binding);
+    }
+    return bindings;
+}
+
+std::vector<TextureSamplerPair> filteringSamplerConflicts(
+    const BindingMap& bm,
+    const std::vector<TextureSamplerPair>* vertexPairs,
+    const std::vector<TextureSamplerPair>* fragmentPairs)
+{
+    const std::vector<TextureSamplerPair>* pairSets[2] = {vertexPairs,
+                                                          fragmentPairs};
+    std::vector<TextureSamplerPair> conflicts;
+    for (const std::vector<TextureSamplerPair>* pairs : pairSets)
+    {
+        if (pairs == nullptr)
+            continue;
+        for (const TextureSamplerPair& p : *pairs)
+        {
+            const BindingMap::Entry* sampler =
+                bm.lookupEntry(p.samplerGroup, p.samplerBinding);
+            const BindingMap::Entry* tex =
+                bm.lookupEntry(p.textureGroup, p.textureBinding);
+            if (sampler == nullptr || tex == nullptr ||
+                sampler->kind != ResourceKind::Sampler ||
+                (tex->textureSampleType != TextureSampleType::Depth &&
+                 tex->textureSampleType !=
+                     TextureSampleType::UnfilterableFloat) ||
+                samplerPairsDepthOnly(bm,
+                                      pairSets,
+                                      p.samplerGroup,
+                                      p.samplerBinding))
+                continue;
+            if (std::find(conflicts.begin(), conflicts.end(), p) ==
+                conflicts.end())
+                conflicts.push_back(p);
+        }
+    }
+    return conflicts;
+}
+
 } // namespace rive::ore

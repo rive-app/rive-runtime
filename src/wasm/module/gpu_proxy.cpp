@@ -453,7 +453,7 @@ public:
             setLastError("host rejected sampler");
             return nullptr;
         }
-        return make_rcp<ModuleOreSampler>(handle);
+        return ore::describedSampler(make_rcp<ModuleOreSampler>(handle), desc);
     }
     // The host builds shaders only from admitted assets, through
     // wasmModuleShaderModule.

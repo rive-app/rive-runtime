@@ -1047,6 +1047,16 @@ static int gputexture_view(lua_State* L)
             lua_getoptionalnumberfield(L, 2, "baseLayer", 0));
         viewDesc.layerCount = static_cast<uint32_t>(
             lua_getoptionalnumberfield(L, 2, "layerCount", 0));
+        const char* aspect = lua_getoptionalstringfield(L, 2, "aspect");
+        if (aspect)
+        {
+            if (strcmp(aspect, "depth-only") == 0)
+                viewDesc.aspect = TextureAspect::depthOnly;
+            else if (strcmp(aspect, "stencil-only") == 0)
+                viewDesc.aspect = TextureAspect::stencilOnly;
+            else if (strcmp(aspect, "all") == 0)
+                viewDesc.aspect = TextureAspect::all;
+        }
     }
 
     auto* ctx = getOreContext(L);

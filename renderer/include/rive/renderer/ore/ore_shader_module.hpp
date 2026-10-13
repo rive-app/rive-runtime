@@ -27,13 +27,7 @@ public:
     /// Records which texture binding is paired with which sampler binding
     /// in the shader's sampling expressions. Used by the GL backend to bind
     /// sampler objects to the correct texture unit.
-    struct TextureSamplerPair
-    {
-        uint8_t textureGroup;
-        uint8_t textureBinding;
-        uint8_t samplerGroup;
-        uint8_t samplerBinding;
-    };
+    using TextureSamplerPair = ore::TextureSamplerPair;
 
     std::vector<TextureSamplerPair> m_textureSamplerPairs;
 

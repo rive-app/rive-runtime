@@ -102,6 +102,14 @@ public:
 // without that scaffolding.
 int pushGPUFeatures(lua_State* L) { return lua_push_gpu_features(L); }
 
+// Reads back the aspect a script's view selected, which Luau does not expose.
+int viewAspect(lua_State* L)
+{
+    auto* view = lua_torive<ScriptedGPUTextureView>(L, 1);
+    lua_pushinteger(L, static_cast<int>(view->view->aspect()));
+    return 1;
+}
+
 // Import factory shaped like a recording session: its ore() is the recorder.
 class RecordingOreFactory : public NoOpFactory
 {
@@ -122,6 +130,8 @@ std::string runWithOreContext(ore::Context* ore, const char* source)
     lua_State* L = test.state();
     lua_pushcfunction(L, pushGPUFeatures, "features");
     lua_setglobal(L, "gpuFeatures");
+    lua_pushcfunction(L, viewAspect, "viewAspect");
+    lua_setglobal(L, "viewAspect");
     if (lua_pcall(L, 0, 0, 0) == LUA_OK)
     {
         return {};
@@ -202,6 +212,23 @@ TEST_CASE("a texture view answers indexed reads", "[scripting][gpu]")
         "format = 'rgba8unorm' })\n"
         "local v = t:view()\n"
         "assert(v.format == 'rgba8unorm', 'format ' .. tostring(v.format))\n");
+    CHECK(error.empty());
+}
+
+TEST_CASE("a texture view keeps the aspect the script asks for",
+          "[scripting][gpu]")
+{
+    // A depth-stencil view selecting both aspects cannot be sampled, so a
+    // dropped aspect fails every depth-only bind group.
+    FakeDeviceContext device;
+    ore::cmd::DeferredOreContext recorder(&device);
+    std::string error = runWithOreContext(
+        &recorder,
+        "local t = GPUTexture.new({ width = 4, height = 4, "
+        "format = 'depth24plus-stencil8' })\n"
+        "assert(viewAspect(t:view({ aspect = 'depth-only' })) == 1)\n"
+        "assert(viewAspect(t:view({ aspect = 'stencil-only' })) == 2)\n"
+        "assert(viewAspect(t:view()) == 0)\n");
     CHECK(error.empty());
 }
 

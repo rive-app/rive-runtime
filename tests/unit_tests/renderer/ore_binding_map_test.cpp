@@ -604,7 +604,7 @@ TEST_CASE("validateBindGroupDesc rejects a UBO shorter than the block",
     CHECK(err.find("160") != std::string::npos);
 
     // A range past the end of the buffer fails before the size check.
-    ubos[1].offset = 1000;
+    ubos[1].offset = 1024;
     ubos[1].size = 192;
     CHECK_FALSE(validateBindGroupDesc(desc, &err));
     CHECK(err.find("exceeds") != std::string::npos);
