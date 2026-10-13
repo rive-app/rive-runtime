@@ -272,6 +272,9 @@ public:
 
     virtual bool hasGlyph(const rive::Unichar) const = 0;
 
+    // Nominal Unicode scalar coverage in ascending order, without fallback.
+    virtual std::vector<Unichar> codepoints() const = 0;
+
     // Value for the feature, if no value has been provided a (uint32_t)-1 is
     // returned to signal that the text engine will pick the best feature value
     // for the content.

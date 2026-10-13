@@ -93,6 +93,7 @@ public:
         rive::Span<const Feature> features) const override;
 
     bool hasGlyph(const rive::Unichar) const override;
+    std::vector<rive::Unichar> codepoints() const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
     /// Decodes [bytes] in place, keeping them for the font's lifetime instead

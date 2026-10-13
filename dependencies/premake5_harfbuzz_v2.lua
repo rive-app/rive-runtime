@@ -269,7 +269,6 @@ do
         'HB_NO_ERRNO',
         'HB_NO_GETENV',
         'HB_NO_OPEN', -- hb_blob_create_from_file — Rive creates blobs from memory
-        'HB_NO_FACE_COLLECT_UNICODES',
 
         -- Size optimization
         'HB_OPTIMIZE_SIZE', -- Use smaller UCD lookup tables

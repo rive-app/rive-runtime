@@ -1499,6 +1499,24 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
     return paragraphs;
 }
 
+std::vector<rive::Unichar> HBFont::codepoints() const
+{
+    auto* coverage = hb_set_create();
+    hb_face_collect_unicodes(hb_font_get_face(m_font), coverage);
+    std::vector<rive::Unichar> result;
+    result.reserve(hb_set_get_population(coverage));
+    hb_codepoint_t cp = HB_SET_VALUE_INVALID;
+    while (hb_set_next(coverage, &cp))
+    {
+        if (cp > 0x10ffff)
+            break;
+        if ((cp < 0xd800 || cp > 0xdfff) && hasGlyph(cp))
+            result.push_back(cp);
+    }
+    hb_set_destroy(coverage);
+    return result;
+}
+
 bool HBFont::hasGlyph(const rive::Unichar missing) const
 {
     hb_codepoint_t glyph;
