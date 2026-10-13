@@ -18,7 +18,9 @@
 #ifdef RIVE_WASM_TIER_LADDER
 #include <map>
 #include <mutex>
+#include <set>
 #include <tuple>
+#include <utility>
 #include <vector>
 #endif
 
@@ -64,7 +66,7 @@ public:
     static ModuleTierLadder& instance();
 
     // Inert until a host opts in. Empty arguments fall back to RIVE_WAMRC,
-    // RIVE_AOT_CACHE_DIR, then temp. compileOnBoot blocks a boot that misses.
+    // RIVE_AOT_CACHE_DIR, then a user cache. compileOnBoot blocks on a miss.
     void configure(const std::string& wamrcPath,
                    const std::string& cacheDir,
                    bool compileOnBoot = false);
@@ -73,6 +75,9 @@ public:
     bool enabled();
     // Why enabled() is false, for a log line; empty when it is true.
     std::string disabledReason();
+    // The cache dir when other users could write it, which keeps the ladder
+    // off, else empty.
+    std::string untrustedCacheDir();
     // The wamrc the ladder runs, for callers compiling their own way.
     std::string compilerPath();
 
@@ -84,8 +89,8 @@ public:
                              const std::string& target = std::string());
 
     // Compile one species on the calling thread, or hand back the cached
-    // artifact at once. Setting cancel, then calling cancelCrossCompiles,
-    // stops a device target compile even one that has not spawned yet.
+    // artifact at once. Setting cancel, then calling cancelCompiles, stops
+    // the compile, even one that has not spawned yet.
     TierCompile compileSync(uint64_t moduleKey,
                             Span<const uint8_t> moduleBytes,
                             TierSpecies species,
@@ -97,12 +102,11 @@ public:
                             Span<const uint8_t> moduleBytes,
                             TierSpecies species);
 
-    // Kills the device target compiles whose cancel flag is set, which then
-    // return empty.
-    void cancelCrossCompiles();
+    // Kills the compiles whose cancel flag is set, which then return empty.
+    void cancelCompiles();
 
-    // A failed compile or a rejected artifact is not retried until the next
-    // configure, since retrying would only stall each boot again.
+    // Failures hold until the next configure, which recompiles a rejected
+    // artifact unless the runtime rejected it straight from its compile.
     bool failed(uint64_t moduleKey,
                 TierSpecies species,
                 const std::string& target = std::string());
@@ -145,13 +149,17 @@ private:
     std::string m_disabledReason;
     bool m_versionProbed = false;
     bool m_compileOnBoot = false;
+    // Stale key dirs were swept since the last configure.
+    bool m_pruned = false;
     // The wamrc accepts our --rive-interrupt flag; true on platforms that
     // cannot probe.
     bool m_wamrcUsable = true;
     // The wamrc takes --tune-cpu; older builds compile untuned.
     bool m_wamrcTunes = false;
-    // compileSync jobs for a device target, which cancelCrossCompiles kills.
-    std::vector<Job*> m_crossJobs;
+    // compileSync jobs with a cancel flag, which cancelCompiles kills.
+    std::vector<Job*> m_cancelableJobs;
+    // Host artifacts compiled since configure, whose rejection is final.
+    std::set<std::pair<uint64_t, TierSpecies>> m_compiled;
     // Why each failed (module, species, target) failed.
     std::map<std::tuple<uint64_t, TierSpecies, std::string>, std::string>
         m_failures;
@@ -173,6 +181,7 @@ public:
     void unconfigure() {}
     bool enabled() { return false; }
     std::string disabledReason() { return "no aot compiler in this build"; }
+    std::string untrustedCacheDir() { return std::string(); }
     std::string compilerPath() { return std::string(); }
 
     std::string artifactPath(uint64_t,
@@ -197,7 +206,7 @@ public:
     {
         return compileSync(key, bytes, species);
     }
-    void cancelCrossCompiles() {}
+    void cancelCompiles() {}
     bool failed(uint64_t, TierSpecies, const std::string& = std::string())
     {
         return false;

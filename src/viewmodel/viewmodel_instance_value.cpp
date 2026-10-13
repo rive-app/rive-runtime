@@ -177,6 +177,13 @@ void ViewModelInstanceValue::onValueChanged()
         return;
     }
 
+    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegating))
+    {
+        // We're already calling delegates for this value change, changing the
+        // value in a delegate will not report it or rebuild the copy in use.
+        return;
+    }
+
     if (enums::is_flag_set(m_changeFlags, ValueFlags::delegatesChanged))
     {
         m_delegatesCopy.clear();
@@ -187,13 +194,6 @@ void ViewModelInstanceValue::onValueChanged()
         m_changeFlags &= ~ValueFlags::delegatesChanged;
     }
 
-    if (enums::is_flag_set(m_changeFlags, ValueFlags::delegating))
-    {
-        // We're already calling delegates for this value change, changing the
-        // value in a delegate will not report the change.
-        return;
-    }
-
     // Flag to guard against calling this recursively.
     m_changeFlags |= ValueFlags::delegating;
 
@@ -201,6 +201,13 @@ void ViewModelInstanceValue::onValueChanged()
     // valueChanged callbacks.
     for (auto* delegate : m_delegatesCopy)
     {
+        // A callback can remove, and free, a delegate still in the copy.
+        if (enums::is_flag_set(m_changeFlags, ValueFlags::delegatesChanged) &&
+            std::find(m_delegates.begin(), m_delegates.end(), delegate) ==
+                m_delegates.end())
+        {
+            continue;
+        }
         delegate->valueChanged();
     }
 

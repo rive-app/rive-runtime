@@ -28,6 +28,7 @@ TierSpecies bootTierSpecies()
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -65,9 +66,20 @@ static void makeDir(const std::string& path)
 #ifdef RIVE_NX
     // Our NX libc++ has no std::filesystem directory ops.
     mkdir(path.c_str(), 0755);
-#else
+#elif defined(_WIN32)
     std::error_code ec;
-    std::filesystem::create_directory(path, ec);
+    std::filesystem::create_directories(path, ec);
+#else
+    // Private from the start, so no other user can plant artifacts.
+    if (mkdir(path.c_str(), 0700) != 0 && errno == ENOENT)
+    {
+        size_t slash = path.find_last_of('/');
+        if (slash != std::string::npos && slash != 0)
+        {
+            makeDir(path.substr(0, slash));
+            mkdir(path.c_str(), 0700);
+        }
+    }
 #endif
 }
 
@@ -76,6 +88,41 @@ static bool fileExists(const std::string& path)
     struct stat st;
     return stat(path.c_str(), &st) == 0;
 }
+
+// Artifacts run as native code, so a cache another user can write is never
+// read. One that does not exist yet gets created private.
+static bool trustedCacheDir(const std::string& path)
+{
+#if defined(_WIN32) || defined(RIVE_NX)
+    return true;
+#else
+    struct stat st;
+    return stat(path.c_str(), &st) != 0 ||
+           (S_ISDIR(st.st_mode) && st.st_uid == geteuid() &&
+            (st.st_mode & (S_IWGRP | S_IWOTH)) == 0);
+#endif
+}
+
+#ifndef RIVE_NX
+// The temp dir is per user on Apple and Windows but shared on Linux, where
+// the user's own cache dir holds the artifacts instead.
+static std::string defaultCacheDir()
+{
+#if defined(_WIN32) || defined(__APPLE__)
+    return (std::filesystem::temp_directory_path() / "rive_aot_cache").string();
+#else
+    const char* xdg = getenv("XDG_CACHE_HOME");
+    if (xdg != nullptr && xdg[0] == '/')
+    {
+        return std::string(xdg) + "/rive/aot_cache";
+    }
+    const char* home = getenv("HOME");
+    return home != nullptr && home[0] == '/'
+               ? std::string(home) + "/.cache/rive/aot_cache"
+               : std::string();
+#endif
+}
+#endif
 
 // Windows refuses to rename over an existing file, and another compile of
 // the same artifact landing first is still a success.
@@ -393,6 +440,8 @@ void ModuleTierLadder::configure(const std::string& wamrcPath,
     }
     m_cacheDir = cacheDir;
     m_failures.clear();
+    m_compiled.clear();
+    m_pruned = false;
     if (m_cacheDir.empty() && !m_wamrcPath.empty())
     {
         const char* dirEnv = getenv("RIVE_AOT_CACHE_DIR");
@@ -402,11 +451,7 @@ void ModuleTierLadder::configure(const std::string& wamrcPath,
         // directory explicitly.
         m_cacheDir = dirEnv != nullptr ? dirEnv : "";
 #else
-        m_cacheDir =
-            dirEnv != nullptr
-                ? dirEnv
-                : (std::filesystem::temp_directory_path() / "rive_aot_cache")
-                      .string();
+        m_cacheDir = dirEnv != nullptr ? dirEnv : defaultCacheDir();
 #endif
     }
 }
@@ -417,6 +462,7 @@ void ModuleTierLadder::unconfigure()
     m_wamrcPath.clear();
     m_cacheDir.clear();
     m_failures.clear();
+    m_compiled.clear();
     m_versionProbed = false;
     m_compileOnBoot = false;
 }
@@ -439,6 +485,12 @@ bool ModuleTierLadder::enabledLocked()
         m_disabledReason = "no aot cache, set RIVE_AOT_CACHE_DIR";
         return false;
     }
+    if (!trustedCacheDir(m_cacheDir))
+    {
+        m_disabledReason = "the aot cache " + m_cacheDir +
+                           " is not private to this user, run chmod go-w on it";
+        return false;
+    }
     wamrcVersion();
     m_disabledReason =
         m_wamrcUsable ? "" : m_wamrcPath + " is not our patched wamrc";
@@ -453,6 +505,13 @@ std::string ModuleTierLadder::disabledReason()
     }
     std::unique_lock<std::mutex> lock(m_mutex);
     return m_disabledReason;
+}
+
+std::string ModuleTierLadder::untrustedCacheDir()
+{
+    std::unique_lock<std::mutex> lock(m_mutex);
+    return m_cacheDir.empty() || trustedCacheDir(m_cacheDir) ? std::string()
+                                                             : m_cacheDir;
 }
 
 std::string ModuleTierLadder::compilerPath()
@@ -488,11 +547,20 @@ const std::string& ModuleTierLadder::wamrcVersion()
         {
             m_wamrcVersion = v;
         }
+        // Every build of our patched wamrc prints the same version.
+        uint64_t binaryKey = 0;
+        fileContentKey(m_wamrcPath, binaryKey);
+        char binary[20];
+        snprintf(binary,
+                 sizeof(binary),
+                 "-%016llx",
+                 (unsigned long long)binaryKey);
+        m_wamrcVersion += binary;
         auto accepts = [&](const char* flag) {
             return probeWamrc(m_wamrcPath, flag, nullptr);
         };
-        // Every compile passes --rive-interrupt, which an unpatched wamrc
-        // rejects; say so once rather than fail each compile quietly.
+        // Only our patched wamrc takes --rive-interrupt; say so once rather
+        // than fail each compile quietly.
         m_wamrcUsable = accepts("--rive-interrupt");
         m_wamrcTunes = accepts("--tune-cpu=generic");
         if (!m_wamrcUsable)
@@ -550,7 +618,7 @@ std::string ModuleTierLadder::keyedCacheDir()
     // it whenever species flags change or stale artifacts get served on a
     // cache hit.
     const std::string& version = wamrcVersion();
-    return m_cacheDir + "/" + version + "-r9" + (m_wamrcTunes ? "t" : "");
+    return m_cacheDir + "/" + version + "-r13" + (m_wamrcTunes ? "t" : "");
 }
 
 // Device artifacts sit apart from this machine's, which share their names.
@@ -591,6 +659,7 @@ std::string ModuleTierLadder::artifactPath(uint64_t moduleKey,
     std::unique_lock<std::mutex> lock(m_mutex);
     // Targets come from link peers, so only known ones reach a path.
     if (m_wamrcPath.empty() || m_cacheDir.empty() ||
+        !trustedCacheDir(m_cacheDir) ||
         (!target.empty() && crossTargetArgs(target) == nullptr))
     {
         return std::string();
@@ -599,6 +668,112 @@ std::string ModuleTierLadder::artifactPath(uint64_t moduleKey,
         artifactDir(target) + "/" + artifactName(moduleKey, species);
     return fileExists(path) ? path : std::string();
 }
+
+#ifndef RIVE_NX
+// Another process may still be using an older compiler's key dir this long
+// after its last compile.
+constexpr auto kStaleKeyDirAge = std::chrono::hours(24 * 7);
+constexpr uintmax_t kKeyDirBytes = 512ull << 20;
+
+// The names every keyedCacheDir has had: a wamrc version line, then a
+// revision.
+static bool isKeyDirName(const std::string& name)
+{
+    size_t revision = name.rfind("-r");
+    if ((name.rfind("wamrc-", 0) != 0 && name.rfind("unknown-", 0) != 0) ||
+        revision == std::string::npos)
+    {
+        return false;
+    }
+    std::string digits = name.substr(revision + 2);
+    if (!digits.empty() && digits.back() == 't')
+    {
+        digits.pop_back();
+    }
+    return !digits.empty() &&
+           digits.find_first_not_of("0123456789") == std::string::npos;
+}
+
+// Every module and every wamrc update leave artifacts behind, so stale key
+// dirs go, then this one's oldest compiles until it fits.
+static void pruneCache(const std::string& cacheDir,
+                       const std::string& keyedDir,
+                       bool staleKeyDirs)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    if (staleKeyDirs)
+    {
+        auto staleBefore = fs::file_time_type::clock::now() - kStaleKeyDirAge;
+        std::string current = fs::path(keyedDir).filename().string();
+        std::vector<fs::path> stale;
+        for (fs::directory_iterator it(cacheDir, ec), end; !ec && it != end;
+             it.increment(ec))
+        {
+            std::string name = it->path().filename().string();
+            std::error_code statError;
+            if (name != current && isKeyDirName(name) &&
+                it->is_directory(statError) &&
+                it->last_write_time(statError) < staleBefore && !statError)
+            {
+                stale.push_back(it->path());
+            }
+        }
+        for (const fs::path& dir : stale)
+        {
+            fs::remove_all(dir, ec);
+        }
+    }
+    struct Artifact
+    {
+        fs::file_time_type written;
+        uintmax_t size;
+        fs::path path;
+    };
+    std::vector<Artifact> artifacts;
+    uintmax_t total = 0;
+    ec.clear();
+    for (fs::recursive_directory_iterator it(keyedDir, ec), end;
+         !ec && it != end;
+         it.increment(ec))
+    {
+        std::string extension = it->path().extension().string();
+        std::error_code statError;
+        if ((extension == ".aot" || extension == ".wasm") &&
+            it->is_regular_file(statError))
+        {
+            Artifact artifact{it->last_write_time(statError),
+                              it->file_size(statError),
+                              it->path()};
+            if (!statError)
+            {
+                total += artifact.size;
+                artifacts.push_back(std::move(artifact));
+            }
+        }
+    }
+    if (total <= kKeyDirBytes)
+    {
+        return;
+    }
+    std::sort(artifacts.begin(),
+              artifacts.end(),
+              [](const Artifact& a, const Artifact& b) {
+                  return a.written < b.written;
+              });
+    for (const Artifact& artifact : artifacts)
+    {
+        if (total <= kKeyDirBytes)
+        {
+            break;
+        }
+        if (fs::remove(artifact.path, ec))
+        {
+            total -= artifact.size;
+        }
+    }
+}
+#endif
 
 // The cache is shared across processes and a name must never be visible
 // half-written: write a process-unique temp, then atomically rename.
@@ -629,6 +804,9 @@ TierCompile ModuleTierLadder::compileSync(uint64_t moduleKey,
     Job job{moduleKey, species};
     job.target = target;
     job.cancel = cancel;
+    std::string cacheDir;
+    std::string keyedDir;
+    bool staleKeyDirs = false;
     {
         std::unique_lock<std::mutex> lock(m_mutex);
         if (lookupLocked(job, result))
@@ -636,7 +814,15 @@ TierCompile ModuleTierLadder::compileSync(uint64_t moduleKey,
             return result;
         }
         createArtifactDir(target);
-        job.wasmPath = keyedCacheDir() + "/" + wasmModuleName(moduleKey);
+        // Another user may have made the dir first.
+        if (!enabledLocked())
+        {
+            result.reason = m_disabledReason;
+            return result;
+        }
+        cacheDir = m_cacheDir;
+        keyedDir = keyedCacheDir();
+        job.wasmPath = keyedDir + "/" + wasmModuleName(moduleKey);
         if (!fileExists(job.wasmPath) &&
             !writeFileAtomic(job.wasmPath, moduleBytes))
         {
@@ -645,28 +831,38 @@ TierCompile ModuleTierLadder::compileSync(uint64_t moduleKey,
             m_failures[{moduleKey, species, target}] = result.reason;
             return result;
         }
-        if (!target.empty())
+        if (cancel != nullptr)
         {
-            m_crossJobs.push_back(&job);
+            m_cancelableJobs.push_back(&job);
         }
     }
     result.reason = runWamrc(job);
     {
         std::unique_lock<std::mutex> lock(m_mutex);
-        if (!target.empty())
+        if (cancel != nullptr)
         {
-            m_crossJobs.erase(
-                std::find(m_crossJobs.begin(), m_crossJobs.end(), &job));
+            m_cancelableJobs.erase(std::find(m_cancelableJobs.begin(),
+                                             m_cancelableJobs.end(),
+                                             &job));
         }
         if (!result.reason.empty() && !job.cancelled)
         {
             m_failures[{moduleKey, species, target}] = result.reason;
         }
+        if (result.reason.empty() && target.empty())
+        {
+            m_compiled.insert({moduleKey, species});
+        }
+        staleKeyDirs = result.reason.empty() && !m_pruned;
+        m_pruned = m_pruned || staleKeyDirs;
     }
     if (result.reason.empty())
     {
         result.path = job.finalPath;
         result.compiled = true;
+#ifndef RIVE_NX
+        pruneCache(cacheDir, keyedDir, staleKeyDirs);
+#endif
     }
     return result;
 }
@@ -694,6 +890,12 @@ bool ModuleTierLadder::lookupLocked(Job& job, TierCompile& result)
     if (fileExists(job.finalPath))
     {
         result.path = job.finalPath;
+        return true;
+    }
+    std::ifstream rejected(job.finalPath + ".rejected");
+    if (rejected && std::getline(rejected, result.reason))
+    {
+        m_failures[{job.moduleKey, job.species, job.target}] = result.reason;
         return true;
     }
     return false;
@@ -733,12 +935,27 @@ void ModuleTierLadder::rejectArtifact(uint64_t moduleKey,
 {
     std::unique_lock<std::mutex> lock(m_mutex);
     m_failures[{moduleKey, species, std::string()}] = reason;
+    if (m_cacheDir.empty())
+    {
+        return;
+    }
+    std::string path =
+        artifactDir(std::string()) + "/" + artifactName(moduleKey, species);
+    std::remove(path.c_str());
+    // A recompile would make the same artifact again, so later sessions skip
+    // it. One an older session left, maybe torn, compiles afresh.
+    if (m_compiled.count({moduleKey, species}) != 0)
+    {
+        writeFileAtomic(
+            path + ".rejected",
+            Span<const uint8_t>((const uint8_t*)reason.data(), reason.size()));
+    }
 }
 
-void ModuleTierLadder::cancelCrossCompiles()
+void ModuleTierLadder::cancelCompiles()
 {
     std::unique_lock<std::mutex> lock(m_mutex);
-    for (Job* job : m_crossJobs)
+    for (Job* job : m_cancelableJobs)
     {
         if (job->cancel == nullptr || !job->cancel->load())
         {
@@ -755,7 +972,7 @@ void ModuleTierLadder::cancelCrossCompiles()
 std::string ModuleTierLadder::runWamrc(Job& job)
 {
     // Callers dropped m_mutex; only job fields and immutable config are
-    // touched off-lock, except child which cancelCrossCompiles reads under
+    // touched off-lock, except child which cancelCompiles reads under
     // lock.
     const std::string& finalPath = job.finalPath;
     std::string wamrc;
@@ -822,6 +1039,21 @@ std::string ModuleTierLadder::runWamrc(Job& job)
         {
             args.push_back("--tune-cpu=apple-m1");
         }
+#endif
+    }
+#elif defined(__x86_64__) || defined(_M_X64)
+    else
+    {
+        // Left alone wamrc targets this machine's cpu, which another host
+        // sharing the cache may lack. Without FMA, relaxed madd calls fmaf.
+        args.push_back("--target=x86_64");
+        args.push_back("--cpu=x86-64-v2");
+#if defined(__APPLE__)
+        // Code maps above 4GB here, out of reach of 32 bit relocations.
+        args.push_back("--size-level=0");
+#elif defined(_WIN32)
+        // wamrc's own default for this host, which naming a target drops.
+        args.push_back("--size-level=1");
 #endif
     }
 #endif

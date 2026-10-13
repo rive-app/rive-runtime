@@ -175,8 +175,7 @@ int main(int argc, char** argv)
         uint32_t count = 0;
         for (auto& moduleVm : file->wasmVMs())
         {
-            count += (uint32_t)(moduleVm->handles().slots.size() -
-                                moduleVm->handles().freeSlots.size());
+            count += (uint32_t)moduleVm->handles().live();
         }
         return count;
     };

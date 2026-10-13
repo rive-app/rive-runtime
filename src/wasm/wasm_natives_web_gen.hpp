@@ -1950,6 +1950,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_file_bindable_data,
     (void*)rive_web_file_bindable_equal,
     (void*)rive_web_console,
+    (void*)rive_web_trace,
 };
 
 EMSCRIPTEN_KEEPALIVE

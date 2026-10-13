@@ -82,3 +82,20 @@ TEST_CASE("RawText ignores layout ordinals out of range", "[rawtext]")
     CHECK(after.minX == before.minX);
     CHECK(after.maxY == before.maxY);
 }
+
+TEST_CASE("RawText shapes around an empty append", "[rawtext]")
+{
+    NoOpFactory factory;
+    RawText text(&factory);
+    auto font = loadFont("assets/fonts/Inter_18pt-Regular.ttf");
+    text.append("abc", nullptr, font);
+    text.append("", nullptr, font);
+    text.append("def", nullptr, font);
+    REQUIRE(text.lineCount() == 1);
+    uint32_t glyphs = 0;
+    text.forEachGlyph(0, [&](const GlyphRun&, uint32_t, Vec2D) {
+        glyphs++;
+        return true;
+    });
+    CHECK(glyphs == 6);
+}

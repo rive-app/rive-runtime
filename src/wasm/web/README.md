@@ -42,6 +42,13 @@ no change:
 - The JS runtime: `Module.startFileScripts` in `wasm/js/shared.js`, used by
   both `load` wrappers. The binding is `File.startScripts`.
 
+Script heaps also need `File::frameBoundary` once a frame, after everything
+advanced and drew, or a frame collector module never collects. The JS
+runtime keeps no list of its files, so at the end of each frame, the
+batched animation frame or `resolveAnimationFrame`, it calls
+`Module.riveScripting.frameBoundary()`, which services every live VM and
+returns their leak warnings for `console.warn`.
+
 ## The files here
 
 - `rive_module_imports.mjs`, generated. The import object a script module is
@@ -92,7 +99,8 @@ in any build.
   `packages/runtime_wasm/wasm` with
   `OUT_DIR=build/canvas_scripting_single/bin/release ./build_wasm.sh -s -w -t release`.
   It covers init and draw, a trap the page survives, an op the host lacks,
-  browser image decodes and the bridge counters. CI runs it.
+  browser image decodes, the collection at the end of each frame and the
+  bridge counters. CI runs it.
 - `packages/luau_wasm/tests/check_web_imports.mjs`: every `rive_*` import of
   the Luau host module resolves through the generated import object. It is
   there because that module imports the whole rive surface, which makes it a

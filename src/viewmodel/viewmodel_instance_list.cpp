@@ -95,8 +95,7 @@ rcp<ViewModelInstanceListItem> ViewModelInstanceList::pop()
     {
 
         auto listItem = m_ListItems.back();
-        m_ListItems.pop_back();
-        propertyValueChanged();
+        removeItem((int)m_ListItems.size() - 1);
         return listItem;
     }
     return nullptr;

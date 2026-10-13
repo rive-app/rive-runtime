@@ -51,6 +51,140 @@ function probeModule(body) {
     ]);
 }
 
+// Index immediates of the 0xfc ops by sub-opcode: none for the saturating
+// truncations, then memory.init through table.fill.
+const kBulkIndices = [0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1];
+// The ops past the variable accesses that take one LEB.
+const kOneLebOps = [0x0c, 0x0d, 0x10, 0x12, 0x3f, 0x40, 0x41, 0x42, 0xd0, 0xd2];
+
+// The SIMD a module's types and code need: 2 for relaxed, 1 for plain, 0 for
+// none, or -1 when they hold what this walk does not read.
+function simdNeeded(bytes) {
+    let needed = 0;
+    let at = 8;
+    const need = (flavor) => {
+        needed = Math.max(needed, flavor);
+    };
+    const next = () => {
+        const [value, end] = readLeb(bytes, at);
+        at = end;
+        return value;
+    };
+    const memarg = () => {
+        if (next() & 0x40) {
+            next();
+        }
+        next();
+    };
+    // False for a reference type with a heap type, which takes more bytes.
+    const valueType = () => {
+        const type = bytes[at++];
+        if (type === 0x7b) {
+            need(1);
+        }
+        return type !== 0x63 && type !== 0x64;
+    };
+    const instruction = () => {
+        const op = bytes[at++];
+        if (op === 0xfd) {
+            const sub = next();
+            need(sub >= 0x100 && sub <= 0x113 ? 2 : 1);
+            if (sub <= 0x0b || sub === 0x5c || sub === 0x5d) {
+                memarg();
+            } else if (sub === 0x0c || sub === 0x0d) {
+                at += 16;
+            } else if (sub >= 0x15 && sub <= 0x22) {
+                at += 1;
+            } else if (sub >= 0x54 && sub <= 0x5b) {
+                memarg();
+                at += 1;
+            }
+        } else if (op === 0xfc) {
+            const sub = next();
+            if (sub >= kBulkIndices.length) {
+                return false;
+            }
+            for (let i = 0; i < kBulkIndices[sub]; i++) {
+                next();
+            }
+        } else if (op === 0xfe) {
+            // atomic.fence takes a byte, the other atomics a memarg.
+            if (next() === 3) {
+                at += 1;
+            } else {
+                memarg();
+            }
+        } else if (op >= 0x28 && op <= 0x3e) {
+            memarg();
+        } else if (op >= 0x02 && op <= 0x04) {
+            // A block type: one byte, or a type index.
+            if (bytes[at] === 0x7b) {
+                need(1);
+            }
+            next();
+        } else if (op === 0x0e) {
+            for (let labels = next(); labels >= 0 && at < bytes.length; labels--) {
+                next();
+            }
+        } else if (op === 0x1c) {
+            for (let types = next(); types > 0 && at < bytes.length; types--) {
+                if (!valueType()) {
+                    return false;
+                }
+            }
+        } else if (op === 0x11 || op === 0x13) {
+            next();
+            next();
+        } else if (op === 0x43 || op === 0x44) {
+            at += op === 0x43 ? 4 : 8;
+        } else if ((op >= 0x20 && op <= 0x26) || kOneLebOps.includes(op)) {
+            next();
+        } else if (!(op <= 0x01 || op === 0x05 || op === 0x0b || op === 0x0f ||
+                op === 0x1a || op === 0x1b || op === 0xd1 ||
+                (op >= 0x45 && op <= 0xc4))) {
+            return false;
+        }
+        return true;
+    };
+    while (at < bytes.length) {
+        const id = bytes[at];
+        const [size, body] = readLeb(bytes, at + 1);
+        at = body;
+        if (id === 1) {
+            for (let types = next(); types > 0 && at < bytes.length; types--) {
+                // Function types only: params, then results.
+                if (bytes[at++] !== 0x60) {
+                    return -1;
+                }
+                for (let list = 0; list < 2; list++) {
+                    for (let n = next(); n > 0 && at < bytes.length; n--) {
+                        if (!valueType()) {
+                            return -1;
+                        }
+                    }
+                }
+            }
+        } else if (id === 10) {
+            for (let bodies = next(); bodies > 0 && at < bytes.length; bodies--) {
+                const end = Math.min(next() + at, bytes.length);
+                for (let locals = next(); locals > 0 && at < end; locals--) {
+                    next();
+                    if (!valueType()) {
+                        return -1;
+                    }
+                }
+                while (at < end) {
+                    if (!instruction()) {
+                        return -1;
+                    }
+                }
+            }
+        }
+        at = body + size;
+    }
+    return needed;
+}
+
 function readLeb(bytes, at) {
     let value = 0;
     let shift = 0;
@@ -120,6 +254,36 @@ function liftStart(bytes) {
     return out;
 }
 
+// Args by index: spreading a subarray of the heap cost more than the call.
+function callExport(fn, args, at, argc) {
+    switch (argc) {
+        case 0:
+            return fn();
+        case 1:
+            return fn(args[at]);
+        case 2:
+            return fn(args[at], args[at + 1]);
+        case 3:
+            return fn(args[at], args[at + 1], args[at + 2]);
+        case 4:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3]);
+        case 5:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4]);
+        case 6:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5]);
+        case 7:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5], args[at + 6]);
+        case 8:
+            return fn(args[at], args[at + 1], args[at + 2], args[at + 3],
+                args[at + 4], args[at + 5], args[at + 6], args[at + 7]);
+        default:
+            return fn(...args.subarray(at, at + argc));
+    }
+}
+
 export function installRiveScripting(Module) {
     // Primitives over the librive heap and exports, handed over by librive
     // itself on first use because only code inside it can see them.
@@ -150,11 +314,16 @@ export function installRiveScripting(Module) {
         if ((features.simd && features.relaxed) || validate(bytes)) {
             return null;
         }
-        return features.simd
-            ? "this browser lacks WebAssembly relaxed SIMD, so this file's " +
-                  'scripts are off; bake with wasmSimd: on to support it'
-            : "this browser lacks WebAssembly SIMD, so this file's scripts " +
-                  'are off; bake with wasmSimd: off to support it';
+        const needed = simdNeeded(bytes);
+        if (!features.simd && needed > 0) {
+            return "this browser lacks WebAssembly SIMD, so this file's scripts " +
+                'are off; bake with wasmSimd: off to support it';
+        }
+        if (!features.relaxed && needed === 2) {
+            return "this browser lacks WebAssembly relaxed SIMD, so this file's " +
+                'scripts are off; bake with wasmSimd: on to support it';
+        }
+        return null;
     }
 
     function importsFor(entry, module) {
@@ -212,11 +381,37 @@ export function installRiveScripting(Module) {
     function adopt(entry, instance) {
         entry.memory = instance.exports['memory'];
         entry.bytes = null;
+        // State of the call in progress, which a trap unwinds without
+        // restoring; a global the module cannot write is not state.
+        entry.callState = Object.keys(instance.exports)
+            .filter((name) => name.startsWith('__riveCall'))
+            .map((name) => instance.exports[name])
+            .filter((global) => {
+                if (!(global instanceof WebAssembly.Global)) {
+                    return false;
+                }
+                try {
+                    global.value = global.value;
+                    return true;
+                } catch {
+                    return false;
+                }
+            });
+        // One stack for nested calls, so hot paths allocate nothing.
+        entry.callSaved = [];
+        // A metered module's own fuel bounds its top level, as it does its
+        // calls.
+        const fuelMs = host.exports['_rive_web_vm_start_fuel'](entry.ctx.vm);
+        const arm = instance.exports['__riveFuelArm'];
+        const end = instance.exports['__riveFuelEnd'];
+        const fueled = fuelMs > 0 && arm !== undefined && end !== undefined;
         const booting = host.exports['_rive_web_vm_booting'];
         booting(entry.ctx.vm);
         const mark = host.stackSave();
         try {
+            if (fueled) arm(fuelMs);
             instance.exports[kLiftedStart]?.();
+            if (fueled) end();
         } catch (error) {
             // A host fault skips the epilogues of the librive frames it unwinds.
             host.stackRestore(mark);
@@ -345,9 +540,14 @@ export function installRiveScripting(Module) {
             if (typeof fn !== 'function') {
                 return kMissing;
             }
+            const callState = entry.callState;
+            const saved = entry.callSaved;
+            const base = saved.length;
+            for (let i = 0; i < callState.length; i++) {
+                saved.push(callState[i].value);
+            }
             try {
-                const at = argv >> 3;
-                const result = fn(...host.heapF64().subarray(at, at + argc));
+                const result = callExport(fn, host.heapF64(), argv >> 3, argc);
                 host.heapF64()[resultPtr >> 3] =
                     typeof result === 'number' ? result : 0;
                 return kOk;
@@ -359,6 +559,11 @@ export function installRiveScripting(Module) {
                     trapCapacity
                 );
                 return entry.ctx.hostFault ? kHostFault : kTrapped;
+            } finally {
+                for (let i = 0; i < callState.length; i++) {
+                    callState[i].value = saved[base + i];
+                }
+                saved.length = base;
             }
         },
 
@@ -403,7 +608,21 @@ export function installRiveScripting(Module) {
 
         pages(vm) {
             const memory = vms.get(vm)?.memory;
-            return memory ? memory.buffer.byteLength >>> 16 : 0;
+            // Not >>> 16, which reads a full 4 GiB memory as none.
+            return memory ? memory.buffer.byteLength / 65536 : 0;
+        },
+
+        // File::frameBoundary for every live VM, for hosts that keep no list
+        // of their files. Returns the warnings they raised.
+        frameBoundary() {
+            const warnings = [];
+            for (const vm of vms.keys()) {
+                const text = host.exports['_rive_web_vm_frame_boundary'](vm);
+                if (text !== 0) {
+                    warnings.push(host.utf8(text));
+                }
+            }
+            return warnings;
         },
 
         // Starts or stops tallying the bridge traffic, from zero.
@@ -430,6 +649,7 @@ export function installRiveScripting(Module) {
     };
     // The entries hosts call from outside this script.
     runner['prepare'] = runner.prepare;
+    runner['frameBoundary'] = runner.frameBoundary;
     runner['countHostCalls'] = runner.countHostCalls;
     runner['hostCallCounts'] = runner.hostCallCounts;
     Module['riveScripting'] = runner;

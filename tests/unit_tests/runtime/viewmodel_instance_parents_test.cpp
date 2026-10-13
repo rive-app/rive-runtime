@@ -1,4 +1,6 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
+#include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include <catch.hpp>
 #include <algorithm>
 
@@ -31,5 +33,20 @@ TEST_CASE("View model instance keeps its other parents when the first goes",
     child->removeParent(b.get());
     CHECK(child->parents() == std::vector<ViewModelInstance*>{a.get()});
     child->removeParent(a.get());
+    CHECK_FALSE(child->hasParents());
+}
+
+TEST_CASE("A list item popped off loses the list's view model as its parent",
+          "[viewmodel]")
+{
+    auto owner = make_rcp<ViewModelInstance>();
+    auto list = make_rcp<ViewModelInstanceList>();
+    list->parentViewModelInstance(owner.get());
+    auto child = make_rcp<ViewModelInstance>();
+    auto item = make_rcp<ViewModelInstanceListItem>();
+    item->viewModelInstance(child);
+    list->addItem(item);
+    CHECK(child->parents() == std::vector<ViewModelInstance*>{owner.get()});
+    CHECK(list->pop() == item);
     CHECK_FALSE(child->hasParents());
 }

@@ -185,6 +185,7 @@ thread_local std::vector<WasmScriptingVM*> s_holdingVMs;
 struct rive::WasmScriptingVMNatives
 {
     static void print(WasmScriptingVM* vm, const char* data, size_t size);
+    static int startFuelMs(const WasmScriptingVM* vm);
 #ifndef __EMSCRIPTEN__
     static WasmScriptingVM* adoptBooting(wasm_exec_env_t env);
 #else
@@ -266,6 +267,66 @@ struct WasmScriptingVM::WamrState
         wasm_function_inst_t function = nullptr;
     };
     ExportSlot exportCache[64];
+
+    // The module's __riveCall globals: state of the call in progress, which
+    // a trap unwinds without restoring.
+    static constexpr uint32_t kMaxCallState = 8;
+    uint32_t* callState[kMaxCallState] = {};
+    uint32_t callStateCount = 0;
+
+    // Puts the call state back when a call into the module ends.
+    class CallStateScope
+    {
+    public:
+        explicit CallStateScope(const WamrState& state) : m_state(state)
+        {
+            for (uint32_t i = 0; i < state.callStateCount; i++)
+            {
+                m_saved[i] = *state.callState[i];
+            }
+        }
+
+        ~CallStateScope()
+        {
+            for (uint32_t i = 0; i < m_state.callStateCount; i++)
+            {
+                *m_state.callState[i] = m_saved[i];
+            }
+        }
+
+    private:
+        const WamrState& m_state;
+        uint32_t m_saved[kMaxCallState];
+    };
+
+    void findCallState()
+    {
+        int32_t count = wasm_runtime_get_export_count(module);
+        for (int32_t i = 0; i < count; i++)
+        {
+            wasm_export_t entry;
+            wasm_runtime_get_export_type(module, i, &entry);
+            wasm_global_inst_t global;
+            if (entry.kind != WASM_IMPORT_EXPORT_KIND_GLOBAL ||
+                strncmp(entry.name, "__riveCall", 10) != 0 ||
+                !wasm_runtime_get_export_global_inst(instance,
+                                                     entry.name,
+                                                     &global) ||
+                global.kind != WASM_I32 || !global.is_mutable)
+            {
+                continue;
+            }
+            if (callStateCount == kMaxCallState)
+            {
+                fprintf(stderr,
+                        "wasm module has more call state than the host "
+                        "restores; a trap may leave %s stale\n",
+                        entry.name);
+                continue;
+            }
+            callState[callStateCount++] = (uint32_t*)global.global_data;
+        }
+    }
 
     wasm_function_inst_t lookupExport(const char* name)
     {
@@ -386,11 +447,11 @@ public:
                       m_slots.end());
     }
 
-    // Calls arm without the lock; only an arm that finds the thread idle
-    // takes it, to end a wait that has no deadline.
-    void armed()
+    // Calls arm without the lock; only an arm that finds the thread idle,
+    // or asleep until a later deadline, takes it to end the wait.
+    void armed(int64_t deadline)
     {
-        if (m_idle.load())
+        if (m_idle.load() || deadline < m_waitingUntil.load())
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_wake.notify_one();
@@ -428,6 +489,8 @@ private:
                 m_wake.wait(lock);
                 continue;
             }
+            // Published before idle clears, so an arm that misses idle sees it.
+            m_waitingUntil.store(earliest);
             m_idle.store(false);
             m_wake.wait_until(lock,
                               std::chrono::steady_clock::time_point(
@@ -441,6 +504,7 @@ private:
     std::condition_variable m_wake;
     std::vector<WasmScriptingVM::BudgetSlot*> m_slots;
     std::atomic<bool> m_idle{false};
+    std::atomic<int64_t> m_waitingUntil{0};
     bool m_started = false;
 };
 } // namespace
@@ -455,32 +519,28 @@ WasmScriptingVM::ScriptCallScope::ScriptCallScope(WasmScriptingVM* vm,
         vm->m_debugHooks->onCallBegin(*vm);
     }
     // The outermost scope sweeps what any nested call left open.
-    if (vm->m_callDepth++ != 0)
+    bool outermost = vm->m_callDepth++ == 0;
+    if (outermost)
     {
-        return;
+        // Paths that consume their own traps never reach reportTrap to clear
+        // it.
+        vm->m_budgetRaised = false;
+        vm->m_thrownRaised = false;
     }
-    // Paths that consume their own traps never reach reportTrap to clear it.
-    vm->m_budgetRaised = false;
-    vm->m_thrownRaised = false;
 #ifndef __EMSCRIPTEN__
-    // A debugger pauses mid call, so its sessions run unbudgeted.
-    if (budgeted && vm->m_hostBudget && vm->m_timeoutMs > 0 &&
-        vm->m_debugHooks == nullptr)
+    // A debugger pauses mid call, so its sessions run unbudgeted. Script a
+    // runtime service calls back into arms its own.
+    if (budgeted && !vm->m_budgetArmed && vm->m_hostBudget &&
+        vm->m_timeoutMs > 0 && vm->m_debugHooks == nullptr)
     {
-        if (vm->m_budgetSlot == nullptr)
-        {
-            vm->m_budgetSlot = std::make_unique<BudgetSlot>();
-            ScriptWatchdog::instance().add(vm->m_budgetSlot.get());
-        }
-        BudgetSlot* slot = vm->m_budgetSlot.get();
-        slot->env = vm->m_state->execEnv;
-        slot->fired.store(false);
-        slot->deadline.store(steadyNanos() +
-                             (int64_t)vm->m_timeoutMs * 1000000);
-        ScriptWatchdog::instance().armed();
+        vm->armWatchdog(vm->m_state->execEnv);
         m_budgeted = true;
     }
 #endif
+    if (!outermost)
+    {
+        return;
+    }
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
     ore::Context* oreContext = gpuOreContext(vm);
     m_passToken = oreContext != nullptr ? oreContext->nextRenderPassToken() : 0;
@@ -495,28 +555,7 @@ WasmScriptingVM::ScriptCallScope::~ScriptCallScope()
 #ifndef __EMSCRIPTEN__
     if (m_budgeted)
     {
-        // Swapping out a zero means the watchdog claimed the deadline; wait
-        // out its firing so the interrupt never lands on a later call.
-        BudgetSlot* slot = m_vm->m_budgetSlot.get();
-        int64_t deadline = slot->deadline.load();
-        while (deadline == kFiring ||
-               !slot->deadline.compare_exchange_weak(deadline, 0))
-        {
-            deadline = slot->deadline.load();
-        }
-        if (slot->fired.load())
-        {
-            fprintf(stderr,
-                    "script error: execution exceeded %d millisecond timeout\n",
-                    m_vm->m_timeoutMs);
-            // The interrupt can land inside the module's allocator or
-            // collector, so its heap is no longer trusted.
-            m_vm->m_poisoned = true;
-            fprintf(stderr,
-                    "script stopped: its module may have been interrupted "
-                    "mid-update\n");
-        }
-        wasm_runtime_rive_clear_interrupt(slot->env);
+        m_vm->disarmWatchdog();
     }
 #endif
     if (--m_vm->m_callDepth == 0)
@@ -596,6 +635,49 @@ uint32_t exportCells(wasm_module_inst_t inst,
 }
 } // namespace
 
+void WasmScriptingVM::armWatchdog(void* env)
+{
+    if (m_budgetSlot == nullptr)
+    {
+        m_budgetSlot = std::make_unique<BudgetSlot>();
+        ScriptWatchdog::instance().add(m_budgetSlot.get());
+    }
+    BudgetSlot* slot = m_budgetSlot.get();
+    slot->env = (wasm_exec_env_t)env;
+    slot->fired.store(false);
+    int64_t deadline = steadyNanos() + (int64_t)m_timeoutMs * 1000000;
+    slot->deadline.store(deadline);
+    ScriptWatchdog::instance().armed(deadline);
+    m_budgetArmed = true;
+}
+
+void WasmScriptingVM::disarmWatchdog()
+{
+    // Swapping out a zero means the watchdog claimed the deadline; wait
+    // out its firing so the interrupt never lands on a later call.
+    BudgetSlot* slot = m_budgetSlot.get();
+    int64_t deadline = slot->deadline.load();
+    while (deadline == kFiring ||
+           !slot->deadline.compare_exchange_weak(deadline, 0))
+    {
+        deadline = slot->deadline.load();
+    }
+    if (slot->fired.load())
+    {
+        fprintf(stderr,
+                "script error: execution exceeded %d millisecond timeout\n",
+                m_timeoutMs);
+        // The interrupt can land inside the module's allocator or
+        // collector, so its heap is no longer trusted.
+        m_poisoned = true;
+        fprintf(stderr,
+                "script stopped: its module may have been interrupted "
+                "mid-update\n");
+    }
+    wasm_runtime_rive_clear_interrupt(slot->env);
+    m_budgetArmed = false;
+}
+
 WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     const char* name,
     uint32_t argc,
@@ -626,6 +708,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callModuleChecked(
     }
     bool ok;
     {
+        WamrState::CallStateScope callState(*m_state);
         // Runtime services, the collector among them, must never be cut off.
         ScriptCallScope callScope(this, strncmp(name, "__rive", 6) != 0);
         ok = m_callDepth > 1
@@ -691,6 +774,7 @@ WasmScriptingVM::CallOutcome WasmScriptingVM::callF64(const char* name,
     wasm_val_t ret[1];
     bool ok;
     {
+        WamrState::CallStateScope callState(*m_state);
         ScriptCallScope callScope(this);
         ok = wasm_runtime_call_wasm_a(m_state->execEnv,
                                       f,
@@ -824,7 +908,15 @@ void* WasmScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 
 const char* WasmScriptingVM::resolveModuleString(uint32_t appAddr)
 {
-    return (const char*)resolveModulePtr(appAddr, 1);
+    // The terminator has to lie inside linear memory for strlen to stop.
+    wasm_module_inst_t inst = m_state->instance;
+    uint64_t end = 0;
+    if (!wasm_runtime_get_app_addr_range(inst, appAddr, nullptr, &end))
+    {
+        return nullptr;
+    }
+    auto str = (const char*)wasm_runtime_addr_app_to_native(inst, appAddr);
+    return memchr(str, '\0', end - appAddr) != nullptr ? str : nullptr;
 }
 
 bool WasmScriptingVM::copyToModule(uint32_t appAddr,
@@ -932,6 +1024,16 @@ std::unordered_map<std::string, int64_t>& WasmScriptingVMNatives::consoleTimers(
     WasmScriptingVM* vm)
 {
     return vm->m_consoleTimers;
+}
+
+// The budget a metered module arms its own fuel with around its top level,
+// as its calls do, or 0. A debugger pauses mid call, so it runs unbudgeted.
+int WasmScriptingVMNatives::startFuelMs(const WasmScriptingVM* vm)
+{
+    return vm->m_fuelBudget && vm->m_debugHooks == nullptr &&
+                   vm->m_timeoutMs > 0
+               ? vm->m_timeoutMs
+               : 0;
 }
 
 void WasmScriptingVMNatives::print(WasmScriptingVM* vm,
@@ -1183,6 +1285,46 @@ void consoleTimeReport(WasmScriptingVM* vm, const std::string& name, bool end)
     consoleWrite(vm, name + elapsed);
 }
 
+std::string traceNumber(double value)
+{
+    if (std::isnan(value))
+    {
+        return "NaN";
+    }
+    if (std::isinf(value))
+    {
+        return value < 0 ? "-Infinity" : "Infinity";
+    }
+    char text[32];
+    if (value == std::trunc(value) && std::fabs(value) < 1e21)
+    {
+        snprintf(text, sizeof(text), "%.0f", value);
+        return text;
+    }
+    for (int digits = 1; digits <= 17; digits++)
+    {
+        snprintf(text, sizeof(text), "%.*g", digits, value);
+        if (strtod(text, nullptr) == value)
+        {
+            break;
+        }
+    }
+    return text;
+}
+
+void traceWrite(WasmScriptingVM* vm,
+                const std::string& message,
+                int32_t count,
+                const double* args)
+{
+    std::string line = "trace: " + message;
+    for (int32_t i = 0; i < count && i < 5; i++)
+    {
+        line += ' ' + traceNumber(args[i]);
+    }
+    consoleWrite(vm, line);
+}
+
 #ifndef __EMSCRIPTEN__
 // --- emscripten setjmp/longjmp glue -----------------------------------------
 
@@ -1198,6 +1340,12 @@ void invokeViiNative(wasm_exec_env_t env,
 {
     WasmScriptingVM* vm = vmFromEnv(env);
     wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+    // Module start has no exec env yet to restore the stack through.
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(inst, "script module invoke at start");
+        return;
+    }
     uint32_t sp = vm->callModule("emscripten_stack_get_current", 0, nullptr);
     uint32_t argv[2] = {a1, a2};
     if (wasm_runtime_call_indirect(env, index, 2, argv))
@@ -1219,6 +1367,19 @@ void invokeViiNative(wasm_exec_env_t env,
 
 // --- remaining emscripten env imports ---------------------------------------
 
+// Module start reaches these too, before the exec env carries the vm, so
+// they resolve memory through the booting one and trap when there is none.
+WasmScriptingVM* envVm(wasm_exec_env_t env)
+{
+    WasmScriptingVM* vm = bootVmFromEnv(env);
+    if (vm == nullptr)
+    {
+        wasm_runtime_set_exception(wasm_runtime_get_module_inst(env),
+                                   "script module import without a vm");
+    }
+    return vm;
+}
+
 void abortJs(wasm_exec_env_t env)
 {
     wasm_runtime_set_exception(wasm_runtime_get_module_inst(env),
@@ -1227,7 +1388,11 @@ void abortJs(wasm_exec_env_t env)
 
 void memcpyJs(wasm_exec_env_t env, uint32_t dst, uint32_t src, uint32_t n)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = envVm(env);
+    if (vm == nullptr)
+    {
+        return;
+    }
     void* dstPtr = vm->resolveModulePtr(dst, n);
     void* srcPtr = vm->resolveModulePtr(src, n);
     if (dstPtr == nullptr || srcPtr == nullptr)
@@ -1327,7 +1492,9 @@ static void writeTm(wasm_exec_env_t env,
                     const struct tm& time,
                     int32_t gmtoff)
 {
-    int32_t* fields = (int32_t*)vmFromEnv(env)->resolveModulePtr(tmPtr, 44);
+    WasmScriptingVM* vm = envVm(env);
+    int32_t* fields =
+        vm != nullptr ? (int32_t*)vm->resolveModulePtr(tmPtr, 44) : nullptr;
     if (fields == nullptr)
     {
         return;
@@ -1381,7 +1548,11 @@ void tzsetJs(wasm_exec_env_t env,
              uint32_t stdNamePtr,
              uint32_t dstNamePtr)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = envVm(env);
+    if (vm == nullptr)
+    {
+        return;
+    }
 #ifdef _WIN32
     _tzset();
     long west = 0;
@@ -1451,7 +1622,11 @@ uint32_t strftimeNative(wasm_exec_env_t env,
                         uint32_t format,
                         uint32_t tmPtr)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = envVm(env);
+    if (vm == nullptr)
+    {
+        return 0;
+    }
     wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
     char* outPtr = (char*)vm->resolveModulePtr(out, capacity);
     const int32_t* fields = (const int32_t*)vm->resolveModulePtr(tmPtr, 44);
@@ -1505,10 +1680,10 @@ void assertFail(wasm_exec_env_t env,
                 uint32_t line,
                 uint32_t function)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = bootVmFromEnv(env);
     auto text = [vm](uint32_t ptr) {
         const char* str =
-            ptr != 0 ? (const char*)vm->resolveModulePtr(ptr, 1) : nullptr;
+            ptr != 0 && vm != nullptr ? vm->resolveModuleString(ptr) : nullptr;
         return str != nullptr ? str : "?";
     };
     fprintf(stderr,
@@ -1533,7 +1708,11 @@ uint32_t fdWrite(wasm_exec_env_t env,
                  uint32_t iovcnt,
                  uint32_t* nwritten)
 {
-    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmScriptingVM* vm = envVm(env);
+    if (vm == nullptr)
+    {
+        return 28; // EINVAL
+    }
     wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
     if (!wasm_runtime_validate_native_addr(inst, iovs, (uint64_t)iovcnt * 8) ||
         !wasm_runtime_validate_native_addr(inst, nwritten, 4))
@@ -1663,6 +1842,19 @@ void consoleTimeEnd(wasm_exec_env_t env, uint32_t label)
     consoleTimeReport(bootVmFromEnv(env), consoleString(env, label), true);
 }
 
+void envTrace(wasm_exec_env_t env,
+              uint32_t message,
+              int32_t count,
+              double a0,
+              double a1,
+              double a2,
+              double a3,
+              double a4)
+{
+    double args[5] = {a0, a1, a2, a3, a4};
+    traceWrite(vmFromEnv(env), consoleString(env, message), count, args);
+}
+
 NativeSymbol kEnvNatives[] = {
     {"console.log", (void*)consoleLog, "(i)", nullptr},
     {"console.debug", (void*)consoleLog, "(i)", nullptr},
@@ -1672,6 +1864,7 @@ NativeSymbol kEnvNatives[] = {
     {"console.time", (void*)consoleTime, "(i)", nullptr},
     {"console.timeLog", (void*)consoleTimeLog, "(i)", nullptr},
     {"console.timeEnd", (void*)consoleTimeEnd, "(i)", nullptr},
+    {"trace", (void*)envTrace, "(iiFFFFF)", nullptr},
     {"invoke_vii", (void*)invokeViiNative, "(iii)", nullptr},
     {"seed", (void*)envSeed, "()F", nullptr},
     {"_ZN4rive12CoreUintType11deserializeERNS_12BinaryReaderE",
@@ -1840,6 +2033,15 @@ HostPath* resolvePath(WasmScriptingVM* vm, uint32_t handle)
         vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::path));
 }
 
+void rebuildRenderPath(WasmScriptingVM* vm, HostPath* hostPath)
+{
+    // makeRenderPath may take the arrays it is handed, and raw stays the
+    // geometry add and the readbacks use.
+    RawPath copy(hostPath->raw);
+    hostPath->path = vm->factory()->makeRenderPath(copy, hostPath->fillRule);
+    hostPath->renderDirty = false;
+}
+
 RenderPath* hostRenderPath(WasmScriptingVM* vm, HostPath* hostPath)
 {
     if (hostPath == nullptr)
@@ -1848,9 +2050,7 @@ RenderPath* hostRenderPath(WasmScriptingVM* vm, HostPath* hostPath)
     }
     if (hostPath->renderDirty)
     {
-        hostPath->path =
-            vm->factory()->makeRenderPath(hostPath->raw, hostPath->fillRule);
-        hostPath->renderDirty = false;
+        rebuildRenderPath(vm, hostPath);
     }
     return hostPath->path.get();
 }
@@ -1859,6 +2059,82 @@ struct HostPaint
 {
     rcp<RenderPaint> paint;
 };
+
+// Enums cross as ordinals; one out of range raises as a bad name does in the
+// Luau lane, since the renderer's switches treat other values as unreachable.
+bool validOrdinal(WasmScriptingVM* vm,
+                  uint32_t value,
+                  bool valid,
+                  const char* type)
+{
+    if (!valid)
+    {
+        char message[64];
+        snprintf(message, sizeof(message), "%u is not a valid %s", value, type);
+        vm->raiseModuleError(message);
+    }
+    return valid;
+}
+
+bool validBlendMode(WasmScriptingVM* vm, uint32_t value)
+{
+    return validOrdinal(vm,
+                        value,
+                        value == (uint32_t)BlendMode::srcOver ||
+                            value == (uint32_t)BlendMode::additive ||
+                            (value >= (uint32_t)BlendMode::screen &&
+                             value <= (uint32_t)BlendMode::luminosity),
+                        "BlendMode");
+}
+
+// Backends index a sampler table with the key.
+bool validSamplerKey(WasmScriptingVM* vm, uint32_t key)
+{
+    return validOrdinal(vm,
+                        key,
+                        key < ImageSampler::MAX_SAMPLER_PERMUTATIONS,
+                        "ImageSampler key");
+}
+
+// RawPath walkers trust a stream to open with a move and its verbs to take
+// exactly its points, so guest geometry is checked before it becomes one.
+bool guestRawPath(WasmScriptingVM* vm,
+                  const uint8_t* verbs,
+                  uint32_t verbCount,
+                  const float* points,
+                  uint32_t floatCount,
+                  RawPath* out)
+{
+    uint64_t floats = 0;
+    bool valid = verbCount == 0 || verbs[0] == (uint8_t)PathVerb::move;
+    for (uint32_t i = 0; valid && i < verbCount; i++)
+    {
+        switch ((PathVerb)verbs[i])
+        {
+            case PathVerb::move:
+            case PathVerb::line:
+                floats += 2;
+                continue;
+            case PathVerb::quad:
+                floats += 4;
+                continue;
+            case PathVerb::cubic:
+                floats += 6;
+                continue;
+            case PathVerb::close:
+                continue;
+        }
+        valid = false;
+    }
+    if (!valid || floats != floatCount)
+    {
+        vm->raiseModuleError("Path: verbs and points do not match");
+        return false;
+    }
+    *out = RawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
+                   Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
+    return true;
+}
 
 uint32_t pathNewImpl(WasmScriptingVM* vm)
 {
@@ -1884,17 +2160,17 @@ void pathUpdateImpl(WasmScriptingVM* vm,
     }
     auto hostPath = static_cast<HostPath*>(
         vm->handles().resolve(handle, WasmScriptingVM::HandleTable::Tag::path));
-    if (hostPath == nullptr)
+    if (hostPath == nullptr ||
+        !validOrdinal(vm,
+                      fillRule,
+                      fillRule <= (uint32_t)FillRule::clockwise,
+                      "FillRule") ||
+        !guestRawPath(vm, verbs, verbCount, points, floatCount, &hostPath->raw))
     {
         return;
     }
-    hostPath->raw =
-        RawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
-                Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
     hostPath->fillRule = (FillRule)fillRule;
-    hostPath->path =
-        vm->factory()->makeRenderPath(hostPath->raw, hostPath->fillRule);
-    hostPath->renderDirty = false;
+    rebuildRenderPath(vm, hostPath);
 }
 
 void pathAddImpl(WasmScriptingVM* vm,
@@ -1950,12 +2226,12 @@ void pathEffectResultImpl(WasmScriptingVM* vm,
                           const float* points,
                           uint32_t floatCount)
 {
-    if (vm == nullptr || vm->pathEffectOut() == nullptr)
+    RawPath rawPath;
+    if (vm == nullptr || vm->pathEffectOut() == nullptr ||
+        !guestRawPath(vm, verbs, verbCount, points, floatCount, &rawPath))
     {
         return;
     }
-    RawPath rawPath(Span<const PathVerb>((const PathVerb*)verbs, verbCount),
-                    Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
     vm->pathEffectOut()->addPath(rawPath);
 }
 
@@ -2018,14 +2294,19 @@ HostMeasure* resolveMeasure(WasmScriptingVM* vm, uint32_t handle)
                               WasmScriptingVM::HandleTable::Tag::measure));
 }
 
-std::unique_ptr<RawPath> copyGeometry(const uint8_t* verbs,
+std::unique_ptr<RawPath> copyGeometry(WasmScriptingVM* vm,
+                                      const uint8_t* verbs,
                                       uint32_t verbCount,
                                       const float* points,
                                       uint32_t floatCount)
 {
-    return std::make_unique<RawPath>(
-        Span<const PathVerb>((const PathVerb*)verbs, verbCount),
-        Span<const Vec2D>((const Vec2D*)points, floatCount / 2));
+    auto path = std::make_unique<RawPath>();
+    if (vm == nullptr ||
+        !guestRawPath(vm, verbs, verbCount, points, floatCount, path.get()))
+    {
+        return nullptr;
+    }
+    return path;
 }
 
 uint32_t measurePathNewImpl(WasmScriptingVM* vm,
@@ -2034,12 +2315,13 @@ uint32_t measurePathNewImpl(WasmScriptingVM* vm,
                             const float* points,
                             uint32_t floatCount)
 {
-    if (vm == nullptr)
+    auto source = copyGeometry(vm, verbs, verbCount, points, floatCount);
+    if (source == nullptr)
     {
         return 0;
     }
     auto measure = new HostMeasure();
-    measure->source = copyGeometry(verbs, verbCount, points, floatCount);
+    measure->source = std::move(source);
     measure->path = std::make_unique<PathMeasure>(measure->source.get());
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::measure,
                               measure);
@@ -2051,12 +2333,13 @@ uint32_t measureContoursNewImpl(WasmScriptingVM* vm,
                                 const float* points,
                                 uint32_t floatCount)
 {
-    if (vm == nullptr)
+    auto source = copyGeometry(vm, verbs, verbCount, points, floatCount);
+    if (source == nullptr)
     {
         return 0;
     }
     auto measure = new HostMeasure();
-    measure->source = copyGeometry(verbs, verbCount, points, floatCount);
+    measure->source = std::move(source);
     measure->iter = std::make_unique<ContourMeasureIter>(measure->source.get());
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::measure,
                               measure);
@@ -2230,21 +2513,30 @@ void paintThicknessImpl(WasmScriptingVM* vm, uint32_t handle, float value)
 }
 void paintJoinImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t value)
 {
-    if (auto paint = resolvePaint(vm, handle))
+    auto paint = resolvePaint(vm, handle);
+    if (paint != nullptr && validOrdinal(vm,
+                                         value,
+                                         value <= (uint32_t)StrokeJoin::bevel,
+                                         "StrokeJoin"))
     {
         paint->join((StrokeJoin)value);
     }
 }
 void paintCapImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t value)
 {
-    if (auto paint = resolvePaint(vm, handle))
+    auto paint = resolvePaint(vm, handle);
+    if (paint != nullptr && validOrdinal(vm,
+                                         value,
+                                         value <= (uint32_t)StrokeCap::square,
+                                         "StrokeCap"))
     {
         paint->cap((StrokeCap)value);
     }
 }
 void paintBlendModeImpl(WasmScriptingVM* vm, uint32_t handle, uint32_t value)
 {
-    if (auto paint = resolvePaint(vm, handle))
+    auto paint = resolvePaint(vm, handle);
+    if (paint != nullptr && validBlendMode(vm, value))
     {
         paint->blendMode((BlendMode)value);
     }
@@ -2569,6 +2861,21 @@ uint32_t gpuRejected(WasmScriptingVM* vm,
     return 0;
 }
 
+template <typename E>
+bool validOre(WasmScriptingVM* vm, uint32_t value, E last, const char* type)
+{
+    return validOrdinal(vm, value, value <= (uint32_t)last, type);
+}
+
+bool guardPassed(WasmScriptingVM* vm, bool passed, const std::string& error)
+{
+    if (!passed)
+    {
+        vm->raiseModuleError(error.c_str());
+    }
+    return passed;
+}
+
 uint32_t gpuCanvasNewImpl(WasmScriptingVM* vm, uint32_t width, uint32_t height)
 {
     if (vm == nullptr || vm->factory() == nullptr)
@@ -2839,6 +3146,11 @@ uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
         out.resolveTarget = colors[i].resolveTarget != 0
                                 ? resolveView(colors[i].resolveTarget)
                                 : nullptr;
+        if (!validOre(vm, colors[i].loadOp, ore::LoadOp::dontCare, "LoadOp") ||
+            !validOre(vm, colors[i].storeOp, ore::StoreOp::discard, "StoreOp"))
+        {
+            return 0;
+        }
         out.loadOp = (ore::LoadOp)colors[i].loadOp;
         out.storeOp = (ore::StoreOp)colors[i].storeOp;
         out.clearColor = {colors[i].clearR,
@@ -2853,6 +3165,22 @@ uint32_t gpuPassBeginImpl(WasmScriptingVM* vm,
         {
             return 0;
         }
+    }
+    if (!validOre(vm, podDesc->depthLoadOp, ore::LoadOp::dontCare, "LoadOp") ||
+        !validOre(vm,
+                  podDesc->depthStoreOp,
+                  ore::StoreOp::discard,
+                  "StoreOp") ||
+        !validOre(vm,
+                  podDesc->stencilLoadOp,
+                  ore::LoadOp::dontCare,
+                  "LoadOp") ||
+        !validOre(vm,
+                  podDesc->stencilStoreOp,
+                  ore::StoreOp::discard,
+                  "StoreOp"))
+    {
+        return 0;
     }
     desc.depthStencil.depthLoadOp = (ore::LoadOp)podDesc->depthLoadOp;
     desc.depthStencil.depthStoreOp = (ore::StoreOp)podDesc->depthStoreOp;
@@ -2999,11 +3327,16 @@ void gpuPassSetPipelineImpl(WasmScriptingVM* vm,
                             uint32_t passHandle,
                             uint32_t pipelineHandle)
 {
+    // The pass resolves first: it is null with no VM, as during module start.
     auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr)
+    {
+        return;
+    }
     auto pipeline = static_cast<HostGpuPipeline*>(
         vm->handles().resolve(pipelineHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuPipeline));
-    if (host == nullptr || pipeline == nullptr)
+    if (pipeline == nullptr)
     {
         return;
     }
@@ -3031,10 +3364,14 @@ void gpuPassSetVertexBufferImpl(WasmScriptingVM* vm,
                                 uint32_t offset)
 {
     auto* pass = resolvePass(vm, passHandle);
+    if (pass == nullptr)
+    {
+        return;
+    }
     auto buffer = static_cast<HostGpuBuffer*>(
         vm->handles().resolve(bufferHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-    if (pass == nullptr || buffer == nullptr)
+    if (buffer == nullptr)
     {
         return;
     }
@@ -3059,10 +3396,19 @@ void gpuPassSetIndexBufferImpl(WasmScriptingVM* vm,
                                uint32_t offset)
 {
     auto* pass = resolvePass(vm, passHandle);
+    if (pass == nullptr)
+    {
+        return;
+    }
     auto buffer = static_cast<HostGpuBuffer*>(
         vm->handles().resolve(bufferHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuBuffer));
-    if (pass == nullptr || buffer == nullptr)
+    if (buffer == nullptr ||
+        !validOrdinal(vm,
+                      indexFormat,
+                      indexFormat == (uint32_t)ore::IndexFormat::uint16 ||
+                          indexFormat == (uint32_t)ore::IndexFormat::uint32,
+                      "IndexFormat"))
     {
         return;
     }
@@ -3079,11 +3425,14 @@ void gpuPassSetBindGroupImpl(WasmScriptingVM* vm,
                              uint32_t dynamicOffsetByteCount)
 {
     auto* host = resolveHostPass(vm, passHandle);
+    if (host == nullptr || host->pass == nullptr)
+    {
+        return;
+    }
     auto bindGroup = static_cast<HostGpuBindGroup*>(
         vm->handles().resolve(bindGroupHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuBindGroup));
-    if (host == nullptr || host->pass == nullptr || bindGroup == nullptr ||
-        dynamicOffsetByteCount % sizeof(uint32_t) != 0)
+    if (bindGroup == nullptr || dynamicOffsetByteCount % sizeof(uint32_t) != 0)
     {
         return;
     }
@@ -3245,7 +3594,8 @@ uint32_t gpuBufferNewImpl(WasmScriptingVM* vm,
 {
     ore::Context* oreContext = gpuOreContext(vm);
     if (oreContext == nullptr || sizeInBytes == 0 ||
-        (dataCount != 0 && dataCount != sizeInBytes))
+        (dataCount != 0 && dataCount != sizeInBytes) ||
+        !validOre(vm, usage, ore::BufferUsage::upload, "BufferUsage"))
     {
         return 0;
     }
@@ -3295,7 +3645,20 @@ uint32_t gpuTextureNewImpl(WasmScriptingVM* vm,
                            uint32_t descByteCount)
 {
     ore::Context* oreContext = gpuOreContext(vm);
-    if (oreContext == nullptr || descByteCount < sizeof(*podDesc))
+    std::string error;
+    if (oreContext == nullptr || descByteCount < sizeof(*podDesc) ||
+        !validOre(vm,
+                  podDesc->format,
+                  ore::TextureFormat::astc8x8,
+                  "TextureFormat") ||
+        !validOre(vm,
+                  podDesc->textureType,
+                  ore::TextureType::array2D,
+                  "TextureType") ||
+        !guardPassed(
+            vm,
+            ore::validateSampleCount(oreContext, podDesc->sampleCount, &error),
+            error))
     {
         return 0;
     }
@@ -3368,7 +3731,18 @@ uint32_t gpuSamplerNewImpl(WasmScriptingVM* vm,
                            uint32_t descByteCount)
 {
     ore::Context* oreContext = gpuOreContext(vm);
-    if (oreContext == nullptr || descByteCount < sizeof(*podDesc))
+    if (oreContext == nullptr || descByteCount < sizeof(*podDesc) ||
+        !validOre(vm, podDesc->minFilter, ore::Filter::linear, "Filter") ||
+        !validOre(vm, podDesc->magFilter, ore::Filter::linear, "Filter") ||
+        !validOre(vm, podDesc->mipmapFilter, ore::Filter::linear, "Filter") ||
+        !validOre(vm, podDesc->wrapU, ore::WrapMode::clampToEdge, "WrapMode") ||
+        !validOre(vm, podDesc->wrapV, ore::WrapMode::clampToEdge, "WrapMode") ||
+        !validOre(vm, podDesc->wrapW, ore::WrapMode::clampToEdge, "WrapMode") ||
+        (podDesc->compare != 0xFFFFFFFFu &&
+         !validOre(vm,
+                   podDesc->compare,
+                   ore::CompareFunction::always,
+                   "CompareFunction")))
     {
         return 0;
     }
@@ -3386,6 +3760,13 @@ uint32_t gpuSamplerNewImpl(WasmScriptingVM* vm,
     desc.minLod = podDesc->minLod;
     desc.maxLod = podDesc->maxLod;
     desc.maxAnisotropy = podDesc->maxAnisotropy;
+    std::string error;
+    if (!guardPassed(vm,
+                     ore::validateSamplerDesc(oreContext, desc, &error),
+                     error))
+    {
+        return 0;
+    }
     oreContext->clearLastError();
     auto sampler = oreContext->makeSampler(desc);
     if (sampler == nullptr)
@@ -3417,6 +3798,17 @@ uint32_t gpuTextureViewNewImpl(WasmScriptingVM* vm,
         vm->handles().resolve(textureHandle,
                               WasmScriptingVM::HandleTable::Tag::gpuTexture));
     if (texture == nullptr)
+    {
+        return 0;
+    }
+    if (!validOre(vm,
+                  podDesc->dimension,
+                  ore::TextureViewDimension::cubeArray,
+                  "TextureViewDimension") ||
+        !validOre(vm,
+                  podDesc->aspect,
+                  ore::TextureAspect::stencilOnly,
+                  "TextureAspect"))
     {
         return 0;
     }
@@ -3593,6 +3985,17 @@ uint32_t gpuShaderModuleNewImpl(WasmScriptingVM* vm,
         cursor += size;
         return size != 0 ? begin : nullptr;
     };
+    if (!validOre(vm,
+                  podDesc->language,
+                  ore::ShaderLanguage::wgsl,
+                  "ShaderLanguage") ||
+        !validOre(vm,
+                  podDesc->stage,
+                  ore::ShaderStage::fragment,
+                  "ShaderStage"))
+    {
+        return 0;
+    }
     ore::ShaderModuleDesc desc;
     desc.code = slice(podDesc->codeSize);
     desc.codeSize = podDesc->codeSize;
@@ -3663,6 +4066,27 @@ uint32_t gpuBindGroupLayoutNewImpl(
     {
         auto& out = resolved[i];
         const auto& in = entries[i];
+        if (!validOre(vm,
+                      in.kind,
+                      ore::BindingKind::comparisonSampler,
+                      "BindingKind") ||
+            !validOrdinal(vm,
+                          in.visibility,
+                          in.visibility <= (ore::StageVisibility::kVertex |
+                                            ore::StageVisibility::kFragment |
+                                            ore::StageVisibility::kCompute),
+                          "StageVisibility") ||
+            !validOre(vm,
+                      in.textureViewDim,
+                      ore::TextureViewDimension::cubeArray,
+                      "TextureViewDimension") ||
+            !validOre(vm,
+                      in.textureSampleType,
+                      ore::BindGroupLayoutEntry::SampleType::uint,
+                      "SampleType"))
+        {
+            return 0;
+        }
         out.binding = in.binding;
         out.kind = (ore::BindingKind)in.kind;
         out.visibility.mask = (uint8_t)in.visibility;
@@ -3907,8 +4331,12 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
         static_cast<HostGpuShaderModule*>(vm->handles().resolve(
             podDesc->fragmentModule,
             WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
-    desc.vertexModule =
-        vertexModule != nullptr ? vertexModule->shaderModule.get() : nullptr;
+    if (vertexModule == nullptr)
+    {
+        vm->raiseModuleError("GPUPipeline.new: 'vertex' is required");
+        return 0;
+    }
+    desc.vertexModule = vertexModule->shaderModule.get();
     desc.fragmentModule = fragmentModule != nullptr
                               ? fragmentModule->shaderModule.get()
                               : nullptr;
@@ -3931,6 +4359,36 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
     desc.colorCount = podDesc->colorCount;
     for (uint32_t i = 0; i < podDesc->colorCount; i++)
     {
+        const auto& in = colorTargets[i];
+        if (!validOre(vm,
+                      in.format,
+                      ore::TextureFormat::astc8x8,
+                      "TextureFormat") ||
+            !validOre(vm,
+                      in.srcColor,
+                      ore::BlendFactor::oneMinusBlendColor,
+                      "BlendFactor") ||
+            !validOre(vm,
+                      in.dstColor,
+                      ore::BlendFactor::oneMinusBlendColor,
+                      "BlendFactor") ||
+            !validOre(vm, in.colorOp, ore::BlendOp::max, "BlendOp") ||
+            !validOre(vm,
+                      in.srcAlpha,
+                      ore::BlendFactor::oneMinusBlendColor,
+                      "BlendFactor") ||
+            !validOre(vm,
+                      in.dstAlpha,
+                      ore::BlendFactor::oneMinusBlendColor,
+                      "BlendFactor") ||
+            !validOre(vm, in.alphaOp, ore::BlendOp::max, "BlendOp") ||
+            !validOre(vm,
+                      in.writeMask,
+                      ore::ColorWriteMask::all,
+                      "ColorWriteMask"))
+        {
+            return 0;
+        }
         auto& out = desc.colorTargets[i];
         out.format = (ore::TextureFormat)colorTargets[i].format;
         out.blendEnabled = colorTargets[i].blendEnabled != 0;
@@ -3952,6 +4410,13 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
     std::vector<ore::VertexAttribute> attributes(podDesc->attributeCount);
     for (uint32_t i = 0; i < podDesc->attributeCount; i++)
     {
+        if (!validOre(vm,
+                      attributePods[i].format,
+                      ore::VertexFormat::uint32,
+                      "VertexFormat"))
+        {
+            return 0;
+        }
         attributes[i].format = (ore::VertexFormat)attributePods[i].format;
         attributes[i].offset = attributePods[i].offset;
         attributes[i].shaderSlot = attributePods[i].shaderSlot;
@@ -3961,7 +4426,11 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
     for (uint32_t i = 0; i < podDesc->vertexBufferCount; i++)
     {
         uint32_t count = bufferPods[i].attributeCount;
-        if (uint64_t(attributeCursor) + count > podDesc->attributeCount)
+        if (uint64_t(attributeCursor) + count > podDesc->attributeCount ||
+            !validOre(vm,
+                      bufferPods[i].stepMode,
+                      ore::VertexStepMode::instance,
+                      "VertexStepMode"))
         {
             return 0;
         }
@@ -3996,6 +4465,70 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm,
     desc.bindGroupLayouts = layouts;
     desc.bindGroupLayoutCount = podDesc->bindGroupLayoutCount;
 
+    std::string error;
+    if (!validOre(vm,
+                  podDesc->topology,
+                  ore::PrimitiveTopology::triangleStrip,
+                  "PrimitiveTopology") ||
+        !validOre(vm,
+                  podDesc->indexFormat,
+                  ore::IndexFormat::uint32,
+                  "IndexFormat") ||
+        !validOre(vm, podDesc->cullMode, ore::CullMode::back, "CullMode") ||
+        !validOre(vm,
+                  podDesc->winding,
+                  ore::FaceWinding::counterClockwise,
+                  "FaceWinding") ||
+        !validOre(vm,
+                  podDesc->depthFormat,
+                  ore::TextureFormat::astc8x8,
+                  "TextureFormat") ||
+        !validOre(vm,
+                  podDesc->depthCompare,
+                  ore::CompareFunction::always,
+                  "CompareFunction") ||
+        !validOre(vm,
+                  podDesc->stencilFrontCompare,
+                  ore::CompareFunction::always,
+                  "CompareFunction") ||
+        !validOre(vm,
+                  podDesc->stencilFrontFailOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !validOre(vm,
+                  podDesc->stencilFrontDepthFailOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !validOre(vm,
+                  podDesc->stencilFrontPassOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !validOre(vm,
+                  podDesc->stencilBackCompare,
+                  ore::CompareFunction::always,
+                  "CompareFunction") ||
+        !validOre(vm,
+                  podDesc->stencilBackFailOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !validOre(vm,
+                  podDesc->stencilBackDepthFailOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !validOre(vm,
+                  podDesc->stencilBackPassOp,
+                  ore::StencilOp::decrementWrap,
+                  "StencilOp") ||
+        !guardPassed(
+            vm,
+            ore::validateSampleCount(oreContext, podDesc->sampleCount, &error),
+            error) ||
+        !guardPassed(vm,
+                     ore::validateVertexLayout(oreContext, desc, &error),
+                     error))
+    {
+        return 0;
+    }
     desc.topology = (ore::PrimitiveTopology)podDesc->topology;
     desc.indexFormat = (ore::IndexFormat)podDesc->indexFormat;
     desc.cullMode = (ore::CullMode)podDesc->cullMode;
@@ -4262,6 +4795,35 @@ uint32_t gpuPipelineNewImpl(WasmScriptingVM*,
 void gpuPipelineReleaseImpl(WasmScriptingVM*, uint32_t) {}
 #endif
 
+// A renderer the module draws through, with the saves it opened in the scope
+// in flight; it may restore only those, never the host's.
+struct HostRenderer
+{
+    Renderer* renderer = nullptr;
+    int saves = 0;
+
+    // A trapped call returns with its saves open, and hosts reuse renderers
+    // frame to frame.
+    void restoreSaves()
+    {
+        for (; saves > 0; saves--)
+        {
+            renderer->restore();
+        }
+    }
+};
+
+HostRenderer* resolveHostRenderer(WasmScriptingVM* vm, uint32_t handle)
+{
+    if (vm == nullptr)
+    {
+        return nullptr;
+    }
+    return static_cast<HostRenderer*>(
+        vm->handles().resolve(handle,
+                              WasmScriptingVM::HandleTable::Tag::renderer));
+}
+
 #ifdef RIVE_CANVAS
 // Frames go through the deferred canvas host, the only path that can open
 // inside the screen frame already open around the draw.
@@ -4272,6 +4834,7 @@ struct HostCanvas
     uint32_t pendingWidth = 0;
     uint32_t pendingHeight = 0;
     cmd::DeferredCanvasHost* frameHost = nullptr;
+    HostRenderer frameRenderer;
     uint32_t rendererHandle = 0;
 };
 
@@ -4444,9 +5007,10 @@ uint32_t canvasBeginFrameImpl(WasmScriptingVM* vm,
         return 0;
     }
     host->frameHost = frameHost;
+    host->frameRenderer = {renderer};
     host->rendererHandle =
         vm->handles().mint(WasmScriptingVM::HandleTable::Tag::renderer,
-                           renderer);
+                           &host->frameRenderer);
     vm->registerOpenCanvasFrame(handle);
     return host->rendererHandle;
 }
@@ -4463,6 +5027,7 @@ void canvasEndFrameImpl(WasmScriptingVM* vm, uint32_t handle)
     vm->handles().release(host->rendererHandle,
                           WasmScriptingVM::HandleTable::Tag::renderer);
     host->rendererHandle = 0;
+    host->frameRenderer.restoreSaves();
     host->frameHost->endCanvasContent(host->canvas.get());
     host->frameHost = nullptr;
 }
@@ -4486,6 +5051,7 @@ void canvasEndFrameImpl(WasmScriptingVM*, uint32_t) {}
 struct HostBuffer
 {
     rcp<RenderBuffer> buffer;
+    bool spent = false;
 };
 
 HostBuffer* resolveBuffer(WasmScriptingVM* vm, uint32_t handle)
@@ -4504,7 +5070,16 @@ uint32_t bufferNewImpl(WasmScriptingVM* vm,
                        uint32_t flags,
                        uint32_t sizeInBytes)
 {
-    if (vm == nullptr)
+    if (vm == nullptr ||
+        !validOrdinal(vm,
+                      bufferType,
+                      bufferType <= (uint32_t)RenderBufferType::vertex,
+                      "RenderBufferType") ||
+        !validOrdinal(
+            vm,
+            flags,
+            flags <= (uint32_t)RenderBufferFlags::mappedOnceAtInitialization,
+            "RenderBufferFlags"))
     {
         return 0;
     }
@@ -4529,6 +5104,16 @@ void bufferUpdateImpl(WasmScriptingVM* vm,
     {
         return;
     }
+    if (host->spent)
+    {
+        vm->raiseModuleError(
+            "RenderBuffer: a buffer mapped once at initialization takes one "
+            "update");
+        return;
+    }
+    host->spent =
+        enums::is_flag_set(host->buffer->flags(),
+                           RenderBufferFlags::mappedOnceAtInitialization);
     void* data = host->buffer->map();
     if (data != nullptr)
     {
@@ -4615,13 +5200,8 @@ void meshInstancesReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
 
 Renderer* resolveRenderer(WasmScriptingVM* vm, uint32_t handle)
 {
-    if (vm == nullptr)
-    {
-        return nullptr;
-    }
-    return static_cast<Renderer*>(
-        vm->handles().resolve(handle,
-                              WasmScriptingVM::HandleTable::Tag::renderer));
+    auto host = resolveHostRenderer(vm, handle);
+    return host != nullptr ? host->renderer : nullptr;
 }
 
 uint32_t testBlobImpl(WasmScriptingVM* vm,
@@ -4679,21 +5259,27 @@ float transitionChildHeightImpl(WasmScriptingVM* vm, uint32_t child)
 
 void rendererSaveImpl(WasmScriptingVM* vm, uint32_t handle)
 {
-    if (auto renderer = resolveRenderer(vm, handle))
+    if (auto host = resolveHostRenderer(vm, handle))
     {
-        renderer->save();
-        auto& saves = vm->visitSaves();
-        saves.open += renderer == saves.renderer ? 1 : 0;
+        host->renderer->save();
+        host->saves++;
     }
 }
 void rendererRestoreImpl(WasmScriptingVM* vm, uint32_t handle)
 {
-    if (auto renderer = resolveRenderer(vm, handle))
+    auto host = resolveHostRenderer(vm, handle);
+    if (host == nullptr)
     {
-        renderer->restore();
-        auto& saves = vm->visitSaves();
-        saves.open -= renderer == saves.renderer ? 1 : 0;
+        return;
     }
+    if (host->saves == 0)
+    {
+        vm->raiseModuleError("Renderer save/restore stack was unbalanced by "
+                             "trying to restore more times than saved.");
+        return;
+    }
+    host->renderer->restore();
+    host->saves--;
 }
 void rendererTransformImpl(WasmScriptingVM* vm,
                            uint32_t handle,
@@ -4736,7 +5322,8 @@ void rendererDrawImageImpl(WasmScriptingVM* vm,
 {
     auto renderer = resolveRenderer(vm, rendererHandle);
     auto host = resolveImage(vm, imageHandle);
-    if (renderer == nullptr || host == nullptr)
+    if (renderer == nullptr || host == nullptr ||
+        !validSamplerKey(vm, samplerKey) || !validBlendMode(vm, blend))
     {
         return;
     }
@@ -4762,7 +5349,8 @@ void rendererDrawImageMeshImpl(WasmScriptingVM* vm,
     auto uv = resolveBuffer(vm, uvHandle);
     auto index = resolveBuffer(vm, indexHandle);
     if (renderer == nullptr || image == nullptr || vertex == nullptr ||
-        uv == nullptr || index == nullptr)
+        uv == nullptr || index == nullptr || !validSamplerKey(vm, samplerKey) ||
+        !validBlendMode(vm, blend))
     {
         return;
     }
@@ -4794,7 +5382,8 @@ void rendererDrawImageMeshInstancedImpl(WasmScriptingVM* vm,
     auto index = resolveBuffer(vm, indexHandle);
     auto instances = resolveMeshInstances(vm, instancesHandle);
     if (renderer == nullptr || image == nullptr || vertex == nullptr ||
-        uv == nullptr || index == nullptr || instances == nullptr)
+        uv == nullptr || index == nullptr || instances == nullptr ||
+        !validSamplerKey(vm, samplerKey))
     {
         return;
     }
@@ -5065,11 +5654,19 @@ struct HostValueDelegate final : public ViewModelInstanceValueDelegate
 
 struct HostInstanceValue
 {
+    // The value and its list's items point back at their instance raw, so it
+    // lives as long as the handle, as the Luau lane's m_owningInstance does.
+    rcp<ViewModelInstance> owner;
     rcp<ViewModelInstanceValue> value;
     HostValueDelegate* delegate = nullptr;
     // What string_get last handed the module, for string_changed.
     std::string sent;
     bool hasSent = false;
+
+    explicit HostInstanceValue(ViewModelInstanceValue* instanceValue) :
+        owner(ref_rcp(instanceValue->viewModelInstance())),
+        value(ref_rcp(instanceValue))
+    {}
 
     ~HostInstanceValue()
     {
@@ -5170,7 +5767,7 @@ uint32_t mintInstanceValue(WasmScriptingVM* vm,
         return 0;
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::instanceValue,
-                              new HostInstanceValue{ref_rcp(value)});
+                              new HostInstanceValue(value));
 }
 
 template <typename T>
@@ -5303,9 +5900,11 @@ void dataPropReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
                       WasmScriptingVM::HandleTable::Tag::instanceValue);
 }
 
-ViewModelInstanceValue* resolveInstanceValue(WasmScriptingVM* vm,
-                                             uint32_t handle,
-                                             uint16_t typeKey)
+// A ref, so the value outlives a native whose change notifies listeners that
+// release its last handle.
+rcp<ViewModelInstanceValue> resolveInstanceValue(WasmScriptingVM* vm,
+                                                 uint32_t handle,
+                                                 uint16_t typeKey)
 {
     if (vm == nullptr)
     {
@@ -5318,13 +5917,13 @@ ViewModelInstanceValue* resolveInstanceValue(WasmScriptingVM* vm,
     {
         return nullptr;
     }
-    return host->value.get();
+    return host->value;
 }
 
 template <typename T>
-T* resolveInstanceValue(WasmScriptingVM* vm, uint32_t handle)
+rcp<T> resolveInstanceValue(WasmScriptingVM* vm, uint32_t handle)
 {
-    return static_cast<T*>(resolveInstanceValue(vm, handle, T::typeKey));
+    return static_rcp_cast<T>(resolveInstanceValue(vm, handle, T::typeKey));
 }
 
 float dataNumberGetImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -5633,9 +6232,9 @@ void dataViewModelSetImpl(WasmScriptingVM* vm,
     {
         return;
     }
-    value->parentViewModelInstance()->replaceViewModelByProperty(
-        value,
-        std::move(instance));
+    // The swap notifies, and a listener can release the parent's last handle.
+    auto parent = ref_rcp(value->parentViewModelInstance());
+    parent->replaceViewModelByProperty(value.get(), std::move(instance));
 }
 
 uint32_t dataViewModelGetImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -5738,7 +6337,7 @@ uint32_t dataVmiPropertyImpl(WasmScriptingVM* vm,
         kindOut[0] = kind;
     }
     return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::instanceValue,
-                              new HostInstanceValue{ref_rcp(value)});
+                              new HostInstanceValue(value));
 }
 
 uint32_t dataVmiInstanceImpl(WasmScriptingVM* vm,
@@ -6068,15 +6667,16 @@ struct HostArtboard : public RefCnt<HostArtboard>
     }
 };
 
-HostArtboard* resolveArtboard(WasmScriptingVM* vm, uint32_t handle)
+// A ref, so the artboard outlives a native whose script callbacks release it.
+rcp<HostArtboard> resolveArtboard(WasmScriptingVM* vm, uint32_t handle)
 {
     if (vm == nullptr)
     {
         return nullptr;
     }
-    return static_cast<HostArtboard*>(
+    return ref_rcp(static_cast<HostArtboard*>(
         vm->handles().resolve(handle,
-                              WasmScriptingVM::HandleTable::Tag::artboard));
+                              WasmScriptingVM::HandleTable::Tag::artboard)));
 }
 
 void artboardReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -6103,14 +6703,8 @@ void artboardDrawImpl(WasmScriptingVM* vm,
                       uint32_t rendererHandle)
 {
     auto host = resolveArtboard(vm, handle);
-    if (vm == nullptr || host == nullptr)
-    {
-        return;
-    }
-    auto renderer = static_cast<Renderer*>(
-        vm->handles().resolve(rendererHandle,
-                              WasmScriptingVM::HandleTable::Tag::renderer));
-    if (renderer != nullptr)
+    auto renderer = resolveRenderer(vm, rendererHandle);
+    if (host != nullptr && renderer != nullptr)
     {
         host->artboard->drawInternal(renderer);
     }
@@ -6121,6 +6715,8 @@ namespace
 struct WasmDrawVisit
 {
     WasmScriptingVM* vm;
+    // Resolved around each visit, which may end the canvas frame behind it.
+    uint32_t renderer;
     bool failed = false;
 };
 
@@ -6135,18 +6731,21 @@ void wasmDrawVisitor(void* context, Drawable* drawable, Renderer* renderer)
     auto& handles = visit->vm->handles();
     uint32_t handle =
         handles.mint(WasmScriptingVM::HandleTable::Tag::drawable, drawable);
-    auto& saves = visit->vm->visitSaves();
-    WasmScriptingVM::VisitSaves outer = saves;
-    saves = {renderer, 0};
-    visit->failed = !visit->vm->notifyDrawVisit(handle);
-    if (visit->failed)
+    // The host has the artboard's own saves open here, so each visit gets
+    // a scope of its own and leaves the renderer as it found it.
+    HostRenderer* host = resolveHostRenderer(visit->vm, visit->renderer);
+    int outer = host != nullptr ? host->saves : 0;
+    if (host != nullptr)
     {
-        for (; saves.open > 0; saves.open--)
-        {
-            renderer->restore();
-        }
+        host->saves = 0;
     }
-    saves = outer;
+    visit->failed = !visit->vm->notifyDrawVisit(handle);
+    host = resolveHostRenderer(visit->vm, visit->renderer);
+    if (host != nullptr)
+    {
+        host->restoreSaves();
+        host->saves = outer;
+    }
     handles.release(handle, WasmScriptingVM::HandleTable::Tag::drawable);
 }
 
@@ -6172,13 +6771,16 @@ void artboardDrawVisitImpl(WasmScriptingVM* vm,
                            uint32_t rendererHandle)
 {
     auto host = resolveArtboard(vm, handle);
-    auto renderer = resolveRenderer(vm, rendererHandle);
+    auto renderer = resolveHostRenderer(vm, rendererHandle);
     if (host == nullptr || renderer == nullptr)
     {
         return;
     }
-    WasmDrawVisit visit = {vm};
-    host->artboard->drawInternal(renderer, wasmDrawVisitor, &visit, host->file);
+    WasmDrawVisit visit = {vm, rendererHandle};
+    host->artboard->drawInternal(renderer->renderer,
+                                 wasmDrawVisitor,
+                                 &visit,
+                                 host->file);
 }
 
 void artboardDrawModulatedImpl(WasmScriptingVM* vm,
@@ -6486,9 +7088,8 @@ uint32_t artboardAnimationImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    return vm->handles().mint(
-        WasmScriptingVM::HandleTable::Tag::animation,
-        new HostAnimation{ref_rcp(host), std::move(animation)});
+    return vm->handles().mint(WasmScriptingVM::HandleTable::Tag::animation,
+                              new HostAnimation{host, std::move(animation)});
 }
 
 HostAnimation* resolveAnimation(WasmScriptingVM* vm, uint32_t handle)
@@ -6596,7 +7197,7 @@ uint32_t artboardNodeImpl(WasmScriptingVM* vm,
     {
         return 0;
     }
-    return mintNode(vm, ref_rcp(host), component);
+    return mintNode(vm, host, component);
 }
 
 void artboardAddToPathImpl(WasmScriptingVM* vm,
@@ -7384,14 +7985,26 @@ void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
                                 floatBits(orderedLine.y()),
                                 floatBits(orderedLine.bottom())});
     }
+    // A font no run uses any more gives its handle back, or a text relaid
+    // out with a fresh font variant every frame would keep one per frame.
+    std::unordered_map<const Font*, uint32_t> fontHandles;
     for (const GlyphRun* run : host->runs)
     {
-        auto found = host->fontHandles.find(run->font.get());
-        if (found == host->fontHandles.end())
+        auto found = fontHandles.find(run->font.get());
+        if (found == fontHandles.end())
         {
-            found = host->fontHandles
-                        .emplace(run->font.get(), mintFont(vm, run->font))
-                        .first;
+            auto kept = host->fontHandles.find(run->font.get());
+            uint32_t handle;
+            if (kept != host->fontHandles.end())
+            {
+                handle = kept->second;
+                host->fontHandles.erase(kept);
+            }
+            else
+            {
+                handle = mintFont(vm, run->font);
+            }
+            found = fontHandles.emplace(run->font.get(), handle).first;
         }
         host->runWords.insert(host->runWords.end(),
                               {found->second,
@@ -7400,6 +8013,11 @@ void buildTextSnapshot(WasmScriptingVM* vm, HostText* host)
                                floatBits(run->lineHeight),
                                floatBits(run->letterSpacing)});
     }
+    for (auto& pair : host->fontHandles)
+    {
+        dataFontReleaseImpl(vm, pair.second);
+    }
+    host->fontHandles = std::move(fontHandles);
 }
 
 uint32_t textNewImpl(WasmScriptingVM* vm)
@@ -7703,6 +8321,9 @@ HostBindableArtboard* resolveBindableArtboard(WasmScriptingVM* vm,
                      WasmScriptingVM::HandleTable::Tag::bindableArtboard));
 }
 
+// The VM decoding a file, which the file's own VMs collect with.
+thread_local WasmScriptingVM* s_decodingParent = nullptr;
+
 uint32_t fileDecodeImpl(WasmScriptingVM* vm,
                         const uint8_t* bytes,
                         uint32_t byteCount,
@@ -7722,11 +8343,14 @@ uint32_t fileDecodeImpl(WasmScriptingVM* vm,
         return 0;
     }
     ImportResult result = ImportResult::malformed;
+    WasmScriptingVM* outer = s_decodingParent;
+    s_decodingParent = vm;
     auto file = byteCount == 0
                     ? nullptr
                     : importDecodedFile(Span<const uint8_t>(bytes, byteCount),
                                         vm->factory(),
                                         &result);
+    s_decodingParent = outer;
     if (file == nullptr)
     {
         status(result == ImportResult::unsupportedVersion
@@ -8569,10 +9193,21 @@ uint32_t WasmScriptingVM::HandleTable::mint(Tag tag, void* object)
         slot = freeSlots.back();
         freeSlots.pop_back();
     }
-    else
+    else if (slots.size() < slotLimit)
     {
         slot = (uint32_t)slots.size();
         slots.push_back({});
+    }
+    else if (!retiredSlots.empty())
+    {
+        // Callers allocate before minting, so a full table reissues old
+        // handles rather than fail.
+        slot = retiredSlots.front();
+        retiredSlots.pop_front();
+    }
+    else
+    {
+        return 0;
     }
     slots[slot].tag = tag;
     slots[slot].object = object;
@@ -8612,12 +9247,29 @@ void WasmScriptingVM::HandleTable::release(uint32_t handle, Tag tag)
     entry.tag = Tag::empty;
     entry.object = nullptr;
     entry.generation++;
-    freeSlots.push_back(slot - 1);
+    uint32_t index = slot - 1;
+    if (entry.generation == 0)
+    {
+        retiredSlots.push_back(index);
+        if (retiredSlots.size() <= retiredLimit)
+        {
+            return;
+        }
+        index = retiredSlots.front();
+        retiredSlots.pop_front();
+    }
+    freeSlots.push_back(index);
 }
 
 int WasmScriptingVM::sm_defaultTimeoutMs = 200;
 
-WasmScriptingVM::WasmScriptingVM() = default;
+WasmScriptingVM::WasmScriptingVM() : m_decodedBy(s_decodingParent)
+{
+    if (m_decodedBy != nullptr)
+    {
+        m_decodedBy->m_decodedVMs.push_back(this);
+    }
+}
 
 #ifndef __EMSCRIPTEN__
 std::unique_ptr<WasmScriptingVM> WasmScriptingVM::make(
@@ -8648,23 +9300,11 @@ void WasmScriptingVM::callDraw(ScriptedObject* object,
 {
     // The handle is scoped to this call; releasing bumps the generation so a
     // stashed renderer goes stale instead of ghost drawing.
-    uint32_t handle = m_handles.mint(HandleTable::Tag::renderer, renderer);
-    // Count the saves the script opens on this renderer, as a draw visit
-    // does, and close whatever it leaves open. A draw trapped mid-way -- the
-    // time budget, most often -- returns with its saves still on the stack,
-    // and the script can never restore them: its renderer handle dies with
-    // this call. Hosts reuse a renderer frame to frame, so a leaked save
-    // would leave its transform and clip under everything drawn after it,
-    // in every later frame.
-    VisitSaves outer = m_visitSaves;
-    m_visitSaves = {renderer, 0};
+    HostRenderer host{renderer};
+    uint32_t handle = m_handles.mint(HandleTable::Tag::renderer, &host);
     uint32_t args[3] = {m_L, (uint32_t)selfRef, handle};
     callModule("host_obj_draw", 3, args);
-    for (; m_visitSaves.open > 0; m_visitSaves.open--)
-    {
-        renderer->restore();
-    }
-    m_visitSaves = outer;
+    host.restoreSaves();
     m_handles.release(handle, HandleTable::Tag::renderer);
 }
 
@@ -8673,12 +9313,16 @@ WasmScriptingVM::~WasmScriptingVM()
     s_holdingVMs.erase(
         std::remove(s_holdingVMs.begin(), s_holdingVMs.end(), this),
         s_holdingVMs.end());
-#ifndef __EMSCRIPTEN__
-    if (m_budgetSlot != nullptr)
+    if (m_decodedBy != nullptr)
     {
-        ScriptWatchdog::instance().remove(m_budgetSlot.get());
+        auto& siblings = m_decodedBy->m_decodedVMs;
+        siblings.erase(std::remove(siblings.begin(), siblings.end(), this),
+                       siblings.end());
     }
-#endif
+    for (WasmScriptingVM* decoded : m_decodedVMs)
+    {
+        decoded->m_decodedBy = nullptr;
+    }
     if (m_debugHooks != nullptr)
     {
         m_debugHooks->onDetach(*this);
@@ -8728,15 +9372,30 @@ WasmScriptingVM::~WasmScriptingVM()
                 guardExits);
     }
 #endif
+    // No script runs from here: disposing the swept artboards' scripts would
+    // mint handles into the table the sweep walks.
+    m_poisoned = true;
     // The module never runs guest finalizers at teardown, so host objects
     // behind live handles are swept here; instance values in particular must
     // detach their delegates before the VM goes away.
-    for (HandleTable::Slot& slot : m_handles.slots)
+    // Indexed, and each slot cleared before its object goes, because host
+    // teardown may still mint and grow the table.
+    for (size_t i = 0; i < m_handles.slots.size(); ++i)
     {
-        deleteHostObject(this, slot.tag, slot.object);
+        HandleTable::Slot& slot = m_handles.slots[i];
+        HandleTable::Tag tag = slot.tag;
+        void* object = slot.object;
         slot.tag = HandleTable::Tag::empty;
         slot.object = nullptr;
+        deleteHostObject(this, tag, object);
     }
+#ifndef __EMSCRIPTEN__
+    // Last, as the stats call above can still arm and register a slot.
+    if (m_budgetSlot != nullptr)
+    {
+        ScriptWatchdog::instance().remove(m_budgetSlot.get());
+    }
+#endif
 }
 
 bool WasmScriptingVM::notifyDrawVisit(uint32_t drawable)
@@ -8880,8 +9539,18 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
     if (result.ok)
     {
         uint32_t byteCount = (uint32_t)result.pixels.size();
-        uint32_t sizeArgs[1] = {byteCount};
-        uint32_t pixelsPtr = callModule("malloc", 1, sizeArgs);
+        // The listener's own buffer, where the module hands one out, saves
+        // a second copy as big as the image.
+        uint32_t bufferArgs[2] = {m_L, byteCount};
+        uint32_t pixelsPtr = 0;
+        bool staged =
+            callModuleChecked("host_image_buffer", 2, bufferArgs, &pixelsPtr) !=
+            CallOutcome::ok;
+        if (staged)
+        {
+            uint32_t sizeArgs[1] = {byteCount};
+            pixelsPtr = callModule("malloc", 1, sizeArgs);
+        }
         if (pixelsPtr == 0)
         {
             DecodeResult failure;
@@ -8898,7 +9567,10 @@ void WasmScriptingVM::deliverDecodeResult(const DecodeResult& result)
                             pixelsPtr,
                             byteCount};
         callModule("host_image_decoded", 6, args);
-        guestFree(pixelsPtr);
+        if (staged)
+        {
+            guestFree(pixelsPtr);
+        }
         return;
     }
     uint32_t messagePtr = guestString(result.error.c_str());
@@ -9595,15 +10267,69 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         wasm_runtime_get_export_type(m_state->module, i, &moduleExport);
         noteModuleExport(moduleExport.name);
     }
+    // A top level that decodes a file starts another module inside this one.
+    const std::function<void(const char*, size_t)>* outerPrint = s_bootPrint;
+    WasmScriptingVM* outerBooting = s_booting;
     s_bootPrint = &m_print;
     s_booting = this;
     // Module start is a call into the module like any other: the top
-    // level's probes need the bracket, and its trap is the instantiate
-    // error.
+    // level's probes need the bracket, its budget bounds it, and its trap
+    // is the instantiate error.
     if (m_debugHooks != nullptr)
     {
         m_debugHooks->onCallBegin(*this);
     }
+    // Set once: WAMR keeps it in a plain global, as ARMv7 Android loads no
+    // ELF TLS, and the hook finds its VM through s_booting.
+    static std::once_flag startHookOnce;
+    std::call_once(startHookOnce, [] {
+        wasm_runtime_rive_set_start_hook(
+            [](wasm_exec_env_t env, bool begin, void*) {
+                WasmScriptingVM* vm = s_booting;
+                if (vm == nullptr)
+                {
+                    return;
+                }
+                if (begin)
+                {
+                    // A start nested in an outer call can run on that call's
+                    // env, whose own armed watchdog then bounds it.
+                    WasmScriptingVM* outer = vmFromEnv(env);
+                    bool outerBounds = outer != nullptr &&
+                                       outer->m_budgetArmed &&
+                                       outer->m_budgetSlot->env == env;
+                    // Trusted modules run their top level unbounded, like their
+                    // calls.
+                    if (vm->m_hostBudget && !outerBounds &&
+                        !vm->m_budgetArmed && vm->m_timeoutMs > 0 &&
+                        vm->m_debugHooks == nullptr)
+                    {
+                        vm->armWatchdog(env);
+                    }
+                }
+                else if (vm->m_budgetArmed && vm->m_budgetSlot->env == env)
+                {
+                    vm->disarmWatchdog();
+                }
+                uint32_t fuelMs =
+                    (uint32_t)WasmScriptingVMNatives::startFuelMs(vm);
+                wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
+                wasm_function_inst_t arm =
+                    wasm_runtime_lookup_function(inst, "__riveFuelArm");
+                wasm_function_inst_t end =
+                    wasm_runtime_lookup_function(inst, "__riveFuelEnd");
+                // A start that trapped leaves no fuel to put back.
+                if (fuelMs != 0 && arm != nullptr && end != nullptr &&
+                    wasm_runtime_get_exception(inst) == nullptr)
+                {
+                    wasm_runtime_call_wasm(env,
+                                           begin ? arm : end,
+                                           begin ? 1 : 0,
+                                           &fuelMs);
+                }
+            },
+            nullptr);
+    });
     m_state->instance = wasm_runtime_instantiate(m_state->module,
                                                  512 * 1024,
                                                  0,
@@ -9614,16 +10340,20 @@ bool WasmScriptingVM::init(Span<const uint8_t> module)
         m_debugHooks->onCallEnd(*this,
                                 m_state->instance == nullptr ? error : nullptr);
     }
-    s_booting = nullptr;
-    s_bootPrint = nullptr;
-    if (m_state->instance == nullptr)
+    s_booting = outerBooting;
+    s_bootPrint = outerPrint;
+    if (m_state->instance == nullptr || m_poisoned)
     {
-        // The runtime's exception buffer truncates what start threw.
-        m_lastError = std::string("module instantiate failed: ") +
-                      (m_moduleErrorDetail.empty() ? std::string(error)
-                                                   : m_moduleErrorDetail);
+        // The runtime's exception buffer truncates what start threw, and AOT
+        // code traps on a timeout as unreachable.
+        std::string detail = m_poisoned ? "execution exceeded timeout"
+                             : m_moduleErrorDetail.empty()
+                                 ? std::string(error)
+                                 : m_moduleErrorDetail;
+        m_lastError = "module instantiate failed: " + detail;
         return false;
     }
+    m_state->findCallState();
     m_state->execEnv =
         wasm_runtime_create_exec_env(m_state->instance, 512 * 1024);
     if (m_state->execEnv == nullptr)
@@ -9641,6 +10371,7 @@ void WasmScriptingVM::noteModuleExport(const char* name)
     m_utf16Strings |= strcmp(name, "__riveUtf16Strings") == 0;
     m_utf16HostStrings |= strcmp(name, "__riveUtf16HostStrings") == 0;
     m_hostBudget |= strcmp(name, "__riveHostBudget") == 0;
+    m_fuelBudget |= strcmp(name, "__riveFuelCheck") == 0;
 }
 
 bool WasmScriptingVM::bootModule()
@@ -9695,13 +10426,41 @@ bool WasmScriptingVM::bootModule()
 
 const char* WasmScriptingVM::frameBoundary()
 {
+    const char* warning = collectFrame();
+    // A file a script decoded has no host to give it boundaries.
+    for (WasmScriptingVM* decoded : std::vector<WasmScriptingVM*>(m_decodedVMs))
+    {
+        // Releasing one file can end another.
+        if (std::find(m_decodedVMs.begin(), m_decodedVMs.end(), decoded) ==
+            m_decodedVMs.end())
+        {
+            continue;
+        }
+        const char* notice = decoded->frameBoundary();
+        if (warning == nullptr)
+        {
+            warning = notice;
+        }
+    }
+    return warning;
+}
+
+const char* WasmScriptingVM::collectFrame()
+{
     if (!valid())
     {
         return nullptr;
     }
     if (m_frameMinor)
     {
-        uint32_t promoted = callModule("__riveFrameMinor", 0, nullptr);
+        uint32_t promoted = 0;
+        if (callModuleChecked("__riveFrameMinor", 0, nullptr, &promoted) ==
+            CallOutcome::trapped)
+        {
+            // Objects may be half moved, so nothing may run on the heap.
+            m_poisoned = true;
+            return "script stopped: its collector trapped mid collection";
+        }
         if (getenv("RIVE_FRAME_GC_DEBUG") != nullptr)
         {
             fprintf(stderr, "frameMinor promoted=%u\n", promoted);
@@ -9719,7 +10478,7 @@ const char* WasmScriptingVM::frameBoundary()
         if (!m_frameMinorAnnounced)
         {
             m_frameMinorAnnounced = true;
-            return "script frame gc: scavenging per frame";
+            return kFrameGcNotice;
         }
         if (const char* warning = handleLeakWarning())
         {
@@ -9733,6 +10492,14 @@ const char* WasmScriptingVM::frameBoundary()
     }
     return heapGrowthWarning();
 }
+
+#ifdef __EMSCRIPTEN__
+// A page cannot set the environment.
+static constexpr const char* kLeakWarnOffHint = "";
+#else
+static constexpr const char* kLeakWarnOffHint =
+    " RIVE_WASM_LEAK_WARN=0 silences this.";
+#endif
 
 const char* WasmScriptingVM::heapGrowthWarning()
 {
@@ -9808,11 +10575,11 @@ const char* WasmScriptingVM::heapGrowthWarning()
                  sizeof(buffer),
                  "script heap grew %uMB over %u frames%s; the collector is "
                  "running, so something is accumulating references (a "
-                 "growing array, map, or cache). RIVE_WASM_LEAK_WARN=0 "
-                 "silences this.",
+                 "growing array, map, or cache).%s",
                  grownMB,
                  frames,
-                 projection);
+                 projection,
+                 kLeakWarnOffHint);
     }
     else
     {
@@ -9820,10 +10587,11 @@ const char* WasmScriptingVM::heapGrowthWarning()
                  sizeof(buffer),
                  "script heap grew %uMB over %u frames%s; the stub runtime "
                  "never frees, so per-frame allocations leak. Set "
-                 "wasmRuntime: frame. RIVE_WASM_LEAK_WARN=0 silences this.",
+                 "wasmRuntime: frame.%s",
                  grownMB,
                  frames,
-                 projection);
+                 projection,
+                 kLeakWarnOffHint);
     }
     m_leakWarning = buffer;
     return m_leakWarning.c_str();
@@ -9946,8 +10714,7 @@ const char* WasmScriptingVM::handleLeakWarning()
     {
         return nullptr;
     }
-    uint32_t live =
-        (uint32_t)(m_handles.slots.size() - m_handles.freeSlots.size());
+    uint32_t live = (uint32_t)m_handles.live();
     if (m_handleBaselineLive == 0)
     {
         // Bias by one so a zero-handle module still records its baseline.
@@ -10014,12 +10781,12 @@ const char* WasmScriptingVM::handleLeakWarning()
     snprintf(buffer,
              sizeof(buffer),
              "script leaked %u host handles over %u frames (most: %u %s); "
-             "resources created per frame need release() or finish(). "
-             "RIVE_WASM_LEAK_WARN=0 silences this.",
+             "resources created per frame need release() or finish().%s",
              grown,
              frames,
              counts[top],
-             handleTagName((HandleTable::Tag)top));
+             handleTagName((HandleTable::Tag)top),
+             kLeakWarnOffHint);
     m_leakWarning = buffer;
     return m_leakWarning.c_str();
 }
@@ -10776,8 +11543,8 @@ void WasmScriptingVM::callTransitionDraw(ScriptedObject* object,
     {
         return;
     }
-    uint32_t rendererHandle =
-        m_handles.mint(HandleTable::Tag::renderer, renderer);
+    HostRenderer host{renderer};
+    uint32_t rendererHandle = m_handles.mint(HandleTable::Tag::renderer, &host);
     uint32_t fromHandle = mintTransitionChild(from);
     uint32_t toHandle = mintTransitionChild(to);
     uint32_t args[5] = {m_L,
@@ -10786,6 +11553,7 @@ void WasmScriptingVM::callTransitionDraw(ScriptedObject* object,
                         fromHandle,
                         toHandle};
     callModule("host_obj_transition_draw", 5, args);
+    host.restoreSaves();
     releaseTransitionChild(fromHandle);
     releaseTransitionChild(toHandle);
     m_handles.release(rendererHandle, HandleTable::Tag::renderer);
@@ -10855,16 +11623,23 @@ int32_t WasmScriptingVM::inputSlot(int selfRef, const char* name)
     {
         return it->second;
     }
-    int32_t slot = -1;
     uint32_t namePtr = guestString(name);
-    if (namePtr != 0)
+    if (namePtr == 0)
     {
-        uint32_t args[3] = {m_L, (uint32_t)selfRef, namePtr};
-        slot = (int32_t)callModule("host_obj_input_slot", 3, args);
-        guestFree(namePtr);
+        return -1;
     }
-    slots.emplace(name, slot);
-    return slot;
+    uint32_t args[3] = {m_L, (uint32_t)selfRef, namePtr};
+    uint32_t slot = 0;
+    CallOutcome outcome =
+        callModuleChecked("host_obj_input_slot", 3, args, &slot);
+    guestFree(namePtr);
+    // A trap answers nothing, so the next lookup asks again.
+    if (outcome != CallOutcome::ok)
+    {
+        return -1;
+    }
+    slots.emplace(name, (int32_t)slot);
+    return (int32_t)slot;
 }
 
 bool WasmScriptingVM::legacyInputs() { return !m_inputSlotExport; }
@@ -10987,7 +11762,16 @@ void WasmScriptingVM::setInputViewModel(int selfRef,
                 m_handles.mint(HandleTable::Tag::viewModelInstance,
                                new HostViewModelInstance{std::move(vmi)});
             uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, handle};
-            callModule("host_obj_set_view_model", 4, args);
+            uint32_t unused = 0;
+            if (callModuleChecked("host_obj_set_view_model",
+                                  4,
+                                  args,
+                                  &unused) != CallOutcome::ok)
+            {
+                releaseHostHandle(this,
+                                  handle,
+                                  HandleTable::Tag::viewModelInstance);
+            }
             guestFree(owned);
             break;
         }
@@ -11024,7 +11808,12 @@ void WasmScriptingVM::setInputArtboard(int selfRef,
                                         nullptr,
                                         object->dataContext()));
     uint32_t args[4] = {m_L, (uint32_t)selfRef, arg, handle};
-    callModule("host_obj_set_artboard", 4, args);
+    uint32_t unused = 0;
+    if (callModuleChecked("host_obj_set_artboard", 4, args, &unused) !=
+        CallOutcome::ok)
+    {
+        releaseHostHandle(this, handle, HandleTable::Tag::artboard);
+    }
     guestFree(owned);
 }
 
@@ -11094,6 +11883,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_booting(uint32_t handle)
     WasmScriptingVMNatives::booting((WasmScriptingVM*)(uintptr_t)handle);
 }
 
+extern "C" EMSCRIPTEN_KEEPALIVE int rive_web_vm_start_fuel(uint32_t handle)
+{
+    return WasmScriptingVMNatives::startFuelMs(
+        (WasmScriptingVM*)(uintptr_t)handle);
+}
+
 // The std's console imports, by the method codes the page's env block uses.
 extern "C" void rive_web_console(uint32_t handle,
                                  uint32_t method,
@@ -11115,6 +11910,24 @@ extern "C" void rive_web_console(uint32_t handle,
             consoleTimeReport(vm, value, method == 3);
             break;
     }
+}
+
+extern "C" void rive_web_trace(uint32_t handle,
+                               const char* text,
+                               uint32_t length,
+                               int32_t count,
+                               double a0,
+                               double a1,
+                               double a2,
+                               double a3,
+                               double a4)
+{
+    WasmStringArg utf8(bootVmFromHandle(handle), text, length);
+    double args[5] = {a0, a1, a2, a3, a4};
+    traceWrite(vmFromHandle(handle),
+               std::string(utf8.data(), utf8.size()),
+               count,
+               args);
 }
 #endif
 

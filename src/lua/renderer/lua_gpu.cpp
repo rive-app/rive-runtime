@@ -898,29 +898,31 @@ static int gpubuffer_index(lua_State* L)
 // GPUTexture
 // ============================================================================
 
+// Raises a shared guard's message. luaL_error longjmps past destructors, so
+// the message leaves the std::string before raising.
+template <typename Guard> static void lua_checkguard(lua_State* L, Guard guard)
+{
+    char message[256] = {};
+    {
+        std::string err;
+        if (!guard(&err))
+        {
+            snprintf(message, sizeof(message), "%s", err.c_str());
+        }
+    }
+    if (message[0] != '\0')
+    {
+        luaL_error(L, "%s", message);
+    }
+}
+
 // Validate a user-supplied sampleCount against the device's actual limit.
 // Errors with a clear message rather than letting Metal/Vulkan assert-fail.
 static void lua_checksamplecount(lua_State* L, uint32_t sampleCount)
 {
-    if (sampleCount <= 1)
-        return;
-    // Must be a power of two.
-    if ((sampleCount & (sampleCount - 1)) != 0)
-        luaL_error(L,
-                   "sampleCount must be a power of two (got %u)",
-                   sampleCount);
-    auto* ctx = getOreContext(L);
-    if (features_are_known(ctx))
-    {
-        uint32_t maxSamples = ctx->features().maxSamples;
-        if (sampleCount > maxSamples)
-            luaL_error(L,
-                       "sampleCount %u exceeds device maximum of %u — "
-                       "query context:features().maxSamples before creating "
-                       "MSAA textures",
-                       sampleCount,
-                       maxSamples);
-    }
+    lua_checkguard(L, [&](std::string* err) {
+        return ore::validateSampleCount(getOreContext(L), sampleCount, err);
+    });
 }
 
 static int gputexture_construct(lua_State* L)
@@ -1249,35 +1251,13 @@ static int gpusampler_construct(lua_State* L)
             lua_getoptionalnumberfield(L, descIdx, "minLod", 0.0));
         desc.maxLod = static_cast<float>(
             lua_getoptionalnumberfield(L, descIdx, "maxLod", 32.0));
-        if (desc.minLod > desc.maxLod)
-        {
-            luaL_error(L,
-                       "GPUSampler.new: minLod (%g) > maxLod (%g)",
-                       desc.minLod,
-                       desc.maxLod);
-        }
         desc.maxAnisotropy = static_cast<uint32_t>(
             lua_getoptionalnumberfield(L, descIdx, "maxAnisotropy", 1));
-        // WebGPU + every backend caps anisotropy at 16x and accepts only
-        // power-of-two values. Reject out-of-range early so a bad sampler
-        // doesn't cause a backend-specific create failure later.
-        const uint32_t a = desc.maxAnisotropy;
-        if (a < 1 || a > 16 || (a & (a - 1)) != 0)
-        {
-            luaL_error(L,
-                       "GPUSampler.new: maxAnisotropy must be a power of "
-                       "two in [1, 16] (got %u)",
-                       a);
-        }
-        if (a > 1 && features_are_known(getOreContext(L)) &&
-            !getOreContext(L)->features().anisotropicFiltering)
-        {
-            luaL_error(L,
-                       "GPUSampler.new: maxAnisotropy=%u requires "
-                       "anisotropicFiltering feature, which the active "
-                       "backend does not support",
-                       a);
-        }
+        // Rejected here so a bad sampler doesn't fail its create later in a
+        // backend specific way.
+        lua_checkguard(L, [&](std::string* err) {
+            return ore::validateSamplerDesc(getOreContext(L), desc, err);
+        });
     }
 
     auto* ctx = getOreContext(L);
@@ -1719,6 +1699,13 @@ static int gpupipeline_construct(lua_State* L)
     // Stack-allocate vertex buffer layouts and attributes
     static constexpr int MAX_VB = 8;
     static constexpr int MAX_ATTRS = 32;
+    if (vbCount > MAX_VB)
+    {
+        luaL_error(L,
+                   ore::kGuardVertexLayoutCountFormat,
+                   (unsigned)vbCount,
+                   (unsigned)MAX_VB);
+    }
     VertexBufferLayout vbLayouts[MAX_VB];
     VertexAttribute attrs[MAX_ATTRS];
     int totalAttrs = 0;
@@ -1740,6 +1727,12 @@ static int gpupipeline_construct(lua_State* L)
         lua_getfield(L, vbIdx, "attributes");
         int attrTableIdx = lua_gettop(L);
         int attrCount = (int)lua_objlen(L, attrTableIdx);
+        if (totalAttrs + attrCount > MAX_ATTRS)
+        {
+            luaL_error(L,
+                       "GPUPipeline.new: more than %d vertex attributes",
+                       MAX_ATTRS);
+        }
 
         vbLayouts[vb].attributes = &attrs[totalAttrs];
         vbLayouts[vb].attributeCount = attrCount;
@@ -2015,6 +2008,9 @@ static int gpupipeline_construct(lua_State* L)
 
     desc.vertexBuffers = ownedLayouts;
     desc.vertexBufferCount = vbCount;
+    lua_checkguard(L, [&](std::string* err) {
+        return ore::validateVertexLayout(getOreContext(L), desc, err);
+    });
 
     std::string pipelineError;
     auto pipeline = getOreContext(L)->makePipeline(desc, &pipelineError);

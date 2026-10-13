@@ -73,18 +73,19 @@ EM_JS(void, riveWebRaise, (uint32_t vm, const char* message), {
     Module['riveScripting'].raise(vm, message);
 });
 
+// A uint32_t arrives in JS signed.
 EM_JS(int, riveWebReadMemory,
       (uint32_t vm, uint32_t appAddr, uint8_t* dst, uint32_t size), {
-    return Module['riveScripting'].read(vm, appAddr, dst, size);
+    return Module['riveScripting'].read(vm, appAddr >>> 0, dst, size >>> 0);
 });
 
 EM_JS(int, riveWebWriteMemory,
       (uint32_t vm, uint32_t appAddr, const uint8_t* src, uint32_t size), {
-    return Module['riveScripting'].write(vm, appAddr, src, size);
+    return Module['riveScripting'].write(vm, appAddr >>> 0, src, size >>> 0);
 });
 
 EM_JS(int, riveWebStringLength, (uint32_t vm, uint32_t appAddr), {
-    return Module['riveScripting'].stringLength(vm, appAddr);
+    return Module['riveScripting'].stringLength(vm, appAddr >>> 0);
 });
 
 EM_JS(uint32_t, riveWebMemoryPages, (uint32_t vm), {
@@ -96,6 +97,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE void rive_web_vm_module_export(uint32_t vm,
                                                                const char* name)
 {
     ((BrowserScriptingVM*)(uintptr_t)vm)->noteModuleExport(name);
+}
+
+// Pages print what this returns as warnings, which the notice is not.
+extern "C" EMSCRIPTEN_KEEPALIVE const char* rive_web_vm_frame_boundary(
+    uint32_t vm)
+{
+    const char* report = ((BrowserScriptingVM*)(uintptr_t)vm)->frameBoundary();
+    return report == WasmScriptingVM::kFrameGcNotice ? nullptr : report;
 }
 
 // The runner's outcome when JS unwound librive frames.
@@ -170,19 +179,28 @@ BrowserScriptingVM::Start BrowserScriptingVM::start()
 
 bool BrowserScriptingVM::valid() const
 {
-    return m_started && m_L != 0 && !m_hostFault;
+    return m_started && m_L != 0 && !m_hostFault && !poisoned();
+}
+
+void* BrowserScriptingVM::outOfBounds()
+{
+    if (m_callDepth != 0)
+    {
+        raiseModuleError("out of bounds memory access");
+    }
+    return nullptr;
 }
 
 void* BrowserScriptingVM::resolveModulePtr(uint32_t appAddr, uint32_t size)
 {
     if (!fitsModule(appAddr, size))
     {
-        return nullptr;
+        return outOfBounds();
     }
     std::vector<uint8_t> bytes(size);
     if (!riveWebReadMemory(handleOf(this), appAddr, bytes.data(), size))
     {
-        return nullptr;
+        return outOfBounds();
     }
     m_staged.push_back({appAddr, bytes, std::move(bytes)});
     return m_staged.back().bytes.data();
@@ -192,7 +210,7 @@ void* BrowserScriptingVM::resolveModuleWritePtr(uint32_t appAddr, uint32_t size)
 {
     if (!fitsModule(appAddr, size))
     {
-        return nullptr;
+        return outOfBounds();
     }
     // An empty original never matches, so the whole range is written back.
     m_staged.push_back({appAddr, std::vector<uint8_t>(size), {}});
@@ -210,17 +228,19 @@ bool BrowserScriptingVM::copyToModule(uint32_t appAddr,
                                       const void* src,
                                       uint32_t size)
 {
-    return riveWebWriteMemory(handleOf(this),
-                              appAddr,
-                              (const uint8_t*)src,
-                              size) != 0;
+    if (riveWebWriteMemory(handleOf(this), appAddr, (const uint8_t*)src, size))
+    {
+        return true;
+    }
+    outOfBounds();
+    return false;
 }
 
 const char* BrowserScriptingVM::resolveModuleString(uint32_t appAddr)
 {
     int length = riveWebStringLength(handleOf(this), appAddr);
     return length < 0
-               ? nullptr
+               ? (const char*)outOfBounds()
                : (const char*)resolveModulePtr(appAddr, (uint32_t)length + 1);
 }
 
@@ -230,7 +250,7 @@ WasmScriptingVM::CallOutcome BrowserScriptingVM::callF64(const char* name,
                                                          double* result)
 {
     assertOwnerThread();
-    if (m_hostFault)
+    if (m_hostFault || poisoned())
     {
         return CallOutcome::trapped;
     }

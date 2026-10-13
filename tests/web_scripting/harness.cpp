@@ -25,6 +25,16 @@ extern "C"
         return s_file != nullptr;
     }
 
+    // Writes a string at appAddr through the module memory seam and reads it
+    // back as a host op would.
+    EMSCRIPTEN_KEEPALIVE void harness_seam(uint32_t appAddr)
+    {
+        WasmScriptingVM* vm = s_file->wasmScriptingVM();
+        bool wrote = vm != nullptr && vm->copyToModule(appAddr, "seam", 5);
+        const char* text = wrote ? vm->resolveModuleString(appAddr) : nullptr;
+        printf("seam %s\n", text != nullptr ? text : "failed");
+    }
+
     // Returns how many script VMs are running.
     EMSCRIPTEN_KEEPALIVE int harness_run(int frames)
     {

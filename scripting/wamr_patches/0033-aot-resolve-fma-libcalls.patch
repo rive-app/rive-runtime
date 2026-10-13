@@ -1,0 +1,17 @@
+From: rive
+Subject: [PATCH 0033] resolve the fma libcalls aot code makes
+
+On an x86_64 cpu baseline without FMA, the llvm.fma patch 0012 lowers
+relaxed_madd to is a call to fmaf, which the loader must resolve.
+
+--- a/core/iwasm/aot/aot_reloc.h
++++ b/core/iwasm/aot/aot_reloc.h
+@@ -217,6 +217,8 @@ typedef struct {
+     REG_SYM(truncf),                      \
+     REG_SYM(rint),                        \
+     REG_SYM(rintf),                       \
++    REG_SYM(fma),                         \
++    REG_SYM(fmaf),                        \
+     REG_BULK_MEMORY_SYM()                 \
+     REG_ATOMIC_WAIT_SYM()                 \
+     REG_REF_TYPES_SYM()                   \

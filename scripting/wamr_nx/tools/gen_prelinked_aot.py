@@ -91,6 +91,14 @@ def extract_wasm_from_riv(data: bytes) -> bytes:
     return data[start:i]
 
 
+def section_body(aot: bytes, start: int, size: int) -> bytes:
+    # The runtime walker rejects a section running past the end, which a
+    # slice would quietly shorten.
+    if start + size > len(aot):
+        sys.exit("aot container truncated")
+    return aot[start:start + size]
+
+
 def aot_text_payload(aot: bytes) -> bytes:
     p = 8
     while True:
@@ -99,8 +107,8 @@ def aot_text_payload(aot: bytes) -> bytes:
             break
         section_type, size = struct.unpack_from("<II", aot, p)
         p += 8
+        body = section_body(aot, p, size)
         if section_type == AOT_SECTION_TEXT:
-            body = aot[p:p + size]
             literal_size = struct.unpack_from("<I", body, 0)[0]
             if literal_size != 0:
                 sys.exit(f"unexpected literal size {literal_size}; the "
@@ -123,7 +131,7 @@ def strip_text_payload(aot: bytes) -> bytes:
             break
         section_type, size = struct.unpack_from("<II", aot, p)
         p += 8
-        body = aot[p:p + size]
+        body = section_body(aot, p, size)
         p += size
         while len(out) % 4:
             out.append(0)

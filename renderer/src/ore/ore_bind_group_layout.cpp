@@ -1357,4 +1357,122 @@ uint32_t scriptDynamicOffsetAlignment(const Context* context)
                : Features{}.minUniformBufferOffsetAlignment;
 }
 
+static bool scriptGuardFailed(const char* message, std::string* outError)
+{
+    if (outError != nullptr)
+    {
+        *outError = message;
+    }
+    return false;
+}
+
+bool validateSampleCount(const Context* context,
+                         uint32_t sampleCount,
+                         std::string* outError)
+{
+    char message[192];
+    if (sampleCount > 1 && (sampleCount & (sampleCount - 1)) != 0)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "sampleCount must be a power of two (got %u)",
+                 sampleCount);
+        return scriptGuardFailed(message, outError);
+    }
+    if (sampleCount > 1 && context != nullptr && context->featuresKnown() &&
+        sampleCount > context->features().maxSamples)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "sampleCount %u exceeds device maximum of %u; query "
+                 "features().maxSamples before creating MSAA textures",
+                 sampleCount,
+                 context->features().maxSamples);
+        return scriptGuardFailed(message, outError);
+    }
+    return true;
+}
+
+bool validateSamplerDesc(const Context* context,
+                         const SamplerDesc& desc,
+                         std::string* outError)
+{
+    char message[192];
+    if (desc.minLod > desc.maxLod)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "GPUSampler.new: minLod (%g) > maxLod (%g)",
+                 desc.minLod,
+                 desc.maxLod);
+        return scriptGuardFailed(message, outError);
+    }
+    // Every backend caps anisotropy at 16 and takes only powers of two.
+    const uint32_t a = desc.maxAnisotropy;
+    if (a < 1 || a > 16 || (a & (a - 1)) != 0)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "GPUSampler.new: maxAnisotropy must be a power of two in "
+                 "[1, 16] (got %u)",
+                 a);
+        return scriptGuardFailed(message, outError);
+    }
+    if (a > 1 && context != nullptr && context->featuresKnown() &&
+        !context->features().anisotropicFiltering)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 "GPUSampler.new: maxAnisotropy=%u requires "
+                 "anisotropicFiltering feature, which the active backend does "
+                 "not support",
+                 a);
+        return scriptGuardFailed(message, outError);
+    }
+    return true;
+}
+
+bool validateVertexLayout(const Context* context,
+                          const PipelineDesc& desc,
+                          std::string* outError)
+{
+    char message[192];
+    if (desc.vertexBufferCount > kMaxVertexBufferSlots)
+    {
+        snprintf(message,
+                 sizeof(message),
+                 kGuardVertexLayoutCountFormat,
+                 desc.vertexBufferCount,
+                 kMaxVertexBufferSlots);
+        return scriptGuardFailed(message, outError);
+    }
+    // A module cannot see the device; its host checks the slots against it.
+#ifndef RIVE_WASM_MODULE
+    // Backends index a fixed attribute table by slot, so an unknown device
+    // still gets the portable count rather than no check.
+    const uint32_t maxAttributes =
+        context != nullptr && context->featuresKnown()
+            ? context->features().maxVertexAttributes
+            : Features{}.maxVertexAttributes;
+    for (uint32_t b = 0; b < desc.vertexBufferCount; ++b)
+    {
+        const VertexBufferLayout& buffer = desc.vertexBuffers[b];
+        for (uint32_t i = 0; i < buffer.attributeCount; ++i)
+        {
+            if (buffer.attributes[i].shaderSlot >= maxAttributes)
+            {
+                snprintf(message,
+                         sizeof(message),
+                         "GPUPipeline.new: attribute slot must be 0-%u (got "
+                         "%u)",
+                         maxAttributes - 1,
+                         buffer.attributes[i].shaderSlot);
+                return scriptGuardFailed(message, outError);
+            }
+        }
+    }
+#endif
+    return true;
+}
+
 } // namespace rive::ore

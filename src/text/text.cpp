@@ -1236,6 +1236,11 @@ void StyledText::append(rcp<Font> font,
         m_value.push_back(UTF::NextUTF8(&ptr));
         n += 1;
     }
+    // Shaping takes no empty runs.
+    if (n == 0)
+    {
+        return;
+    }
     m_runs.push_back(
         {std::move(font), size, lineHeight, letterSpacing, n, 0, styleId});
 }

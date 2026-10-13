@@ -8,6 +8,7 @@
 #include "rive/span.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
 
+#include <deque>
 #include <functional>
 #include <memory>
 #include <string>
@@ -127,25 +128,26 @@ public:
         };
         std::vector<Slot> slots;
         std::vector<uint32_t> freeSlots;
+        /// Slots whose generation wrapped, oldest first. Each sits out until
+        /// retiredLimit more wrap, so its old handles stay stale that long.
+        std::deque<uint32_t> retiredSlots;
+        size_t retiredLimit = (size_t)1 << 16;
+        /// The most slots a handle's 24 slot bits address.
+        size_t slotLimit = 0xffffff;
 
         uint32_t mint(Tag tag, void* object);
         void* resolve(uint32_t handle, Tag tag) const;
         /// Bumps the generation so outstanding copies of the handle go stale.
         void release(uint32_t handle, Tag tag);
+        size_t live() const
+        {
+            return slots.size() - freeSlots.size() - retiredSlots.size();
+        }
     };
     HandleTable& handles() { return m_handles; }
     /// Borrowed node handles, released when the path effect update that
     /// minted them returns.
     std::vector<uint32_t>& scopedNodes() { return m_scopedNodes; }
-
-    // Saves the draw visit in flight has open on the renderer it was handed,
-    // so a trap can close them before the rest of the frame draws.
-    struct VisitSaves
-    {
-        Renderer* renderer = nullptr;
-        int open = 0;
-    };
-    VisitSaves& visitSaves() { return m_visitSaves; }
     Factory* factory() const { return m_factory; }
 
     /// Brackets one call into the module. Calls nest, so the exit reclaims
@@ -428,6 +430,10 @@ public:
     /// Call once per host frame with no wasm frames live; returns null when
     /// there is nothing to report.
     const char* frameBoundary();
+    /// What frameBoundary returns once a frame collector first collects, a
+    /// notice rather than a warning.
+    static constexpr char kFrameGcNotice[] =
+        "script frame gc: scavenging per frame";
     const char* handleLeakWarning();
     const char* heapGrowthWarning();
 
@@ -558,6 +564,9 @@ public:
     using BootHook =
         std::function<void(WasmScriptingVM& vm, Span<const uint8_t> module)>;
     static void setBootHook(BootHook hook);
+
+    /// The module can never run again.
+    bool poisoned() const { return m_poisoned; }
 
 protected:
     // The browser backend subclasses over the seams and boots without the
@@ -710,19 +719,34 @@ private:
     void holdOutcome(std::function<void()> deliver);
     std::vector<std::function<void()>> m_heldOutcomes;
     std::unique_ptr<BudgetSlot> m_budgetSlot;
+    /// Set while a budgeted call holds the slot's deadline, which calls
+    /// nested in it share.
+    bool m_budgetArmed = false;
+    /// Gives the call running on env (a wasm_exec_env_t) one timeout, and
+    /// takes it back, poisoning the module when the watchdog fired.
+    void armWatchdog(void* env);
+    void disarmWatchdog();
+    /// This VM's own boundary work, without the files it decoded.
+    const char* collectFrame();
+    /// The VM whose script decoded this VM's file, and the VMs of files
+    /// this one's scripts decoded, which collect at its boundaries.
+    WasmScriptingVM* m_decodedBy = nullptr;
+    std::vector<WasmScriptingVM*> m_decodedVMs;
     /// Module exports __riveUtf16HostStrings: strings the host hands it are
     /// written as UTF-16 too.
     bool m_utf16HostStrings = false;
     /// Module exports __riveHostBudget: the watchdog bounds its calls. The
     /// rest meter themselves or are trusted to run unbounded.
     bool m_hostBudget = false;
-    /// Set once the watchdog interrupts a call; the module never runs again.
+    /// Module exports __riveFuelCheck: it traps itself once a call overruns.
+    bool m_fuelBudget = false;
+    /// Set once the watchdog interrupts a call or the collector traps; the
+    /// module never runs again.
     bool m_poisoned = false;
     bool m_budgetRaised = false;
     bool m_thrownRaised = false;
     bool m_quietTraps = false;
     Trap m_lastTrap;
-    VisitSaves m_visitSaves;
     bool m_frameMinor = false;
     bool m_frameMinorAnnounced = false;
     /// Module exports __riveFrameRelease: its reap queues the handles it

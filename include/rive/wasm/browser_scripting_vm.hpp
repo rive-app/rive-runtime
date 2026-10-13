@@ -87,6 +87,9 @@ private:
     };
     std::vector<StagedRange> m_staged;
     bool fitsModule(uint32_t appAddr, uint32_t size);
+    /// Null for a range outside module memory, which traps the module call
+    /// that asked for it, as on WAMR.
+    void* outOfBounds();
 };
 
 } // namespace rive

@@ -387,7 +387,10 @@ public:
             static_cast<ModuleRenderBuffer*>(indices.get())->handle(),
             static_cast<ModuleImageMeshInstances*>(instances.get())->handle());
     }
-    void modulateOpacity(float) override {}
+    void modulateOpacity(float opacity) override
+    {
+        rive_renderer_modulate_opacity(m_handle, opacity);
+    }
     void modulateColor(ColorInt color, bool replace) override
     {
         rive_renderer_modulate_color(m_handle, color, replace);
