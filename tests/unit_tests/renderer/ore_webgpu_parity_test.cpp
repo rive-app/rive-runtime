@@ -138,6 +138,19 @@ TEST_CASE("a bind group fills every layout entry exactly once", "[ore][webgpu]")
     CHECK(ctx.makeBindGroup(desc) != nullptr);
 }
 
+TEST_CASE("an entry with no resource is refused", "[ore][webgpu]")
+{
+    DeferredOreContext ctx(nullptr);
+    auto layout = layoutOf(ctx, {entry(0, BindingKind::sampler)});
+    BindGroupDesc::SampEntry samp{0, nullptr};
+    BindGroupDesc desc;
+    desc.layout = layout.get();
+    desc.samplers = &samp;
+    desc.samplerCount = 1;
+    CHECK(ctx.makeBindGroup(desc) == nullptr);
+    CHECK(contains(ctx.lastError(), "@binding(0): binds no sampler"));
+}
+
 TEST_CASE("an entry the layout lacks is refused", "[ore][webgpu]")
 {
     DeferredOreContext ctx(nullptr);

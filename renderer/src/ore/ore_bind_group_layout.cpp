@@ -1022,6 +1022,15 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
             *outError = message;
         return false;
     };
+    auto failEmpty = [&](uint32_t slot, const char* noun) {
+        snprintf(message,
+                 sizeof(message),
+                 "@group(%u) @binding(%u): binds no %s",
+                 group,
+                 slot,
+                 noun);
+        return fail();
+    };
 
     for (const BindGroupLayoutEntry& e : desc.layout->entries())
     {
@@ -1062,7 +1071,7 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
             return fail();
         }
         if (ubo.buffer == nullptr)
-            continue;
+            return failEmpty(ubo.slot, "buffer");
         if (ubo.buffer->usage() != BufferUsage::uniform)
         {
             snprintf(message,
@@ -1129,8 +1138,10 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
                      tex.slot);
             return fail();
         }
+        if (tex.view == nullptr)
+            return failEmpty(tex.slot, "texture view");
         // Wrapped canvas views carry no texture to check.
-        if (entry->kind != BindingKind::sampledTexture || tex.view == nullptr ||
+        if (entry->kind != BindingKind::sampledTexture ||
             tex.view->texture() == nullptr)
             continue;
         const TextureView& view = *tex.view;
@@ -1200,7 +1211,9 @@ bool validateBindGroupDesc(const BindGroupDesc& desc, std::string* outError)
                      samp.slot);
             return fail();
         }
-        if (samp.sampler == nullptr || !samp.sampler->described())
+        if (samp.sampler == nullptr)
+            return failEmpty(samp.slot, "sampler");
+        if (!samp.sampler->described())
             continue;
         const bool wantsComparison =
             entry->kind == BindingKind::comparisonSampler;

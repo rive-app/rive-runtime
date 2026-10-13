@@ -60,9 +60,15 @@ TEST_CASE("a deferred bind group counts its dynamic offsets", "[ore][cmd]")
     auto layout = ctx.makeBindGroupLayout(ld);
     REQUIRE(layout != nullptr);
 
+    BufferDesc bufferDesc{};
+    bufferDesc.usage = BufferUsage::uniform;
+    bufferDesc.size = 256;
+    auto buffer = ctx.makeBuffer(bufferDesc);
     BindGroupDesc::UBOEntry ubos[2]{};
     ubos[0].slot = 0; // dynamic
+    ubos[0].buffer = buffer.get();
     ubos[1].slot = 1; // static
+    ubos[1].buffer = buffer.get();
     BindGroupDesc bd{};
     bd.layout = layout.get();
     bd.ubos = ubos;
