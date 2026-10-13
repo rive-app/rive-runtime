@@ -100,10 +100,11 @@ inline CanvasSchedule scheduleCanvases(
             // applyLayerMask belongs here as much as the draws do: layer
             // masking samples a coverage canvas from inside the content canvas
             // it masks, so leaving it out means that edge never registers and
-            // the schedule only works by accident of record order.
+            // the schedule only works by accident of record order. So does
+            // canvasSample, which names the canvas a drawPath's paint samples.
             if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh ||
                 c == RenderCmd::drawImageMeshInstanced ||
-                c == RenderCmd::applyLayerMask)
+                c == RenderCmd::applyLayerMask || c == RenderCmd::canvasSample)
             {
                 RenderHandle h = drawnImageHandle(commands.data() + pos + 1);
                 if (h != kInvalidRenderHandle && (h & kCanvasHandleFlag))

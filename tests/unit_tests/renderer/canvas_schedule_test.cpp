@@ -51,6 +51,22 @@ struct StreamBuilder
                             static_cast<uint32_t>(bytes.size())});
     }
 
+    // Records a canvas bracket filling a path whose paint samples a canvas,
+    // the way the recorder names it after the draw.
+    void canvasRangeDrawingPaintSampling(uint64_t canvasId, uint64_t sampled)
+    {
+        uint32_t begin = static_cast<uint32_t>(bytes.size());
+        DrawPathPOD draw = {};
+        append(RenderCmd::drawPath, draw);
+        append(
+            RenderCmd::canvasSample,
+            ResIdPOD{kCanvasHandleFlag | static_cast<RenderHandle>(sampled)});
+        segments.push_back({Target::canvas,
+                            canvasId,
+                            begin,
+                            static_cast<uint32_t>(bytes.size())});
+    }
+
     // A foreign image draw that is not a written canvas (host image).
     void canvasRangeSamplingForeign(uint64_t canvasId, uint32_t foreignIndex)
     {
@@ -159,6 +175,18 @@ TEST_CASE("drawImageMesh creates edges like drawImage", "[cmd][canvas-dag]")
     REQUIRE(s.order == std::vector<uint64_t>{1, 2});
 }
 
+TEST_CASE("canvasSample creates edges like drawImage", "[cmd][canvas-dag]")
+{
+    // Image-in-paint: the canvas reaches the draw through its paint, named by
+    // the canvasSample after it.
+    StreamBuilder b;
+    b.canvasRangeDrawingPaintSampling(2, 1); // B samples A but records first
+    b.canvasRange(1, {});
+    auto s = b.schedule();
+    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+    CHECK_FALSE(s.hadCycle);
+}
+
 TEST_CASE("independent canvases keep record order among themselves",
           "[cmd][canvas-dag]")
 {
@@ -197,6 +225,28 @@ rcp<gpu::RenderCanvas> fakeCanvas()
     canvas->setBacking(nullptr, make_rcp<FakeTarget>());
     return canvas;
 }
+
+// The image ids the recorder named with canvasSample, in record order.
+std::vector<RenderHandle> canvasSamples(DeferredSession& session)
+{
+    std::vector<RenderHandle> ids;
+    RenderCommandReader r(session.commandBuffer().commandBytes(),
+                          session.commandBuffer().blobBytes());
+    uint8_t type;
+    while (r.next(type))
+    {
+        auto cmd = static_cast<RenderCmd>(type);
+        if (cmd == RenderCmd::canvasSample)
+        {
+            ids.push_back(r.read<ResIdPOD>().id);
+        }
+        else
+        {
+            r.skip(payloadSizeOf(cmd));
+        }
+    }
+    return ids;
+}
 } // namespace
 
 TEST_CASE("replay opens the sampled canvas before its reader despite record "
@@ -226,6 +276,71 @@ TEST_CASE("replay opens the sampled canvas before its reader despite record "
     REQUIRE(sink.opened.size() == 2);
     CHECK(sink.opened[0] == canvasA.get());
     CHECK(sink.opened[1] == canvasB.get());
+}
+
+TEST_CASE("replay opens a canvas before a reader whose paint samples it",
+          "[cmd][canvas-dag]")
+{
+    DeferredSession session(rive::ore::ReplayCaps{});
+    auto canvasA = fakeCanvas();
+    auto canvasB = fakeCanvas();
+
+    // B fills a path modulated by A's image but records first.
+    auto modulated = session.makeRenderPaint();
+    modulated->modulatedImage(canvasA->renderImage(),
+                              ImageSampler::LinearClamp(),
+                              Mat2D());
+    auto path = session.makeEmptyRenderPath();
+    Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
+    b->drawPath(path.get(), modulated.get());
+    session.endCanvasContent(canvasB.get());
+    Renderer* a = session.beginCanvasContent(canvasA.get(), 0);
+    auto paint = session.makeRenderPaint();
+    a->drawPath(path.get(), paint.get());
+    session.endCanvasContent(canvasA.get());
+    session.closeOpenRange();
+
+    auto frame = snapshotFrame(session);
+    OrderSink sink;
+    DeferredReplayer replayer;
+    replayer.replayFrame(frame, sink);
+
+    REQUIRE(sink.opened.size() == 2);
+    CHECK(sink.opened[0] == canvasA.get());
+    CHECK(sink.opened[1] == canvasB.get());
+}
+
+TEST_CASE("a canvas draw names the canvas its paint samples at the draw",
+          "[cmd][canvas-dag]")
+{
+    DeferredSession session(rive::ore::ReplayCaps{});
+    auto canvasA = fakeCanvas();
+    auto canvasB = fakeCanvas();
+    auto canvasC = fakeCanvas();
+    auto paint = session.makeRenderPaint();
+    auto path = session.makeEmptyRenderPath();
+    auto modulate = [&](gpu::RenderCanvas* canvas) {
+        paint->modulatedImage(canvas != nullptr ? canvas->renderImage()
+                                                : nullptr,
+                              ImageSampler::LinearClamp(),
+                              Mat2D());
+    };
+    RenderHandle idA = session.canvases().imageDrawId(canvasA->renderImage());
+
+    Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
+    modulate(canvasA.get());
+    b->drawPath(path.get(), paint.get()); // samples A
+    modulate(canvasC.get());              // repointed after the draw
+    modulate(nullptr);
+    b->drawPath(path.get(), paint.get()); // cleared, samples nothing
+    session.endCanvasContent(canvasB.get());
+
+    // Canvases replay before the screen, so a screen draw needs no edge.
+    modulate(canvasA.get());
+    session.screenRenderer()->drawPath(path.get(), paint.get());
+    session.closeOpenRange();
+
+    CHECK(canvasSamples(session) == std::vector<RenderHandle>{idA});
 }
 
 TEST_CASE("a canvas only frame still opens a screen frame", "[cmd][canvas-dag]")

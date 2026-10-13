@@ -231,7 +231,6 @@ private:
         m_2d.clearVersionAliases();
         ReplayHooks hooks;
         hooks.stats = &m_stats;
-        hooks.canvasImage = canvasImage;
         // Recording allocates no canvas backing, so every path that resolves
         // one here allocates it on this device first. A sink with no render
         // context leaves it unbacked and drops the content rather than
@@ -256,6 +255,14 @@ private:
             }
 #endif
             return canvas;
+        };
+        // Paint mutations resolve canvas images in the resources pass, ahead of
+        // every canvas segment, and the paint keeps the texture it reads then.
+        // Back the canvas first, or one sampled on the frame it is first drawn
+        // reads as having no image.
+        hooks.canvasImage = [&](RenderHandle id) -> RenderImage* {
+            resolveCanvas(id);
+            return canvasImage(id);
         };
         // A canvas's content may span several ranges; its real frame opens at
         // the first range and flushes once its group ends below.

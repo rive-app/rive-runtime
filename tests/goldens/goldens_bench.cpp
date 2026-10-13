@@ -128,6 +128,7 @@ static void analyze_frame_redundancy(const rive::cmd::RenderCommandBuffer& cmd)
                 r.read<CanvasContentPOD>();
                 break;
             case RenderCmd::canvasContentEnd:
+            case RenderCmd::canvasSample:
                 r.read<ResIdPOD>();
                 break;
             case RenderCmd::makePath:

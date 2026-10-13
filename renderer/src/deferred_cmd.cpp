@@ -118,6 +118,7 @@ void replayRenderCommands(Factory* factory,
             case RenderCmd::modulateColor:
             case RenderCmd::canvasContentBegin:
             case RenderCmd::canvasContentEnd:
+            case RenderCmd::canvasSample:
                 return f == ReplayFilter::draws;
             case RenderCmd::destroyResource:
                 return f == ReplayFilter::destroys;
@@ -902,6 +903,9 @@ void replayRenderCommands(Factory* factory,
                 cur = renderer;          // back to the screen; null drops draws
                 break;
             }
+            case RenderCmd::canvasSample:
+                reader.read<ResIdPOD>(); // read by the canvas schedule only
+                break;
         }
     }
     if (reader.overrun())

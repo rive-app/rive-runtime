@@ -413,6 +413,17 @@ public:
         m_buffer->append(
             static_cast<uint8_t>(RenderCmd::drawPath),
             DrawPathPOD{pathId, paintId, dp->version(), dpt->version()});
+        // The draw carries only the paint, so name the canvas its image
+        // samples beside it, read now so later paint changes don't count.
+        if (!isScreenTarget(m_routeTarget))
+        {
+            RenderHandle sampled = dpt->foreignImageId();
+            if (sampled != kInvalidRenderHandle)
+            {
+                m_buffer->append(static_cast<uint8_t>(RenderCmd::canvasSample),
+                                 ResIdPOD{sampled});
+            }
+        }
     }
     void clipPath(RenderPath* path) override
     {

@@ -246,6 +246,15 @@ public:
                         ImageSampler,
                         const Mat2D&) override; // defined below (needs the
                                                 // DeferredRenderImage type)
+    // The flagged id of the foreign image, such as a canvas snapshot, this
+    // paint is modulated by now, or kInvalidRenderHandle.
+    RenderHandle foreignImageId() const
+    {
+        return m_imageId != kInvalidRenderHandle &&
+                       (m_imageId & kCanvasHandleFlag) != 0
+                   ? m_imageId
+                   : kInvalidRenderHandle;
+    }
     void invalidateStroke() override
     {
         // Stroked shapes invalidate every frame their path moves, and the

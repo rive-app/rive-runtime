@@ -84,9 +84,14 @@ enum class RenderCmd : uint8_t
     // later mutations.
     resourceNewVersion, // ResourceVersionPOD
 
+    // Follows a canvas drawPath whose paint is modulated by a canvas image,
+    // naming that image so the canvas schedule sees the edge without tracking
+    // paint state. Replays as a no-op.
+    canvasSample, // ResIdPOD (flagged image id)
+
     // Keep equal to the last real opcode so replay rejects corrupt type bytes
     // instead of desyncing.
-    lastRenderCmd = resourceNewVersion,
+    lastRenderCmd = canvasSample,
 };
 
 // A bare resource id payload.
@@ -424,7 +429,8 @@ struct CanvasContentPOD
     X(applyLayerMask, ApplyLayerMaskPOD)                                       \
     X(canvasContentBegin, CanvasContentPOD)                                    \
     X(canvasContentEnd, ResIdPOD)                                              \
-    X(resourceNewVersion, ResourceVersionPOD)
+    X(resourceNewVersion, ResourceVersionPOD)                                  \
+    X(canvasSample, ResIdPOD)
 
 namespace detail
 {
