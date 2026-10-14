@@ -74,7 +74,12 @@ public:
         /// Squared distance to point projected to curve.
         float sqDistanceToPoint;
 
-        PosTanDistance() : distance(0.0f), sqDistanceToPoint(0.0f) {}
+        PosTanDistance() :
+            pos(0.0f, 0.0f),
+            tan(0.0f, 0.0f),
+            distance(0.0f),
+            sqDistanceToPoint(0.0f)
+        {}
         PosTanDistance(PosTan posTan, float dist) :
             pos(posTan.pos),
             tan(posTan.tan),

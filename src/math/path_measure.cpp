@@ -30,7 +30,16 @@ ContourMeasure::PosTanDistance PathMeasure::atDistance(float distance) const
         }
         currentDistance -= contourLength;
     }
-    return ContourMeasure::PosTanDistance();
+    if (m_contours.empty())
+    {
+        ContourMeasure::PosTanDistance result;
+        result.distance = distance;
+        return result;
+    }
+    // Past the end: clamp to the end of the last contour.
+    auto last = m_contours.back();
+    return ContourMeasure::PosTanDistance(last->getPosTan(last->length()),
+                                          distance);
 }
 
 ContourMeasure::PosTanDistance PathMeasure::atPercentage(
