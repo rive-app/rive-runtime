@@ -37,6 +37,12 @@ public:
     // Find the current handle for an object that this arena owns.
     // Returns a null handle if the object isn't in this arena.
     virtual CoreHandle handleOf(const Core* object) const = 0;
+
+    // A borrowed artboard owner calls this before its derived destructor
+    // touches children. Other externally destroyed entries invalidate their
+    // registration from Core's destructor.
+    virtual void ownerDestroyed(Core*) {}
+    virtual void objectDestroyed(Core*) {}
 };
 
 } // namespace rive

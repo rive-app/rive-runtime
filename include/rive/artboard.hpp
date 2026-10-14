@@ -143,6 +143,9 @@ private:
     void wakeQuietRow();
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     void mainViewModelInstanceChanged() override;
     void dataBindsProcessed() override;
 

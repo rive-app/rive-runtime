@@ -14,6 +14,10 @@ private:
     Artboard* m_artboard;
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+    void editorRelease() override { unref(); }
+#endif
     void viewModelInstance(rcp<ViewModelInstance> value)
     {
         m_viewModelInstance = value;

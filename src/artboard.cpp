@@ -127,6 +127,13 @@ Artboard::Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
 
 Artboard::~Artboard()
 {
+#ifdef WITH_RIVE_EDITOR
+    // Borrowed editor instances must retire their arena-owned children before
+    // this destructor starts walking the graph. Owned arena entries have
+    // already been detached and have no arena by this point.
+    if (editorArena() != nullptr)
+        editorArena()->ownerDestroyed(this);
+#endif
     // Tear the focus tree down FIRST, while every component is still alive.
     // Detaching a focused node clears focus, and that runs blur callbacks
     // (FocusData::blurred walks parents and siblings) — which must not fire
@@ -4965,4 +4972,54 @@ void Artboard::audioEngine(rcp<AudioEngine> audioEngine)
         }
     }
 }
+#endif
+
+#ifdef WITH_RIVE_EDITOR
+void Artboard::editorPrepareForDestruction()
+{
+    if (m_ownedFocusManager != nullptr &&
+        m_activeFocusManager == m_ownedFocusManager.get())
+    {
+#ifdef WITH_RIVE_TOOLS
+        m_ownedFocusManager->setFocusChangedCallback(nullptr);
+        m_ownedFocusManager->setScrollIntoViewCallback(nullptr);
+#endif
+    }
+    cleanupFocusTree();
+    cleanupSemanticTree();
+    m_scriptedInterpolators.reset();
+    unbind();
+    clearEditorDataBinds();
+    m_ArtboardHosts.clear();
+    m_ScriptedObjects.clear();
+    m_NestedArtboards.clear();
+    m_ComponentLists.clear();
+    // These lists borrow arena objects, unlike importer-populated lists.
+    auto discardArenaEntries = [](auto& entries) {
+        entries.erase(std::remove_if(entries.begin(),
+                                     entries.end(),
+                                     [](auto* c) {
+                                         return c != nullptr &&
+                                                c->editorArena() != nullptr;
+                                     }),
+                      entries.end());
+    };
+    discardArenaEntries(m_Animations);
+    discardArenaEntries(m_StateMachines);
+    discardArenaEntries(m_Objects);
+    discardArenaEntries(m_invalidObjects);
+    clearDrawables();
+    m_FirstDrawable = nullptr;
+    m_clippingShapes.clear();
+    m_layerMasks.clear();
+    m_DrawTargets.clear();
+    m_Joysticks.clear();
+    m_advancingComponents.clear();
+    m_dirtyLayout.clear();
+    m_host = nullptr;
+    m_DependencyOrder.clear();
+    m_editorResolver = nullptr;
+    Component::editorPrepareForDestruction();
+}
+
 #endif

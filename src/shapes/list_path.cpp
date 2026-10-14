@@ -322,3 +322,13 @@ void ListPath::updateList(std::vector<rcp<ViewModelInstanceListItem>>* list)
     }
     markPathDirty();
 }
+#ifdef WITH_RIVE_EDITOR
+void ListPath::editorPrepareForDestruction()
+{
+    for (auto* listener : m_vertexListeners)
+        delete listener;
+    m_vertexListeners.clear();
+    Component::editorPrepareForDestruction();
+}
+
+#endif

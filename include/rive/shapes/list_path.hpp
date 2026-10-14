@@ -84,6 +84,9 @@ protected:
 class ListPath : public ListPathBase, public DataBindListItemConsumer
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~ListPath();
     void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
 

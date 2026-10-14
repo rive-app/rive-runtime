@@ -47,3 +47,16 @@ Core* DataConverterGroupItem::clone() const
     }
     return cloned;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void DataConverterGroupItem::editorPrepareForDestruction()
+{
+    if (m_dataConverter != nullptr)
+    {
+        if (m_ownsConverter && m_dataConverter->editorArena() == nullptr)
+            m_dataConverter->editorPrepareForDestruction();
+        else
+            m_dataConverter = nullptr;
+    }
+}
+#endif

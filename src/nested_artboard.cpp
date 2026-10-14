@@ -1196,3 +1196,15 @@ BoundsFidelity NestedArtboard::paintedWorldBounds(AABB* out)
     // the caller pad.
     return nested->clip() ? fidelity : BoundsFidelity::approximate;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void NestedArtboard::editorPrepareForDestruction()
+{
+    clearNestedAnimations();
+    if (m_boundNestedStateMachine)
+        m_boundNestedStateMachine->releaseDependencies();
+    unbind();
+    Component::editorPrepareForDestruction();
+}
+
+#endif

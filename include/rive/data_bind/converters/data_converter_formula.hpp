@@ -15,6 +15,9 @@ class DataConverterFormula : public DataConverterFormulaBase,
                              public ViewModelValueDependent
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~DataConverterFormula();
     DataType outputType() override { return DataType::number; };
     void addToken(FormulaToken*);

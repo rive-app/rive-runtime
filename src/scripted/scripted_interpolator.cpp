@@ -119,6 +119,10 @@ void ScriptedInterpolator::disposeScriptInputs()
         auto scriptInput = ScriptInput::from(prop);
         if (scriptInput != nullptr)
         {
+#ifdef WITH_RIVE_EDITOR
+            if (prop->editorArena() != nullptr)
+                continue;
+#endif
             delete scriptInput;
         }
     }
@@ -275,3 +279,12 @@ void StatefulScriptedInterpolator::initialize()
     }
     m_clone->hydrateScriptInputs();
 }
+
+#ifdef WITH_RIVE_EDITOR
+void ScriptedInterpolator::editorPrepareForDestruction()
+{
+    scriptDispose();
+    dataContext(nullptr);
+}
+
+#endif

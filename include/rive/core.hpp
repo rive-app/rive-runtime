@@ -9,6 +9,7 @@
 #ifdef WITH_RIVE_EDITOR
 #include "rive/core/fractional_index.hpp"
 #include <cstdio>
+#include <atomic>
 #include <string>
 #endif
 
@@ -339,11 +340,35 @@ public:
     /// the runtime keeps raw pointers via `#ifndef WITH_RIVE_EDITOR`
     /// branches, so the arena is never touched on the runtime hot
     /// path.
-    void editorSetArena(ObjectArena* arena) { m_arena = arena; }
+    void editorSetArena(ObjectArena* arena)
+    {
+        if (arena != nullptr && !m_editorTracked)
+        {
+            m_editorTracked = true;
+            s_editorLiveAllocations.fetch_add(1, std::memory_order_relaxed);
+        }
+        m_arena = arena;
+    }
+    // Counts allocations that have entered an editor arena, including borrowed
+    // roots, until their actual Core destructor runs. Unlike arena liveCount,
+    // clearing a slot cannot hide a leaked allocation from this diagnostic.
+    static size_t editorLiveAllocationCount()
+    {
+        return s_editorLiveAllocations.load(std::memory_order_relaxed);
+    }
     ObjectArena* editorArena() const { return m_arena; }
+
+    // Arena teardown is two-phase: every object is prepared while peers and
+    // resolvers are alive, then graph links are detached, then ownership is
+    // released. Hooks must tolerate partial initialization and repeated calls.
+    virtual void editorPrepareForDestruction() {}
+    virtual void editorDetachFromGraph() {}
+    virtual void editorRelease() { delete this; }
 
 private:
     ObjectArena* m_arena = nullptr;
+    bool m_editorTracked = false;
+    static inline std::atomic<size_t> s_editorLiveAllocations{0};
 
 public:
     /// Editor-mode validation flag — mirrors Dart's `Core._hasValidated`

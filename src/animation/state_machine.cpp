@@ -1,4 +1,6 @@
 #include "rive/animation/state_machine.hpp"
+#include "rive/animation/layer_state.hpp"
+#include "rive/animation/state_transition.hpp"
 #include "rive/artboard.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/animation/state_machine_layer.hpp"

@@ -70,3 +70,22 @@ void DataConverter::copy(const DataConverter& object)
 }
 
 bool DataConverter::advance(float elapsedTime) { return false; }
+
+#ifdef WITH_RIVE_EDITOR
+void DataConverter::editorPrepareForDestruction()
+{
+    unbind();
+    // Owned binds can themselves own converters with arena-backed children.
+    // Prepare them while all those children still exist. Preparation removes
+    // each bind from this container, so iterate a snapshot and delete only
+    // the non-arena binds whose ownership belongs to us.
+    for (auto* bind : std::vector<DataBind*>(dataBinds()))
+    {
+        const bool owned = bind->editorArena() == nullptr;
+        bind->editorPrepareForDestruction();
+        if (owned)
+            delete bind;
+    }
+    m_parentDataBind = nullptr;
+}
+#endif

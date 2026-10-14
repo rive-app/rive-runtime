@@ -2379,3 +2379,11 @@ void ArtboardComponentList::addMapRule(ArtboardListMapRule* rule)
 {
     m_artboardMapRules[rule->viewModelId()] = rule->artboardId();
 }
+#ifdef WITH_RIVE_EDITOR
+void ArtboardComponentList::editorPrepareForDestruction()
+{
+    clear();
+    Component::editorPrepareForDestruction();
+}
+
+#endif

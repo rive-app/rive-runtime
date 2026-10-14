@@ -35,6 +35,9 @@ private:
 #endif
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~ScriptedDataConverter();
 #ifdef WITH_RIVE_SCRIPTING
     void didHydrateScriptInputs() override;

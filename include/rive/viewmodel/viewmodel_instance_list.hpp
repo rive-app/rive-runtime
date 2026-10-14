@@ -14,7 +14,13 @@ class ViewModelInstanceList : public ViewModelInstanceListBase,
                               public DataBindListItemConsumer
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~ViewModelInstanceList();
+    // These APIs accept an owning rcp. For an arena-owned raw item, pass
+    // ref_rcp(item), not rcp(item): the arena keeps its initial reference.
+    // Insertion copies that rcp, so the list needs no arena-specific ref().
     void addItem(rcp<ViewModelInstanceListItem> listItem);
     bool addItemAt(rcp<ViewModelInstanceListItem> listItem, int index);
     void internalAddItem(rcp<ViewModelInstanceListItem> listItem);

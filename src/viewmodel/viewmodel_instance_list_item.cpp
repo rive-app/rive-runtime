@@ -37,3 +37,11 @@ StatusCode ViewModelInstanceListItem::import(ImportStack& importStack)
 
     return Super::import(importStack);
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstanceListItem::editorPrepareForDestruction()
+{
+    m_viewModelInstance = nullptr;
+    m_artboard = nullptr;
+}
+
+#endif

@@ -96,6 +96,9 @@ private:
                             bool place);
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     /// True when this host can receive runtime artboard swaps and therefore
     /// owns (or will own) a persistent focus scope.
     bool isArtboardDataBound() const

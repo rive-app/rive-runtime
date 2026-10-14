@@ -13,6 +13,10 @@ private:
     const std::string m_name = "";
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+    void editorRelease() override { unref(); }
+#endif
     ~DataEnum();
     void addValue(DataEnumValue* value);
     std::vector<DataEnumValue*>& values() { return m_Values; };

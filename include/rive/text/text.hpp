@@ -176,6 +176,9 @@ class Text : public TextBase,
              public DataBindListItemConsumer
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     // Implements TextInterface
     ~Text();
     void markShapeDirty() override;

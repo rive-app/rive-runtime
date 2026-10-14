@@ -46,6 +46,10 @@ private:
     CoreHandle m_ParentHandle;
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+    void editorDetachFromGraph() override;
+#endif
     // Editor-installable hook fired from `parentIdChanged()` after
     // the generated setter swaps `m_ParentId`. editor_native
     // registers a function that does the actual re-parenting work

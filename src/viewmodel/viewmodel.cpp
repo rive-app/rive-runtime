@@ -112,3 +112,23 @@ rcp<ViewModelInstance> ViewModel::createFromInstance(
     }
     return nullptr;
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModel::editorPrepareForDestruction()
+{
+    // Definitions can be externally retained after the arena retires.
+    // Their instance lookup table must not expose freed arena entries.
+    m_Instances.erase(std::remove_if(m_Instances.begin(),
+                                     m_Instances.end(),
+                                     [](auto* instance) {
+                                         return instance->editorArena() !=
+                                                nullptr;
+                                     }),
+                      m_Instances.end());
+    m_Properties.erase(
+        std::remove_if(m_Properties.begin(),
+                       m_Properties.end(),
+                       [](auto* c) { return c->editorArena() != nullptr; }),
+        m_Properties.end());
+}
+
+#endif

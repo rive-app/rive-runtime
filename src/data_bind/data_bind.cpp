@@ -669,3 +669,21 @@ void DataBind::initialize()
         target()->as<Component>()->addCollapsable(this);
     }
 }
+#ifdef WITH_RIVE_EDITOR
+void DataBind::editorPrepareForDestruction()
+{
+    unbind();
+    if (m_dataConverter != nullptr)
+    {
+        if (m_dataConverter->editorArena() != nullptr)
+            m_dataConverter = nullptr;
+        else
+            m_dataConverter->editorPrepareForDestruction();
+    }
+    if (m_container != nullptr)
+        m_container->removeDataBind(this);
+    m_container = nullptr;
+    target(nullptr);
+}
+
+#endif

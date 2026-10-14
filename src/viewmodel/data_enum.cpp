@@ -94,3 +94,14 @@ int DataEnum::valueIndex(uint32_t index)
     }
     return -1;
 }
+#ifdef WITH_RIVE_EDITOR
+void DataEnum::editorPrepareForDestruction()
+{
+    m_Values.erase(
+        std::remove_if(m_Values.begin(),
+                       m_Values.end(),
+                       [](auto* c) { return c->editorArena() != nullptr; }),
+        m_Values.end());
+}
+
+#endif

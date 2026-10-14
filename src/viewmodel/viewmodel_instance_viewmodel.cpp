@@ -131,3 +131,14 @@ Core* ViewModelInstanceViewModel::clone() const
     }
     return cloned;
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstanceViewModel::editorPrepareForDestruction()
+{
+    if (m_referenceViewModelInstance && m_parentViewModelInstance)
+        m_referenceViewModelInstance->removeParent(m_parentViewModelInstance);
+    m_parentViewModelInstance = nullptr;
+    m_referenceViewModelInstance = nullptr;
+    ViewModelInstanceValue::editorPrepareForDestruction();
+}
+
+#endif

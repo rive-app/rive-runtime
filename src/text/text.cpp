@@ -1893,3 +1893,18 @@ BoundsFidelity Text::paintedWorldBounds(AABB* out)
     // can reach past the layout box, so an exact claim here would crop glyphs.
     return BoundsFidelity::approximate;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void Text::editorPrepareForDestruction()
+{
+#ifdef WITH_RIVE_TEXT
+    if (m_selectionController != nullptr)
+        m_selectionController->remove(this);
+    for (auto* listener : m_valueRunListeners)
+        delete listener;
+    m_valueRunListeners.clear();
+#endif
+    Component::editorPrepareForDestruction();
+}
+
+#endif

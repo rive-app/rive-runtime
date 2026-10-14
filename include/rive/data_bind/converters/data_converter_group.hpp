@@ -10,6 +10,9 @@ namespace rive
 class DataConverterGroup : public DataConverterGroupBase
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~DataConverterGroup();
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;

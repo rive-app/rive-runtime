@@ -11,6 +11,9 @@ class DataBind;
 class DataConverter : public DataConverterBase, public DataBindContainer
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~DataConverter();
     virtual DataValue* convert(DataValue* value, DataBind* dataBind)
     {

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "rive/math/math_types.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
@@ -143,3 +144,21 @@ bool DataConverterGroup::advance(float elapsedSeconds)
     }
     return didUpdate;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void DataConverterGroup::editorPrepareForDestruction()
+{
+    DataConverter::editorPrepareForDestruction();
+    // Runtime clones own their items; hydrated items belong to the arena.
+    // Descend into non-arena owners too: their children can be arena-backed.
+    for (auto* item : m_items)
+        if (item->editorArena() == nullptr)
+            item->editorPrepareForDestruction();
+    m_items.erase(std::remove_if(m_items.begin(),
+                                 m_items.end(),
+                                 [](auto* item) {
+                                     return item->editorArena() != nullptr;
+                                 }),
+                  m_items.end());
+}
+#endif

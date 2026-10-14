@@ -214,3 +214,16 @@ void ViewModelInstanceValue::onValueChanged()
     // Clear guard flag.
     m_changeFlags &= ~ValueFlags::delegating;
 }
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstanceValue::editorPrepareForDestruction()
+{
+    if (m_viewModelInstance != nullptr)
+        m_viewModelInstance->detachValueForEditor(this);
+    // A retained value must not keep schema/parent pointers into a retired
+    // file.
+    m_ViewModelProperty = nullptr;
+    m_viewModelInstance = nullptr;
+    Component::editorPrepareForDestruction();
+}
+
+#endif

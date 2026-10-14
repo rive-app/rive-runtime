@@ -381,9 +381,8 @@ void RenderContext::LogicalFlush::resetContainers()
     // many usecases where it isn't used at all.
 }
 
-static gpu::InterlockMode select_interlock_mode(
-    const RenderContext::FrameDescriptor& frameDescriptor,
-    const gpu::PlatformFeatures& platformFeatures)
+gpu::InterlockMode RenderContext::selectInterlockMode(
+    const RenderContext::FrameDescriptor& frameDescriptor)
 {
     if (frameDescriptor.msaaSampleCount != 0)
     {
@@ -391,26 +390,26 @@ static gpu::InterlockMode select_interlock_mode(
     }
     if (frameDescriptor.clockwiseFillOverride)
     {
-        if (platformFeatures.supportsClockwiseMode &&
+        if (platformFeatures().supportsClockwiseMode &&
             !frameDescriptor.disableRasterOrdering)
         {
             return gpu::InterlockMode::clockwise;
         }
-        if (platformFeatures.supportsClockwiseAtomicMode)
+        if (platformFeatures().supportsClockwiseAtomicMode)
         {
             return gpu::InterlockMode::clockwiseAtomic;
         }
     }
-    if (platformFeatures.supportsRasterOrderingMode &&
+    if (platformFeatures().supportsRasterOrderingMode &&
         (!frameDescriptor.disableRasterOrdering ||
          // Only respect "disableRasterOrdering" if we have atomic mode to fall
          // back on.
          // FIXME: This API can be improved.
-         !platformFeatures.supportsAtomicMode))
+         !platformFeatures().supportsAtomicMode))
     {
         return gpu::InterlockMode::rasterOrdering;
     }
-    if (platformFeatures.supportsAtomicMode)
+    if (platformFeatures().supportsAtomicMode)
     {
         return gpu::InterlockMode::atomics;
     }
@@ -426,8 +425,7 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);
     m_frameDescriptor = frameDescriptor;
-    m_frameInterlockMode =
-        select_interlock_mode(m_frameDescriptor, platformFeatures());
+    m_frameInterlockMode = selectInterlockMode(m_frameDescriptor);
     if (m_frameInterlockMode == gpu::InterlockMode::depthStencil &&
         m_frameDescriptor.msaaSampleCount == 0)
     {

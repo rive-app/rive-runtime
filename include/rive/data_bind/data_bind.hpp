@@ -23,6 +23,9 @@ typedef void (*DataBindChanged)();
 class DataBind : public DataBindBase, public ViewModelValueDependent
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~DataBind();
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode import(ImportStack& importStack) override;

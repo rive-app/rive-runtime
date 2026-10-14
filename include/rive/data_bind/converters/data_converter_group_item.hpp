@@ -8,6 +8,9 @@ namespace rive
 class DataConverterGroupItem : public DataConverterGroupItemBase
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~DataConverterGroupItem();
     StatusCode import(ImportStack& importStack) override;
     DataConverter* converter() const { return m_dataConverter; };

@@ -64,8 +64,7 @@ bool ViewModelInstanceList::addItemAt(rcp<ViewModelInstanceListItem> item,
 
 void ViewModelInstanceList::internalAddItem(rcp<ViewModelInstanceListItem> item)
 {
-    // For ViewModelInstanceListItems that are built as a core object
-    // we skip the ref since core has already reffed it
+    // Copy the supplied owning reference, just as addItem does.
     m_ListItems.push_back(item);
     if (item->viewModelInstance())
     {
@@ -234,3 +233,18 @@ Core* ViewModelInstanceList::clone() const
     }
     return cloned;
 }
+
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstanceList::editorPrepareForDestruction()
+{
+    if (m_parentViewModelInstance != nullptr)
+        for (auto& item : m_ListItems)
+            if (item->viewModelInstance())
+                item->viewModelInstance()->removeParent(
+                    m_parentViewModelInstance);
+    m_parentViewModelInstance = nullptr;
+    m_ListItems.clear();
+    ViewModelInstanceValue::editorPrepareForDestruction();
+}
+
+#endif

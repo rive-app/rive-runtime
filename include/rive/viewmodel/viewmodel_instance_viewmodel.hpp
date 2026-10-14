@@ -20,6 +20,9 @@ private:
     ViewModelInstance* m_parentViewModelInstance = nullptr;
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     void referenceViewModelInstance(rcp<ViewModelInstance> value)
     {
         if (m_referenceViewModelInstance && m_parentViewModelInstance)

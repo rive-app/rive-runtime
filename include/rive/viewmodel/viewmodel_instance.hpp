@@ -27,11 +27,16 @@ private:
     LazyVector<DataBindContainer*> m_dependents;
     std::vector<std::pair<SymbolType, ViewModelInstanceValue*>>
         m_propertySymbols;
-    ViewModel* m_ViewModel;
+    ViewModel* m_ViewModel = nullptr;
     void rebindDependents();
     void rebindProperties();
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+    void detachValueForEditor(ViewModelInstanceValue* value);
+    void editorRelease() override { unref(); }
+#endif
     static uint32_t pointerKey(const ViewModelInstance* instance)
     {
         if (instance == nullptr)

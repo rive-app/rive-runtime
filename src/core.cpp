@@ -1,4 +1,7 @@
 #include "rive/core.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "rive/editor/object_arena.hpp"
+#endif
 
 #include "rive/component_dirt.hpp"
 #include "rive/data_bind/data_bind.hpp"
@@ -9,6 +12,14 @@ using namespace rive;
 
 Core::~Core()
 {
+#ifdef WITH_RIVE_EDITOR
+    if (m_editorTracked)
+        s_editorLiveAllocations.fetch_sub(1, std::memory_order_relaxed);
+    if (m_arena != nullptr)
+    {
+        m_arena->objectDestroyed(this);
+    }
+#endif
     // Detach any DataBind observers so they don't dangle. Walk the intrusive
     // list and null out each observer's target+chain pointer.
     DataBind* o = m_firstObserver;

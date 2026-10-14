@@ -34,6 +34,9 @@ public:
 #endif
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorRelease() override { unref(); }
+#endif
     Span<const uint8_t> cdnUuid() const;
     std::string cdnUuidStr() const;
 

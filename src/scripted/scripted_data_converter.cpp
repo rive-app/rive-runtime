@@ -30,6 +30,10 @@ void ScriptedDataConverter::disposeScriptInputs()
         auto scriptInput = ScriptInput::from(prop);
         if (scriptInput != nullptr)
         {
+#ifdef WITH_RIVE_EDITOR
+            if (prop->editorArena() != nullptr)
+                continue;
+#endif
             // ScriptedDataConverters need to delete their own inputs
             // because they are not components
             delete scriptInput;
@@ -212,3 +216,12 @@ bool ScriptedDataConverter::addDataBindFromScriptedObject(DataBind* dataBind)
     addDataBind(dataBind);
     return true;
 }
+#ifdef WITH_RIVE_EDITOR
+void ScriptedDataConverter::editorPrepareForDestruction()
+{
+    scriptDispose();
+    ScriptedObject::dataContext(nullptr);
+    DataConverter::editorPrepareForDestruction();
+}
+
+#endif

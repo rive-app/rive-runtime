@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "rive/data_bind/converters/data_converter_formula.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
@@ -554,3 +555,23 @@ void DataConverterFormula::unbind()
     // context and its view-model graph alive until this converter dies.
     DataConverter::unbind();
 }
+
+#ifdef WITH_RIVE_EDITOR
+void DataConverterFormula::editorPrepareForDestruction()
+{
+    DataConverter::editorPrepareForDestruction();
+    // Source formulas own m_tokens, instances own m_outputQueue. Both can
+    // contain arena-backed tokens; remove those before either destructor path.
+    auto discardArenaTokens = [](auto& tokens) {
+        tokens.erase(std::remove_if(tokens.begin(),
+                                    tokens.end(),
+                                    [](auto* token) {
+                                        return token->editorArena() != nullptr;
+                                    }),
+                     tokens.end());
+    };
+    discardArenaTokens(m_tokens);
+    discardArenaTokens(m_outputQueue);
+    m_argumentsCount.clear();
+}
+#endif

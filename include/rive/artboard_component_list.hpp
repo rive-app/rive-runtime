@@ -42,6 +42,9 @@ private:
     std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ArtboardComponentList();
     ~ArtboardComponentList() override;
 #ifdef WITH_RIVE_LAYOUT

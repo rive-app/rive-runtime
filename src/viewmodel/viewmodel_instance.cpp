@@ -68,6 +68,14 @@ void ViewModelInstance::appendValue(ViewModelInstanceValue* value)
 {
     // Registers the value's symbol too.
     value->viewModelInstance(this);
+#ifdef WITH_RIVE_EDITOR
+    // Hydrated values keep their initial reference in the arena. The runtime
+    // importer, in contrast, transfers that initial reference to its VMI.
+    if (value->editorArena() != nullptr)
+    {
+        value->ref();
+    }
+#endif
     m_PropertyValues.push_back(rcp<ViewModelInstanceValue>(value));
 }
 
@@ -465,3 +473,50 @@ void ViewModelInstance::rebindDependents()
         parent->rebindDependents();
     }
 }
+
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstance::editorPrepareForDestruction()
+{
+    for (auto* bind : m_valueDataBinds)
+    {
+        if (bind->editorArena() == nullptr)
+            delete bind;
+    }
+    m_valueDataBinds.clear();
+    Component::editorPrepareForDestruction();
+}
+
+#endif
+
+#ifdef WITH_RIVE_EDITOR
+void ViewModelInstance::detachValueForEditor(ViewModelInstanceValue* value)
+{
+    // Removing a coop value must relinquish its container reference now, not
+    // keep a removed allocation alive until this entire file is retired.
+    for (auto* bind : LazyVector<DataBind*>(m_valueDataBinds))
+    {
+        if (bind->target() == value)
+        {
+            m_valueDataBinds.eraseAll(bind);
+            if (bind->editorArena() == nullptr)
+                delete bind;
+            else
+                bind->editorPrepareForDestruction();
+        }
+    }
+    for (auto* dependent : std::vector<DataBindContainer*>(m_dependents.view()))
+        dependent->dropInstanceValueBindsTargeting(value);
+    m_propertySymbols.erase(std::remove_if(m_propertySymbols.begin(),
+                                           m_propertySymbols.end(),
+                                           [value](const auto& symbol) {
+                                               return symbol.second == value;
+                                           }),
+                            m_propertySymbols.end());
+    m_PropertyValues.erase(std::remove_if(m_PropertyValues.begin(),
+                                          m_PropertyValues.end(),
+                                          [value](const auto& entry) {
+                                              return entry.get() == value;
+                                          }),
+                           m_PropertyValues.end());
+}
+#endif

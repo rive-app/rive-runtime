@@ -82,6 +82,11 @@ public:
     virtual void releaseDependencies() = 0;
 
 #ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override
+    {
+        releaseDependencies();
+        Component::editorPrepareForDestruction();
+    }
     // Body in `editor_native/.../component_parent_editor.cpp`. See
     // `Component::editorParentChanged` for the lifecycle contract.
     void editorParentChanged(ContainerComponent* from,

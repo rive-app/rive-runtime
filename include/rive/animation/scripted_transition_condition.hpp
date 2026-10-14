@@ -9,6 +9,9 @@ class ScriptedTransitionCondition : public ScriptedTransitionConditionBase,
                                     public ScriptedObject
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~ScriptedTransitionCondition();
     virtual void disposeScriptInputs() override;
     bool evaluate(const StateMachineInstance* stateMachineInstance,

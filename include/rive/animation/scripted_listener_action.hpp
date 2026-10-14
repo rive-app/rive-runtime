@@ -9,6 +9,9 @@ class ScriptedListenerAction : public ScriptedListenerActionBase,
                                public ScriptedObject
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     ~ScriptedListenerAction();
     virtual void disposeScriptInputs() override;
     void perform(StateMachineInstance* stateMachineInstance,

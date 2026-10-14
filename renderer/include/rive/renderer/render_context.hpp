@@ -153,6 +153,11 @@ public:
 #endif
     };
 
+    // Returns the interlock mode that beginFrame() will select for the given
+    // FrameDescriptor.
+    gpu::InterlockMode selectInterlockMode(
+        const RenderContext::FrameDescriptor&);
+
     // Called at the beginning of a frame and establishes where and how it will
     // be rendered.
     //

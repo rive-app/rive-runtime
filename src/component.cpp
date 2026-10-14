@@ -1,4 +1,8 @@
 #include "rive/component.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "rive/scripted/scripted_object.hpp"
+#include "rive/focus_data.hpp"
+#endif
 #include "rive/artboard.hpp"
 #include "rive/container_component.hpp"
 #include "rive/core_context.hpp"
@@ -218,3 +222,16 @@ void Component::updateCollapsables()
         collapsable->collapse(collapsed);
     }
 }
+#ifdef WITH_RIVE_EDITOR
+void Component::editorPrepareForDestruction()
+{
+    if (auto* scripted = ScriptedObject::from(this))
+    {
+        scripted->scriptDispose();
+        scripted->dataContext(nullptr);
+    }
+    if (is<FocusData>())
+        as<FocusData>()->detachFocusable();
+}
+
+#endif

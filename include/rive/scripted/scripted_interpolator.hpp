@@ -15,6 +15,9 @@ class ScriptedInterpolator : public ScriptedInterpolatorBase,
                              public ScriptedObject
 {
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+#endif
     float transformValue(float valueFrom, float valueTo, float factor) override;
     float transform(float factor) const override;
     uint32_t assetId() override { return scriptAssetId(); }

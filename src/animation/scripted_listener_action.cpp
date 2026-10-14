@@ -17,6 +17,10 @@ void ScriptedListenerAction::disposeScriptInputs()
         auto scriptInput = ScriptInput::from(prop);
         if (scriptInput != nullptr)
         {
+#ifdef WITH_RIVE_EDITOR
+            if (prop->editorArena() != nullptr)
+                continue;
+#endif
             // ScriptedDataConverters need to delete their own inputs
             // because they are not components
             delete scriptInput;
@@ -115,3 +119,12 @@ void ScriptedListenerAction::addProperty(CustomProperty* prop)
     }
     CustomPropertyContainer::addProperty(prop);
 }
+
+#ifdef WITH_RIVE_EDITOR
+void ScriptedListenerAction::editorPrepareForDestruction()
+{
+    scriptDispose();
+    dataContext(nullptr);
+}
+
+#endif

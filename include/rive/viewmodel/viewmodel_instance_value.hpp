@@ -48,6 +48,10 @@ private:
     void registerSymbol();
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorRelease() override { unref(); }
+    void editorPrepareForDestruction() override;
+#endif
     void addDelegate(ViewModelInstanceValueDelegate* delegate);
     void removeDelegate(ViewModelInstanceValueDelegate* delegate);
 

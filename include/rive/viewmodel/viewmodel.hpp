@@ -17,6 +17,10 @@ private:
     File* m_file = nullptr;
 
 public:
+#ifdef WITH_RIVE_EDITOR
+    void editorPrepareForDestruction() override;
+    void editorRelease() override { unref(); }
+#endif
     ~ViewModel();
     void addProperty(ViewModelProperty* property);
     ViewModelProperty* property(const std::string& name);
