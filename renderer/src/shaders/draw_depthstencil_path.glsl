@@ -545,7 +545,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 
 #if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     // Do the color portion of the blend mode in the shader.
+#ifdef @RENDER_TO_UAV
+    half4 dstColorPremul = PLS_LOAD4F_UAV(@dstColorUav);
+#else
     half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
+#endif
     color.rgb = advanced_color_blend(color.rgb, dstColorPremul, blendMode);
     // Premultiply before the hardware srcOver portion of the blend equation.
     color.rgb *= color.a;
@@ -556,6 +560,13 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                                             _fragCoord.xy,
                                             uniforms.ditherScale,
                                             uniforms.ditherBias);
+
+#ifdef @RENDER_TO_UAV
+    if (color.a != .0)
+    {
+        PLS_STORE4F_UAV(@dstColorUav, blend_src_over(color, dstColorPremul));
+    }
+#endif
 
     EMIT_FRAG_DATA(color);
 }

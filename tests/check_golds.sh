@@ -130,8 +130,19 @@ while :; do
             ARGS="$ARGS --no-rebuild --no-install"
             shift
         ;;
+        -j)
+            ARGS="$ARGS -j$2"
+            shift 2
+        ;;
+        -j[0-9] | -j[0-9][0-9] )
+            ARGS="$ARGS -j${1: 2}"
+            shift
+        ;;
         -m)
+            # Only gms take a match, so a filtered run skips goldens entirely.
+            TESTS="gms"
             ARGS="$ARGS --match $2"
+            DIFF_ARGS="$DIFF_ARGS --match $2"
             shift 2
         ;;
         -H)

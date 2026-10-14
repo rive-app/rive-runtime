@@ -763,6 +763,9 @@ UNREAL_INTERLOCK_OVERRIDES = {
     "": "raster",
     "atomic": "atomics",
     "msaa": "msaa",
+    "msaa1": "msaa1",
+    "cwmsaa1": "cwmsaa1",
+    "cwib": "cwib",
 }
 
 SUPPORTED_UNREAL_BACKENDS = {

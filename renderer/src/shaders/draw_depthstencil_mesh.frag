@@ -9,10 +9,16 @@
 #ifdef @DRAW_IMAGE_MESH
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#ifdef @ENABLE_ADVANCED_BLEND
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@RENDER_TO_UAV)
 DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
+
+#ifdef @RENDER_TO_UAV
+PLS_BLOCK_BEGIN
+PLS_DECL4F_UAV(COLOR_PLANE_IDX, @dstColorUav);
+PLS_BLOCK_END
+#endif
 
 DYNAMIC_SAMPLER_BLOCK_BEGIN
 SAMPLER_DYNAMIC_IMAGE(imageSampler)
@@ -80,7 +86,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
     ushort blendMode = cast_half_to_ushort(v_blendMode);
 #endif
+#ifdef @RENDER_TO_UAV
+    half4 dstColorPremul = PLS_LOAD4F_UAV(@dstColorUav);
+#else
     half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
+#endif
     color.rgb =
         advanced_color_blend(color.rgb, dstColorPremul, blendMode) * color.a;
 #endif
@@ -94,6 +104,13 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                                             _fragCoord.xy,
                                             uniforms.ditherScale,
                                             uniforms.ditherBias);
+
+#ifdef @RENDER_TO_UAV
+    if (color.a != .0)
+    {
+        PLS_STORE4F_UAV(@dstColorUav, blend_src_over(color, dstColorPremul));
+    }
+#endif
 
     EMIT_FRAG_DATA(color);
 }

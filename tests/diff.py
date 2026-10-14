@@ -48,6 +48,7 @@ parser.add_argument("-p", "--pack", action='store_true', help="copy candidates a
 parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
 parser.add_argument("-t", "--threshold", default=0.06, type=float, help="if histogram_compare is set, then threshold used for histogram pass result otherwise the threshold for pixel diff pass result")
 parser.add_argument("--allow-new", action='store_true', help="candidates with no golden are listed but do not fail; missing candidates still do")
+parser.add_argument("-m", "--match", default=None, help="only diff images whose name contains this substring")
 
 clean_mode = parser.add_mutually_exclusive_group(required=False)
 clean_mode.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical, also dont add identical images to index.html")
@@ -407,6 +408,11 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
                                if file.is_file() and file.name.endswith('.png')))
     golden_filenames = set((file.name for file in os.scandir(golden_path)
                             if file.is_file() and file.name.endswith('.png')))
+    if args.match:
+        candidate_filenames = {name for name in candidate_filenames
+                               if args.match in name}
+        golden_filenames = {name for name in golden_filenames
+                            if args.match in name}
     # Diff every file that appears in either directory. image_diff.py reports a
     # missing_candidate / missing_golden status for files that only exist on one
     # side and writes a thumbnail of the single image that does exist, so the

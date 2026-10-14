@@ -183,6 +183,19 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
         params->msaaSampleCount = MSAASampleCount;
         return Backend::d3d;
     }
+    if (nameStr == "d3dcwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        return Backend::d3d;
+    }
+    if (nameStr == "d3dcwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
+        return Backend::d3d;
+    }
     if (nameStr == "d3d12")
     {
         return Backend::d3d12;
@@ -195,6 +208,19 @@ TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
     if (nameStr == "d3d12msaa")
     {
         params->msaaSampleCount = MSAASampleCount;
+        return Backend::d3d12;
+    }
+    if (nameStr == "d3d12cwmsaa1")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        return Backend::d3d12;
+    }
+    if (nameStr == "d3d12cwib")
+    {
+        params->clockwise = true;
+        params->msaaSampleCount = 1;
+        params->inkbleed = true;
         return Backend::d3d12;
     }
     if (nameStr == "metal")

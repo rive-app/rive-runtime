@@ -732,9 +732,8 @@ INLINE void blend_pls_color_src_over(half4 fragColorOut PLS_CONTEXT_DECL)
 #ifndef @PLS_BLEND_SRC_OVER
     if (fragColorOut.r + fragColorOut.g + fragColorOut.b + fragColorOut.a == .0)
         return;
-    float oneMinusSrcAlpha = 1. - fragColorOut.a;
-    if (oneMinusSrcAlpha != .0)
-        fragColorOut += PLS_LOAD4F(colorBuffer) * oneMinusSrcAlpha;
+    if (fragColorOut.a != 1.)
+        fragColorOut = blend_src_over(fragColorOut, PLS_LOAD4F(colorBuffer));
 #endif
     PLS_STORE4F(colorBuffer, fragColorOut);
 }

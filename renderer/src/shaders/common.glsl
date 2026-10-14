@@ -501,3 +501,10 @@ INLINE half4 dst_color_fetch(half4x4 dstSamples, int sampleMask)
 }
 #endif // @FRAGMENT && @RENDER_MODE_DEPTH_STENCIL &&
        // !@FIXED_FUNCTION_COLOR_OUTPUT
+
+#ifdef @FRAGMENT
+INLINE half4 blend_src_over(half4 srcPremul, half4 dstPremul)
+{
+    return srcPremul + dstPremul * (1. - srcPremul.a);
+}
+#endif // @FRAGMENT

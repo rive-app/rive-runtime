@@ -135,14 +135,14 @@ $typedef $uint ushort;
 #define DYNAMIC_SAMPLER_BLOCK_BEGIN
 #define DYNAMIC_SAMPLER_BLOCK_END
 
-#define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
-#define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) $Texture2D<uint4> NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME) $Texture2D<float4> NAME
 #ifdef @SOURCE_TEXTURE_MSAA
-#define TEXTURE_RGBA8_MS(SET, IDX, NAME) uniform $Texture2DMS<half4> NAME
+#define TEXTURE_RGBA8_MS(SET, IDX, NAME) $Texture2DMS<half4> NAME
 #endif
-#define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<half4> NAME
-#define TEXTURE_R16F(SET, IDX, NAME) uniform $Texture2D<half> NAME
-#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) uniform $Texture2DArray<half> NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) $Texture2D<half4> NAME
+#define TEXTURE_R16F(SET, IDX, NAME) $Texture2D<half> NAME
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) $Texture2DArray<half> NAME
 #define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
     $Texture2D<half> NAME, $SamplerState SAMPLER_NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
@@ -225,6 +225,8 @@ $typedef $uint ushort;
                     _sampleMask)
 
 #else
+// Dst color comes from a resolved copy of the framebuffer, refreshed at each
+// barrier.
 #define DST_COLOR_TEXTURE(NAME) $Texture2D NAME
 
 #define DST_COLOR_FETCH(NAME) NAME[_plsCoord]
@@ -235,18 +237,18 @@ $typedef $uint ushort;
 #define PLS_BLOCK_END
 
 #ifdef @ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<UNORM half4> NAME
+#define PLS_DECL4F(IDX, NAME) PLS_TEX2D<UNORM half4> NAME
 #else
-#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME
+#define PLS_DECL4F(IDX, NAME) PLS_TEX2D<uint> NAME
 #endif
 #define PLS_DECL4F_READONLY PLS_DECL4F
-#define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME
+#define PLS_DECLUI(IDX, NAME) PLS_TEX2D<uint> NAME
 
 #define PLS_LOADUI_UAV PLS_LOADUI
 #define PLS_STOREUI_UAV PLS_STOREUI
 
 #if $COMPILER_METAL || $FORCE_ATOMIC_BUFFER
-#define PLS_DECLUI_UAV(IDX, NAME) uniform $RWBuffer<uint> NAME
+#define PLS_DECLUI_UAV(IDX, NAME) $RWBuffer<uint> NAME
 #define PLS_LOADUI_UAV(PLANE) PLANE[_plsIdx]
 #define PLS_STOREUI_UAV(PLANE, VALUE) PLANE[_plsIdx] = VALUE
 #else
@@ -267,6 +269,10 @@ $typedef $uint ushort;
 #define PLS_STORE4F(PLANE, VALUE) PLANE[_plsCoord] = packUnorm4x8(VALUE)
 #endif
 #define PLS_STOREUI(PLANE, VALUE) PLANE[_plsCoord] = (VALUE)
+
+#define PLS_DECL4F_UAV PLS_DECL4F
+#define PLS_LOAD4F_UAV PLS_LOAD4F
+#define PLS_STORE4F_UAV PLS_STORE4F
 
 #if $COMPILER_METAL || $FORCE_ATOMIC_BUFFER
 INLINE uint pls_atomic_max($RWBuffer<uint> plane, uint _plsIdx, uint x)
