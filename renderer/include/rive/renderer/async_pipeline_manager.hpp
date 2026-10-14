@@ -340,7 +340,6 @@ public:
         processCompletedJobs();
     }
 
-protected:
     bool queuePipelineIfNotFound(const PipelineProps& props,
                                  const PlatformFeatures& platformFeatures)
     {
@@ -361,6 +360,7 @@ protected:
         return true;
     }
 
+protected:
     void waitForPipelineForRender(PipelineKey key)
     {
         auto iter = m_pipelines.find(key);

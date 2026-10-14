@@ -3263,6 +3263,44 @@ bool RenderContextGLImpl::testingOnly_setBlendAdvancedKHRSupported(
 }
 #endif
 
+bool RenderContextGLImpl::tryStartAsyncUbershaderCreation(
+    InterlockMode interlockMode)
+{
+    if (!m_capabilities.KHR_parallel_shader_compile)
+    {
+        return false;
+    }
+
+    ForEachUbershaderPermutation(
+        interlockMode,
+        m_platformFeatures,
+        [this, interlockMode](DrawType drawType,
+                              ShaderFeatures shaderFeatures,
+                              ShaderMiscFlags miscFlags) {
+            if (drawType == DrawType::renderPassResolve &&
+                interlockMode != InterlockMode::atomics)
+            {
+                // We don't do this combination of things in GL (because GL
+                // doesn't support subpass loads, so render pass resolves are
+                // mostly done via blitting). As such, this combination of flags
+                // will assert in DrawShader.
+                return true;
+            }
+
+            m_pipelineManager.queuePipelineIfNotFound(
+                {
+                    .drawType = drawType,
+                    .shaderFeatures = shaderFeatures,
+                    .interlockMode = interlockMode,
+                    .shaderMiscFlags = miscFlags,
+                },
+                m_platformFeatures);
+            return true;
+        });
+
+    return true;
+}
+
 // The sscanf subset these fixed version strings need, %u and whitespace, so
 // the wasm does not link all of scanf. Returns how many values it read.
 static int scanVersion(const char* str,

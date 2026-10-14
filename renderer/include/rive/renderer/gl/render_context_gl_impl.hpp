@@ -137,6 +137,12 @@ public:
     bool testingOnly_setBlendAdvancedKHRSupported(bool supported);
 #endif
 
+    // Attempt to start background ubershader creation (to avoid frame hitches
+    // when rendering using features not yet covered by existing ubershaders).
+    // Returns true if it started the pipelines, or false if it could not (i.e.
+    // if KHR_parallel_shader_compile isn't supported by this device).
+    bool tryStartAsyncUbershaderCreation(InterlockMode);
+
 private:
     class DrawProgram;
 
