@@ -12,6 +12,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive_file_reader.hpp"
 #include "rive/renderer/render_canvas.hpp"
+#include "utils/no_op_factory.hpp"
 #include "utils/no_op_renderer.hpp"
 
 #include <catch.hpp>
@@ -477,6 +478,116 @@ TEST_CASE("canvas content replays byte-identically", "[serialize][replay]")
     auto sb = b.bytes();
     REQUIRE(sa.size() == sb.size());
     CHECK(std::memcmp(sa.data(), sb.data(), sa.size()) == 0);
+}
+
+namespace
+{
+// Remembers the last modulated image a replayed paint was handed.
+class ImageCapturingPaint : public RenderPaint
+{
+public:
+    const RenderImage* image = nullptr;
+    void style(RenderPaintStyle) override {}
+    void color(ColorInt) override {}
+    void thickness(float) override {}
+    void join(StrokeJoin) override {}
+    void cap(StrokeCap) override {}
+    void blendMode(BlendMode) override {}
+    void shader(rcp<RenderShader>) override {}
+    void shaderTransform(const Mat2D&) override {}
+    void invalidateStroke() override {}
+    void modulatedImage(const RenderImage* value,
+                        ImageSampler,
+                        const Mat2D&) override
+    {
+        image = value;
+    }
+};
+
+class ImageCapturingFactory : public NoOpFactory
+{
+public:
+    std::vector<rcp<ImageCapturingPaint>> paints;
+    rcp<RenderPaint> makeRenderPaint() override
+    {
+        paints.push_back(make_rcp<ImageCapturingPaint>());
+        return paints.back();
+    }
+    rcp<RenderImage> decodeImage(Span<const uint8_t>) override
+    {
+        return make_rcp<NoOpImage>();
+    }
+
+    class NoOpImage : public RenderImage
+    {};
+};
+} // namespace
+
+TEST_CASE("a paint modulated by a canvas replays sampling that canvas",
+          "[serialize][replay]")
+{
+    // An artboard paint source hands a canvas's image to
+    // RenderPaint::modulatedImage. A canvas image carries no id of its own --
+    // the factory knows it -- so the paint has to ask the factory rather than
+    // cast it to a decoded image and read whatever sits where an id would be.
+    SerializingFactory a;
+    a.frameSize(256, 256);
+    a.addFrame();
+    auto rendererA = a.makeRenderer();
+
+    // A decoded image first, so the canvas is not image 0: a misread id of
+    // zero must not land on the canvas by luck.
+    auto imageBytes = ReadFile("assets/open_source.jpg");
+    auto decoded = a.decodeImage(imageBytes);
+    REQUIRE(decoded != nullptr);
+
+    RawPath rp;
+    rp.move({0, 0});
+    rp.line({10, 0});
+    rp.line({10, 10});
+    rp.close();
+    auto path = a.makeRenderPath(rp, FillRule::nonZero);
+    auto ink = a.makeRenderPaint();
+    ink->color(0xFF445566);
+
+    auto canvas = make_rcp<gpu::RenderCanvas>(32, 16);
+    Renderer* content = a.beginCanvasContent(canvas.get(), 0xFF204060);
+    REQUIRE(content != nullptr);
+    content->drawPath(path.get(), ink.get());
+    a.endCanvasContent(canvas.get());
+
+    auto patterned = a.makeRenderPaint();
+    ImageSampler repeat;
+    repeat.wrapX = ImageWrap::repeat;
+    repeat.wrapY = ImageWrap::repeat;
+    patterned->modulatedImage(a.contentCanvasImage(canvas.get()).get(),
+                              repeat,
+                              Mat2D::fromScale(32.0f, 16.0f));
+    rendererA->drawPath(path.get(), patterned.get());
+
+    ImageCapturingFactory b;
+    NoOpRenderer rendererB;
+    rcp<RenderImage> canvasImageB;
+    std::vector<rcp<gpu::RenderCanvas>> canvasesB;
+    NoOpRenderer contentB;
+    SerializedReplayHooks hooks;
+    hooks.onCanvasContentBegin = [&](uint64_t,
+                                     uint32_t w,
+                                     uint32_t h,
+                                     uint32_t,
+                                     rcp<RenderImage>* image) -> Renderer* {
+        canvasesB.push_back(make_rcp<gpu::RenderCanvas>(w, h));
+        canvasImageB = ref_rcp<RenderImage>(canvasesB.back()->renderImage());
+        *image = canvasImageB;
+        return &contentB;
+    };
+    hooks.onCanvasContentEnd = [&](uint64_t) {};
+
+    REQUIRE(replaySerializedCommands(a.bytes(), &b, &rendererB, hooks));
+    REQUIRE(b.paints.size() == 2);
+    REQUIRE(canvasImageB != nullptr);
+    // The second paint is the patterned one.
+    CHECK(b.paints[1]->image == canvasImageB.get());
 }
 
 TEST_CASE("a host with no offscreen target drops the canvas and keeps going",

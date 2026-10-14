@@ -1153,6 +1153,9 @@ public:
             case PaintImageBase::imageAssetIdPropertyKey:
                 object->as<PaintImageBase>()->imageAssetId(value);
                 break;
+            case PaintImageBase::artboardIdPropertyKey:
+                object->as<PaintImageBase>()->artboardId(value);
+                break;
             case ListPathBase::listSourcePropertyKey:
                 object->as<ListPathBase>()->listSource(value);
                 break;
@@ -2202,6 +2205,9 @@ public:
                 break;
             case PaintImageBase::imageAssetIdPropertyKey:
                 object->as<PaintImageBase>()->imageAssetId(value);
+                break;
+            case PaintImageBase::artboardIdPropertyKey:
+                object->as<PaintImageBase>()->artboardId(value);
                 break;
             case ListPathBase::listSourcePropertyKey:
                 object->as<ListPathBase>()->listSource(value);
@@ -3498,6 +3504,8 @@ public:
                 return object->as<TargetEffectBase>()->targetId();
             case PaintImageBase::imageAssetIdPropertyKey:
                 return object->as<PaintImageBase>()->imageAssetId();
+            case PaintImageBase::artboardIdPropertyKey:
+                return object->as<PaintImageBase>()->artboardId();
             case ListPathBase::listSourcePropertyKey:
                 return object->as<ListPathBase>()->listSource();
             case ClippingShapeBase::sourceIdPropertyKey:
@@ -4250,6 +4258,8 @@ public:
                 return object->as<TargetEffectBase>()->targetId();
             case PaintImageBase::imageAssetIdPropertyKey:
                 return object->as<PaintImageBase>()->imageAssetId();
+            case PaintImageBase::artboardIdPropertyKey:
+                return object->as<PaintImageBase>()->artboardId();
             case ListPathBase::listSourcePropertyKey:
                 return object->as<ListPathBase>()->listSource();
             case ClippingShapeBase::sourceIdPropertyKey:
@@ -5109,6 +5119,7 @@ public:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case TargetEffectBase::targetIdPropertyKey:
             case PaintImageBase::imageAssetIdPropertyKey:
+            case PaintImageBase::artboardIdPropertyKey:
             case ListPathBase::listSourcePropertyKey:
             case ClippingShapeBase::sourceIdPropertyKey:
             case ImageBase::assetIdPropertyKey:
@@ -5894,6 +5905,8 @@ public:
             case TargetEffectBase::targetIdPropertyKey:
                 return TargetEffectBase::typeKey;
             case PaintImageBase::imageAssetIdPropertyKey:
+                return PaintImageBase::typeKey;
+            case PaintImageBase::artboardIdPropertyKey:
                 return PaintImageBase::typeKey;
             case ListPathBase::listSourcePropertyKey:
                 return ListPathBase::typeKey;

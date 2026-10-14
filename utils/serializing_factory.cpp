@@ -169,8 +169,10 @@ private:
 class SerializingRenderPaint : public RenderPaint
 {
 public:
-    SerializingRenderPaint(BinaryWriter* writer, uint64_t id) :
-        m_id(id), m_writer(writer)
+    SerializingRenderPaint(BinaryWriter* writer,
+                           uint64_t id,
+                           const SerializingFactory* factory) :
+        m_id(id), m_writer(writer), m_factory(factory)
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::makeRenderPaint);
         m_writer->writeVarUint(m_id);
@@ -307,11 +309,11 @@ public:
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::paintModulatedImage);
         m_writer->writeVarUint(m_id);
-        // Image id is offset by one so 0 unambiguously means "no image".
+        // Image id is offset by one so 0 unambiguously means "no image". Ask
+        // the factory rather than casting: the image may be a canvas's (an
+        // artboard paint source samples one), which carries no id of its own.
         m_writer->writeVarUint(
-            image == nullptr
-                ? 0
-                : static_cast<const SerializingRenderImage*>(image)->id() + 1);
+            image == nullptr ? 0 : m_factory->imageId(image) + 1);
         m_writer->writeVarUint((uint32_t)sampler.filter);
         m_writer->writeVarUint((uint32_t)sampler.wrapX);
         m_writer->writeVarUint((uint32_t)sampler.wrapY);
@@ -341,6 +343,7 @@ public:
 private:
     uint64_t m_id;
     BinaryWriter* m_writer;
+    const SerializingFactory* m_factory;
     rcp<RenderShader> m_shader;
     Mat2D m_shaderTransform;
 
@@ -645,7 +648,7 @@ rcp<RenderPath> SerializingFactory::makeEmptyRenderPath()
 
 rcp<RenderPaint> SerializingFactory::makeRenderPaint()
 {
-    return make_rcp<SerializingRenderPaint>(&m_writer, m_renderPaintId++);
+    return make_rcp<SerializingRenderPaint>(&m_writer, m_renderPaintId++, this);
 }
 
 rcp<RenderImage> SerializingFactory::decodeImage(Span<const uint8_t> data)

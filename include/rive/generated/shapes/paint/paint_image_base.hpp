@@ -30,6 +30,7 @@ public:
     static const uint16_t imageOffsetYPropertyKey = 410;
     static const uint16_t imageRotationPropertyKey = 411;
     static const uint16_t imageSizeModePropertyKey = 412;
+    static const uint16_t artboardIdPropertyKey = 487;
 
 protected:
     Id m_ImageAssetId = kEmptyId;
@@ -42,6 +43,7 @@ protected:
     float m_ImageOffsetY = 0.0f;
     float m_ImageRotation = 0.0f;
     uint8_t m_ImageSizeMode = 0;
+    Id m_ArtboardId = kEmptyId;
 
 public:
     inline Id imageAssetId() const { return m_ImageAssetId; }
@@ -174,6 +176,19 @@ public:
         notifyPropertyChanged(imageSizeModePropertyKey);
     }
 
+    inline Id artboardId() const { return m_ArtboardId; }
+    void artboardId(Id value)
+    {
+        if (m_ArtboardId == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(artboardIdPropertyKey, &m_ArtboardId, &value);
+        m_ArtboardId = value;
+        RIVE_EDITOR_CHANGED(artboardIdChanged());
+        notifyPropertyChanged(artboardIdPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const PaintImageBase& object)
     {
@@ -187,6 +202,7 @@ public:
         m_ImageOffsetY = object.m_ImageOffsetY;
         m_ImageRotation = object.m_ImageRotation;
         m_ImageSizeMode = object.m_ImageSizeMode;
+        m_ArtboardId = object.m_ArtboardId;
         RIVE_EDITOR_COPY(object);
         Component::copy(object);
     }
@@ -225,12 +241,16 @@ public:
             case imageSizeModePropertyKey:
                 m_ImageSizeMode = CoreUintType::deserialize(reader);
                 return true;
+            case artboardIdPropertyKey:
+                m_ArtboardId = CoreIdType::runtimeDeserialize(reader);
+                return true;
         }
         RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
         return Component::deserialize(propertyKey, reader);
     }
 
 protected:
+    virtual void artboardIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/paint_image_ext.inl"
 #endif

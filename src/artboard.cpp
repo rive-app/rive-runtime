@@ -33,6 +33,7 @@
 #include "rive/factory.hpp"
 #include "rive/renderer.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/watermark.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -510,6 +511,15 @@ StatusCode Artboard::initialize()
             case ArtboardComponentListBase::typeKey:
                 m_ComponentLists.push_back(object->as<ArtboardComponentList>());
                 m_ArtboardHosts.push_back(object->as<ArtboardComponentList>());
+                break;
+            case PaintImageBase::typeKey:
+                // Only a paint filled with an artboard hosts one (it passes
+                // this artboard's data context to it). An image paint stays
+                // out, so it keeps list rows free to go quiet.
+                if (object->as<PaintImage>()->sourceArtboard() != nullptr)
+                {
+                    m_ArtboardHosts.push_back(object->as<PaintImage>());
+                }
                 break;
             case JoystickBase::typeKey:
             {

@@ -12,6 +12,7 @@
 #include "rive/scripted/scripted_layout.hpp"
 #include "rive/scripted/scripted_transition.hpp"
 #include "rive/scripted/scripted_path_effect.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/text/text_input.hpp"
 
 using namespace rive;
@@ -46,6 +47,8 @@ AdvancingComponent* AdvancingComponent::from(Core* component)
             return component->as<ScriptedTransition>();
         case ScriptedPathEffect::typeKey:
             return component->as<ScriptedPathEffect>();
+        case PaintImageBase::typeKey:
+            return component->as<PaintImage>();
     }
     return nullptr;
 }

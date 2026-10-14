@@ -249,14 +249,30 @@ void ShapePaint::draw(Renderer* renderer,
         // Modulate this paint with the (optional) PaintImage child, fit to the
         // shape's local bounds. Skipped when drawing with an external override
         // paint. The child is discovered by type rather than cached.
+        ModulatedDrawTarget target;
+        target.renderer = renderer;
         if (overridePaint == nullptr)
         {
-            applyModulatedImage(shapePaintPath);
+            applyModulatedImage(renderer, shapePaintPath, &target);
         }
 
-        renderer->drawPath(renderPath,
-                           overridePaint != nullptr ? overridePaint
-                                                    : renderPaint());
+        if (target.renderer != renderer)
+        {
+            // An artboard source rasterized on an immediate host, which leaves
+            // [renderer] unable to sample the result; draw through the clean
+            // renderer it handed back, with this draw's transform and opacity.
+            target.renderer->save();
+            target.renderer->transform(target.transform);
+            target.renderer->modulateOpacity(target.opacity);
+            target.renderer->drawPath(renderPath, renderPaint());
+            target.renderer->restore();
+        }
+        else
+        {
+            renderer->drawPath(renderPath,
+                               overridePaint != nullptr ? overridePaint
+                                                        : renderPaint());
+        }
     }
 
     if (saved && needsSaveOperation)
@@ -265,15 +281,19 @@ void ShapePaint::draw(Renderer* renderer,
     }
 }
 
-void ShapePaint::applyModulatedImage(const ShapePaintPath* path)
+void ShapePaint::applyModulatedImage(Renderer* renderer,
+                                     const ShapePaintPath* path,
+                                     ModulatedDrawTarget* target)
 {
 #ifdef WITH_RIVE_EDITOR
     PaintImage* image = firstChild<PaintImage>();
 #else
     PaintImage* image = m_hasPaintImage ? firstChild<PaintImage>() : nullptr;
 #endif
-    if (image != nullptr &&
-        image->applyTo(renderPaint(), path->rawPath()->bounds()))
+    if (image != nullptr && image->applyTo(renderer,
+                                           renderPaint(),
+                                           path->rawPath()->bounds(),
+                                           target))
     {
         m_hasModulatedImage = true;
         return;

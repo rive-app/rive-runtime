@@ -4,6 +4,7 @@
 #include "rive/nested_artboard_leaf.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/script_input_artboard.hpp"
+#include "rive/shapes/paint/paint_image.hpp"
 #include "rive/file.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 
@@ -53,6 +54,8 @@ ArtboardReferencer* ArtboardReferencer::from(Core* component)
             return component->as<NestedArtboard>();
         case ScriptInputArtboardBase::typeKey:
             return component->as<ScriptInputArtboard>();
+        case PaintImageBase::typeKey:
+            return component->as<PaintImage>();
     }
     return nullptr;
 }

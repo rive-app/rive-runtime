@@ -8,6 +8,7 @@
 #include "rive/shapes/path_flags.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/shapes/paint/stroke_effect.hpp"
+#include "rive/shapes/paint/artboard_paint_source.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
@@ -123,7 +124,11 @@ private:
     /// Install (or clear) the modulating image contributed by the optional
     /// PaintImage child onto m_RenderPaint, fit to [path]'s bounds. The bounds
     /// walk every point, so they are only measured when that child exists.
-    void applyModulatedImage(const ShapePaintPath* path);
+    /// [target] receives the renderer the path has to be drawn through, which
+    /// is [renderer] unless an artboard source had to reroute it.
+    void applyModulatedImage(Renderer* renderer,
+                             const ShapePaintPath* path,
+                             ModulatedDrawTarget* target);
 
     Feather* m_feather = nullptr;
     /// Whether this paint has a PaintImage child, and whether it is a Fill,
