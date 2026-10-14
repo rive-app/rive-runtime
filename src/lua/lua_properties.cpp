@@ -177,6 +177,19 @@ static void pushViewModelInstanceValue(lua_State* L,
 
 ScriptedProperty::~ScriptedProperty() { dispose(); }
 
+void ScriptedObject::addTrackedScriptedProperty(ScriptedProperty* property)
+{
+    if (property != nullptr)
+    {
+        trackScriptedProperty(m_trackedScriptedProperties, property);
+    }
+}
+
+void ScriptedObject::removeTrackedScriptedProperty(ScriptedProperty* property)
+{
+    untrackScriptedProperty(m_trackedScriptedProperties, property);
+}
+
 ScriptedPropertyViewModel::~ScriptedPropertyViewModel() { dispose(); }
 
 void ScriptedProperty::clearCachedValueRef()

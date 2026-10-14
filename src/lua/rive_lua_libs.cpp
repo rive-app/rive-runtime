@@ -732,16 +732,13 @@ void ScriptingContext::trackOrphanScriptedProperty(ScriptedProperty* property)
 {
     if (property != nullptr)
     {
-        m_orphanScriptedProperties.push_back(property);
+        trackScriptedProperty(m_orphanScriptedProperties, property);
     }
 }
 
 void ScriptingContext::untrackOrphanScriptedProperty(ScriptedProperty* property)
 {
-    auto it = std::remove(m_orphanScriptedProperties.begin(),
-                          m_orphanScriptedProperties.end(),
-                          property);
-    m_orphanScriptedProperties.erase(it, m_orphanScriptedProperties.end());
+    untrackScriptedProperty(m_orphanScriptedProperties, property);
 }
 
 void ScriptingContext::disposeOrphanScriptedProperties(bool allTags)

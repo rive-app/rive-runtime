@@ -110,21 +110,9 @@ public:
         return nullptr;
     }
     void cloneProperties(CustomPropertyContainer*, DataBindContainer*) const;
-    void addTrackedScriptedProperty(ScriptedProperty* property)
-    {
-        if (property != nullptr)
-        {
-            m_trackedScriptedProperties.push_back(property);
-        }
-    }
-    void removeTrackedScriptedProperty(ScriptedProperty* property)
-    {
-        auto it = std::remove(m_trackedScriptedProperties.begin(),
-                              m_trackedScriptedProperties.end(),
-                              property);
-        m_trackedScriptedProperties.erase(it,
-                                          m_trackedScriptedProperties.end());
-    }
+    // Defined with ScriptedProperty (Luau backend only).
+    void addTrackedScriptedProperty(ScriptedProperty* property);
+    void removeTrackedScriptedProperty(ScriptedProperty* property);
     const std::vector<ScriptedProperty*>& trackedScriptedProperties() const
     {
         return m_trackedScriptedProperties;

@@ -1472,10 +1472,17 @@ public:
 #ifdef WITH_RIVE_TOOLS
     uint32_t orphanOwnerTag() const { return m_orphanOwnerTag; }
 #endif
+    // Slot in whichever list tracks this property (its owner's tracked list or
+    // the context's orphan list; never both). Untracking swap-removes from that
+    // slot: teardown untracks every property, and scanning for each one made
+    // dropping a VM that had accumulated many of them quadratic.
+    size_t trackIndex() const { return m_trackIndex; }
+    void trackIndex(size_t value) { m_trackIndex = value; }
 
 private:
     std::vector<ScriptedListener> m_listeners;
     ScriptedObject* m_owner = nullptr;
+    size_t m_trackIndex = 0;
 #ifdef WITH_RIVE_TOOLS
     ScriptingContext* m_orphanContext = nullptr;
     uint32_t m_orphanOwnerTag = 0;
@@ -1496,6 +1503,29 @@ protected:
     int m_cachedValueRef = 0;
     void clearCachedValueRef();
 };
+
+// Tracking lists for ScriptedProperty are unordered: each property remembers
+// its slot so removal is O(1).
+inline void trackScriptedProperty(std::vector<ScriptedProperty*>& list,
+                                  ScriptedProperty* property)
+{
+    property->trackIndex(list.size());
+    list.push_back(property);
+}
+
+inline void untrackScriptedProperty(std::vector<ScriptedProperty*>& list,
+                                    ScriptedProperty* property)
+{
+    size_t index = property->trackIndex();
+    if (index >= list.size() || list[index] != property)
+    {
+        return;
+    }
+    ScriptedProperty* last = list.back();
+    list[index] = last;
+    last->trackIndex(index);
+    list.pop_back();
+}
 
 class ScriptedViewModel
 {
