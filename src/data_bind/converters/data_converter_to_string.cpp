@@ -9,34 +9,14 @@
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/animation/data_converter_to_string_flags.hpp"
 #include "rive/data_bind/converters/data_converter_string_remove_zeros.hpp"
+#include "rive/data_bind/converters/string_template/string_template_format.hpp"
 #include <stdio.h>
 
 using namespace rive;
 
 std::string DataConverterToString::formatWithCommas(std::string& num)
 {
-    // Split integer and fractional parts
-    std::string intPart, fracPart;
-    size_t dotPos = num.find('.');
-    if (dotPos != std::string::npos)
-    {
-        intPart = num.substr(0, dotPos);
-        fracPart = num.substr(dotPos); // keep the '.' too
-    }
-    else
-    {
-        intPart = num;
-    }
-
-    // Insert commas into the integer part
-    int insertPosition = (int)intPart.length() - 3;
-    while (insertPosition > 0 && isdigit(intPart[insertPosition - 1]))
-    {
-        intPart.insert(insertPosition, ",");
-        insertPosition -= 3;
-    }
-
-    return intPart + fracPart;
+    return StringTemplateFormat::formatThousands(num);
 }
 
 DataValue* DataConverterToString::convertNumber(DataValueNumber* input)

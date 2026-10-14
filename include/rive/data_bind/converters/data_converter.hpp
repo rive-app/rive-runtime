@@ -35,7 +35,7 @@ public:
     virtual void reset() {};
 
 protected:
-    DataBind* m_parentDataBind;
+    DataBind* m_parentDataBind = nullptr;
 };
 } // namespace rive
 

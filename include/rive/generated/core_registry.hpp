@@ -189,6 +189,7 @@
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
 #include "rive/data_bind/converters/data_converter_string_pad.hpp"
 #include "rive/data_bind/converters/data_converter_string_remove_zeros.hpp"
+#include "rive/data_bind/converters/data_converter_string_template.hpp"
 #include "rive/data_bind/converters/data_converter_string_trim.hpp"
 #include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
@@ -204,6 +205,9 @@
 #include "rive/data_bind/converters/formula/formula_token_parenthesis_close.hpp"
 #include "rive/data_bind/converters/formula/formula_token_parenthesis_open.hpp"
 #include "rive/data_bind/converters/formula/formula_token_value.hpp"
+#include "rive/data_bind/converters/string_template/string_template_argument.hpp"
+#include "rive/data_bind/converters/string_template/string_template_argument_number.hpp"
+#include "rive/data_bind/converters/string_template/string_template_argument_string.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/data_bind/data_bind_path.hpp"
@@ -820,6 +824,10 @@ public:
                 return new DataConverterSystemNormalizer();
             case DataConverterListToLengthBase::typeKey:
                 return new DataConverterListToLength();
+            case StringTemplateArgumentStringBase::typeKey:
+                return new StringTemplateArgumentString();
+            case StringTemplateArgumentNumberBase::typeKey:
+                return new StringTemplateArgumentNumber();
             case DataConverterGroupItemBase::typeKey:
                 return new DataConverterGroupItem();
             case DataConverterGroupBase::typeKey:
@@ -828,6 +836,8 @@ public:
                 return new DataConverterStringRemoveZeros();
             case DataConverterRounderBase::typeKey:
                 return new DataConverterRounder();
+            case DataConverterStringTemplateBase::typeKey:
+                return new DataConverterStringTemplate();
             case DataConverterStringPadBase::typeKey:
                 return new DataConverterStringPad();
             case DataConverterTriggerBase::typeKey:
@@ -1291,6 +1301,21 @@ public:
                 break;
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 object->as<CustomPropertyStringBase>()->propertyValue(value);
+                break;
+            case StringTemplateArgumentBase::namePropertyKey:
+                object->as<StringTemplateArgumentBase>()->name(value);
+                break;
+            case StringTemplateArgumentStringBase::propertyValuePropertyKey:
+                object->as<StringTemplateArgumentStringBase>()->propertyValue(
+                    value);
+                break;
+            case DataConverterStringTemplateBase::openDelimiterPropertyKey:
+                object->as<DataConverterStringTemplateBase>()->openDelimiter(
+                    value);
+                break;
+            case DataConverterStringTemplateBase::closeDelimiterPropertyKey:
+                object->as<DataConverterStringTemplateBase>()->closeDelimiter(
+                    value);
                 break;
             case DataConverterStringPadBase::textPropertyKey:
                 object->as<DataConverterStringPadBase>()->text(value);
@@ -3141,6 +3166,10 @@ public:
             case DataConverterInterpolatorBase::durationPropertyKey:
                 object->as<DataConverterInterpolatorBase>()->duration(value);
                 break;
+            case StringTemplateArgumentNumberBase::propertyValuePropertyKey:
+                object->as<StringTemplateArgumentNumberBase>()->propertyValue(
+                    value);
+                break;
             case FormulaTokenValueBase::operationValuePropertyKey:
                 object->as<FormulaTokenValueBase>()->operationValue(value);
                 break;
@@ -3575,6 +3604,17 @@ public:
                 return object->as<SemanticDataBase>()->hint();
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 return object->as<CustomPropertyStringBase>()->propertyValue();
+            case StringTemplateArgumentBase::namePropertyKey:
+                return object->as<StringTemplateArgumentBase>()->name();
+            case StringTemplateArgumentStringBase::propertyValuePropertyKey:
+                return object->as<StringTemplateArgumentStringBase>()
+                    ->propertyValue();
+            case DataConverterStringTemplateBase::openDelimiterPropertyKey:
+                return object->as<DataConverterStringTemplateBase>()
+                    ->openDelimiter();
+            case DataConverterStringTemplateBase::closeDelimiterPropertyKey:
+                return object->as<DataConverterStringTemplateBase>()
+                    ->closeDelimiter();
             case DataConverterStringPadBase::textPropertyKey:
                 return object->as<DataConverterStringPadBase>()->text();
             case DataConverterToStringBase::colorFormatPropertyKey:
@@ -4881,6 +4921,9 @@ public:
                 return object->as<DataConverterRangeMapperBase>()->maxOutput();
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return object->as<DataConverterInterpolatorBase>()->duration();
+            case StringTemplateArgumentNumberBase::propertyValuePropertyKey:
+                return object->as<StringTemplateArgumentNumberBase>()
+                    ->propertyValue();
             case FormulaTokenValueBase::operationValuePropertyKey:
                 return object->as<FormulaTokenValueBase>()->operationValue();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
@@ -5114,6 +5157,10 @@ public:
             case SemanticDataBase::valuePropertyKey:
             case SemanticDataBase::hintPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
+            case StringTemplateArgumentBase::namePropertyKey:
+            case StringTemplateArgumentStringBase::propertyValuePropertyKey:
+            case DataConverterStringTemplateBase::openDelimiterPropertyKey:
+            case DataConverterStringTemplateBase::closeDelimiterPropertyKey:
             case DataConverterStringPadBase::textPropertyKey:
             case DataConverterToStringBase::colorFormatPropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
@@ -5613,6 +5660,7 @@ public:
             case DataConverterRangeMapperBase::minOutputPropertyKey:
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
             case DataConverterInterpolatorBase::durationPropertyKey:
+            case StringTemplateArgumentNumberBase::propertyValuePropertyKey:
             case FormulaTokenValueBase::operationValuePropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
@@ -5941,6 +5989,14 @@ public:
                 return SemanticDataBase::typeKey;
             case CustomPropertyStringBase::propertyValuePropertyKey:
                 return CustomPropertyStringBase::typeKey;
+            case StringTemplateArgumentBase::namePropertyKey:
+                return StringTemplateArgumentBase::typeKey;
+            case StringTemplateArgumentStringBase::propertyValuePropertyKey:
+                return StringTemplateArgumentStringBase::typeKey;
+            case DataConverterStringTemplateBase::openDelimiterPropertyKey:
+                return DataConverterStringTemplateBase::typeKey;
+            case DataConverterStringTemplateBase::closeDelimiterPropertyKey:
+                return DataConverterStringTemplateBase::typeKey;
             case DataConverterStringPadBase::textPropertyKey:
                 return DataConverterStringPadBase::typeKey;
             case DataConverterToStringBase::colorFormatPropertyKey:
@@ -6914,6 +6970,8 @@ public:
                 return DataConverterRangeMapperBase::typeKey;
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return DataConverterInterpolatorBase::typeKey;
+            case StringTemplateArgumentNumberBase::propertyValuePropertyKey:
+                return StringTemplateArgumentNumberBase::typeKey;
             case FormulaTokenValueBase::operationValuePropertyKey:
                 return FormulaTokenValueBase::typeKey;
             case BindablePropertyNumberBase::propertyValuePropertyKey:

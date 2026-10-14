@@ -47,6 +47,12 @@ public:
     void addFileAssetReferencer(FileAssetReferencer* referencer);
     void addDataConverterReferencer(DataBind* referencer);
     void addDataConverter(DataConverter* converter);
+    // The most recently imported file level converter, used by objects that
+    // are written right after the converter they belong to.
+    DataConverter* lastDataConverter() const
+    {
+        return m_DataConverters.empty() ? nullptr : m_DataConverters.back();
+    }
     void addDataConverterGroupItemReferencer(
         DataConverterGroupItem* referencer);
     void addInterpolator(KeyFrameInterpolator* interpolator);

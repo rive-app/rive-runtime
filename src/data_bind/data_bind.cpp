@@ -33,6 +33,7 @@
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/formula/formula_token.hpp"
+#include "rive/data_bind/converters/string_template/string_template_argument.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
@@ -103,6 +104,10 @@ StatusCode DataBind::import(ImportStack& importStack)
         else if (target()->is<FormulaToken>())
         {
             target()->as<FormulaToken>()->addDataBind(this);
+        }
+        else if (target()->is<StringTemplateArgument>())
+        {
+            target()->as<StringTemplateArgument>()->addDataBind(this);
         }
         else
         {

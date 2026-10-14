@@ -379,6 +379,10 @@ public:
     {
         return m_assetLoader.get();
     }
+    const std::vector<DataConverter*>& testing_dataConverters() const
+    {
+        return m_DataConverters;
+    }
 #endif
 #ifdef WITH_RIVE_TOOLS
     void setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar);
