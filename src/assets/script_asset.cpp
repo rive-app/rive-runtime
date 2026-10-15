@@ -192,14 +192,52 @@ bool ScriptAsset::initScriptedObjectWith(ScriptedObject* object)
                     "called; move its body into draw\n");
         }
 #endif
+        m_needsPointerCheck =
+            serializedImplementedMethods() == legacyImplementedMethods;
         m_initted = true;
     }
     object->implementedMethods(implementedMethods());
-    return object->ensureScriptInitialized(scriptBackend, ref);
+    if (!object->ensureScriptInitialized(scriptBackend, ref))
+    {
+        return false;
+    }
+    if (m_needsPointerCheck)
+    {
+        checkLegacyPointerHandlers(scriptBackend, object->self());
+        // Recopy: the object took the bits before the check.
+        object->implementedMethods(implementedMethods());
+        m_needsPointerCheck = false;
+    }
+    return true;
 #else
     return false;
 #endif
 }
+
+#if defined(WITH_RIVE_SCRIPTING)
+void ScriptAsset::checkLegacyPointerHandlers(ScriptBackend* vm, int self)
+{
+    static const struct
+    {
+        const char* name;
+        int bit;
+    } handlers[] = {
+        {"pointerDown", m_wantsPointerDownBit},
+        {"pointerMove", m_wantsPointerMoveBit},
+        {"pointerUp", m_wantsPointerUpBit},
+        {"pointerExit", m_wantsPointerExitBit},
+    };
+    int bits = implementedMethods();
+    for (const auto& handler : handlers)
+    {
+        if (!vm->hasMethod(self, handler.name))
+        {
+            bits &= ~handler.bit;
+        }
+    }
+    implementedMethods(bits);
+}
+#endif
 
 bool ScriptAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
 {

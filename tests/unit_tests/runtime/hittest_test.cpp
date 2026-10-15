@@ -1265,3 +1265,90 @@ TEST_CASE("hidden artboard component list does not take hits", "[hittest]")
     CHECK(visibleClicked->value() == true);
     CHECK(hiddenClicked->value() == false);
 }
+
+// These need the Luau backend to look inside the scripts.
+#ifdef WITH_RIVE_SCRIPTING_LUAU
+#include <rive/assets/script_asset.hpp>
+#include <rive/scripted/scripted_drawable.hpp>
+
+static rive::ScriptedDrawable* firstScriptedDrawable(rive::Artboard* artboard)
+{
+    for (auto object : artboard->objects())
+    {
+        if (object != nullptr && object->is<rive::ScriptedDrawable>())
+        {
+            return object->as<rive::ScriptedDrawable>();
+        }
+    }
+    return nullptr;
+}
+
+// Files exported without the implemented-methods bitfield read as "implements
+// everything". A script with no pointer handlers shouldn't get a hit component
+// from that, since it hits the whole artboard and blocks translucent hit
+// testing in higher level runtimes.
+TEST_CASE("legacy script without pointer handlers does not take pointer hits",
+          "[hittest]")
+{
+    auto file = ReadRiveFile("assets/legacy_script_hit_test.riv");
+
+    auto artboard = file->artboardNamed("NoPointerHandlers");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    CHECK(stateMachine->hitTest(rive::Vec2D(200.0f, 200.0f)) == true);
+    CHECK(stateMachine->hitTest(rive::Vec2D(20.0f, 20.0f)) == false);
+    CHECK(stateMachine->hitTest(rive::Vec2D(380.0f, 380.0f)) == false);
+
+    // Starting the script cleared the pointer bits.
+    auto drawable = firstScriptedDrawable(artboard.get());
+    REQUIRE(drawable != nullptr);
+    REQUIRE(drawable->scriptAsset() != nullptr);
+    CHECK(drawable->wantsAnyPointer() == false);
+    CHECK(drawable->scriptAsset()->wantsAnyPointer() == false);
+    CHECK(drawable->scriptAsset()->wantsPointerDown() == false);
+
+    // A second instance reuses the corrected bits.
+    auto second = file->artboardNamed("NoPointerHandlers");
+    REQUIRE(second != nullptr);
+    auto secondMachine = second->stateMachineAt(0);
+    REQUIRE(secondMachine != nullptr);
+    secondMachine->advanceAndApply(0.0f);
+
+    CHECK(secondMachine->hitTest(rive::Vec2D(200.0f, 200.0f)) == true);
+    CHECK(secondMachine->hitTest(rive::Vec2D(20.0f, 20.0f)) == false);
+}
+
+// A legacy script that does handle pointers still gets every pointer event in
+// the artboard.
+TEST_CASE("legacy script with a pointer handler takes pointer hits everywhere",
+          "[hittest]")
+{
+    auto file = ReadRiveFile("assets/legacy_script_hit_test.riv");
+
+    auto artboard = file->artboardNamed("PointerHandler");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    CHECK(stateMachine->hitTest(rive::Vec2D(200.0f, 200.0f)) == true);
+    CHECK(stateMachine->hitTest(rive::Vec2D(20.0f, 20.0f)) == true);
+
+    auto drawable = firstScriptedDrawable(artboard.get());
+    REQUIRE(drawable != nullptr);
+    CHECK(drawable->wantsAnyPointer() == true);
+
+    // A second instance reuses the corrected bits.
+    auto second = file->artboardNamed("PointerHandler");
+    REQUIRE(second != nullptr);
+    auto secondMachine = second->stateMachineAt(0);
+    REQUIRE(secondMachine != nullptr);
+    secondMachine->advanceAndApply(0.0f);
+
+    CHECK(secondMachine->hitTest(rive::Vec2D(20.0f, 20.0f)) == true);
+}
+
+#endif

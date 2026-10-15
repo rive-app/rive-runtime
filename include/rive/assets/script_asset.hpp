@@ -80,7 +80,7 @@ public:
 
 class OptionalScriptedMethods
 {
-private:
+protected:
     static const int m_advancesBit = 1 << 0;
     static const int m_updatesBit = 1 << 1;
     static const int m_measuresBit = 1 << 2;
@@ -107,12 +107,16 @@ private:
     // never take scroll from the views beneath them.
     static const int m_wantsPointerScrollBit = 1 << 21;
 
+private:
     int m_implementedMethods = 0;
 
 public:
     // Bits 0-21 hold the method flags (see ScriptAsset::serializedImplemented
     // Methods, which the editor serializes and the runtime reads directly).
     static const uint32_t methodMask = (1u << 22) - 1;
+    // What serializedImplementedMethods reads as when a file doesn't have it.
+    // Fixed at bits 0-20 so new method bits don't change it.
+    static const uint32_t legacyImplementedMethods = (1u << 21) - 1;
 
     int implementedMethods() { return m_implementedMethods; }
     void implementedMethods(int implemented)
@@ -127,6 +131,13 @@ public:
                  m_wantsPointerCancelBit | m_wantsPointerScrollBit |
                  m_wantsGamepadConnect | m_wantsGamepadDisconnect |
                  m_wantsGamepadEvent)) != 0;
+    }
+    // Pointer down, move, up or exit.
+    bool wantsAnyPointer()
+    {
+        return (m_implementedMethods &
+                (m_wantsPointerDownBit | m_wantsPointerMoveBit |
+                 m_wantsPointerUpBit | m_wantsPointerExitBit)) != 0;
     }
     bool advances() { return (m_implementedMethods & m_advancesBit) != 0; }
     bool updates() { return (m_implementedMethods & m_updatesBit) != 0; }
@@ -275,6 +286,10 @@ private:
     bool m_scriptRegistered = false;
     SimpleArray<uint8_t> m_bytecode;
     bool m_initted = false;
+    // Legacy file whose pointer bits still need checking against the script
+    bool m_needsPointerCheck = false;
+    // Clears pointer bits for handlers self doesn't define.
+    void checkLegacyPointerHandlers(ScriptBackend* vm, int self);
 #endif
 
     bool initScriptedObjectWith(ScriptedObject* object);

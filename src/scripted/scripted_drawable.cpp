@@ -53,6 +53,19 @@ void ScriptedDrawable::draw(Renderer* renderer)
     }
 }
 
+// Checked on every hit test rather than when the hit component is made,
+// because a script with inputs isn't instantiated until data is bound, which
+// higher level runtimes do after creating the state machine.
+bool ScriptedDrawable::hasPointerHandler()
+{
+    // A script that isn't running can't take the event.
+    if (m_vm == nullptr || !m_vm->valid() || m_self == 0)
+    {
+        return false;
+    }
+    return wantsAnyPointer();
+}
+
 std::vector<HitComponent*> ScriptedDrawable::hitComponents(
     StateMachineInstance* sm)
 {
@@ -226,6 +239,8 @@ bool ScriptedDrawable::willDraw()
 #else
 void ScriptedDrawable::draw(Renderer* renderer) {}
 
+bool ScriptedDrawable::hasPointerHandler() { return false; }
+
 std::vector<HitComponent*> ScriptedDrawable::hitComponents(
     StateMachineInstance* sm)
 {
@@ -374,6 +389,16 @@ void ScriptedDrawable::markNeedsUpdate()
 
 bool HitScriptedDrawable::hitTestBounded(Vec2D position) const
 {
+    if (!m_drawable->hasPointerHandler())
+    {
+        return false;
+    }
+    return withinBounds(position);
+}
+
+// Box test shared by pointer hits and scroll.
+bool HitScriptedDrawable::withinBounds(Vec2D position) const
+{
     if (!m_drawable->is<ScriptedLayout>())
     {
         // A scripted node has no box of its own; everywhere, like hitTest.
@@ -401,7 +426,7 @@ bool HitScriptedDrawable::hasScrollTarget(Vec2D position)
     }
     if (m_drawable->is<ScriptedLayout>())
     {
-        return hitTestBounded(position);
+        return withinBounds(position);
     }
     // A node has no box, so its artboard bounds it; hosts would otherwise
     // lose every wheel event to it.

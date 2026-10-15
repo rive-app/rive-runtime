@@ -61,6 +61,8 @@ public:
 #ifdef WITH_RIVE_SCRIPTING
     bool gamepadDispatch(const ListenerInvocation& invocation);
 #endif
+    // Whether the running script can take pointer events.
+    bool hasPointerHandler();
     Component* component() override { return this; }
     bool keyInput(Key key,
                   KeyModifiers modifiers,
@@ -103,8 +105,12 @@ public:
         this->m_drawable = drawable;
     }
 
-    bool hitTest(Vec2D position) const override { return true; }
+    bool hitTest(Vec2D position) const override
+    {
+        return m_drawable->hasPointerHandler();
+    }
     bool hitTestBounded(Vec2D position) const override;
+    bool withinBounds(Vec2D position) const;
     void prepareEvent(Vec2D position,
                       ListenerType hitType,
                       int pointerId) override

@@ -86,6 +86,9 @@ public:
                              int selfRef,
                              float elapsedSeconds) = 0;
     virtual void callUpdate(ScriptedObject* object, int selfRef) = 0;
+    /// True when self[name] is a function. Backends that can't check say
+    /// true, so callers keep treating the method as present.
+    virtual bool hasMethod(int selfRef, const char* name) { return true; }
     /// self[name](self), for triggers.
     virtual void callTrigger(ScriptedObject* object,
                              int selfRef,

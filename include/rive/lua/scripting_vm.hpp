@@ -80,6 +80,7 @@ public:
                           int selfRef,
                           const char* method,
                           const ListenerInvocation& invocation) override;
+    bool hasMethod(int selfRef, const char* name) override;
     bool callPointerEvent(ScriptedObject* object,
                           int selfRef,
                           const char* method,

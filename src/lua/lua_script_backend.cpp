@@ -519,6 +519,16 @@ bool ScriptingVM::callGamepadEvent(ScriptedObject* object,
     return true;
 }
 
+bool ScriptingVM::hasMethod(int selfRef, const char* name)
+{
+    lua_State* L = m_state;
+    rive_lua_pushRef(L, selfRef);
+    bool isFunction =
+        static_cast<lua_Type>(lua_getfield(L, -1, name)) == LUA_TFUNCTION;
+    rive_lua_pop(L, 2);
+    return isFunction;
+}
+
 // Calls self[method](self, event) with a fresh Event; false when the method
 // is missing (legacy files assume every handler), so the walk goes on.
 template <typename Event, typename... Args>
