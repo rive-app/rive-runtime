@@ -467,9 +467,51 @@ ViewModelInstanceValue* DataContext::getRelativeViewModelProperty(
     return nullptr;
 }
 
+#ifdef WITH_RIVE_EDITOR
+ViewModelInstanceValue* DataContext::getEditorViewModelProperty(
+    const std::vector<Id>& path)
+{
+    if (path.size() < 2)
+        return nullptr;
+    for (auto* scope = this; scope; scope = scope->parent().get())
+        for (const auto& instance : scope->viewModelInstances())
+        {
+            if (!instance || instance->viewModelId() != path.front())
+                continue;
+            auto* current = instance.get();
+            for (size_t i = 1; current && i < path.size(); ++i)
+            {
+                ViewModelInstanceValue* value = nullptr;
+                for (const auto& candidate : current->propertyValues())
+                    if (candidate->viewModelPropertyId() == path[i])
+                    {
+                        value = candidate.get();
+                        break;
+                    }
+                if (i + 1 == path.size())
+                {
+                    if (value)
+                        return value;
+                    break;
+                }
+                current = value && value->is<ViewModelInstanceViewModel>()
+                              ? value->as<ViewModelInstanceViewModel>()
+                                    ->referenceViewModelInstance()
+                                    .get()
+                              : nullptr;
+            }
+        }
+    return nullptr;
+}
+#endif
+
 ViewModelInstanceValue* DataContext::getViewModelProperty(
     DataBindPath* dataBindPath)
 {
+#ifdef WITH_RIVE_EDITOR
+    if (dataBindPath->hasEditorPath())
+        return getEditorViewModelProperty(dataBindPath->editorPath());
+#endif
     if (dataBindPath->isRelative())
     {
         auto file = dataBindPath->file();

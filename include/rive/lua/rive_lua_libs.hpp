@@ -1346,7 +1346,8 @@ public:
     ScriptReffedArtboard(File* file,
                          std::unique_ptr<ArtboardInstance>&& artboardInstance,
                          rcp<ViewModelInstance> viewModelInstance,
-                         rcp<DataContext> parentDataContext
+                         rcp<DataContext> parentDataContext,
+                         ScriptingContext* scriptingContext
 #ifdef WITH_RIVE_TOOLS
                          ,
                          rcp<File> filePin = nullptr
@@ -1372,6 +1373,9 @@ private:
     std::unique_ptr<ArtboardInstance> m_artboard;
     std::unique_ptr<StateMachineInstance> m_stateMachine;
     rcp<ViewModelInstance> m_viewModelInstance;
+#ifdef WITH_RIVE_EDITOR
+    std::weak_ptr<ScriptingContext*> m_scriptingContext;
+#endif
 };
 
 class ScriptedArtboard
@@ -1947,6 +1951,32 @@ public:
     // Called when a module is required but not found during registration
     void recordMissingDependency(const std::string& requiringModule,
                                  const std::string& missingModule);
+
+#if defined(WITH_RIVE_EDITOR) && !defined(RIVE_WASM_MODULE)
+    // Wasm modules proxy artboards through the host and do not link these
+    // hooks. Native editor hosts instantiate from their ID-preserving arenas
+    // instead of the runtime importer's object array. The default retains RIV
+    // behavior.
+    virtual std::unique_ptr<ArtboardInstance> instantiateArtboard(
+        Artboard* source);
+    virtual void releaseArtboard(ArtboardInstance*) {}
+    // Userdata may outlive replaceContext(). Never call a retired host.
+    std::shared_ptr<ScriptingContext*> artboardLifetime()
+    {
+        if (!m_artboardLifetime)
+            m_artboardLifetime = std::make_shared<ScriptingContext*>(this);
+        return m_artboardLifetime;
+    }
+
+private:
+    std::shared_ptr<ScriptingContext*> m_artboardLifetime;
+
+public:
+    virtual std::unique_ptr<StateMachineInstance> artboardStateMachine(
+        ArtboardInstance*);
+    virtual rcp<ViewModelInstance> artboardViewModel(File*, Artboard*);
+
+#endif
 
     // Scoped :shader / :blob reference resolution. Bare names resolve in the
     // calling chunk's scope first, then among host assets;

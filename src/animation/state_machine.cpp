@@ -11,8 +11,8 @@
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/animation/layer_state.hpp"
 #include "rive/animation/state_transition.hpp"
-#ifndef WITH_RIVE_EDITOR
 #include "rive/animation/layer_state_flags.hpp"
+#ifndef WITH_RIVE_EDITOR
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_self_comparator.hpp"

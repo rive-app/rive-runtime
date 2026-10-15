@@ -1,3 +1,4 @@
+#include <cmath>
 #include "rive/animation/animation_reset.hpp"
 #include "rive/animation/animation_reset_factory.hpp"
 #include "rive/animation/animation_state_instance.hpp"
@@ -92,7 +93,6 @@
 #include <unordered_map>
 #include <vector>
 #include <chrono>
-#include <cmath>
 
 using namespace rive;
 
@@ -3309,8 +3309,20 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
     }
 
+    // Native editor instances keep components in their dependency graph,
+    // rather than the runtime importer's owning object array.
+    const auto* listenerObjects = &instance->objects();
+#ifdef WITH_RIVE_EDITOR
+    std::vector<Core*> nativeListenerObjects;
+    if (instance->editorResolver())
+    {
+        const auto& components = instance->dependencyOrder();
+        nativeListenerObjects.assign(components.begin(), components.end());
+        listenerObjects = &nativeListenerObjects;
+    }
+#endif
     std::vector<ListenerGroupProvider*> componentProvidedListenerGroups;
-    for (auto core : m_artboardInstance->objects())
+    for (auto core : *listenerObjects)
     {
         if (core == nullptr)
         {
@@ -3397,8 +3409,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 
 #ifdef WITH_RIVE_TEXT
     // Register TextInputs as hit targets for drag-to-select functionality
-    for (auto textInput : instance->objects<TextInput>())
+    for (auto object : *listenerObjects)
     {
+        if (!object || !object->is<TextInput>())
+            continue;
+        auto* textInput = object->as<TextInput>();
         auto textInputGroup =
             std::make_unique<TextInputListenerGroup>(textInput, this);
         auto hitExpandable = std::make_unique<HitExpandable>(
@@ -3435,8 +3450,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     // Register Scripted objects as keyboard and text targets when expected,
     // and collect every scripted drawable that wants gamepad events so we can
     // broadcast to it later regardless of focus.
-    for (auto object : instance->objects<ContainerComponent>())
+    for (auto object : *listenerObjects)
     {
+        if (!object || !object->is<ContainerComponent>())
+            continue;
         auto scriptedObject = ScriptedObject::from(object);
         if (!scriptedObject)
         {

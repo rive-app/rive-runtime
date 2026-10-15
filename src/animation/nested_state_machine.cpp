@@ -25,7 +25,14 @@ bool NestedStateMachine::advance(float elapsedSeconds, bool newFrame)
 
 void NestedStateMachine::initializeAnimation(ArtboardInstance* artboard)
 {
-    m_StateMachineInstance = artboard->stateMachineAt(animationId());
+    initializeAnimation(artboard, artboard->stateMachineAt(animationId()));
+}
+
+void NestedStateMachine::initializeAnimation(
+    ArtboardInstance* artboard,
+    std::unique_ptr<StateMachineInstance> instance)
+{
+    m_StateMachineInstance = std::move(instance);
     if (m_StateMachineInstance != nullptr)
     {
         // Share parent's focus manager and build nested focus tree.

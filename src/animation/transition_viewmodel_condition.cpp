@@ -1013,16 +1013,23 @@ bool buildComparandsFromIntersect(TransitionComparator* left,
 
 TransitionViewModelCondition::~TransitionViewModelCondition()
 {
-    if (m_leftComparator != nullptr)
+#ifdef WITH_RIVE_EDITOR
+    if (!m_editorComparators)
     {
-        delete m_leftComparator;
-        m_leftComparator = nullptr;
+#endif
+        if (m_leftComparator != nullptr)
+        {
+            delete m_leftComparator;
+            m_leftComparator = nullptr;
+        }
+        if (m_rightComparator != nullptr)
+        {
+            delete m_rightComparator;
+            m_rightComparator = nullptr;
+        }
+#ifdef WITH_RIVE_EDITOR
     }
-    if (m_rightComparator != nullptr)
-    {
-        delete m_rightComparator;
-        m_rightComparator = nullptr;
-    }
+#endif
     if (m_comparison != nullptr)
     {
         delete m_comparison;

@@ -4,6 +4,7 @@
 #include <stdio.h>
 namespace rive
 {
+class LinearAnimation;
 class LinearAnimationInstance;
 class NestedLinearAnimation : public NestedLinearAnimationBase
 {
@@ -15,6 +16,9 @@ public:
     ~NestedLinearAnimation() override;
 
     void initializeAnimation(ArtboardInstance*) override;
+    // Editor hosts resolve the definition by persistent ID, while the target
+    // remains the particular playback instance receiving animation writes.
+    void initializeAnimation(ArtboardInstance*, const LinearAnimation*);
     // Defined in the .cpp: LinearAnimationInstance is only forward declared
     // here, so unique_ptr::reset cannot be instantiated inline.
     void releaseDependencies() override;

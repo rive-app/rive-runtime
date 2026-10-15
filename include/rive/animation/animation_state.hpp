@@ -17,6 +17,9 @@ private:
 
 public:
     const LinearAnimation* animation() const { return m_Animation; }
+#ifdef WITH_RIVE_EDITOR
+    void setAnimationForEditor(LinearAnimation* value) { m_Animation = value; }
+#endif
 
 #ifdef TESTING
     void animation(LinearAnimation* animation);

@@ -30,9 +30,19 @@ public:
     void useInLayer(const StateMachineInstance* stateMachineInstance,
                     StateMachineLayerInstance* layerInstance) const override;
     BindableProperty* bindableProperty() { return m_bindableProperty; }
+#ifdef WITH_RIVE_EDITOR
+    void setBindablePropertyForEditor(BindableProperty* value)
+    {
+        m_editorBindable = true;
+        m_bindableProperty = value;
+    }
+#endif
 
 protected:
     BindableProperty* m_bindableProperty = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    bool m_editorBindable = false;
+#endif
 };
 } // namespace rive
 

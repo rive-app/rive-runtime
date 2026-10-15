@@ -1,4 +1,5 @@
 #include "rive/data_bind/data_bind_path.hpp"
+#include "rive/core/field_types/core_id_type.hpp"
 #include "rive/importers/backboard_importer.hpp"
 
 using namespace rive;
@@ -17,6 +18,10 @@ void DataBindPath::copyPath(const DataBindPathBase& object)
 {
     m_pathBuffer = object.as<DataBindPath>()->m_pathBuffer;
     m_resolved = object.as<DataBindPath>()->m_resolved;
+#ifdef WITH_RIVE_EDITOR
+    m_editorPath = object.as<DataBindPath>()->m_editorPath;
+    m_hasEditorPath = object.as<DataBindPath>()->m_hasEditorPath;
+#endif
 }
 
 StatusCode DataBindPath::import(ImportStack& importStack)
@@ -53,3 +58,17 @@ const std::vector<uint32_t>& DataBindPath::resolvedPath()
 }
 
 void DataBindPath::file(File* file) { m_file = file; }
+#ifdef WITH_RIVE_EDITOR
+void DataBindPath::decodeEditorPath(BinaryReader& reader)
+{
+    m_hasEditorPath = true;
+    m_editorPath.clear();
+    const auto count = reader.readVarUintAs<uint32_t>();
+    for (uint32_t i = 0;
+         i < count && !reader.reachedEnd() && !reader.hasError();
+         ++i)
+        m_editorPath.push_back(CoreIdType::deserialize(reader));
+    if (reader.hasError() || m_editorPath.size() != count)
+        m_editorPath.clear();
+}
+#endif

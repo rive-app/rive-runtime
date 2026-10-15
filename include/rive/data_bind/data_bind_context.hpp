@@ -12,11 +12,19 @@ class DataBindContext : public DataBindContextBase
 {
 protected:
     std::vector<uint32_t> m_SourcePathIdsBuffer;
+#ifdef WITH_RIVE_EDITOR
+    std::vector<Id> m_editorSourcePath;
+    bool m_hasEditorSourcePath = false;
+#endif
 
 public:
     void decodeSourcePathIds(Span<const uint8_t> value) override;
     void copySourcePathIds(const DataBindContextBase& object) override;
     void bindFromContext(DataContext* dataContext);
+#ifdef WITH_RIVE_EDITOR
+    // Coop paths retain (client, object) IDs, unlike RIV's flat indices.
+    void decodeEditorSourcePathIds(BinaryReader& reader);
+#endif
     const std::vector<uint32_t>& sourcePathIds() const
     {
         return m_SourcePathIdsBuffer;

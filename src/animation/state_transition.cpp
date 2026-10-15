@@ -158,8 +158,9 @@ AllowTransition StateTransition::allowed(
         return AllowTransition::no;
     }
 
-    for (auto condition : m_Conditions)
+    for (size_t i = 0; i < conditionCount(); ++i)
     {
+        auto* condition = this->condition(i);
         if (!condition->evaluate(stateMachineInstance, layerInstance))
         {
             return AllowTransition::no;
@@ -228,8 +229,9 @@ void StateTransition::useLayerInConditions(
     StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    for (auto condition : m_Conditions)
+    for (size_t i = 0; i < conditionCount(); ++i)
     {
+        auto* condition = this->condition(i);
         condition->useInLayer(stateMachineInstance, layerInstance);
     }
 }

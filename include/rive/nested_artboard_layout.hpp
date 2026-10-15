@@ -34,6 +34,7 @@ public:
     AABB layoutBounds() override;
     size_t numLayoutNodes() override { return 1; }
     bool isLayoutProvider() override { return true; }
+    void referencedArtboard(Artboard* artboard) override;
     void updateArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
 

@@ -17,6 +17,9 @@ public:
     size_t keyboardInputCount() const { return m_keyboardInputs.size(); }
     const KeyboardInput* keyboardInput(size_t index) const;
     void addKeyboardInput(KeyboardInput* input);
+#ifdef WITH_RIVE_EDITOR
+    void clearKeyboardInputsForEditor() { m_keyboardInputs.clear(); }
+#endif
 
     static bool keyPhaseMatches(uint32_t keyPhase,
                                 bool isPressed,

@@ -702,7 +702,12 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
         auto type = vm != nullptr
                         ? static_cast<ViewModelType>(vm->viewModelType())
                         : ViewModelType::standard;
-        m_file->completeViewModelProperties(vmi);
+        // Editor-native documents own coop arenas rather than a runtime File.
+        // Runtime imports still complete missing properties through their File.
+        if (m_file != nullptr)
+        {
+            m_file->completeViewModelProperties(vmi);
+        }
         if (type == ViewModelType::global)
         {
             // The artboard's m_Objects owns the construction ref; take an

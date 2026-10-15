@@ -214,6 +214,45 @@ bool NestedArtboardLayout::syncStyleChanges()
     return m_referencedArtboard->syncStyleChanges();
 }
 
+void NestedArtboardLayout::referencedArtboard(Artboard* artboard)
+{
+#ifdef WITH_RIVE_EDITOR
+    if (!editorArena())
+    {
+        NestedArtboard::referencedArtboard(artboard);
+        return;
+    }
+    // Editor hydration also assigns non-owned definitions. Their authored
+    // layout must not receive an instance's sizing overrides.
+    if (!artboard->isInstance())
+    {
+        NestedArtboard::referencedArtboard(artboard);
+        return;
+    }
+#ifdef WITH_RIVE_LAYOUT
+    // Direct mounts (including editor-native clones) also replace the owned
+    // instance. Detach Yoga's borrowed node before nest() destroys it. The
+    // artboard host only rebuilds the root, which may not be our owner when
+    // a LayoutComponent sits between this instance and the artboard.
+    auto* layout = owningLayout(parent());
+    // Hydration may mount definitions before the owning component is valid.
+    if (layout != nullptr && layout->artboard() == nullptr)
+        layout = nullptr;
+    if (layout != nullptr)
+        layout->clearLayoutChildren();
+#endif
+    NestedArtboard::referencedArtboard(artboard);
+    updateWidthOverride();
+    updateHeightOverride();
+#ifdef WITH_RIVE_LAYOUT
+    if (layout != nullptr)
+        layout->syncLayoutChildren();
+#endif
+#else
+    NestedArtboard::referencedArtboard(artboard);
+#endif
+}
+
 void NestedArtboardLayout::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {

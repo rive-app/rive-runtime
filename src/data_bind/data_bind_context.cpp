@@ -8,6 +8,11 @@
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/artboard.hpp"
 #include "rive/generated/core_registry.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include "rive/core/field_types/core_id_type.hpp"
+#include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#endif
 #include <iostream>
 
 using namespace rive;
@@ -26,7 +31,29 @@ void DataBindContext::copySourcePathIds(const DataBindContextBase& object)
 {
     m_SourcePathIdsBuffer = object.as<DataBindContext>()->m_SourcePathIdsBuffer;
     m_isPathResolved = object.as<DataBindContext>()->m_isPathResolved;
+#ifdef WITH_RIVE_EDITOR
+    m_editorSourcePath = object.as<DataBindContext>()->m_editorSourcePath;
+    m_hasEditorSourcePath = object.as<DataBindContext>()->m_hasEditorSourcePath;
+#endif
 }
+
+#ifdef WITH_RIVE_EDITOR
+void DataBindContext::decodeEditorSourcePathIds(BinaryReader& reader)
+{
+    m_hasEditorSourcePath = false;
+    m_editorSourcePath.clear();
+    // Coop lists contain a count followed by full (client, object) ID pairs.
+    const auto count = reader.readVarUintAs<uint32_t>();
+    for (uint32_t i = 0;
+         i < count && !reader.reachedEnd() && !reader.hasError();
+         ++i)
+        m_editorSourcePath.push_back(CoreIdType::deserialize(reader));
+    if (reader.hasError() || m_editorSourcePath.size() != count)
+        m_editorSourcePath.clear();
+    else
+        m_hasEditorSourcePath = true;
+}
+#endif
 
 void DataBindContext::resolvePath()
 {
@@ -59,6 +86,11 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
     {
         resolvePath();
         auto vmSource =
+#ifdef WITH_RIVE_EDITOR
+            m_hasEditorSourcePath
+                ? dataContext->getEditorViewModelProperty(m_editorSourcePath)
+            :
+#endif
             isNameBased() && file()
                 ? dataContext->getRelativeViewModelProperty(
                       m_SourcePathIdsBuffer,

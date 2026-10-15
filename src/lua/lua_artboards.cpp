@@ -24,11 +24,32 @@
 
 using namespace rive;
 
+#ifdef WITH_RIVE_EDITOR
+std::unique_ptr<ArtboardInstance> ScriptingContext::instantiateArtboard(
+    Artboard* source)
+{
+    return source->instance();
+}
+
+std::unique_ptr<StateMachineInstance> ScriptingContext::artboardStateMachine(
+    ArtboardInstance* instance)
+{
+    return instance->defaultStateMachine();
+}
+rcp<ViewModelInstance> ScriptingContext::artboardViewModel(File* file,
+                                                           Artboard* instance)
+{
+    return file->createViewModelInstance(instance);
+}
+
+#endif
+
 ScriptReffedArtboard::ScriptReffedArtboard(
     File* file,
     std::unique_ptr<ArtboardInstance>&& artboardInstance,
     rcp<ViewModelInstance> viewModelInstance,
-    rcp<DataContext> parentDataContext
+    rcp<DataContext> parentDataContext,
+    ScriptingContext* scriptingContext
 #ifdef WITH_RIVE_TOOLS
     ,
     rcp<File> filePin
@@ -39,7 +60,15 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     m_filePin(std::move(filePin)),
 #endif
     m_artboard(std::move(artboardInstance)),
+#ifdef WITH_RIVE_EDITOR
+    m_stateMachine(scriptingContext ? scriptingContext->artboardStateMachine(
+                                          m_artboard.get())
+                                    : m_artboard->defaultStateMachine()),
+    m_scriptingContext(scriptingContext ? scriptingContext->artboardLifetime()
+                                        : std::shared_ptr<ScriptingContext*>())
+#else
     m_stateMachine(m_artboard->defaultStateMachine())
+#endif
 {
     // A scripted artboard is a root: nothing hosts it in another artboard's
     // focus tree, so it owns its FocusManager and builds its own focus tree.
@@ -50,7 +79,14 @@ ScriptReffedArtboard::ScriptReffedArtboard(
     }
     else
     {
+#ifdef WITH_RIVE_EDITOR
+        m_viewModelInstance =
+            scriptingContext
+                ? scriptingContext->artboardViewModel(m_file, m_artboard.get())
+                : m_file->createViewModelInstance(m_artboard.get());
+#else
         m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
+#endif
     }
     if (m_stateMachine && m_viewModelInstance)
     {
@@ -65,6 +101,13 @@ ScriptReffedArtboard::ScriptReffedArtboard(
             m_stateMachine->bindViewModelInstance(m_viewModelInstance);
         }
     }
+#ifdef WITH_RIVE_EDITOR
+    else if (m_viewModelInstance && m_artboard->editorArena())
+    {
+        m_artboard->bindViewModelInstance(m_viewModelInstance,
+                                          parentDataContext);
+    }
+#endif
 }
 
 ScriptReffedArtboard::~ScriptReffedArtboard()
@@ -72,6 +115,10 @@ ScriptReffedArtboard::~ScriptReffedArtboard()
     // Make sure state machine is deleted before artboard since
     // StateMachineInstance destructor accesses the artboard.
     m_stateMachine = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    if (auto context = m_scriptingContext.lock())
+        (*context)->releaseArtboard(m_artboard.get());
+#endif
     // Make sure artboard is deleted before file.
     m_artboard = nullptr;
     m_file = nullptr;
@@ -592,7 +639,15 @@ int ScriptedArtboard::pushData(lua_State* L)
 int ScriptedArtboard::instance(lua_State* L,
                                rcp<ViewModelInstance> viewModelInstance)
 {
+#ifdef WITH_RIVE_EDITOR
+    auto* context = ScriptingContext::from(L);
+    auto artboardInstance = context ? context->instantiateArtboard(artboard())
+                                    : artboard()->instance();
+#else
     auto artboardInstance = artboard()->instance();
+#endif
+    if (!artboardInstance)
+        luaL_error(L, "Could not instantiate artboard");
     artboardInstance->frameOrigin(false);
     // Clones share the source's dependency on a cross-lifetime host file.
     lua_newrive<ScriptedArtboard>(L,
@@ -759,9 +814,10 @@ ScriptedArtboard::ScriptedArtboard(
         make_rcp<ScriptReffedArtboard>(file,
                                        std::move(artboardInstance),
                                        viewModelInstance,
-                                       dataContext
+                                       dataContext,
+                                       ScriptingContext::from(L)
 #ifdef WITH_RIVE_TOOLS
-                                       ,
+                                           ,
                                        std::move(filePin)
 #endif
                                            )),

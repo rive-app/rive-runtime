@@ -8,9 +8,17 @@ NestedLinearAnimation::~NestedLinearAnimation() {}
 
 void NestedLinearAnimation::initializeAnimation(ArtboardInstance* artboard)
 {
-    m_AnimationInstance = std::make_unique<LinearAnimationInstance>(
-        artboard->animation(animationId()),
-        artboard);
+    initializeAnimation(artboard, artboard->animation(animationId()));
+}
+
+void NestedLinearAnimation::initializeAnimation(
+    ArtboardInstance* artboard,
+    const LinearAnimation* animation)
+{
+    m_AnimationInstance =
+        animation
+            ? std::make_unique<LinearAnimationInstance>(animation, artboard)
+            : nullptr;
 }
 
 void NestedLinearAnimation::releaseDependencies()

@@ -80,6 +80,10 @@ private:
 
 public:
     DataContext(rcp<ViewModelInstance> viewModelInstance);
+#ifdef WITH_RIVE_EDITOR
+    ViewModelInstanceValue* getEditorViewModelProperty(
+        const std::vector<Id>& path);
+#endif
     DataContext(std::vector<rcp<ViewModelInstance>> viewModelInstances);
     ~DataContext();
 

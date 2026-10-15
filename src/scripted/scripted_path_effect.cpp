@@ -13,6 +13,17 @@ void ScriptedPathEffect::didHydrateScriptInputs()
 {
     m_isAdvanceActive = true;
     addScriptedDirt(ComponentDirt::Paint, true);
+#ifdef WITH_RIVE_EDITOR
+    if (editorArena())
+    {
+        // Native hydration (and script reload) can happen after the first path
+        // update. Rebuild the paint's effect chain now that the script is
+        // ready.
+        invalidateEffectFromLocal();
+        if (parent())
+            parent()->addDirt(ComponentDirt::Path);
+    }
+#endif
 }
 
 void ScriptedPathEffect::updateEffect(PathProvider* pathProvider,

@@ -724,9 +724,12 @@ protected:
 class TransitionViewModelCondition : public TransitionViewModelConditionBase
 {
 protected:
-    TransitionComparator* m_leftComparator;
-    TransitionComparator* m_rightComparator;
+    TransitionComparator* m_leftComparator = nullptr;
+    TransitionComparator* m_rightComparator = nullptr;
     ConditionComparison* m_comparison = nullptr;
+#ifdef WITH_RIVE_EDITOR
+    bool m_editorComparators = false;
+#endif
 
 public:
     ~TransitionViewModelCondition();
@@ -757,6 +760,18 @@ public:
     // fired within a frame (ConditionComparandComponentTrigger) and so needs
     // the instance's change tracking.
     bool readsComponentTrigger() const;
+#ifdef WITH_RIVE_EDITOR
+    void setComparatorsForEditor(TransitionComparator* left,
+                                 TransitionComparator* right)
+    {
+        m_editorComparators = true;
+        m_leftComparator = left;
+        m_rightComparator = right;
+        delete m_comparison;
+        m_comparison = nullptr;
+        initialize();
+    }
+#endif
 
 private:
     bool canEvaluate(const StateMachineInstance*) const;

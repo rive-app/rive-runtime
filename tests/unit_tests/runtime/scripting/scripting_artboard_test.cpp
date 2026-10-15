@@ -620,3 +620,35 @@ TEST_CASE("an Artboard input that leads back to its own artboard instances",
         artboard->draw(renderer.get());
     }
 }
+
+TEST_CASE(
+    "script artboard instances work from coroutines and survive context replacement",
+    "[scripting][artboard_lifetime]")
+{
+    // The public sandbox omits the coroutine library. Exercise the same
+    // native entry points on a host-created thread with no thread data.
+    ScriptingTest test(
+        "function cloneOnThread(source) return source:instance() end");
+    auto file = ReadRiveFile("assets/coin.riv", test.serializer());
+    lua_State* L = test.state();
+    lua_State* thread = lua_newthread(L);
+    lua_setthreaddata(thread, nullptr);
+    lua_getglobal(thread, "cloneOnThread");
+    lua_newrive<ScriptedArtboard>(thread,
+                                  thread,
+                                  file.get(),
+                                  file->artboard()->instance(),
+                                  nullptr,
+                                  nullptr);
+    const int status = lua_pcall(thread, 1, 1, 0);
+    INFO((status == LUA_OK ? "ok" : lua_tostring(thread, -1)));
+    REQUIRE(status == LUA_OK);
+    REQUIRE(lua_isuserdata(thread, -1));
+    test.vm()->replaceContext(
+        std::make_unique<TestScriptingContext>(test.serializer(), &test));
+    lua_settop(thread, 0);
+    lua_pop(L, 1);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    // Explicitly close while the File used by the userdata is alive.
+    test.vm()->closeLuaState();
+}

@@ -154,3 +154,18 @@ StatusCode ScriptInputViewModelProperty::onAddedClean(CoreContext* context)
 
     return StatusCode::Ok;
 }
+#ifdef WITH_RIVE_EDITOR
+bool ScriptInputViewModelProperty::applyChange(uint16_t key,
+                                               BinaryReader& reader)
+{
+    if (key != dataBindPathIdsPropertyKey)
+        return Super::applyChange(key, reader);
+    delete m_dataBindPath;
+    m_dataBindPath = new DataBindPath();
+    // The REV field is a bytes envelope containing a counted list of IDs.
+    auto bytes = CoreBytesType::deserialize(reader);
+    BinaryReader pathReader(bytes);
+    m_dataBindPath->decodeEditorPath(pathReader);
+    return true;
+}
+#endif

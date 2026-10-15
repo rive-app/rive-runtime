@@ -549,6 +549,9 @@ public:
     // animations / state-machines never hit that path, so
     // `finalizeBatch` registers them manually after each batch. Clear
     // first so repeated finalizeBatch calls don't duplicate entries.
+    // Rebuild the runtime playback lists from an editor arena, whose objects
+    // do not live in the importer's m_Objects array.
+    void rebuildAdvancingForEditor(Span<Core*> objects);
     void clearAnimations() { m_Animations.clear(); }
     void clearStateMachines() { m_StateMachines.clear(); }
     // Editor-only: public wrappers around the otherwise-private

@@ -12,6 +12,9 @@
 #include "rive/text/text_input_cursor.hpp"
 #include "rive/text/text_input_selection.hpp"
 #include "rive/text/text_input_text.hpp"
+#ifdef WITH_RIVE_EDITOR
+#include <algorithm>
+#endif
 
 using namespace rive;
 
@@ -45,6 +48,16 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
 
 void ShapePaintContainer::addPaint(ShapePaint* paint)
 {
+#ifdef WITH_RIVE_EDITOR
+    // RIV initialization runs editorParentChanged before onAddedClean, and
+    // both can register the same paint. Keep the shared registration path
+    // idempotent; duplicate entries draw the fill/stroke more than once.
+    if (std::find(m_ShapePaints.begin(), m_ShapePaints.end(), paint) !=
+        m_ShapePaints.end())
+    {
+        return;
+    }
+#endif
     m_ShapePaints.push_back(paint);
 }
 

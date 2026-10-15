@@ -22,6 +22,10 @@ public:
     ~NestedStateMachine() override;
     bool advance(float elapsedSeconds, bool newFrame) override;
     void initializeAnimation(ArtboardInstance*) override;
+    // For hosts whose animation references are persistent IDs rather than
+    // runtime indexes. Retains the normal nested focus/input setup.
+    void initializeAnimation(ArtboardInstance*,
+                             std::unique_ptr<StateMachineInstance>);
     StateMachineInstance* stateMachineInstance();
 
     HitResult pointerMove(Vec2D position,

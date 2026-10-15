@@ -16,6 +16,10 @@ using namespace rive;
 
 ListenerViewModelChange::~ListenerViewModelChange()
 {
+#ifdef WITH_RIVE_EDITOR
+    if (m_editorBindable)
+        return;
+#endif
     if (m_bindableProperty != nullptr)
     {
         delete m_bindableProperty;

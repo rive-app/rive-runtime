@@ -923,7 +923,18 @@ void ScriptingVM::setInputArtboard(int selfRef,
 {
     lua_State* L = m_state;
     rive_lua_pushRef(L, selfRef);
+#ifdef WITH_RIVE_EDITOR
+    auto artboardInstance = context()->instantiateArtboard(artboard);
+#else
     auto artboardInstance = artboard->instance();
+#endif
+    if (!artboardInstance)
+    {
+        // This is called by host hydration, outside a protected Lua call.
+        // The native host records the load error; leave the input unset.
+        lua_pop(L, 1);
+        return;
+    }
     artboardInstance->frameOrigin(false);
     lua_newrive<ScriptedArtboard>(L,
                                   L,

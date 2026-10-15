@@ -314,7 +314,12 @@ void Shape::buildDependencies()
     // overrides like `ClippingShape`, `Feather`, `FollowPathConstraint`,
     // `TextFollowPathModifier` re-register themselves in their own
     // buildDependencies calls).
-    m_PathComposer.editorClearDependents();
+    // Runtime imports build this graph once, in file order. Clearing here
+    // can erase a clip's edge when its source shape follows it in the file.
+    if (editorArena() != nullptr)
+    {
+        m_PathComposer.editorClearDependents();
+    }
 #endif
     m_PathComposer.buildDependencies();
 

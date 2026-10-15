@@ -1275,6 +1275,29 @@ void Artboard::clearRedundantOperations()
 }
 
 #ifdef WITH_RIVE_EDITOR
+void Artboard::rebuildAdvancingForEditor(Span<Core*> objects)
+{
+    m_advancingComponents.clear();
+    m_NestedArtboards.clear();
+    m_ArtboardHosts.clear();
+    m_ComponentLists.clear();
+    for (auto* object : objects)
+    {
+        if (auto* advancing = AdvancingComponent::from(object))
+            m_advancingComponents.push_back(advancing);
+        if (object->is<NestedArtboard>())
+        {
+            m_NestedArtboards.push_back(object->as<NestedArtboard>());
+            m_ArtboardHosts.push_back(object->as<NestedArtboard>());
+        }
+        else if (object->is<ArtboardComponentList>())
+        {
+            m_ComponentLists.push_back(object->as<ArtboardComponentList>());
+            m_ArtboardHosts.push_back(object->as<ArtboardComponentList>());
+        }
+    }
+}
+
 void Artboard::initLayoutForEditor()
 {
     m_layout = Layout(0.0f, 0.0f, width(), height());

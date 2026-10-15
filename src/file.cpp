@@ -2151,8 +2151,17 @@ rcp<ViewModelInstance> File::createViewModelInstance(
                 viewModelInstanceValue->viewModelPropertyId(propertyId);
                 viewModelInstance->appendValue(viewModelInstanceValue);
             }
+#ifdef WITH_RIVE_EDITOR
+            // Runtime-created values are fully wired here, like imported
+            // values.
+            if (viewModelInstanceValue != nullptr)
+                viewModelInstanceValue->markValidated();
+#endif
             propertyId++;
         }
+#ifdef WITH_RIVE_EDITOR
+        viewModelInstance->markValidated();
+#endif
 #ifdef WITH_RIVE_TOOLS
         if (viewModelInstance)
         {

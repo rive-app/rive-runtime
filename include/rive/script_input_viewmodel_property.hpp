@@ -18,6 +18,9 @@ private:
 
 public:
     ~ScriptInputViewModelProperty();
+#ifdef WITH_RIVE_EDITOR
+    bool applyChange(uint16_t propertyKey, BinaryReader& reader) override;
+#endif
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(
         const ScriptInputViewModelPropertyBase& object) override;

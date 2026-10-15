@@ -2,6 +2,7 @@
 #define _RIVE_DATA_BIND_PATH_HPP_
 #include "rive/generated/data_bind/data_bind_path_base.hpp"
 #include <stdio.h>
+#include "rive/core/id.hpp"
 namespace rive
 {
 class File;
@@ -15,6 +16,11 @@ public:
     const std::vector<uint32_t>& resolvedPath();
     void file(File* value);
     File* file() { return m_file; };
+#ifdef WITH_RIVE_EDITOR
+    void decodeEditorPath(BinaryReader& reader);
+    bool hasEditorPath() const { return m_hasEditorPath; }
+    const std::vector<Id>& editorPath() const { return m_editorPath; }
+#endif
     void resolved(bool value) { m_resolved = value; }
 
 protected:
@@ -23,6 +29,10 @@ protected:
 private:
     File* m_file = nullptr;
     bool m_resolved = false;
+#ifdef WITH_RIVE_EDITOR
+    std::vector<Id> m_editorPath;
+    bool m_hasEditorPath = false;
+#endif
 };
 } // namespace rive
 

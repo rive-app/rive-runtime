@@ -310,8 +310,13 @@ Core* ViewModelInstance::clone() const
         cloned->reserveValues(m_PropertyValues.size());
         for (const auto& propertyValue : m_PropertyValues)
         {
-            cloned->appendValue(
-                propertyValue->clone()->as<ViewModelInstanceValue>());
+            auto clonedValue =
+                propertyValue->clone()->as<ViewModelInstanceValue>();
+#ifdef WITH_RIVE_EDITOR
+            // Preserve shared property metadata for native REV model clones.
+            clonedValue->viewModelProperty(propertyValue->viewModelProperty());
+#endif
+            cloned->appendValue(clonedValue);
         }
         for (auto dataBind : m_valueDataBinds)
         {
