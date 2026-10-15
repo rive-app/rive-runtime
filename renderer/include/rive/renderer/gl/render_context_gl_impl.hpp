@@ -478,7 +478,8 @@ private:
         virtual PipelineStatus getPipelineStatus(
             const DrawProgram& state) const override;
 
-        virtual bool advanceCreation(DrawProgram&,
+        virtual bool advanceCreation(PipelineCreateType,
+                                     DrawProgram&,
                                      const PipelineProps&) override;
 
     private:
@@ -512,6 +513,12 @@ private:
     // Used for blitting non-MSAA -> MSAA, which isn't supported by
     // glBlitFramebuffer().
     glutils::Program m_blitAsDrawProgram = glutils::Program::Zero();
+
+    // The GLCapabilities::avoidTexSubImage2DOnInFlightTextures workaround, when
+    // enabled, requires us to use a ring of textures when polyfilling storage
+    // buffers and to guard their updates with a fence.
+    glutils::Fence m_polyfillBufferTextureFences[gpu::kBufferRingSize];
+    int m_polyfillBufferTextureIdx = 0;
 
     const rcp<GLState> m_state;
 

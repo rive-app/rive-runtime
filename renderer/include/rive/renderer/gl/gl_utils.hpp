@@ -171,6 +171,69 @@ private:
     explicit Texture(GLuint adoptedID) : GLObject(adoptedID) {}
 };
 
+class Fence
+{
+public:
+    Fence() = default;
+    Fence(Fence&& rhs) :
+        m_sync(std::exchange(rhs.m_sync, nullptr)),
+        m_insertFailed(std::exchange(rhs.m_insertFailed, false))
+    {}
+    Fence& operator=(Fence&& rhs)
+    {
+        reset();
+        m_sync = std::exchange(rhs.m_sync, nullptr);
+        m_insertFailed = std::exchange(rhs.m_insertFailed, false);
+        return *this;
+    }
+    Fence(const Fence&) = delete;
+    Fence& operator=(const Fence&) = delete;
+    ~Fence() { reset(); }
+
+    // Replaces any pending fence with one at the current point in the command
+    // stream.
+    void insert()
+    {
+        reset();
+        m_sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        // Out of memory, or the context is gone. poll() can't vouch for this
+        // point in the stream, so it reports it as still pending.
+        m_insertFailed = m_sync == nullptr;
+    }
+
+    // Returns true if nothing is pending (i.e., no fence, or it signaled).
+    // NOTE: There is no "wait(timeout)" function because WebGL2 only supports
+    // polling.
+    bool poll()
+    {
+        if (m_insertFailed)
+        {
+            return false;
+        }
+        if (m_sync != nullptr)
+        {
+            GLenum status = glClientWaitSync(m_sync, 0, 0);
+            return status == GL_ALREADY_SIGNALED ||
+                   status == GL_CONDITION_SATISFIED;
+        }
+        return true;
+    }
+
+    void reset()
+    {
+        if (m_sync != nullptr)
+        {
+            glDeleteSync(m_sync);
+            m_sync = nullptr;
+        }
+        m_insertFailed = false;
+    }
+
+private:
+    GLsync m_sync = nullptr;
+    bool m_insertFailed = false;
+};
+
 class Framebuffer : public GLObject
 {
 public:

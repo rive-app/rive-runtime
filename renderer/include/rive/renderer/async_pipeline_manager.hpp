@@ -233,8 +233,14 @@ public:
                 assert(status == PipelineStatus::notReady);
 
                 // The program was not ready yet so attempt to move its creation
-                //  process forward.
-                if (advanceCreation(*iter->second, props))
+                // process forward. Note that we'll do this in synchronous mode
+                // for ubershaders, to force the pipeline to finish building
+                // before this function returns.
+                if (advanceCreation((props.shaderFeatures == ubershaderFeatures)
+                                        ? PipelineCreateType::sync
+                                        : PipelineCreateType::async,
+                                    *iter->second,
+                                    props))
                 {
                     // The program was not previously ready, but it is now.
                     return &*iter->second;
@@ -459,7 +465,9 @@ protected:
 
     // For renderers like GL that have a step-based async setup,
     //  override this function to attempt to move the shader along its progress.
-    virtual bool advanceCreation(PipelineType&, const PipelineProps&)
+    virtual bool advanceCreation(PipelineCreateType,
+                                 PipelineType&,
+                                 const PipelineProps&)
     {
         return false; // do nothing by default
     }

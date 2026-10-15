@@ -196,6 +196,9 @@ struct GLCapabilities
     // ANGLE_shader_pixel_local_storage is currently broken with
     // GL_TEXTURE_2D_ARRAY on ANGLE's d3d11 renderer.
     bool avoidTexture2DArrayWithWebGLPLS;
+    // We have observed Mali driver crashes when calling glTexSubImage2D on a
+    // texture that is still in-flight from a previous frame.
+    bool avoidTexSubImage2DOnInFlightTextures;
     // Android ANGLE backed by SwiftShader can corrupt memory when resolving
     // partial framebuffer regions. Resolve the full target as a workaround.
     bool avoidPartialFramebufferBlits;

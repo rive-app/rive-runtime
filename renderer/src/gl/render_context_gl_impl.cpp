@@ -22,6 +22,7 @@
 
 #include <cctype>
 #include <initializer_list>
+#include <tuple>
 #include <vector>
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -1051,19 +1052,14 @@ public:
         m_bufferStructure(bufferStructure),
         m_state(std::move(state))
     {
-        auto [width, height] =
+        std::tie(m_width, m_height) =
             gpu::StorageTextureSize(capacityInBytes, m_bufferStructure);
-        GLenum internalformat =
-            storage_texture_internalformat(m_bufferStructure);
-        glGenTextures(1, &m_textureID);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_textureID);
-        glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
-        glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
-        glBindTexture(GL_TEXTURE_2D, 0);
+        for (glutils::Texture& texture : m_textures)
+        {
+            // Slots are lazily allocated.
+            texture = glutils::Texture::Zero();
+        }
     }
-
-    ~TexelBufferRingWebGL() { glDeleteTextures(1, &m_textureID); }
 
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
@@ -1072,14 +1068,44 @@ public:
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {}
 
+    // Uploads into the texture and binds it.
+    // 'slot' and 'reallocateTexture' are for the
+    // GLCapabilities::avoidTexSubImage2DOnInFlightTextures workaround, which
+    // requires us to use a ring of textures instead of 1, and reallocate when a
+    // texture is still in flight from a previous flush.
     void bindToRenderContext(uint32_t bindingIdx,
                              size_t bindingSizeInBytes,
-                             size_t offsetSizeInBytes) const
+                             size_t offsetSizeInBytes,
+                             int slot,
+                             bool reallocateTexture)
     {
+        // We only use a ring, or reallocate textures, as workarounds for
+        // drivers known to crash while updating an in-flight texture.
+        assert(slot == 0 ||
+               m_state->capabilities().avoidTexSubImage2DOnInFlightTextures);
+        assert(!reallocateTexture ||
+               m_state->capabilities().avoidTexSubImage2DOnInFlightTextures);
+
+        assert(0 <= slot && slot < gpu::kBufferRingSize);
+
         auto [updateWidth, updateHeight] =
             gpu::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
         glActiveTexture(GL_TEXTURE0 + bindingIdx);
-        glBindTexture(GL_TEXTURE_2D, m_textureID);
+        if (m_textures[slot] == 0 || reallocateTexture)
+        {
+            m_textures[slot] = glutils::Texture();
+            glBindTexture(GL_TEXTURE_2D, m_textures[slot]);
+            glTexStorage2D(GL_TEXTURE_2D,
+                           1,
+                           storage_texture_internalformat(m_bufferStructure),
+                           m_width,
+                           m_height);
+            glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+        }
+        else
+        {
+            glBindTexture(GL_TEXTURE_2D, m_textures[slot]);
+        }
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -1091,10 +1117,12 @@ public:
                         shadowBuffer() + offsetSizeInBytes);
     }
 
-protected:
+private:
     const gpu::StorageBufferStructure m_bufferStructure;
     const rcp<GLState> m_state;
-    GLuint m_textureID;
+    uint32_t m_width;
+    uint32_t m_height;
+    glutils::Texture m_textures[gpu::kBufferRingSize];
 };
 
 std::unique_ptr<BufferRing> RenderContextGLImpl::makeUniformBufferRing(
@@ -2048,10 +2076,12 @@ inline void setInstanceAttribs(size_t baseByteOffset)
 }
 
 static void bind_storage_buffer(const GLCapabilities& capabilities,
-                                const BufferRing* bufferRing,
+                                BufferRing* bufferRing,
                                 uint32_t bindingIdx,
                                 size_t bindingSizeInBytes,
-                                size_t offsetSizeInBytes)
+                                size_t offsetSizeInBytes,
+                                int polyfillTextureSlot,
+                                bool reallocatePolyfillTexture)
 {
     assert(bufferRing != nullptr);
     assert(bindingSizeInBytes > 0);
@@ -2064,10 +2094,12 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
     }
     else
     {
-        static_cast<const TexelBufferRingWebGL*>(bufferRing)
+        static_cast<TexelBufferRingWebGL*>(bufferRing)
             ->bindToRenderContext(bindingIdx,
                                   bindingSizeInBytes,
-                                  offsetSizeInBytes);
+                                  offsetSizeInBytes,
+                                  polyfillTextureSlot,
+                                  reallocatePolyfillTexture);
     }
 }
 
@@ -2196,6 +2228,24 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                       desc.flushUniformDataOffsetInBytes,
                       sizeof(gpu::FlushUniforms));
 
+    // The GLCapabilities::avoidTexSubImage2DOnInFlightTextures workaround, when
+    // enabled, requires us to use a ring of textures when polyfilling storage
+    // buffers and to guard their updates with a fence.
+    const bool fencePolyfilledBufferTextures =
+        m_capabilities.avoidTexSubImage2DOnInFlightTextures &&
+        !m_capabilities.ARB_shader_storage_buffer_object;
+    int polyfillBufferTextureSlot = 0;
+    bool reallocatePolyfillBufferTextures = false;
+    if (fencePolyfilledBufferTextures)
+    {
+        polyfillBufferTextureSlot = m_polyfillBufferTextureIdx;
+        // If the fence still hasn't signaled at this point, the current slot is
+        // still in flight from a previous flush, and the buffer ring needs to
+        // allocate a new texture instead of reusing the slot.
+        reallocatePolyfillBufferTextures =
+            !m_polyfillBufferTextureFences[polyfillBufferTextureSlot].poll();
+    }
+
     // All programs use the same storage buffers.
     if (desc.pathCount > 0)
     {
@@ -2203,19 +2253,25 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             pathBufferRing(),
                             PATH_BUFFER_IDX,
                             desc.pathCount * sizeof(gpu::PathData),
-                            desc.firstPath * sizeof(gpu::PathData));
+                            desc.firstPath * sizeof(gpu::PathData),
+                            polyfillBufferTextureSlot,
+                            reallocatePolyfillBufferTextures);
 
         bind_storage_buffer(m_capabilities,
                             paintBufferRing(),
                             PAINT_BUFFER_IDX,
                             desc.pathCount * sizeof(gpu::PaintData),
-                            desc.firstPaint * sizeof(gpu::PaintData));
+                            desc.firstPaint * sizeof(gpu::PaintData),
+                            polyfillBufferTextureSlot,
+                            reallocatePolyfillBufferTextures);
 
         bind_storage_buffer(m_capabilities,
                             paintAuxBufferRing(),
                             PAINT_AUX_BUFFER_IDX,
                             desc.pathCount * sizeof(gpu::PaintAuxData),
-                            desc.firstPaintAux * sizeof(gpu::PaintAuxData));
+                            desc.firstPaintAux * sizeof(gpu::PaintAuxData),
+                            polyfillBufferTextureSlot,
+                            reallocatePolyfillBufferTextures);
     }
 
     if (desc.contourCount > 0)
@@ -2224,7 +2280,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             contourBufferRing(),
                             CONTOUR_BUFFER_IDX,
                             desc.contourCount * sizeof(gpu::ContourData),
-                            desc.firstContour * sizeof(gpu::ContourData));
+                            desc.firstContour * sizeof(gpu::ContourData),
+                            polyfillBufferTextureSlot,
+                            reallocatePolyfillBufferTextures);
     }
 
     GLFlushInjector flushInjector(m_capabilities);
@@ -3097,6 +3155,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
+    if (fencePolyfilledBufferTextures)
+    {
+        // GLCapabilities::avoidTexSubImage2DOnInFlightTextures needs us to
+        // fence this flush.
+        m_polyfillBufferTextureFences[m_polyfillBufferTextureIdx].insert();
+        m_polyfillBufferTextureIdx =
+            (m_polyfillBufferTextureIdx + 1) % gpu::kBufferRingSize;
+    }
+
     // Various Android vendors experience synchronization issues with multiple
     // flushes per frame if we don't call glFlush in between.
     glFlush();
@@ -3383,6 +3450,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     capabilities.isMali = strstr(rendererString, "Mali");
     capabilities.isPowerVR = strstr(rendererString, "PowerVR");
     capabilities.isIntel = strstr(rendererString, "Intel");
+    capabilities.avoidTexSubImage2DOnInFlightTextures = capabilities.isMali;
 #ifdef RIVE_ANDROID
     capabilities.avoidPartialFramebufferBlits =
         capabilities.isANGLESystemDriver &&
@@ -3952,11 +4020,12 @@ PipelineStatus RenderContextGLImpl::GLPipelineManager::getPipelineStatus(
 }
 
 bool RenderContextGLImpl::GLPipelineManager::advanceCreation(
+    PipelineCreateType type,
     DrawProgram& pipelineState,
     const PipelineProps& props)
 {
     return pipelineState.advanceCreation(m_context,
-                                         PipelineCreateType::async,
+                                         type,
                                          props.drawType,
                                          props.shaderFeatures,
                                          props.interlockMode,
