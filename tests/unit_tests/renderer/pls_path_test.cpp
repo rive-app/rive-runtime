@@ -123,4 +123,42 @@ TEST_CASE("addUntrustedRawPath prunes empty segments", "[RiveRenderPath]")
     trusted.addRawPath(degenerate);
     CHECK(trusted.getRawPath().verbs().size() == 5);
 }
+
+// Scale/translate matrices take a shortcut through the cached bounds. It has to
+// match mapping every point exactly.
+TEST_CASE("calculatePixelBounds matches mapping every point",
+          "[RiveRenderPath]")
+{
+    srand(0);
+    auto randf = [](float lo, float hi) {
+        return lo + (hi - lo) * (rand() / static_cast<float>(RAND_MAX));
+    };
+    const Mat2D matrices[] = {
+        Mat2D(),
+        Mat2D(1, 0, 0, 1, 10.25f, -7.5f),
+        Mat2D(3.7f, 0, 0, 0.31f, 100.1f, 20.9f),
+        Mat2D(-2.5f, 0, 0, 1.75f, 512.3f, 3.3f),
+        Mat2D(0.4f, 0, 0, -6.1f, -40.6f, 900.7f),
+        Mat2D(-1, 0, 0, -1, 0.5f, 0.5f),
+        Mat2D(0.8f, 0.6f, -0.6f, 0.8f, 30, 40), // Rotation takes the slow path.
+    };
+    for (int i = 0; i < 200; ++i)
+    {
+        RawPath rawPath;
+        rawPath.move({randf(-500, 500), randf(-500, 500)});
+        for (int j = rand() % 8; j >= 0; --j)
+        {
+            rawPath.cubic({randf(-500, 500), randf(-500, 500)},
+                          {randf(-500, 500), randf(-500, 500)},
+                          {randf(-500, 500), randf(-500, 500)});
+        }
+        RiveRenderPath path(FillRule::nonZero, rawPath);
+        for (const Mat2D& m : matrices)
+        {
+            IAABB expected =
+                m.mapBoundingBox(path.getRawPath().points()).roundOut();
+            CHECK(path.calculatePixelBounds(m, std::nullopt, 0) == expected);
+        }
+    }
+}
 } // namespace rive::gpu

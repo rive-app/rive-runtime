@@ -476,7 +476,11 @@ IAABB RiveRenderPath::calculatePixelBounds(
     float feather,
     bool inkbleed) const
 {
-    AABB mappedBounds = matrix.mapBoundingBox(getRawPath().points());
+    // If the matrix contains only translate and scale, we can simply map the
+    // cached untransformed AABB. Otherwise, map all points to get tight bounds.
+    AABB mappedBounds = matrix.xy() == 0.0f && matrix.yx() == 0.0f
+                            ? matrix.mapBoundingBox(getBounds())
+                            : matrix.mapBoundingBox(getRawPath().points());
 
     assert(mappedBounds.width() >= 0);
     assert(mappedBounds.height() >= 0);

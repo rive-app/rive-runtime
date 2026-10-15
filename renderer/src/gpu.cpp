@@ -1664,17 +1664,9 @@ size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
 
 float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
 {
-    Vec2D pts[4] = {{bounds.left(), bounds.top()},
-                    {bounds.right(), bounds.top()},
-                    {bounds.right(), bounds.bottom()},
-                    {bounds.left(), bounds.bottom()}};
-    Vec2D screenSpacePts[4];
-    matrix.mapPoints(screenSpacePts, pts, 4);
-    Vec2D v[3] = {screenSpacePts[1] - screenSpacePts[0],
-                  screenSpacePts[2] - screenSpacePts[0],
-                  screenSpacePts[3] - screenSpacePts[0]};
-    return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) *
-           .5f;
+    // When applying an affine transform to a shape, the shape's area gets
+    // multiplied by |det(M)|.
+    return fabsf(matrix.determinant()) * bounds.width() * bounds.height();
 }
 
 DepthState get_depth_state(InterlockMode interlockMode,
