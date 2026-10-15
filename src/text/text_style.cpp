@@ -101,7 +101,9 @@ void TextStyle::updateVariableFont() const
     rcp<Font> baseFont = asset == nullptr ? nullptr : asset->font();
     if (baseFont == nullptr)
     {
-        // Not ready yet.
+        // Not ready yet, or the font was cleared. Drop any cached variable
+        // font so font() can't keep returning one built from the old base.
+        m_variableFont = nullptr;
         return;
     }
     if (!m_variations.empty() || !m_styleFeatures.empty())

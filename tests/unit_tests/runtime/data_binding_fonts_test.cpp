@@ -7,6 +7,7 @@
 #include "rive/assets/font_asset.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/text/font_hb.hpp"
+#include "rive/text/text_style.hpp"
 #include "rive_file_reader.hpp"
 #include "utils/serializing_factory.hpp"
 #include <catch.hpp>
@@ -116,4 +117,42 @@ TEST_CASE("Font data bind stores and clears the font on the property",
     fontProperty->value(nullptr);
     stateMachine->advanceAndApply(0.0f);
     CHECK(fontProperty->asset()->font() == nullptr);
+}
+
+// The fixture's only text style, bound to "fontProperty".
+static TextStyle* boundTextStyle(Artboard* artboard)
+{
+    for (auto object : artboard->objects())
+    {
+        if (object != nullptr && object->is<TextStyle>())
+        {
+            return object->as<TextStyle>();
+        }
+    }
+    return nullptr;
+}
+
+// Any path that clears a style's font asset (deleteFont,
+// removeGlobalFontAsset) must not leave a cached variable font behind.
+TEST_CASE("Clearing a font asset drops the style's cached variable font",
+          "[text]")
+{
+    auto file = ReadRiveFile("assets/data_bind_font_test.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto style = boundTextStyle(artboard.get());
+    REQUIRE(style != nullptr);
+    REQUIRE(style->variationHelper() != nullptr);
+    REQUIRE(style->font() != nullptr);
+
+    auto asset = file->asset(style->fontAssetId());
+    REQUIRE(asset != nullptr);
+    REQUIRE(asset->is<FontAsset>());
+    asset->as<FontAsset>()->font(nullptr);
+    stateMachine->advanceAndApply(0.0f);
+    CHECK(style->font() == nullptr);
 }
