@@ -56,7 +56,17 @@ ieee_float_divide(float a, float b)
     return a / b;
 }
 
-// Reinterprets the underlying bits of src as the given type.
+// bit_cast reinterprets the underlying bits of src as the given type. If
+// RIVE_HAS_CONSTEXPR_BIT_CAST is defined, this can be called in constexpr
+// contexts such as static asserts.
+#if __has_builtin(__builtin_bit_cast)
+#define RIVE_HAS_CONSTEXPR_BIT_CAST
+template <typename Dst, typename Src> constexpr Dst bit_cast(const Src& src)
+{
+    static_assert(sizeof(Dst) == sizeof(Src), "sizes of both types must match");
+    return __builtin_bit_cast(Dst, src);
+}
+#else
 template <typename Dst, typename Src> Dst bit_cast(const Src& src)
 {
     static_assert(sizeof(Dst) == sizeof(Src), "sizes of both types must match");
@@ -64,6 +74,7 @@ template <typename Dst, typename Src> Dst bit_cast(const Src& src)
     RIVE_INLINE_MEMCPY(&dst, &src, sizeof(Dst));
     return dst;
 }
+#endif
 
 // Lossless cast function that asserts on overflow
 template <typename T, typename U> T lossless_numeric_cast(U u)

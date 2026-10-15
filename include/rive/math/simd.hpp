@@ -29,7 +29,7 @@
 #include <immintrin.h>
 #endif
 
-#if defined(__ARM_NEON__) || defined(__aarch64__)
+#if defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
 
@@ -148,6 +148,34 @@ template <typename T, int N> SIMD_ALWAYS_INLINE bool any(gvec<T, N> x)
 #endif
 }
 
+// Packs a 4-lane boolean mask into the low 4 bits of an int, lane i into bit i.
+// Each mask value should be either be 0 or ~0. SSE and NEON extract different
+// bits, so partial masks will produce different results.
+SIMD_ALWAYS_INLINE uint32_t bitmask(gvec<int32_t, 4> x)
+{
+#if defined(__SSE__)
+    __m128 v;
+    SIMD_INLINE_MEMCPY(&v, &x, sizeof(v));
+    return static_cast<uint32_t>(_mm_movemask_ps(v));
+#elif defined(__aarch64__)
+    uint32x4_t v;
+    SIMD_INLINE_MEMCPY(&v, &x, sizeof(v));
+    const uint32x4_t laneBits = {1, 2, 4, 8};
+    return vaddvq_u32(vandq_u32(v, laneBits));
+#elif defined(__ARM_NEON)
+    // ARMv7 has no across-vector add, so add the halves, then the pair.
+    uint32x4_t v;
+    SIMD_INLINE_MEMCPY(&v, &x, sizeof(v));
+    const uint32x4_t laneBits = {1, 2, 4, 8};
+    uint32x4_t bits = vandq_u32(v, laneBits);
+    uint32x2_t sum = vadd_u32(vget_low_u32(bits), vget_high_u32(bits));
+    return vget_lane_u32(vpadd_u32(sum, sum), 0);
+#else
+    return static_cast<uint32_t>((x[0] & 1) | (x[1] & 2) | (x[2] & 4) |
+                                 (x[3] & 8));
+#endif
+}
+
 // Returns true if all elements in x are equal to ~0.
 template <typename T, int N> SIMD_ALWAYS_INLINE bool all(gvec<T, N> x)
 {
@@ -210,7 +238,24 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(
 template <typename T, int N>
 SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 {
-#if __has_builtin(__builtin_elementwise_min) && SIMD_NATIVE_GVEC
+#if SIMD_NATIVE_GVEC && defined(__arm__)
+#if __has_builtin(__builtin_elementwise_min)
+#if !defined(__ARM_FEATURE_NUMERIC_MAXMIN)
+    // 32-bit ARM before ARMv8 has no vector instruction with the builtin's NaN
+    // semantics, so for floats it becomes a call to fminf() per element.
+    if constexpr (std::is_floating_point_v<T>)
+    {
+        return if_then_else(b < a || isnan(a), b, a);
+    }
+    else
+#endif
+    {
+        return __builtin_elementwise_min(a, b);
+    }
+#else
+    return if_then_else(b < a || isnan(a), b, a);
+#endif
+#elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_min)
     return __builtin_elementwise_min(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -228,7 +273,23 @@ SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 template <typename T, int N>
 SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
-#if __has_builtin(__builtin_elementwise_max) && SIMD_NATIVE_GVEC
+#if SIMD_NATIVE_GVEC && defined(__arm__)
+#if __has_builtin(__builtin_elementwise_max)
+#if !defined(__ARM_FEATURE_NUMERIC_MAXMIN)
+    // See min().
+    if constexpr (std::is_floating_point_v<T>)
+    {
+        return if_then_else(a < b || isnan(a), b, a);
+    }
+    else
+#endif
+    {
+        return __builtin_elementwise_max(a, b);
+    }
+#else
+    return if_then_else(a < b || isnan(a), b, a);
+#endif
+#elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_max)
     return __builtin_elementwise_max(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -239,6 +300,19 @@ SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
     // no-op for int types.)
     return if_then_else(a < b || isnan(a), b, a);
 #endif
+}
+
+// Faster than simd::min/max but does not have its NaN-handling behavior
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> minFast(gvec<T, N> a, gvec<T, N> b)
+{
+    return if_then_else(b < a, b, a);
+}
+
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> maxFast(gvec<T, N> a, gvec<T, N> b)
+{
+    return if_then_else(a < b, b, a);
 }
 
 // Unlike std::clamp(), simd::clamp() always returns a value between lo and hi.
@@ -367,11 +441,70 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_or(gvec<T, N> x)
 #endif
 }
 
+////// Type conversion //////
+
+template <typename U, typename T, int N>
+SIMD_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
+{
+#if __has_builtin(__builtin_convertvector) && SIMD_NATIVE_GVEC
+    return __builtin_convertvector(x, gvec<U, N>);
+#else
+    gvec<U, N> y{};
+    for (int i = 0; i < N; ++i)
+        y[i] = static_cast<U>(x[i]);
+    return y;
+#endif
+}
+
 ////// Floating Point Functions //////
+
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> copysign(gvec<float, N> x, gvec<float, N> y)
+{
+    constexpr static uint32_t SIGN_BIT = 0x80000000u;
+    // Type punning is free in vector registers.
+    gvec<uint32_t, N> bitsX, bitsY;
+    SIMD_INLINE_MEMCPY(&bitsX, &x, sizeof(x));
+    SIMD_INLINE_MEMCPY(&bitsY, &y, sizeof(y));
+    gvec<uint32_t, N> bitsRet = (bitsY & SIGN_BIT) | (bitsX & ~SIGN_BIT);
+    gvec<float, N> ret;
+    SIMD_INLINE_MEMCPY(&ret, &bitsRet, sizeof(ret));
+    return ret;
+}
+
+// On pre-ARMv8 NEON, floor/ceil go through scalar operations, so use this
+// implementation which uses integer truncation (inf/NaN pass through
+// unchanged).
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> floorByIntConversion(gvec<float, N> x)
+{
+    auto isSmall = abs(x) < 8388608.f; // 2^23, floats this large are all ints
+    gvec<float, N> t =
+        cast<float>(cast<int32_t>(if_then_else(isSmall, x, gvec<float, N>(0))));
+    t = if_then_else(t > x, t - 1.f, t);
+    // The result has x's sign, which keeps -0.
+    return if_then_else(isSmall, copysign(t, x), x);
+}
+
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> ceilByIntConversion(gvec<float, N> x)
+{
+    auto isSmall = abs(x) < 8388608.f; // 2^23, floats this large are all ints
+    gvec<float, N> t =
+        cast<float>(cast<int32_t>(if_then_else(isSmall, x, gvec<float, N>(0))));
+    t = if_then_else(t < x, t + 1.f, t);
+    // The result has x's sign, which keeps -0 (e.g., ceil(-0.5)).
+    return if_then_else(isSmall, copysign(t, x), x);
+}
 
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 {
-#if __has_builtin(__builtin_elementwise_floor) && SIMD_NATIVE_GVEC
+#if SIMD_NATIVE_GVEC && defined(__arm__) &&                                    \
+    !defined(__ARM_FEATURE_DIRECTED_ROUNDING)
+    // 32-bit ARM before ARMv8 can't round floats in vector registers, so the
+    // builtin becomes a call to floorf() per element.
+    return floorByIntConversion(x);
+#elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_floor)
     return __builtin_elementwise_floor(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -386,7 +519,12 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
 
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 {
-#if __has_builtin(__builtin_elementwise_ceil) && SIMD_NATIVE_GVEC
+#if SIMD_NATIVE_GVEC && defined(__arm__) &&                                    \
+    !defined(__ARM_FEATURE_DIRECTED_ROUNDING)
+    // 32-bit ARM before ARMv8 can't round floats in vector registers, so the
+    // builtin becomes a call to ceilf() per element.
+    return ceilByIntConversion(x);
+#elif SIMD_NATIVE_GVEC && __has_builtin(__builtin_elementwise_ceil)
     return __builtin_elementwise_ceil(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
@@ -397,20 +535,6 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
         x[i] = ceilf(x[i]);
     return x;
 #endif
-}
-
-template <int N>
-SIMD_ALWAYS_INLINE gvec<float, N> copysign(gvec<float, N> x, gvec<float, N> y)
-{
-    constexpr static uint32_t SIGN_BIT = 0x80000000u;
-    // Type punning is free in vector registers.
-    gvec<uint32_t, N> bitsX, bitsY;
-    SIMD_INLINE_MEMCPY(&bitsX, &x, sizeof(x));
-    SIMD_INLINE_MEMCPY(&bitsY, &y, sizeof(y));
-    gvec<uint32_t, N> bitsRet = (bitsY & SIGN_BIT) | (bitsX & ~SIGN_BIT);
-    gvec<float, N> ret;
-    SIMD_INLINE_MEMCPY(&ret, &bitsRet, sizeof(ret));
-    return ret;
 }
 
 // IEEE compliant sqrt.
@@ -478,6 +602,32 @@ template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 }
 #endif
 
+#if defined(__SSE__) || defined(__ARM_NEON)
+// Only defined where the hardware has a reciprocal square root estimate.
+#define RIVE_HAS_FAST_INVERSE_SQRT
+
+// Approximates 1 / sqrt(x) from the hardware estimate.
+SIMD_ALWAYS_INLINE gvec<float, 4> inverseSqrtFast(gvec<float, 4> x)
+{
+#if defined(__SSE__)
+    // This result has 12 bits of precision
+    __m128 xv;
+    SIMD_INLINE_MEMCPY(&xv, &x, sizeof(xv));
+    __m128 yv = _mm_rsqrt_ps(xv);
+#else
+    // vrsqrteq_f32 has only 8 bits of precision, so use vrsqrtsq_f32 to perform
+    // a Newton-Raphson iteration.
+    float32x4_t xv;
+    SIMD_INLINE_MEMCPY(&xv, &x, sizeof(xv));
+    float32x4_t yv = vrsqrteq_f32(xv);
+    yv = vmulq_f32(yv, vrsqrtsq_f32(xv, vmulq_f32(yv, yv)));
+#endif
+    gvec<float, 4> y;
+    SIMD_INLINE_MEMCPY(&y, &yv, sizeof(y));
+    return y;
+}
+#endif
+
 // Returns "(x + 127) / 255", for x in the range 0..255*255.
 template <int N>
 SIMD_ALWAYS_INLINE gvec<uint16_t, N> div255(gvec<uint16_t, N> x)
@@ -504,21 +654,6 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
     auto numer = b * xx + a;
     auto denom = xx * (d * xx + c) + 1.f;
     return x * (numer / denom) + pi_over_2;
-}
-
-////// Type conversion //////
-
-template <typename U, typename T, int N>
-SIMD_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
-{
-#if __has_builtin(__builtin_convertvector) && SIMD_NATIVE_GVEC
-    return __builtin_convertvector(x, gvec<U, N>);
-#else
-    gvec<U, N> y{};
-    for (int i = 0; i < N; ++i)
-        y[i] = static_cast<U>(x[i]);
-    return y;
-#endif
 }
 
 ////// Loading and storing //////
@@ -562,23 +697,31 @@ SIMD_ALWAYS_INLINE void store(void* dst, gvec<T, N> vec)
 
 ////// Column-major (transposed) loads //////
 
-#if defined(__ARM_NEON__) || defined(__aarch64__)
-SIMD_ALWAYS_INLINE std::
-    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-    load4x4f(const float* matrix)
+// This structure is used instead of tuples because MSVC enabled 8-byte packing
+// for tuples which breaks float4 since it requires 16-byte alignment for
+// aligned loads. See https://github.com/microsoft/STL/blob/main/stl/inc/tuple
+template <typename T> struct gvec4x4
+{
+    gvec<T, 4> cols[4];
+
+    // For structured bindings, e.g., "auto [x, y, z, w] = load4x4f(m)".
+    template <size_t I> gvec<T, 4>& get() { return cols[I]; }
+    template <size_t I> const gvec<T, 4>& get() const { return cols[I]; }
+};
+
+#if defined(__ARM_NEON)
+SIMD_ALWAYS_INLINE gvec4x4<float> load4x4f(const float* matrix)
 {
     float32x4x4_t m = vld4q_f32(matrix);
-    gvec<float, 4> c0, c1, c2, c3;
-    SIMD_INLINE_MEMCPY(&c0, &m.val[0], sizeof(c0));
-    SIMD_INLINE_MEMCPY(&c1, &m.val[1], sizeof(c1));
-    SIMD_INLINE_MEMCPY(&c2, &m.val[2], sizeof(c2));
-    SIMD_INLINE_MEMCPY(&c3, &m.val[3], sizeof(c3));
-    return {c0, c1, c2, c3};
+    gvec4x4<float> result;
+    SIMD_INLINE_MEMCPY(&result.cols[0], &m.val[0], sizeof(result.cols[0]));
+    SIMD_INLINE_MEMCPY(&result.cols[1], &m.val[1], sizeof(result.cols[1]));
+    SIMD_INLINE_MEMCPY(&result.cols[2], &m.val[2], sizeof(result.cols[2]));
+    SIMD_INLINE_MEMCPY(&result.cols[3], &m.val[3], sizeof(result.cols[3]));
+    return result;
 }
 #elif defined(__SSE__)
-SIMD_ALWAYS_INLINE std::
-    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-    load4x4f(const float* m)
+SIMD_ALWAYS_INLINE gvec4x4<float> load4x4f(const float* m)
 {
     __m128 r0, r1, r2, r3;
     SIMD_INLINE_MEMCPY(&r0, m + 4 * 0, sizeof(r0));
@@ -586,25 +729,77 @@ SIMD_ALWAYS_INLINE std::
     SIMD_INLINE_MEMCPY(&r2, m + 4 * 2, sizeof(r2));
     SIMD_INLINE_MEMCPY(&r3, m + 4 * 3, sizeof(r3));
     _MM_TRANSPOSE4_PS(r0, r1, r2, r3);
-    gvec<float, 4> c0, c1, c2, c3;
-    SIMD_INLINE_MEMCPY(&c0, &r0, sizeof(c0));
-    SIMD_INLINE_MEMCPY(&c1, &r1, sizeof(c1));
-    SIMD_INLINE_MEMCPY(&c2, &r2, sizeof(c2));
-    SIMD_INLINE_MEMCPY(&c3, &r3, sizeof(c3));
-    return {c0, c1, c2, c3};
+    gvec4x4<float> result;
+    SIMD_INLINE_MEMCPY(&result.cols[0], &r0, sizeof(result.cols[0]));
+    SIMD_INLINE_MEMCPY(&result.cols[1], &r1, sizeof(result.cols[1]));
+    SIMD_INLINE_MEMCPY(&result.cols[2], &r2, sizeof(result.cols[2]));
+    SIMD_INLINE_MEMCPY(&result.cols[3], &r3, sizeof(result.cols[3]));
+    return result;
 }
 #else
-SIMD_ALWAYS_INLINE std::
-    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-    load4x4f(const float* m)
+SIMD_ALWAYS_INLINE gvec4x4<float> load4x4f(const float* m)
 {
-    gvec<float, 4> c0 = {m[0], m[4], m[8], m[12]};
-    gvec<float, 4> c1 = {m[1], m[5], m[9], m[13]};
-    gvec<float, 4> c2 = {m[2], m[6], m[10], m[14]};
-    gvec<float, 4> c3 = {m[3], m[7], m[11], m[15]};
-    return {c0, c1, c2, c3};
+    return {{
+        {m[0], m[4], m[8], m[12]},
+        {m[1], m[5], m[9], m[13]},
+        {m[2], m[6], m[10], m[14]},
+        {m[3], m[7], m[11], m[15]},
+    }};
 }
 #endif
+
+SIMD_ALWAYS_INLINE gvec4x4<float> transpose4x4f(gvec<float, 4> row0,
+                                                gvec<float, 4> row1,
+                                                gvec<float, 4> row2,
+                                                gvec<float, 4> row3)
+{
+#if defined(__SSE__)
+    __m128 r0, r1, r2, r3;
+    SIMD_INLINE_MEMCPY(&r0, &row0, sizeof(r0));
+    SIMD_INLINE_MEMCPY(&r1, &row1, sizeof(r1));
+    SIMD_INLINE_MEMCPY(&r2, &row2, sizeof(r2));
+    SIMD_INLINE_MEMCPY(&r3, &row3, sizeof(r3));
+    _MM_TRANSPOSE4_PS(r0, r1, r2, r3);
+    gvec4x4<float> result;
+    SIMD_INLINE_MEMCPY(&result.cols[0], &r0, sizeof(result.cols[0]));
+    SIMD_INLINE_MEMCPY(&result.cols[1], &r1, sizeof(result.cols[1]));
+    SIMD_INLINE_MEMCPY(&result.cols[2], &r2, sizeof(result.cols[2]));
+    SIMD_INLINE_MEMCPY(&result.cols[3], &r3, sizeof(result.cols[3]));
+    return result;
+#elif defined(__aarch64__)
+    float32x4_t r0, r1, r2, r3;
+    SIMD_INLINE_MEMCPY(&r0, &row0, sizeof(r0));
+    SIMD_INLINE_MEMCPY(&r1, &row1, sizeof(r1));
+    SIMD_INLINE_MEMCPY(&r2, &row2, sizeof(r2));
+    SIMD_INLINE_MEMCPY(&r3, &row3, sizeof(r3));
+    // Interleave pairs of rows, then pairs of 64-bit halves.
+    float32x4_t t0 = vtrn1q_f32(r0, r1);
+    float32x4_t t1 = vtrn2q_f32(r0, r1);
+    float32x4_t t2 = vtrn1q_f32(r2, r3);
+    float32x4_t t3 = vtrn2q_f32(r2, r3);
+    float32x4_t col0 = vreinterpretq_f32_f64(
+        vtrn1q_f64(vreinterpretq_f64_f32(t0), vreinterpretq_f64_f32(t2)));
+    float32x4_t col1 = vreinterpretq_f32_f64(
+        vtrn1q_f64(vreinterpretq_f64_f32(t1), vreinterpretq_f64_f32(t3)));
+    float32x4_t col2 = vreinterpretq_f32_f64(
+        vtrn2q_f64(vreinterpretq_f64_f32(t0), vreinterpretq_f64_f32(t2)));
+    float32x4_t col3 = vreinterpretq_f32_f64(
+        vtrn2q_f64(vreinterpretq_f64_f32(t1), vreinterpretq_f64_f32(t3)));
+    gvec4x4<float> result;
+    SIMD_INLINE_MEMCPY(&result.cols[0], &col0, sizeof(result.cols[0]));
+    SIMD_INLINE_MEMCPY(&result.cols[1], &col1, sizeof(result.cols[1]));
+    SIMD_INLINE_MEMCPY(&result.cols[2], &col2, sizeof(result.cols[2]));
+    SIMD_INLINE_MEMCPY(&result.cols[3], &col3, sizeof(result.cols[3]));
+    return result;
+#else
+    return {{
+        {row0[0], row1[0], row2[0], row3[0]},
+        {row0[1], row1[1], row2[1], row3[1]},
+        {row0[2], row1[2], row2[2], row3[2]},
+        {row0[3], row1[3], row2[3], row3[3]},
+    }};
+#endif
+}
 
 PUSH_DISABLE_CLANG_SIMD_ABI_WARNING()
 
@@ -808,6 +1003,19 @@ using uint64x2 = simd::gvec<uint64_t, 2>;
 using uint64x4 = simd::gvec<uint64_t, 4>;
 
 } // namespace rive
+
+// The tuple protocol for gvec4x4, for structured bindings.
+namespace std
+{
+template <typename T>
+struct tuple_size<rive::simd::gvec4x4<T>> : integral_constant<size_t, 4>
+{};
+
+template <size_t I, typename T> struct tuple_element<I, rive::simd::gvec4x4<T>>
+{
+    using type = rive::simd::gvec<T, 4>;
+};
+} // namespace std
 
 #undef SIMD_INLINE_MEMCPY
 #undef SIMD_ALWAYS_INLINE

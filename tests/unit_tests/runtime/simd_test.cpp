@@ -23,6 +23,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include <limits>
+#include <vector>
 
 #define CHECK_ALL(B) CHECK(simd::all(B))
 #define CHECK_ANY(B) CHECK(simd::any(B))
@@ -320,6 +321,26 @@ TEST_CASE("min-max", "[simd]")
                    float4{kInf, 100, kInf, -kInf});
     CHECK_ALL((f4 == float4{kInf, 100, kInf, kInf}));
 
+    // minFast() and maxFast() match std::min() and std::max(), including when
+    // an argument is NaN.
+    float4 a = {1, kNaN, 2, kNaN};
+    float4 b = {kNaN, 1, 1, kNaN};
+    float4 fastMin = simd::minFast(a, b);
+    float4 fastMax = simd::maxFast(a, b);
+    for (int i = 0; i < 4; ++i)
+    {
+        float stdMin = std::min(a[i], b[i]);
+        float stdMax = std::max(a[i], b[i]);
+        CHECK(math::bit_cast<uint32_t>(fastMin[i]) ==
+              math::bit_cast<uint32_t>(stdMin));
+        CHECK(math::bit_cast<uint32_t>(fastMax[i]) ==
+              math::bit_cast<uint32_t>(stdMax));
+    }
+    CHECK_ALL((simd::minFast(float4{1, 2, 3, 4}, float4{4, 3, 2}) ==
+               float4{1, 2, 2, 0}));
+    CHECK_ALL((simd::maxFast(float4{1, 2, 3, 4}, float4{4, 3, 2}) ==
+               float4{4, 3, 3, 4}));
+
     // If a or b is NaN, min returns whichever is not NaN.
     f4 = simd::min(float4{1, kNaN, 2, kNaN}, float4{kNaN, 1, 1, kNaN});
     CHECK_ALL((f4.xyz == 1.f));
@@ -560,6 +581,57 @@ TEST_CASE("ceil", "[simd]")
     CHECK_ALL((simd::ceil(float4{-1.9f, 1.9f, 2, -2}) == float4{-1, 2, 2, -2}));
     CHECK_ALL((simd::ceil(float2{kInf, -kInf}) == float2{kInf, -kInf}));
     CHECK_ALL((simd::isnan(simd::ceil(float2{kNaN, -kNaN}))));
+}
+
+// Check the floor() and ceil() fallbacks for hardware without vector rounding
+// against floorf() and ceilf(), bit for bit (including the sign of zero).
+TEST_CASE("floorByIntConversion, ceilByIntConversion", "[simd]")
+{
+    std::vector<float> values = {0.f,
+                                 -0.f,
+                                 .5f,
+                                 -.5f,
+                                 1,
+                                 -1,
+                                 1.5f,
+                                 -1.5f,
+                                 2.5f,
+                                 -2.5f,
+                                 .99999994f,
+                                 -.99999994f,
+                                 1e-30f,
+                                 -1e-30f,
+                                 std::numeric_limits<float>::denorm_min(),
+                                 -std::numeric_limits<float>::denorm_min(),
+                                 8388607.5f,
+                                 -8388607.5f,
+                                 8388608,
+                                 -8388608,
+                                 8388609,
+                                 -8388609,
+                                 3e9f,
+                                 -3e9f,
+                                 std::numeric_limits<float>::max(),
+                                 -std::numeric_limits<float>::max(),
+                                 kInf,
+                                 -kInf};
+    for (int i = 0; i < 10000; ++i)
+    {
+        float scale = i < 5000 ? 100.f : 1e7f;
+        values.push_back((rand() / static_cast<float>(RAND_MAX) - .5f) * scale);
+    }
+    for (float x : values)
+    {
+        float4 x4(x);
+        float f = simd::floorByIntConversion(x4)[0];
+        float c = simd::ceilByIntConversion(x4)[0];
+        CHECK(math::bit_cast<uint32_t>(f) ==
+              math::bit_cast<uint32_t>(floorf(x)));
+        CHECK(math::bit_cast<uint32_t>(c) ==
+              math::bit_cast<uint32_t>(ceilf(x)));
+    }
+    CHECK_ALL((simd::isnan(simd::floorByIntConversion(float2{kNaN, -kNaN}))));
+    CHECK_ALL((simd::isnan(simd::ceilByIntConversion(float2{kNaN, -kNaN}))));
 }
 
 // Check simd::copysign.
@@ -863,16 +935,34 @@ TEST_CASE("mix", "[simd]")
                                  float4(1)) == float4{5, -6, 7, -8}));
 }
 
+#ifdef RIVE_HAS_FAST_INVERSE_SQRT
+// Check simd::inverseSqrtFast() against 1 / sqrt(x) over a wide range. SSE's
+// raw estimate is the least precise (relative error under 1.5 * 2^-12).
+TEST_CASE("inverseSqrtFast", "[simd]")
+{
+    for (float x = 1e-20f; x < 1e20f; x *= 1.37f)
+    {
+        float4 xs = {x, x * 1.1f, x * 1.2f, x * 1.3f};
+        float4 est = simd::inverseSqrtFast(xs);
+        for (int i = 0; i < 4; ++i)
+        {
+            float exact = 1 / sqrtf(xs[i]);
+            CHECK(fabsf(est[i] - exact) <= exact * (1.5f / 4096));
+        }
+    }
+}
+#endif
+
 // Check simd::load4x4f
 TEST_CASE("load4x4f", "[simd]")
 {
     // Column major.
     float m[16] = {0, 4, 8, 12, 1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15};
     auto c = simd::load4x4f(m);
-    CHECK(simd::all(std::get<0>(c) == float4{0, 1, 2, 3}));
-    CHECK(simd::all(std::get<1>(c) == float4{4, 5, 6, 7}));
-    CHECK(simd::all(std::get<2>(c) == float4{8, 9, 10, 11}));
-    CHECK(simd::all(std::get<3>(c) == float4{12, 13, 14, 15}));
+    CHECK(simd::all(c.cols[0] == float4{0, 1, 2, 3}));
+    CHECK(simd::all(c.cols[1] == float4{4, 5, 6, 7}));
+    CHECK(simd::all(c.cols[2] == float4{8, 9, 10, 11}));
+    CHECK(simd::all(c.cols[3] == float4{12, 13, 14, 15}));
 }
 
 } // namespace rive
