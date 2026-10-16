@@ -7,6 +7,7 @@
 #endif
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_deferred_bind_groups.hpp"
+#include "rive/renderer/ore/ore_draw_bindings.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
@@ -1923,11 +1924,11 @@ static int gpupipeline_construct(lua_State* L)
         // layout per group. Sparse-group shaders are supported (e.g.
         // group 0 + group 2 → autoLayouts[1] is null/empty).
         //
-        // Merged across both stages, so a fragment compiled from another
-        // file contributes its own bindings and slots — matching WebGPU,
-        // where `layout: 'auto'` derives from every stage.
-        const BindingMap bm =
-            bindingMapForStages(desc.vertexModule, desc.fragmentModule);
+        // Only what the entry points bind, as WebGPU's layout 'auto' derives.
+        const BindingMap bm = bindingMapForEntries(desc.vertexModule,
+                                                   desc.vertexEntryPoint,
+                                                   desc.fragmentModule,
+                                                   desc.fragmentEntryPoint);
         uint32_t maxGroup = 0;
         bool seen[ore::kMaxBindGroups] = {};
         for (size_t i = 0; i < bm.size(); ++i)
@@ -2042,7 +2043,8 @@ static int gpupipeline_getbindgrouplayout(lua_State* L)
     if (group >= self->autoBindGroupLayouts.size() ||
         !self->autoBindGroupLayouts[group])
         luaL_error(L,
-                   "getBindGroupLayout: group %u not present in shader",
+                   "getBindGroupLayout: group %u is not bound by the "
+                   "pipeline's entry points",
                    group);
     auto* w = lua_newrive<ScriptedGPUBindGroupLayout>(L);
     w->layout = self->autoBindGroupLayouts[group];
@@ -2078,11 +2080,30 @@ static bool validate_render_pass(lua_State* L, ScriptedGPURenderPass* self)
     return self->pass != nullptr;
 }
 
+static ore::DrawBindings& draw_bindings(ScriptedGPURenderPass* self)
+{
+    if (self->drawBindings == nullptr)
+        self->drawBindings = std::make_unique<ore::DrawBindings>();
+    return *self->drawBindings;
+}
+
 static void validate_pipeline_set(lua_State* L, ScriptedGPURenderPass* self)
 {
     if (!self->m_pipelineSet)
     {
         luaL_error(L, ore::kGuardSetPipelineBeforeDraw);
+    }
+    // luaL_error longjmps past destructors, so the message leaves the
+    // std::string before raising.
+    char message[256] = {};
+    {
+        std::string err;
+        if (!draw_bindings(self).validate(&err))
+            snprintf(message, sizeof(message), "%s", err.c_str());
+    }
+    if (message[0] != '\0')
+    {
+        luaL_error(L, "%s", message);
     }
 }
 
@@ -2118,6 +2139,7 @@ static int gpurenderpass_setpipeline(lua_State* L)
     {
         luaL_error(L, "setPipeline: %s", oreCtx->lastError().c_str());
     }
+    draw_bindings(self).setPipeline(pipeline->pipeline.get());
     self->m_pipelineSet = true;
     return 0;
 }
@@ -2221,7 +2243,6 @@ static int gpurenderpass_setbindgroup(lua_State* L)
     {
         luaL_error(L, "%s", message);
     }
-
     if (!self->m_pipelineSet)
     {
         if (self->deferredBindGroups == nullptr)
@@ -2233,6 +2254,7 @@ static int gpurenderpass_setbindgroup(lua_State* L)
                                         bg->bindGroup.get(),
                                         dynamicOffsets,
                                         dynamicOffsetCount);
+        draw_bindings(self).setBindGroup(groupIndex, bg->bindGroup.get());
         return 0;
     }
     if (oreCtx)
@@ -2245,6 +2267,7 @@ static int gpurenderpass_setbindgroup(lua_State* L)
     {
         luaL_error(L, "setBindGroup: %s", oreCtx->lastError().c_str());
     }
+    draw_bindings(self).setBindGroup(groupIndex, bg->bindGroup.get());
     return 0;
 }
 
@@ -2380,6 +2403,7 @@ static int gpurenderpass_finish(lua_State* L)
     {
         self->pass->finish();
     }
+    self->drawBindings.reset();
     self->m_finished = true;
     return 0;
 }

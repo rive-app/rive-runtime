@@ -425,6 +425,11 @@ struct ShaderModuleDesc
     const uint8_t* texSamplerPairBytes = nullptr;
     uint32_t texSamplerPairSize = 0;
 
+    // What each entry point it serves binds, by physical name; absent for
+    // older bakes, whose pipelines then derive layouts for the whole module.
+    const uint8_t* entryBindingBytes = nullptr;
+    uint32_t entryBindingSize = 0;
+
     // GL program-link fixup blob from the RSTB (target IDs 14/15, one per
     // GLSL stage). Consumed by `oreGLFixupProgramBindings` at
     // `glLinkProgram` time to call `glUniformBlockBinding` / `glUniform1i`

@@ -790,6 +790,7 @@ class BindGroupLayout;
 class ShaderModule;
 class Pipeline;
 class DeferredBindGroups;
+class DrawBindings;
 class RenderPass;
 class Context;
 } // namespace ore
@@ -946,6 +947,8 @@ public:
     std::unique_ptr<ore::RenderPass> pass;
     // setBindGroup calls made before the first setPipeline.
     std::unique_ptr<ore::DeferredBindGroups> deferredBindGroups;
+    // What is bound, checked before each draw.
+    std::unique_ptr<ore::DrawBindings> drawBindings;
     bool m_finished = false;
     bool m_pipelineSet = false;
     uint32_t sampleCount = 1; // for pipeline sampleCount validation

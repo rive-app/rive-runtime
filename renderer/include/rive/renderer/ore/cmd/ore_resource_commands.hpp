@@ -84,12 +84,13 @@ struct ShaderModuleDescPOD
     BlobRef bindingMapBytes;
     BlobRef texSamplerPairBytes;
     BlobRef glFixupBytes;
+    BlobRef entryBindingBytes;
     uint32_t shaderAssetId;
     ShaderLanguage language;
     ShaderStage stage;
     uint8_t pad[2];
 };
-static_assert(sizeof(ShaderModuleDescPOD) == 120,
+static_assert(sizeof(ShaderModuleDescPOD) == 136,
               "wire POD must be padding-free");
 
 struct BindGroupLayoutDescPOD

@@ -328,6 +328,10 @@ inline bool replayOreLifecycle(Context& ctx,
                 static_cast<const uint8_t*>(bytesOf(pod.glFixupBytes));
             d.glFixupSize =
                 static_cast<uint32_t>(blob(pod.glFixupBytes).size());
+            d.entryBindingBytes =
+                static_cast<const uint8_t*>(bytesOf(pod.entryBindingBytes));
+            d.entryBindingSize =
+                static_cast<uint32_t>(blob(pod.entryBindingBytes).size());
             d.shaderAssetId = pod.shaderAssetId;
             // The note carries full compiler output; deferred recording
             // accepted this module, so replay is where the failure exists.

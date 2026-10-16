@@ -79,6 +79,18 @@ public:
         return Span<const TextureSamplerPair>(m_pairs.data(), m_pairs.size());
     }
 
+    /// The RSTB entry bindings section: what each entry point statically
+    /// binds, decoded by ore. Empty for bakes that predate it.
+    Span<const uint8_t> entryBindings() const
+    {
+        if (!m_indexed || m_entryBindingsSize == 0)
+        {
+            return {};
+        }
+        return Span<const uint8_t>(m_bytes.data() + m_entryBindingsOffset,
+                                   m_entryBindingsSize);
+    }
+
     /// The decoded RSTB container, for hosts that forward it across a
     /// process or module boundary.
     Span<const uint8_t> rstb() const
@@ -115,6 +127,8 @@ private:
     std::unordered_map<uint8_t, ShaderVariant> m_index;
 
     std::vector<TextureSamplerPair> m_pairs;
+    size_t m_entryBindingsOffset = 0;
+    size_t m_entryBindingsSize = 0;
 };
 } // namespace rive
 

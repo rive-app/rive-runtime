@@ -121,6 +121,7 @@
 #if defined(RIVE_CANVAS) && defined(RIVE_ORE)
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/renderer/ore/ore_deferred_bind_groups.hpp"
+#include "rive/renderer/ore/ore_draw_bindings.hpp"
 #include "rive/renderer/ore/ore_script_guards.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
 #include "rive/renderer/ore/ore_texture.hpp"
@@ -2791,6 +2792,7 @@ struct HostGpuPass
     std::unique_ptr<ore::RenderPass> pass;
     // setBindGroup calls made before the first setPipeline.
     ore::DeferredBindGroups deferredBindGroups;
+    ore::DrawBindings drawBindings;
     bool pipelineSet = false;
 };
 
@@ -3294,6 +3296,11 @@ bool gpuPassDrawAllowed(WasmScriptingVM* vm,
         vm->raiseModuleError(ore::kGuardSetPipelineBeforeDraw);
         return false;
     }
+    if (std::string err; !host->drawBindings.validate(&err))
+    {
+        vm->raiseModuleError(err.c_str());
+        return false;
+    }
     ore::Context* oreContext = gpuOreContext(vm);
     bool featuresKnown = oreContext != nullptr && oreContext->featuresKnown();
     if (featuresKnown && !oreContext->features().drawBaseInstance)
@@ -3354,6 +3361,7 @@ void gpuPassSetPipelineImpl(WasmScriptingVM* vm,
         gpuRejected(vm, oreContext, "setPipeline");
         return;
     }
+    host->drawBindings.setPipeline(pipeline->pipeline.get());
     host->pipelineSet = true;
 }
 
@@ -3457,6 +3465,7 @@ void gpuPassSetBindGroupImpl(WasmScriptingVM* vm,
                                        bindGroup->bindGroup.get(),
                                        dynamicOffsets,
                                        count);
+        host->drawBindings.setBindGroup(groupIndex, bindGroup->bindGroup.get());
         return;
     }
     if (oreContext != nullptr)
@@ -3470,7 +3479,9 @@ void gpuPassSetBindGroupImpl(WasmScriptingVM* vm,
     if (oreContext != nullptr && !oreContext->lastError().empty())
     {
         gpuRejected(vm, oreContext, "setBindGroup");
+        return;
     }
+    host->drawBindings.setBindGroup(groupIndex, bindGroup->bindGroup.get());
 }
 
 void gpuPassSetViewportImpl(WasmScriptingVM* vm,
@@ -3578,6 +3589,7 @@ void gpuPassFinishImpl(WasmScriptingVM* vm, uint32_t handle)
     {
         host->pass->finish();
     }
+    host->drawBindings = {};
 }
 
 void gpuPassReleaseImpl(WasmScriptingVM* vm, uint32_t handle)
@@ -4196,6 +4208,62 @@ uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM* vm,
         new HostGpuBindGroupLayout{std::move(layout)});
 }
 
+uint32_t gpuBindGroupLayoutFromEntriesImpl(WasmScriptingVM* vm,
+                                           uint32_t vertexModule,
+                                           const char* vertexEntry,
+                                           uint32_t vertexEntryLength,
+                                           uint32_t fragmentModule,
+                                           const char* fragmentEntry,
+                                           uint32_t fragmentEntryLength,
+                                           uint32_t groupIndex)
+{
+    ore::Context* oreContext = gpuOreContext(vm);
+    if (oreContext == nullptr)
+    {
+        return 0;
+    }
+    auto resolveModule = [vm](uint32_t handle) -> ore::ShaderModule* {
+        auto host = static_cast<HostGpuShaderModule*>(vm->handles().resolve(
+            handle,
+            WasmScriptingVM::HandleTable::Tag::gpuShaderModule));
+        return host != nullptr ? host->shaderModule.get() : nullptr;
+    };
+    ore::ShaderModule* vertex = resolveModule(vertexModule);
+    ore::ShaderModule* fragment = resolveModule(fragmentModule);
+    if (vertex == nullptr || (fragmentModule != 0 && fragment == nullptr))
+    {
+        return 0;
+    }
+    const ore::BindingMap map = ore::bindingMapForEntries(
+        vertex,
+        std::string(vertexEntry, vertexEntryLength).c_str(),
+        fragment,
+        std::string(fragmentEntry, fragmentEntryLength).c_str());
+    bool bound = false;
+    for (size_t i = 0; i < map.size() && !bound; ++i)
+    {
+        bound = map.at(i).group == groupIndex;
+    }
+    if (!bound)
+    {
+        return 0;
+    }
+    auto layout = ore::makeBindGroupLayoutFromBindingMap(*oreContext,
+                                                         map,
+                                                         groupIndex,
+                                                         nullptr,
+                                                         0,
+                                                         vertex,
+                                                         fragment);
+    if (layout == nullptr)
+    {
+        return 0;
+    }
+    return vm->handles().mint(
+        WasmScriptingVM::HandleTable::Tag::gpuBindGroupLayout,
+        new HostGpuBindGroupLayout{std::move(layout)});
+}
+
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm,
                              uint32_t layoutHandle,
                              const rive_gpu_bind_group_ubo_v1* ubos,
@@ -4768,6 +4836,17 @@ uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM*,
                                            uint32_t,
                                            uint32_t,
                                            const uint32_t*,
+                                           uint32_t)
+{
+    return 0;
+}
+uint32_t gpuBindGroupLayoutFromEntriesImpl(WasmScriptingVM*,
+                                           uint32_t,
+                                           const char*,
+                                           uint32_t,
+                                           uint32_t,
+                                           const char*,
+                                           uint32_t,
                                            uint32_t)
 {
     return 0;

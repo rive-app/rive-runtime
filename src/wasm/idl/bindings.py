@@ -873,6 +873,15 @@ NAMESPACES = [
             u32('groupIndex'),
             buf('uint32_t', 'dynamicUBOs', 'dynamicUBOCount'),
         ], ret='u32'),
+        # A group's layout narrowed to what a pipeline's entry points bind, as
+        # WebGPU's layout 'auto' derives it; 0 when they bind nothing there.
+        op('bind_group_layout_from_entries', [
+            handle('vertexModule'),
+            string('vertexEntry', 'vertexEntryLength'),
+            handle('fragmentModule'),
+            string('fragmentEntry', 'fragmentEntryLength'),
+            u32('groupIndex'),
+        ], ret='u32'),
         op('bind_group_new', [
             handle('layout'),
             buf('rive_gpu_bind_group_ubo_v1', 'ubos', 'uboByteCount'),

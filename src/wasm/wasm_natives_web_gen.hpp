@@ -1154,6 +1154,13 @@ uint32_t rive_web_gpu_bind_group_layout_from_shaders(uint32_t vmHandle, uint32_t
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
     return gpuBindGroupLayoutFromShadersImpl(vm, vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
+uint32_t rive_web_gpu_bind_group_layout_from_entries(uint32_t vmHandle, uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex)
+{
+    WasmScriptingVM* vm = vmFromHandle(vmHandle);
+    WasmStringArg vertexEntryUtf8(vm, vertexEntry, vertexEntryLength);
+    WasmStringArg fragmentEntryUtf8(vm, fragmentEntry, fragmentEntryLength);
+    return gpuBindGroupLayoutFromEntriesImpl(vm, vertexModule, vertexEntryUtf8.data(), vertexEntryUtf8.size(), fragmentModule, fragmentEntryUtf8.data(), fragmentEntryUtf8.size(), groupIndex);
+}
 uint32_t rive_web_gpu_bind_group_new(uint32_t vmHandle, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
     WasmScriptingVM* vm = vmFromHandle(vmHandle);
@@ -1805,6 +1812,7 @@ static void* const kRiveWebCalls[] = {
     (void*)rive_web_gpu_bind_group_layout_release,
     (void*)rive_web_gpu_bind_group_layout_from_shader,
     (void*)rive_web_gpu_bind_group_layout_from_shaders,
+    (void*)rive_web_gpu_bind_group_layout_from_entries,
     (void*)rive_web_gpu_bind_group_new,
     (void*)rive_web_gpu_bind_group_release,
     (void*)rive_web_gpu_pipeline_new,

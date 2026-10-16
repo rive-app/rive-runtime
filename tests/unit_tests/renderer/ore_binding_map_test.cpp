@@ -5,6 +5,7 @@
 #include "rive/renderer/ore/ore_binding_map.hpp"
 #include "rive/renderer/ore/ore_bind_group_layout.hpp"
 #include "rive/renderer/ore/ore_buffer.hpp"
+#include "rive/renderer/ore/cmd/ore_deferred_context.hpp"
 #include <catch.hpp>
 #include <cstring>
 
@@ -790,33 +791,48 @@ static BindingMap collidingMergedMap()
     return m;
 }
 
+// The layouts a pipeline would take for each group `map` binds, as the slot
+// check reads them.
+struct SplitLayouts
+{
+    cmd::DeferredOreContext ctx{nullptr};
+    std::vector<rcp<BindGroupLayout>> owned;
+    std::vector<BindGroupLayout*> layouts;
+
+    explicit SplitLayouts(const BindingMap& map)
+    {
+        for (uint32_t g = 0; g < 2; ++g)
+        {
+            owned.push_back(makeBindGroupLayoutFromBindingMap(ctx, map, g));
+            layouts.push_back(owned.back().get());
+        }
+    }
+
+    bool check(bool apart, NativeSlotScope scope, std::string* error)
+    {
+        return validateSplitStageSlots(apart,
+                                       layouts.data(),
+                                       static_cast<uint32_t>(layouts.size()),
+                                       scope,
+                                       error);
+    }
+};
+
 TEST_CASE("split-stage slot collisions are rejected per scope",
           "[ore_binding_map]")
 {
-    const BindingMap merged = collidingMergedMap();
+    SplitLayouts merged(collidingMergedMap());
     std::string error;
 
-    CHECK(validateSplitStageSlots(true,
-                                  merged,
-                                  NativeSlotScope::perStage,
-                                  &error));
-    CHECK(validateSplitStageSlots(false,
-                                  merged,
-                                  NativeSlotScope::perKind,
-                                  &error));
+    CHECK(merged.check(true, NativeSlotScope::perStage, &error));
+    CHECK(merged.check(false, NativeSlotScope::perKind, &error));
 
-    CHECK(!validateSplitStageSlots(true,
-                                   merged,
-                                   NativeSlotScope::perKind,
-                                   &error));
+    CHECK(!merged.check(true, NativeSlotScope::perKind, &error));
     CHECK(error.find("@binding(0)") != std::string::npos);
 
     // Vulkan numbers within a descriptor set, so bindings in different
     // groups reusing slot 0 are fine there.
-    CHECK(validateSplitStageSlots(true,
-                                  merged,
-                                  NativeSlotScope::perGroup,
-                                  &error));
+    CHECK(merged.check(true, NativeSlotScope::perGroup, &error));
 }
 
 TEST_CASE("split-stage files must agree on what a binding is",
@@ -903,12 +919,13 @@ TEST_CASE("a shared binding numbered differently by each file is rejected",
     m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 0));
     m.finalize();
 
+    SplitLayouts layouts(m);
     std::string error;
-    CHECK(validateSplitStageSlots(true, m, NativeSlotScope::perStage, &error));
+    CHECK(layouts.check(true, NativeSlotScope::perStage, &error));
 
-    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perKind, &error));
+    CHECK(!layouts.check(true, NativeSlotScope::perKind, &error));
     CHECK(error.find("@binding(1)") != std::string::npos);
-    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perGroup, &error));
+    CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
 }
 
 TEST_CASE("split-stage bindings of different kinds do not collide",
@@ -931,10 +948,11 @@ TEST_CASE("split-stage bindings of different kinds do not collide",
                      BindingMap::kStageFragment));
     m.finalize();
 
+    SplitLayouts layouts(m);
     std::string error;
-    CHECK(validateSplitStageSlots(true, m, NativeSlotScope::perKind, &error));
+    CHECK(layouts.check(true, NativeSlotScope::perKind, &error));
     // Same descriptor-set binding number, which Vulkan cannot express.
-    CHECK(!validateSplitStageSlots(true, m, NativeSlotScope::perGroup, &error));
+    CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
 }
 
 } // namespace rive::ore

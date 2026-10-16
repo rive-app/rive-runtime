@@ -94,6 +94,9 @@ inline void recordMakeShaderModule(OreCommandBuffer& cb,
     pod.glFixupBytes = cb.appendBlobRef(desc.glFixupBytes,
                                         desc.glFixupSize,
                                         !desc.glFixupBytes);
+    pod.entryBindingBytes = cb.appendBlobRef(desc.entryBindingBytes,
+                                             desc.entryBindingSize,
+                                             !desc.entryBindingBytes);
     pod.shaderAssetId = desc.shaderAssetId;
     cb.append(CommandType::makeShaderModule, MakeResourcePOD{id, generation});
     cb.appendPayload(pod);

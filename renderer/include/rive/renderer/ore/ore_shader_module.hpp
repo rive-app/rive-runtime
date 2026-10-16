@@ -7,6 +7,7 @@
 #include "rive/renderer/gpu_resource.hpp"
 #include "utils/lite_rtti.hpp"
 #include "rive/renderer/ore/ore_binding_map.hpp"
+#include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
 #include "rive/renderer/ore/ore_types.hpp"
 
 #include <cassert>
@@ -30,6 +31,23 @@ public:
     using TextureSamplerPair = ore::TextureSamplerPair;
 
     std::vector<TextureSamplerPair> m_textureSamplerPairs;
+    std::vector<RstbEntryBindings> m_entryBindings;
+
+    // What the named entry point binds, null without per entry use. A module
+    // of one entry answers for any name, as GL compiles each one as main.
+    const RstbEntryBindings* entryBindings(const char* name) const
+    {
+        if (m_entryBindings.size() == 1)
+            return &m_entryBindings[0];
+        if (name == nullptr)
+            return nullptr;
+        for (const RstbEntryBindings& e : m_entryBindings)
+        {
+            if (e.name == name)
+                return &e;
+        }
+        return nullptr;
+    }
 
     // (group, binding) → per-backend native slot map for this shader's
     // resources. Parsed from the RSTB binding-map sidecar by each
@@ -63,6 +81,9 @@ public:
             const uint8_t* p = desc.texSamplerPairBytes + i;
             m_textureSamplerPairs.push_back({p[0], p[1], p[2], p[3]});
         }
+        decodeEntryBindings(desc.entryBindingBytes,
+                            desc.entryBindingSize,
+                            m_entryBindings);
 #ifdef TRACK_RIVE_SHADER_ID
         m_shaderAssetId = desc.shaderAssetId;
 #endif

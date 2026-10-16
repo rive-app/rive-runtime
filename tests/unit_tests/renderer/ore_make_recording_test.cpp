@@ -162,6 +162,8 @@ TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
            bindingMapSize,
            texSamplerPairBytes,
            texSamplerPairSize,
+           entryBindingBytes,
+           entryBindingSize,
            glFixupBytes,
            glFixupSize,
            shaderAssetId] = desc;
@@ -177,6 +179,8 @@ TEST_CASE("shader module desc fields are all accounted for", "[ore][cmd]")
     (void)bindingMapSize;
     (void)texSamplerPairBytes;
     (void)texSamplerPairSize;
+    (void)entryBindingBytes;
+    (void)entryBindingSize;
     (void)glFixupBytes;
     (void)glFixupSize;
     (void)shaderAssetId;
@@ -195,7 +199,8 @@ public:
 
     bool captured = false;
     ShaderModuleDesc desc{};
-    std::vector<uint8_t> code, bindingMap, texSamplerPair, glFixup;
+    std::vector<uint8_t> code, bindingMap, texSamplerPair, entryBindings,
+        glFixup;
     std::string label, hlslSource, hlslEntryPoint;
 
     rive::rcp<ShaderModule> makeShaderModule(const ShaderModuleDesc& d) override
@@ -209,6 +214,7 @@ public:
         copy(d.code, d.codeSize, code);
         copy(d.bindingMapBytes, d.bindingMapSize, bindingMap);
         copy(d.texSamplerPairBytes, d.texSamplerPairSize, texSamplerPair);
+        copy(d.entryBindingBytes, d.entryBindingSize, entryBindings);
         copy(d.glFixupBytes, d.glFixupSize, glFixup);
         label = d.label != nullptr ? d.label : "";
         hlslSource = d.hlslSource != nullptr ? d.hlslSource : "";
@@ -271,6 +277,7 @@ TEST_CASE("every shader module desc field survives record and replay",
     const uint8_t bmap[3] = {9, 8, 7};
     const uint8_t pairs[8] = {1, 1, 0, 0, 1, 2, 0, 0};
     const uint8_t fixup[2] = {4, 5};
+    const uint8_t uses[4] = {1, 1, 0, 0};
 
     ShaderModuleDesc sent{};
     sent.code = code;
@@ -285,6 +292,8 @@ TEST_CASE("every shader module desc field survives record and replay",
     sent.bindingMapSize = sizeof(bmap);
     sent.texSamplerPairBytes = pairs;
     sent.texSamplerPairSize = sizeof(pairs);
+    sent.entryBindingBytes = uses;
+    sent.entryBindingSize = sizeof(uses);
     sent.glFixupBytes = fixup;
     sent.glFixupSize = sizeof(fixup);
     sent.shaderAssetId = 4242;
@@ -322,6 +331,8 @@ TEST_CASE("every shader module desc field survives record and replay",
     CHECK(got.texSamplerPairSize == sent.texSamplerPairSize);
     CHECK(ctx.texSamplerPair ==
           std::vector<uint8_t>(pairs, pairs + sizeof(pairs)));
+    CHECK(got.entryBindingSize == sent.entryBindingSize);
+    CHECK(ctx.entryBindings == std::vector<uint8_t>(uses, uses + sizeof(uses)));
     CHECK(got.glFixupSize == sent.glFixupSize);
     CHECK(ctx.glFixup == std::vector<uint8_t>(fixup, fixup + sizeof(fixup)));
     CHECK(got.shaderAssetId == sent.shaderAssetId);

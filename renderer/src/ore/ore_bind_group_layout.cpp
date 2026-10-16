@@ -141,6 +141,78 @@ BindingMap bindingMapForStages(const ShaderModule* vertex,
     return merged;
 }
 
+bool entryUseKnown(const ShaderModule* vertex,
+                   const char* vertexEntry,
+                   const ShaderModule* fragment,
+                   const char* fragmentEntry)
+{
+    return vertex != nullptr && vertex->entryBindings(vertexEntry) != nullptr &&
+           (fragment == nullptr ||
+            fragment->entryBindings(fragmentEntry) != nullptr);
+}
+
+// `map` narrowed to what the named entry points bind; unchanged unless both
+// stages' modules record it.
+static BindingMap narrowToEntries(BindingMap map,
+                                  const ShaderModule* vertex,
+                                  const char* vertexEntry,
+                                  const ShaderModule* fragment,
+                                  const char* fragmentEntry)
+{
+    if (!entryUseKnown(vertex, vertexEntry, fragment, fragmentEntry))
+        return map;
+    const RstbEntryBindings* vertexUse = vertex->entryBindings(vertexEntry);
+    const RstbEntryBindings* fragmentUse =
+        fragment != nullptr ? fragment->entryBindings(fragmentEntry) : nullptr;
+    map.narrow([&](const BindingMap::Entry& e) {
+        return vertexUse->uses(e.group, e.binding) ||
+               (fragmentUse != nullptr &&
+                fragmentUse->uses(e.group, e.binding));
+    });
+    return map;
+}
+
+// `module`'s own map narrowed to what `entry` binds, whole for older bakes.
+static BindingMap narrowedToEntry(const ShaderModule* module, const char* entry)
+{
+    BindingMap map = module->m_bindingMap;
+    if (const RstbEntryBindings* use = module->entryBindings(entry))
+    {
+        map.narrow([&](const BindingMap::Entry& e) {
+            return use->uses(e.group, e.binding);
+        });
+    }
+    return map;
+}
+
+static bool stagesFromOneFile(const ShaderModule* vertex,
+                              const ShaderModule* fragment)
+{
+    return vertex == nullptr || fragment == nullptr || vertex == fragment ||
+           sameBakedLayout(vertex->m_bindingMap, fragment->m_bindingMap);
+}
+
+BindingMap bindingMapForEntries(const ShaderModule* vertex,
+                                const char* vertexEntry,
+                                const ShaderModule* fragment,
+                                const char* fragmentEntry)
+{
+    if (stagesFromOneFile(vertex, fragment))
+    {
+        return narrowToEntries(bindingMapForStages(vertex, fragment),
+                               vertex,
+                               vertexEntry,
+                               fragment,
+                               fragmentEntry);
+    }
+    // Narrowed before merging, so a binding one file declares but never uses
+    // cannot stand in for what the other file binds there.
+    BindingMap merged = narrowedToEntry(vertex, vertexEntry);
+    merged.replaceStage(narrowedToEntry(fragment, fragmentEntry),
+                        BindingMap::Stage::FS);
+    return merged;
+}
+
 uint32_t populateBindGroupLayoutEntries(BindGroupLayoutEntry* entries,
                                         uint32_t maxEntries,
                                         const BindingMap& bm,
@@ -553,19 +625,19 @@ namespace
 {
 // GL / D3D12 give buffers, textures and samplers each their own numbering,
 // so a slot only clashes with another slot of the same kind.
-uint8_t slotKindBucket(ResourceKind kind)
+uint8_t slotKindBucket(BindingKind kind)
 {
     switch (kind)
     {
-        case ResourceKind::UniformBuffer:
-        case ResourceKind::StorageBufferRO:
-        case ResourceKind::StorageBufferRW:
+        case BindingKind::uniformBuffer:
+        case BindingKind::storageBufferRO:
+        case BindingKind::storageBufferRW:
             return 0;
-        case ResourceKind::SampledTexture:
-        case ResourceKind::StorageTexture:
+        case BindingKind::sampledTexture:
+        case BindingKind::storageTexture:
             return 1;
-        case ResourceKind::Sampler:
-        case ResourceKind::ComparisonSampler:
+        case BindingKind::sampler:
+        case BindingKind::comparisonSampler:
             return 2;
     }
     return 0;
@@ -573,7 +645,8 @@ uint8_t slotKindBucket(ResourceKind kind)
 } // namespace
 
 bool validateSplitStageSlots(bool stagesCompiledApart,
-                             const BindingMap& mergedMap,
+                             BindGroupLayout* const* layouts,
+                             uint32_t layoutCount,
                              NativeSlotScope scope,
                              std::string* outError)
 {
@@ -588,55 +661,63 @@ bool validateSplitStageSlots(bool stagesCompiledApart,
         uint8_t binding;
     };
     std::vector<Claim> claimed;
-    claimed.reserve(mergedMap.size());
+    constexpr uint32_t kAbsent = BindGroupLayoutEntry::kNativeSlotAbsent;
 
-    for (size_t i = 0; i < mergedMap.size(); ++i)
+    // The layouts, not the pipeline's map, since stage-sharing backends bind
+    // every entry they list.
+    for (uint32_t l = 0; l < layoutCount; ++l)
     {
-        const BindingMap::Entry& e = mergedMap.at(i);
-        // Mirror what every stage-sharing backend binds with: the vertex
-        // slot when there is one, otherwise the fragment's.
-        const uint16_t vs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::VS)];
-        const uint16_t fs =
-            e.backendSlot[static_cast<size_t>(BindingMap::Stage::FS)];
-        // A binding both stages read, numbered differently by each file.
-        // Only one number survives into the layout, so the other stage's
-        // compiled source reads whatever sits at the number it baked.
-        if (vs != BindingMap::kAbsent && fs != BindingMap::kAbsent && vs != fs)
-        {
-            if (outError != nullptr)
-                *outError =
-                    bindingTag(e.group, e.binding) +
-                    ": the vertex module put it on native slot " +
-                    std::to_string(vs) + " and the fragment module on " +
-                    std::to_string(fs) +
-                    ", and this backend shares one slot namespace between the "
-                    "stages. Declare the same bindings in both files, or "
-                    "compile both stages from one shader";
-            return false;
-        }
-        const uint16_t slot = vs != BindingMap::kAbsent ? vs : fs;
-        if (slot == BindingMap::kAbsent)
+        if (layouts[l] == nullptr)
             continue;
-        const uint32_t scopeKey = scope == NativeSlotScope::perGroup
-                                      ? e.group
-                                      : slotKindBucket(e.kind);
-        for (const Claim& c : claimed)
+        const uint32_t group = layouts[l]->groupIndex();
+        for (const BindGroupLayoutEntry& e : layouts[l]->entries())
         {
-            if (c.scopeKey != scopeKey || c.slot != slot)
+            // Mirror what every stage-sharing backend binds with: the vertex
+            // slot when there is one, otherwise the fragment's.
+            const uint32_t vs = e.nativeSlotVS;
+            const uint32_t fs = e.nativeSlotFS;
+            // A binding both stages read, numbered differently by each file.
+            // Only one number survives into the layout, so the other stage's
+            // compiled source reads whatever sits at the number it baked.
+            if (vs != kAbsent && fs != kAbsent && vs != fs)
+            {
+                if (outError != nullptr)
+                    *outError =
+                        bindingTag(group, e.binding) +
+                        ": the vertex module put it on native slot " +
+                        std::to_string(vs) + " and the fragment module on " +
+                        std::to_string(fs) +
+                        ", and this backend shares one slot namespace between the "
+                        "stages. Declare the same bindings in both files, or "
+                        "compile both stages from one shader";
+                return false;
+            }
+            const uint32_t slot = vs != kAbsent ? vs : fs;
+            if (slot == kAbsent)
                 continue;
-            if (outError != nullptr)
-                *outError =
-                    bindingTag(e.group, e.binding) + " and " +
-                    bindingTag(c.group, c.binding) +
-                    " both land on native slot " + std::to_string(slot) +
-                    ": the vertex and fragment modules were compiled apart, "
-                    "and this backend shares one slot namespace between them. "
-                    "Declare the same bindings in both, or compile both stages "
-                    "from one shader";
-            return false;
+            const uint32_t scopeKey = scope == NativeSlotScope::perGroup
+                                          ? group
+                                          : slotKindBucket(e.kind);
+            for (const Claim& c : claimed)
+            {
+                if (c.scopeKey != scopeKey || c.slot != slot)
+                    continue;
+                if (outError != nullptr)
+                    *outError =
+                        bindingTag(group, e.binding) + " and " +
+                        bindingTag(c.group, c.binding) +
+                        " both land on native slot " + std::to_string(slot) +
+                        ": the vertex and fragment modules were compiled apart, "
+                        "and this backend shares one slot namespace between them. "
+                        "Declare the same bindings in both, or compile both stages "
+                        "from one shader";
+                return false;
+            }
+            claimed.push_back({scopeKey,
+                               slot,
+                               static_cast<uint8_t>(group),
+                               static_cast<uint8_t>(e.binding)});
         }
-        claimed.push_back({scopeKey, slot, e.group, e.binding});
     }
     return true;
 }
@@ -855,16 +936,16 @@ bool validatePipelineDesc(const PipelineDesc& desc,
                           NativeSlotScope scope,
                           std::string* outError)
 {
-    const bool stagesCompiledApart = desc.vertexModule != nullptr &&
-                                     desc.fragmentModule != nullptr &&
-                                     desc.vertexModule != desc.fragmentModule;
+    const bool stagesCompiledApart =
+        !stagesFromOneFile(desc.vertexModule, desc.fragmentModule);
     // Ahead of the layout check: a disagreement here means the merged map
     // itself is wrong, and a layout complaint would only describe the
     // symptom.
     if (stagesCompiledApart &&
-        !validateStagesAgree(desc.vertexModule->m_bindingMap,
-                             desc.fragmentModule->m_bindingMap,
-                             outError))
+        !validateStagesAgree(
+            narrowedToEntry(desc.vertexModule, desc.vertexEntryPoint),
+            narrowedToEntry(desc.fragmentModule, desc.fragmentEntryPoint),
+            outError))
     {
         return false;
     }
@@ -880,7 +961,8 @@ bool validatePipelineDesc(const PipelineDesc& desc,
                                          desc.fragmentModule != nullptr,
                                          outError) &&
            validateSplitStageSlots(stagesCompiledApart,
-                                   mergedMap,
+                                   desc.bindGroupLayouts,
+                                   desc.bindGroupLayoutCount,
                                    scope,
                                    outError);
 }

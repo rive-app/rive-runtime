@@ -679,6 +679,8 @@ RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shader")
 uint32_t rive_gpu_bind_group_layout_from_shader(uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_shaders")
 uint32_t rive_gpu_bind_group_layout_from_shaders(uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_layout_from_entries")
+uint32_t rive_gpu_bind_group_layout_from_entries(uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_new")
 uint32_t rive_gpu_bind_group_new(uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 RIVE_BINDING_IMPORT("rive_gpu_v1", "bind_group_release")

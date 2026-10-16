@@ -215,6 +215,30 @@ TEST_CASE("ShaderAsset-decode-texture-sampler-pairs", "[ShaderAsset]")
     CHECK(blob[0] == 0xAA);
 }
 
+TEST_CASE("ShaderAsset-decode-entry-bindings", "[ShaderAsset]")
+{
+    // Kept raw for ore to decode, beside the pairs and before the blobs.
+    std::vector<uint8_t> entryBindings = {1, 1, 2, 0, 'f', 's', 1, 0, 1};
+    auto pairs = makeTexSamplerPairsTag({{0, 1, 0, 2}});
+    auto data =
+        envelope(makeRSTB(4, {{2, {0xAA}}}, {{2, entryBindings}, {1, pairs}}));
+    ShaderAsset asset;
+    REQUIRE(asset.decode(data, nullptr) == true);
+
+    auto out = asset.entryBindings();
+    REQUIRE(out.size() == entryBindings.size());
+    CHECK(std::memcmp(out.data(), entryBindings.data(), out.size()) == 0);
+    CHECK(asset.textureSamplerPairs().size() == 1);
+    REQUIRE(asset.findShader(2).size() == 1);
+    CHECK(asset.findShader(2)[0] == 0xAA);
+
+    // Older bakes carry none.
+    auto oldData = envelope(makeRSTB(4, {{2, {0x42}}}));
+    ShaderAsset old;
+    REQUIRE(old.decode(oldData, nullptr));
+    CHECK(old.entryBindings().size() == 0);
+}
+
 TEST_CASE("ShaderAsset-decode-no-sections-empty-pairs", "[ShaderAsset]")
 {
     auto data = envelope(makeRSTB(4, {{2, {0x42}}}));

@@ -74,6 +74,20 @@ protected:
 BindingMap bindingMapForStages(const ShaderModule* vertex,
                                const ShaderModule* fragment);
 
+// Whether both stages' modules record what their entry points bind; older
+// bakes do not.
+bool entryUseKnown(const ShaderModule* vertex,
+                   const char* vertexEntry,
+                   const ShaderModule* fragment,
+                   const char* fragmentEntry);
+
+// What a pipeline's entry points statically bind, as WebGPU's layout 'auto'
+// derives; whole files for modules baked without per entry use.
+BindingMap bindingMapForEntries(const ShaderModule* vertex,
+                                const char* vertexEntry,
+                                const ShaderModule* fragment,
+                                const char* fragmentEntry);
+
 // Walk a BindingMap for the given group, populating layout entries with
 // kind / visibility / texture metadata / native slots.
 //
@@ -151,7 +165,8 @@ enum class NativeSlotScope : uint8_t
 //
 // No-op for single-module pipelines, whose one allocator run cannot collide.
 bool validateSplitStageSlots(bool stagesCompiledApart,
-                             const BindingMap& mergedMap,
+                             BindGroupLayout* const* layouts,
+                             uint32_t layoutCount,
                              NativeSlotScope scope,
                              std::string* outError);
 
@@ -175,7 +190,8 @@ bool validateStageLimits(BindGroupLayout* const* layouts,
                          uint32_t layoutCount,
                          std::string* outError);
 
-// Every backend's `makePipeline` runs the same checks; only `scope` differs.
+// Every backend's `makePipeline` runs the same checks on the pipeline's
+// `m_bindingMap`; only `scope` differs.
 bool validatePipelineDesc(const PipelineDesc& desc,
                           const BindingMap& mergedMap,
                           NativeSlotScope scope,

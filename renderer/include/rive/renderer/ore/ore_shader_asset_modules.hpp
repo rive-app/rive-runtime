@@ -2,10 +2,12 @@
 
 #include "rive/assets/shader_asset.hpp"
 #include "rive/renderer/ore/cmd/ore_creation_observer.hpp"
+#include "rive/renderer/ore/ore_rstb_entry_bindings.hpp"
 #include "rive/renderer/ore/ore_rstb_entry_container.hpp"
 #include "rive/renderer/ore/ore_context.hpp"
 #include "rive/simple_array.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -51,6 +53,33 @@ inline std::vector<uint8_t> textureSamplerPairBytes(const ShaderAsset& asset)
     return bytes;
 }
 
+// Entries [first, first + count)'s bindings under the physical names backends
+// look up; empty unless the asset's section names every one of them.
+inline std::vector<uint8_t> moduleEntryBindingBytes(
+    const std::vector<RstbEntryBindings>& assetEntries,
+    const std::vector<RstbEntryView>& entries,
+    uint32_t first,
+    uint32_t count)
+{
+    std::vector<RstbEntryBindings> module;
+    for (uint32_t i = first; i < first + count && i < entries.size(); i++)
+    {
+        const RstbEntryView& entry = entries[i];
+        auto found = std::find_if(assetEntries.begin(),
+                                  assetEntries.end(),
+                                  [&](const RstbEntryBindings& e) {
+                                      return e.stage == entry.stage &&
+                                             e.name == entry.logical;
+                                  });
+        if (found == assetEntries.end())
+            return {};
+        RstbEntryBindings named = *found;
+        named.name = entry.physical;
+        module.push_back(std::move(named));
+    }
+    return encodeEntryBindings(module);
+}
+
 // Calls visit(desc, first, count, entries) once per module the asset's variant
 // for target builds: one per vertex or fragment entry on per entry targets
 // (GLSL, HLSL), else one shared by entries [first, first + count). visit
@@ -70,6 +99,11 @@ bool visitShaderAssetModules(ShaderTarget target,
                           ? Span<const uint8_t>{}
                           : asset.findShader(bindingMapTarget);
     std::vector<uint8_t> pairBytes = textureSamplerPairBytes(asset);
+    std::vector<RstbEntryBindings> assetEntries;
+    auto entryBindings = asset.entryBindings();
+    decodeEntryBindings(entryBindings.data(),
+                        entryBindings.size(),
+                        assetEntries);
 
     ShaderModuleDesc desc;
     desc.bindingMapBytes = bindingMap.empty() ? nullptr : bindingMap.data();
@@ -114,6 +148,12 @@ bool visitShaderAssetModules(ShaderTarget target,
                 entryDesc.glFixupBytes = fixup.empty() ? nullptr : fixup.data();
                 entryDesc.glFixupSize = static_cast<uint32_t>(fixup.size());
             }
+            std::vector<uint8_t> entryBindingBytes =
+                moduleEntryBindingBytes(assetEntries, entries, i, 1u);
+            entryDesc.entryBindingBytes =
+                entryBindingBytes.empty() ? nullptr : entryBindingBytes.data();
+            entryDesc.entryBindingSize =
+                static_cast<uint32_t>(entryBindingBytes.size());
             if (!visit(entryDesc, i, 1u, entries))
             {
                 break;
@@ -136,7 +176,13 @@ bool visitShaderAssetModules(ShaderTarget target,
         observer->onShaderAsset(asset, entries);
     desc.code = source;
     desc.codeSize = sourceSize;
-    visit(desc, 0u, static_cast<uint32_t>(entries.size()), entries);
+    const uint32_t count = static_cast<uint32_t>(entries.size());
+    std::vector<uint8_t> entryBindingBytes =
+        moduleEntryBindingBytes(assetEntries, entries, 0u, count);
+    desc.entryBindingBytes =
+        entryBindingBytes.empty() ? nullptr : entryBindingBytes.data();
+    desc.entryBindingSize = static_cast<uint32_t>(entryBindingBytes.size());
+    visit(desc, 0u, count, entries);
     return true;
 }
 

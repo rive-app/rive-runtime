@@ -431,6 +431,7 @@ uint32_t gpuBindGroupLayoutNewImpl(WasmScriptingVM* vm, uint32_t groupIndex, con
 void gpuBindGroupLayoutReleaseImpl(WasmScriptingVM* vm, uint32_t layout);
 uint32_t gpuBindGroupLayoutFromShaderImpl(WasmScriptingVM* vm, uint32_t shaderModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
 uint32_t gpuBindGroupLayoutFromShadersImpl(WasmScriptingVM* vm, uint32_t vertexModule, uint32_t fragmentModule, uint32_t groupIndex, const uint32_t* dynamicUBOs, uint32_t dynamicUBOCount);
+uint32_t gpuBindGroupLayoutFromEntriesImpl(WasmScriptingVM* vm, uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex);
 uint32_t gpuBindGroupNewImpl(WasmScriptingVM* vm, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount);
 void gpuBindGroupReleaseImpl(WasmScriptingVM* vm, uint32_t bindGroup);
 uint32_t gpuPipelineNewImpl(WasmScriptingVM* vm, const rive_gpu_pipeline_desc_v1* desc, uint32_t descByteCount, const uint8_t* blob, uint32_t blobCount);
@@ -1802,6 +1803,13 @@ uint32_t gpuBindGroupLayoutFromShaders(wasm_exec_env_t env, uint32_t vertexModul
     }
     return gpuBindGroupLayoutFromShadersImpl(vm, vertexModule, fragmentModule, groupIndex, dynamicUBOs, dynamicUBOCount);
 }
+uint32_t gpuBindGroupLayoutFromEntries(wasm_exec_env_t env, uint32_t vertexModule, const char* vertexEntry, uint32_t vertexEntryLength, uint32_t fragmentModule, const char* fragmentEntry, uint32_t fragmentEntryLength, uint32_t groupIndex)
+{
+    WasmScriptingVM* vm = vmFromEnv(env);
+    WasmStringArg vertexEntryUtf8(vm, vertexEntry, vertexEntryLength);
+    WasmStringArg fragmentEntryUtf8(vm, fragmentEntry, fragmentEntryLength);
+    return gpuBindGroupLayoutFromEntriesImpl(vm, vertexModule, vertexEntryUtf8.data(), vertexEntryUtf8.size(), fragmentModule, fragmentEntryUtf8.data(), fragmentEntryUtf8.size(), groupIndex);
+}
 uint32_t gpuBindGroupNew(wasm_exec_env_t env, uint32_t layout, const rive_gpu_bind_group_ubo_v1* ubos, uint32_t uboByteCount, const rive_gpu_bind_group_texture_v1* textures, uint32_t textureByteCount, const rive_gpu_bind_group_sampler_v1* samplers, uint32_t samplerByteCount)
 {
     WasmScriptingVM* vm = vmFromEnv(env);
@@ -2527,6 +2535,7 @@ NativeSymbol kGpuNatives[] = {
     {"bind_group_layout_release", (void*)gpuBindGroupLayoutRelease, "(i)", nullptr},
     {"bind_group_layout_from_shader", (void*)gpuBindGroupLayoutFromShader, "(ii*~)i", nullptr},
     {"bind_group_layout_from_shaders", (void*)gpuBindGroupLayoutFromShaders, "(iii*~)i", nullptr},
+    {"bind_group_layout_from_entries", (void*)gpuBindGroupLayoutFromEntries, "(i*~i*~i)i", nullptr},
     {"bind_group_new", (void*)gpuBindGroupNew, "(i*~*~*~)i", nullptr},
     {"bind_group_release", (void*)gpuBindGroupRelease, "(i)", nullptr},
     {"pipeline_new", (void*)gpuPipelineNew, "(*~*~)i", nullptr},

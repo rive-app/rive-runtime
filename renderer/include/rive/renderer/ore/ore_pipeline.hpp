@@ -23,13 +23,12 @@ class Pipeline : public rive::gpu::GPUResource,
 public:
     const PipelineDesc& desc() const { return m_desc; }
 
-    // (group, binding) → per-backend native slot map for this pipeline's
-    // resources. Merged from the vertex and fragment ShaderModules at
-    // construction, each stage taken from the module that compiled it.
-    // Consumed by each backend's `makeBindGroup` to translate a
-    // `BindGroupDesc::*Entry::slot` (= WGSL `@binding`) into the backend's
-    // native slot.
+    // What the entry points bind, each stage from its own module; backends
+    // validate the layouts against it.
     BindingMap m_bindingMap;
+
+    // Older bakes leave it false, and their layouts then cover whole files.
+    bool m_entryUseKnown = false;
 
     // Which sampler serves which texture. GL needs it: GLSL folds the two
     // into one uniform at the texture's unit. Empty on other backends.
@@ -37,9 +36,8 @@ public:
 
     // Layouts the pipeline was created with — one per `@group(N)`. Keeps
     // them alive (the per-backend native handles inside the layouts are
-    // referenced by the pipeline's compiled state). Used by `setBindGroup`
-    // to verify `bg->layout() == m_layouts[g]` (pointer-equality check
-    // matching WebGPU's exact-layout requirement).
+    // referenced by the pipeline's compiled state). Script lanes check each
+    // draw's bind groups against them.
     rcp<BindGroupLayout> m_layouts[kMaxBindGroups];
 
     virtual ~Pipeline() = default;
@@ -54,8 +52,14 @@ protected:
              const PipelineDesc& desc) :
         rive::gpu::GPUResource(std::move(manager)), m_desc(desc)
     {
-        m_bindingMap =
-            bindingMapForStages(desc.vertexModule, desc.fragmentModule);
+        m_bindingMap = bindingMapForEntries(desc.vertexModule,
+                                            desc.vertexEntryPoint,
+                                            desc.fragmentModule,
+                                            desc.fragmentEntryPoint);
+        m_entryUseKnown = entryUseKnown(desc.vertexModule,
+                                        desc.vertexEntryPoint,
+                                        desc.fragmentModule,
+                                        desc.fragmentEntryPoint);
         // Unioned: each GLSL entry point knows only its own pairs.
         for (const ShaderModule* shaderModule :
              {desc.vertexModule, desc.fragmentModule})

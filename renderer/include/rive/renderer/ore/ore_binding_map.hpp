@@ -272,6 +272,48 @@ public:
         return kNoLayoutId;
     }
 
+    // Drops the rows `keep` refuses. A group that lost rows salts its id with
+    // the rows left, so equal narrowings intern apart from the whole map.
+    template <typename Keep> void narrow(Keep&& keep)
+    {
+        std::vector<uint8_t> changed;
+        std::vector<Entry> kept;
+        kept.reserve(m_entries.size());
+        for (const Entry& e : m_entries)
+        {
+            if (keep(e))
+                kept.push_back(e);
+            else if (std::find(changed.begin(), changed.end(), e.group) ==
+                     changed.end())
+                changed.push_back(e.group);
+        }
+        m_entries = std::move(kept);
+        std::vector<GroupLayout> groups;
+        for (GroupLayout g : m_groupLayouts)
+        {
+            const bool lost =
+                g.layoutId != kNoLayoutId &&
+                std::find(changed.begin(), changed.end(), g.group) !=
+                    changed.end();
+            bool hasRows = false;
+            for (const Entry& e : m_entries)
+            {
+                if (e.group != g.group)
+                    continue;
+                hasRows = true;
+                if (lost)
+                    g.layoutId =
+                        (g.layoutId ^ (0x100u | e.binding)) * 0x100000001b3ull;
+            }
+            if (!hasRows)
+                continue;
+            if (lost && g.layoutId == kNoLayoutId)
+                g.layoutId = 1;
+            groups.push_back(g);
+        }
+        m_groupLayouts = std::move(groups);
+    }
+
     size_t groupLayoutCount() const { return m_groupLayouts.size(); }
     const GroupLayout& groupLayoutAt(size_t i) const
     {

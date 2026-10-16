@@ -375,8 +375,11 @@ static bool samplerPairsDepthOnly(
                 continue;
             const BindingMap::Entry* tex =
                 bm.lookupEntry(p.textureGroup, p.textureBinding);
-            if (tex == nullptr ||
-                tex->textureSampleType != TextureSampleType::Depth)
+            // A pair whose texture a narrowed map left out belongs to
+            // another entry point.
+            if (tex == nullptr)
+                continue;
+            if (tex->textureSampleType != TextureSampleType::Depth)
                 return false;
             paired = true;
         }
@@ -421,7 +424,9 @@ std::vector<uint32_t> unsampledFloatTextureBindings(
                 continue;
             for (const TextureSamplerPair& p : *pairs)
             {
-                if (p.textureGroup == groupIndex && p.textureBinding == binding)
+                if (p.textureGroup == groupIndex &&
+                    p.textureBinding == binding &&
+                    bm.lookupEntry(p.samplerGroup, p.samplerBinding) != nullptr)
                     return true;
             }
         }
