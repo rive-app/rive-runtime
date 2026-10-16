@@ -2580,6 +2580,20 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
             hitShape->prepareEvent(position, hitType, pointerId);
         }
     }
+    // A primary press may take focus from the focused component when it lands
+    // outside it (FocusManager::pressEnded). Only the root sees every press in
+    // root space; a nested instance gets a press in its own space, and only
+    // when it lands inside it.
+    FocusManager* pressFocusManager = nullptr;
+    if (hitType == ListenerType::down && button == PointerButton::primary &&
+        m_artboardInstance != nullptr && m_artboardInstance->isRoot())
+    {
+        pressFocusManager = focusManager();
+    }
+    if (pressFocusManager != nullptr)
+    {
+        pressFocusManager->pressBegan();
+    }
     bool hitSomething = false;
     bool hitOpaque = false;
     // Process the events
@@ -2605,6 +2619,10 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     for (auto& ended : dragEnded)
     {
         dragEnd(position, timeStamp, ended.first, ended.second);
+    }
+    if (pressFocusManager != nullptr)
+    {
+        pressFocusManager->pressEnded(position);
     }
     // Finally release events that are complete
     if (hitType == ListenerType::exit)

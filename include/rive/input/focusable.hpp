@@ -223,6 +223,17 @@ public:
     /// key/text listeners. Hosts use this to decide whether to surface a
     /// soft keyboard / IME when this element holds focus.
     virtual bool acceptsKeyboardInput() const { return false; }
+
+    /// Whether a primary press landing outside this focusable takes focus
+    /// away from it, as a platform text field blurs on an outside click.
+    virtual bool blursOnOutsidePress() const { return false; }
+
+    /// Whether a point in root artboard space lands on this focusable.
+    virtual bool hitTestFocusable(const Vec2D& rootPosition)
+    {
+        AABB bounds;
+        return worldBounds(bounds) && bounds.contains(rootPosition);
+    }
 };
 } // namespace rive
 #endif

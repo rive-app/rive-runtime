@@ -219,6 +219,23 @@ bool FocusData::acceptsTextInput() const
     return target != nullptr && target->is<TextInput>();
 }
 
+bool FocusData::blursOnOutsidePress() const
+{
+    Component* target = parent();
+    return target != nullptr && target->is<TextInput>() &&
+           target->as<TextInput>()->blursOnOutsidePress();
+}
+
+bool FocusData::hitTestFocusable(const Vec2D& rootPosition)
+{
+    Component* target = parent();
+    if (target != nullptr && target->is<TextInput>())
+    {
+        return target->as<TextInput>()->hitTestFocusable(rootPosition);
+    }
+    return Focusable::hitTestFocusable(rootPosition);
+}
+
 bool FocusData::gamepadDispatch(
     const ListenerInvocation& invocation,
     ScriptedDrawable** outDispatchedScriptedDrawable)

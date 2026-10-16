@@ -40,6 +40,15 @@ public:
     void setFocus(rcp<FocusNode> node);
     void clearFocus();
 
+    /// A primary press began: remember the primary focus so pressEnded can
+    /// tell a press that moved focus from one that missed the old target.
+    void pressBegan();
+
+    /// The press finished dispatching at rootPosition (root artboard space).
+    /// Blurs the focus pressBegan saw if it is still focused, blurs on an
+    /// outside press, and the press missed it.
+    void pressEnded(const Vec2D& rootPosition);
+
     /// Re-homes primary focus when its target can no longer hold it
     /// (collapsed, hidden, opacity 0, nested host paused). Eligibility for
     /// FOCUS, not for traversal: canTraverse only takes a node out of Tab and
@@ -298,6 +307,7 @@ private:
     bool applyPendingFocusRequest(const PendingFocusRequest& request);
 
     rcp<FocusNode> m_primaryFocus;
+    rcp<FocusNode> m_pressFocus;
     std::vector<rcp<FocusNode>> m_rootNodes;
     std::vector<PendingFocusRequest> m_pendingFocusRequests;
     // Backing for hasFocusableContent(); mutable so the const getter can

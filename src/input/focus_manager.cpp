@@ -7,6 +7,7 @@
 #include "rive/artboard_host.hpp"
 #include "rive/animation/listener_invocation.hpp"
 #include "rive/focus_data.hpp"
+#include "rive/input/focusable.hpp"
 #include "rive/math/aabb.hpp"
 #include <algorithm>
 #include <cstddef>
@@ -1416,6 +1417,28 @@ FocusNode* FocusManager::findNextFocusable(FocusNode* current,
     // clears, so this stays one call.
     const_cast<FocusManager*>(this)->setFocus(ref_rcp(next));
     return next;
+}
+
+void FocusManager::pressBegan() { m_pressFocus = m_primaryFocus; }
+
+void FocusManager::pressEnded(const Vec2D& rootPosition)
+{
+    rcp<FocusNode> pressed = std::move(m_pressFocus);
+    m_pressFocus = nullptr;
+    // Focus moved during the press, or nothing was focused: nothing to blur.
+    if (pressed == nullptr || pressed != m_primaryFocus)
+    {
+        return;
+    }
+    Focusable* focusable = pressed->focusable();
+    if (focusable == nullptr || !focusable->blursOnOutsidePress() ||
+        focusable->hitTestFocusable(rootPosition))
+    {
+        return;
+    }
+    // Direct, not queued: a focus request the press itself queued still lands
+    // afterwards, as it would have blurred this target anyway.
+    clearFocus();
 }
 
 } // namespace rive

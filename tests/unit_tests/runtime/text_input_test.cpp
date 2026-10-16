@@ -11,6 +11,7 @@
 #include "rive/text/text_input_selection.hpp"
 #include "rive/text/text_input_selected_text.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive/focus_data.hpp"
 #include "rive/input/focusable.hpp"
 #include "rive/input/focus_manager.hpp"
@@ -1330,6 +1331,117 @@ TEST_CASE("a press anywhere in the viewport reaches the text input",
         stateMachine->advanceAndApply(0.0f);
         CHECK(textInput->rawTextInput()->cursor().end().codePointIndex() == 0);
     }
+}
+
+static void press(StateMachineInstance* stateMachine,
+                  Vec2D position,
+                  PointerButton button = PointerButton::primary)
+{
+    stateMachine->pointerDown(position, 0, button);
+    stateMachine->pointerUp(position, 0, button);
+    stateMachine->advanceAndApply(0.0f);
+}
+
+// A primary press that lands outside the focused field takes its focus away,
+// as a platform text field blurs on an outside click. Presses inside the
+// field, secondary-button presses and presses outside the artboard are the
+// edges.
+TEST_CASE("a press outside a focused text input blurs it", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input_viewport.riv");
+    auto artboard = file->artboardNamed("SingleLine");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    auto textInput = artboard->objects<TextInput>().first();
+    REQUIRE(textInput != nullptr);
+    auto cursor = artboard->objects<TextInputCursor>().first();
+    REQUIRE(cursor != nullptr);
+    auto viewport = textInput->parent()->parent()->parent();
+    REQUIRE(viewport->is<LayoutComponent>());
+    auto viewportLayout = viewport->as<LayoutComponent>();
+    stateMachine->advanceAndApply(0.0f);
+
+    // Inside the field's empty area, past the field but inside the artboard,
+    // and off the artboard altogether.
+    Vec2D inField = viewportLayout->worldTransform() *
+                    Vec2D(viewportLayout->layoutWidth() - 2.0f,
+                          viewportLayout->layoutHeight() * 0.5f);
+    Vec2D pastField = viewportLayout->worldTransform() *
+                      Vec2D(viewportLayout->layoutWidth() + 20.0f,
+                            viewportLayout->layoutHeight() * 0.5f);
+    REQUIRE(artboard->bounds().contains(pastField));
+    Vec2D offArtboard(-10.0f, -10.0f);
+
+    press(stateMachine.get(), inField);
+    CHECK(textInput->isFocused());
+    CHECK(cursor->localClockwisePath() != nullptr);
+
+    press(stateMachine.get(), pastField);
+    CHECK_FALSE(textInput->isFocused());
+    CHECK(cursor->localClockwisePath() == nullptr);
+
+    // A second press in the field focuses it again, and a press in the field
+    // while focused keeps it.
+    press(stateMachine.get(), inField);
+    CHECK(textInput->isFocused());
+    press(stateMachine.get(), inField);
+    CHECK(textInput->isFocused());
+
+    // Only the primary button blurs: a right click elsewhere leaves the caret
+    // where it is, as a context menu would.
+    press(stateMachine.get(), pastField, PointerButton::secondary);
+    CHECK(textInput->isFocused());
+
+    press(stateMachine.get(), offArtboard);
+    CHECK_FALSE(textInput->isFocused());
+}
+
+// Focus lives on the root's manager, so the root resolves the press even when
+// the focused field sits inside a nested artboard: a press elsewhere in the
+// host blurs it, and a press on a sibling field moves focus in one step.
+TEST_CASE("a press in the host blurs a nested text input", "[text_input]")
+{
+    auto file = ReadRiveFile("assets/text_input_viewport.riv");
+    auto artboard = file->artboardNamed("Host");
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->advanceAndApply(0.0f);
+
+    auto hosts = artboard->nestedArtboards();
+    REQUIRE(hosts.size() == 2);
+    auto fieldPoint = [](NestedArtboard* host) {
+        auto instance = host->artboardInstance();
+        auto textInput = instance->objects<TextInput>().first();
+        auto viewport = textInput->parent()->parent()->parent();
+        auto viewportLayout = viewport->as<LayoutComponent>();
+        Vec2D local = viewportLayout->worldTransform() *
+                      Vec2D(viewportLayout->layoutWidth() - 2.0f,
+                            viewportLayout->layoutHeight() * 0.5f);
+        return host->worldTransform() * local;
+    };
+    auto first = hosts[0]->artboardInstance()->objects<TextInput>().first();
+    auto second = hosts[1]->artboardInstance()->objects<TextInput>().first();
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    Vec2D firstField = fieldPoint(hosts[0]);
+    Vec2D secondField = fieldPoint(hosts[1]);
+    // Clear of both nested artboards, inside the host.
+    Vec2D hostEmpty(700.0f, 50.0f);
+    REQUIRE(artboard->bounds().contains(hostEmpty));
+
+    press(stateMachine.get(), firstField);
+    CHECK(first->isFocused());
+
+    press(stateMachine.get(), hostEmpty);
+    CHECK_FALSE(first->isFocused());
+
+    press(stateMachine.get(), firstField);
+    CHECK(first->isFocused());
+    press(stateMachine.get(), secondField);
+    CHECK_FALSE(first->isFocused());
+    CHECK(second->isFocused());
 }
 
 #endif

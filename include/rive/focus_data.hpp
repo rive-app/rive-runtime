@@ -83,6 +83,10 @@ public:
     bool selectedText(std::string& outText) const override;
     /// True when the parent is a TextInput (same special case).
     bool acceptsTextInput() const override;
+    /// Forwards to the parent TextInput (same special case): it asks to blur
+    /// on an outside press and owns the hit test for it.
+    bool blursOnOutsidePress() const override;
+    bool hitTestFocusable(const Vec2D& rootPosition) override;
     bool gamepadDispatch(
         const ListenerInvocation& invocation,
         ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;

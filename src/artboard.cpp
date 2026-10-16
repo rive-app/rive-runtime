@@ -2511,6 +2511,38 @@ Vec2D Artboard::rootTransform(const Vec2D& point)
     return point;
 }
 
+bool Artboard::rootToLocal(const Vec2D& rootPosition, Vec2D* outLocal)
+{
+    // rootTransform is affine but only exposed as a point map (the editor
+    // routes it through a callback), so rebuild its matrix from three points.
+    Vec2D origin = rootTransform(Vec2D(0.0f, 0.0f));
+    Vec2D xAxis = rootTransform(Vec2D(1.0f, 0.0f)) - origin;
+    Vec2D yAxis = rootTransform(Vec2D(0.0f, 1.0f)) - origin;
+    Mat2D toRoot(xAxis.x, xAxis.y, yAxis.x, yAxis.y, origin.x, origin.y);
+    Mat2D toLocal;
+    if (!toRoot.invert(&toLocal))
+    {
+        return false;
+    }
+    *outLocal = toLocal * rootPosition;
+    return true;
+}
+
+bool Artboard::isRoot() const
+{
+    if (m_host != nullptr)
+    {
+        return false;
+    }
+#ifdef WITH_RIVE_TOOLS
+    if (m_rootTransformCallback != nullptr)
+    {
+        return false;
+    }
+#endif
+    return true;
+}
+
 bool Artboard::hitTestPoint(const Vec2D& position,
                             bool skipOnUnclipped,
                             bool isPrimaryHit)

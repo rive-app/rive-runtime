@@ -779,6 +779,17 @@ bool TextInput::worldBounds(AABB& outBounds)
     return true;
 }
 
+bool TextInput::hitTestFocusable(const Vec2D& rootPosition)
+{
+    auto* ab = artboard();
+    Vec2D local;
+    if (ab == nullptr || !ab->rootToLocal(rootPosition, &local))
+    {
+        return false;
+    }
+    return hitTestPoint(local, true, true);
+}
+
 float TextInput::edgeScrollSpeedForDistance(float distanceFromEdge) const
 {
     static constexpr float kEdgeScrollBaseSpeed = 45.0f;

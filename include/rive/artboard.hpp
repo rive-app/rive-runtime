@@ -625,6 +625,12 @@ public:
                       bool isPrimaryHit) override;
 
     Vec2D rootTransform(const Vec2D&);
+    /// Root artboard space back into this artboard's space: the inverse of
+    /// rootTransform. False when that transform cannot be inverted.
+    bool rootToLocal(const Vec2D& rootPosition, Vec2D* outLocal);
+    /// Whether this artboard is the root of its tree: no component hosts it,
+    /// and in the editor no mounted-artboard callback maps it either.
+    bool isRoot() const;
 
     void onComponentDirty(Component* component);
     /// A component in this artboard collapsed or uncollapsed.

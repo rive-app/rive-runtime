@@ -15,9 +15,27 @@
       in the empty part of the viewport must still reach it. Two artboards:
       a single-line field with a horizontal scroll, and a multiline field with
       a vertical one. label_font covers digits and uppercase only, so the
-      text here and in the tests stays uppercase.
+      text here and in the tests stays uppercase. Host nests SingleLine twice,
+      for focus that has to be resolved from the root artboard.
     -->
-    <Artboard clip="true" width="400" height="200" styleId="1:2" defaultStateMachineId="1:60" name="SingleLine" id="1:1">
+    <Artboard clip="true" width="800" height="400" styleId="3:2" defaultStateMachineId="3:60" name="Host" id="3:1">
+        <LayoutComponentStyle name="Artboard Style" id="3:2"/>
+        <NestedArtboard artboardId="1:1" x="20" y="20" name="First">
+            <NestedStateMachine animationId="1:60" name="SM"/>
+        </NestedArtboard>
+        <NestedArtboard artboardId="1:1" x="20" y="220" name="Second">
+            <NestedStateMachine animationId="1:60" name="SM"/>
+        </NestedArtboard>
+        <StateMachine name="State Machine 1" id="3:60">
+            <StateMachineLayer name="Layer 1">
+                <AnyState/>
+                <ExitState/>
+                <EntryState/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+
+    <Artboard isComponent="true" clip="true" width="400" height="200" styleId="1:2" defaultStateMachineId="1:60" name="SingleLine" id="1:1">
         <LayoutComponentStyle name="Artboard Style" id="1:2"/>
         <LayoutComponent clip="true" width="300" height="48" styleId="1:11" name="Viewport" id="1:10">
             <LayoutComponentStyle layoutWidthScaleType="fixed" layoutHeightScaleType="fixed" name="Viewport Style" id="1:11"/>
@@ -89,4 +107,5 @@
 
     <ElasticScrollPhysics name="Physics" id="0:90"/>
     <FontAsset file="label_font.ttf" name="Label" id="0:80"/>
+    <ComponentAsset artboardId="1:1" name="SingleLine"/>
 </Rive>
