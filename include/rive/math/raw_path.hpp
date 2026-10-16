@@ -11,6 +11,7 @@
 #include "rive/math/path_types.hpp"
 #include "rive/math/vec2d.hpp"
 
+#include <array>
 #include <cmath>
 #include <stdio.h>
 #include <cstdint>
@@ -26,13 +27,20 @@ class RawPath
 {
 public:
     RawPath() = default;
+    RawPath(const RawPath&) = default;
+    RawPath& operator=(const RawPath&) = default;
+    // Moving leaves the source empty, so its verb counts stay accurate.
+    RawPath(RawPath&&) noexcept;
+    RawPath& operator=(RawPath&&) noexcept;
 
     // Bulk copy for deserialization, arrays trusted self-consistent. Contour
     // bookkeeping stays default since the path is consumed, not built.
     RawPath(Span<const PathVerb> verbs, Span<const Vec2D> points) :
         m_Points(points.data(), points.data() + points.size()),
         m_Verbs(verbs.data(), verbs.data() + verbs.size())
-    {}
+    {
+        recountVerbs();
+    }
 
     bool operator==(const RawPath& o) const;
     bool operator!=(const RawPath& o) const { return !(*this == o); }
@@ -45,7 +53,13 @@ public:
     AABB preciseBounds() const { return preciseBounds(Mat2D()); }
     // Tight bounds of the path as it would be after xform, without copying it.
     AABB preciseBounds(const Mat2D& xform) const;
-    size_t countMoveTos() const;
+    // Number of verbs of the given type, kept up to date as the path changes so
+    // callers can size buffers without scanning the verbs.
+    size_t verbCount(PathVerb verb) const
+    {
+        assert(static_cast<size_t>(verb) < PathVerbCount);
+        return m_verbCounts[static_cast<size_t>(verb)];
+    }
 
     void move(Vec2D);
     void line(Vec2D);
@@ -70,10 +84,10 @@ public:
     Span<Vec2D> points() { return m_Points; }
 
     Span<const PathVerb> verbs() const { return m_Verbs; }
-    Span<PathVerb> verbs() { return m_Verbs; }
 
     Span<const uint8_t> verbsU8() const
     {
+        static_assert(sizeof(PathVerb) == sizeof(uint8_t));
         const uint8_t* ptr = (const uint8_t*)m_Verbs.data();
         return Span<const uint8_t>(ptr, m_Verbs.size());
     }
@@ -288,8 +302,19 @@ private:
     std::vector<Vec2D> m_Points;
     std::vector<PathVerb> m_Verbs;
     size_t m_lastMoveIdx;
+
+    // Indexed by PathVerb.
+    std::array<size_t, PathVerbCount> m_verbCounts = {};
     // True of the path is nonempty and the most recent verb is not "close".
     bool m_contourIsOpen = false;
+
+    void pushVerb(PathVerb verb)
+    {
+        m_Verbs.push_back(verb);
+        ++m_verbCounts[static_cast<size_t>(verb)];
+    }
+
+    void recountVerbs();
 
     void addPoints(std::vector<Vec2D>::const_reverse_iterator& rev_iter,
                    int count,

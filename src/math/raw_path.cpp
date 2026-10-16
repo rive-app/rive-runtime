@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <utility>
 
 namespace rive
 {
@@ -46,14 +47,34 @@ AABB RawPath::bounds() const
     return bounds;
 }
 
-size_t RawPath::countMoveTos() const
+RawPath::RawPath(RawPath&& other) noexcept :
+    m_Points(std::exchange(other.m_Points, {})),
+    m_Verbs(std::exchange(other.m_Verbs, {})),
+    m_lastMoveIdx(std::exchange(other.m_lastMoveIdx, 0)),
+    m_verbCounts(std::exchange(other.m_verbCounts, {})),
+    m_contourIsOpen(std::exchange(other.m_contourIsOpen, false))
+{}
+
+RawPath& RawPath::operator=(RawPath&& other) noexcept
 {
-    size_t moveToCount = 0;
+    if (this != &other)
+    {
+        m_Points = std::exchange(other.m_Points, {});
+        m_Verbs = std::exchange(other.m_Verbs, {});
+        m_lastMoveIdx = std::exchange(other.m_lastMoveIdx, 0);
+        m_verbCounts = std::exchange(other.m_verbCounts, {});
+        m_contourIsOpen = std::exchange(other.m_contourIsOpen, false);
+    }
+    return *this;
+}
+
+void RawPath::recountVerbs()
+{
+    m_verbCounts.fill(0);
     for (PathVerb verb : m_Verbs)
     {
-        moveToCount += verb == PathVerb::move ? 1 : 0;
+        ++m_verbCounts[static_cast<size_t>(verb)];
     }
-    return moveToCount;
 }
 
 void RawPath::injectImplicitMoveIfNeeded()
@@ -69,14 +90,14 @@ void RawPath::move(Vec2D a)
     m_contourIsOpen = true;
     m_lastMoveIdx = m_Points.size();
     m_Points.push_back(a);
-    m_Verbs.push_back(PathVerb::move);
+    pushVerb(PathVerb::move);
 }
 
 void RawPath::line(Vec2D a)
 {
     injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
-    m_Verbs.push_back(PathVerb::line);
+    pushVerb(PathVerb::line);
 }
 
 void RawPath::quad(Vec2D a, Vec2D b)
@@ -84,7 +105,7 @@ void RawPath::quad(Vec2D a, Vec2D b)
     injectImplicitMoveIfNeeded();
     m_Points.push_back(a);
     m_Points.push_back(b);
-    m_Verbs.push_back(PathVerb::quad);
+    pushVerb(PathVerb::quad);
 }
 
 void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c)
@@ -93,14 +114,14 @@ void RawPath::cubic(Vec2D a, Vec2D b, Vec2D c)
     m_Points.push_back(a);
     m_Points.push_back(b);
     m_Points.push_back(c);
-    m_Verbs.push_back(PathVerb::cubic);
+    pushVerb(PathVerb::cubic);
 }
 
 void RawPath::close()
 {
     if (m_contourIsOpen)
     {
-        m_Verbs.push_back(PathVerb::close);
+        pushVerb(PathVerb::close);
         m_contourIsOpen = false;
     }
 }
@@ -119,6 +140,7 @@ RawPath RawPath::transform(const Mat2D& m) const
     RawPath path;
 
     path.m_Verbs = m_Verbs;
+    path.m_verbCounts = m_verbCounts;
 
     path.m_Points.resize(m_Points.size());
     m.mapPoints(path.m_Points.data(), m_Points.data(), m_Points.size());
@@ -264,6 +286,10 @@ RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
     size_t initialPointCount = m_Points.size();
 
     m_Verbs.insert(m_Verbs.end(), src.m_Verbs.cbegin(), src.m_Verbs.cend());
+    for (size_t i = 0; i < PathVerbCount; ++i)
+    {
+        m_verbCounts[i] += src.m_verbCounts[i];
+    }
 
     if (mat)
     {
@@ -305,8 +331,8 @@ RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
     m_Verbs.reserve(initialVerbCount + src.m_Verbs.size());
     assert(!src.m_Verbs.empty());
     assert(src.m_Verbs[0] == PathVerb::move);
-    m_Verbs.push_back(PathVerb::move); // Swap moves from one side of the
-                                       // contour to the other.
+    pushVerb(PathVerb::move); // Swap moves from one side of the
+                              // contour to the other.
     bool closed = false;
     for (auto it = src.m_Verbs.rbegin();; ++it)
     {
@@ -323,12 +349,12 @@ RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
         if (verb == PathVerb::move && closed)
         {
             // Time to apply the deferred close verb.
-            m_Verbs.push_back(PathVerb::close);
+            pushVerb(PathVerb::close);
             closed = false;
         }
         if (it + 1 != src.m_Verbs.rend())
         {
-            m_Verbs.push_back(verb);
+            pushVerb(verb);
         }
         else
         {
@@ -398,6 +424,7 @@ void RawPath::pruneEmptySegments(Iter start)
                     break;
                 }
                 // This segment is empty! Don't keep it.
+                --m_verbCounts[static_cast<size_t>(verb)];
                 continue;
         }
 
@@ -438,6 +465,7 @@ void RawPath::swap(RawPath& rawPath)
 {
     m_Points.swap(rawPath.m_Points);
     m_Verbs.swap(rawPath.m_Verbs);
+    m_verbCounts.swap(rawPath.m_verbCounts);
 }
 
 void RawPath::reset()
@@ -447,6 +475,7 @@ void RawPath::reset()
     m_Verbs.clear();
     m_Verbs.shrink_to_fit();
     m_contourIsOpen = false;
+    m_verbCounts.fill(0);
 }
 
 void RawPath::rewind()
@@ -454,6 +483,7 @@ void RawPath::rewind()
     m_Points.clear();
     m_Verbs.clear();
     m_contourIsOpen = false;
+    m_verbCounts.fill(0);
 }
 
 ///////////////////////////////////

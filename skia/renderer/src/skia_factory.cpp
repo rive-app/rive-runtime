@@ -154,7 +154,7 @@ void SkiaRenderPath::addRawPath(const RawPath& path)
     auto skPath =
         SkPath::Make(reinterpret_cast<const SkPoint*>(path.points().data()),
                      path.points().size(),
-                     (uint8_t*)path.verbs().data(),
+                     path.verbsU8().data(),
                      path.verbs().size(),
                      conicWeights,
                      conicWeightCount,
@@ -488,7 +488,7 @@ rcp<RenderPath> SkiaFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
     return make_rcp<SkiaRenderPath>(
         SkPath::Make(reinterpret_cast<const SkPoint*>(rawPath.points().data()),
                      rawPath.points().size(),
-                     (uint8_t*)rawPath.verbs().data(),
+                     rawPath.verbsU8().data(),
                      rawPath.verbs().size(),
                      conicWeights,
                      conicWeightCount,

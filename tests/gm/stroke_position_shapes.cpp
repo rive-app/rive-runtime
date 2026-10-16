@@ -35,6 +35,19 @@ Path openZigzag()
         .detach();
 }
 
+// This tests to make sure that joins caused by implicit closes are accounted
+// for when we reserve buffer space in initForMidpointFan.
+Path longZigzag()
+{
+    PathBuilder builder;
+    builder.moveTo(20, 65);
+    for (int i = 1; i <= 8; ++i)
+    {
+        builder.lineTo(20.f + 15 * i, i % 2 ? 100.f : 65.f);
+    }
+    return builder.detach();
+}
+
 // Four convex corners and one concave one, at the notch.
 Path notchedSquare()
 {
@@ -119,17 +132,18 @@ void drawCell(Renderer* renderer,
 // Rows: shape x join. Columns: inside, center, outside.
 void drawShapesByJoin(Renderer* renderer, float feather)
 {
-    drawBackground(renderer, 3 * kCell, 9 * kCell);
+    drawBackground(renderer, 3 * kCell, 12 * kCell);
 
     Path shapes[] = {openZigzag(),
                      notchedSquare(),
-                     squareWithHole(FillRule::evenOdd)};
+                     squareWithHole(FillRule::evenOdd),
+                     longZigzag()};
     StrokeJoin joins[] = {StrokeJoin::miter,
                           StrokeJoin::round,
                           StrokeJoin::bevel};
-    for (int s = 0; s < 3; ++s)
+    for (int s = 0; s < std::size(shapes); ++s)
     {
-        for (int j = 0; j < 3; ++j)
+        for (int j = 0; j < std::size(joins); ++j)
         {
             for (int p = 0; p < 3; ++p)
             {
@@ -149,14 +163,14 @@ void drawShapesByJoin(Renderer* renderer, float feather)
 }
 } // namespace
 
-DEF_SIMPLE_GM(stroke_position_shapes, 480, 1440, renderer)
+DEF_SIMPLE_GM(stroke_position_shapes, 480, 1920, renderer)
 {
     drawShapesByJoin(renderer, 0.0f);
 }
 
 // Feathered inside/outside strokes take a different branch in the renderer:
 // clip by the path, then draw the thickened stroke.
-DEF_SIMPLE_GM(stroke_position_shapes_feathered, 480, 1440, renderer)
+DEF_SIMPLE_GM(stroke_position_shapes_feathered, 480, 1920, renderer)
 {
     drawShapesByJoin(renderer, 6.0f);
 }

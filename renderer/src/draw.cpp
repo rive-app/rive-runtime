@@ -873,41 +873,40 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     // Count up how much temporary storage this function will need to reserve in
     // CPU buffers.
     const RawPath& rawPath = m_pathRef->getRawPath();
-    size_t contourCount = rawPath.countMoveTos();
+    assert(rawPath.verbs()[0] == PathVerb::move);
+    size_t contourCount = rawPath.verbCount(PathVerb::move);
     assert(contourCount != 0);
 
     m_contours = reinterpret_cast<ContourInfo*>(
         context->perFrameAllocator().alloc(sizeof(ContourInfo) * contourCount));
 
-    size_t maxStrokedCurvesBeforeChops = 0;
-    size_t maxCurves = 0;
+    assert(rawPath.verbCount(PathVerb::quad) == 0);
+    size_t cubicCount = rawPath.verbCount(PathVerb::cubic);
+    // Only cubics take curve slots. A stroked cubic chops into at most 3
+    // pieces.
+    size_t maxCurves = isStrokeOrFeather() ? cubicCount * 3 : cubicCount;
     size_t maxRotations = 0;
-    // Reserve enough space to record all the info we might need for this path.
-    assert(rawPath.verbs()[0] == PathVerb::move);
-    // Every path has at least 1 (non-cubic) move.
-    size_t pathMaxLinesOrCurvesBeforeChops = rawPath.verbs().size() - 1;
-    // A stroked cubic chops into at most 3 pieces, plus 2 full round joins
-    // across cusps, for up to 5 rotations.
-    size_t pathMaxLinesOrCurvesAfterChops =
-        isStrokeOrFeather() ? pathMaxLinesOrCurvesBeforeChops * 5
-                            : pathMaxLinesOrCurvesBeforeChops;
-    maxCurves += pathMaxLinesOrCurvesAfterChops;
     if (isStrokeOrFeather())
     {
-        maxStrokedCurvesBeforeChops += pathMaxLinesOrCurvesBeforeChops;
-        maxRotations += pathMaxLinesOrCurvesAfterChops;
+        // Each piece of a stroked cubic takes a rotation slot, as does the full
+        // round join across each cusp.
+        maxRotations += cubicCount * 5;
         if (m_strokeJoin == StrokeJoin::round)
         {
             // If the stroke has round joins, we also record the rotations
             // between (pre-chopped) joins in order to calculate how many
-            // vertices are in each round join.
-            maxRotations += pathMaxLinesOrCurvesBeforeChops;
+            // vertices are in each round join. Each line or cubic has at most
+            // one join before it, and closing a contour can add an additional
+            // join. Note that we append `contourCount` rather than the number
+            // of explicit `close` verbs to account for implicit closes.
+            maxRotations +=
+                rawPath.verbCount(PathVerb::line) + cubicCount + contourCount;
         }
     }
 
-    // Each stroked curve will record the number of chops it requires (either 0,
-    // 1, or 2).
-    size_t maxChops = maxStrokedCurvesBeforeChops;
+    // Each stroked cubic will record the number of chops it requires (either
+    // 0, 1, or 2).
+    size_t maxChops = isStrokeOrFeather() ? cubicCount : 0;
     // Each chopped cubic saves its T values for the push pass to re-chop.
     size_t maxChopVertices = maxChops;
     // +3 for each contour because we align each contour's curves and rotations

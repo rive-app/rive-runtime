@@ -680,3 +680,86 @@ TEST_CASE("RawPath appends itself with and without a transform", "[rawpath]")
     CHECK(path.points()[7] == Vec2D(13, 24));
     CHECK(path.verbs()[9] == PathVerb::move);
 }
+
+// Verb counts are tracked incrementally, so every mutation has to keep them in
+// sync with the verbs themselves.
+static void checkVerbCounts(const RawPath& path)
+{
+    for (PathVerb verb : {PathVerb::move,
+                          PathVerb::line,
+                          PathVerb::quad,
+                          PathVerb::cubic,
+                          PathVerb::close})
+    {
+        size_t expected = 0;
+        for (PathVerb v : path.verbs())
+        {
+            expected += v == verb;
+        }
+        CHECK(path.verbCount(verb) == expected);
+    }
+}
+
+TEST_CASE("verb counts track every mutation", "[rawpath]")
+{
+    RawPath path;
+    checkVerbCounts(path);
+
+    path.line({1, 1}); // Injects an implicit move.
+    path.quad({2, 2}, {3, 0});
+    path.cubic({4, 4}, {5, 4}, {6, 0});
+    path.close();
+    path.close(); // No-op, the contour is already closed.
+    path.addRect({0, 0, 10, 10});
+    path.addOval({0, 0, 10, 10});
+    const Vec2D poly[] = {{0, 0}, {5, 0}, {5, 5}};
+    path.addPoly(poly, true);
+    path.addPoly(poly, false);
+    path.quadToCubic(7, 7, 8, 0);
+    checkVerbCounts(path);
+    CHECK(path.verbCount(PathVerb::move) == 5);
+
+    RawPath copy = path;
+    checkVerbCounts(copy);
+    checkVerbCounts(path.transform(Mat2D(2, 0, 0, 2, 1, 1)));
+    checkVerbCounts(RawPath(path.verbs(), path.points()));
+
+    copy.addPath(path);
+    checkVerbCounts(copy);
+    copy.addPath(copy, nullptr); // Self append.
+    checkVerbCounts(copy);
+    copy.addPathBackwards(path);
+    checkVerbCounts(copy);
+
+    RawPath degenerate;
+    degenerate.move({1, 1});
+    degenerate.line({1, 1});
+    degenerate.cubic({1, 1}, {1, 1}, {1, 1});
+    degenerate.line({2, 2});
+    degenerate.close();
+    // A matrix makes addPathBackwards prune empty segments.
+    Mat2D identity;
+    copy.addPathBackwards(degenerate, &identity);
+    checkVerbCounts(copy);
+    degenerate.pruneEmptySegments();
+    checkVerbCounts(degenerate);
+    CHECK(degenerate.verbCount(PathVerb::cubic) == 0);
+
+    copy.swap(degenerate);
+    checkVerbCounts(copy);
+    checkVerbCounts(degenerate);
+
+    // A moved-from path is empty, with counts to match.
+    RawPath moved = std::move(degenerate);
+    checkVerbCounts(moved);
+    checkVerbCounts(degenerate);
+    CHECK(degenerate.verbCount(PathVerb::move) == 0);
+    degenerate = std::move(moved);
+    checkVerbCounts(degenerate);
+    checkVerbCounts(moved);
+
+    path.rewind();
+    checkVerbCounts(path);
+    copy.reset();
+    checkVerbCounts(copy);
+}

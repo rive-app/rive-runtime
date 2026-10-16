@@ -37,6 +37,9 @@ enum class PathVerb : uint8_t
     close = 5,
 };
 
+constexpr static size_t PathVerbCount =
+    static_cast<size_t>(PathVerb::close) + 1;
+
 int path_verb_to_point_count(PathVerb);
 
 } // namespace rive
