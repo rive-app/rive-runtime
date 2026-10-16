@@ -132,10 +132,11 @@
 
 // Flags for specifying the join type.
 #define JOIN_TYPE_MASK (7u << 26u)
-#define MITER_CLIP_JOIN_CONTOUR_FLAG (5u << 26u)
-#define MITER_REVERT_JOIN_CONTOUR_FLAG (4u << 26u)
-#define BEVEL_JOIN_CONTOUR_FLAG (3u << 26u)
-#define ROUND_JOIN_CONTOUR_FLAG (2u << 26u)
+#define MITER_CLIP_JOIN_CONTOUR_FLAG (6u << 26u)
+#define MITER_REVERT_JOIN_CONTOUR_FLAG (5u << 26u)
+#define BEVEL_JOIN_CONTOUR_FLAG (4u << 26u)
+#define ROUND_JOIN_CONTOUR_FLAG (3u << 26u)
+#define FULL_ROUND_JOIN_CONTOUR_FLAG (2u << 26u)
 #define FEATHER_JOIN_CONTOUR_FLAG (1u << 26u)
 
 // When a join is being used to emulate a stroke cap, the shader emits

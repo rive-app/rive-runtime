@@ -142,11 +142,12 @@ RIVE_ALWAYS_INLINE constexpr StyledVerb styled_verb(PathVerb verb,
     return static_cast<StyledVerb>(styleFlags | static_cast<int>(verb));
 }
 
-// When chopping strokes, switching on a "chop_key" reduces "if (areCusps)"
+// When chopping strokes, switching on a "chop_key" reduces "if (areChopsCusps)"
 // branching and makes the code cleaner.
-RIVE_ALWAYS_INLINE constexpr uint8_t chop_key(bool areCusps, uint8_t numChops)
+RIVE_ALWAYS_INLINE constexpr uint8_t chop_key(bool areChopsCusps,
+                                              uint8_t numChops)
 {
-    return (numChops << 1) | static_cast<uint8_t>(areCusps);
+    return (numChops << 1) | static_cast<uint8_t>(areChopsCusps);
 }
 RIVE_ALWAYS_INLINE constexpr uint8_t cusp_chop_key(uint8_t n)
 {
@@ -177,17 +178,20 @@ RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(Vec2D p0,
     return convert_line_to_cubic(line);
 }
 
-// Chops a cubic into 2 * n + 1 segments, surrounding each cusp. The resulting
-// cubics will be visually equivalent to the original when stroked, but the cusp
-// won't have artifacts when rendered using the parametric/polar sorting
-// algorithm.
+// Chops a cubic at each of its n cusps into n + 1 pieces that meet exactly on
+// the cusp points. Strokes draw a full round join across each cusp.
 //
-// The size of dst[] must be 6 * n + 4 Vec2Ds.
-static void chop_cubic_around_cusps(const Vec2D p[4],
-                                    Vec2D dst[/*6 * n + 4*/],
-                                    const float cuspT[],
-                                    int n,
-                                    float matrixMaxScale)
+// To avoid zero tangents that occur at cusps, for a cusp at T, two chops are
+// performed at T - EPSILON and T + EPSILON and the middle cubic is collapsed by
+// snapping the surrounding two cubics' endpoints to the cusp's position.
+//
+// The size of dst[] must be 6 * n + 4 Vec2Ds. The result is the first
+// 3 * n + 4 values. (dst needs the larger size because it has to hold an
+// intermediate result.)
+static void chop_cubic_at_cusps(const Vec2D p[4],
+                                Vec2D dst[/*6 * n + 4*/],
+                                const float cuspT[],
+                                int n)
 {
     float t[4];
     assert(n * 2 <= std::size(t));
@@ -202,22 +206,23 @@ static void chop_cubic_around_cusps(const Vec2D p[4],
         t[i * 2 + 0] = fmaxf(cuspT[i] - math::EPSILON, minT);
         t[i * 2 + 1] = fminf(cuspT[i] + math::EPSILON, maxT);
     }
+
+    // chop_cubic_at() will produce 2n + 1 pieces, with piece j at dst[3 * j].
+    // Each odd piece is a sliver around a cusp.
     math::chop_cubic_at(p, dst, t, n * 2);
+
+    // Collapse each sliver to the cusp by placing the previous piece's last
+    // control point (which is shared with the next piece's first control
+    // point) directly at the cusp's position and shifting the next piece down
+    // in the list.
     for (int i = 0; i < n; ++i)
     {
-        // Find the three chops at this cusp.
-        Vec2D* chops = dst + i * 6;
-        // Correct the chops to fall on the actual cusp point.
-        Vec2D cusp = math::eval_cubic_at(p, cuspT[i]);
-        chops[3] = chops[6] = cusp;
-        // The only purpose of the middle cubic is to capture the cusp's
-        // 180-degree rotation. Implement it as a sub-pixel 180-degree pivot.
-        Vec2D pivot = (chops[2] + chops[7]) * .5f;
-        pivot = (cusp - pivot).normalized() /
-                    (matrixMaxScale * kPolarPrecision * 2) +
-                cusp;
-        chops[4] = chops[5] = pivot;
+        dst[3 * i + 3] = math::eval_cubic_at(p, cuspT[i]);
+        dst[3 * i + 4] = dst[6 * i + 7];
+        dst[3 * i + 5] = dst[6 * i + 8];
     }
+    // Copy the cubic's original endpoint.
+    dst[3 * n + 3] = dst[6 * n + 3];
 }
 
 // Finds the starting tangent in a contour composed of the points [pts, end). If
@@ -881,7 +886,8 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     assert(rawPath.verbs()[0] == PathVerb::move);
     // Every path has at least 1 (non-cubic) move.
     size_t pathMaxLinesOrCurvesBeforeChops = rawPath.verbs().size() - 1;
-    // Stroked cubics can be chopped into a maximum of 5 segments.
+    // A stroked cubic chops into at most 3 pieces, plus 2 full round joins
+    // across cusps, for up to 5 rotations.
     size_t pathMaxLinesOrCurvesAfterChops =
         isStrokeOrFeather() ? pathMaxLinesOrCurvesBeforeChops * 5
                             : pathMaxLinesOrCurvesBeforeChops;
@@ -902,12 +908,8 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     // Each stroked curve will record the number of chops it requires (either 0,
     // 1, or 2).
     size_t maxChops = maxStrokedCurvesBeforeChops;
-    // We only chop into this queue if a cubic has one chop. More chops in a
-    // single cubic are rare and require a lot of memory, so if a cubic needs
-    // more chops we just re-chop the second time around. The maximum size this
-    // queue would need is therefore enough to chop each cubic once, or 5
-    // internal points per chop.
-    size_t maxChopVertices = maxStrokedCurvesBeforeChops * 5;
+    // Each chopped cubic saves its T values for the push pass to re-chop.
+    size_t maxChopVertices = maxChops;
     // +3 for each contour because we align each contour's curves and rotations
     // on multiples of 4.
     size_t maxPaddedRotations =
@@ -963,6 +965,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
     Vec2D lastTangent = {0, 1};
     Vec2D firstTangent = {0, 1};
     size_t roundJoinCount = 0;
+    size_t cuspJoinCount = 0;
     size_t contourFirstCurveIdx = curveIdx;
     assert(contourFirstCurveIdx % 4 == 0);
     size_t contourFirstRotationIdx = rotationIdx;
@@ -1017,6 +1020,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
             isStroke() ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
             closed,
             strokeJoinCount,
+            cuspJoinCount,
             0,                 // strokeCapSegmentCount
             0,                 // paddingVertexCount
             RIVE_DEBUG_CODE(0) // tessVertexCount
@@ -1047,6 +1051,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                 lastTangent = {0, 1};
                 firstTangent = {0, 1};
                 roundJoinCount = 0;
+                cuspJoinCount = 0;
                 break;
             case StyledVerb::roundJoinStrokedClose:
             case StyledVerb::strokedClose:
@@ -1113,49 +1118,40 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                 // convex), and do not rotate more than 180 degrees. This is
                 // required by the GPU parametric/polar sorter.
                 float t[2];
-                bool areCusps = false;
+                bool areChopsCusps = false;
                 uint8_t numChops =
                     isStroke()
-                        ? math::find_cubic_convex_180_chops(p, t, &areCusps)
+                        ? math::find_cubic_convex_180_chops(p,
+                                                            t,
+                                                            &areChopsCusps)
                         : 0; // Feathers already got chopped.
-                uint8_t chopKey = chop_key(areCusps, numChops);
+                uint8_t chopKey = chop_key(areChopsCusps, numChops);
                 m_numChops.push_back(chopKey);
                 Vec2D localChopBuffer[16];
                 switch (chopKey)
                 {
                     case cusp_chop_key(2): // 2 cusps
                     case cusp_chop_key(1): // 1 cusp
-                        // We have to chop carefully around stroked cusps in
-                        // order to avoid rendering artifacts. Luckily, cusps
-                        // are extremely rare in real-world content.
-                        m_chopVertices.push_back() = {t[0], t[1]};
-                        chop_cubic_around_cusps(p,
-                                                localChopBuffer,
-                                                t,
-                                                numChops,
-                                                m_strokeMatrixMaxScale);
-                        p = localChopBuffer;
-                        numChops *= 2;
+                        chop_cubic_at_cusps(p, localChopBuffer, t, numChops);
                         break;
                     case simple_chop_key(2): // 2 non-cusp chops
-                        m_chopVertices.push_back() = {t[0], t[1]};
                         math::chop_cubic_at(p, localChopBuffer, t[0], t[1]);
-                        p = localChopBuffer;
                         break;
                     case simple_chop_key(1): // 1 non-cusp chop
-                    {
                         math::chop_cubic_at(p, localChopBuffer, t[0]);
-                        p = localChopBuffer;
-                        memcpy(m_chopVertices.push_back_n(5),
-                               p + 1,
-                               sizeof(Vec2D) * 5);
                         break;
-                    }
+                }
+                if (numChops != 0)
+                {
+                    // Re-chopping in the push pass is cheaper than saving the
+                    // pieces and reading them back.
+                    m_chopVertices.push_back() = {t[0], t[1]};
+                    p = localChopBuffer;
                 }
                 // Calculate segment counts for each chopped section
                 // independently.
-                for (const Vec2D* end = p + numChops * 3 + 3; p != end;
-                     p += 3, ++curveIdx, ++rotationIdx)
+                for (int piece = 0; piece <= numChops;
+                     ++piece, p += 3, ++curveIdx, ++rotationIdx)
                 {
                     float n4 = wangs_formula::cubic_pow4(p,
                                                          parametricPrecision,
@@ -1171,6 +1167,26 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                         math::find_cubic_tangents(
                             p,
                             m_tangentPairs[rotationIdx].data());
+                        if (areChopsCusps)
+                        {
+                            if (piece > 0)
+                            {
+                                // This cubic is connected to the previous one
+                                // with a full round join, so copy its tangents
+                                // from the surrounding cubics.
+                                m_tangentPairs[rotationIdx - 1] = {
+                                    m_tangentPairs[rotationIdx - 2][1],
+                                    m_tangentPairs[rotationIdx][0]};
+                            }
+                            if (piece < numChops)
+                            {
+                                // Leave a slot for the full round join across
+                                // the cusp after this piece.
+                                ++rotationIdx;
+                                assert(rotationIdx < maxPaddedRotations);
+                                ++cuspJoinCount;
+                            }
+                        }
                     }
                     else
                     {
@@ -1335,6 +1351,10 @@ void PathDraw::initForMidpointFan(RenderContext* context,
                     contour->strokeJoinCount *
                     numSpokesInFixedJoin(m_coverageType, m_strokeJoin);
             }
+            // Cusp joins are full round joins, which share both end vertices
+            // (like round joins). Their polar segments were summed above, with
+            // the other rotations.
+            contourVertexCount -= contour->cuspJoinCount;
 
             // Count stroke caps, if any.
             bool empty = contour->endLineIdx == contourFirstLineIdx &&
@@ -2274,51 +2294,31 @@ void PathDraw::pushMidpointFanTessellationData(
                 {
                     const Vec2D* p = iter.cubicPts();
                     uint8_t chopKey = m_numChops.pop_front();
-                    uint8_t numChops = 0;
+                    uint8_t numChops = chopKey >> 1;
                     Vec2D localChopBuffer[16];
-                    switch (chopKey)
+                    if (numChops != 0)
                     {
-                        case cusp_chop_key(2): // 2 cusps
-                        case cusp_chop_key(1): // 1 cusp
-                            // We have to chop carefully around stroked cusps in
-                            // order to avoid rendering artifacts. Luckily,
-                            // cusps are extremely rare in real-world content.
-                            chop_cubic_around_cusps(
-                                p,
-                                localChopBuffer,
-                                &m_chopVertices.pop_front().x,
-                                chopKey >> 1,
-                                m_strokeMatrixMaxScale);
-                            p = localChopBuffer;
-                            // The bottom bit of chopKey is 1, meaning
-                            // "areCusps". Clearing the bottom bit leaves
-                            // "numChops * 2", which is the number of chops a
-                            // cusp needs!
-                            numChops = chopKey ^ 1;
-                            break;
-
-                        case simple_chop_key(2): // 2 non-cusp chops
+                        auto [t0, t1] = m_chopVertices.pop_front();
+                        switch (chopKey)
                         {
-                            // Curves that need 2 chops are rare in real-world
-                            // content. Just re-chop the curve this time around
-                            // as well.
-                            auto [t0, t1] = m_chopVertices.pop_front();
-                            math::chop_cubic_at(p, localChopBuffer, t0, t1);
-                            p = localChopBuffer;
-                            numChops = 2;
-                            break;
+                            case cusp_chop_key(2): // 2 cusps
+                            case cusp_chop_key(1): // 1 cusp
+                            {
+                                const float t[2] = {t0, t1};
+                                chop_cubic_at_cusps(p,
+                                                    localChopBuffer,
+                                                    t,
+                                                    numChops);
+                                break;
+                            }
+                            case simple_chop_key(2): // 2 non-cusp chops
+                                math::chop_cubic_at(p, localChopBuffer, t0, t1);
+                                break;
+                            case simple_chop_key(1): // 1 non-cusp chop
+                                math::chop_cubic_at(p, localChopBuffer, t0);
+                                break;
                         }
-                        case simple_chop_key(1): // 1 non-cusp chop
-                            // Single-chop curves were saved in the
-                            // m_chopVertices queue.
-                            localChopBuffer[0] = p[0];
-                            memcpy(localChopBuffer + 1,
-                                   m_chopVertices.pop_front_n(5),
-                                   sizeof(Vec2D) * 5);
-                            localChopBuffer[6] = p[3];
-                            p = localChopBuffer;
-                            numChops = 1;
-                            break;
+                        p = localChopBuffer;
                     }
                     if (needsFirstEmulatedCapAsJoin)
                     {
@@ -2332,6 +2332,7 @@ void PathDraw::pushMidpointFanTessellationData(
                         needsFirstEmulatedCapAsJoin = false;
                     }
                     // Push chops before the final one.
+                    const bool areChopsCusps = (chopKey & 1) != 0;
                     for (size_t end = curveIdx + numChops; curveIdx != end;
                          ++curveIdx, ++rotationIdx, p += 3)
                     {
@@ -2339,16 +2340,40 @@ void PathDraw::pushMidpointFanTessellationData(
                             m_parametricSegmentCounts[curveIdx];
                         uint32_t polarSegmentCount =
                             m_polarSegmentCounts[rotationIdx];
+                        RIVE_DEBUG_CODE(--m_pendingRotationCount;)
+
+                        Vec2D chopJoinTangent;
+                        uint32_t chopJoinSegmentCount;
+                        uint32_t chopJoinTypeFlags;
+                        if (areChopsCusps)
+                        {
+                            // A cusp turns 180 degrees which gets drawn with a
+                            // full round join.
+                            ++rotationIdx;
+                            chopJoinTangent = m_tangentPairs[rotationIdx][1];
+                            chopJoinSegmentCount =
+                                m_polarSegmentCounts[rotationIdx];
+                            chopJoinTypeFlags = FULL_ROUND_JOIN_CONTOUR_FLAG;
+                            RIVE_DEBUG_CODE(--m_pendingRotationCount;)
+                        }
+                        else
+                        {
+                            // A chop at an inflection or at 180 degrees
+                            // continues smoothly, so it needs no join.
+                            chopJoinTangent = joinTangent;
+                            chopJoinSegmentCount = 1;
+                            chopJoinTypeFlags = joinTypeFlags;
+                        }
+
                         tessWriter->pushCubic(p,
                                               m_contourDirections,
-                                              joinTangent,
+                                              chopJoinTangent,
                                               parametricSegmentCount,
                                               polarSegmentCount,
-                                              1,
+                                              chopJoinSegmentCount,
                                               contourIDWithFlags |
-                                                  joinTypeFlags);
+                                                  chopJoinTypeFlags);
                         RIVE_DEBUG_CODE(--m_pendingCurveCount;)
-                        RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     }
                     // Push the final chop, with a join.
                     uint32_t parametricSegmentCount =

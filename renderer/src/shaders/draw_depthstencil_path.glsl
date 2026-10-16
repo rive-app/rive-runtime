@@ -239,7 +239,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexIdx, _instanceIdx)
 
         if (isPolarStroke)
         {
-            // Joins only emanate from the outer side of the stroke.
+            // Joins only emanate from the outer side of the stroke (except full
+            // round joins, which emit both sides like curves).
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
                 outset = min(outset, .0);
             if ((contourIDWithFlags & RIGHT_JOIN_CONTOUR_FLAG) != 0u)

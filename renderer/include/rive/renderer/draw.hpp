@@ -509,6 +509,8 @@ protected:
         Vec2D midpoint;
         bool closed;
         size_t strokeJoinCount;
+        size_t cuspJoinCount; // Cusps create full round joins (these don't
+                              // contribute to strokeJoinCount)
         uint32_t strokeCapSegmentCount;
         uint32_t paddingVertexCount;
         RIVE_DEBUG_CODE(uint32_t tessVertexCount;)
