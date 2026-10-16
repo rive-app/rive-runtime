@@ -24,10 +24,38 @@ std::unique_ptr<VulkanLibrary> VulkanLibrary::Create()
     return outLibrary;
 }
 
+#ifdef TESTING
+PFN_vkGetInstanceProcAddr g_testingVkGetInstanceProcAddr = nullptr;
+#endif
+
 VulkanLibrary::VulkanLibrary(bool* successOut)
 {
     *successOut = false;
 
+#ifdef TESTING
+    m_vkGetInstanceProcAddr = g_testingVkGetInstanceProcAddr;
+#endif
+    if (m_vkGetInstanceProcAddr == nullptr)
+    {
+        CONFIRM_OR_RETURN(openSystemLibrary());
+    }
+
+    // This function is allowed to be null
+    LOAD_MEMBER_INSTANCE_FUNC(this, vkEnumerateInstanceVersion, *this);
+
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkCreateInstance, *this);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
+                                        vkEnumerateInstanceLayerProperties,
+                                        *this);
+    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
+                                        vkEnumerateInstanceExtensionProperties,
+                                        *this);
+
+    *successOut = true;
+}
+
+bool VulkanLibrary::openSystemLibrary()
+{
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__linux__)
     static_assert(false, "Unsupported platform");
 #endif
@@ -62,8 +90,9 @@ VulkanLibrary::VulkanLibrary(bool* successOut)
         }
     }
 
-    CONFIRM_OR_RETURN_MSG(m_library != nullptr,
-                          "Failed to find Vulkan library");
+    CONFIRM_OR_RETURN_VALUE_MSG(m_library != nullptr,
+                                false,
+                                "Failed to find Vulkan library");
 
 #ifdef _WIN32
     m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
@@ -72,22 +101,12 @@ VulkanLibrary::VulkanLibrary(bool* successOut)
     m_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
         dlsym(m_library, "vkGetInstanceProcAddr"));
 #endif
-    CONFIRM_OR_RETURN_MSG(
+    CONFIRM_OR_RETURN_VALUE_MSG(
         m_vkGetInstanceProcAddr != nullptr,
+        false,
         "Failed to load Vulkan function 'vkGetInstanceProcAddr'");
 
-    // This function is allowed to be null
-    LOAD_MEMBER_INSTANCE_FUNC(this, vkEnumerateInstanceVersion, *this);
-
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, vkCreateInstance, *this);
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
-                                        vkEnumerateInstanceLayerProperties,
-                                        *this);
-    LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this,
-                                        vkEnumerateInstanceExtensionProperties,
-                                        *this);
-
-    *successOut = true;
+    return true;
 }
 
 VulkanLibrary::~VulkanLibrary()

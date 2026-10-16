@@ -28,6 +28,12 @@
 
 namespace rive_vkb
 {
+#ifdef TESTING
+// When set, VulkanLibrary uses this instead of opening the system Vulkan
+// library, so unit tests can stand in for the loader.
+extern PFN_vkGetInstanceProcAddr g_testingVkGetInstanceProcAddr;
+#endif
+
 class VulkanLibrary
 {
 public:
@@ -66,6 +72,8 @@ public:
 
 private:
     VulkanLibrary(bool* successOut);
+
+    bool openSystemLibrary();
 
 #ifdef _WIN32
     HMODULE m_library = nullptr;

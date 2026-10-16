@@ -76,21 +76,31 @@ VulkanInstance::VulkanInstance(const Options& opts, bool* successOut) :
     std::vector<VkExtensionProperties> supportedExtensions;
     std::vector<VkLayerProperties> supportedLayers;
     {
+        // A failed enumeration leaves count undefined (Android 10's loader
+        // doesn't write it at all when the Vulkan HAL fails to open), so check
+        // every result before using it.
         uint32_t count;
-        m_library->enumerateInstanceExtensionProperties(nullptr,
-                                                        &count,
-                                                        nullptr);
-
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_library->enumerateInstanceExtensionProperties(nullptr,
+                                                            &count,
+                                                            nullptr),
+            "Failed to query Vulkan instance extension count.");
         supportedExtensions.resize(count);
-        m_library->enumerateInstanceExtensionProperties(
-            nullptr,
-            &count,
-            supportedExtensions.data());
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_library->enumerateInstanceExtensionProperties(
+                nullptr,
+                &count,
+                supportedExtensions.data()),
+            "Failed to enumerate Vulkan instance extensions.");
 
-        m_library->enumerateInstanceLayerProperties(&count, nullptr);
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_library->enumerateInstanceLayerProperties(&count, nullptr),
+            "Failed to query Vulkan instance layer count.");
         supportedLayers.resize(count);
-        m_library->enumerateInstanceLayerProperties(&count,
-                                                    supportedLayers.data());
+        VK_CONFIRM_OR_RETURN_MSG(
+            m_library->enumerateInstanceLayerProperties(&count,
+                                                        supportedLayers.data()),
+            "Failed to enumerate Vulkan instance layers.");
 
         if (opts.logExtendedCreationInfo)
         {

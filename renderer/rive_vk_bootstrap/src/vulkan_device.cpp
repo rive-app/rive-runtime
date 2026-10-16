@@ -165,18 +165,40 @@ VulkanDevice::VulkanDevice(VulkanInstance& instance,
         vkEnumerateDeviceExtensionProperties,
         instance);
 
+    // A failed enumeration leaves the extension list empty instead of failing
+    // here: the device may still work without extensions, and anything that
+    // requires one fails below with its own message.
     std::vector<VkExtensionProperties> supportedExtensions;
     {
-        uint32_t count;
-        vkEnumerateDeviceExtensionProperties(m_physicalDevice,
-                                             nullptr,
-                                             &count,
-                                             nullptr);
-        supportedExtensions.resize(count);
-        vkEnumerateDeviceExtensionProperties(m_physicalDevice,
-                                             nullptr,
-                                             &count,
-                                             supportedExtensions.data());
+        uint32_t count = 0;
+        VkResult result = vkEnumerateDeviceExtensionProperties(m_physicalDevice,
+                                                               nullptr,
+                                                               &count,
+                                                               nullptr);
+        if (result != VK_SUCCESS)
+        {
+            LOG_VULKAN_ERROR_LINE(
+                result,
+                "Failed to query Vulkan device extension count; continuing "
+                "without device extensions.");
+        }
+        else
+        {
+            supportedExtensions.resize(count);
+            result = vkEnumerateDeviceExtensionProperties(
+                m_physicalDevice,
+                nullptr,
+                &count,
+                supportedExtensions.data());
+            if (result != VK_SUCCESS)
+            {
+                LOG_VULKAN_ERROR_LINE(
+                    result,
+                    "Failed to enumerate Vulkan device extensions; continuing "
+                    "without device extensions.");
+                supportedExtensions.clear();
+            }
+        }
     }
 
     std::vector<const char*> addedExtensions;
