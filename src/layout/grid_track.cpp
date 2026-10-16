@@ -115,13 +115,16 @@ void GridTrack::syncContainerStyle(YGStyle& ygStyle,
     ygStyle.setJustifyItems((YGJustify)justifyItemsValue);
 }
 
+// The cell is the stack: no content floor, so overflow follows alignment.
 void GridTrack::syncStackContainerStyle(YGStyle& ygStyle,
                                         uint32_t justifyItemsValue)
 {
+    const auto cell = YGGridTrackSize::minmax(YGStyleSizeLength::points(0),
+                                              YGStyleSizeLength::stretch(1));
     facebook::yoga::GridTrackList single;
-    single.push_back(YGGridTrackSize::fr(1));
+    single.push_back(cell);
     facebook::yoga::GridTrackList singleRow;
-    singleRow.push_back(YGGridTrackSize::fr(1));
+    singleRow.push_back(cell);
     ygStyle.setGridTemplateColumns(std::move(single));
     ygStyle.setGridTemplateRows(std::move(singleRow));
     ygStyle.setGridAutoColumns(facebook::yoga::GridTrackList{});

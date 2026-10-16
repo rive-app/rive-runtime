@@ -293,9 +293,10 @@ public:
 
     /// Whether a change to `value` (a trigger fire, or any change a "changed"
     /// condition reads) is still pending for `layer`. A change is pending for
-    /// one frame: until the end of the first frame in which this instance
-    /// searched its transitions after it happened, so it is gone even if no
-    /// transition could take it then. And within that frame only until a
+    /// one frame: until the end of the first frame in which `layer` searched
+    /// its transitions after it happened, so it is gone even if no transition
+    /// could take it then. A layer searched before a later one made the change
+    /// gets it in its next search. And within that frame only until a
     /// transition `layer` takes has read the value (useViewModelValue).
     /// Changes made before this instance was created or reset, or while a host
     /// above it was collapsed or paused, are never pending for it. Except when
@@ -312,11 +313,13 @@ public:
     bool viewModelTriggerPendingForListeners(
         const ViewModelInstanceValue* trigger) const;
     /// Whether a change at `changeSequence` (ViewModelInstanceValue's change
-    /// sequence) is still pending for this instance's transitions: the frame
-    /// window of viewModelValueChanged, without its per-layer use. How a
-    /// trigger compared as a number in a condition (a component's trigger,
-    /// or a view model trigger against one) reads as fired.
-    bool changePending(uint64_t changeSequence) const;
+    /// sequence) is still pending for `layer`'s transitions: the frame window
+    /// of viewModelValueChanged, without its per-layer use. How a trigger
+    /// compared as a number in a condition (a component's trigger, or a view
+    /// model trigger against one) reads as fired. Without a layer, the window
+    /// of the instance's earliest layer.
+    bool changePending(uint64_t changeSequence,
+                       const StateMachineLayerInstance* layer = nullptr) const;
     /// Records that a transition `layer` took read `value`, so its pending
     /// change can't satisfy another of the layer's transitions this frame.
     void useViewModelValue(const ViewModelInstanceValue* value,
@@ -477,6 +480,10 @@ public:
     // Whether the layer would skip its next advance (see
     // StateMachineLayerInstance::isFrozen), given nothing changes before it.
     bool isLayerFrozen(size_t index) const;
+    // Whether this instance tracks view model changes at all, and whether it
+    // keeps a change window per layer (see SMIBindables::layerChanges).
+    bool tracksViewModelChanges() const { return bindables() != nullptr; }
+    bool hasLayerChangeWindows() const;
     // Transition searches skipped because the layer had settled, across every
     // instance (see StateMachineLayerInstance::updateState).
     static uint64_t sm_settledLayerSkips;
@@ -530,9 +537,20 @@ private:
     // Something a settled layer's conditions read may have changed: search
     // every layer again on its next update.
     void unsettleLayers();
-    // A layer is about to search its transitions: view model changes made from
+    // `layer` is about to search its transitions: view model changes made from
     // here on are new to it. See viewModelValueChanged.
-    void markViewModelChangesSearched();
+    void markViewModelChangesSearched(const StateMachineLayerInstance* layer);
+    // A frozen `layer` skipped its advance without searching. It still had
+    // its frame, so changes made so far aren't pending for it when it next
+    // searches: a fire on an instance this machine binds later must not
+    // replay. Without a host loop that searches it (tryChangeState), nothing
+    // else would move its window.
+    void markFrozenLayerSearched(const StateMachineLayerInstance* layer);
+    // Where `layer` sits in m_layers, or m_layerCount if it isn't one of them.
+    size_t layerIndex(const StateMachineLayerInstance* layer) const;
+    // The baseline of `layer`'s change window: where changes pending for it
+    // this frame start. The earliest layer's without a layer.
+    uint64_t changeBaselineFor(const StateMachineLayerInstance* layer) const;
     // No view model change made so far is pending for this instance any more.
     void forgetViewModelChanges();
 

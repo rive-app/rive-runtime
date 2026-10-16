@@ -6423,13 +6423,13 @@ C Container computedLocal 0.0000 0.0000
 C Container computedSize 200.0000 120.0000
 C Subject collected 1.0000
 C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
-C Subject layoutBounds 0.0000 0.0000 260.0000 180.0000
-C Subject localBounds 0.0000 0.0000 260.0000 180.0000
-C Subject worldBounds 0.0000 0.0000 260.0000 180.0000
+C Subject layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Subject localBounds 0.0000 0.0000 200.0000 120.0000
+C Subject worldBounds 0.0000 0.0000 200.0000 120.0000
 C Subject computedWorld 0.0000 0.0000
 C Subject computedRoot 0.0000 0.0000
 C Subject computedLocal 0.0000 0.0000
-C Subject computedSize 260.0000 180.0000
+C Subject computedSize 200.0000 120.0000
 # s21__grid__none__layout-component__hug__auto__leaf-content__over__unbounded__track-row-fr
 F s21__grid__none__layout-component__hug__auto__leaf-content__over__unbounded__track-row-fr
 A s21__grid__none__layout-component__hug__auto__leaf-content__over__unbounded__track-row-fr
@@ -6571,11 +6571,11 @@ C Container computedLocal 0.0000 0.0000
 C Container computedSize 200.0000 120.0000
 C Subject collected 1.0000
 C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
-C Subject world 1.0000 0.0000 0.0000 1.0000 130.0000 90.0000
-C Subject worldBounds 0.0000 0.0000 260.0000 180.0000
-C Subject computedWorld 130.0000 90.0000
-C Subject computedRoot 130.0000 90.0000
-C Subject computedLocal 130.0000 90.0000
+C Subject world 0.7692 0.0000 0.0000 0.6667 100.0000 60.0000
+C Subject worldBounds -0.0000 -0.0000 200.0000 120.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
 C Subject computedSize 0.0000 0.0000
 # s21__grid__none__shape__participant__hug__auto__over__unbounded__track-row-fr
 F s21__grid__none__shape__participant__hug__auto__over__unbounded__track-row-fr
@@ -6630,4 +6630,189 @@ C Subject worldBounds 0.0000 0.0000 260.0000 180.0000
 C Subject computedWorld 130.0000 90.0000
 C Subject computedRoot 130.0000 90.0000
 C Subject computedLocal 130.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s22__stack__none__layout-component__hug__al-top-right__leaf-content__over__unbounded
+F s22__stack__none__layout-component__hug__al-top-right__leaf-content__over__unbounded
+A s22__stack__none__layout-component__hug__al-top-right__leaf-content__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 -60.0000 0.0000
+C Subject layoutBounds -60.0000 -0.0000 260.0000 180.0000
+C Subject localBounds 0.0000 0.0000 260.0000 180.0000
+C Subject worldBounds -60.0000 0.0000 260.0000 180.0000
+C Subject computedWorld -60.0000 0.0000
+C Subject computedRoot -60.0000 0.0000
+C Subject computedLocal -60.0000 0.0000
+C Subject computedSize 260.0000 180.0000
+# s22__stack__none__layout-component__hug__al-center__leaf-content__over__unbounded
+F s22__stack__none__layout-component__hug__al-center__leaf-content__over__unbounded
+A s22__stack__none__layout-component__hug__al-center__leaf-content__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 -30.0000 -30.0000
+C Subject layoutBounds -30.0000 -30.0000 260.0000 180.0000
+C Subject localBounds 0.0000 0.0000 260.0000 180.0000
+C Subject worldBounds -30.0000 -30.0000 260.0000 180.0000
+C Subject computedWorld -30.0000 -30.0000
+C Subject computedRoot -30.0000 -30.0000
+C Subject computedLocal -30.0000 -30.0000
+C Subject computedSize 260.0000 180.0000
+# s22__stack__none__layout-component__hug__al-bottom-left__leaf-content__over__unbounded
+F s22__stack__none__layout-component__hug__al-bottom-left__leaf-content__over__unbounded
+A s22__stack__none__layout-component__hug__al-bottom-left__leaf-content__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 -60.0000
+C Subject layoutBounds -0.0000 -60.0000 260.0000 180.0000
+C Subject localBounds 0.0000 0.0000 260.0000 180.0000
+C Subject worldBounds 0.0000 -60.0000 260.0000 180.0000
+C Subject computedWorld 0.0000 -60.0000
+C Subject computedRoot 0.0000 -60.0000
+C Subject computedLocal 0.0000 -60.0000
+C Subject computedSize 260.0000 180.0000
+# s22__stack__none__layout-component__fill__y-hug__al-top-left__leaf-content__over__unbounded
+F s22__stack__none__layout-component__fill__y-hug__al-top-left__leaf-content__over__unbounded
+A s22__stack__none__layout-component__fill__y-hug__al-top-left__leaf-content__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Subject layoutBounds 0.0000 -0.0000 200.0000 180.0000
+C Subject localBounds 0.0000 0.0000 200.0000 180.0000
+C Subject worldBounds 0.0000 0.0000 200.0000 180.0000
+C Subject computedWorld 0.0000 0.0000
+C Subject computedRoot 0.0000 0.0000
+C Subject computedLocal 0.0000 0.0000
+C Subject computedSize 200.0000 180.0000
+# s22__stack__none__layout-component__fill__y-hug__al-center__leaf-content__over__unbounded
+F s22__stack__none__layout-component__fill__y-hug__al-center__leaf-content__over__unbounded
+A s22__stack__none__layout-component__fill__y-hug__al-center__leaf-content__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 0.0000 -30.0000
+C Subject layoutBounds 0.0000 -30.0000 200.0000 180.0000
+C Subject localBounds 0.0000 0.0000 200.0000 180.0000
+C Subject worldBounds 0.0000 -30.0000 200.0000 180.0000
+C Subject computedWorld 0.0000 -30.0000
+C Subject computedRoot 0.0000 -30.0000
+C Subject computedLocal 0.0000 -30.0000
+C Subject computedSize 200.0000 180.0000
+# s22__stack__none__shape__participant__hug__al-top-right__over__unbounded
+F s22__stack__none__shape__participant__hug__al-top-right__over__unbounded
+A s22__stack__none__shape__participant__hug__al-top-right__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 70.0000 90.0000
+C Subject worldBounds -60.0000 0.0000 260.0000 180.0000
+C Subject computedWorld 70.0000 90.0000
+C Subject computedRoot 70.0000 90.0000
+C Subject computedLocal 70.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s22__stack__none__shape__participant__hug__al-center__over__unbounded
+F s22__stack__none__shape__participant__hug__al-center__over__unbounded
+A s22__stack__none__shape__participant__hug__al-center__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 100.0000 60.0000
+C Subject worldBounds -30.0000 -30.0000 260.0000 180.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
+C Subject computedSize 0.0000 0.0000
+# s22__stack__none__shape__participant__hug__al-bottom-left__over__unbounded
+F s22__stack__none__shape__participant__hug__al-bottom-left__over__unbounded
+A s22__stack__none__shape__participant__hug__al-bottom-left__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
+C Subject world 1.0000 0.0000 0.0000 1.0000 130.0000 30.0000
+C Subject worldBounds 0.0000 -60.0000 260.0000 180.0000
+C Subject computedWorld 130.0000 30.0000
+C Subject computedRoot 130.0000 30.0000
+C Subject computedLocal 130.0000 30.0000
+C Subject computedSize 0.0000 0.0000
+# s22__stack__none__shape__participant__fill__y-hug__al-top-left__over__unbounded
+F s22__stack__none__shape__participant__fill__y-hug__al-top-left__over__unbounded
+A s22__stack__none__shape__participant__fill__y-hug__al-top-left__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
+C Subject world 0.7692 0.0000 0.0000 1.0000 100.0000 90.0000
+C Subject worldBounds -0.0000 0.0000 200.0000 180.0000
+C Subject computedWorld 100.0000 90.0000
+C Subject computedRoot 100.0000 90.0000
+C Subject computedLocal 100.0000 90.0000
+C Subject computedSize 0.0000 0.0000
+# s22__stack__none__shape__participant__fill__y-hug__al-center__over__unbounded
+F s22__stack__none__shape__participant__fill__y-hug__al-center__over__unbounded
+A s22__stack__none__shape__participant__fill__y-hug__al-center__over__unbounded
+C Container world 1.0000 0.0000 0.0000 1.0000 0.0000 0.0000
+C Container layoutBounds 0.0000 0.0000 200.0000 120.0000
+C Container localBounds 0.0000 0.0000 200.0000 120.0000
+C Container computedWorld 0.0000 0.0000
+C Container computedRoot 0.0000 0.0000
+C Container computedLocal 0.0000 0.0000
+C Container computedSize 200.0000 120.0000
+C Subject collected 1.0000
+C Subject localBounds -130.0000 -90.0000 260.0000 180.0000
+C Subject world 0.7692 0.0000 0.0000 1.0000 100.0000 60.0000
+C Subject worldBounds -0.0000 -30.0000 200.0000 180.0000
+C Subject computedWorld 100.0000 60.0000
+C Subject computedRoot 100.0000 60.0000
+C Subject computedLocal 100.0000 60.0000
 C Subject computedSize 0.0000 0.0000

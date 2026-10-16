@@ -382,6 +382,14 @@ public:
     virtual ~ConditionComparandUint32() {}
     virtual uint32_t value(
         const StateMachineInstance* stateMachineInstance) = 0;
+    /// The value as `layer`'s transitions read it. Only a trigger's depends on
+    /// the layer, since its fire can be pending for one layer and not another.
+    virtual uint32_t valueForLayer(
+        const StateMachineInstance* stateMachineInstance,
+        const StateMachineLayerInstance* layer)
+    {
+        return value(stateMachineInstance);
+    }
 };
 class ConditionComparandEnumBindable : public ConditionComparandUint32
 {
@@ -419,16 +427,21 @@ private:
     TransitionValueEnumComparator* m_value;
 };
 // A trigger compared as a number reads as 1 while its fire is pending for the
-// state machine (StateMachineInstance::changePending) and 0 otherwise, the way
-// its count did when triggers went back to 0 every frame. The count itself
-// only ever grows.
+// layer (StateMachineInstance::changePending) and 0 otherwise, the way its
+// count did when triggers went back to 0 every frame. The count itself only
+// ever grows.
 class ConditionComparandTriggerBindable : public ConditionComparandUint32
 {
 public:
     ConditionComparandTriggerBindable(BindablePropertyTrigger* property) :
         m_bindableProperty(property)
     {}
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+    {
+        return valueForLayer(stateMachineInstance, nullptr);
+    }
+    uint32_t valueForLayer(const StateMachineInstance* stateMachineInstance,
+                           const StateMachineLayerInstance* layer) override;
 
 private:
     BindablePropertyTrigger* m_bindableProperty;
@@ -685,7 +698,12 @@ class ConditionComparandComponentTrigger : public ConditionComparandUint32
 public:
     explicit ConditionComparandComponentTrigger(
         TransitionPropertyComponentComparator* comparator);
-    uint32_t value(const StateMachineInstance* stateMachineInstance) override;
+    uint32_t value(const StateMachineInstance* stateMachineInstance) override
+    {
+        return valueForLayer(stateMachineInstance, nullptr);
+    }
+    uint32_t valueForLayer(const StateMachineInstance* stateMachineInstance,
+                           const StateMachineLayerInstance* layer) override;
 
 private:
     TransitionPropertyComponentComparator* m_comparator;
@@ -760,6 +778,10 @@ public:
     // fired within a frame (ConditionComparandComponentTrigger) and so needs
     // the instance's change tracking.
     bool readsComponentTrigger() const;
+    // Whether either side reads whether a change is pending: a trigger (view
+    // model or component) or a "changed" (Self) comparison. Errs on the side
+    // of yes, since a no only saves the per-layer change windows.
+    bool readsPendingChange() const;
 #ifdef WITH_RIVE_EDITOR
     void setComparatorsForEditor(TransitionComparator* left,
                                  TransitionComparator* right)

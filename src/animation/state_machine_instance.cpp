@@ -87,7 +87,9 @@
 #include "rive/file.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/write_attribution.hpp"
+#include <algorithm>
 #include <array>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -467,6 +469,9 @@ public:
         }
         if (isFrozen(smi, poseSince))
         {
+            // Skipped without a search, but it still has its frame, as a
+            // settled layer's update does (see updateState).
+            smi->markFrozenLayerSearched(this);
 #ifdef TESTING
             StateMachineInstance::sm_frozenLayerAdvances++;
             verifyFrozenPose(smi);
@@ -597,7 +602,7 @@ public:
             // A view model change pending while this layer can't change state
             // still expires with the frame, instead of waiting for a search
             // that can act on it.
-            smi->markViewModelChangesSearched();
+            smi->markViewModelChangesSearched(this);
             return false;
         }
 
@@ -608,14 +613,14 @@ public:
         {
             // Marked anyway: a machine bound to another instance would
             // otherwise find that instance's past changes pending.
-            smi->markViewModelChangesSearched();
+            smi->markViewModelChangesSearched(this);
 #ifdef TESTING
             verifySettled(smi);
             StateMachineInstance::sm_settledLayerSkips++;
 #endif
             return false;
         }
-        smi->markViewModelChangesSearched();
+        smi->markViewModelChangesSearched(this);
         if (tryChangeState(smi, m_anyStateInstance))
         {
             return true;
@@ -2916,6 +2921,12 @@ bool StateMachineInstance::isLayerFrozen(size_t index) const
     return index < m_layerCount &&
            m_layers[index].isFrozen(this, m_advanceChangeSerial);
 }
+
+bool StateMachineInstance::hasLayerChangeWindows() const
+{
+    auto* bindables = this->bindables();
+    return bindables != nullptr && bindables->layerChanges != nullptr;
+}
 #endif
 
 void StateMachineInstance::addToHitLookup(
@@ -4082,7 +4093,23 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     auto* bindables = m_bindables.get();
     if (newFrame && bindables != nullptr)
     {
-        bindables->changeBaseline = bindables->changeSearched;
+        // With a window per layer, each moves to where its own latest search
+        // started, so a change a later layer made after an earlier one
+        // searched is still pending for the earlier one.
+        if (auto* windows = bindables->layerChanges.get())
+        {
+            uint64_t earliest = std::numeric_limits<uint64_t>::max();
+            for (size_t i = 0; i < m_layerCount; i++)
+            {
+                windows[i].baseline = windows[i].searched;
+                earliest = std::min(earliest, windows[i].baseline);
+            }
+            bindables->changeBaseline = earliest;
+        }
+        else
+        {
+            bindables->changeBaseline = bindables->changeSearched;
+        }
         bindables->changesUsed.clear();
         // applyEvents below handles every listener report so far.
         bindables->listenerBaseline =
@@ -4972,10 +4999,40 @@ DataBind* StateMachineInstance::bindableDataBindToTarget(
     return dataBind->second;
 }
 
-bool StateMachineInstance::changePending(uint64_t changeSequence) const
+size_t StateMachineInstance::layerIndex(
+    const StateMachineLayerInstance* layer) const
+{
+    // The layers are one array, so a layer's index is its offset in it.
+    // std::less orders pointers that aren't into the array too.
+    std::less<const StateMachineLayerInstance*> before;
+    if (layer == nullptr || before(layer, m_layers) ||
+        !before(layer, m_layers + m_layerCount))
+    {
+        return m_layerCount;
+    }
+    return static_cast<size_t>(layer - m_layers);
+}
+
+uint64_t StateMachineInstance::changeBaselineFor(
+    const StateMachineLayerInstance* layer) const
 {
     auto* bindables = this->bindables();
-    return bindables != nullptr && changeSequence > bindables->changeBaseline;
+    if (bindables == nullptr)
+    {
+        return 0;
+    }
+    auto* windows = bindables->layerChanges.get();
+    size_t index = layerIndex(layer);
+    return windows != nullptr && index < m_layerCount
+               ? windows[index].baseline
+               : bindables->changeBaseline;
+}
+
+bool StateMachineInstance::changePending(
+    uint64_t changeSequence,
+    const StateMachineLayerInstance* layer) const
+{
+    return bindables() != nullptr && changeSequence > changeBaselineFor(layer);
 }
 
 bool StateMachineInstance::viewModelTriggerPendingForListeners(
@@ -4992,7 +5049,7 @@ bool StateMachineInstance::viewModelValueChanged(
 {
     auto* bindables = this->bindables();
     if (bindables == nullptr ||
-        value->changeSequence() <= bindables->changeBaseline)
+        value->changeSequence() <= changeBaselineFor(layer))
     {
         return false;
     }
@@ -5025,14 +5082,26 @@ void StateMachineInstance::useViewModelValue(
     bindables->changesUsed.emplace_back(layer, value);
 }
 
-void StateMachineInstance::markViewModelChangesSearched()
+void StateMachineInstance::markViewModelChangesSearched(
+    const StateMachineLayerInstance* layer)
 {
     auto* bindables = m_bindables.get();
     if (bindables == nullptr)
     {
         return;
     }
-    bindables->changeSearched = ViewModelInstanceValue::latestChangeSequence();
+    auto latest = ViewModelInstanceValue::latestChangeSequence();
+    bindables->changeSearched = latest;
+    SMILayerChangeWindow* window = nullptr;
+    if (auto* windows = bindables->layerChanges.get())
+    {
+        size_t index = layerIndex(layer);
+        if (index < m_layerCount)
+        {
+            window = &windows[index];
+            window->searched = latest;
+        }
+    }
     // A host above that stopped advancing this instance (collapsed or paused)
     // marks the changes made meanwhile. They had their frame while this
     // instance couldn't run, so they aren't pending for it now that it does.
@@ -5048,6 +5117,31 @@ void StateMachineInstance::markViewModelChangesSearched()
     {
         bindables->changeBaseline = inactive;
     }
+    if (window != nullptr && inactive > window->baseline)
+    {
+        window->baseline = inactive;
+    }
+}
+
+void StateMachineInstance::markFrozenLayerSearched(
+    const StateMachineLayerInstance* layer)
+{
+    // Only a layer's own window goes stale this way. The instance's moves with
+    // every other layer's search, as it always has, and its next search
+    // applies a collapsed host's mark (markViewModelChangesSearched).
+    auto* bindables = m_bindables.get();
+    auto* windows =
+        bindables == nullptr ? nullptr : bindables->layerChanges.get();
+    if (windows == nullptr)
+    {
+        return;
+    }
+    size_t index = layerIndex(layer);
+    if (index < m_layerCount)
+    {
+        windows[index].searched =
+            ViewModelInstanceValue::latestChangeSequence();
+    }
 }
 
 void StateMachineInstance::forgetViewModelChanges()
@@ -5060,10 +5154,24 @@ void StateMachineInstance::forgetViewModelChanges()
         // is still pending there is pending here too, so a fire made just
         // before the frame that makes a row reaches it. Otherwise nothing made
         // so far is.
-        bindables->changeBaseline = bindables->changeSearched =
-            s_advancingChangeBaseline != kNotAdvancing
-                ? s_advancingChangeBaseline
-                : latest;
+        uint64_t start = s_advancingChangeBaseline != kNotAdvancing
+                             ? s_advancingChangeBaseline
+                             : latest;
+        bindables->changeBaseline = bindables->changeSearched = start;
+        // Only a machine whose conditions read pending changes keeps a window
+        // per layer; for the rest, the instance's is all anything reads.
+        if (m_machine != nullptr && m_machine->readsPendingChanges() &&
+            m_layerCount > 0)
+        {
+            if (bindables->layerChanges == nullptr)
+            {
+                bindables->layerChanges =
+                    std::make_unique<SMILayerChangeWindow[]>(m_layerCount);
+            }
+            std::fill_n(bindables->layerChanges.get(),
+                        m_layerCount,
+                        SMILayerChangeWindow{start, start});
+        }
         bindables->listenerBaseline = latest;
         bindables->changesUsed.clear();
     }

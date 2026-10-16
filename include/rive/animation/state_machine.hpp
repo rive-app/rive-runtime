@@ -104,6 +104,19 @@ public:
 #endif
     }
 
+    // Whether a transition condition reads whether a view model change is
+    // pending (TransitionViewModelCondition::readsPendingChange), so its
+    // instances keep a change window per layer. Editor builds don't classify,
+    // since conditions there change after import.
+    bool readsPendingChanges() const
+    {
+#ifdef WITH_RIVE_EDITOR
+        return true;
+#else
+        return m_readsPendingChanges;
+#endif
+    }
+
 #ifdef WITH_RIVE_EDITOR
     // Editor-only parallel non-owning lists. Coop hydration delivers
     // layers/inputs/listeners as `Core*`s into `EditorFile::m_arena`
@@ -128,6 +141,7 @@ public:
 private:
 #ifndef WITH_RIVE_EDITOR
     bool m_readsComponentTriggers = false;
+    bool m_readsPendingChanges = false;
 #endif
 #ifdef WITH_RIVE_EDITOR
     std::vector<StateMachineLayer*> m_editorLayers;

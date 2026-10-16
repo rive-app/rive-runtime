@@ -1,6 +1,6 @@
 # Layout matrix corpus
 
-Generated. 553 fixtures.
+Generated. 573 fixtures.
 
 | Fixture | Slice | Container | Wrapper | Subject | Sizing | Origin | Constraint | Collected | Known defect |
 |---|---|---|---|---|---|---|---|---|---|
@@ -557,6 +557,26 @@ Generated. 553 fixtures.
 | `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__unbounded__track-row-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
 | `s21__grid__none__text__participant__hug__k-max-over-host__auto__over__unbounded__track-column-fr` | s21 | grid | none | text | hug | sourceArtboard | none | yes |  |
 | `s21__stack__none__text__participant__hug__k-max-over-host__over__unbounded` | s21 | stack | none | text | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-top-right__leaf-content__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-center__leaf-content__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-bottom-left__leaf-content__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__fill__y-hug__al-top-left__leaf-content__over__unbounded` | s22 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__fill__y-hug__al-center__leaf-content__over__unbounded` | s22 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__shape__participant__hug__al-top-right__over__unbounded` | s22 | stack | none | shape | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__shape__participant__hug__al-center__over__unbounded` | s22 | stack | none | shape | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__shape__participant__hug__al-bottom-left__over__unbounded` | s22 | stack | none | shape | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__shape__participant__fill__y-hug__al-top-left__over__unbounded` | s22 | stack | none | shape | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__shape__participant__fill__y-hug__al-center__over__unbounded` | s22 | stack | none | shape | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-top-right__k-max-over-host__leaf-text__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-center__k-max-over-host__leaf-text__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__hug__al-bottom-left__k-max-over-host__leaf-text__over__unbounded` | s22 | stack | none | layoutComponent | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__fill__y-hug__al-top-left__k-max-over-host__leaf-text__over__unbounded` | s22 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__layout-component__fill__y-hug__al-center__k-max-over-host__leaf-text__over__unbounded` | s22 | stack | none | layoutComponent | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__text__participant__hug__al-top-right__k-max-over-host__over__unbounded` | s22 | stack | none | text | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__text__participant__hug__al-center__k-max-over-host__over__unbounded` | s22 | stack | none | text | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__text__participant__hug__al-bottom-left__k-max-over-host__over__unbounded` | s22 | stack | none | text | hug | sourceArtboard | none | yes |  |
+| `s22__stack__none__text__participant__fill__y-hug__al-top-left__k-max-over-host__over__unbounded` | s22 | stack | none | text | fill | sourceArtboard | none | yes |  |
+| `s22__stack__none__text__participant__fill__y-hug__al-center__k-max-over-host__over__unbounded` | s22 | stack | none | text | fill | sourceArtboard | none | yes |  |
 
 ## Skipped as illegal
 

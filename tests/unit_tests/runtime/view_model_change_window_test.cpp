@@ -3,14 +3,14 @@
  */
 
 // A view model trigger fire, a component trigger fire, or a change to a value
-// a "changed" (Self) condition reads, is pending for a state machine for one
-// frame: from the moment it happens until the end of the first frame in which
-// the machine searched its transitions after it. A layer takes at most one
-// transition on a view model value in that frame. Changes from before the
-// machine was created or reset, or from while it was inactive, are never
-// pending for it, unless another machine's advance made or reset it: then it
-// starts in that machine's frame. These cases pin down both ends of that
-// window.
+// a "changed" (Self) condition reads, is pending for each layer of a state
+// machine for one frame: from the moment it happens until the end of the first
+// frame in which that layer searched its transitions after it. A layer takes
+// at most one transition on a view model value in that frame. Changes from
+// before the machine was created or reset, or from while it was inactive, are
+// never pending for it, unless another machine's advance made or reset it:
+// then it starts in that machine's frame. These cases pin down both ends of
+// that window.
 
 #include <rive/animation/animation_state.hpp>
 #include <rive/animation/linear_animation.hpp>
@@ -689,4 +689,158 @@ TEST_CASE("a fire reaches a row added in its frame but not one added later",
     machine->advanceAndApply(0.016f);
     CHECK(rowStates(artboard.get()) ==
           std::vector<std::string>{"played", "played", "played", "waiting"});
+}
+
+namespace
+{
+// later_layer_trigger.riv (built by packages/rive_core/test/src/
+// later_layer_trigger_file.dart): its middle layer, Firer, fires `go` when it
+// enters `firing` once `armed` is true. Early (layer 0, before it) and Late
+// (layer 2, after it) each step idle -> one -> two on `go`.
+struct LaterLayerScene
+{
+    rcp<File> file;
+    std::unique_ptr<ArtboardInstance> artboard;
+    std::unique_ptr<StateMachineInstance> machine;
+    rcp<ViewModelInstance> viewModel;
+
+    LaterLayerScene()
+    {
+        file = ReadRiveFile("assets/later_layer_trigger.riv");
+        artboard = file->artboardNamed("LaterLayer");
+        REQUIRE(artboard != nullptr);
+        machine = artboard->stateMachineAt(0);
+        REQUIRE(machine != nullptr);
+        viewModel = file->createViewModelInstance(artboard->viewModelId(), 0);
+        REQUIRE(viewModel != nullptr);
+        machine->bindViewModelInstance(viewModel);
+    }
+
+    void arm()
+    {
+        viewModel->propertyValue("armed")
+            ->as<ViewModelInstanceBoolean>()
+            ->propertyValue(true);
+    }
+
+    std::vector<std::string> states()
+    {
+        return {layerStateName(machine.get(), 0),
+                layerStateName(machine.get(), 1),
+                layerStateName(machine.get(), 2)};
+    }
+};
+} // namespace
+
+TEST_CASE("a fire from a later layer reaches an earlier one in the next frame",
+          "[data binding]")
+{
+    // One search per frame, as a host gives a nested machine whose fire lands
+    // in its last pass: nothing searches Early again before the frame ends.
+    LaterLayerScene scene;
+    scene.machine->advance(0.0f, true);
+    REQUIRE(scene.states() ==
+            std::vector<std::string>{"early_idle", "waiting", "late_idle"});
+
+    // Late searches after the fire and takes it. Early searched before it.
+    scene.arm();
+    scene.machine->advance(0.016f, true);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_idle", "firing", "late_one"});
+
+    // Early takes it in its next search. Late doesn't take it again.
+    scene.machine->advance(0.016f, true);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_one", "firing", "late_one"});
+
+    // Neither takes it a second time.
+    scene.machine->advance(0.016f, true);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_one", "firing", "late_one"});
+}
+
+TEST_CASE("a fire from a later layer reaches an earlier one in the same frame "
+          "when the host settles",
+          "[data binding]")
+{
+    LaterLayerScene scene;
+    scene.machine->advanceAndApply(0.0f);
+    REQUIRE(scene.states() ==
+            std::vector<std::string>{"early_idle", "waiting", "late_idle"});
+
+    // The settle loop searches Early again after Firer's state change.
+    scene.arm();
+    scene.machine->advanceAndApply(0.016f);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_one", "firing", "late_one"});
+
+    // Still one step each for the one fire.
+    scene.machine->advanceAndApply(0.016f);
+    scene.machine->advanceAndApply(0.016f);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_one", "firing", "late_one"});
+}
+
+TEST_CASE("only a machine whose conditions read pending changes keeps a "
+          "window per layer",
+          "[data binding]")
+{
+    // LaterLayer's conditions read `go`'s fires.
+    LaterLayerScene scene;
+    CHECK(scene.machine->tracksViewModelChanges());
+    CHECK(scene.machine->hasLayerChangeWindows());
+
+#ifndef WITH_RIVE_EDITOR
+    // Quiet's own machine tracks changes for the rows it makes, but none of
+    // its conditions read them. (Editor builds keep windows for every machine,
+    // since conditions there change after import.)
+    auto file = ReadRiveFile("assets/list_item_parent_trigger.riv");
+    auto artboard = file->artboardNamed("Quiet");
+    REQUIRE(artboard != nullptr);
+    auto machine = artboard->stateMachineAt(0);
+    machine->bindViewModelInstance(
+        file->createDefaultViewModelInstance(artboard.get()));
+    CHECK(machine->tracksViewModelChanges());
+    CHECK_FALSE(machine->hasLayerChangeWindows());
+#endif
+}
+
+TEST_CASE("a frozen layer ignores fires from before its machine was bound to "
+          "their instance",
+          "[data binding]")
+{
+    // Only advance() runs, as for a host that advances a machine directly, so
+    // nothing searches a frozen layer: it skips its advance without searching,
+    // and still has to count the frame as searched.
+    LaterLayerScene scene;
+    for (int i = 0; i < 3; i++)
+    {
+        scene.machine->advance(0.016f, true);
+    }
+    REQUIRE(scene.states() ==
+            std::vector<std::string>{"early_idle", "waiting", "late_idle"});
+#ifndef WITH_RIVE_EDITOR
+    REQUIRE(scene.machine->isLayerFrozen(0));
+#endif
+
+    // A fire on an instance the machine isn't bound to, a few frames back.
+    auto other =
+        scene.file->createViewModelInstance(scene.artboard->viewModelId(), 0);
+    REQUIRE(other != nullptr);
+    trigger(other, "go")->trigger();
+    for (int i = 0; i < 3; i++)
+    {
+        scene.machine->advance(0.016f, true);
+    }
+
+    scene.machine->bindViewModelInstance(other);
+    scene.machine->advance(0.016f, true);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_idle", "waiting", "late_idle"});
+
+    // Its own fires still reach it.
+    trigger(other, "go")->trigger();
+    scene.machine->advance(0.016f, true);
+    CHECK(scene.states() ==
+          std::vector<std::string>{"early_one", "waiting", "late_one"});
 }

@@ -152,7 +152,11 @@ static bool isSettleSafe(const LayerState* state,
     return true;
 }
 
-static bool readsComponentTrigger(const LayerState* state)
+// Whether a view model condition on one of `state`'s transitions answers yes
+// to `reads`.
+static bool anyViewModelCondition(const LayerState* state,
+                                  bool (TransitionViewModelCondition::*reads)()
+                                      const)
 {
     for (size_t i = 0, count = state->transitionCount(); i < count; i++)
     {
@@ -169,8 +173,7 @@ static bool readsComponentTrigger(const LayerState* state)
             if (condition != nullptr &&
                 condition->coreType() ==
                     TransitionViewModelConditionBase::typeKey &&
-                condition->as<TransitionViewModelCondition>()
-                    ->readsComponentTrigger())
+                (condition->as<TransitionViewModelCondition>()->*reads)())
             {
                 return true;
             }
@@ -281,7 +284,15 @@ StatusCode StateMachine::onAddedClean(CoreContext* context)
                 state->transitionsSettleSafe(isSettleSafe(state, untracked));
                 state->transitionsIgnoreTime(transitionsIgnoreTime(state));
                 m_readsComponentTriggers =
-                    m_readsComponentTriggers || readsComponentTrigger(state);
+                    m_readsComponentTriggers ||
+                    anyViewModelCondition(
+                        state,
+                        &TransitionViewModelCondition::readsComponentTrigger);
+                m_readsPendingChanges =
+                    m_readsPendingChanges ||
+                    anyViewModelCondition(
+                        state,
+                        &TransitionViewModelCondition::readsPendingChange);
                 addScriptedInterpolators(state);
             }
         }

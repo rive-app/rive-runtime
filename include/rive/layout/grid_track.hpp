@@ -57,9 +57,9 @@ public:
     static void syncContainerStyle(YGStyle& ygStyle,
                                    ContainerComponent* owner,
                                    uint32_t justifyItemsValue);
-    // Stack container: a synthetic 1x1 grid (1fr x 1fr) whose single cell fills
-    // the container; children all land in cell 1,1 (see syncStackItemCell
-    // stack).
+    // Stack container: a synthetic 1x1 grid (minmax(0, 1fr) on both axes)
+    // whose single cell is the container; children all land in cell 1,1 (see
+    // syncStackItemCell stack).
     static void syncStackContainerStyle(YGStyle& ygStyle,
                                         uint32_t justifyItemsValue);
     /// Collapses a stack child into the single cell. Grid children need no

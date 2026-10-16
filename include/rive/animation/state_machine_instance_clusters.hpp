@@ -167,6 +167,17 @@ private:
     size_t m_count = 0;
 };
 
+/// Which view model changes are pending for one layer of a state machine
+/// instance, see StateMachineInstance::viewModelValueChanged. Positions in
+/// ViewModelInstanceValue's change sequence: changes after baseline are pending
+/// this frame, and searched is where the layer's latest transition search
+/// started, which becomes its next frame's baseline.
+struct SMILayerChangeWindow
+{
+    uint64_t baseline = 0;
+    uint64_t searched = 0;
+};
+
 /// Per-instance clones of the BindableProperty / StateTransition values a data
 /// bind writes to, so instances never write through to shared file data.
 /// Allocated only when a state machine data bind targets one of them.
@@ -182,16 +193,17 @@ struct SMIBindables
     std::unordered_map<const Core*,
                        std::unordered_map<uint32_t, BindablePropertyNumber*>>
         transitionPropertyInstances;
-    /// Which view model changes are pending for this instance, see
-    /// StateMachineInstance::viewModelValueChanged. Positions in
-    /// ViewModelInstanceValue's change sequence: changes after changeBaseline
-    /// are pending this frame, and changeSearched is where the latest
-    /// transition search started, which becomes the next frame's baseline.
-    /// Held per instance rather than per layer: a change made after one
-    /// layer's search but before another's can only come from a transition of
-    /// a layer searched in between, and a state change gets every layer
-    /// searched again before the frame ends (short of the settle loop's
-    /// iteration cap).
+    /// One SMILayerChangeWindow per layer, in layer order, when the machine's
+    /// conditions read pending changes (StateMachine::readsPendingChanges).
+    /// Held per layer rather than per instance: a layer's transition can make
+    /// a change after an earlier layer searched, and nothing guarantees that
+    /// layer searches again before the frame ends (a host's settle loop stops
+    /// once nothing is dirty, or at its cap).
+    std::unique_ptr<SMILayerChangeWindow[]> layerChanges;
+    /// The instance's own window: where changes pending for it start, which
+    /// is the window a machine made or reset while this one advances starts
+    /// in (see forgetViewModelChanges), and where its latest search started.
+    /// With layerChanges, the baseline is the earliest layer's.
     uint64_t changeBaseline = 0;
     uint64_t changeSearched = 0;
     /// Where the sequence stood when this instance last handled its view

@@ -193,8 +193,10 @@ public:
     bool compare(const StateMachineInstance* stateMachineInstance,
                  StateMachineLayerInstance* layerInstance) override
     {
-        return compareUints32(m_leftComparand->value(stateMachineInstance),
-                              m_rightComparand->value(stateMachineInstance));
+        return compareUints32(
+            m_leftComparand->valueForLayer(stateMachineInstance, layerInstance),
+            m_rightComparand->valueForLayer(stateMachineInstance,
+                                            layerInstance));
     }
 
 private:
@@ -220,8 +222,10 @@ public:
     bool compare(const StateMachineInstance* stateMachineInstance,
                  StateMachineLayerInstance* layerInstance) override
     {
-        return compareUints32(m_leftComparand->value(stateMachineInstance),
-                              m_rightComparand->value(stateMachineInstance));
+        return compareUints32(
+            m_leftComparand->valueForLayer(stateMachineInstance, layerInstance),
+            m_rightComparand->valueForLayer(stateMachineInstance,
+                                            layerInstance));
     }
 
 private:
@@ -1102,6 +1106,38 @@ bool TransitionViewModelCondition::readsComponentTrigger() const
            isComponentTrigger(rightComparator());
 }
 
+bool TransitionViewModelCondition::readsPendingChange() const
+{
+    if (readsComponentTrigger())
+    {
+        return true;
+    }
+    for (TransitionComparator* comparator :
+         {leftComparator(), rightComparator()})
+    {
+        if (comparator == nullptr)
+        {
+            continue;
+        }
+        if (comparator->is<TransitionSelfComparator>() ||
+            comparator->is<TransitionValueTriggerComparator>())
+        {
+            return true;
+        }
+        if (comparator->is<TransitionPropertyViewModelComparator>())
+        {
+            auto* bindable =
+                comparator->as<TransitionPropertyViewModelComparator>()
+                    ->bindableProperty();
+            if (bindable != nullptr && bindable->is<BindablePropertyTrigger>())
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void TransitionViewModelCondition::initialize()
 {
     TransitionComparator* left = leftComparator();
@@ -1266,8 +1302,9 @@ uint32_t ConditionComparandComponentCoreUint::value(
     return CoreRegistry::getUint(target, (int)m_comparator->propertyKey());
 }
 
-uint32_t ConditionComparandTriggerBindable::value(
-    const StateMachineInstance* stateMachineInstance)
+uint32_t ConditionComparandTriggerBindable::valueForLayer(
+    const StateMachineInstance* stateMachineInstance,
+    const StateMachineLayerInstance* layer)
 {
     auto bindableInstance =
         stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
@@ -1279,7 +1316,8 @@ uint32_t ConditionComparandTriggerBindable::value(
         stateMachineInstance->bindableDataBindToTarget(bindableInstance);
     auto source = dataBind == nullptr ? nullptr : dataBind->source();
     return source != nullptr &&
-                   stateMachineInstance->changePending(source->changeSequence())
+                   stateMachineInstance->changePending(source->changeSequence(),
+                                                       layer)
                ? 1
                : 0;
 }
@@ -1289,8 +1327,9 @@ ConditionComparandComponentTrigger::ConditionComparandComponentTrigger(
     m_comparator(comparator)
 {}
 
-uint32_t ConditionComparandComponentTrigger::value(
-    const StateMachineInstance* stateMachineInstance)
+uint32_t ConditionComparandComponentTrigger::valueForLayer(
+    const StateMachineInstance* stateMachineInstance,
+    const StateMachineLayerInstance* layer)
 {
     Core* target = resolveComponentTarget(stateMachineInstance, m_comparator);
     uint64_t changeSequence = 0;
@@ -1302,7 +1341,7 @@ uint32_t ConditionComparandComponentTrigger::value(
     {
         changeSequence = target->as<ViewModelInstanceValue>()->changeSequence();
     }
-    return stateMachineInstance->changePending(changeSequence) ? 1 : 0;
+    return stateMachineInstance->changePending(changeSequence, layer) ? 1 : 0;
 }
 
 bool ConditionComparison::compareNumbers(float left, float right)
