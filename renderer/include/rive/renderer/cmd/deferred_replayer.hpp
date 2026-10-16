@@ -79,7 +79,8 @@ public:
     // Backends whose images upload lazily return the uploaded image here;
     // null means not ready this frame, which drops the dependent make rather
     // than binding nothing. The default suits backends whose images are
-    // already RiveRenderImages by the time they reach replay.
+    // already RiveRenderImages by the time they reach replay. Also asked for
+    // the decoded images a paint samples, null leaving that paint unimaged.
     virtual RenderImage* prepForeignImage(RenderImage* image) { return image; }
 };
 
@@ -231,6 +232,9 @@ private:
         m_2d.clearVersionAliases();
         ReplayHooks hooks;
         hooks.stats = &m_stats;
+        hooks.prepImage = [&](RenderImage* image) {
+            return sink.prepForeignImage(image);
+        };
         // Recording allocates no canvas backing, so every path that resolves
         // one here allocates it on this device first. A sink with no render
         // context leaves it unbacked and drops the content rather than
@@ -356,6 +360,13 @@ private:
             sink.afterOreFrame();
 #endif
         };
+
+        // A paint whose image was still decoding when it was set takes it now
+        // if it has landed. Before the resource pass, so a version minted
+        // below cannot strand the live paint, which an earlier draw this
+        // frame may still pin, without its image. A decode lands between
+        // replays, never during one, so nothing is left to retry after.
+        retryPendingPaintImages(m_2d, hooks);
 
         // Creates and mutations replay first over the whole stream in record
         // order; draws pin the version they recorded against, so the segment

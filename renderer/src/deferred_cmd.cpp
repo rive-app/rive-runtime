@@ -417,6 +417,14 @@ void replayRenderCommands(Factory* factory,
                                                      kCanvasHandleMask)
                                                : nullptr)
                                         : images.get(sh.image);
+                                if (im != nullptr &&
+                                    !(sh.image & kCanvasHandleFlag) &&
+                                    hooks.prepImage)
+                                {
+                                    im = hooks.prepImage(im);
+                                    table.markPaintImagePending(c.id,
+                                                                im == nullptr);
+                                }
                                 fresh->modulatedImage(
                                     im,
                                     ImageSampler{
@@ -657,6 +665,14 @@ void replayRenderCommands(Factory* factory,
                                                        kCanvasHandleMask)
                                    : nullptr)
                             : image(c.image);
+                    bool pendingImage = false;
+                    if (im != nullptr && !(c.image & kCanvasHandleFlag) &&
+                        hooks.prepImage)
+                    {
+                        im = hooks.prepImage(im);
+                        pendingImage = im == nullptr;
+                    }
+                    table.markPaintImagePending(c.paint, pendingImage);
                     pt->modulatedImage(
                         im,
                         sampler(c.wrapX, c.wrapY, c.filter),
@@ -915,6 +931,52 @@ void replayRenderCommands(Factory* factory,
                 reader.position(),
                 commands.size());
         assert(false);
+    }
+}
+
+void retryPendingPaintImages(ResourceTable& table, const ReplayHooks& hooks)
+{
+    auto& pending = table.pendingPaintImages;
+    if (pending.empty() || !hooks.prepImage)
+    {
+        return;
+    }
+    for (size_t i = 0; i < pending.size();)
+    {
+        RenderHandle id = pending[i];
+        RenderPaint* pt = table.paints.get(id);
+        const PaintShadow* sh =
+            id < table.paintShadows.size() ? &table.paintShadows[id] : nullptr;
+        // The paint or its image went away, or the image is no longer a
+        // decoded one: nothing left to ready.
+        RenderImage* im = pt != nullptr && sh != nullptr &&
+                                  sh->image != kInvalidRenderHandle &&
+                                  !(sh->image & kCanvasHandleFlag)
+                              ? table.images.get(sh->image)
+                              : nullptr;
+        if (im == nullptr)
+        {
+            pending.erase(pending.begin() + i);
+            continue;
+        }
+        RenderImage* ready = hooks.prepImage(im);
+        if (ready == nullptr)
+        {
+            i++;
+            continue;
+        }
+        pt->modulatedImage(
+            ready,
+            ImageSampler{static_cast<ImageWrap>(sh->imageWrapX),
+                         static_cast<ImageWrap>(sh->imageWrapY),
+                         static_cast<ImageFilter>(sh->imageFilter)},
+            Mat2D(sh->imageXX,
+                  sh->imageXY,
+                  sh->imageYX,
+                  sh->imageYY,
+                  sh->imageTX,
+                  sh->imageTY));
+        pending.erase(pending.begin() + i);
     }
 }
 

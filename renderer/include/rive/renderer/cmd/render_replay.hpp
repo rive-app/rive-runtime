@@ -12,6 +12,7 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/renderer/cmd/render_command_buffer.hpp"
 #include "rive/renderer/cmd/render_commands.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <functional>
@@ -78,6 +79,10 @@ struct ReplayHooks
     // it; a null return safely drops that canvas's content.
     std::function<Renderer*(RenderHandle canvasId, uint32_t clearColor)>
         beginCanvasContent = nullptr;
+    // Readies a resident image for a paint to sample. Draws prep their own
+    // images in the backend's renderer, but a paint takes its image as is, and
+    // a backend whose images upload lazily (web) leaves it unsampleable.
+    std::function<RenderImage*(RenderImage*)> prepImage = nullptr;
     // Nonzero dropped draws mean mixed factory recording or a replay bug.
     ReplayStats* stats = nullptr;
 };
@@ -234,6 +239,25 @@ struct ResourceTable
     std::vector<PaintShadow> paintShadows;
     std::vector<uint8_t> pathFillRules;
     std::vector<BufferShadow> bufferShadows;
+    // Paints whose image prepImage could not ready yet (web decodes images
+    // asynchronously). The producer never re-records an unchanged image, so
+    // retryPendingPaintImages re-offers it every replay until it lands.
+    std::vector<RenderHandle> pendingPaintImages;
+
+    void markPaintImagePending(RenderHandle paint, bool pending)
+    {
+        auto it = std::find(pendingPaintImages.begin(),
+                            pendingPaintImages.end(),
+                            paint);
+        if (pending && it == pendingPaintImages.end())
+        {
+            pendingPaintImages.push_back(paint);
+        }
+        else if (!pending && it != pendingPaintImages.end())
+        {
+            pendingPaintImages.erase(it);
+        }
+    }
 
     // Generation checked so a stale destroy after slot reuse is a no-op.
     void destroy(ResourceKind kind, RenderHandle id, uint32_t generation)
@@ -245,6 +269,10 @@ struct ResourceTable
                 break;
             case ResourceKind::paint:
                 paints.destroy(id, generation);
+                if (paints.get(id) == nullptr)
+                {
+                    markPaintImagePending(id, false);
+                }
                 break;
             case ResourceKind::shader:
                 shaders.destroy(id, generation);
@@ -271,6 +299,12 @@ struct ResourceTable
         buffers.versionAliases.clear();
     }
 };
+
+// Re-offers every pending paint image to hooks.prepImage, applying the ones
+// that are ready now to the live paint. Run once per replay, before the
+// resource pass can move that paint into a version alias. Defined in
+// src/deferred_cmd.cpp.
+void retryPendingPaintImages(ResourceTable& table, const ReplayHooks& hooks);
 
 // Span form: replays raw stream bytes so a snapshot copy can replay without a
 // RenderCommandBuffer. Defined in src/deferred_cmd.cpp.
