@@ -195,6 +195,62 @@ int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
     float2 p1 = simd::load2f(&pts[1].x);
     float2 p2 = simd::load2f(&pts[2].x);
     float2 p3 = simd::load2f(&pts[3].x);
+
+    // Build the three edges between the four control points. We use this for
+    // some early-out tests below.
+    float2 e01 = p1 - p0;
+    float2 e12 = p2 - p1;
+    float2 e23 = p3 - p2;
+
+    // The sign of the cross product gives us the winding orientation of three
+    // points
+    float c01x12 = simd::cross(e01, e12);
+    float c12x23 = simd::cross(e12, e23);
+    float c01x23 = simd::cross(e01, e23);
+
+    bool e01IsZero = simd::all(e01 == 0.0f);
+    bool e23IsZero = simd::all(e23 == 0.0f);
+
+    // If the first edge is zero, we have a triangle, and there's only one
+    // relevant turn (p1-p2-p3). Duplicate it to simplify the convexity test
+    // below.
+    if (e01IsZero)
+    {
+        c01x12 = c12x23;
+        c01x23 = c12x23;
+    }
+
+    // Same logic, but for the last edge. Note that if both the first and last
+    // edges are zero, all of the cAAxBB values will be zero, causing isConvex
+    // to become false. In this case, isLine will detect an actual line versus
+    // the degenerate single point case.
+    if (e23IsZero)
+    {
+        c12x23 = c01x12;
+        c01x23 = c01x12;
+    }
+
+    float turnMin = std::min(std::min(c01x12, c12x23), c01x23);
+    float turnMax = std::max(std::max(c01x12, c12x23), c01x23);
+
+    // Cross products and their rounding error both scale with the squared edge
+    // lengths, so the threshold scales with them too.
+    float maxEdgeLengthSquared =
+        std::max(std::max(simd::dot(e01, e01), simd::dot(e12, e12)),
+                 simd::dot(e23, e23));
+    float turnThreshold = EPSILON * maxEdgeLengthSquared;
+
+    // If the windings of both edge pairs are in the same direction, there's no
+    // inflection point. Furthermore, if (p0-p1) x (p2-p3) also winds in that
+    // same direction, then we haven't exceeded 180 degrees.
+    bool isConvex = turnMin > turnThreshold || turnMax < -turnThreshold;
+    bool isLine = e01IsZero && e23IsZero && simd::any(e12 != 0.0f);
+    if (isConvex || isLine)
+    {
+        *areCusps = false;
+        return 0;
+    }
+
     CubicCoeffs coeffs(p0, p1, p2, p3);
 
     // Now find the cubic's inflection function.
