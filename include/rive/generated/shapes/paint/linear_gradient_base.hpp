@@ -19,6 +19,11 @@ public:
     static const uint16_t endXPropertyKey = 34;
     static const uint16_t endYPropertyKey = 35;
     static const uint16_t opacityPropertyKey = 46;
+    static const uint16_t transformXPropertyKey = 1103;
+    static const uint16_t transformYPropertyKey = 1104;
+    static const uint16_t transformRotationPropertyKey = 1105;
+    static const uint16_t transformScaleXPropertyKey = 1106;
+    static const uint16_t transformScaleYPropertyKey = 1107;
 
 protected:
     float m_StartX = 0.0f;
@@ -26,6 +31,11 @@ protected:
     float m_EndX = 0.0f;
     float m_EndY = 0.0f;
     float m_Opacity = 1.0f;
+    float m_TransformX = 0.0f;
+    float m_TransformY = 0.0f;
+    float m_TransformRotation = 0.0f;
+    float m_TransformScaleX = 1.0f;
+    float m_TransformScaleY = 1.0f;
 
 public:
     inline float startX() const { return m_StartX; }
@@ -93,6 +103,72 @@ public:
         notifyPropertyChanged(opacityPropertyKey);
     }
 
+    inline float transformX() const { return m_TransformX; }
+    void transformX(float value)
+    {
+        if (m_TransformX == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(transformXPropertyKey, &m_TransformX, &value);
+        m_TransformX = value;
+        notifyPropertyChanged(transformXPropertyKey);
+    }
+
+    inline float transformY() const { return m_TransformY; }
+    void transformY(float value)
+    {
+        if (m_TransformY == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(transformYPropertyKey, &m_TransformY, &value);
+        m_TransformY = value;
+        notifyPropertyChanged(transformYPropertyKey);
+    }
+
+    inline float transformRotation() const { return m_TransformRotation; }
+    void transformRotation(float value)
+    {
+        if (m_TransformRotation == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(transformRotationPropertyKey,
+                             &m_TransformRotation,
+                             &value);
+        m_TransformRotation = value;
+        notifyPropertyChanged(transformRotationPropertyKey);
+    }
+
+    inline float transformScaleX() const { return m_TransformScaleX; }
+    void transformScaleX(float value)
+    {
+        if (m_TransformScaleX == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(transformScaleXPropertyKey,
+                             &m_TransformScaleX,
+                             &value);
+        m_TransformScaleX = value;
+        notifyPropertyChanged(transformScaleXPropertyKey);
+    }
+
+    inline float transformScaleY() const { return m_TransformScaleY; }
+    void transformScaleY(float value)
+    {
+        if (m_TransformScaleY == value)
+        {
+            return;
+        }
+        RIVE_EDITOR_CHANGING(transformScaleYPropertyKey,
+                             &m_TransformScaleY,
+                             &value);
+        m_TransformScaleY = value;
+        notifyPropertyChanged(transformScaleYPropertyKey);
+    }
+
     Core* clone() const override;
     void copy(const LinearGradientBase& object)
     {
@@ -101,6 +177,11 @@ public:
         m_EndX = object.m_EndX;
         m_EndY = object.m_EndY;
         m_Opacity = object.m_Opacity;
+        m_TransformX = object.m_TransformX;
+        m_TransformY = object.m_TransformY;
+        m_TransformRotation = object.m_TransformRotation;
+        m_TransformScaleX = object.m_TransformScaleX;
+        m_TransformScaleY = object.m_TransformScaleY;
         ContainerComponent::copy(object);
     }
 
@@ -122,6 +203,21 @@ public:
                 return true;
             case opacityPropertyKey:
                 m_Opacity = CoreDoubleType::deserialize(reader);
+                return true;
+            case transformXPropertyKey:
+                m_TransformX = CoreDoubleType::deserialize(reader);
+                return true;
+            case transformYPropertyKey:
+                m_TransformY = CoreDoubleType::deserialize(reader);
+                return true;
+            case transformRotationPropertyKey:
+                m_TransformRotation = CoreDoubleType::deserialize(reader);
+                return true;
+            case transformScaleXPropertyKey:
+                m_TransformScaleX = CoreDoubleType::deserialize(reader);
+                return true;
+            case transformScaleYPropertyKey:
+                m_TransformScaleY = CoreDoubleType::deserialize(reader);
                 return true;
         }
         return ContainerComponent::deserialize(propertyKey, reader);

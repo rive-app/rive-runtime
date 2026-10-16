@@ -270,6 +270,7 @@
 #include "rive/shapes/list_path.hpp"
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
+#include "rive/shapes/paint/angular_gradient.hpp"
 #include "rive/shapes/paint/dash.hpp"
 #include "rive/shapes/paint/dash_path.hpp"
 #include "rive/shapes/paint/feather.hpp"
@@ -716,6 +717,8 @@ public:
                 return new SolidColor();
             case PaintImageBase::typeKey:
                 return new PaintImage();
+            case AngularGradientBase::typeKey:
+                return new AngularGradient();
             case GradientStopBase::typeKey:
                 return new GradientStop();
             case FeatherBase::typeKey:
@@ -2979,6 +2982,21 @@ public:
             case LinearGradientBase::opacityPropertyKey:
                 object->as<LinearGradientBase>()->opacity(value);
                 break;
+            case LinearGradientBase::transformXPropertyKey:
+                object->as<LinearGradientBase>()->transformX(value);
+                break;
+            case LinearGradientBase::transformYPropertyKey:
+                object->as<LinearGradientBase>()->transformY(value);
+                break;
+            case LinearGradientBase::transformRotationPropertyKey:
+                object->as<LinearGradientBase>()->transformRotation(value);
+                break;
+            case LinearGradientBase::transformScaleXPropertyKey:
+                object->as<LinearGradientBase>()->transformScaleX(value);
+                break;
+            case LinearGradientBase::transformScaleYPropertyKey:
+                object->as<LinearGradientBase>()->transformScaleY(value);
+                break;
             case DashBase::lengthPropertyKey:
                 object->as<DashBase>()->length(value);
                 break;
@@ -4802,6 +4820,16 @@ public:
                 return object->as<LinearGradientBase>()->endY();
             case LinearGradientBase::opacityPropertyKey:
                 return object->as<LinearGradientBase>()->opacity();
+            case LinearGradientBase::transformXPropertyKey:
+                return object->as<LinearGradientBase>()->transformX();
+            case LinearGradientBase::transformYPropertyKey:
+                return object->as<LinearGradientBase>()->transformY();
+            case LinearGradientBase::transformRotationPropertyKey:
+                return object->as<LinearGradientBase>()->transformRotation();
+            case LinearGradientBase::transformScaleXPropertyKey:
+                return object->as<LinearGradientBase>()->transformScaleX();
+            case LinearGradientBase::transformScaleYPropertyKey:
+                return object->as<LinearGradientBase>()->transformScaleY();
             case DashBase::lengthPropertyKey:
                 return object->as<DashBase>()->length();
             case StrokeBase::thicknessPropertyKey:
@@ -5607,6 +5635,11 @@ public:
             case LinearGradientBase::endXPropertyKey:
             case LinearGradientBase::endYPropertyKey:
             case LinearGradientBase::opacityPropertyKey:
+            case LinearGradientBase::transformXPropertyKey:
+            case LinearGradientBase::transformYPropertyKey:
+            case LinearGradientBase::transformRotationPropertyKey:
+            case LinearGradientBase::transformScaleXPropertyKey:
+            case LinearGradientBase::transformScaleYPropertyKey:
             case DashBase::lengthPropertyKey:
             case StrokeBase::thicknessPropertyKey:
             case PaintImageBase::imageScaleXPropertyKey:
@@ -6854,6 +6887,16 @@ public:
             case LinearGradientBase::endYPropertyKey:
                 return LinearGradientBase::typeKey;
             case LinearGradientBase::opacityPropertyKey:
+                return LinearGradientBase::typeKey;
+            case LinearGradientBase::transformXPropertyKey:
+                return LinearGradientBase::typeKey;
+            case LinearGradientBase::transformYPropertyKey:
+                return LinearGradientBase::typeKey;
+            case LinearGradientBase::transformRotationPropertyKey:
+                return LinearGradientBase::typeKey;
+            case LinearGradientBase::transformScaleXPropertyKey:
+                return LinearGradientBase::typeKey;
+            case LinearGradientBase::transformScaleYPropertyKey:
                 return LinearGradientBase::typeKey;
             case DashBase::lengthPropertyKey:
                 return DashBase::typeKey;

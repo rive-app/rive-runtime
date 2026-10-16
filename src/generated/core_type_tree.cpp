@@ -2,7 +2,7 @@
 #ifndef WITH_RIVE_EDITOR
 using namespace rive;
 // Parent typeKey of each typeKey, 0 at the root.
-static const uint16_t parentTypeKeys[1072] = {
+static const uint16_t parentTypeKeys[1090] = {
     0,    409, 38,   13,  15,  14,  36,  15,   15,  0,   0,   10,  2,   2,
     107,  12,  620,  22,  10,  10,  21,  11,   11,  0,   21,  0,   0,   0,
     139,  0,   170,  27,  0,   0,   36,  36,   14,  170, 91,  38,  39,  40,
@@ -79,10 +79,11 @@ static const uint16_t parentTypeKeys[1072] = {
     0,    0,   0,    0,   0,   0,   0,   0,    0,   0,   0,   0,   584, 586,
     0,    671, 482,  10,  0,   0,   0,   584,  586, 0,   0,   0,   0,   0,
     0,    0,   0,    0,   0,   0,   10,  1056, 10,  0,   0,   0,   0,   0,
-    0,    0,   1057, 170, 10,  11,  0,   103};
+    0,    0,   1057, 170, 10,  11,  0,   103,  0,   0,   0,   0,   0,   0,
+    0,    0,   0,    0,   0,   0,   0,   0,    0,   0,   0,   22};
 bool Core::hasAncestor(uint16_t type, uint16_t typeKey)
 {
-    while (type < 1072 && (type = parentTypeKeys[type]) != 0)
+    while (type < 1090 && (type = parentTypeKeys[type]) != 0)
     {
         if (type == typeKey)
         {
