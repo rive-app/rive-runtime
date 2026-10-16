@@ -9,10 +9,13 @@
 #include "utils/no_op_renderer.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_variation_modifier.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/layout_component.hpp"
+#include <functional>
 #include <iostream>
 #include <string>
 
@@ -1386,4 +1389,238 @@ TEST_CASE("wordBreak reaches the line breaker from the Text object", "[text]")
     text->wordBreakValue((uint8_t)rive::TextWordBreak::breakWord);
     artboard->advance(0.0f);
     REQUIRE(text->orderedLines().size() == breakWordLines);
+}
+
+#ifdef WITH_RIVE_TOOLS
+// The layout measures a text through measure(), and changing the text marks
+// the layout dirty before the solve, so that one solve already sizes it.
+// Rebuilding the render styles afterwards used to mark it dirty again, a
+// second full solve after every text change -- a HUD updating a lap timer
+// paid for two layouts of the whole tree each frame. Driven through the
+// artboard alone: the asset's state machine animates a Solo, which re-dirties
+// the layout every frame on its own.
+TEST_CASE("A text change re-solves its hug layout once", "[text]")
+{
+    auto file = ReadRiveFile("assets/layout/text_layout_7_3.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    artboard->advance(0.0f);
+
+    rive::TextValueRun* run = nullptr;
+    rive::LayoutComponent* layout = nullptr;
+    for (auto candidate : artboard->find<rive::TextValueRun>())
+    {
+        auto parent = candidate->textComponent()->parent();
+        if (parent != nullptr && parent->is<rive::LayoutComponent>() &&
+            !parent->is<rive::Artboard>())
+        {
+            run = candidate;
+            layout = parent->as<rive::LayoutComponent>();
+            break;
+        }
+    }
+    REQUIRE(run != nullptr);
+    const float widthBefore = layout->layoutWidth();
+
+    int dirtied = 0;
+    artboard->callbackUserData = &dirtied;
+    artboard->onLayoutDirty([](void* data) { (*(int*)data)++; });
+    artboard->advance(0.0f);
+    REQUIRE(dirtied == 0);
+
+    run->text(run->text() + " and then some more words");
+    artboard->advance(0.016f);
+    CHECK(dirtied == 1);
+    // One solve is enough: the hug layout already wraps the longer text.
+    CHECK(layout->layoutWidth() > widthBefore);
+
+    // Nothing was left owed.
+    dirtied = 0;
+    artboard->advance(0.016f);
+    CHECK(dirtied == 0);
+}
+#endif
+
+// The size of the hug layout around [asset]'s first text in a layout, after
+// [setup] runs before the first layout and [change] runs after it.
+static rive::Vec2D hugTextLayoutSize(
+    const char* asset,
+    const std::function<void(rive::TextValueRun*)>& setup,
+    const std::function<void(rive::Text*)>& change)
+{
+    auto file = ReadRiveFile(asset);
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    rive::TextValueRun* run = nullptr;
+    rive::LayoutComponent* layout = nullptr;
+    for (auto candidate : artboard->find<rive::TextValueRun>())
+    {
+        auto parent = candidate->textComponent()->parent();
+        if (parent != nullptr && parent->is<rive::LayoutComponent>() &&
+            !parent->is<rive::Artboard>())
+        {
+            run = candidate;
+            layout = parent->as<rive::LayoutComponent>();
+            break;
+        }
+    }
+    REQUIRE(run != nullptr);
+    setup(run);
+    artboard->advance(0.0f);
+    if (change)
+    {
+        change(run->textComponent()->as<rive::Text>());
+        artboard->advance(0.016f);
+    }
+    return rive::Vec2D(layout->layoutWidth(), layout->layoutHeight());
+}
+
+// Paragraph spacing changes only the paint, but measure() adds it, so the
+// layout has to measure the text again: changing it after the first layout
+// has to land where setting it before would have. This asset's layout hugs
+// its text's height.
+TEST_CASE("Paragraph spacing re-measures a hug layout's text", "[text]")
+{
+    const char* asset = "assets/layout_text_match_7_3.riv";
+    auto twoParagraphs = [](rive::TextValueRun* run) {
+        run->text("first paragraph\nsecond paragraph");
+    };
+    auto spaced = [](rive::Text* text) {
+        text->paragraphSpacing(text->paragraphSpacing() + 40.0f);
+    };
+    auto unspaced = hugTextLayoutSize(asset, twoParagraphs, nullptr);
+    auto fresh = hugTextLayoutSize(
+        asset,
+        [&](rive::TextValueRun* run) {
+            twoParagraphs(run);
+            spaced(run->textComponent()->as<rive::Text>());
+        },
+        nullptr);
+    auto changed = hugTextLayoutSize(asset, twoParagraphs, spaced);
+    REQUIRE(fresh.y > unspaced.y);
+    CHECK(changed.x == fresh.x);
+    CHECK(changed.y == fresh.y);
+}
+
+// Same for the origin: a baseline origin is paint and transform only, but
+// measure() reports the first line moved up.
+TEST_CASE("Text origin re-measures a hug layout's text", "[text]")
+{
+    const char* asset = "assets/layout/text_layout_7_3.riv";
+    auto nothing = [](rive::TextValueRun*) {};
+    auto baseline = [](rive::Text* text) {
+        text->originValue((uint8_t)rive::TextOrigin::baseline);
+    };
+    auto top = hugTextLayoutSize(asset, nothing, nullptr);
+    auto fresh = hugTextLayoutSize(
+        asset,
+        [&](rive::TextValueRun* run) {
+            baseline(run->textComponent()->as<rive::Text>());
+        },
+        nullptr);
+    auto changed = hugTextLayoutSize(asset, nothing, baseline);
+    REQUIRE(fresh.y != top.y);
+    CHECK(changed.x == fresh.x);
+    CHECK(changed.y == fresh.y);
+}
+
+// text_variation_modifier_hug.riv: a hug layout around a text in a variable
+// font, with a modifier group setting the whole text's width axis (wdth 100).
+static rive::LayoutComponent* variationModifiedHug(rive::Artboard* artboard,
+                                                   rive::TextValueRun** run)
+{
+    *run = artboard->find<rive::TextValueRun>("Run");
+    REQUIRE(*run != nullptr);
+    return (*run)->textComponent()->parent()->as<rive::LayoutComponent>();
+}
+
+#ifdef WITH_RIVE_TOOLS
+// The modifier made a new font on every styling pass, so the shape never
+// matched what the layout measured and every change solved twice.
+TEST_CASE("A variation-modified text re-solves its hug layout once", "[text]")
+{
+    // Where the layout settles with the longer text from the start.
+    float settled = 0.0f;
+    {
+        auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+        auto artboard = file->artboardDefault();
+        REQUIRE(artboard != nullptr);
+        rive::TextValueRun* run = nullptr;
+        auto layout = variationModifiedHug(artboard.get(), &run);
+        run->text(run->text() + " text");
+        for (int i = 0; i < 10; i++)
+        {
+            artboard->advance(0.016f);
+        }
+        settled = layout->layoutWidth();
+    }
+
+    auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+    rive::TextValueRun* run = nullptr;
+    auto layout = variationModifiedHug(artboard.get(), &run);
+    for (int i = 0; i < 10; i++)
+    {
+        artboard->advance(0.016f);
+    }
+
+    int dirtied = 0;
+    artboard->callbackUserData = &dirtied;
+    artboard->onLayoutDirty([](void* data) { (*(int*)data)++; });
+    artboard->advance(0.0f);
+    REQUIRE(dirtied == 0);
+
+    run->text(run->text() + " text");
+    artboard->advance(0.016f);
+    CHECK(dirtied == 1);
+    // The one solve already lands where the layout settles.
+    CHECK(layout->layoutWidth() == settled);
+
+    dirtied = 0;
+    artboard->advance(0.016f);
+    CHECK(dirtied == 0);
+}
+#endif
+
+// Keeping the modifier's font must not keep it past a change: a new axis
+// value after the first layout has to shape where setting it before would.
+// Read off the shaped glyphs, not the layout: a hug layout sizes to the text
+// without its modifiers, here and on master alike.
+TEST_CASE("A variation modifier change reshapes its text", "[text]")
+{
+    auto shapedWidthAfter = [](bool before, bool after) {
+        auto file = ReadRiveFile("assets/text_variation_modifier_hug.riv");
+        auto artboard = file->artboardDefault();
+        REQUIRE(artboard != nullptr);
+        auto modifier = artboard->find<rive::TextVariationModifier>("Width");
+        REQUIRE(modifier != nullptr);
+        rive::TextValueRun* run = nullptr;
+        variationModifiedHug(artboard.get(), &run);
+        if (before)
+        {
+            modifier->axisValue(200.0f);
+        }
+        artboard->advance(0.0f);
+        if (after)
+        {
+            modifier->axisValue(200.0f);
+            artboard->advance(0.016f);
+        }
+        float width = 0.0f;
+        auto text = run->textComponent()->as<rive::Text>();
+        for (const auto& line : text->orderedLines())
+        {
+            for (auto [glyphRun, glyphIndex] : line)
+            {
+                width += glyphRun->advances[glyphIndex];
+            }
+        }
+        return width;
+    };
+    float narrow = shapedWidthAfter(false, false);
+    float fresh = shapedWidthAfter(true, false);
+    float changed = shapedWidthAfter(false, true);
+    REQUIRE(fresh > narrow);
+    CHECK(changed == fresh);
 }

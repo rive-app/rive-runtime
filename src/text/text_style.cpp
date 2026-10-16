@@ -104,10 +104,21 @@ void TextStyle::updateVariableFont() const
         // Not ready yet, or the font was cleared. Drop any cached variable
         // font so font() can't keep returning one built from the old base.
         m_variableFont = nullptr;
+        m_variableFontBase = nullptr;
         return;
     }
     if (!m_variations.empty() || !m_styleFeatures.empty())
     {
+        // The variation helper calls this whenever it updates, which is far
+        // more often than the axes change. Building a new font each time cost
+        // a font object per call, and it gave the text a different font every
+        // frame, so the text could never tell that its layout had already
+        // measured the shape (Text::measureKey) and re-solved it every time.
+        if (m_variableFont != nullptr && m_variableFontBase == baseFont &&
+            sameOptions())
+        {
+            return;
+        }
         m_coords.clear();
         for (TextStyleAxis* axis : m_variations)
         {
@@ -120,11 +131,41 @@ void TextStyle::updateVariableFont() const
                 {styleFeature->tag(), styleFeature->featureValue()});
         }
         m_variableFont = baseFont->withOptions(m_coords, m_features);
+        m_variableFontBase = baseFont;
     }
     else
     {
         m_variableFont = nullptr;
+        m_variableFontBase = nullptr;
     }
+}
+
+// Whether the axes and features still hold the values m_variableFont was
+// built with, in the same order.
+bool TextStyle::sameOptions() const
+{
+    if (m_coords.size() != m_variations.size() ||
+        m_features.size() != m_styleFeatures.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < m_variations.size(); i++)
+    {
+        if (m_coords[i].axis != m_variations[i]->tag() ||
+            m_coords[i].value != m_variations[i]->axisValue())
+        {
+            return false;
+        }
+    }
+    for (size_t i = 0; i < m_styleFeatures.size(); i++)
+    {
+        if (m_features[i].tag != m_styleFeatures[i]->tag() ||
+            m_features[i].value != m_styleFeatures[i]->featureValue())
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void TextStyle::buildDependencies()

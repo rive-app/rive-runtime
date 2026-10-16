@@ -308,12 +308,31 @@ TextRun TextModifierGroup::modifyShape(const Text& text,
 
     if (!variations.empty())
     {
-        m_variationCoords.clear();
+        std::vector<Font::Coord> coords;
+        coords.reserve(variations.size());
         for (auto itr = variations.begin(); itr != variations.end(); itr++)
         {
-            m_variationCoords.push_back({itr->first, itr->second});
+            coords.push_back({itr->first, itr->second});
         }
-        m_variableFont = font->makeAtCoords(m_variationCoords);
+        // Every styling pass lands here, and the text styles itself both to
+        // measure and to shape. A new font per pass meant the text could
+        // never tell that its layout had already measured the shape
+        // (Text::measureKey), so it re-solved after every one. Keep the font
+        // while it comes from the same base at the same coordinates.
+        bool same = m_variableFont != nullptr &&
+                    m_variableFontBase.get() == font &&
+                    coords.size() == m_variationCoords.size();
+        for (size_t i = 0; same && i < coords.size(); i++)
+        {
+            same = coords[i].axis == m_variationCoords[i].axis &&
+                   coords[i].value == m_variationCoords[i].value;
+        }
+        if (!same)
+        {
+            m_variationCoords = std::move(coords);
+            m_variableFont = font->makeAtCoords(m_variationCoords);
+            m_variableFontBase = style->font();
+        }
         return {
             m_variableFont,
             run.size,
@@ -328,6 +347,7 @@ TextRun TextModifierGroup::modifyShape(const Text& text,
     else
     {
         m_variableFont = nullptr;
+        m_variableFontBase = nullptr;
     }
     return run;
 }

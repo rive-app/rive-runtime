@@ -139,6 +139,9 @@ private:
     std::vector<TextFollowPathModifier*> m_followPathModifiers;
     std::vector<float> m_coverage;
     rcp<Font> m_variableFont;
+    // The font m_variableFont was made from, held so a later pass can tell
+    // it is the same one (see modifyShape).
+    rcp<Font> m_variableFontBase;
     std::vector<Font::Coord> m_variationCoords;
     std::vector<TextRun> m_nextTextRuns;
 };

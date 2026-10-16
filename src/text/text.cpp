@@ -21,6 +21,7 @@ using namespace rive;
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
 #include "rive/generated/core_registry.hpp"
+#include <cstring>
 #include <limits>
 
 TextValueRunProperty::TextValueRunProperty(
@@ -918,7 +919,18 @@ skipLines:
     m_transform =
         Mat2D::fromScaleAndTranslation(scale, scale, xOffset, yOffset);
 #ifdef WITH_RIVE_LAYOUT
-    markLayoutNodeDirty();
+    // The layout sizes this text by measuring it, and a change to anything it
+    // measures marks the layout dirty first (markShapeDirty), so the solve
+    // that just ran already saw this shape. Re-marking it unconditionally ran
+    // a second full solve after every text change, and one after every paint
+    // change too, since a recolor rebuilds the render styles. It is still owed
+    // when the shape and the measurement disagree: a modifier reshaped the
+    // text without telling the layout, or the solve handed us scale types or
+    // a direction that change what measure() reports.
+    if (m_shapedKey != m_measuredKey)
+    {
+        markLayoutNodeDirty();
+    }
 #endif
 
     // Step 8: cleanup
@@ -1203,6 +1215,12 @@ void Text::paragraphSpacingChanged()
     else
     {
         markPaintDirty();
+        // The spacing needs no reshape, but measure() adds it between
+        // paragraphs, so a layout sizing this text has to measure it again.
+        // buildRenderStyles no longer re-marks the layout on every rebuild.
+#ifdef WITH_RIVE_LAYOUT
+        markLayoutNodeDirty();
+#endif
     }
 }
 
@@ -1407,7 +1425,9 @@ void Text::update(ComponentDirt value)
                 group->computeCoverage(textSize);
             }
         }
-        if (makeStyled(m_styledText, true, fontScale))
+        const bool styled = makeStyled(m_styledText, true, fontScale);
+        m_shapedKey = measureKey(m_styledText, fontScale);
+        if (styled)
         {
             const auto& runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
@@ -1484,6 +1504,52 @@ void Text::update(ComponentDirt value)
     }
 }
 
+// What measure() reports depends on, as a hash: the styled text it shapes,
+// the scale it shapes at, and the two inputs it reads that a layout hands us
+// after its solve (controlSize) -- the effective sizing, from the slot's scale
+// types, and the alignment, from its direction. Everything else it reads is
+// authored, and changing that marks the layout dirty on its own.
+//
+// Mixed eight bytes at a time. Every step is a bijection of the running hash,
+// so two keys that differ in a single word always differ; hashing byte by
+// byte cost about a nanosecond a byte, next to the shaping it sits beside.
+uint64_t Text::measureKey(const StyledText& styled, float fontScale) const
+{
+    uint64_t hash = 0x9e3779b97f4a7c15ull;
+    auto mix = [&hash](uint64_t word) {
+        hash ^= word;
+        hash *= 0xff51afd7ed558ccdull;
+        hash ^= hash >> 32;
+    };
+    auto bits = [](float value) {
+        uint32_t out;
+        memcpy(&out, &value, sizeof(out));
+        return (uint64_t)out;
+    };
+    mix(bits(fontScale) | (uint64_t)(uint8_t)effectiveSizing() << 32 |
+        (uint64_t)(uint8_t)align() << 40);
+    for (const TextRun& run : styled.runs())
+    {
+        mix((uint64_t)(uintptr_t)run.font.get());
+        mix(bits(run.size) | bits(run.lineHeight) << 32);
+        mix(bits(run.letterSpacing) | (uint64_t)run.unicharCount << 32);
+        mix((uint64_t)run.script | (uint64_t)run.styleId << 32 |
+            (uint64_t)run.level << 48);
+    }
+    const auto& unichars = styled.unichars();
+    mix(unichars.size());
+    size_t i = 0;
+    for (; i + 1 < unichars.size(); i += 2)
+    {
+        mix((uint64_t)unichars[i] | (uint64_t)unichars[i + 1] << 32);
+    }
+    if (i < unichars.size())
+    {
+        mix(unichars[i]);
+    }
+    return hash;
+}
+
 Vec2D Text::measure(Vec2D maxSize)
 {
     auto measuringWidth = 0.0f;
@@ -1523,7 +1589,9 @@ Vec2D Text::measure(Vec2D maxSize)
     {
         fontScale = fitFontScale(fitWidth, maxSize.y);
     }
-    if (makeStyled(m_styledText, true, fontScale))
+    const bool styled = makeStyled(m_styledText, true, fontScale);
+    m_measuredKey = measureKey(m_styledText, fontScale);
+    if (styled)
     {
         const float paragraphSpace = paragraphSpacing() * fontScale;
         const auto& runs = m_styledText.runs();
@@ -1639,6 +1707,11 @@ void Text::originValueChanged()
 {
     markPaintDirty();
     markWorldTransformDirty();
+    // A baseline origin moves the first line up, which measure() reports as a
+    // different height, so a layout sizing this text has to measure it again.
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
 }
 
 void Text::originXChanged()

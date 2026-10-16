@@ -64,6 +64,10 @@ public:
 
 private:
     mutable rcp<Font> m_variableFont;
+    // The font m_variableFont was built from, so a rebuild with the same
+    // base, axes and features can keep it (see updateVariableFont).
+    mutable rcp<Font> m_variableFontBase;
+    bool sameOptions() const;
 
     mutable std::vector<Font::Coord> m_coords;
     std::vector<TextStyleAxis*> m_variations;

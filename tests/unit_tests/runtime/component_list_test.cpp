@@ -36,7 +36,11 @@ TEST_CASE("Component List Artboard Count", "[component_list]")
 
     artboard->advance(0.0f);
 
-    REQUIRE(list->syncStyleChanges() == true);
+    // One advance lays the items out completely, so no style change is left
+    // to sync. It used to leave one: each item's text got a new variable font
+    // every update, so the text couldn't tell its layout had already measured
+    // it and marked the layout dirty again after shaping.
+    REQUIRE(list->syncStyleChanges() == false);
     REQUIRE(list->artboardCount() == 8);
     REQUIRE(list->layoutNode(9) == nullptr);
     REQUIRE(list->artboardInstance(9) == nullptr);

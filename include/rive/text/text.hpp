@@ -432,6 +432,14 @@ private:
     void buildTextStylePaints();
     std::vector<TextValueRunListener*> m_valueRunListeners;
 
+    // What measure() last reported to the layout and what update() last
+    // shaped, as measureKey hashes. Equal means the layout has already sized
+    // the text as it is now shaped, so rebuilding it owes the layout nothing.
+    // They start unequal: a text the layout never measured keeps notifying it.
+    uint64_t m_measuredKey = 0;
+    uint64_t m_shapedKey = 1;
+    uint64_t measureKey(const StyledText& styled, float fontScale) const;
+
 #endif
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
