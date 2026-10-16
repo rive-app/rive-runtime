@@ -665,11 +665,8 @@ void RenderContextGLImpl::invalidateGLState()
 
 void RenderContextGLImpl::scrubStateAfterOre()
 {
-#ifndef RIVE_WEBGL
-    // Ore's FBO work must land before we render through it. WebGL replays
-    // both on one context, which already orders them.
-    glFinish();
-#endif
+    // Some MSAA drivers need Ore's FBO work flushed before our next flush.
+    glFlush();
 
     for (int i = 0; i <= DEFAULT_BINDINGS_SET_SIZE; ++i)
     {

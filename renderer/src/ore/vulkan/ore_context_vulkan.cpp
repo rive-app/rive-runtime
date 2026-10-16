@@ -1588,6 +1588,39 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
+    // Rive may have drawn into a wrapped target since Ore last saw it, so
+    // Rive's tracker, not Ore's, knows what the barrier into the pass waits on.
+    auto acquireRiveTarget = [this](gpu::RenderTargetVulkan* renderTarget,
+                                    TextureVulkan* texture,
+                                    bool preserveContents) {
+        if (renderTarget == nullptr || texture == nullptr)
+        {
+            return;
+        }
+        renderTarget->accessTargetImage(
+            m_vkCommandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+                              VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            preserveContents
+                ? gpu::vkutil::ImageAccessAction::preserveContents
+                : gpu::vkutil::ImageAccessAction::invalidateContents);
+        texture->m_vkLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        // A sampled transition a bind group queued would undo this barrier
+        // before the pass, and finish() leaves sampled targets readable.
+        auto& pending = m_vkPendingInitialTransitions;
+        pending.erase(std::remove_if(pending.begin(),
+                                     pending.end(),
+                                     [texture](const auto& transition) {
+                                         return transition.texture.get() ==
+                                                texture;
+                                     }),
+                      pending.end());
+    };
+
     std::unique_ptr<RenderPassVulkan> pass =
         std::make_unique<RenderPassVulkan>();
     pass->m_context = this;
@@ -1637,6 +1670,9 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
                 resolve.texture = ref_rcp(resolveTex);
                 resolveTex->vkMarkWritten(resolveView->baseMipLevel(),
                                           resolveView->baseLayer());
+                acquireRiveTarget(resolveView->m_vkRenderTarget,
+                                  resolveTex,
+                                  /*preserveContents=*/false);
             }
             resolve.range =
                 resolveView->vkAttachmentRange(VK_IMAGE_ASPECT_COLOR_BIT);
@@ -1658,6 +1694,9 @@ std::unique_ptr<RenderPass> ContextVulkan::beginRenderPass(
             view->vkAttachmentRange(VK_IMAGE_ASPECT_COLOR_BIT);
         pass->m_vkColorRenderTargets[i] = view->m_vkRenderTarget;
         pass->m_vkColorTextures[i] = ref_rcp(tex);
+        acquireRiveTarget(view->m_vkRenderTarget,
+                          tex,
+                          key.colorLoadOps[i] == LoadOp::load);
         // loadOp=load requires COLOR_ATTACHMENT_OPTIMAL before the pass;
         // other loadOps accept UNDEFINED so no pre-transition needed.
         if (key.colorLoadOps[i] == LoadOp::load)

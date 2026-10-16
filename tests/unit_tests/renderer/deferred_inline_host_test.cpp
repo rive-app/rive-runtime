@@ -76,6 +76,61 @@ class MSAACanvasSink : public CanvasModeSink
         return {.msaaSampleCount = 4};
     }
 };
+
+// Records where canvas flushes land: their own command buffer or the host's.
+class FlushSpyImpl : public RenderContextNULL
+{
+public:
+    void* makeCommandBuffer() override
+    {
+        made++;
+        return &m_ownCommandBuffer;
+    }
+    void commitCommandBuffer(void*) override { committed++; }
+    void postFlush(const gpu::RenderContext::FlushResources& fr) override
+    {
+        lastFlush = fr;
+    }
+
+    int made = 0;
+    int committed = 0;
+    gpu::RenderContext::FlushResources lastFlush;
+
+private:
+    int m_ownCommandBuffer = 0;
+};
+
+class FrameCommandBufferSink : public cmd::HostFrameSink
+{
+public:
+    explicit FrameCommandBufferSink(void* frameCommandBuffer) :
+        cmd::HostFrameSink(true, 0), m_frameCommandBuffer(frameCommandBuffer)
+    {
+        auto impl = std::make_unique<FlushSpyImpl>();
+        spy = impl.get();
+        m_rc = std::make_unique<gpu::RenderContext>(std::move(impl));
+    }
+
+    gpu::RenderContext* renderContext() override { return m_rc.get(); }
+    ore::Context* oreContext() override { return nullptr; }
+    Renderer* beginScreen(uint64_t, bool, uint32_t) override { return nullptr; }
+    gpu::RenderContext::FlushResources canvasFlushResources() override
+    {
+        if (m_frameCommandBuffer == nullptr)
+        {
+            return {};
+        }
+        return {.externalCommandBuffer = m_frameCommandBuffer,
+                .currentFrameNumber = 7,
+                .safeFrameNumber = 5};
+    }
+
+    FlushSpyImpl* spy;
+
+private:
+    void* m_frameCommandBuffer;
+    std::unique_ptr<gpu::RenderContext> m_rc;
+};
 } // namespace
 
 TEST_CASE("a frame that never opened neither replays nor presents",
@@ -177,6 +232,33 @@ TEST_CASE("a sink can open a canvas frame in its own mode",
     CHECK(rc->frameDescriptor().msaaSampleCount == 4);
     CHECK(rc->frameInterlockMode() == gpu::InterlockMode::depthStencil);
     sink.endCanvasContent();
+}
+
+TEST_CASE("a canvas records into the host's open frame command buffer",
+          "[cmd][inline_host]")
+{
+    int frameCommandBuffer = 0;
+    FrameCommandBufferSink sink(&frameCommandBuffer);
+    auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
+    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+    sink.endCanvasContent();
+    CHECK(sink.spy->made == 0);
+    CHECK(sink.spy->committed == 0);
+    CHECK(sink.spy->lastFlush.externalCommandBuffer == &frameCommandBuffer);
+    CHECK(sink.spy->lastFlush.currentFrameNumber == 7);
+    CHECK(sink.spy->lastFlush.safeFrameNumber == 5);
+}
+
+TEST_CASE("a canvas submits its own command buffer when the host has none",
+          "[cmd][inline_host]")
+{
+    FrameCommandBufferSink sink(nullptr);
+    auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
+    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+    sink.endCanvasContent();
+    CHECK(sink.spy->made == 1);
+    CHECK(sink.spy->committed == 1);
+    CHECK(sink.spy->lastFlush.externalCommandBuffer != nullptr);
 }
 
 #endif // RIVE_CANVAS && RIVE_ORE

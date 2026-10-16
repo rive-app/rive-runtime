@@ -113,9 +113,9 @@ void HostFrameSink::endCanvasContent()
         return;
     }
     auto* rc = renderContext();
-    rive::gpu::RenderContext::FlushResources fr{};
+    rive::gpu::RenderContext::FlushResources fr = canvasFlushResources();
     fr.renderTarget = m_activeCanvas->renderTarget();
-    if (m_useExternalCommandBuffer)
+    if (fr.externalCommandBuffer == nullptr && m_useExternalCommandBuffer)
     {
         void* cb = rc->impl()->makeCommandBuffer();
         fr.externalCommandBuffer = cb;

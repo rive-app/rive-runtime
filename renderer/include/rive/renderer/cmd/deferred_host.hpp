@@ -73,6 +73,12 @@ public:
     rive::Renderer* beginCanvasContent(rive::gpu::RenderCanvas* canvas,
                                        uint32_t clearColor) override;
     void endCanvasContent() override;
+    // A host returns its open frame command buffer and frame numbers so
+    // canvases skip a submit and wait of their own.
+    virtual rive::gpu::RenderContext::FlushResources canvasFlushResources()
+    {
+        return {};
+    }
     // Override to open one canvas differently from the screen.
     virtual FrameMode canvasMode(rive::gpu::RenderCanvas*)
     {
