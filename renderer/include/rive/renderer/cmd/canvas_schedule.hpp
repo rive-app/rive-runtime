@@ -7,6 +7,7 @@
 #include "rive/renderer/cmd/deferred_session.hpp"
 
 #include <cstring>
+#include <unordered_map>
 #include <vector>
 
 // Orders canvas replay so samplers follow the canvases they sample,
@@ -32,6 +33,38 @@ inline RenderHandle drawnImageHandle(const uint8_t* pod)
     RenderHandle h;
     memcpy(&h, pod, sizeof(h));
     return h;
+}
+
+// Drops each canvas's frames that a later frame on it replaces: readers only
+// ever see the last one, so earlier frames are wasted work and phantom writes.
+inline std::vector<DeferredSegment> liveSegments(
+    const std::vector<DeferredSegment>& segments)
+{
+    std::unordered_map<uint64_t, size_t> lastFrame;
+    for (size_t i = 0; i < segments.size(); i++)
+    {
+        const DeferredSegment& s = segments[i];
+        if (s.target == DeferredSegment::Target::canvas && s.startsFrame)
+        {
+            lastFrame[s.targetId] = i;
+        }
+    }
+    std::vector<DeferredSegment> live;
+    live.reserve(segments.size());
+    for (size_t i = 0; i < segments.size(); i++)
+    {
+        const DeferredSegment& s = segments[i];
+        if (s.target == DeferredSegment::Target::canvas)
+        {
+            auto it = lastFrame.find(s.targetId);
+            if (it != lastFrame.end() && i < it->second)
+            {
+                continue;
+            }
+        }
+        live.push_back(s);
+    }
+    return live;
 }
 
 inline CanvasSchedule scheduleCanvases(

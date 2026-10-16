@@ -13,6 +13,7 @@
 #include "rive/renderer/render_canvas.hpp"
 #include "rive/renderer/render_context.hpp"
 #include <algorithm>
+#include <cassert>
 #include <unordered_map>
 #include <vector>
 
@@ -57,8 +58,8 @@ private:
 #endif
 
 // One scheduler segment: a canvas or screen run plus the byte range
-// [begin, end) in the 2D stream. Replay runs every canvas segment before any
-// screen segment while preserving record order within each phase.
+// [begin, end) in the 2D stream. Replay runs each canvas's live segments
+// before any screen segment.
 struct DeferredSegment
 {
     enum class Target : uint8_t
@@ -72,6 +73,8 @@ struct DeferredSegment
     uint64_t targetId;
     uint32_t begin;
     uint32_t end;
+    // Opened by beginCanvasContent. Replay keeps a canvas's last frame only.
+    bool startsFrame = false;
 };
 
 // A host that keeps a raw session pointer across frames. The session tells it
@@ -345,6 +348,7 @@ public:
         commandBuffer().append(
             static_cast<uint8_t>(RenderCmd::canvasContentBegin),
             CanvasContentPOD{id | kCanvasHandleFlag, m_canvasClear[target]});
+        m_activeStartsFrame = false;
     }
 
     // Snapshots call this too since an errored script can leave a range open.
@@ -362,6 +366,9 @@ public:
     {
         RenderHandle id =
             m_canvases.imageDrawId(canvas->renderImage()) & kCanvasHandleMask;
+        assert(std::find(m_canvasStack.begin(), m_canvasStack.end(), id) ==
+                   m_canvasStack.end() &&
+               "a canvas frame cannot open inside itself");
         m_contentCanvases[id] = ref_rcp(canvas);
         m_canvasClear[id] = clearColor;
         auto& recorder = m_canvasRenderers[id];
@@ -372,6 +379,11 @@ public:
                                                           this,
                                                           id);
         }
+        else
+        {
+            // Each frame starts at identity, as live.
+            recorder->resetTransform();
+        }
         // Stacked, not a single slot: a canvas bracket can open inside another
         // one -- a layer mask nested in a masked subtree, or any mask inside a
         // bitmap-cached artboard -- and the inner end has to resume the outer
@@ -379,7 +391,13 @@ public:
         // rest of the outer content to the wrong target.
         m_canvasStack.push_back(id);
         // Open the range now so a clear-only frame still clears at replay.
+        if (m_activeRouted && m_activeTarget == id)
+        {
+            closeActiveRange(); // a new frame never extends an old range
+            m_activeRouted = false;
+        }
         routeTo(id);
+        m_activeStartsFrame = true;
         return recorder.get();
     }
     void endCanvasContent(gpu::RenderCanvas*) override
@@ -621,7 +639,8 @@ private:
         m_segments.push_back({DeferredSegment::Target::canvas,
                               m_activeTarget,
                               m_activeBegin,
-                              streamSize()});
+                              streamSize(),
+                              m_activeStartsFrame});
     }
 
     OreRecorder m_ore;
@@ -637,8 +656,7 @@ private:
     // interleaved canvas frames.
     std::unordered_map<uint64_t, std::unique_ptr<DeferredRenderer>>
         m_canvasRenderers;
-    // First beginFrame's clear color; replay clears only when it opens the
-    // real frame.
+    // Latest beginCanvasContent's clear; a frame's first range records it.
     std::unordered_map<uint64_t, uint32_t> m_canvasClear;
     // Deliberately outlives resetFrame, unlike m_canvasRenderers: FFI hosts
     // take these raw and keep drawing through them frame after frame.
@@ -657,6 +675,7 @@ private:
     bool m_hasOpenScreen = false;
     // Canvas content brackets currently open, innermost last.
     std::vector<uint64_t> m_canvasStack;
+    bool m_activeStartsFrame = false;
     // Render targets attached to this session, and the ones still recording
     // this frame.
     uint64_t m_nextScreenTarget = 0;

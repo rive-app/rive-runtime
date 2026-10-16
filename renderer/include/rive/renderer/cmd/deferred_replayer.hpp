@@ -384,10 +384,11 @@ private:
         // one open frame at a time. Ore passes must run inside the screen
         // frame right after it opens or the ramp upload finds no texture
         // bound.
+        const std::vector<DeferredSegment> live = liveSegments(segments);
         std::vector<const DeferredSegment*> screenSegments;
         std::unordered_map<uint64_t, std::vector<const DeferredSegment*>>
             canvasRanges;
-        for (const DeferredSegment& s : segments)
+        for (const DeferredSegment& s : live)
         {
             if (s.target == DeferredSegment::Target::screen)
             {
@@ -399,7 +400,7 @@ private:
         // Canvas groups replay in dependency order, so a sampler sees this
         // frame's content regardless of record order. Cycles keep record
         // order on the back edge: previous frame sampling, by contract.
-        CanvasSchedule schedule = scheduleCanvases(commands, segments);
+        CanvasSchedule schedule = scheduleCanvases(commands, live);
         if (schedule.hadCycle)
         {
             RIVE_WARN_THROTTLED("rive deferred: canvas sample cycle, the "
