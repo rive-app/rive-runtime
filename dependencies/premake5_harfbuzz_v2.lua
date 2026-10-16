@@ -277,7 +277,7 @@ do
         -- 'HB_NO_PAINT', -- Needed for COLRv1 emoji support
     })
 
-    filter('options:for_unreal')
+    filter('options:for_unreal or _nx_platform')
     do
         defines({ 'HB_NO_PRAGMA_GCC_DIAGNOSTIC_ERROR' })
     end
