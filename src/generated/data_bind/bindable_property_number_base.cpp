@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BindablePropertyNumberBase::clone() const
 {
-    auto cloned = new BindablePropertyNumber();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new BindablePropertyNumber();
+  cloned->copy(*this);
+  return cloned;
 }

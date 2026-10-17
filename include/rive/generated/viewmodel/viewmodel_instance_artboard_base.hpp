@@ -11,56 +11,54 @@ namespace rive
 class ViewModelInstanceArtboardBase : public ViewModelInstanceValue
 {
 protected:
-    typedef ViewModelInstanceValue Super;
+  typedef ViewModelInstanceValue Super;
 
 public:
-    static const uint16_t typeKey = 599;
+  static const uint16_t typeKey = 599;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyValuePropertyKey = 846;
+  static const uint16_t propertyValuePropertyKey = 846;
 
 protected:
-    Id m_PropertyValue = kEmptyId;
+  Id m_PropertyValue = kEmptyId;
 
 public:
-    inline Id propertyValue() const { return m_PropertyValue; }
-    void propertyValue(Id value)
+  inline Id propertyValue() const { return m_PropertyValue; }
+  void propertyValue(Id value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ViewModelInstanceArtboardBase& object)
-    {
-        m_PropertyValue = object.m_PropertyValue;
-        RIVE_EDITOR_COPY(object);
-        ViewModelInstanceValue::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ViewModelInstanceArtboardBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    RIVE_EDITOR_COPY(object);
+    ViewModelInstanceValue::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ViewModelInstanceValue::deserialize(propertyKey, reader);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ViewModelInstanceValue::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/viewmodel_instance_artboard_ext.inl"
 #endif

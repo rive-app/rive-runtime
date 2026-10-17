@@ -5,12 +5,12 @@ namespace rive
 {
 enum class TransitionConditionOp : uint8_t
 {
-    equal = 0,
-    notEqual = 1,
-    lessThanOrEqual = 2,
-    greaterThanOrEqual = 3,
-    lessThan = 4,
-    greaterThan = 5
+  equal = 0,
+  notEqual = 1,
+  lessThanOrEqual = 2,
+  greaterThanOrEqual = 3,
+  lessThan = 4,
+  greaterThan = 5
 };
 } // namespace rive
 

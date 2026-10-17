@@ -7,112 +7,112 @@ namespace rive
 class CubicDetachedVertexBase : public CubicVertex
 {
 protected:
-    typedef CubicVertex Super;
+  typedef CubicVertex Super;
 
 public:
-    static const uint16_t typeKey = 6;
+  static const uint16_t typeKey = 6;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t inRotationPropertyKey = 84;
-    static const uint16_t inDistancePropertyKey = 85;
-    static const uint16_t outRotationPropertyKey = 86;
-    static const uint16_t outDistancePropertyKey = 87;
+  static const uint16_t inRotationPropertyKey = 84;
+  static const uint16_t inDistancePropertyKey = 85;
+  static const uint16_t outRotationPropertyKey = 86;
+  static const uint16_t outDistancePropertyKey = 87;
 
 protected:
-    float m_InRotation = 0.0f;
-    float m_InDistance = 0.0f;
-    float m_OutRotation = 0.0f;
-    float m_OutDistance = 0.0f;
+  float m_InRotation = 0.0f;
+  float m_InDistance = 0.0f;
+  float m_OutRotation = 0.0f;
+  float m_OutDistance = 0.0f;
 
 public:
-    inline float inRotation() const { return m_InRotation; }
-    void inRotation(float value)
+  inline float inRotation() const { return m_InRotation; }
+  void inRotation(float value)
+  {
+    if (m_InRotation == value)
     {
-        if (m_InRotation == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inRotationPropertyKey, &m_InRotation, &value);
-        m_InRotation = value;
-        RIVE_EDITOR_CHANGED(inRotationChanged());
-        notifyPropertyChanged(inRotationPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inRotationPropertyKey, &m_InRotation, &value);
+    m_InRotation = value;
+    RIVE_EDITOR_CHANGED(inRotationChanged());
+    notifyPropertyChanged(inRotationPropertyKey);
+  }
 
-    inline float inDistance() const { return m_InDistance; }
-    void inDistance(float value)
+  inline float inDistance() const { return m_InDistance; }
+  void inDistance(float value)
+  {
+    if (m_InDistance == value)
     {
-        if (m_InDistance == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inDistancePropertyKey, &m_InDistance, &value);
-        m_InDistance = value;
-        RIVE_EDITOR_CHANGED(inDistanceChanged());
-        notifyPropertyChanged(inDistancePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inDistancePropertyKey, &m_InDistance, &value);
+    m_InDistance = value;
+    RIVE_EDITOR_CHANGED(inDistanceChanged());
+    notifyPropertyChanged(inDistancePropertyKey);
+  }
 
-    inline float outRotation() const { return m_OutRotation; }
-    void outRotation(float value)
+  inline float outRotation() const { return m_OutRotation; }
+  void outRotation(float value)
+  {
+    if (m_OutRotation == value)
     {
-        if (m_OutRotation == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(outRotationPropertyKey, &m_OutRotation, &value);
-        m_OutRotation = value;
-        RIVE_EDITOR_CHANGED(outRotationChanged());
-        notifyPropertyChanged(outRotationPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(outRotationPropertyKey, &m_OutRotation, &value);
+    m_OutRotation = value;
+    RIVE_EDITOR_CHANGED(outRotationChanged());
+    notifyPropertyChanged(outRotationPropertyKey);
+  }
 
-    inline float outDistance() const { return m_OutDistance; }
-    void outDistance(float value)
+  inline float outDistance() const { return m_OutDistance; }
+  void outDistance(float value)
+  {
+    if (m_OutDistance == value)
     {
-        if (m_OutDistance == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(outDistancePropertyKey, &m_OutDistance, &value);
-        m_OutDistance = value;
-        RIVE_EDITOR_CHANGED(outDistanceChanged());
-        notifyPropertyChanged(outDistancePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(outDistancePropertyKey, &m_OutDistance, &value);
+    m_OutDistance = value;
+    RIVE_EDITOR_CHANGED(outDistanceChanged());
+    notifyPropertyChanged(outDistancePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const CubicDetachedVertexBase& object)
-    {
-        m_InRotation = object.m_InRotation;
-        m_InDistance = object.m_InDistance;
-        m_OutRotation = object.m_OutRotation;
-        m_OutDistance = object.m_OutDistance;
-        CubicVertex::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const CubicDetachedVertexBase& object)
+  {
+    m_InRotation = object.m_InRotation;
+    m_InDistance = object.m_InDistance;
+    m_OutRotation = object.m_OutRotation;
+    m_OutDistance = object.m_OutDistance;
+    CubicVertex::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case inRotationPropertyKey:
-                m_InRotation = CoreDoubleType::deserialize(reader);
-                return true;
-            case inDistancePropertyKey:
-                m_InDistance = CoreDoubleType::deserialize(reader);
-                return true;
-            case outRotationPropertyKey:
-                m_OutRotation = CoreDoubleType::deserialize(reader);
-                return true;
-            case outDistancePropertyKey:
-                m_OutDistance = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return CubicVertex::deserialize(propertyKey, reader);
+      case inRotationPropertyKey:
+        m_InRotation = CoreDoubleType::deserialize(reader);
+        return true;
+      case inDistancePropertyKey:
+        m_InDistance = CoreDoubleType::deserialize(reader);
+        return true;
+      case outRotationPropertyKey:
+        m_OutRotation = CoreDoubleType::deserialize(reader);
+        return true;
+      case outDistancePropertyKey:
+        m_OutDistance = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return CubicVertex::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void inRotationChanged() {}
-    virtual void inDistanceChanged() {}
-    virtual void outRotationChanged() {}
-    virtual void outDistanceChanged() {}
+  virtual void inRotationChanged() {}
+  virtual void inDistanceChanged() {}
+  virtual void outRotationChanged() {}
+  virtual void outDistanceChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/cubic_detached_vertex_ext.inl"
 #endif

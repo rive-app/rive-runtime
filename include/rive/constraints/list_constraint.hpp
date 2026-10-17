@@ -8,8 +8,8 @@ class ConstrainableList;
 class ListConstraint
 {
 public:
-    static ListConstraint* from(Component* component);
-    virtual void constrainList(ConstrainableList* child) {}
+  static ListConstraint* from(Component* component);
+  virtual void constrainList(ConstrainableList* child) {}
 };
 } // namespace rive
 

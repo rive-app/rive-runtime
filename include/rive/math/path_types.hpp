@@ -12,33 +12,33 @@ namespace rive
 
 enum class FillRule
 {
-    nonZero,
-    evenOdd,
-    clockwise,
+  nonZero,
+  evenOdd,
+  clockwise,
 };
 
 enum class PathDirection
 {
-    cw,
-    ccw,
-    // aliases
-    clockwise = cw,
-    counterclockwise = ccw,
+  cw,
+  ccw,
+  // aliases
+  clockwise = cw,
+  counterclockwise = ccw,
 };
 
 enum class PathVerb : uint8_t
 {
-    // These deliberately match Skia's values
-    move = 0,
-    line = 1,
-    quad = 2,
-    // conic
-    cubic = 4,
-    close = 5,
+  // These deliberately match Skia's values
+  move = 0,
+  line = 1,
+  quad = 2,
+  // conic
+  cubic = 4,
+  close = 5,
 };
 
-constexpr static size_t PathVerbCount =
-    static_cast<size_t>(PathVerb::close) + 1;
+constexpr static size_t PathVerbCount = static_cast<size_t>(PathVerb::close) +
+                                        1;
 
 int path_verb_to_point_count(PathVerb);
 

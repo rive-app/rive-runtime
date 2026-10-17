@@ -23,30 +23,31 @@ namespace
 class InlineTestSink : public cmd::HostFrameSink
 {
 public:
-    InlineTestSink(bool openScreen = true) :
-        cmd::HostFrameSink(true, 0), m_openScreen(openScreen)
-    {}
+  InlineTestSink(bool openScreen = true)
+      : cmd::HostFrameSink(true, 0)
+      , m_openScreen(openScreen)
+  {}
 
-    SerializingFactory serializingFactory;
+  SerializingFactory serializingFactory;
 
-    gpu::RenderContext* renderContext() override { return nullptr; }
-    Factory* factory() override { return &serializingFactory; }
-    ore::Context* oreContext() override { return nullptr; }
-    Renderer* beginScreen(uint64_t, bool, uint32_t) override
+  gpu::RenderContext* renderContext() override { return nullptr; }
+  Factory* factory() override { return &serializingFactory; }
+  ore::Context* oreContext() override { return nullptr; }
+  Renderer* beginScreen(uint64_t, bool, uint32_t) override
+  {
+    if (!m_openScreen)
     {
-        if (!m_openScreen)
-        {
-            return nullptr;
-        }
-        serializingFactory.frameSize(256, 256);
-        serializingFactory.addFrame();
-        m_screen = serializingFactory.makeRenderer();
-        return m_screen.get();
+      return nullptr;
     }
+    serializingFactory.frameSize(256, 256);
+    serializingFactory.addFrame();
+    m_screen = serializingFactory.makeRenderer();
+    return m_screen.get();
+  }
 
 private:
-    bool m_openScreen;
-    std::unique_ptr<Renderer> m_screen;
+  bool m_openScreen;
+  std::unique_ptr<Renderer> m_screen;
 };
 
 // Opens canvas frames on the null device, the only part of the sink that
@@ -54,211 +55,221 @@ private:
 class CanvasModeSink : public cmd::HostFrameSink
 {
 public:
-    CanvasModeSink() :
-        cmd::HostFrameSink(true, 0), m_rc(RenderContextNULL::MakeContext())
-    {
-        m_useExternalCommandBuffer = false;
-        m_screenMode.clockwiseFillOverride = true;
-    }
+  CanvasModeSink()
+      : cmd::HostFrameSink(true, 0)
+      , m_rc(RenderContextNULL::MakeContext())
+  {
+    m_useExternalCommandBuffer = false;
+    m_screenMode.clockwiseFillOverride = true;
+  }
 
-    gpu::RenderContext* renderContext() override { return m_rc.get(); }
-    ore::Context* oreContext() override { return nullptr; }
-    Renderer* beginScreen(uint64_t, bool, uint32_t) override { return nullptr; }
+  gpu::RenderContext* renderContext() override { return m_rc.get(); }
+  ore::Context* oreContext() override { return nullptr; }
+  Renderer* beginScreen(uint64_t, bool, uint32_t) override { return nullptr; }
 
 private:
-    std::unique_ptr<gpu::RenderContext> m_rc;
+  std::unique_ptr<gpu::RenderContext> m_rc;
 };
 
 class MSAACanvasSink : public CanvasModeSink
 {
-    FrameMode canvasMode(gpu::RenderCanvas*) override
-    {
-        return {.msaaSampleCount = 4};
-    }
+  FrameMode canvasMode(gpu::RenderCanvas*) override
+  {
+    return {.msaaSampleCount = 4};
+  }
 };
 
 // Records where canvas flushes land: their own command buffer or the host's.
 class FlushSpyImpl : public RenderContextNULL
 {
 public:
-    void* makeCommandBuffer() override
-    {
-        made++;
-        return &m_ownCommandBuffer;
-    }
-    void commitCommandBuffer(void*) override { committed++; }
-    void postFlush(const gpu::RenderContext::FlushResources& fr) override
-    {
-        lastFlush = fr;
-    }
+  void* makeCommandBuffer() override
+  {
+    made++;
+    return &m_ownCommandBuffer;
+  }
+  void commitCommandBuffer(void*) override { committed++; }
+  void postFlush(const gpu::RenderContext::FlushResources& fr) override
+  {
+    lastFlush = fr;
+  }
 
-    int made = 0;
-    int committed = 0;
-    gpu::RenderContext::FlushResources lastFlush;
+  int made = 0;
+  int committed = 0;
+  gpu::RenderContext::FlushResources lastFlush;
 
 private:
-    int m_ownCommandBuffer = 0;
+  int m_ownCommandBuffer = 0;
 };
 
 class FrameCommandBufferSink : public cmd::HostFrameSink
 {
 public:
-    explicit FrameCommandBufferSink(void* frameCommandBuffer) :
-        cmd::HostFrameSink(true, 0), m_frameCommandBuffer(frameCommandBuffer)
-    {
-        auto impl = std::make_unique<FlushSpyImpl>();
-        spy = impl.get();
-        m_rc = std::make_unique<gpu::RenderContext>(std::move(impl));
-    }
+  explicit FrameCommandBufferSink(void* frameCommandBuffer)
+      : cmd::HostFrameSink(true, 0)
+      , m_frameCommandBuffer(frameCommandBuffer)
+  {
+    auto impl = std::make_unique<FlushSpyImpl>();
+    spy = impl.get();
+    m_rc = std::make_unique<gpu::RenderContext>(std::move(impl));
+  }
 
-    gpu::RenderContext* renderContext() override { return m_rc.get(); }
-    ore::Context* oreContext() override { return nullptr; }
-    Renderer* beginScreen(uint64_t, bool, uint32_t) override { return nullptr; }
-    gpu::RenderContext::FlushResources canvasFlushResources() override
+  gpu::RenderContext* renderContext() override { return m_rc.get(); }
+  ore::Context* oreContext() override { return nullptr; }
+  Renderer* beginScreen(uint64_t, bool, uint32_t) override { return nullptr; }
+  gpu::RenderContext::FlushResources canvasFlushResources() override
+  {
+    if (m_frameCommandBuffer == nullptr)
     {
-        if (m_frameCommandBuffer == nullptr)
-        {
-            return {};
-        }
-        return {.externalCommandBuffer = m_frameCommandBuffer,
-                .currentFrameNumber = 7,
-                .safeFrameNumber = 5};
+      return {};
     }
+    return {
+        .externalCommandBuffer = m_frameCommandBuffer,
+        .currentFrameNumber = 7,
+        .safeFrameNumber = 5};
+  }
 
-    FlushSpyImpl* spy;
+  FlushSpyImpl* spy;
 
 private:
-    void* m_frameCommandBuffer;
-    std::unique_ptr<gpu::RenderContext> m_rc;
+  void* m_frameCommandBuffer;
+  std::unique_ptr<gpu::RenderContext> m_rc;
 };
 } // namespace
 
-TEST_CASE("a frame that never opened neither replays nor presents",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a frame that never opened neither replays nor presents",
+    "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(rive::ore::ReplayCaps{});
-    cmd::DeferredInlineHost host;
-    host.bindSession(&session);
+  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  cmd::DeferredInlineHost host;
+  host.bindSession(&session);
 
-    InlineTestSink sink;
-    int presents = 0;
-    CHECK(!host.replayInline(sink, [&] { presents++; }));
-    CHECK(presents == 0);
-    CHECK(!sink.began());
+  InlineTestSink sink;
+  int presents = 0;
+  CHECK(!host.replayInline(sink, [&] { presents++; }));
+  CHECK(presents == 0);
+  CHECK(!sink.began());
 }
 
-TEST_CASE("a marker only frame consumes the marker without presenting",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a marker only frame consumes the marker without presenting",
+    "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(rive::ore::ReplayCaps{});
-    cmd::DeferredInlineHost host;
-    host.bindSession(&session);
-    host.beginRecord(true, 0xff112233);
+  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  cmd::DeferredInlineHost host;
+  host.bindSession(&session);
+  host.beginRecord(true, 0xff112233);
 
-    // No draws and no ore content: the replay has no screen segment to open,
-    // so the last presented frame stays up.
-    InlineTestSink sink;
-    int presents = 0;
-    CHECK(host.replayInline(sink, [&] { presents++; }));
-    CHECK(presents == 0);
-    CHECK(!sink.began());
-    CHECK(!session.recordedThisFrame());
+  // No draws and no ore content: the replay has no screen segment to open,
+  // so the last presented frame stays up.
+  InlineTestSink sink;
+  int presents = 0;
+  CHECK(host.replayInline(sink, [&] { presents++; }));
+  CHECK(presents == 0);
+  CHECK(!sink.began());
+  CHECK(!session.recordedThisFrame());
 }
 
-TEST_CASE("a recorded frame replays once and resets the session",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a recorded frame replays once and resets the session",
+    "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(rive::ore::ReplayCaps{});
-    cmd::DeferredInlineHost host;
-    host.bindSession(&session);
+  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  cmd::DeferredInlineHost host;
+  host.bindSession(&session);
 
-    host.beginRecord(true, 0);
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    host.screenRenderer()->drawPath(path.get(), paint.get());
+  host.beginRecord(true, 0);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  host.screenRenderer()->drawPath(path.get(), paint.get());
 
-    InlineTestSink sink;
-    int presents = 0;
-    CHECK(host.replayInline(sink, [&] { presents++; }));
-    CHECK(presents == 1);
-    CHECK(sink.began());
-    CHECK(!session.recordedThisFrame());
+  InlineTestSink sink;
+  int presents = 0;
+  CHECK(host.replayInline(sink, [&] { presents++; }));
+  CHECK(presents == 1);
+  CHECK(sink.began());
+  CHECK(!session.recordedThisFrame());
 
-    // Nothing new recorded, so the next flush keeps the last frame up.
-    InlineTestSink secondSink;
-    CHECK(!host.replayInline(secondSink, [&] { presents++; }));
-    CHECK(presents == 1);
+  // Nothing new recorded, so the next flush keeps the last frame up.
+  InlineTestSink secondSink;
+  CHECK(!host.replayInline(secondSink, [&] { presents++; }));
+  CHECK(presents == 1);
 }
 
-TEST_CASE("present is skipped when the screen never opens",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "present is skipped when the screen never opens",
+    "[cmd][inline_host]")
 {
-    cmd::DeferredSession session(rive::ore::ReplayCaps{});
-    cmd::DeferredInlineHost host;
-    host.bindSession(&session);
+  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  cmd::DeferredInlineHost host;
+  host.bindSession(&session);
 
-    host.beginRecord(true, 0);
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    host.screenRenderer()->drawPath(path.get(), paint.get());
+  host.beginRecord(true, 0);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  host.screenRenderer()->drawPath(path.get(), paint.get());
 
-    InlineTestSink sink(/*openScreen=*/false);
-    int presents = 0;
-    CHECK(host.replayInline(sink, [&] { presents++; }));
-    CHECK(presents == 0);
-    CHECK(!sink.began());
+  InlineTestSink sink(/*openScreen=*/false);
+  int presents = 0;
+  CHECK(host.replayInline(sink, [&] { presents++; }));
+  CHECK(presents == 0);
+  CHECK(!sink.began());
 }
 
 TEST_CASE("a canvas frame opens in the screen's mode", "[cmd][inline_host]")
 {
-    CanvasModeSink sink;
-    gpu::RenderContext* rc = sink.renderContext();
-    auto canvas = rc->makeDeferredRenderCanvas(64, 64);
-    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
-    CHECK(rc->frameDescriptor().clockwiseFillOverride);
-    CHECK(rc->frameDescriptor().msaaSampleCount == 0);
-    CHECK(rc->frameInterlockMode() == gpu::InterlockMode::clockwise);
-    sink.endCanvasContent();
+  CanvasModeSink sink;
+  gpu::RenderContext* rc = sink.renderContext();
+  auto canvas = rc->makeDeferredRenderCanvas(64, 64);
+  CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+  CHECK(rc->frameDescriptor().clockwiseFillOverride);
+  CHECK(rc->frameDescriptor().msaaSampleCount == 0);
+  CHECK(rc->frameInterlockMode() == gpu::InterlockMode::clockwise);
+  sink.endCanvasContent();
 }
 
-TEST_CASE("a sink can open a canvas frame in its own mode",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a sink can open a canvas frame in its own mode",
+    "[cmd][inline_host]")
 {
-    MSAACanvasSink sink;
-    gpu::RenderContext* rc = sink.renderContext();
-    auto canvas = rc->makeDeferredRenderCanvas(64, 64);
-    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
-    CHECK(!rc->frameDescriptor().clockwiseFillOverride);
-    CHECK(rc->frameDescriptor().msaaSampleCount == 4);
-    CHECK(rc->frameInterlockMode() == gpu::InterlockMode::depthStencil);
-    sink.endCanvasContent();
+  MSAACanvasSink sink;
+  gpu::RenderContext* rc = sink.renderContext();
+  auto canvas = rc->makeDeferredRenderCanvas(64, 64);
+  CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+  CHECK(!rc->frameDescriptor().clockwiseFillOverride);
+  CHECK(rc->frameDescriptor().msaaSampleCount == 4);
+  CHECK(rc->frameInterlockMode() == gpu::InterlockMode::depthStencil);
+  sink.endCanvasContent();
 }
 
-TEST_CASE("a canvas records into the host's open frame command buffer",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a canvas records into the host's open frame command buffer",
+    "[cmd][inline_host]")
 {
-    int frameCommandBuffer = 0;
-    FrameCommandBufferSink sink(&frameCommandBuffer);
-    auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
-    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
-    sink.endCanvasContent();
-    CHECK(sink.spy->made == 0);
-    CHECK(sink.spy->committed == 0);
-    CHECK(sink.spy->lastFlush.externalCommandBuffer == &frameCommandBuffer);
-    CHECK(sink.spy->lastFlush.currentFrameNumber == 7);
-    CHECK(sink.spy->lastFlush.safeFrameNumber == 5);
+  int frameCommandBuffer = 0;
+  FrameCommandBufferSink sink(&frameCommandBuffer);
+  auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
+  CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+  sink.endCanvasContent();
+  CHECK(sink.spy->made == 0);
+  CHECK(sink.spy->committed == 0);
+  CHECK(sink.spy->lastFlush.externalCommandBuffer == &frameCommandBuffer);
+  CHECK(sink.spy->lastFlush.currentFrameNumber == 7);
+  CHECK(sink.spy->lastFlush.safeFrameNumber == 5);
 }
 
-TEST_CASE("a canvas submits its own command buffer when the host has none",
-          "[cmd][inline_host]")
+TEST_CASE(
+    "a canvas submits its own command buffer when the host has none",
+    "[cmd][inline_host]")
 {
-    FrameCommandBufferSink sink(nullptr);
-    auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
-    CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
-    sink.endCanvasContent();
-    CHECK(sink.spy->made == 1);
-    CHECK(sink.spy->committed == 1);
-    CHECK(sink.spy->lastFlush.externalCommandBuffer != nullptr);
+  FrameCommandBufferSink sink(nullptr);
+  auto canvas = sink.renderContext()->makeDeferredRenderCanvas(64, 64);
+  CHECK(sink.beginCanvasContent(canvas.get(), 0) != nullptr);
+  sink.endCanvasContent();
+  CHECK(sink.spy->made == 1);
+  CHECK(sink.spy->committed == 1);
+  CHECK(sink.spy->lastFlush.externalCommandBuffer != nullptr);
 }
 
 #endif // RIVE_CANVAS && RIVE_ORE

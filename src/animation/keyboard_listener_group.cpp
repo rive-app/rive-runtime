@@ -12,171 +12,169 @@ using namespace rive;
 KeyboardListenerGroup::KeyboardListenerGroup(
     FocusData* focusData,
     const StateMachineListener* listener,
-    StateMachineInstance* stateMachineInstance) :
-    m_focusData(focusData),
-    m_listener(listener),
-    m_stateMachineInstance(stateMachineInstance)
+    StateMachineInstance* stateMachineInstance)
+    : m_focusData(focusData)
+    , m_listener(listener)
+    , m_stateMachineInstance(stateMachineInstance)
 {
-    // Register ourselves as a listener on the FocusData
-    if (m_listener)
+  // Register ourselves as a listener on the FocusData
+  if (m_listener)
+  {
+    if (m_listener->hasListener(ListenerType::keyboard))
     {
-        if (m_listener->hasListener(ListenerType::keyboard))
-        {
-            m_focusData->addKeyboardListener(this);
-        }
-        if (m_listener->hasListener(ListenerType::textInput))
-        {
-            m_focusData->addTextInputListener(this);
-        }
+      m_focusData->addKeyboardListener(this);
     }
-    else
+    if (m_listener->hasListener(ListenerType::textInput))
     {
-        if (m_focusData && m_focusData->parent())
-        {
-            auto parent = m_focusData->parent();
-            if (parent->is<ScriptedDrawable>())
-            {
-                auto scriptedObject = ScriptedObject::from(parent);
-                if (scriptedObject->wantsKeyboardInput())
-                {
-
-                    m_focusData->addKeyboardListener(this);
-                }
-                if (scriptedObject->wantsTextInput())
-                {
-
-                    m_focusData->addTextInputListener(this);
-                }
-            }
-        }
+      m_focusData->addTextInputListener(this);
     }
+  }
+  else
+  {
+    if (m_focusData && m_focusData->parent())
+    {
+      auto parent = m_focusData->parent();
+      if (parent->is<ScriptedDrawable>())
+      {
+        auto scriptedObject = ScriptedObject::from(parent);
+        if (scriptedObject->wantsKeyboardInput())
+        {
+
+          m_focusData->addKeyboardListener(this);
+        }
+        if (scriptedObject->wantsTextInput())
+        {
+
+          m_focusData->addTextInputListener(this);
+        }
+      }
+    }
+  }
 }
 
 KeyboardListenerGroup::~KeyboardListenerGroup()
 {
-    if (m_listener)
+  if (m_listener)
+  {
+
+    if (m_listener->hasListener(ListenerType::keyboard))
     {
-
-        if (m_listener->hasListener(ListenerType::keyboard))
-        {
-            m_focusData->removeKeyboardListener(this);
-        }
-        if (m_listener->hasListener(ListenerType::textInput))
-        {
-            m_focusData->removeTextInputListener(this);
-        }
+      m_focusData->removeKeyboardListener(this);
     }
-    else
+    if (m_listener->hasListener(ListenerType::textInput))
     {
-        if (m_focusData && m_focusData->parent())
-        {
-            auto parent = m_focusData->parent();
-            if (parent->is<ScriptedDrawable>())
-            {
-                auto scriptedObject = ScriptedObject::from(parent);
-                if (scriptedObject->wantsKeyboardInput())
-                {
-
-                    m_focusData->removeKeyboardListener(this);
-                }
-                if (scriptedObject->wantsTextInput())
-                {
-
-                    m_focusData->removeTextInputListener(this);
-                }
-            }
-        }
+      m_focusData->removeTextInputListener(this);
     }
-}
-
-bool KeyboardListenerGroup::keyInput(Key key,
-                                     KeyModifiers modifiers,
-                                     bool isPressed,
-                                     bool isRepeat)
-{
-    // Special case for text inputs.
-    // TODO: @hernan consider moving it into a special internal TextInput
-    // listener action.
+  }
+  else
+  {
     if (m_focusData && m_focusData->parent())
     {
-
-        auto parent = m_focusData->parent();
-        if (parent->is<TextInput>())
+      auto parent = m_focusData->parent();
+      if (parent->is<ScriptedDrawable>())
+      {
+        auto scriptedObject = ScriptedObject::from(parent);
+        if (scriptedObject->wantsKeyboardInput())
         {
-            return parent->as<TextInput>()->keyInput(key,
-                                                     modifiers,
-                                                     isPressed,
-                                                     isRepeat);
-        }
-#ifdef WITH_RIVE_SCRIPTING
-        else if (parent->is<ScriptedDrawable>() && !listener())
-        {
-            auto scriptedObject = ScriptedObject::from(parent);
-            if (scriptedObject->wantsKeyboardInput())
-            {
 
-                return parent->as<ScriptedDrawable>()->keyInput(key,
-                                                                modifiers,
-                                                                isPressed,
-                                                                isRepeat);
-            }
+          m_focusData->removeKeyboardListener(this);
         }
-#endif
+        if (scriptedObject->wantsTextInput())
+        {
+
+          m_focusData->removeTextInputListener(this);
+        }
+      }
     }
-    if (listener())
+  }
+}
+
+bool KeyboardListenerGroup::keyInput(
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
+{
+  // Special case for text inputs.
+  // TODO: @hernan consider moving it into a special internal TextInput
+  // listener action.
+  if (m_focusData && m_focusData->parent())
+  {
+
+    auto parent = m_focusData->parent();
+    if (parent->is<TextInput>())
     {
-        if (!ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(
-                listener(),
-                key,
-                modifiers,
-                isPressed,
-                isRepeat))
-        {
-            return false;
-        }
-        listener()->performChanges(
-            m_stateMachineInstance,
-            ListenerInvocation::keyboard(key, modifiers, isPressed, isRepeat));
-        // The listener asked for this exact key and its changes have run, so
-        // the keystroke is spent: FocusManager::keyInput stops bubbling to
-        // ancestors, and the host learns the scene consumed it rather than
-        // also firing whatever the key means to the application around it.
-        // Peers on the same FocusData still see it -- FocusData::keyInput
-        // offers the key to all of them and only reports the claim upward.
-        return true;
+      return parent->as<TextInput>()
+          ->keyInput(key, modifiers, isPressed, isRepeat);
     }
-    return false;
+#ifdef WITH_RIVE_SCRIPTING
+    else if (parent->is<ScriptedDrawable>() && !listener())
+    {
+      auto scriptedObject = ScriptedObject::from(parent);
+      if (scriptedObject->wantsKeyboardInput())
+      {
+
+        return parent->as<ScriptedDrawable>()
+            ->keyInput(key, modifiers, isPressed, isRepeat);
+      }
+    }
+#endif
+  }
+  if (listener())
+  {
+    if (!ListenerInputTypeKeyboard::keyboardListenerConstraintsMet(
+            listener(),
+            key,
+            modifiers,
+            isPressed,
+            isRepeat))
+    {
+      return false;
+    }
+    listener()->performChanges(
+        m_stateMachineInstance,
+        ListenerInvocation::keyboard(key, modifiers, isPressed, isRepeat));
+    // The listener asked for this exact key and its changes have run, so
+    // the keystroke is spent: FocusManager::keyInput stops bubbling to
+    // ancestors, and the host learns the scene consumed it rather than
+    // also firing whatever the key means to the application around it.
+    // Peers on the same FocusData still see it -- FocusData::keyInput
+    // offers the key to all of them and only reports the claim upward.
+    return true;
+  }
+  return false;
 }
 
 bool KeyboardListenerGroup::textInput(const std::string& text)
 {
 
-    // Special case for text inputs.
-    // TODO: @hernan consider moving it into a special internal TextInput
-    // listener action.
-    if (m_focusData && m_focusData->parent())
-    {
+  // Special case for text inputs.
+  // TODO: @hernan consider moving it into a special internal TextInput
+  // listener action.
+  if (m_focusData && m_focusData->parent())
+  {
 
-        auto parent = m_focusData->parent();
-        if (parent->is<TextInput>())
-        {
-            return parent->as<TextInput>()->textInput(text);
-        }
-#ifdef WITH_RIVE_SCRIPTING
-        else if (parent->is<ScriptedDrawable>() && !listener())
-        {
-            auto scriptedObject = ScriptedObject::from(parent);
-            if (scriptedObject->wantsTextInput())
-            {
-                return parent->as<ScriptedDrawable>()->textInput(text);
-            }
-        }
-#endif
-    }
-    if (listener())
+    auto parent = m_focusData->parent();
+    if (parent->is<TextInput>())
     {
-        listener()->performChanges(m_stateMachineInstance,
-                                   ListenerInvocation::textInput(text));
+      return parent->as<TextInput>()->textInput(text);
     }
-    return false;
+#ifdef WITH_RIVE_SCRIPTING
+    else if (parent->is<ScriptedDrawable>() && !listener())
+    {
+      auto scriptedObject = ScriptedObject::from(parent);
+      if (scriptedObject->wantsTextInput())
+      {
+        return parent->as<ScriptedDrawable>()->textInput(text);
+      }
+    }
+#endif
+  }
+  if (listener())
+  {
+    listener()->performChanges(
+        m_stateMachineInstance,
+        ListenerInvocation::textInput(text));
+  }
+  return false;
 }

@@ -19,71 +19,72 @@
 
 using namespace rive;
 
-TEST_CASE("ListenerAction::parentKind decodes flags bits 1-2",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::parentKind decodes flags bits 1-2",
+    "[listener_action_flags]")
 {
-    ListenerBoolChange action;
+  ListenerBoolChange action;
 
-    // Bits 1-2 = 0 -> Listener (also the default for pre-flag files).
-    action.flags(0u);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
+  // Bits 1-2 = 0 -> Listener (also the default for pre-flag files).
+  action.flags(0u);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
 
-    // Bits 1-2 = 1 -> Transition.
-    action.flags(1u << 1);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::Transition);
+  // Bits 1-2 = 1 -> Transition.
+  action.flags(1u << 1);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::Transition);
 
-    // Bits 1-2 = 2 -> State.
-    action.flags(2u << 1);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::State);
+  // Bits 1-2 = 2 -> State.
+  action.flags(2u << 1);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::State);
 
-    // Bits 1-2 = 3 is reserved; the getter clamps back to the Listener
-    // default so unexpected values don't misroute at import time.
-    action.flags(3u << 1);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
+  // Bits 1-2 = 3 is reserved; the getter clamps back to the Listener
+  // default so unexpected values don't misroute at import time.
+  action.flags(3u << 1);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
 }
 
-TEST_CASE("ListenerAction flag fields are independent",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction flag fields are independent",
+    "[listener_action_flags]")
 {
-    ListenerBoolChange action;
+  ListenerBoolChange action;
 
-    // Setting bit 0 alone (onExit) must leave parentKind at its default.
-    action.flags(1u);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
-    CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
-    CHECK_FALSE(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
+  // Setting bit 0 alone (onExit) must leave parentKind at its default.
+  action.flags(1u);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::Listener);
+  CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
+  CHECK_FALSE(
+      action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
 
-    // Setting only bits 1-2 (parentKind=State) must leave the occurance
-    // bit as atStart.
-    action.flags(2u << 1);
-    CHECK(action.parentKind() == ListenerAction::ParentKind::State);
-    CHECK(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
-    CHECK_FALSE(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
+  // Setting only bits 1-2 (parentKind=State) must leave the occurance
+  // bit as atStart.
+  action.flags(2u << 1);
+  CHECK(action.parentKind() == ListenerAction::ParentKind::State);
+  CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
+  CHECK_FALSE(
+      action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
 
-    // Both fields set together must decode independently.
-    action.flags(1u | (1u << 1)); // onExit + Transition
-    CHECK(action.parentKind() == ListenerAction::ParentKind::Transition);
-    CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
+  // Both fields set together must decode independently.
+  action.flags(1u | (1u << 1)); // onExit + Transition
+  CHECK(action.parentKind() == ListenerAction::ParentKind::Transition);
+  CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
 }
 
-TEST_CASE("ListenerAction::matchesScheduledOccurrence covers both phases",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::matchesScheduledOccurrence covers both phases",
+    "[listener_action_flags]")
 {
-    ListenerBoolChange action;
+  ListenerBoolChange action;
 
-    action.flags(0u);
-    CHECK(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
-    CHECK_FALSE(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
+  action.flags(0u);
+  CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
+  CHECK_FALSE(
+      action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
 
-    action.flags(1u);
-    CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
-    CHECK_FALSE(
-        action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
+  action.flags(1u);
+  CHECK(action.matchesScheduledOccurrence(StateMachineFireOccurance::atEnd));
+  CHECK_FALSE(
+      action.matchesScheduledOccurrence(StateMachineFireOccurance::atStart));
 }
 
 namespace
@@ -95,95 +96,102 @@ namespace
 // import() which branch to take.
 struct RoutingFixture
 {
-    StateMachineListenerSingle listener;
-    StateTransition transition;
-    AnimationState state;
-    ImportStack stack;
+  StateMachineListenerSingle listener;
+  StateTransition transition;
+  AnimationState state;
+  ImportStack stack;
 
-    RoutingFixture()
-    {
-        stack.makeLatest(StateMachineListenerBase::typeKey,
-                         std::unique_ptr<ImportStackObject>(
-                             new StateMachineListenerImporter(&listener)));
-        stack.makeLatest(
-            StateMachineLayerComponentBase::typeKey,
-            std::unique_ptr<ImportStackObject>(
-                new StateMachineLayerComponentImporter(&transition)));
-    }
+  RoutingFixture()
+  {
+    stack.makeLatest(
+        StateMachineListenerBase::typeKey,
+        std::unique_ptr<ImportStackObject>(
+            new StateMachineListenerImporter(&listener)));
+    stack.makeLatest(
+        StateMachineLayerComponentBase::typeKey,
+        std::unique_ptr<ImportStackObject>(
+            new StateMachineLayerComponentImporter(&transition)));
+  }
 };
 
 uint32_t parentKindFlags(ListenerAction::ParentKind kind)
 {
-    return static_cast<uint32_t>(kind) << 1;
+  return static_cast<uint32_t>(kind) << 1;
 }
 } // namespace
 
-TEST_CASE("ListenerAction::import routes Transition parent to layer importer "
-          "even when a listener importer is also on the stack",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::import routes Transition parent to layer importer "
+    "even when a listener importer is also on the stack",
+    "[listener_action_flags]")
 {
-    RoutingFixture f;
-    auto* action = new ListenerFireEvent();
-    action->flags(parentKindFlags(ListenerAction::ParentKind::Transition));
+  RoutingFixture f;
+  auto* action = new ListenerFireEvent();
+  action->flags(parentKindFlags(ListenerAction::ParentKind::Transition));
 
-    REQUIRE(action->import(f.stack) == StatusCode::Ok);
+  REQUIRE(action->import(f.stack) == StatusCode::Ok);
 
-    CHECK(f.transition.listenerActions().size() == 1);
-    CHECK(f.transition.listenerActions()[0].get() == action);
-    CHECK(f.listener.actionCount() == 0);
+  CHECK(f.transition.listenerActions().size() == 1);
+  CHECK(f.transition.listenerActions()[0].get() == action);
+  CHECK(f.listener.actionCount() == 0);
 }
 
-TEST_CASE("ListenerAction::import routes State parent to layer importer "
-          "even when a listener importer is also on the stack",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::import routes State parent to layer importer "
+    "even when a listener importer is also on the stack",
+    "[listener_action_flags]")
 {
-    RoutingFixture f;
-    // Swap in a LayerState as the active layer-component importer.
-    f.stack.makeLatest(StateMachineLayerComponentBase::typeKey,
-                       std::unique_ptr<ImportStackObject>(
-                           new StateMachineLayerComponentImporter(&f.state)));
+  RoutingFixture f;
+  // Swap in a LayerState as the active layer-component importer.
+  f.stack.makeLatest(
+      StateMachineLayerComponentBase::typeKey,
+      std::unique_ptr<ImportStackObject>(
+          new StateMachineLayerComponentImporter(&f.state)));
 
-    auto* action = new ListenerFireEvent();
-    action->flags(parentKindFlags(ListenerAction::ParentKind::State));
+  auto* action = new ListenerFireEvent();
+  action->flags(parentKindFlags(ListenerAction::ParentKind::State));
 
-    REQUIRE(action->import(f.stack) == StatusCode::Ok);
+  REQUIRE(action->import(f.stack) == StatusCode::Ok);
 
-    CHECK(f.state.listenerActions().size() == 1);
-    CHECK(f.state.listenerActions()[0].get() == action);
-    CHECK(f.transition.listenerActions().empty());
-    CHECK(f.listener.actionCount() == 0);
+  CHECK(f.state.listenerActions().size() == 1);
+  CHECK(f.state.listenerActions()[0].get() == action);
+  CHECK(f.transition.listenerActions().empty());
+  CHECK(f.listener.actionCount() == 0);
 }
 
-TEST_CASE("ListenerAction::import routes Listener parent to the listener "
-          "importer when both are on the stack",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::import routes Listener parent to the listener "
+    "importer when both are on the stack",
+    "[listener_action_flags]")
 {
-    RoutingFixture f;
-    auto* action = new ListenerFireEvent();
-    action->flags(parentKindFlags(ListenerAction::ParentKind::Listener));
+  RoutingFixture f;
+  auto* action = new ListenerFireEvent();
+  action->flags(parentKindFlags(ListenerAction::ParentKind::Listener));
 
-    REQUIRE(action->import(f.stack) == StatusCode::Ok);
+  REQUIRE(action->import(f.stack) == StatusCode::Ok);
 
-    CHECK(f.listener.actionCount() == 1);
-    CHECK(f.transition.listenerActions().empty());
+  CHECK(f.listener.actionCount() == 1);
+  CHECK(f.transition.listenerActions().empty());
 }
 
-TEST_CASE("ListenerAction::import fails when the Listener parent kind has "
-          "no listener importer on the stack",
-          "[listener_action_flags]")
+TEST_CASE(
+    "ListenerAction::import fails when the Listener parent kind has "
+    "no listener importer on the stack",
+    "[listener_action_flags]")
 {
-    StateTransition transition;
-    ImportStack stack;
-    stack.makeLatest(StateMachineLayerComponentBase::typeKey,
-                     std::unique_ptr<ImportStackObject>(
-                         new StateMachineLayerComponentImporter(&transition)));
+  StateTransition transition;
+  ImportStack stack;
+  stack.makeLatest(
+      StateMachineLayerComponentBase::typeKey,
+      std::unique_ptr<ImportStackObject>(
+          new StateMachineLayerComponentImporter(&transition)));
 
-    // Construct on the heap because import() is expected to take ownership
-    // on success via the addAction(std::unique_ptr<...>) call. On failure
-    // ownership stays here so we can clean up.
-    std::unique_ptr<ListenerFireEvent> action(new ListenerFireEvent());
-    action->flags(0u); // Listener is the default.
+  // Construct on the heap because import() is expected to take ownership
+  // on success via the addAction(std::unique_ptr<...>) call. On failure
+  // ownership stays here so we can clean up.
+  std::unique_ptr<ListenerFireEvent> action(new ListenerFireEvent());
+  action->flags(0u); // Listener is the default.
 
-    REQUIRE(action->import(stack) == StatusCode::MissingObject);
-    CHECK(transition.listenerActions().empty());
+  REQUIRE(action->import(stack) == StatusCode::MissingObject);
+  CHECK(transition.listenerActions().empty());
 }

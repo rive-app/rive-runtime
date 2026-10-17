@@ -11,39 +11,40 @@ namespace rive
 class Feather : public FeatherBase
 {
 public:
-    bool validate(CoreContext* context) override;
-    StatusCode onAddedDirty(CoreContext* context) override;
-    void update(ComponentDirt value) override;
-    TransformSpace space() const { return (TransformSpace)spaceValue(); }
-    void buildDependencies() override;
+  bool validate(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  void update(ComponentDirt value) override;
+  TransformSpace space() const { return (TransformSpace)spaceValue(); }
+  void buildDependencies() override;
 
-    /// Inner feathering only applies to fills; a stroke has no interior to
-    /// fill so it always feathers outward regardless of the stored value.
-    bool isInner() const;
+  /// Inner feathering only applies to fills; a stroke has no interior to
+  /// fill so it always feathers outward regardless of the stored value.
+  bool isInner() const;
 
-    ShapePaintPath* innerPath() { return &m_innerPath; }
-    void rebuildInnerPath(const ShapePaintPath* path,
-                          const Mat2D& shapeTransform,
-                          bool offsetInArtboard);
+  ShapePaintPath* innerPath() { return &m_innerPath; }
+  void rebuildInnerPath(
+      const ShapePaintPath* path,
+      const Mat2D& shapeTransform,
+      bool offsetInArtboard);
 
-    bool effectPathDirty() const { return m_effectPathDirty; }
-    void markEffectPathDirty() { m_effectPathDirty = true; }
+  bool effectPathDirty() const { return m_effectPathDirty; }
+  void markEffectPathDirty() { m_effectPathDirty = true; }
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
 #endif
 
 protected:
-    void strengthChanged() override;
-    void offsetXChanged() override;
-    void offsetYChanged() override;
+  void strengthChanged() override;
+  void offsetXChanged() override;
+  void offsetYChanged() override;
 
 private:
-    ShapePaintPath m_innerPath;
-    bool m_effectPathDirty = true;
+  ShapePaintPath m_innerPath;
+  bool m_effectPathDirty = true;
 #ifdef TESTING
 public:
-    int renderCount = 0;
+  int renderCount = 0;
 #endif
 };
 } // namespace rive

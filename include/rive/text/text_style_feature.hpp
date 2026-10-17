@@ -7,7 +7,7 @@ namespace rive
 class TextStyleFeature : public TextStyleFeatureBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 

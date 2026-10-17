@@ -20,28 +20,28 @@ namespace rive
 class CoreFractionalIndexType
 {
 public:
-    // TOC size class: shares with `CoreUintType` (varuint-like). The
-    // file-format ToC packs only the skip-class, not the semantic
-    // type, so this matches `CoreUintType::id`.
-    static const int id = 0;
+  // TOC size class: shares with `CoreUintType` (varuint-like). The
+  // file-format ToC packs only the skip-class, not the semantic
+  // type, so this matches `CoreUintType::id`.
+  static const int id = 0;
 
-    static FractionalIndex deserialize(BinaryReader& reader)
-    {
-        const int64_t numerator =
-            static_cast<int64_t>(reader.readVarUintAs<uint64_t>());
-        const int64_t denominator =
-            static_cast<int64_t>(reader.readVarUintAs<uint64_t>());
-        return FractionalIndex{numerator, denominator};
-    }
+  static FractionalIndex deserialize(BinaryReader& reader)
+  {
+    const int64_t numerator = static_cast<int64_t>(
+        reader.readVarUintAs<uint64_t>());
+    const int64_t denominator = static_cast<int64_t>(
+        reader.readVarUintAs<uint64_t>());
+    return FractionalIndex{numerator, denominator};
+  }
 
-    // FractionalIndex is `runtime: false`, so `runtimeDeserialize` is
-    // never reached from `.riv` import. Provided for symmetry with
-    // the other field types — the generator references it
-    // unconditionally in `deserialize()` switch arms.
-    static FractionalIndex runtimeDeserialize(BinaryReader& reader)
-    {
-        return deserialize(reader);
-    }
+  // FractionalIndex is `runtime: false`, so `runtimeDeserialize` is
+  // never reached from `.riv` import. Provided for symmetry with
+  // the other field types — the generator references it
+  // unconditionally in `deserialize()` switch arms.
+  static FractionalIndex runtimeDeserialize(BinaryReader& reader)
+  {
+    return deserialize(reader);
+  }
 };
 } // namespace rive
 

@@ -14,13 +14,13 @@ namespace rive
 /// values both sides compile against.
 struct PathEffectPaintWire
 {
-    uint32_t style = 0;
-    uint32_t join = 0;
-    uint32_t cap = 0;
-    uint32_t blendMode = 0;
-    uint32_t color = 0;
-    float thickness = 0;
-    float feather = 0;
+  uint32_t style = 0;
+  uint32_t join = 0;
+  uint32_t cap = 0;
+  uint32_t blendMode = 0;
+  uint32_t color = 0;
+  float thickness = 0;
+  float feather = 0;
 };
 
 } // namespace rive

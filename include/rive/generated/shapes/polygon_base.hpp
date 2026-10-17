@@ -8,72 +8,72 @@ namespace rive
 class PolygonBase : public ParametricPath
 {
 protected:
-    typedef ParametricPath Super;
+  typedef ParametricPath Super;
 
 public:
-    static const uint16_t typeKey = 51;
+  static const uint16_t typeKey = 51;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t pointsPropertyKey = 125;
-    static const uint16_t cornerRadiusPropertyKey = 126;
+  static const uint16_t pointsPropertyKey = 125;
+  static const uint16_t cornerRadiusPropertyKey = 126;
 
 protected:
-    uint32_t m_Points = 5;
-    float m_CornerRadius = 0.0f;
+  uint32_t m_Points = 5;
+  float m_CornerRadius = 0.0f;
 
 public:
-    inline uint32_t points() const { return m_Points; }
-    void points(uint32_t value)
+  inline uint32_t points() const { return m_Points; }
+  void points(uint32_t value)
+  {
+    if (m_Points == value)
     {
-        if (m_Points == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(pointsPropertyKey, &m_Points, &value);
-        m_Points = value;
-        RIVE_EDITOR_CHANGED(pointsChanged());
-        notifyPropertyChanged(pointsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(pointsPropertyKey, &m_Points, &value);
+    m_Points = value;
+    RIVE_EDITOR_CHANGED(pointsChanged());
+    notifyPropertyChanged(pointsPropertyKey);
+  }
 
-    inline float cornerRadius() const { return m_CornerRadius; }
-    void cornerRadius(float value)
+  inline float cornerRadius() const { return m_CornerRadius; }
+  void cornerRadius(float value)
+  {
+    if (m_CornerRadius == value)
     {
-        if (m_CornerRadius == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
-        m_CornerRadius = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusChanged());
-        notifyPropertyChanged(cornerRadiusPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusPropertyKey, &m_CornerRadius, &value);
+    m_CornerRadius = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusChanged());
+    notifyPropertyChanged(cornerRadiusPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const PolygonBase& object)
-    {
-        m_Points = object.m_Points;
-        m_CornerRadius = object.m_CornerRadius;
-        ParametricPath::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const PolygonBase& object)
+  {
+    m_Points = object.m_Points;
+    m_CornerRadius = object.m_CornerRadius;
+    ParametricPath::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case pointsPropertyKey:
-                m_Points = CoreUintType::deserialize(reader);
-                return true;
-            case cornerRadiusPropertyKey:
-                m_CornerRadius = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return ParametricPath::deserialize(propertyKey, reader);
+      case pointsPropertyKey:
+        m_Points = CoreUintType::deserialize(reader);
+        return true;
+      case cornerRadiusPropertyKey:
+        m_CornerRadius = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return ParametricPath::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void pointsChanged() {}
-    virtual void cornerRadiusChanged() {}
+  virtual void pointsChanged() {}
+  virtual void cornerRadiusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/polygon_ext.inl"
 #endif

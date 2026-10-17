@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerTriggerChangeBase::clone() const
 {
-    auto cloned = new ListenerTriggerChange();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerTriggerChange();
+  cloned->copy(*this);
+  return cloned;
 }

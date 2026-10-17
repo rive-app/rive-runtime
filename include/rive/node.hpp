@@ -8,52 +8,52 @@ namespace rive
 class Node : public NodeBase
 {
 private:
-    Mat2D m_LocalTransform = Mat2D();
-    bool m_LocalTransformNeedsRecompute = false;
+  Mat2D m_LocalTransform = Mat2D();
+  bool m_LocalTransformNeedsRecompute = false;
 
-    void computeLocalTransform();
+  void computeLocalTransform();
 
 public:
-    void setComputedLocalX(float value) override {}
-    void setComputedLocalY(float value) override {}
-    void setComputedWorldX(float value) override {}
-    void setComputedWorldY(float value) override {}
-    void setComputedRootX(float value) override {}
-    void setComputedRootY(float value) override {}
-    void setComputedWidth(float value) override {}
-    void setComputedHeight(float value) override {}
+  void setComputedLocalX(float value) override {}
+  void setComputedLocalY(float value) override {}
+  void setComputedWorldX(float value) override {}
+  void setComputedWorldY(float value) override {}
+  void setComputedRootX(float value) override {}
+  void setComputedRootY(float value) override {}
+  void setComputedWidth(float value) override {}
+  void setComputedHeight(float value) override {}
 
-    float computedLocalX() override { return localTransform()[4]; };
-    float computedLocalY() override { return localTransform()[5]; };
-    float computedWorldX() override { return worldTransform()[4]; };
-    float computedWorldY() override { return worldTransform()[5]; };
-    float computedRootX() override;
-    float computedRootY() override;
-    float computedWidth() override { return 0; };
-    float computedHeight() override { return 0; };
+  float computedLocalX() override { return localTransform()[4]; };
+  float computedLocalY() override { return localTransform()[5]; };
+  float computedWorldX() override { return worldTransform()[4]; };
+  float computedWorldY() override { return worldTransform()[5]; };
+  float computedRootX() override;
+  float computedRootY() override;
+  float computedWidth() override { return 0; };
+  float computedHeight() override { return 0; };
 
-    void updateWorldTransform() override
-    {
-        m_LocalTransformNeedsRecompute = true;
-        Super::updateWorldTransform();
-    }
+  void updateWorldTransform() override
+  {
+    m_LocalTransformNeedsRecompute = true;
+    Super::updateWorldTransform();
+  }
 
-    Mat2D localTransform();
+  Mat2D localTransform();
 
 protected:
-    void xChanged() override;
-    void yChanged() override;
-    void computedLocalXChanged() override {}
-    void computedLocalYChanged() override {}
-    void computedWorldXChanged() override {}
-    void computedWorldYChanged() override {}
-    void computedRootXChanged() override {}
-    void computedRootYChanged() override {}
-    void computedWidthChanged() override {}
-    void computedHeightChanged() override {}
+  void xChanged() override;
+  void yChanged() override;
+  void computedLocalXChanged() override {}
+  void computedLocalYChanged() override {}
+  void computedWorldXChanged() override {}
+  void computedWorldYChanged() override {}
+  void computedRootXChanged() override {}
+  void computedRootYChanged() override {}
+  void computedWidthChanged() override {}
+  void computedHeightChanged() override {}
 
 #ifdef WITH_RIVE_LAYOUT
-    void markLayoutNodeDirty();
+  void markLayoutNodeDirty();
 #endif
 };
 } // namespace rive

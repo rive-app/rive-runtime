@@ -8,214 +8,212 @@ namespace rive
 class TextModifierGroupBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 159;
+  static const uint16_t typeKey = 159;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t modifierFlagsPropertyKey = 335;
-    static const uint16_t originXPropertyKey = 328;
-    static const uint16_t originYPropertyKey = 329;
-    static const uint16_t opacityPropertyKey = 324;
-    static const uint16_t xPropertyKey = 322;
-    static const uint16_t yPropertyKey = 323;
-    static const uint16_t rotationPropertyKey = 332;
-    static const uint16_t scaleXPropertyKey = 330;
-    static const uint16_t scaleYPropertyKey = 331;
+  static const uint16_t modifierFlagsPropertyKey = 335;
+  static const uint16_t originXPropertyKey = 328;
+  static const uint16_t originYPropertyKey = 329;
+  static const uint16_t opacityPropertyKey = 324;
+  static const uint16_t xPropertyKey = 322;
+  static const uint16_t yPropertyKey = 323;
+  static const uint16_t rotationPropertyKey = 332;
+  static const uint16_t scaleXPropertyKey = 330;
+  static const uint16_t scaleYPropertyKey = 331;
 
 protected:
-    uint32_t m_ModifierFlags = 0;
-    float m_OriginX = 0.0f;
-    float m_OriginY = 0.0f;
-    float m_Opacity = 1.0f;
-    float m_X = 0.0f;
-    float m_Y = 0.0f;
-    float m_Rotation = 0.0f;
-    float m_ScaleX = 1.0f;
-    float m_ScaleY = 1.0f;
+  uint32_t m_ModifierFlags = 0;
+  float m_OriginX = 0.0f;
+  float m_OriginY = 0.0f;
+  float m_Opacity = 1.0f;
+  float m_X = 0.0f;
+  float m_Y = 0.0f;
+  float m_Rotation = 0.0f;
+  float m_ScaleX = 1.0f;
+  float m_ScaleY = 1.0f;
 
 public:
-    inline uint32_t modifierFlags() const { return m_ModifierFlags; }
-    void modifierFlags(uint32_t value)
+  inline uint32_t modifierFlags() const { return m_ModifierFlags; }
+  void modifierFlags(uint32_t value)
+  {
+    if (m_ModifierFlags == value)
     {
-        if (m_ModifierFlags == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(modifierFlagsPropertyKey,
-                             &m_ModifierFlags,
-                             &value);
-        m_ModifierFlags = value;
-        RIVE_EDITOR_CHANGED(modifierFlagsChanged());
-        notifyPropertyChanged(modifierFlagsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(modifierFlagsPropertyKey, &m_ModifierFlags, &value);
+    m_ModifierFlags = value;
+    RIVE_EDITOR_CHANGED(modifierFlagsChanged());
+    notifyPropertyChanged(modifierFlagsPropertyKey);
+  }
 
-    inline float originX() const { return m_OriginX; }
-    void originX(float value)
+  inline float originX() const { return m_OriginX; }
+  void originX(float value)
+  {
+    if (m_OriginX == value)
     {
-        if (m_OriginX == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
-        m_OriginX = value;
-        RIVE_EDITOR_CHANGED(originXChanged());
-        notifyPropertyChanged(originXPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
+    m_OriginX = value;
+    RIVE_EDITOR_CHANGED(originXChanged());
+    notifyPropertyChanged(originXPropertyKey);
+  }
 
-    inline float originY() const { return m_OriginY; }
-    void originY(float value)
+  inline float originY() const { return m_OriginY; }
+  void originY(float value)
+  {
+    if (m_OriginY == value)
     {
-        if (m_OriginY == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
-        m_OriginY = value;
-        RIVE_EDITOR_CHANGED(originYChanged());
-        notifyPropertyChanged(originYPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
+    m_OriginY = value;
+    RIVE_EDITOR_CHANGED(originYChanged());
+    notifyPropertyChanged(originYPropertyKey);
+  }
 
-    inline float opacity() const { return m_Opacity; }
-    void opacity(float value)
+  inline float opacity() const { return m_Opacity; }
+  void opacity(float value)
+  {
+    if (m_Opacity == value)
     {
-        if (m_Opacity == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
-        m_Opacity = value;
-        RIVE_EDITOR_CHANGED(opacityChanged());
-        notifyPropertyChanged(opacityPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
+    m_Opacity = value;
+    RIVE_EDITOR_CHANGED(opacityChanged());
+    notifyPropertyChanged(opacityPropertyKey);
+  }
 
-    inline float x() const { return m_X; }
-    void x(float value)
+  inline float x() const { return m_X; }
+  void x(float value)
+  {
+    if (m_X == value)
     {
-        if (m_X == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
-        m_X = value;
-        RIVE_EDITOR_CHANGED(xChanged());
-        notifyPropertyChanged(xPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
+    m_X = value;
+    RIVE_EDITOR_CHANGED(xChanged());
+    notifyPropertyChanged(xPropertyKey);
+  }
 
-    inline float y() const { return m_Y; }
-    void y(float value)
+  inline float y() const { return m_Y; }
+  void y(float value)
+  {
+    if (m_Y == value)
     {
-        if (m_Y == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
-        m_Y = value;
-        RIVE_EDITOR_CHANGED(yChanged());
-        notifyPropertyChanged(yPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
+    m_Y = value;
+    RIVE_EDITOR_CHANGED(yChanged());
+    notifyPropertyChanged(yPropertyKey);
+  }
 
-    inline float rotation() const { return m_Rotation; }
-    void rotation(float value)
+  inline float rotation() const { return m_Rotation; }
+  void rotation(float value)
+  {
+    if (m_Rotation == value)
     {
-        if (m_Rotation == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(rotationPropertyKey, &m_Rotation, &value);
-        m_Rotation = value;
-        RIVE_EDITOR_CHANGED(rotationChanged());
-        notifyPropertyChanged(rotationPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(rotationPropertyKey, &m_Rotation, &value);
+    m_Rotation = value;
+    RIVE_EDITOR_CHANGED(rotationChanged());
+    notifyPropertyChanged(rotationPropertyKey);
+  }
 
-    inline float scaleX() const { return m_ScaleX; }
-    void scaleX(float value)
+  inline float scaleX() const { return m_ScaleX; }
+  void scaleX(float value)
+  {
+    if (m_ScaleX == value)
     {
-        if (m_ScaleX == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(scaleXPropertyKey, &m_ScaleX, &value);
-        m_ScaleX = value;
-        RIVE_EDITOR_CHANGED(scaleXChanged());
-        notifyPropertyChanged(scaleXPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(scaleXPropertyKey, &m_ScaleX, &value);
+    m_ScaleX = value;
+    RIVE_EDITOR_CHANGED(scaleXChanged());
+    notifyPropertyChanged(scaleXPropertyKey);
+  }
 
-    inline float scaleY() const { return m_ScaleY; }
-    void scaleY(float value)
+  inline float scaleY() const { return m_ScaleY; }
+  void scaleY(float value)
+  {
+    if (m_ScaleY == value)
     {
-        if (m_ScaleY == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(scaleYPropertyKey, &m_ScaleY, &value);
-        m_ScaleY = value;
-        RIVE_EDITOR_CHANGED(scaleYChanged());
-        notifyPropertyChanged(scaleYPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(scaleYPropertyKey, &m_ScaleY, &value);
+    m_ScaleY = value;
+    RIVE_EDITOR_CHANGED(scaleYChanged());
+    notifyPropertyChanged(scaleYPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextModifierGroupBase& object)
-    {
-        m_ModifierFlags = object.m_ModifierFlags;
-        m_OriginX = object.m_OriginX;
-        m_OriginY = object.m_OriginY;
-        m_Opacity = object.m_Opacity;
-        m_X = object.m_X;
-        m_Y = object.m_Y;
-        m_Rotation = object.m_Rotation;
-        m_ScaleX = object.m_ScaleX;
-        m_ScaleY = object.m_ScaleY;
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextModifierGroupBase& object)
+  {
+    m_ModifierFlags = object.m_ModifierFlags;
+    m_OriginX = object.m_OriginX;
+    m_OriginY = object.m_OriginY;
+    m_Opacity = object.m_Opacity;
+    m_X = object.m_X;
+    m_Y = object.m_Y;
+    m_Rotation = object.m_Rotation;
+    m_ScaleX = object.m_ScaleX;
+    m_ScaleY = object.m_ScaleY;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case modifierFlagsPropertyKey:
-                m_ModifierFlags = CoreUintType::deserialize(reader);
-                return true;
-            case originXPropertyKey:
-                m_OriginX = CoreDoubleType::deserialize(reader);
-                return true;
-            case originYPropertyKey:
-                m_OriginY = CoreDoubleType::deserialize(reader);
-                return true;
-            case opacityPropertyKey:
-                m_Opacity = CoreDoubleType::deserialize(reader);
-                return true;
-            case xPropertyKey:
-                m_X = CoreDoubleType::deserialize(reader);
-                return true;
-            case yPropertyKey:
-                m_Y = CoreDoubleType::deserialize(reader);
-                return true;
-            case rotationPropertyKey:
-                m_Rotation = CoreDoubleType::deserialize(reader);
-                return true;
-            case scaleXPropertyKey:
-                m_ScaleX = CoreDoubleType::deserialize(reader);
-                return true;
-            case scaleYPropertyKey:
-                m_ScaleY = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case modifierFlagsPropertyKey:
+        m_ModifierFlags = CoreUintType::deserialize(reader);
+        return true;
+      case originXPropertyKey:
+        m_OriginX = CoreDoubleType::deserialize(reader);
+        return true;
+      case originYPropertyKey:
+        m_OriginY = CoreDoubleType::deserialize(reader);
+        return true;
+      case opacityPropertyKey:
+        m_Opacity = CoreDoubleType::deserialize(reader);
+        return true;
+      case xPropertyKey:
+        m_X = CoreDoubleType::deserialize(reader);
+        return true;
+      case yPropertyKey:
+        m_Y = CoreDoubleType::deserialize(reader);
+        return true;
+      case rotationPropertyKey:
+        m_Rotation = CoreDoubleType::deserialize(reader);
+        return true;
+      case scaleXPropertyKey:
+        m_ScaleX = CoreDoubleType::deserialize(reader);
+        return true;
+      case scaleYPropertyKey:
+        m_ScaleY = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void modifierFlagsChanged() {}
-    virtual void originXChanged() {}
-    virtual void originYChanged() {}
-    virtual void opacityChanged() {}
-    virtual void xChanged() {}
-    virtual void yChanged() {}
-    virtual void rotationChanged() {}
-    virtual void scaleXChanged() {}
-    virtual void scaleYChanged() {}
+  virtual void modifierFlagsChanged() {}
+  virtual void originXChanged() {}
+  virtual void originYChanged() {}
+  virtual void opacityChanged() {}
+  virtual void xChanged() {}
+  virtual void yChanged() {}
+  virtual void rotationChanged() {}
+  virtual void scaleXChanged() {}
+  virtual void scaleYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_modifier_group_ext.inl"
 #endif

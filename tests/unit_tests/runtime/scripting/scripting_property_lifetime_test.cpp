@@ -37,41 +37,42 @@ end
 
 struct Screen
 {
-    rcp<ViewModel> viewModel;
-    rcp<ViewModelInstance> instance;
-    ViewModelInstanceNumber* counter = nullptr;
-    ViewModelInstanceBoolean* enabled = nullptr;
+  rcp<ViewModel> viewModel;
+  rcp<ViewModelInstance> instance;
+  ViewModelInstanceNumber* counter = nullptr;
+  ViewModelInstanceBoolean* enabled = nullptr;
 };
 
-Screen makeScreen(ViewModelPropertyNumber* counterProperty,
-                  ViewModelPropertyBoolean* enabledProperty,
-                  ViewModel* screenViewModel)
+Screen makeScreen(
+    ViewModelPropertyNumber* counterProperty,
+    ViewModelPropertyBoolean* enabledProperty,
+    ViewModel* screenViewModel)
 {
-    Screen screen;
-    screen.viewModel = ref_rcp(screenViewModel);
-    screen.instance = make_rcp<ViewModelInstance>();
-    screen.instance->viewModel(screenViewModel);
+  Screen screen;
+  screen.viewModel = ref_rcp(screenViewModel);
+  screen.instance = make_rcp<ViewModelInstance>();
+  screen.instance->viewModel(screenViewModel);
 
-    screen.counter = new ViewModelInstanceNumber();
-    screen.counter->viewModelProperty(counterProperty);
-    screen.instance->addValue(screen.counter);
+  screen.counter = new ViewModelInstanceNumber();
+  screen.counter->viewModelProperty(counterProperty);
+  screen.instance->addValue(screen.counter);
 
-    screen.enabled = new ViewModelInstanceBoolean();
-    screen.enabled->viewModelProperty(enabledProperty);
-    screen.instance->addValue(screen.enabled);
+  screen.enabled = new ViewModelInstanceBoolean();
+  screen.enabled->viewModelProperty(enabledProperty);
+  screen.instance->addValue(screen.enabled);
 
-    return screen;
+  return screen;
 }
 
 // Calls bump() and returns the (counter, enabled) pair the script reads back
 // immediately after writing them.
 void callBump(lua_State* L, float* counterOut, bool* enabledOut)
 {
-    lua_getglobal(L, "bump");
-    REQUIRE(lua_pcall(L, 0, 2, 0) == LUA_OK);
-    *counterOut = (float)lua_tonumber(L, -2);
-    *enabledOut = lua_toboolean(L, -1) != 0;
-    lua_pop(L, 2);
+  lua_getglobal(L, "bump");
+  REQUIRE(lua_pcall(L, 0, 2, 0) == LUA_OK);
+  *counterOut = (float)lua_tonumber(L, -2);
+  *enabledOut = lua_toboolean(L, -1) != 0;
+  lua_pop(L, 2);
 }
 } // namespace
 
@@ -81,10 +82,11 @@ void callBump(lua_State* L, float* counterOut, bool* enabledOut)
 // do is rot: the instance they came from stays alive through m_owningInstance,
 // so they keep reading and writing a coherent instance instead of an orphan
 // whose owner was freed underneath them.
-TEST_CASE("a cached property keeps its own view model alive across a swap",
-          "[scripting_property_lifetime]")
+TEST_CASE(
+    "a cached property keeps its own view model alive across a swap",
+    "[scripting_property_lifetime]")
 {
-    ScriptingTest test(R"(
+  ScriptingTest test(R"(
 local cached = {}
 
 function init(screens: ViewModel)
@@ -108,81 +110,85 @@ function reresolve(screens: ViewModel)
   cached.enabled = screen:getBoolean('DelayEnabled')
 end
 )");
-    lua_State* L = test.state();
+  lua_State* L = test.state();
 
-    auto screenViewModel = rcp<ViewModel>(new ViewModel());
-    screenViewModel->name("Screen");
-    auto* counterProperty = new ViewModelPropertyNumber();
-    counterProperty->name("DelayCounter");
-    screenViewModel->addProperty(counterProperty);
-    auto* enabledProperty = new ViewModelPropertyBoolean();
-    enabledProperty->name("DelayEnabled");
-    screenViewModel->addProperty(enabledProperty);
+  auto screenViewModel = rcp<ViewModel>(new ViewModel());
+  screenViewModel->name("Screen");
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("DelayCounter");
+  screenViewModel->addProperty(counterProperty);
+  auto* enabledProperty = new ViewModelPropertyBoolean();
+  enabledProperty->name("DelayEnabled");
+  screenViewModel->addProperty(enabledProperty);
 
-    auto screensViewModel = rcp<ViewModel>(new ViewModel());
-    screensViewModel->name("Screens");
-    auto* screenProperty = new ViewModelPropertyViewModel();
-    screenProperty->name("screen");
-    screensViewModel->addProperty(screenProperty);
+  auto screensViewModel = rcp<ViewModel>(new ViewModel());
+  screensViewModel->name("Screens");
+  auto* screenProperty = new ViewModelPropertyViewModel();
+  screenProperty->name("screen");
+  screensViewModel->addProperty(screenProperty);
 
-    auto screensInstance = make_rcp<ViewModelInstance>();
-    screensInstance->viewModel(screensViewModel.get());
-    auto* screenValue = new ViewModelInstanceViewModel();
-    screenValue->viewModelProperty(screenProperty);
-    screenValue->parentViewModelInstance(screensInstance.get());
-    screensInstance->addValue(screenValue);
+  auto screensInstance = make_rcp<ViewModelInstance>();
+  screensInstance->viewModel(screensViewModel.get());
+  auto* screenValue = new ViewModelInstanceViewModel();
+  screenValue->viewModelProperty(screenProperty);
+  screenValue->parentViewModelInstance(screensInstance.get());
+  screensInstance->addValue(screenValue);
 
-    auto first =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
-    auto second =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
-    screenValue->referenceViewModelInstance(first.instance);
+  auto first = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
+  auto second = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
+  screenValue->referenceViewModelInstance(first.instance);
 
-    // Hold the first screen only through the script, so the swap below is the
-    // last thing releasing it apart from the wrappers themselves.
-    ViewModelInstance* firstRaw = first.instance.get();
-    ViewModelInstanceNumber* firstCounter = first.counter;
+  // Hold the first screen only through the script, so the swap below is the
+  // last thing releasing it apart from the wrappers themselves.
+  ViewModelInstance* firstRaw = first.instance.get();
+  ViewModelInstanceNumber* firstCounter = first.counter;
 
-    auto top = lua_gettop(L);
+  auto top = lua_gettop(L);
 
-    lua_newrive<ScriptedViewModel>(L, L, screensViewModel, screensInstance);
-    int screensWrapperRef = lua_ref(L, -1);
-    lua_pop(L, 1);
+  lua_newrive<ScriptedViewModel>(L, L, screensViewModel, screensInstance);
+  int screensWrapperRef = lua_ref(L, -1);
+  lua_pop(L, 1);
 
-    lua_getglobal(L, "init");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, screensWrapperRef);
-    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_getglobal(L, "init");
+  lua_rawgeti(L, LUA_REGISTRYINDEX, screensWrapperRef);
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    float counter = 0.0f;
-    bool enabled = false;
-    callBump(L, &counter, &enabled);
-    CHECK(firstCounter->propertyValue() == 1.0f);
+  float counter = 0.0f;
+  bool enabled = false;
+  callBump(L, &counter, &enabled);
+  CHECK(firstCounter->propertyValue() == 1.0f);
 
-    screensInstance->replaceViewModelByProperty(screenValue, second.instance);
-    first.instance = nullptr;
-    lua_gc(L, LUA_GCCOLLECT, 0);
+  screensInstance->replaceViewModelByProperty(screenValue, second.instance);
+  first.instance = nullptr;
+  lua_gc(L, LUA_GCCOLLECT, 0);
 
-    // The wrappers still address the screen they were resolved from, and it is
-    // still alive: the write lands and reads back.
-    callBump(L, &counter, &enabled);
-    CHECK(counter == 2.0f);
-    CHECK(enabled);
-    CHECK(firstCounter->propertyValue() == 2.0f);
-    CHECK(firstCounter->viewModelInstance() == firstRaw);
-    // Nothing was rewired onto the swapped-in screen behind the script's back.
-    CHECK(second.counter->propertyValue() == 0.0f);
+  // The wrappers still address the screen they were resolved from, and it is
+  // still alive: the write lands and reads back.
+  callBump(L, &counter, &enabled);
+  CHECK(counter == 2.0f);
+  CHECK(enabled);
+  CHECK(firstCounter->propertyValue() == 2.0f);
+  CHECK(firstCounter->viewModelInstance() == firstRaw);
+  // Nothing was rewired onto the swapped-in screen behind the script's back.
+  CHECK(second.counter->propertyValue() == 0.0f);
 
-    // Resolving again is how a script moves to the new screen.
-    lua_getglobal(L, "reresolve");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, screensWrapperRef);
-    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    callBump(L, &counter, &enabled);
-    CHECK(second.counter->propertyValue() == 1.0f);
-    CHECK(second.enabled->propertyValue());
-    CHECK(firstCounter->propertyValue() == 2.0f);
+  // Resolving again is how a script moves to the new screen.
+  lua_getglobal(L, "reresolve");
+  lua_rawgeti(L, LUA_REGISTRYINDEX, screensWrapperRef);
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  callBump(L, &counter, &enabled);
+  CHECK(second.counter->propertyValue() == 1.0f);
+  CHECK(second.enabled->propertyValue());
+  CHECK(firstCounter->propertyValue() == 2.0f);
 
-    lua_unref(L, screensWrapperRef);
-    CHECK(top == lua_gettop(L));
+  lua_unref(L, screensWrapperRef);
+  CHECK(top == lua_gettop(L));
 }
 
 // Properties a script resolves in init must belong to the scripted object that
@@ -190,10 +196,11 @@ end
 // lifetime to that object's own re-init; an orphan is swept wholesale by
 // File::setScriptingVM, which in the editor fires on every runtime-file
 // regeneration and wipes wrappers that are still in use.
-TEST_CASE("init-time properties belong to the scripted object",
-          "[scripting_property_lifetime]")
+TEST_CASE(
+    "init-time properties belong to the scripted object",
+    "[scripting_property_lifetime]")
 {
-    ScriptingTest test(R"(
+  ScriptingTest test(R"(
 function init(self, context: Context): boolean
   local vm = context:viewModel()
   if vm == nil then
@@ -208,34 +215,37 @@ return function()
   return { init = init, counter = nil, enabled = nil }
 end
 )");
-    lua_State* L = test.state();
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = test.state();
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    auto screenViewModel = rcp<ViewModel>(new ViewModel());
-    screenViewModel->name("Screen");
-    auto* counterProperty = new ViewModelPropertyNumber();
-    counterProperty->name("DelayCounter");
-    screenViewModel->addProperty(counterProperty);
-    auto* enabledProperty = new ViewModelPropertyBoolean();
-    enabledProperty->name("DelayEnabled");
-    screenViewModel->addProperty(enabledProperty);
+  auto screenViewModel = rcp<ViewModel>(new ViewModel());
+  screenViewModel->name("Screen");
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("DelayCounter");
+  screenViewModel->addProperty(counterProperty);
+  auto* enabledProperty = new ViewModelPropertyBoolean();
+  enabledProperty->name("DelayEnabled");
+  screenViewModel->addProperty(enabledProperty);
 
-    auto screen =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
+  auto screen = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
 
-    ScriptedObjectTest object;
-    object.implementedMethods(object.implementedMethods() | (1 << 9));
-    object.dataContext(make_rcp<DataContext>(screen.instance));
+  ScriptedObjectTest object;
+  object.implementedMethods(object.implementedMethods() | (1 << 9));
+  object.dataContext(make_rcp<DataContext>(screen.instance));
 
-    REQUIRE(object.ScriptedObject::ensureScriptInitialized(test.vm(),
-                                                           refTopFunction(L)));
-    REQUIRE(object.ScriptedObject::hydrateScriptInputs());
+  REQUIRE(object.ScriptedObject::ensureScriptInitialized(
+      test.vm(),
+      refTopFunction(L)));
+  REQUIRE(object.ScriptedObject::hydrateScriptInputs());
 
-    CHECK(object.trackedScriptedProperties().size() == 2);
-    for (auto* property : object.trackedScriptedProperties())
-    {
-        CHECK(property->owner() == &object);
-    }
+  CHECK(object.trackedScriptedProperties().size() == 2);
+  for (auto* property : object.trackedScriptedProperties())
+  {
+    CHECK(property->owner() == &object);
+  }
 }
 
 // The editor pcalls a script's init from Dart, so the properties it resolves
@@ -244,60 +254,63 @@ end
 // the untagged sweep on every runtime-file regeneration, which must leave
 // claimed properties alone -- otherwise it wipes wrappers a running script is
 // still holding.
-TEST_CASE("the untagged orphan sweep spares claimed properties",
-          "[scripting_property_lifetime]")
+TEST_CASE(
+    "the untagged orphan sweep spares claimed properties",
+    "[scripting_property_lifetime]")
 {
-    ScriptingTest test(kCachingScript);
-    lua_State* L = test.state();
-    auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
-    REQUIRE(context != nullptr);
+  ScriptingTest test(kCachingScript);
+  lua_State* L = test.state();
+  auto* context = static_cast<ScriptingContext*>(lua_getthreaddata(L));
+  REQUIRE(context != nullptr);
 
-    auto screenViewModel = rcp<ViewModel>(new ViewModel());
-    screenViewModel->name("Screen");
-    auto* counterProperty = new ViewModelPropertyNumber();
-    counterProperty->name("DelayCounter");
-    screenViewModel->addProperty(counterProperty);
-    auto* enabledProperty = new ViewModelPropertyBoolean();
-    enabledProperty->name("DelayEnabled");
-    screenViewModel->addProperty(enabledProperty);
+  auto screenViewModel = rcp<ViewModel>(new ViewModel());
+  screenViewModel->name("Screen");
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("DelayCounter");
+  screenViewModel->addProperty(counterProperty);
+  auto* enabledProperty = new ViewModelPropertyBoolean();
+  enabledProperty->name("DelayEnabled");
+  screenViewModel->addProperty(enabledProperty);
 
-    auto screen =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
+  auto screen = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
 
-    auto top = lua_gettop(L);
+  auto top = lua_gettop(L);
 
-    lua_newrive<ScriptedViewModel>(L, L, screenViewModel, screen.instance);
-    int screenWrapperRef = lua_ref(L, -1);
-    lua_pop(L, 1);
+  lua_newrive<ScriptedViewModel>(L, L, screenViewModel, screen.instance);
+  int screenWrapperRef = lua_ref(L, -1);
+  lua_pop(L, 1);
 
-    // A host claims everything init resolves, the way the editor's Dart
-    // scripted objects do around their init pcall.
-    context->orphanOwnerTag(7);
-    lua_getglobal(L, "init");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, screenWrapperRef);
-    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    context->orphanOwnerTag(0);
+  // A host claims everything init resolves, the way the editor's Dart
+  // scripted objects do around their init pcall.
+  context->orphanOwnerTag(7);
+  lua_getglobal(L, "init");
+  lua_rawgeti(L, LUA_REGISTRYINDEX, screenWrapperRef);
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  context->orphanOwnerTag(0);
 
-    float counter = 0.0f;
-    bool enabled = false;
-    callBump(L, &counter, &enabled);
-    CHECK(counter == 1.0f);
+  float counter = 0.0f;
+  bool enabled = false;
+  callBump(L, &counter, &enabled);
+  CHECK(counter == 1.0f);
 
-    // A File dropping its scripting VM sweeps unclaimed orphans only.
-    context->disposeOrphanScriptedProperties();
+  // A File dropping its scripting VM sweeps unclaimed orphans only.
+  context->disposeOrphanScriptedProperties();
 
-    callBump(L, &counter, &enabled);
-    CHECK(counter == 2.0f);
-    CHECK(enabled);
-    CHECK(screen.counter->propertyValue() == 2.0f);
+  callBump(L, &counter, &enabled);
+  CHECK(counter == 2.0f);
+  CHECK(enabled);
+  CHECK(screen.counter->propertyValue() == 2.0f);
 
-    // The host releasing its tag does dispose them.
-    context->disposeOrphanScriptedProperties(uint32_t{7});
-    callBump(L, &counter, &enabled);
-    CHECK(counter == 0.0f);
+  // The host releasing its tag does dispose them.
+  context->disposeOrphanScriptedProperties(uint32_t{7});
+  callBump(L, &counter, &enabled);
+  CHECK(counter == 0.0f);
 
-    lua_unref(L, screenWrapperRef);
-    CHECK(top == lua_gettop(L));
+  lua_unref(L, screenWrapperRef);
+  CHECK(top == lua_gettop(L));
 }
 
 // The invariant that makes ownership safe: two scripted objects resolving the
@@ -307,10 +320,11 @@ TEST_CASE("the untagged orphan sweep spares claimed properties",
 // wrapper to another, so one object's teardown cannot detach a wrapper another
 // is using. If a shared path is ever introduced, this fails and the
 // first-minter-owns model has to become co-ownership.
-TEST_CASE("scripted objects do not share property wrappers",
-          "[scripting_property_lifetime]")
+TEST_CASE(
+    "scripted objects do not share property wrappers",
+    "[scripting_property_lifetime]")
 {
-    ScriptingTest test(R"(
+  ScriptingTest test(R"(
 function init(self, context: Context): boolean
   local vm = context:viewModel()
   if vm == nil then
@@ -324,52 +338,53 @@ return function()
   return { init = init, counter = nil }
 end
 )");
-    lua_State* L = test.state();
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
-    int generator = refTopFunction(L);
+  lua_State* L = test.state();
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  int generator = refTopFunction(L);
 
-    auto screenViewModel = rcp<ViewModel>(new ViewModel());
-    screenViewModel->name("Screen");
-    auto* counterProperty = new ViewModelPropertyNumber();
-    counterProperty->name("DelayCounter");
-    screenViewModel->addProperty(counterProperty);
-    auto* enabledProperty = new ViewModelPropertyBoolean();
-    enabledProperty->name("DelayEnabled");
-    screenViewModel->addProperty(enabledProperty);
+  auto screenViewModel = rcp<ViewModel>(new ViewModel());
+  screenViewModel->name("Screen");
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("DelayCounter");
+  screenViewModel->addProperty(counterProperty);
+  auto* enabledProperty = new ViewModelPropertyBoolean();
+  enabledProperty->name("DelayEnabled");
+  screenViewModel->addProperty(enabledProperty);
 
-    auto screen =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
-    auto dataContext = make_rcp<DataContext>(screen.instance);
+  auto screen = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
+  auto dataContext = make_rcp<DataContext>(screen.instance);
 
-    auto first = std::make_unique<ScriptedObjectTest>();
-    first->implementedMethods(first->implementedMethods() | (1 << 9));
-    first->dataContext(dataContext);
-    REQUIRE(
-        first->ScriptedObject::ensureScriptInitialized(test.vm(), generator));
-    REQUIRE(first->ScriptedObject::hydrateScriptInputs());
-    REQUIRE(first->trackedScriptedProperties().size() == 1);
-    auto* firstCounter = first->trackedScriptedProperties()[0];
+  auto first = std::make_unique<ScriptedObjectTest>();
+  first->implementedMethods(first->implementedMethods() | (1 << 9));
+  first->dataContext(dataContext);
+  REQUIRE(first->ScriptedObject::ensureScriptInitialized(test.vm(), generator));
+  REQUIRE(first->ScriptedObject::hydrateScriptInputs());
+  REQUIRE(first->trackedScriptedProperties().size() == 1);
+  auto* firstCounter = first->trackedScriptedProperties()[0];
 
-    auto second = std::make_unique<ScriptedObjectTest>();
-    second->implementedMethods(second->implementedMethods() | (1 << 9));
-    second->dataContext(dataContext);
-    REQUIRE(
-        second->ScriptedObject::ensureScriptInitialized(test.vm(), generator));
-    REQUIRE(second->ScriptedObject::hydrateScriptInputs());
-    REQUIRE(second->trackedScriptedProperties().size() == 1);
-    auto* secondCounter = second->trackedScriptedProperties()[0];
+  auto second = std::make_unique<ScriptedObjectTest>();
+  second->implementedMethods(second->implementedMethods() | (1 << 9));
+  second->dataContext(dataContext);
+  REQUIRE(
+      second->ScriptedObject::ensureScriptInitialized(test.vm(), generator));
+  REQUIRE(second->ScriptedObject::hydrateScriptInputs());
+  REQUIRE(second->trackedScriptedProperties().size() == 1);
+  auto* secondCounter = second->trackedScriptedProperties()[0];
 
-    CHECK(firstCounter != secondCounter);
-    CHECK(firstCounter->instanceValue() == secondCounter->instanceValue());
+  CHECK(firstCounter != secondCounter);
+  CHECK(firstCounter->instanceValue() == secondCounter->instanceValue());
 
-    // One session ending leaves the other's wrapper attached and usable.
-    first.reset();
-    CHECK(secondCounter->disposed() == false);
-    REQUIRE(secondCounter->instanceValue() != nullptr);
-    static_cast<ScriptedPropertyNumber*>(secondCounter)->setValue(4.0f);
-    CHECK(screen.counter->propertyValue() == 4.0f);
+  // One session ending leaves the other's wrapper attached and usable.
+  first.reset();
+  CHECK(secondCounter->disposed() == false);
+  REQUIRE(secondCounter->instanceValue() != nullptr);
+  static_cast<ScriptedPropertyNumber*>(secondCounter)->setValue(4.0f);
+  CHECK(screen.counter->propertyValue() == 4.0f);
 
-    lua_unref(L, generator);
+  lua_unref(L, generator);
 }
 
 // A ScriptedViewModel hands back the wrapper it cached for a name, and re-mints
@@ -378,68 +393,71 @@ end
 // so a nested view model property, alone among the property types, came back
 // dead: pushValue answered an empty wrapper, and everything resolved through it
 // resolved against nothing.
-TEST_CASE("a disposed nested view model property is re-minted",
-          "[scripting_property_lifetime]")
+TEST_CASE(
+    "a disposed nested view model property is re-minted",
+    "[scripting_property_lifetime]")
 {
-    ScriptingTest test(R"(
+  ScriptingTest test(R"(
 function resolve(owner: ViewModel)
   return owner:getViewModel('screen')
 end
 )");
-    lua_State* L = test.state();
+  lua_State* L = test.state();
 
-    auto screenViewModel = rcp<ViewModel>(new ViewModel());
-    screenViewModel->name("Screen");
-    auto* counterProperty = new ViewModelPropertyNumber();
-    counterProperty->name("DelayCounter");
-    screenViewModel->addProperty(counterProperty);
-    auto* enabledProperty = new ViewModelPropertyBoolean();
-    enabledProperty->name("DelayEnabled");
-    screenViewModel->addProperty(enabledProperty);
+  auto screenViewModel = rcp<ViewModel>(new ViewModel());
+  screenViewModel->name("Screen");
+  auto* counterProperty = new ViewModelPropertyNumber();
+  counterProperty->name("DelayCounter");
+  screenViewModel->addProperty(counterProperty);
+  auto* enabledProperty = new ViewModelPropertyBoolean();
+  enabledProperty->name("DelayEnabled");
+  screenViewModel->addProperty(enabledProperty);
 
-    auto ownerViewModel = rcp<ViewModel>(new ViewModel());
-    ownerViewModel->name("Screens");
-    auto* screenProperty = new ViewModelPropertyViewModel();
-    screenProperty->name("screen");
-    ownerViewModel->addProperty(screenProperty);
+  auto ownerViewModel = rcp<ViewModel>(new ViewModel());
+  ownerViewModel->name("Screens");
+  auto* screenProperty = new ViewModelPropertyViewModel();
+  screenProperty->name("screen");
+  ownerViewModel->addProperty(screenProperty);
 
-    auto ownerInstance = make_rcp<ViewModelInstance>();
-    ownerInstance->viewModel(ownerViewModel.get());
-    auto* screenValue = new ViewModelInstanceViewModel();
-    screenValue->viewModelProperty(screenProperty);
-    screenValue->parentViewModelInstance(ownerInstance.get());
-    ownerInstance->addValue(screenValue);
+  auto ownerInstance = make_rcp<ViewModelInstance>();
+  ownerInstance->viewModel(ownerViewModel.get());
+  auto* screenValue = new ViewModelInstanceViewModel();
+  screenValue->viewModelProperty(screenProperty);
+  screenValue->parentViewModelInstance(ownerInstance.get());
+  ownerInstance->addValue(screenValue);
 
-    auto screen =
-        makeScreen(counterProperty, enabledProperty, screenViewModel.get());
-    screenValue->referenceViewModelInstance(screen.instance);
+  auto screen = makeScreen(
+      counterProperty,
+      enabledProperty,
+      screenViewModel.get());
+  screenValue->referenceViewModelInstance(screen.instance);
 
-    auto top = lua_gettop(L);
+  auto top = lua_gettop(L);
 
-    lua_newrive<ScriptedViewModel>(L, L, ownerViewModel, ownerInstance);
-    int ownerRef = lua_ref(L, -1);
-    lua_pop(L, 1);
+  lua_newrive<ScriptedViewModel>(L, L, ownerViewModel, ownerInstance);
+  int ownerRef = lua_ref(L, -1);
+  lua_pop(L, 1);
 
-    lua_getglobal(L, "resolve");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ownerRef);
-    REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
-    auto* first = lua_torive<ScriptedPropertyViewModel>(L, -1);
-    REQUIRE(first != nullptr);
-    lua_pop(L, 1);
+  lua_getglobal(L, "resolve");
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ownerRef);
+  REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  auto* first = lua_torive<ScriptedPropertyViewModel>(L, -1);
+  REQUIRE(first != nullptr);
+  lua_pop(L, 1);
 
-    // A sweep takes it while the view model that cached it stays alive.
-    first->dispose();
-    REQUIRE(first->disposed());
+  // A sweep takes it while the view model that cached it stays alive.
+  first->dispose();
+  REQUIRE(first->disposed());
 
-    lua_getglobal(L, "resolve");
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ownerRef);
-    REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
-    auto* second = lua_torive<ScriptedPropertyViewModel>(L, -1);
-    REQUIRE(second != nullptr);
-    CHECK_FALSE(second->disposed());
-    CHECK(second->instanceValue() == screenValue);
-    lua_pop(L, 1);
+  lua_getglobal(L, "resolve");
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ownerRef);
+  REQUIRE(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  auto* second = lua_torive<ScriptedPropertyViewModel>(L, -1);
+  REQUIRE(second != nullptr);
+  CHECK_FALSE(second->disposed());
+  CHECK(second->instanceValue() == screenValue);
+  lua_pop(L, 1);
 
-    lua_unref(L, ownerRef);
-    CHECK(top == lua_gettop(L));
+  lua_unref(L, ownerRef);
+  CHECK(top == lua_gettop(L));
 }

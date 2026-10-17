@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterSystemDegsToRadsBase::clone() const
 {
-    auto cloned = new DataConverterSystemDegsToRads();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterSystemDegsToRads();
+  cloned->copy(*this);
+  return cloned;
 }

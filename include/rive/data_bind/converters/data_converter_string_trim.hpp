@@ -13,34 +13,35 @@ namespace rive
 class DataConverterStringTrim : public DataConverterStringTrimBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::string; };
-    TrimType trimValue() { return (TrimType)trimType(); }
-    void trimTypeChanged() override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::string; };
+  TrimType trimValue() { return (TrimType)trimType(); }
+  void trimTypeChanged() override;
 
 private:
-    DataValueString m_output;
-    inline void ltrim(std::string& s)
-    {
-        s.erase(s.begin(),
-                std::find_if(s.begin(), s.end(), [](unsigned char ch) {
-                    return !std::isspace(ch);
-                }));
-    }
+  DataValueString m_output;
+  inline void ltrim(std::string& s)
+  {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+              return !std::isspace(ch);
+            }));
+  }
 
-    inline void rtrim(std::string& s)
-    {
-        s.erase(std::find_if(s.rbegin(),
-                             s.rend(),
-                             [](unsigned char ch) { return !std::isspace(ch); })
-                    .base(),
-                s.end());
-    }
-    inline void trim(std::string& s)
-    {
-        rtrim(s);
-        ltrim(s);
-    }
+  inline void rtrim(std::string& s)
+  {
+    s.erase(
+        std::find_if(
+            s.rbegin(),
+            s.rend(),
+            [](unsigned char ch) { return !std::isspace(ch); })
+            .base(),
+        s.end());
+  }
+  inline void trim(std::string& s)
+  {
+    rtrim(s);
+    ltrim(s);
+  }
 };
 } // namespace rive
 

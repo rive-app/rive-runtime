@@ -6,14 +6,14 @@ namespace rive
 class ScriptedLayoutBase : public ScriptedDrawable
 {
 protected:
-    typedef ScriptedDrawable Super;
+  typedef ScriptedDrawable Super;
 
 public:
-    static const uint16_t typeKey = 637;
+  static const uint16_t typeKey = 637;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

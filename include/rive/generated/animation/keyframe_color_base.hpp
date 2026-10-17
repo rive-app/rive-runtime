@@ -7,52 +7,52 @@ namespace rive
 class KeyFrameColorBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef InterpolatingKeyFrame Super;
+  typedef InterpolatingKeyFrame Super;
 
 public:
-    static const uint16_t typeKey = 37;
+  static const uint16_t typeKey = 37;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 88;
+  static const uint16_t valuePropertyKey = 88;
 
 protected:
-    int m_Value = 0;
+  int m_Value = 0;
 
 public:
-    inline int value() const { return m_Value; }
-    void value(int value)
+  inline int value() const { return m_Value; }
+  void value(int value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyFrameColorBase& object)
-    {
-        m_Value = object.m_Value;
-        InterpolatingKeyFrame::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyFrameColorBase& object)
+  {
+    m_Value = object.m_Value;
+    InterpolatingKeyFrame::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreColorType::deserialize(reader);
-                return true;
-        }
-        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreColorType::deserialize(reader);
+        return true;
     }
+    return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/keyframe_color_ext.inl"
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FormulaTokenParenthesisCloseBase::clone() const
 {
-    auto cloned = new FormulaTokenParenthesisClose();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FormulaTokenParenthesisClose();
+  cloned->copy(*this);
+  return cloned;
 }

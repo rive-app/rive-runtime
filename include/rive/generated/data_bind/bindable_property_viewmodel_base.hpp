@@ -6,14 +6,14 @@ namespace rive
 class BindablePropertyViewModelBase : public BindablePropertyId
 {
 protected:
-    typedef BindablePropertyId Super;
+  typedef BindablePropertyId Super;
 
 public:
-    static const uint16_t typeKey = 662;
+  static const uint16_t typeKey = 662;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

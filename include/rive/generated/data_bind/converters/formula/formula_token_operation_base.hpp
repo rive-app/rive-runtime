@@ -7,50 +7,48 @@ namespace rive
 class FormulaTokenOperationBase : public FormulaToken
 {
 protected:
-    typedef FormulaToken Super;
+  typedef FormulaToken Super;
 
 public:
-    static const uint16_t typeKey = 541;
+  static const uint16_t typeKey = 541;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t operationTypePropertyKey = 775;
+  static const uint16_t operationTypePropertyKey = 775;
 
 protected:
-    uint32_t m_OperationType = 0;
+  uint32_t m_OperationType = 0;
 
 public:
-    inline uint32_t operationType() const { return m_OperationType; }
-    void operationType(uint32_t value)
+  inline uint32_t operationType() const { return m_OperationType; }
+  void operationType(uint32_t value)
+  {
+    if (m_OperationType == value)
     {
-        if (m_OperationType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(operationTypePropertyKey,
-                             &m_OperationType,
-                             &value);
-        m_OperationType = value;
-        notifyPropertyChanged(operationTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(operationTypePropertyKey, &m_OperationType, &value);
+    m_OperationType = value;
+    notifyPropertyChanged(operationTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const FormulaTokenOperationBase& object)
-    {
-        m_OperationType = object.m_OperationType;
-        FormulaToken::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FormulaTokenOperationBase& object)
+  {
+    m_OperationType = object.m_OperationType;
+    FormulaToken::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case operationTypePropertyKey:
-                m_OperationType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return FormulaToken::deserialize(propertyKey, reader);
+      case operationTypePropertyKey:
+        m_OperationType = CoreUintType::deserialize(reader);
+        return true;
     }
+    return FormulaToken::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

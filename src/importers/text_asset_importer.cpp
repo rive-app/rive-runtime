@@ -33,15 +33,17 @@ const uint8_t g_scriptVerificationPublicKey[32] = {
     222, 254, 70,  53,  212, 18,  191, 143, 101, 108};
 #endif
 
-bool verifiesContentSignature(Span<const uint8_t> signature,
-                              Span<const uint8_t> content)
+bool verifiesContentSignature(
+    Span<const uint8_t> signature,
+    Span<const uint8_t> content)
 {
-    return signature.size() == hydro_sign_BYTES &&
-           hydro_sign_verify(signature.data(),
-                             content.data(),
-                             content.size(),
-                             "RiveCode",
-                             g_scriptVerificationPublicKey) == 0;
+  return signature.size() == hydro_sign_BYTES &&
+         hydro_sign_verify(
+             signature.data(),
+             content.data(),
+             content.size(),
+             "RiveCode",
+             g_scriptVerificationPublicKey) == 0;
 }
 } // namespace rive
 
@@ -49,77 +51,78 @@ TextAssetImporter::TextAssetImporter(
     FileAsset* fileAsset,
     rcp<FileAssetLoader> assetLoader,
     Factory* factory,
-    std::vector<InBandContent>* verificationSet) :
-    FileAssetImporter(fileAsset, assetLoader, factory),
-    m_verificationSet(verificationSet)
+    std::vector<InBandContent>* verificationSet)
+    : FileAssetImporter(fileAsset, assetLoader, factory)
+    , m_verificationSet(verificationSet)
 {}
 
 void TextAssetImporter::onFileAssetContents(
     std::unique_ptr<FileAssetContents> contents)
 {
-    // When contents are found in-band, this asset's raw bytes become part of
-    // the aggregate verification set. Strip the SignedContentHeader first.
-    auto& bytes = contents->bytes();
-    SignedContentHeader header(Span<const uint8_t>(bytes.data(), bytes.size()));
-    if (header.isValid())
-    {
-        auto content = header.content();
-        SimpleArray<uint8_t> rawContent(content.data(), content.size());
-        m_verificationSet->emplace_back(InBandContent(m_fileAsset, rawContent));
-    }
-    FileAssetImporter::onFileAssetContents(std::move(contents));
+  // When contents are found in-band, this asset's raw bytes become part of
+  // the aggregate verification set. Strip the SignedContentHeader first.
+  auto& bytes = contents->bytes();
+  SignedContentHeader header(Span<const uint8_t>(bytes.data(), bytes.size()));
+  if (header.isValid())
+  {
+    auto content = header.content();
+    SimpleArray<uint8_t> rawContent(content.data(), content.size());
+    m_verificationSet->emplace_back(InBandContent(m_fileAsset, rawContent));
+  }
+  FileAssetImporter::onFileAssetContents(std::move(contents));
 }
 
-InBandContent::InBandContent(FileAsset* asset, SimpleArray<uint8_t>& content) :
-    m_asset(asset), m_bytes(SimpleArray<uint8_t>(content))
+InBandContent::InBandContent(FileAsset* asset, SimpleArray<uint8_t>& content)
+    : m_asset(asset)
+    , m_bytes(SimpleArray<uint8_t>(content))
 {}
 
 StatusCode TextAssetImporter::resolve()
 {
-    auto status = FileAssetImporter::resolve();
-    if (status != StatusCode::Ok)
+  auto status = FileAssetImporter::resolve();
+  if (status != StatusCode::Ok)
+  {
+    return status;
+  }
+
+  if (m_content && !m_content->signature().empty())
+  {
+    std::vector<uint8_t> combinedBytecode;
+    // Concatenate every in-band payload captured so far.
+    for (auto& inband : *m_verificationSet)
     {
-        return status;
+      SimpleArray<uint8_t>& bytecode = inband.m_bytes;
+      combinedBytecode.insert(
+          combinedBytecode.end(),
+          bytecode.begin(),
+          bytecode.end());
     }
 
-    if (m_content && !m_content->signature().empty())
+    Span<uint8_t> signature = m_content->signature();
+    if (signature.size() != hydro_sign_BYTES)
     {
-        std::vector<uint8_t> combinedBytecode;
-        // Concatenate every in-band payload captured so far.
-        for (auto& inband : *m_verificationSet)
-        {
-            SimpleArray<uint8_t>& bytecode = inband.m_bytes;
-            combinedBytecode.insert(combinedBytecode.end(),
-                                    bytecode.begin(),
-                                    bytecode.end());
-        }
-
-        Span<uint8_t> signature = m_content->signature();
-        if (signature.size() != hydro_sign_BYTES)
-        {
-            return StatusCode::Ok;
-        }
-        bool isVerified = verifiesContentSignature(
-            signature,
-            Span<const uint8_t>(combinedBytecode.data(),
-                                combinedBytecode.size()));
-
-        // Propagate the aggregate verification result to every participating
-        // asset (Luau bytecode and RSTB blobs alike).
-        for (auto& inband : *m_verificationSet)
-        {
-            inband.m_asset->m_verified = isVerified;
-            // Shaders decoded before their group's signature arrived.
-            if (inband.m_asset->is<ShaderAsset>())
-            {
-                inband.m_asset->as<ShaderAsset>()->admit();
-            }
-        }
-        m_verificationSet->clear();
+      return StatusCode::Ok;
     }
+    bool isVerified = verifiesContentSignature(
+        signature,
+        Span<const uint8_t>(combinedBytecode.data(), combinedBytecode.size()));
 
-    // Note that it's ok for an asset to not resolve (or to resolve async).
-    return StatusCode::Ok;
+    // Propagate the aggregate verification result to every participating
+    // asset (Luau bytecode and RSTB blobs alike).
+    for (auto& inband : *m_verificationSet)
+    {
+      inband.m_asset->m_verified = isVerified;
+      // Shaders decoded before their group's signature arrived.
+      if (inband.m_asset->is<ShaderAsset>())
+      {
+        inband.m_asset->as<ShaderAsset>()->admit();
+      }
+    }
+    m_verificationSet->clear();
+  }
+
+  // Note that it's ok for an asset to not resolve (or to resolve async).
+  return StatusCode::Ok;
 }
 
 #endif

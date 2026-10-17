@@ -13,8 +13,8 @@ namespace
 {
 struct LuaAtomName
 {
-    std::string_view name;
-    int16_t atom;
+  std::string_view name;
+  int16_t atom;
 };
 
 constexpr LuaAtomName atoms[] = {
@@ -397,98 +397,100 @@ constexpr size_t atomCount = std::size(atoms);
 // Power of two so the modulo is a mask, and roomy enough to keep probes short.
 constexpr bool hasAtom(LuaAtoms atom)
 {
-    for (const LuaAtomName& row : atoms)
+  for (const LuaAtomName& row : atoms)
+  {
+    if (row.atom == (int16_t)atom)
     {
-        if (row.atom == (int16_t)atom)
-        {
-            return true;
-        }
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 constexpr bool hasAtomRange(LuaAtoms first, LuaAtoms last)
 {
-    for (int16_t atom = (int16_t)first; atom <= (int16_t)last; atom++)
+  for (int16_t atom = (int16_t)first; atom <= (int16_t)last; atom++)
+  {
+    if (!hasAtom((LuaAtoms)atom))
     {
-        if (!hasAtom((LuaAtoms)atom))
-        {
-            return false;
-        }
+      return false;
     }
-    return true;
+  }
+  return true;
 }
 
 // The text and scroll atoms follow the tools only ones; a guard swallowing
 // them only shows in a runtime build, which the test binaries never are.
-static_assert(hasAtomRange(LuaAtoms::append, LuaAtoms::pointerScroll),
-              "text and scroll atoms must register in every build");
+static_assert(
+    hasAtomRange(LuaAtoms::append, LuaAtoms::pointerScroll),
+    "text and scroll atoms must register in every build");
 
 constexpr size_t atomSlotCount = 1024;
-static_assert(atomCount < atomSlotCount,
-              "atomSlotCount must exceed the number of atoms");
+static_assert(
+    atomCount < atomSlotCount,
+    "atomSlotCount must exceed the number of atoms");
 
 constexpr uint32_t hashAtomName(std::string_view name)
 {
-    uint32_t hash = 2166136261u;
-    for (char c : name)
-    {
-        hash = (hash ^ (uint8_t)c) * 16777619u;
-    }
-    return hash;
+  uint32_t hash = 2166136261u;
+  for (char c : name)
+  {
+    hash = (hash ^ (uint8_t)c) * 16777619u;
+  }
+  return hash;
 }
 
 constexpr size_t longestAtomName()
 {
-    size_t longest = 0;
-    for (const LuaAtomName& entry : atoms)
+  size_t longest = 0;
+  for (const LuaAtomName& entry : atoms)
+  {
+    if (entry.name.size() > longest)
     {
-        if (entry.name.size() > longest)
-        {
-            longest = entry.name.size();
-        }
+      longest = entry.name.size();
     }
-    return longest;
+  }
+  return longest;
 }
 constexpr size_t maxAtomNameLength = longestAtomName();
 
 // Slots hold an index into atoms biased by one so zero reads as empty.
 constexpr std::array<uint16_t, atomSlotCount> buildAtomSlots()
 {
-    std::array<uint16_t, atomSlotCount> slots{};
-    for (size_t i = 0; i < atomCount; i++)
+  std::array<uint16_t, atomSlotCount> slots{};
+  for (size_t i = 0; i < atomCount; i++)
+  {
+    size_t slot = hashAtomName(atoms[i].name) & (atomSlotCount - 1);
+    while (slots[slot] != 0 && atoms[slots[slot] - 1].name != atoms[i].name)
     {
-        size_t slot = hashAtomName(atoms[i].name) & (atomSlotCount - 1);
-        while (slots[slot] != 0 && atoms[slots[slot] - 1].name != atoms[i].name)
-        {
-            slot = (slot + 1) & (atomSlotCount - 1);
-        }
-        if (slots[slot] == 0)
-        {
-            slots[slot] = (uint16_t)(i + 1);
-        }
+      slot = (slot + 1) & (atomSlotCount - 1);
     }
-    return slots;
+    if (slots[slot] == 0)
+    {
+      slots[slot] = (uint16_t)(i + 1);
+    }
+  }
+  return slots;
 }
 constexpr std::array<uint16_t, atomSlotCount> atomSlots = buildAtomSlots();
 
 int16_t findAtom(const char* chars, size_t length)
 {
-    if (length > maxAtomNameLength)
-    {
-        return -1;
-    }
-    std::string_view name(chars, length);
-    size_t slot = hashAtomName(name) & (atomSlotCount - 1);
-    for (uint16_t index = atomSlots[slot]; index != 0;
-         index = atomSlots[slot = (slot + 1) & (atomSlotCount - 1)])
-    {
-        if (atoms[index - 1].name == name)
-        {
-            return atoms[index - 1].atom;
-        }
-    }
+  if (length > maxAtomNameLength)
+  {
     return -1;
+  }
+  std::string_view name(chars, length);
+  size_t slot = hashAtomName(name) & (atomSlotCount - 1);
+  for (uint16_t index = atomSlots[slot]; index != 0;
+       index = atomSlots[slot = (slot + 1) & (atomSlotCount - 1)])
+  {
+    if (atoms[index - 1].name == name)
+    {
+      return atoms[index - 1].atom;
+    }
+  }
+  return -1;
 }
 } // namespace
 
@@ -496,7 +498,7 @@ namespace rive
 {
 int16_t rive_lua_findAtom(const char* chars, size_t length)
 {
-    return findAtom(chars, length);
+  return findAtom(chars, length);
 }
 } // namespace rive
 #endif

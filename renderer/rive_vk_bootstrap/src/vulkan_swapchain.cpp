@@ -18,27 +18,29 @@ std::unique_ptr<VulkanSwapchain> VulkanSwapchain::Create(
     VkSurfaceKHR surface,
     const Options& opts)
 {
-    bool success = true;
+  bool success = true;
 
-    // Private constructor, can't use make_unique
-    auto outSwapchain =
-        std::unique_ptr<VulkanSwapchain>{new VulkanSwapchain(instance,
-                                                             device,
-                                                             std::move(vk),
-                                                             surface,
-                                                             opts,
-                                                             &success)};
-    CONFIRM_OR_RETURN_VALUE(success, nullptr);
-    return outSwapchain;
+  // Private constructor, can't use make_unique
+  auto outSwapchain = std::unique_ptr<VulkanSwapchain>{new VulkanSwapchain(
+      instance,
+      device,
+      std::move(vk),
+      surface,
+      opts,
+      &success)};
+  CONFIRM_OR_RETURN_VALUE(success, nullptr);
+  return outSwapchain;
 }
 
-VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
-                                 VulkanDevice& device,
-                                 rive::rcp<rive::gpu::VulkanContext>&& vk,
-                                 VkSurfaceKHR surface,
-                                 const Options& opts,
-                                 bool* successOut) :
-    Super(instance,
+VulkanSwapchain::VulkanSwapchain(
+    VulkanInstance& instance,
+    VulkanDevice& device,
+    rive::rcp<rive::gpu::VulkanContext>&& vk,
+    VkSurfaceKHR surface,
+    const Options& opts,
+    bool* successOut)
+    : Super(
+          instance,
           device,
           std::move(vk),
           {
@@ -47,161 +49,174 @@ VulkanSwapchain::VulkanSwapchain(VulkanInstance& instance,
           },
           successOut)
 {
-    // Validate parameters before handling the success value from the super
-    // class so that programmer errors get caught sooner
-    assert(opts.formatPreferences.size() > 0 &&
-           "Must request at least one surface format");
-    assert(opts.presentModePreferences.size() > 0 &&
-           "Must request at least one present mode");
+  // Validate parameters before handling the success value from the super
+  // class so that programmer errors get caught sooner
+  assert(
+      opts.formatPreferences.size() > 0 &&
+      "Must request at least one surface format");
+  assert(
+      opts.presentModePreferences.size() > 0 &&
+      "Must request at least one present mode");
 
-    // The super class sets this when it constructs, so check it before
-    // re-setting it to false.
-    if (!*successOut)
-    {
-        return;
-    }
+  // The super class sets this when it constructs, so check it before
+  // re-setting it to false.
+  if (!*successOut)
+  {
+    return;
+  }
 
-    *successOut = false;
+  *successOut = false;
 
-    // Load all of the functions we care about
+  // Load all of the functions we care about
 #define LOAD(name) LOAD_MEMBER_INSTANCE_FUNC_OR_RETURN(this, name, instance);
-    RIVE_VK_SWAPCHAIN_INSTANCE_COMMANDS(LOAD);
+  RIVE_VK_SWAPCHAIN_INSTANCE_COMMANDS(LOAD);
 #undef LOAD
 
-    // Check the device to see what our best-match image format is
-    auto surfaceFormat =
-        tryFindBestFormat(device, surface, opts.formatPreferences);
-    CONFIRM_OR_RETURN(surfaceFormat.has_value());
-    auto presentMode =
-        tryFindBestPresentMode(device, surface, opts.presentModePreferences);
-    CONFIRM_OR_RETURN(presentMode.has_value());
+  // Check the device to see what our best-match image format is
+  auto surfaceFormat = tryFindBestFormat(
+      device,
+      surface,
+      opts.formatPreferences);
+  CONFIRM_OR_RETURN(surfaceFormat.has_value());
+  auto presentMode = tryFindBestPresentMode(
+      device,
+      surface,
+      opts.presentModePreferences);
+  CONFIRM_OR_RETURN(presentMode.has_value());
 
-    VkCompositeAlphaFlagBitsKHR compositeAlphaFlags =
+  VkCompositeAlphaFlagBitsKHR compositeAlphaFlags =
 #if defined(__ANDROID__)
-        VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+      VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
 #else
-        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 #endif
 
-    VkSurfaceCapabilitiesKHR surfaceCaps;
+  VkSurfaceCapabilitiesKHR surfaceCaps;
+  VK_CONFIRM_OR_RETURN_MSG(
+      device.getSurfaceCapabilities(surface, &surfaceCaps),
+      "Failed to get Vulkan device surface capabilities");
+
+  // We never draw prerotated, so the compositor has to rotate our frames.
+  VkSurfaceTransformFlagBitsKHR
+      preTransform = (surfaceCaps.supportedTransforms &
+                      VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+                         ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+                         : surfaceCaps.currentTransform;
+
+  VkSwapchainCreateInfoKHR swapchainCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .surface = surface,
+      .minImageCount = std::max(
+          opts.preferredImageCount,
+          surfaceCaps.minImageCount),
+      .imageFormat = surfaceFormat->format,
+      .imageColorSpace = surfaceFormat->colorSpace,
+      .imageExtent = surfaceCaps.currentExtent,
+      .imageArrayLayers = 1,
+      .imageUsage = opts.imageUsageFlags,
+      .preTransform = preTransform,
+      .compositeAlpha = compositeAlphaFlags,
+      .presentMode = presentMode.value(),
+      .clipped = true,
+  };
+
+  m_width = surfaceCaps.currentExtent.width;
+  m_height = surfaceCaps.currentExtent.height;
+
+  DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateSwapchainKHR, instance);
+
+  VK_CONFIRM_OR_RETURN_MSG(
+      vkCreateSwapchainKHR(
+          device.vkDevice(),
+          &swapchainCreateInfo,
+          nullptr,
+          &m_swapchain),
+      "Failed to create Vulkan swapchain");
+
+  m_imageFormat = surfaceFormat->format;
+  m_imageUsageFlags = opts.imageUsageFlags;
+
+  // Get the swapchain images and then build out our internal image data
+  std::vector<VkImage> vkImages;
+  {
+    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkGetSwapchainImagesKHR, instance);
+
+    uint32_t count;
     VK_CONFIRM_OR_RETURN_MSG(
-        device.getSurfaceCapabilities(surface, &surfaceCaps),
-        "Failed to get Vulkan device surface capabilities");
+        vkGetSwapchainImagesKHR(
+            device.vkDevice(),
+            m_swapchain,
+            &count,
+            nullptr),
+        "Failed to query Vulkan swapchain image count");
+    vkImages.resize(count);
+    VK_CONFIRM_OR_RETURN_MSG(
+        vkGetSwapchainImagesKHR(
+            device.vkDevice(),
+            m_swapchain,
+            &count,
+            vkImages.data()),
+        "Failed to get Vulkan swapchain images");
+  }
 
-    // We never draw prerotated, so the compositor has to rotate our frames.
-    VkSurfaceTransformFlagBitsKHR preTransform =
-        (surfaceCaps.supportedTransforms &
-         VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-            ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
-            : surfaceCaps.currentTransform;
+  m_swapchainImages.resize(vkImages.size());
 
-    VkSwapchainCreateInfoKHR swapchainCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surface,
-        .minImageCount =
-            std::max(opts.preferredImageCount, surfaceCaps.minImageCount),
-        .imageFormat = surfaceFormat->format,
-        .imageColorSpace = surfaceFormat->colorSpace,
-        .imageExtent = surfaceCaps.currentExtent,
-        .imageArrayLayers = 1,
-        .imageUsage = opts.imageUsageFlags,
-        .preTransform = preTransform,
-        .compositeAlpha = compositeAlphaFlags,
-        .presentMode = presentMode.value(),
-        .clipped = true,
+  DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateImageView, instance);
+
+  for (uint32_t i = 0; i < vkImages.size(); i++)
+  {
+    m_swapchainImages[i].image = vkImages[i];
+
+    VkImageViewCreateInfo viewCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = vkImages[i],
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = m_imageFormat,
+        .subresourceRange =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            },
     };
 
-    m_width = surfaceCaps.currentExtent.width;
-    m_height = surfaceCaps.currentExtent.height;
+    VK_CONFIRM_OR_RETURN_MSG(
+        vkCreateImageView(
+            device.vkDevice(),
+            &viewCreateInfo,
+            nullptr,
+            &m_swapchainImages[i].view),
+        "Failed to create Vulkan image view");
 
-    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateSwapchainKHR, instance);
+    VK_CONFIRM_OR_RETURN_MSG(
+        createSemaphore(&m_swapchainImages[i].frameSemaphore),
+        "Failed to create Vulkan frame semaphore");
+  }
 
-    VK_CONFIRM_OR_RETURN_MSG(vkCreateSwapchainKHR(device.vkDevice(),
-                                                  &swapchainCreateInfo,
-                                                  nullptr,
-                                                  &m_swapchain),
-                             "Failed to create Vulkan swapchain");
-
-    m_imageFormat = surfaceFormat->format;
-    m_imageUsageFlags = opts.imageUsageFlags;
-
-    // Get the swapchain images and then build out our internal image data
-    std::vector<VkImage> vkImages;
-    {
-        DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkGetSwapchainImagesKHR,
-                                                instance);
-
-        uint32_t count;
-        VK_CONFIRM_OR_RETURN_MSG(
-            vkGetSwapchainImagesKHR(device.vkDevice(),
-                                    m_swapchain,
-                                    &count,
-                                    nullptr),
-            "Failed to query Vulkan swapchain image count");
-        vkImages.resize(count);
-        VK_CONFIRM_OR_RETURN_MSG(vkGetSwapchainImagesKHR(device.vkDevice(),
-                                                         m_swapchain,
-                                                         &count,
-                                                         vkImages.data()),
-                                 "Failed to get Vulkan swapchain images");
-    }
-
-    m_swapchainImages.resize(vkImages.size());
-
-    DEFINE_AND_LOAD_INSTANCE_FUNC_OR_RETURN(vkCreateImageView, instance);
-
-    for (uint32_t i = 0; i < vkImages.size(); i++)
-    {
-        m_swapchainImages[i].image = vkImages[i];
-
-        VkImageViewCreateInfo viewCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = vkImages[i],
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = m_imageFormat,
-            .subresourceRange =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = 1,
-                    .layerCount = 1,
-                },
-        };
-
-        VK_CONFIRM_OR_RETURN_MSG(vkCreateImageView(device.vkDevice(),
-                                                   &viewCreateInfo,
-                                                   nullptr,
-                                                   &m_swapchainImages[i].view),
-                                 "Failed to create Vulkan image view");
-
-        VK_CONFIRM_OR_RETURN_MSG(
-            createSemaphore(&m_swapchainImages[i].frameSemaphore),
-            "Failed to create Vulkan frame semaphore");
-    }
-
-    *successOut = true;
+  *successOut = true;
 }
 
 VulkanSwapchain::~VulkanSwapchain()
 {
-    // Don't do anything until everything is flushed through.
-    if (m_vkDeviceWaitIdle != nullptr)
-    {
-        std::ignore = m_vkDeviceWaitIdle(vkDevice());
-    }
+  // Don't do anything until everything is flushed through.
+  if (m_vkDeviceWaitIdle != nullptr)
+  {
+    std::ignore = m_vkDeviceWaitIdle(vkDevice());
+  }
 
-    for (auto& data : m_swapchainImages)
-    {
-        assert(
-            m_vkDestroyImageView != nullptr &&
-            "should not have created swapchain images until m_vkDestroyImageView was loaded");
-        destroySemaphore(data.frameSemaphore);
-        m_vkDestroyImageView(vkDevice(), data.view, nullptr);
-    }
+  for (auto& data : m_swapchainImages)
+  {
+    assert(
+        m_vkDestroyImageView != nullptr &&
+        "should not have created swapchain images until m_vkDestroyImageView was loaded");
+    destroySemaphore(data.frameSemaphore);
+    m_vkDestroyImageView(vkDevice(), data.view, nullptr);
+  }
 
-    if (m_vkDestroySwapchainKHR != nullptr)
-    {
-        m_vkDestroySwapchainKHR(vkDevice(), m_swapchain, nullptr);
-    }
+  if (m_vkDestroySwapchainKHR != nullptr)
+  {
+    m_vkDestroySwapchainKHR(vkDevice(), m_swapchain, nullptr);
+  }
 }
 
 std::optional<VkSurfaceFormatKHR> VulkanSwapchain::tryFindBestFormat(
@@ -209,21 +224,20 @@ std::optional<VkSurfaceFormatKHR> VulkanSwapchain::tryFindBestFormat(
     VkSurfaceKHR surface,
     const std::vector<VkSurfaceFormatKHR>& preferences)
 {
-    auto formats = device.getSurfaceFormats(surface);
-    for (auto& pref : preferences)
+  auto formats = device.getSurfaceFormats(surface);
+  for (auto& pref : preferences)
+  {
+    for (auto& format : formats)
     {
-        for (auto& format : formats)
-        {
-            if (format.format == pref.format &&
-                format.colorSpace == pref.colorSpace)
-            {
-                return pref;
-            }
-        }
+      if (format.format == pref.format && format.colorSpace == pref.colorSpace)
+      {
+        return pref;
+      }
     }
+  }
 
-    LOG_ERROR_LINE("Could not find any preferred Vulkan surface format");
-    return std::nullopt;
+  LOG_ERROR_LINE("Could not find any preferred Vulkan surface format");
+  return std::nullopt;
 }
 
 std::optional<VkPresentModeKHR> VulkanSwapchain::tryFindBestPresentMode(
@@ -231,112 +245,115 @@ std::optional<VkPresentModeKHR> VulkanSwapchain::tryFindBestPresentMode(
     VkSurfaceKHR surface,
     const std::vector<VkPresentModeKHR>& presentModePreferences)
 {
-    auto modes = device.getSurfacePresentModes(surface);
-    for (auto& pref : presentModePreferences)
+  auto modes = device.getSurfacePresentModes(surface);
+  for (auto& pref : presentModePreferences)
+  {
+    for (auto& mode : modes)
     {
-        for (auto& mode : modes)
-        {
-            if (mode == pref)
-            {
-                return pref;
-            }
-        }
+      if (mode == pref)
+      {
+        return pref;
+      }
     }
+  }
 
-    LOG_ERROR_LINE("Could not find any preferred Vulkan present mode");
-    return std::nullopt;
+  LOG_ERROR_LINE("Could not find any preferred Vulkan present mode");
+  return std::nullopt;
 }
 
 // Positive codes such as VK_SUBOPTIMAL_KHR still acquired or presented, so
 // only a failure stops the frame; the code itself is returned to the caller.
 static VkResult failureOnly(VkResult result)
 {
-    return result < 0 ? result : VK_SUCCESS;
+  return result < 0 ? result : VK_SUCCESS;
 }
 
 bool VulkanSwapchain::isFrameStarted() const
 {
-    return m_currentImageIndex < m_swapchainImages.size();
+  return m_currentImageIndex < m_swapchainImages.size();
 }
 
 VkResult VulkanSwapchain::beginFrame()
 {
-    assert(!isFrameStarted());
+  assert(!isFrameStarted());
 
-    // Do the work for the frame synchronization to begin
-    VkSemaphore semaphoreToSignal;
+  // Do the work for the frame synchronization to begin
+  VkSemaphore semaphoreToSignal;
 
-    VK_RETURN_RESULT_ON_ERROR(
-        Super::waitForFenceAndBeginFrame(&semaphoreToSignal));
+  VK_RETURN_RESULT_ON_ERROR(
+      Super::waitForFenceAndBeginFrame(&semaphoreToSignal));
 
-    // Next, acquire the next image from the swap chain, and signal the
-    static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
-    VkResult acquired = m_vkAcquireNextImageKHR(vkDevice(),
-                                                m_swapchain,
-                                                NO_TIMEOUT,
-                                                semaphoreToSignal,
-                                                VK_NULL_HANDLE,
-                                                &m_currentImageIndex);
-    VK_RETURN_RESULT_ON_ERROR_MSG(
-        failureOnly(acquired),
-        "Failed to acquire next Vulkan swapchain image");
-    return acquired;
+  // Next, acquire the next image from the swap chain, and signal the
+  static constexpr auto NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
+  VkResult acquired = m_vkAcquireNextImageKHR(
+      vkDevice(),
+      m_swapchain,
+      NO_TIMEOUT,
+      semaphoreToSignal,
+      VK_NULL_HANDLE,
+      &m_currentImageIndex);
+  VK_RETURN_RESULT_ON_ERROR_MSG(
+      failureOnly(acquired),
+      "Failed to acquire next Vulkan swapchain image");
+  return acquired;
 }
 
 void VulkanSwapchain::queueImageCopy(
     rive::gpu::vkutil::ImageAccess* inOutLastAccess,
     rive::IAABB optPixelReadBounds)
 {
-    if (optPixelReadBounds.empty())
-    {
-        optPixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
-    }
-    queueImageCopy(current().image,
-                   m_imageFormat,
-                   inOutLastAccess,
-                   optPixelReadBounds);
+  if (optPixelReadBounds.empty())
+  {
+    optPixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
+  }
+  queueImageCopy(
+      current().image,
+      m_imageFormat,
+      inOutLastAccess,
+      optPixelReadBounds);
 }
 
 VkResult VulkanSwapchain::endFrame(
     const rive::gpu::vkutil::ImageAccess& lastAccess)
 {
-    assert(isFrameStarted());
+  assert(isFrameStarted());
 
-    auto& swapImage = current();
+  auto& swapImage = current();
 
-    // Whether or not we attempted to copy from the swapchain we need to
-    // transition it to the present layout.
-    swapImage.lastAccess = context()->simpleImageMemoryBarrier(
-        currentCommandBuffer(),
-        lastAccess,
-        {
-            .pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-            .accessMask = VK_ACCESS_NONE,
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        },
-        swapImage.image);
+  // Whether or not we attempted to copy from the swapchain we need to
+  // transition it to the present layout.
+  swapImage.lastAccess = context()->simpleImageMemoryBarrier(
+      currentCommandBuffer(),
+      lastAccess,
+      {
+          .pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+          .accessMask = VK_ACCESS_NONE,
+          .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      },
+      swapImage.image);
 
-    // Now that the memory barrier is in the command buffer, we can end the
-    // frame sync frame.
-    VK_RETURN_RESULT_ON_ERROR(Super::endFrame(swapImage.frameSemaphore));
+  // Now that the memory barrier is in the command buffer, we can end the
+  // frame sync frame.
+  VK_RETURN_RESULT_ON_ERROR(Super::endFrame(swapImage.frameSemaphore));
 
-    // Now queue the actual presentation of the swpchain image
-    VkPresentInfoKHR presentInfo = {
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &swapImage.frameSemaphore,
-        .swapchainCount = 1,
-        .pSwapchains = &m_swapchain,
-        .pImageIndices = &m_currentImageIndex,
-    };
+  // Now queue the actual presentation of the swpchain image
+  VkPresentInfoKHR presentInfo = {
+      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores = &swapImage.frameSemaphore,
+      .swapchainCount = 1,
+      .pSwapchains = &m_swapchain,
+      .pImageIndices = &m_currentImageIndex,
+  };
 
-    VkResult presented = m_vkQueuePresentKHR(graphicsQueue(), &presentInfo);
-    VK_RETURN_RESULT_ON_ERROR_MSG(failureOnly(presented),
-                                  "Failed to queue Vulkan presentation");
+  VkResult presented = m_vkQueuePresentKHR(graphicsQueue(), &presentInfo);
+  VK_RETURN_RESULT_ON_ERROR_MSG(
+      failureOnly(presented),
+      "Failed to queue Vulkan presentation");
 
-    // This puts us in the !IsFrameStarted() state
-    m_currentImageIndex = std::numeric_limits<uint32_t>::max();
-    return presented;
+  // This puts us in the !IsFrameStarted() state
+  m_currentImageIndex = std::numeric_limits<uint32_t>::max();
+  return presented;
 }
 
 } // namespace rive_vkb

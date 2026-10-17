@@ -6,14 +6,14 @@ namespace rive
 class TransitionValueEnumComparatorBase : public TransitionValueIdComparator
 {
 protected:
-    typedef TransitionValueIdComparator Super;
+  typedef TransitionValueIdComparator Super;
 
 public:
-    static const uint16_t typeKey = 485;
+  static const uint16_t typeKey = 485;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

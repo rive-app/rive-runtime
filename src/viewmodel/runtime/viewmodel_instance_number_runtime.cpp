@@ -6,11 +6,11 @@ using namespace rive;
 
 float ViewModelInstanceNumberRuntime::value() const
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceNumber>()
-        ->propertyValue();
+  return m_viewModelInstanceValue->as<ViewModelInstanceNumber>()
+      ->propertyValue();
 }
 
 void ViewModelInstanceNumberRuntime::value(float val)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceNumber>()->propertyValue(val);
+  m_viewModelInstanceValue->as<ViewModelInstanceNumber>()->propertyValue(val);
 }

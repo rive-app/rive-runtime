@@ -6,14 +6,14 @@ namespace rive
 class TransitionFocusConditionBase : public TransitionViewModelCondition
 {
 protected:
-    typedef TransitionViewModelCondition Super;
+  typedef TransitionViewModelCondition Super;
 
 public:
-    static const uint16_t typeKey = 1038;
+  static const uint16_t typeKey = 1038;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

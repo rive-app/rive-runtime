@@ -11,49 +11,49 @@ namespace rive
 class BlendAnimationBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 74;
+  static const uint16_t typeKey = 74;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t animationIdPropertyKey = 165;
+  static const uint16_t animationIdPropertyKey = 165;
 
 protected:
-    Id m_AnimationId = kEmptyId;
+  Id m_AnimationId = kEmptyId;
 
 public:
-    inline Id animationId() const { return m_AnimationId; }
-    void animationId(Id value)
+  inline Id animationId() const { return m_AnimationId; }
+  void animationId(Id value)
+  {
+    if (m_AnimationId == value)
     {
-        if (m_AnimationId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(animationIdPropertyKey, &m_AnimationId, &value);
-        m_AnimationId = value;
-        notifyPropertyChanged(animationIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(animationIdPropertyKey, &m_AnimationId, &value);
+    m_AnimationId = value;
+    notifyPropertyChanged(animationIdPropertyKey);
+  }
 
-    void copy(const BlendAnimationBase& object)
-    {
-        m_AnimationId = object.m_AnimationId;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  void copy(const BlendAnimationBase& object)
+  {
+    m_AnimationId = object.m_AnimationId;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case animationIdPropertyKey:
-                m_AnimationId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case animationIdPropertyKey:
+        m_AnimationId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

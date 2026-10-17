@@ -8,37 +8,37 @@ namespace rive
 class DataConverterOperationViewModelBase : public DataConverterOperation
 {
 protected:
-    typedef DataConverterOperation Super;
+  typedef DataConverterOperation Super;
 
 public:
-    static const uint16_t typeKey = 517;
+  static const uint16_t typeKey = 517;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t sourcePathIdsPropertyKey = 711;
+  static const uint16_t sourcePathIdsPropertyKey = 711;
 
 public:
-    virtual void decodeSourcePathIds(Span<const uint8_t> value) = 0;
-    virtual void copySourcePathIds(
-        const DataConverterOperationViewModelBase& object) = 0;
+  virtual void decodeSourcePathIds(Span<const uint8_t> value) = 0;
+  virtual void copySourcePathIds(
+      const DataConverterOperationViewModelBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const DataConverterOperationViewModelBase& object)
-    {
-        copySourcePathIds(object);
-        DataConverterOperation::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataConverterOperationViewModelBase& object)
+  {
+    copySourcePathIds(object);
+    DataConverterOperation::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case sourcePathIdsPropertyKey:
-                decodeSourcePathIds(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        return DataConverterOperation::deserialize(propertyKey, reader);
+      case sourcePathIdsPropertyKey:
+        decodeSourcePathIds(CoreBytesType::deserialize(reader));
+        return true;
     }
+    return DataConverterOperation::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

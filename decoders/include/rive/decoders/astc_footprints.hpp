@@ -18,8 +18,8 @@ namespace rive
 //   GL enum  (SRGB)  = 0x93D0 + idx
 struct AstcFootprint
 {
-    uint8_t width;
-    uint8_t height;
+  uint8_t width;
+  uint8_t height;
 };
 
 constexpr AstcFootprint AstcFootprints[] = {
@@ -38,22 +38,22 @@ constexpr AstcFootprint AstcFootprints[] = {
     {12, 10},
     {12, 12},
 };
-constexpr int AstcFootprintCount =
-    sizeof(AstcFootprints) / sizeof(AstcFootprints[0]);
+constexpr int AstcFootprintCount = sizeof(AstcFootprints) /
+                                   sizeof(AstcFootprints[0]);
 
 // Returns -1 if (blockWidth, blockHeight) is not a recognised LDR ASTC
 // footprint.
 inline int astcFootprintIndex(uint8_t blockWidth, uint8_t blockHeight)
 {
-    for (int i = 0; i < AstcFootprintCount; ++i)
+  for (int i = 0; i < AstcFootprintCount; ++i)
+  {
+    if (AstcFootprints[i].width == blockWidth &&
+        AstcFootprints[i].height == blockHeight)
     {
-        if (AstcFootprints[i].width == blockWidth &&
-            AstcFootprints[i].height == blockHeight)
-        {
-            return i;
-        }
+      return i;
     }
-    return -1;
+  }
+  return -1;
 }
 
 } // namespace rive

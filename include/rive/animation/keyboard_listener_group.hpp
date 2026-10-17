@@ -16,30 +16,29 @@ class StateMachineInstance;
 class KeyboardListenerGroup : public KeyboardListener
 {
 public:
-    KeyboardListenerGroup(FocusData* focusData,
-                          const StateMachineListener* listener,
-                          StateMachineInstance* stateMachineInstance);
-    ~KeyboardListenerGroup();
+  KeyboardListenerGroup(
+      FocusData* focusData,
+      const StateMachineListener* listener,
+      StateMachineInstance* stateMachineInstance);
+  ~KeyboardListenerGroup();
 
-    /// Get the listener this group is managing.
-    const StateMachineListener* listener() const { return m_listener; }
+  /// Get the listener this group is managing.
+  const StateMachineListener* listener() const { return m_listener; }
 
-    /// Get the FocusData this group is attached to.
-    FocusData* focusData() const { return m_focusData; }
+  /// Get the FocusData this group is attached to.
+  FocusData* focusData() const { return m_focusData; }
 
-    /// Called when the associated FocusData receives a key input.
-    bool keyInput(Key key,
-                  KeyModifiers modifiers,
-                  bool isPressed,
-                  bool isRepeat) override;
+  /// Called when the associated FocusData receives a key input.
+  bool keyInput(Key key, KeyModifiers modifiers, bool isPressed, bool isRepeat)
+      override;
 
-    /// Called when the associated FocusData receives text input.
-    bool textInput(const std::string& text) override;
+  /// Called when the associated FocusData receives text input.
+  bool textInput(const std::string& text) override;
 
 private:
-    FocusData* m_focusData;
-    const StateMachineListener* m_listener;
-    StateMachineInstance* m_stateMachineInstance;
+  FocusData* m_focusData;
+  const StateMachineListener* m_listener;
+  StateMachineInstance* m_stateMachineInstance;
 };
 
 } // namespace rive

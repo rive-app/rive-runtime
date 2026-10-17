@@ -6,12 +6,12 @@ namespace rive
 class BlendStateBase : public LayerState
 {
 protected:
-    typedef LayerState Super;
+  typedef LayerState Super;
 
 public:
-    static const uint16_t typeKey = 72;
+  static const uint16_t typeKey = 72;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 };
 } // namespace rive
 

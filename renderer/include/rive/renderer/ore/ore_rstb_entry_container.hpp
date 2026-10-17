@@ -34,30 +34,30 @@ namespace ore
 // ---------------------------------------------------------------------------
 struct RstbEntry
 {
-    uint8_t stage = 0; // 0=vertex 1=fragment 2=compute
-    std::string logical;
-    std::string physical;
-    std::vector<uint8_t> source; // per-entry targets only
+  uint8_t stage = 0; // 0=vertex 1=fragment 2=compute
+  std::string logical;
+  std::string physical;
+  std::vector<uint8_t> source; // per-entry targets only
 };
 
 namespace rstb_detail
 {
 inline void putU16(std::vector<uint8_t>& b, uint16_t v)
 {
-    b.push_back(v & 0xFF);
-    b.push_back((v >> 8) & 0xFF);
+  b.push_back(v & 0xFF);
+  b.push_back((v >> 8) & 0xFF);
 }
 inline void putU32(std::vector<uint8_t>& b, uint32_t v)
 {
-    b.push_back(v & 0xFF);
-    b.push_back((v >> 8) & 0xFF);
-    b.push_back((v >> 16) & 0xFF);
-    b.push_back((v >> 24) & 0xFF);
+  b.push_back(v & 0xFF);
+  b.push_back((v >> 8) & 0xFF);
+  b.push_back((v >> 16) & 0xFF);
+  b.push_back((v >> 24) & 0xFF);
 }
 inline void putStr(std::vector<uint8_t>& b, const std::string& s)
 {
-    putU16(b, static_cast<uint16_t>(s.size()));
-    b.insert(b.end(), s.begin(), s.end());
+  putU16(b, static_cast<uint16_t>(s.size()));
+  b.insert(b.end(), s.begin(), s.end());
 }
 } // namespace rstb_detail
 
@@ -66,43 +66,43 @@ inline std::vector<uint8_t> buildWholeModuleContainer(
     const uint8_t* src,
     uint32_t srcLen)
 {
-    // count is a u8. A module with >255 entry points (pathological) would
-    // truncate the count and corrupt the container — fail cleanly with an empty
-    // blob, which callers treat as "skip this variant".
-    if (entries.size() > 255)
-        return {};
-    std::vector<uint8_t> b;
-    b.push_back(static_cast<uint8_t>(entries.size()));
-    for (const auto& e : entries)
-    {
-        b.push_back(e.stage);
-        rstb_detail::putStr(b, e.logical);
-        rstb_detail::putStr(b, e.physical);
-    }
-    rstb_detail::putU32(b, srcLen);
-    // Guard the raw-pointer range: src may be null when srcLen == 0, and
-    // `src + 0` on a null pointer is undefined behavior (trips UBSan).
-    if (srcLen > 0)
-        b.insert(b.end(), src, src + srcLen);
-    return b;
+  // count is a u8. A module with >255 entry points (pathological) would
+  // truncate the count and corrupt the container — fail cleanly with an empty
+  // blob, which callers treat as "skip this variant".
+  if (entries.size() > 255)
+    return {};
+  std::vector<uint8_t> b;
+  b.push_back(static_cast<uint8_t>(entries.size()));
+  for (const auto& e : entries)
+  {
+    b.push_back(e.stage);
+    rstb_detail::putStr(b, e.logical);
+    rstb_detail::putStr(b, e.physical);
+  }
+  rstb_detail::putU32(b, srcLen);
+  // Guard the raw-pointer range: src may be null when srcLen == 0, and
+  // `src + 0` on a null pointer is undefined behavior (trips UBSan).
+  if (srcLen > 0)
+    b.insert(b.end(), src, src + srcLen);
+  return b;
 }
 
 inline std::vector<uint8_t> buildPerEntryContainer(
     const std::vector<RstbEntry>& entries)
 {
-    if (entries.size() > 255)
-        return {};
-    std::vector<uint8_t> b;
-    b.push_back(static_cast<uint8_t>(entries.size()));
-    for (const auto& e : entries)
-    {
-        b.push_back(e.stage);
-        rstb_detail::putStr(b, e.logical);
-        rstb_detail::putStr(b, e.physical);
-        rstb_detail::putU32(b, static_cast<uint32_t>(e.source.size()));
-        b.insert(b.end(), e.source.begin(), e.source.end());
-    }
-    return b;
+  if (entries.size() > 255)
+    return {};
+  std::vector<uint8_t> b;
+  b.push_back(static_cast<uint8_t>(entries.size()));
+  for (const auto& e : entries)
+  {
+    b.push_back(e.stage);
+    rstb_detail::putStr(b, e.logical);
+    rstb_detail::putStr(b, e.physical);
+    rstb_detail::putU32(b, static_cast<uint32_t>(e.source.size()));
+    b.insert(b.end(), e.source.begin(), e.source.end());
+  }
+  return b;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,113 +111,114 @@ inline std::vector<uint8_t> buildPerEntryContainer(
 // ---------------------------------------------------------------------------
 struct RstbEntryView
 {
-    uint8_t stage = 0;
-    std::string logical;
-    std::string physical;
-    const uint8_t* source = nullptr; // per-entry targets; null for whole-module
-    uint32_t sourceSize = 0;
+  uint8_t stage = 0;
+  std::string logical;
+  std::string physical;
+  const uint8_t* source = nullptr; // per-entry targets; null for whole-module
+  uint32_t sourceSize = 0;
 };
 
 namespace rstb_detail
 {
 inline bool getU16(const uint8_t*& p, const uint8_t* end, uint16_t& v)
 {
-    if (p + 2 > end)
-        return false;
-    v = static_cast<uint16_t>(p[0] | (p[1] << 8));
-    p += 2;
-    return true;
+  if (p + 2 > end)
+    return false;
+  v = static_cast<uint16_t>(p[0] | (p[1] << 8));
+  p += 2;
+  return true;
 }
 inline bool getU32(const uint8_t*& p, const uint8_t* end, uint32_t& v)
 {
-    if (p + 4 > end)
-        return false;
-    v = static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-        (static_cast<uint32_t>(p[2]) << 16) |
-        (static_cast<uint32_t>(p[3]) << 24);
-    p += 4;
-    return true;
+  if (p + 4 > end)
+    return false;
+  v = static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
+      (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+  p += 4;
+  return true;
 }
 inline bool getStr(const uint8_t*& p, const uint8_t* end, std::string& s)
 {
-    uint16_t n;
-    if (!getU16(p, end, n))
-        return false;
-    if (p + n > end)
-        return false;
-    s.assign(reinterpret_cast<const char*>(p), n);
-    p += n;
-    return true;
+  uint16_t n;
+  if (!getU16(p, end, n))
+    return false;
+  if (p + n > end)
+    return false;
+  s.assign(reinterpret_cast<const char*>(p), n);
+  p += n;
+  return true;
 }
 } // namespace rstb_detail
 
-inline bool parseWholeModuleContainer(const uint8_t* blob,
-                                      uint32_t size,
-                                      std::vector<RstbEntryView>& out,
-                                      const uint8_t** src,
-                                      uint32_t* srcLen)
+inline bool parseWholeModuleContainer(
+    const uint8_t* blob,
+    uint32_t size,
+    std::vector<RstbEntryView>& out,
+    const uint8_t** src,
+    uint32_t* srcLen)
 {
-    // Reject null/empty input before any pointer arithmetic (blob + size on a
-    // null pointer is undefined behavior, even when size == 0).
-    if (blob == nullptr || size == 0 || src == nullptr || srcLen == nullptr)
-        return false;
-    const uint8_t* p = blob;
-    const uint8_t* end = blob + size;
-    uint8_t count = *p++;
-    out.clear();
-    out.reserve(count);
-    for (uint8_t i = 0; i < count; i++)
-    {
-        if (p >= end)
-            return false;
-        RstbEntryView e;
-        e.stage = *p++;
-        if (e.stage > 2) // only 0=vertex, 1=fragment, 2=compute are defined
-            return false;
-        if (!rstb_detail::getStr(p, end, e.logical) ||
-            !rstb_detail::getStr(p, end, e.physical))
-            return false;
-        out.push_back(std::move(e));
-    }
-    uint32_t n;
-    if (!rstb_detail::getU32(p, end, n) || p + n > end)
-        return false;
-    *src = p;
-    *srcLen = n;
-    return true;
+  // Reject null/empty input before any pointer arithmetic (blob + size on a
+  // null pointer is undefined behavior, even when size == 0).
+  if (blob == nullptr || size == 0 || src == nullptr || srcLen == nullptr)
+    return false;
+  const uint8_t* p = blob;
+  const uint8_t* end = blob + size;
+  uint8_t count = *p++;
+  out.clear();
+  out.reserve(count);
+  for (uint8_t i = 0; i < count; i++)
+  {
+    if (p >= end)
+      return false;
+    RstbEntryView e;
+    e.stage = *p++;
+    if (e.stage > 2) // only 0=vertex, 1=fragment, 2=compute are defined
+      return false;
+    if (!rstb_detail::getStr(p, end, e.logical) ||
+        !rstb_detail::getStr(p, end, e.physical))
+      return false;
+    out.push_back(std::move(e));
+  }
+  uint32_t n;
+  if (!rstb_detail::getU32(p, end, n) || p + n > end)
+    return false;
+  *src = p;
+  *srcLen = n;
+  return true;
 }
 
-inline bool parsePerEntryContainer(const uint8_t* blob,
-                                   uint32_t size,
-                                   std::vector<RstbEntryView>& out)
+inline bool parsePerEntryContainer(
+    const uint8_t* blob,
+    uint32_t size,
+    std::vector<RstbEntryView>& out)
 {
-    if (blob == nullptr || size == 0)
-        return false;
-    const uint8_t* p = blob;
-    const uint8_t* end = blob + size;
-    uint8_t count = *p++;
-    out.clear();
-    out.reserve(count);
-    for (uint8_t i = 0; i < count; i++)
-    {
-        if (p >= end)
-            return false;
-        RstbEntryView e;
-        e.stage = *p++;
-        if (e.stage > 2) // only 0=vertex, 1=fragment, 2=compute are defined
-            return false;
-        if (!rstb_detail::getStr(p, end, e.logical) ||
-            !rstb_detail::getStr(p, end, e.physical))
-            return false;
-        uint32_t n;
-        if (!rstb_detail::getU32(p, end, n) || p + n > end)
-            return false;
-        e.source = p;
-        e.sourceSize = n;
-        p += n;
-        out.push_back(std::move(e));
-    }
-    return true;
+  if (blob == nullptr || size == 0)
+    return false;
+  const uint8_t* p = blob;
+  const uint8_t* end = blob + size;
+  uint8_t count = *p++;
+  out.clear();
+  out.reserve(count);
+  for (uint8_t i = 0; i < count; i++)
+  {
+    if (p >= end)
+      return false;
+    RstbEntryView e;
+    e.stage = *p++;
+    if (e.stage > 2) // only 0=vertex, 1=fragment, 2=compute are defined
+      return false;
+    if (!rstb_detail::getStr(p, end, e.logical) ||
+        !rstb_detail::getStr(p, end, e.physical))
+      return false;
+    uint32_t n;
+    if (!rstb_detail::getU32(p, end, n) || p + n > end)
+      return false;
+    e.source = p;
+    e.sourceSize = n;
+    p += n;
+    out.push_back(std::move(e));
+  }
+  return true;
 }
 
 } // namespace ore

@@ -5,12 +5,12 @@
 using namespace rive;
 
 DataConverterFormulaImporter::DataConverterFormulaImporter(
-    DataConverterFormula* formula) :
-    m_dataConverterFormula(formula)
+    DataConverterFormula* formula)
+    : m_dataConverterFormula(formula)
 {}
 
 StatusCode DataConverterFormulaImporter::resolve()
 {
-    m_dataConverterFormula->calculateFormula();
-    return StatusCode::Ok;
+  m_dataConverterFormula->calculateFormula();
+  return StatusCode::Ok;
 }

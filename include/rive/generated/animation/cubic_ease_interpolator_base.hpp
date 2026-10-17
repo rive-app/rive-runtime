@@ -6,14 +6,14 @@ namespace rive
 class CubicEaseInterpolatorBase : public CubicInterpolator
 {
 protected:
-    typedef CubicInterpolator Super;
+  typedef CubicInterpolator Super;
 
 public:
-    static const uint16_t typeKey = 28;
+  static const uint16_t typeKey = 28;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

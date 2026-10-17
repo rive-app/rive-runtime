@@ -12,10 +12,10 @@ class Core;
 class TextInterface
 {
 public:
-    static TextInterface* from(Core* component);
-    virtual void markPaintDirty() = 0;
-    virtual void markShapeDirty() = 0;
-    virtual AABB localBounds() const = 0;
+  static TextInterface* from(Core* component);
+  virtual void markPaintDirty() = 0;
+  virtual void markShapeDirty() = 0;
+  virtual AABB localBounds() const = 0;
 };
 
 } // namespace rive

@@ -7,30 +7,32 @@ using namespace rive;
 
 bool KeyFrameBool::effectiveValue(const LinearAnimationInstance* context) const
 {
-    if (context != nullptr)
+  if (context != nullptr)
+  {
+    if (auto* holder = context->keyFrameValueHolder(this))
     {
-        if (auto* holder = context->keyFrameValueHolder(this))
-        {
-            return holder->as<BindablePropertyBoolean>()->propertyValue();
-        }
+      return holder->as<BindablePropertyBoolean>()->propertyValue();
     }
-    return value();
+  }
+  return value();
 }
 
-void KeyFrameBool::apply(Core* object,
-                         int propertyKey,
-                         float mix,
-                         const LinearAnimationInstance* context)
+void KeyFrameBool::apply(
+    Core* object,
+    int propertyKey,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
+  CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
 }
 
-void KeyFrameBool::applyInterpolation(Core* object,
-                                      int propertyKey,
-                                      float currentTime,
-                                      const KeyFrame* nextFrame,
-                                      float mix,
-                                      const LinearAnimationInstance* context)
+void KeyFrameBool::applyInterpolation(
+    Core* object,
+    int propertyKey,
+    float currentTime,
+    const KeyFrame* nextFrame,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
+  CoreRegistry::setBool(object, propertyKey, effectiveValue(context));
 }

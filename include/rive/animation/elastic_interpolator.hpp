@@ -9,16 +9,16 @@ namespace rive
 class ElasticInterpolator : public ElasticInterpolatorBase
 {
 public:
-    ElasticInterpolator();
-    StatusCode onAddedDirty(CoreContext* context) override;
-    float transformValue(float valueFrom, float valueTo, float factor) override;
-    float transform(float factor) const override;
+  ElasticInterpolator();
+  StatusCode onAddedDirty(CoreContext* context) override;
+  float transformValue(float valueFrom, float valueTo, float factor) override;
+  float transform(float factor) const override;
 
-    Easing easing() const { return (Easing)easingValue(); }
-    void initialize() override;
+  Easing easing() const { return (Easing)easingValue(); }
+  void initialize() override;
 
 private:
-    ElasticEase m_elastic;
+  ElasticEase m_elastic;
 };
 } // namespace rive
 

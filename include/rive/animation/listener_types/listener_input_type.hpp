@@ -8,11 +8,8 @@ namespace rive
 class ListenerInputType : public ListenerInputTypeBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
-    virtual PointerButton pointerButton() const
-    {
-        return PointerButton::primary;
-    }
+  StatusCode import(ImportStack& importStack) override;
+  virtual PointerButton pointerButton() const { return PointerButton::primary; }
 };
 } // namespace rive
 

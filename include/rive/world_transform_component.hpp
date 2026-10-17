@@ -8,18 +8,18 @@ namespace rive
 class TransformComponent;
 class WorldTransformComponent : public WorldTransformComponentBase
 {
-    friend class TransformComponent;
+  friend class TransformComponent;
 
 protected:
-    Mat2D m_WorldTransform;
+  Mat2D m_WorldTransform;
 
 public:
-    void markWorldTransformDirty();
-    virtual float childOpacity();
-    Mat2D& mutableWorldTransform();
-    const Mat2D& worldTransform() const;
-    Vec2D worldTranslation() const { return m_WorldTransform.translation(); }
-    void opacityChanged() override;
+  void markWorldTransformDirty();
+  virtual float childOpacity();
+  Mat2D& mutableWorldTransform();
+  const Mat2D& worldTransform() const;
+  Vec2D worldTranslation() const { return m_WorldTransform.translation(); }
+  void opacityChanged() override;
 };
 } // namespace rive
 

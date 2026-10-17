@@ -12,63 +12,63 @@
 
 template <typename T> class AutoCF
 {
-    T m_obj;
+  T m_obj;
 
 public:
-    AutoCF(T obj = nullptr) : m_obj(obj) {}
-    AutoCF(const AutoCF& other)
+  AutoCF(T obj = nullptr) : m_obj(obj) {}
+  AutoCF(const AutoCF& other)
+  {
+    if (other.m_obj)
     {
-        if (other.m_obj)
-        {
-            CFRetain(other.m_obj);
-        }
-        m_obj = other.m_obj;
+      CFRetain(other.m_obj);
     }
-    AutoCF(AutoCF&& other)
+    m_obj = other.m_obj;
+  }
+  AutoCF(AutoCF&& other)
+  {
+    m_obj = other.m_obj;
+    other.m_obj = nullptr;
+  }
+  ~AutoCF()
+  {
+    if (m_obj)
     {
-        m_obj = other.m_obj;
-        other.m_obj = nullptr;
+      CFRelease(m_obj);
     }
-    ~AutoCF()
-    {
-        if (m_obj)
-        {
-            CFRelease(m_obj);
-        }
-    }
+  }
 
-    AutoCF& operator=(const AutoCF& other)
+  AutoCF& operator=(const AutoCF& other)
+  {
+    if (m_obj != other.m_obj)
     {
-        if (m_obj != other.m_obj)
-        {
-            if (other.m_obj)
-            {
-                CFRetain(other.m_obj);
-            }
-            if (m_obj)
-            {
-                CFRelease(m_obj);
-            }
-            m_obj = other.m_obj;
-        }
-        return *this;
+      if (other.m_obj)
+      {
+        CFRetain(other.m_obj);
+      }
+      if (m_obj)
+      {
+        CFRelease(m_obj);
+      }
+      m_obj = other.m_obj;
     }
+    return *this;
+  }
 
-    void reset(T obj)
+  void reset(T obj)
+  {
+    if (obj != m_obj)
     {
-        if (obj != m_obj)
-        {
-            if (m_obj)
-            {
-                CFRelease(m_obj);
-            }
-            m_obj = obj;
-        }
+      if (m_obj)
+      {
+        CFRelease(m_obj);
+      }
+      m_obj = obj;
     }
+  }
 
-    operator T() const { return m_obj; }
-    operator bool() const { return m_obj != nullptr; }
-    T get() const { return m_obj; }
+  operator T() const { return m_obj; }
+  operator bool() const { return m_obj != nullptr; }
+  T get() const { return m_obj; }
 };
 
 #endif // RIVE_BUILD_FOR_APPLE

@@ -11,242 +11,233 @@ using namespace rive;
 
 float ScrollBarConstraint::computedThumbWidth()
 {
-    if (autoSize() && m_scrollConstraint != nullptr)
-    {
-        return track()->innerWidth() * m_scrollConstraint->visibleWidthRatio();
-    }
-    return thumb()->layoutWidth();
+  if (autoSize() && m_scrollConstraint != nullptr)
+  {
+    return track()->innerWidth() * m_scrollConstraint->visibleWidthRatio();
+  }
+  return thumb()->layoutWidth();
 }
 
 float ScrollBarConstraint::computedThumbHeight()
 {
-    if (autoSize() && m_scrollConstraint != nullptr)
-    {
-        return track()->innerHeight() *
-               m_scrollConstraint->visibleHeightRatio();
-    }
-    return thumb()->layoutHeight();
+  if (autoSize() && m_scrollConstraint != nullptr)
+  {
+    return track()->innerHeight() * m_scrollConstraint->visibleHeightRatio();
+  }
+  return thumb()->layoutHeight();
 }
 
 std::vector<DraggableProxy*> ScrollBarConstraint::draggables()
 {
-    std::vector<DraggableProxy*> items;
-    if (parent()->is<LayoutComponent>())
-    {
-        items.push_back(
-            new ThumbDraggableProxy(this,
-                                    parent()->as<LayoutComponent>()->proxy()));
-    }
-    if (parent()->parent() != nullptr &&
-        parent()->parent()->is<LayoutComponent>())
-    {
-        items.push_back(new TrackDraggableProxy(
-            this,
-            parent()->parent()->as<LayoutComponent>()->proxy()));
-    }
-    return items;
+  std::vector<DraggableProxy*> items;
+  if (parent()->is<LayoutComponent>())
+  {
+    items.push_back(new ThumbDraggableProxy(
+        this,
+        parent()->as<LayoutComponent>()->proxy()));
+  }
+  if (parent()->parent() != nullptr &&
+      parent()->parent()->is<LayoutComponent>())
+  {
+    items.push_back(new TrackDraggableProxy(
+        this,
+        parent()->parent()->as<LayoutComponent>()->proxy()));
+  }
+  return items;
 }
 
 void ScrollBarConstraint::constrain(TransformComponent* component)
 {
-    if (m_scrollConstraint == nullptr || track() == nullptr ||
-        thumb() == nullptr)
+  if (m_scrollConstraint == nullptr || track() == nullptr || thumb() == nullptr)
+  {
+    return;
+  }
+  float thumbOffsetX = 0;
+  float thumbOffsetY = 0;
+  if (constrainsHorizontal())
+  {
+    auto innerWidth = track()->innerWidth();
+    auto thumbWidth = computedThumbWidth();
+    auto maxThumbOffset = innerWidth - thumbWidth;
+    thumbOffsetX = (m_scrollConstraint->maxOffsetX() == 0)
+                       ? 0
+                       : m_scrollConstraint->clampedOffsetX() /
+                             m_scrollConstraint->maxOffsetX() * maxThumbOffset;
+    if (thumbOffsetX < 0)
     {
-        return;
+      thumbWidth += thumbOffsetX;
+      thumbOffsetX = 0;
     }
-    float thumbOffsetX = 0;
-    float thumbOffsetY = 0;
-    if (constrainsHorizontal())
+    else if (thumbOffsetX > maxThumbOffset)
     {
-        auto innerWidth = track()->innerWidth();
-        auto thumbWidth = computedThumbWidth();
-        auto maxThumbOffset = innerWidth - thumbWidth;
-        thumbOffsetX = (m_scrollConstraint->maxOffsetX() == 0)
-                           ? 0
-                           : m_scrollConstraint->clampedOffsetX() /
-                                 m_scrollConstraint->maxOffsetX() *
-                                 maxThumbOffset;
-        if (thumbOffsetX < 0)
-        {
-            thumbWidth += thumbOffsetX;
-            thumbOffsetX = 0;
-        }
-        else if (thumbOffsetX > maxThumbOffset)
-        {
-            thumbWidth -= thumbOffsetX - maxThumbOffset;
-            thumbOffsetX = autoSize() ? thumbOffsetX : maxThumbOffset;
-        }
-        if (autoSize())
-        {
-            thumb()->forcedWidth(thumbWidth);
-        }
+      thumbWidth -= thumbOffsetX - maxThumbOffset;
+      thumbOffsetX = autoSize() ? thumbOffsetX : maxThumbOffset;
     }
-    if (constrainsVertical())
+    if (autoSize())
     {
-        auto innerHeight = track()->innerHeight();
-        auto thumbHeight = computedThumbHeight();
-        auto maxThumbOffset = innerHeight - thumbHeight;
-        thumbOffsetY = (m_scrollConstraint->maxOffsetY() == 0)
-                           ? 0
-                           : m_scrollConstraint->clampedOffsetY() /
-                                 m_scrollConstraint->maxOffsetY() *
-                                 maxThumbOffset;
-        if (thumbOffsetY < 0)
-        {
-            thumbHeight += thumbOffsetY;
-            thumbOffsetY = 0;
-        }
-        else if (thumbOffsetY > maxThumbOffset)
-        {
-            thumbHeight -= thumbOffsetY - maxThumbOffset;
-            thumbOffsetY = autoSize() ? thumbOffsetY : maxThumbOffset;
-        }
-        if (autoSize())
-        {
-            thumb()->forcedHeight(thumbHeight);
-        }
+      thumb()->forcedWidth(thumbWidth);
     }
-    // The thumb offset is in track units, so apply it in the track's frame
-    // rather than the thumb's own — see Constraint::offsetInParentFrame.
-    auto targetTransform =
-        offsetInParentFrame(component,
-                            Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
-    TransformConstraint::constrainWorld(component,
-                                        component->worldTransform(),
-                                        m_componentsA,
-                                        targetTransform,
-                                        m_componentsB,
-                                        strength());
+  }
+  if (constrainsVertical())
+  {
+    auto innerHeight = track()->innerHeight();
+    auto thumbHeight = computedThumbHeight();
+    auto maxThumbOffset = innerHeight - thumbHeight;
+    thumbOffsetY = (m_scrollConstraint->maxOffsetY() == 0)
+                       ? 0
+                       : m_scrollConstraint->clampedOffsetY() /
+                             m_scrollConstraint->maxOffsetY() * maxThumbOffset;
+    if (thumbOffsetY < 0)
+    {
+      thumbHeight += thumbOffsetY;
+      thumbOffsetY = 0;
+    }
+    else if (thumbOffsetY > maxThumbOffset)
+    {
+      thumbHeight -= thumbOffsetY - maxThumbOffset;
+      thumbOffsetY = autoSize() ? thumbOffsetY : maxThumbOffset;
+    }
+    if (autoSize())
+    {
+      thumb()->forcedHeight(thumbHeight);
+    }
+  }
+  // The thumb offset is in track units, so apply it in the track's frame
+  // rather than the thumb's own — see Constraint::offsetInParentFrame.
+  auto targetTransform = offsetInParentFrame(
+      component,
+      Mat2D::fromTranslate(thumbOffsetX, thumbOffsetY));
+  TransformConstraint::constrainWorld(
+      component,
+      component->worldTransform(),
+      m_componentsA,
+      targetTransform,
+      m_componentsB,
+      strength());
 }
 
 void ScrollBarConstraint::buildDependencies()
 {
-    m_scrollConstraint->addDependent(this);
-    Super::buildDependencies();
-    // draggables() hands the thumb and track proxies out as drag hit targets,
-    // so they must be injected into the draw order even if they never paint or
-    // clip. Stamp them here, before the artboard's one-time proxy injection.
-    if (parent() != nullptr && parent()->is<LayoutComponent>())
+  m_scrollConstraint->addDependent(this);
+  Super::buildDependencies();
+  // draggables() hands the thumb and track proxies out as drag hit targets,
+  // so they must be injected into the draw order even if they never paint or
+  // clip. Stamp them here, before the artboard's one-time proxy injection.
+  if (parent() != nullptr && parent()->is<LayoutComponent>())
+  {
+    thumb()->markInteractionTarget();
+    if (parent()->parent() != nullptr &&
+        parent()->parent()->is<LayoutComponent>())
     {
-        thumb()->markInteractionTarget();
-        if (parent()->parent() != nullptr &&
-            parent()->parent()->is<LayoutComponent>())
-        {
-            track()->markInteractionTarget();
-        }
+      track()->markInteractionTarget();
     }
+  }
 }
 
 StatusCode ScrollBarConstraint::onAddedDirty(CoreContext* context)
 {
-    StatusCode result = Super::onAddedDirty(context);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
-    auto coreObject = context->resolve(scrollConstraintId());
-    if (coreObject == nullptr || !coreObject->is<ScrollConstraint>())
-    {
-        return StatusCode::MissingObject;
-    }
-    m_scrollConstraint = static_cast<ScrollConstraint*>(coreObject);
-    return StatusCode::Ok;
+  StatusCode result = Super::onAddedDirty(context);
+  if (result != StatusCode::Ok)
+  {
+    return result;
+  }
+  auto coreObject = context->resolve(scrollConstraintId());
+  if (coreObject == nullptr || !coreObject->is<ScrollConstraint>())
+  {
+    return StatusCode::MissingObject;
+  }
+  m_scrollConstraint = static_cast<ScrollConstraint*>(coreObject);
+  return StatusCode::Ok;
 }
 
 void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
 {
-    if (m_scrollConstraint == nullptr || track() == nullptr)
-    {
-        return;
-    }
-    Mat2D inverseWorld;
-    if (!track()->worldTransform().invert(&inverseWorld))
-    {
-        return;
-    }
-    auto localPosition = inverseWorld * worldPosition;
-    if (constrainsHorizontal())
-    {
-        localPosition.x -= track()->paddingLeft();
-        auto innerWidth = track()->innerWidth();
-        auto thumbWidth = computedThumbWidth();
-        auto trackRange = innerWidth - thumbWidth;
-        auto maxOffsetX = m_scrollConstraint->maxOffsetX();
-        m_scrollConstraint->scrollOffsetX(
-            math::clamp(localPosition.x / trackRange * maxOffsetX,
-                        maxOffsetX,
-                        0));
-    }
-    if (constrainsVertical())
-    {
-        localPosition.y -= track()->paddingTop();
-        auto innerHeight = track()->innerHeight();
-        auto thumbHeight = computedThumbHeight();
-        auto trackRange = innerHeight - thumbHeight;
-        auto maxOffsetY = m_scrollConstraint->maxOffsetY();
-        m_scrollConstraint->scrollOffsetY(
-            math::clamp(localPosition.y / trackRange * maxOffsetY,
-                        maxOffsetY,
-                        0));
-    }
+  if (m_scrollConstraint == nullptr || track() == nullptr)
+  {
+    return;
+  }
+  Mat2D inverseWorld;
+  if (!track()->worldTransform().invert(&inverseWorld))
+  {
+    return;
+  }
+  auto localPosition = inverseWorld * worldPosition;
+  if (constrainsHorizontal())
+  {
+    localPosition.x -= track()->paddingLeft();
+    auto innerWidth = track()->innerWidth();
+    auto thumbWidth = computedThumbWidth();
+    auto trackRange = innerWidth - thumbWidth;
+    auto maxOffsetX = m_scrollConstraint->maxOffsetX();
+    m_scrollConstraint->scrollOffsetX(
+        math::clamp(localPosition.x / trackRange * maxOffsetX, maxOffsetX, 0));
+  }
+  if (constrainsVertical())
+  {
+    localPosition.y -= track()->paddingTop();
+    auto innerHeight = track()->innerHeight();
+    auto thumbHeight = computedThumbHeight();
+    auto trackRange = innerHeight - thumbHeight;
+    auto maxOffsetY = m_scrollConstraint->maxOffsetY();
+    m_scrollConstraint->scrollOffsetY(
+        math::clamp(localPosition.y / trackRange * maxOffsetY, maxOffsetY, 0));
+  }
 }
 
 void ScrollBarConstraint::dragThumb(Vec2D delta, float timeStamp)
 {
-    if (m_scrollConstraint == nullptr || thumb() == nullptr ||
-        track() == nullptr)
+  if (m_scrollConstraint == nullptr || thumb() == nullptr || track() == nullptr)
+  {
+    return;
+  }
+  float prevOffsetX = m_scrollConstraint->offsetX();
+  float prevOffsetY = m_scrollConstraint->offsetY();
+  if (constrainsHorizontal())
+  {
+    auto innerWidth = track()->innerWidth();
+    auto thumbWidth = computedThumbWidth();
+    if (autoSize())
     {
-        return;
+      thumb()->forcedWidth(thumbWidth);
     }
-    float prevOffsetX = m_scrollConstraint->offsetX();
-    float prevOffsetY = m_scrollConstraint->offsetY();
-    if (constrainsHorizontal())
-    {
-        auto innerWidth = track()->innerWidth();
-        auto thumbWidth = computedThumbWidth();
-        if (autoSize())
-        {
-            thumb()->forcedWidth(thumbWidth);
-        }
 
-        auto trackRange = innerWidth - thumbWidth;
-        auto maxOffsetX = m_scrollConstraint->maxOffsetX();
-        auto thumbOffset =
-            (m_scrollConstraint->offsetX() / maxOffsetX * trackRange) + delta.x;
-        m_scrollConstraint->scrollOffsetX(
-            math::clamp((thumbOffset / trackRange * maxOffsetX),
-                        maxOffsetX,
-                        0));
-    }
-    if (constrainsVertical())
+    auto trackRange = innerWidth - thumbWidth;
+    auto maxOffsetX = m_scrollConstraint->maxOffsetX();
+    auto thumbOffset = (m_scrollConstraint->offsetX() / maxOffsetX *
+                        trackRange) +
+                       delta.x;
+    m_scrollConstraint->scrollOffsetX(
+        math::clamp((thumbOffset / trackRange * maxOffsetX), maxOffsetX, 0));
+  }
+  if (constrainsVertical())
+  {
+    auto innerHeight = track()->innerHeight();
+    auto thumbHeight = computedThumbHeight();
+    if (autoSize())
     {
-        auto innerHeight = track()->innerHeight();
-        auto thumbHeight = computedThumbHeight();
-        if (autoSize())
-        {
-            thumb()->forcedHeight(thumbHeight);
-        }
+      thumb()->forcedHeight(thumbHeight);
+    }
 
-        auto trackRange = innerHeight - thumbHeight;
-        auto maxOffsetY = m_scrollConstraint->maxOffsetY();
-        auto thumbOffset =
-            (m_scrollConstraint->offsetY() / maxOffsetY * trackRange) + delta.y;
-        m_scrollConstraint->scrollOffsetY(
-            math::clamp((thumbOffset / trackRange * maxOffsetY),
-                        maxOffsetY,
-                        0));
-    }
-    if (m_scrollConstraint->physics() != nullptr)
-    {
-        m_scrollConstraint->physics()->accumulate(
-            Vec2D(m_scrollConstraint->offsetX() - prevOffsetX,
-                  m_scrollConstraint->offsetY() - prevOffsetY),
-            timeStamp);
-    }
+    auto trackRange = innerHeight - thumbHeight;
+    auto maxOffsetY = m_scrollConstraint->maxOffsetY();
+    auto thumbOffset = (m_scrollConstraint->offsetY() / maxOffsetY *
+                        trackRange) +
+                       delta.y;
+    m_scrollConstraint->scrollOffsetY(
+        math::clamp((thumbOffset / trackRange * maxOffsetY), maxOffsetY, 0));
+  }
+  if (m_scrollConstraint->physics() != nullptr)
+  {
+    m_scrollConstraint->physics()->accumulate(
+        Vec2D(
+            m_scrollConstraint->offsetX() - prevOffsetX,
+            m_scrollConstraint->offsetY() - prevOffsetY),
+        timeStamp);
+  }
 }
 
 bool ScrollBarConstraint::validate(CoreContext* context)
 {
-    auto coreObject = context->resolve(scrollConstraintId());
-    return coreObject != nullptr && coreObject->is<ScrollConstraint>();
+  auto coreObject = context->resolve(scrollConstraintId());
+  return coreObject != nullptr && coreObject->is<ScrollConstraint>();
 }

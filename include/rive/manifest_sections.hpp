@@ -9,9 +9,9 @@ namespace rive
 {
 enum class ManifestSections : unsigned char
 {
-    names = 0,
-    paths = 1,
-    watermark = 2,
+  names = 0,
+  paths = 1,
+  watermark = 2,
 };
 
 /// Payload layout version of the watermark section. A section written by a
@@ -27,16 +27,16 @@ namespace manifest_detail
 /// runtime.
 inline void appendVarUint(std::vector<uint8_t>& out, uint64_t value)
 {
-    do
+  do
+  {
+    uint8_t byte = (uint8_t)(value & 0x7F);
+    value >>= 7;
+    if (value != 0)
     {
-        uint8_t byte = (uint8_t)(value & 0x7F);
-        value >>= 7;
-        if (value != 0)
-        {
-            byte |= 0x80;
-        }
-        out.push_back(byte);
-    } while (value != 0);
+      byte |= 0x80;
+    }
+    out.push_back(byte);
+  } while (value != 0);
 }
 } // namespace manifest_detail
 
@@ -50,18 +50,19 @@ inline void appendVarUint(std::vector<uint8_t>& out, uint64_t value)
 /// packages/rive_core/lib/assets/manifest_asset.dart, the editor's exporter.
 /// Both writers have to agree byte for byte, so keep this the only C++ copy of
 /// the layout.
-inline void writeWatermarkManifestSection(uint32_t artboardIndex,
-                                          std::vector<uint8_t>& out)
+inline void writeWatermarkManifestSection(
+    uint32_t artboardIndex,
+    std::vector<uint8_t>& out)
 {
-    using namespace manifest_detail;
-    std::vector<uint8_t> section;
-    appendVarUint(section, watermarkSectionVersion);
-    appendVarUint(section, watermarkFlagEnabled);
-    appendVarUint(section, artboardIndex);
+  using namespace manifest_detail;
+  std::vector<uint8_t> section;
+  appendVarUint(section, watermarkSectionVersion);
+  appendVarUint(section, watermarkFlagEnabled);
+  appendVarUint(section, artboardIndex);
 
-    appendVarUint(out, (uint64_t)ManifestSections::watermark);
-    appendVarUint(out, section.size());
-    out.insert(out.end(), section.begin(), section.end());
+  appendVarUint(out, (uint64_t)ManifestSections::watermark);
+  appendVarUint(out, section.size());
+  out.insert(out.end(), section.begin(), section.end());
 }
 } // namespace rive
 #endif

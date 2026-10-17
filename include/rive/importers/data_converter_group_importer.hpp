@@ -10,11 +10,11 @@ class DataConverterGroup;
 class DataConverterGroupImporter : public ImportStackObject
 {
 private:
-    DataConverterGroup* m_dataConverterGroup;
+  DataConverterGroup* m_dataConverterGroup;
 
 public:
-    DataConverterGroupImporter(DataConverterGroup* group);
-    DataConverterGroup* group() { return m_dataConverterGroup; }
+  DataConverterGroupImporter(DataConverterGroup* group);
+  DataConverterGroup* group() { return m_dataConverterGroup; }
 };
 } // namespace rive
 #endif

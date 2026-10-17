@@ -16,373 +16,378 @@ namespace
 
 static void drawStripedBackground(rive::Renderer* renderer, int32_t dim)
 {
+  {
+    Paint p;
+    p->color(0xff000000);
+    renderer->drawPath(
+        PathBuilder::Rect({0.0f, 0.0f, float(dim), float(dim)}),
+        p);
+  }
+  {
+    Paint p;
+    p->color(0xff2c1642);
+    p->feather(10.0f);
+    auto yStep = 40.0f;
+    for (auto y = 20.0f; y < float(dim); y++)
     {
-        Paint p;
-        p->color(0xff000000);
-        renderer->drawPath(
-            PathBuilder::Rect({0.0f, 0.0f, float(dim), float(dim)}),
-            p);
+      auto path = PathBuilder::Rect({
+          -100.0f,
+          y,
+          float(dim) + 100.0f,
+          y + yStep * 0.3f,
+      });
+      path->fillRule(FillRule::clockwise);
+      renderer->drawPath(path, p);
+      y += yStep;
+      yStep *= 1.12f;
     }
-    {
-        Paint p;
-        p->color(0xff2c1642);
-        p->feather(10.0f);
-        auto yStep = 40.0f;
-        for (auto y = 20.0f; y < float(dim); y++)
-        {
-            auto path = PathBuilder::Rect({
-                -100.0f,
-                y,
-                float(dim) + 100.0f,
-                y + yStep * 0.3f,
-            });
-            path->fillRule(FillRule::clockwise);
-            renderer->drawPath(path, p);
-            y += yStep;
-            yStep *= 1.12f;
-        }
-    }
+  }
 }
 
 class ClipStrokeGM : public GM
 {
 public:
-    static constexpr int32_t SectionSize = 400;
-    static constexpr int32_t Spacing = 50;
-    static constexpr int32_t RoundRadius = 50;
-    static constexpr int32_t SectionCount = 3;
-    static constexpr int32_t ImageDim = SectionCount * SectionSize;
+  static constexpr int32_t SectionSize = 400;
+  static constexpr int32_t Spacing = 50;
+  static constexpr int32_t RoundRadius = 50;
+  static constexpr int32_t SectionCount = 3;
+  static constexpr int32_t ImageDim = SectionCount * SectionSize;
 
-    ClipStrokeGM() : GM(ImageDim, ImageDim) {}
+  ClipStrokeGM() : GM(ImageDim, ImageDim) {}
 
-    void onDraw(rive::Renderer* renderer) override
-    {
-        drawStripedBackground(renderer, ImageDim);
+  void onDraw(rive::Renderer* renderer) override
+  {
+    drawStripedBackground(renderer, ImageDim);
 
-        constexpr uint32_t Colors[SectionCount][SectionCount] = {
-            {
-                0xff881177,
-                0xffeedd00,
-                0xff00bbcc,
-            },
-            {
-                0xffaa3355,
-                0xff99dd55,
-                0xffee9944,
-            },
-            {
-                0xffcc6666,
-                0xff3366bb,
-                0xff22ccbb,
-            },
-        };
-        for (auto yIndex = 0; yIndex < 3; yIndex++)
+    constexpr uint32_t Colors[SectionCount][SectionCount] = {
         {
-            for (auto xIndex = 0; xIndex < 3; xIndex++)
-            {
-                renderer->save();
-                {
-                    const auto box = AABB{
-                        float(SectionSize * xIndex + Spacing / 2),
-                        float(SectionSize * yIndex + Spacing / 2),
-                        float(SectionSize * (xIndex + 1) - Spacing / 2),
-                        float(SectionSize * (yIndex + 1) - Spacing / 2),
-                    };
-                    auto clipper = PathBuilder::RRect(box,
-                                                      float(RoundRadius),
-                                                      float(RoundRadius));
-                    renderer->clipStroke(
-                        clipper,
-                        {.thickness = float(yIndex * 3 + xIndex + 1) * 3.0f});
+            0xff881177,
+            0xffeedd00,
+            0xff00bbcc,
+        },
+        {
+            0xffaa3355,
+            0xff99dd55,
+            0xffee9944,
+        },
+        {
+            0xffcc6666,
+            0xff3366bb,
+            0xff22ccbb,
+        },
+    };
+    for (auto yIndex = 0; yIndex < 3; yIndex++)
+    {
+      for (auto xIndex = 0; xIndex < 3; xIndex++)
+      {
+        renderer->save();
+        {
+          const auto box = AABB{
+              float(SectionSize * xIndex + Spacing / 2),
+              float(SectionSize * yIndex + Spacing / 2),
+              float(SectionSize * (xIndex + 1) - Spacing / 2),
+              float(SectionSize * (yIndex + 1) - Spacing / 2),
+          };
+          auto clipper = PathBuilder::RRect(
+              box,
+              float(RoundRadius),
+              float(RoundRadius));
+          renderer->clipStroke(
+              clipper,
+              {.thickness = float(yIndex * 3 + xIndex + 1) * 3.0f});
 
-                    Paint p;
-                    p->color(Colors[xIndex][yIndex]);
+          Paint p;
+          p->color(Colors[xIndex][yIndex]);
 
-                    const auto dim = float(SectionCount * SectionSize) * 0.5f;
-                    auto path = PathBuilder::Circle(dim, dim, dim * 0.8f);
-                    path->fillRule(FillRule::clockwise);
-                    renderer->drawPath(path, p);
-                }
-                renderer->restore();
-            }
+          const auto dim = float(SectionCount * SectionSize) * 0.5f;
+          auto path = PathBuilder::Circle(dim, dim, dim * 0.8f);
+          path->fillRule(FillRule::clockwise);
+          renderer->drawPath(path, p);
         }
+        renderer->restore();
+      }
     }
+  }
 };
 
 enum class NestType
 {
-    pathInStroke,
-    strokeInPath,
-    strokeInStroke,
+  pathInStroke,
+  strokeInPath,
+  strokeInStroke,
 };
 
 template <NestType N> class ClipStrokeNestedGM : public GM
 {
 public:
-    static constexpr int32_t SectionSize = 400;
-    static constexpr int32_t Spacing = 50;
-    static constexpr int32_t RoundRadius = 50;
-    static constexpr int32_t SectionCount = 3;
-    static constexpr int32_t ImageDim = SectionCount * SectionSize;
+  static constexpr int32_t SectionSize = 400;
+  static constexpr int32_t Spacing = 50;
+  static constexpr int32_t RoundRadius = 50;
+  static constexpr int32_t SectionCount = 3;
+  static constexpr int32_t ImageDim = SectionCount * SectionSize;
 
-    ClipStrokeNestedGM() : GM(ImageDim, ImageDim) {}
+  ClipStrokeNestedGM() : GM(ImageDim, ImageDim) {}
 
-    void onDraw(rive::Renderer* renderer) override
+  void onDraw(rive::Renderer* renderer) override
+  {
     {
+      Paint p;
+      p->color(0xff000000);
+      renderer->drawPath(
+          PathBuilder::Rect({0.0f, 0.0f, float(ImageDim), float(ImageDim)}),
+          p);
+    }
+    {
+      Paint p;
+      p->color(0xff2c1642);
+      p->feather(10.0f);
+      auto yStep = 40.0f;
+      for (auto y = 20.0f; y < float(SectionCount * SectionSize); y++)
+      {
+        auto path = PathBuilder::Rect({
+            -100.0f,
+            y,
+            float(ImageDim) + 100.0f,
+            y + yStep * 0.3f,
+        });
+        path->fillRule(FillRule::clockwise);
+        renderer->drawPath(path, p);
+        y += yStep;
+        yStep *= 1.12f;
+      }
+    }
+    constexpr uint32_t Colors[] = {
+        0xffeedd00,
+        0xffee9944,
+        0xffcc6666,
+        0xffaa3355,
+        0xff881177,
+        0xff3366bb,
+        0xff00bbcc,
+        0xff22ccbb,
+        0xff99dd55,
+    };
+
+    const auto dim = float(SectionCount * SectionSize) * 0.5f;
+    auto outerPath = PathBuilder::Circle(dim, dim, dim * 0.8f);
+
+    constexpr auto CircleDiameter = 100;
+    constexpr auto CircleSpacing = 20;
+    constexpr auto CircleRadius = float(CircleDiameter) * 0.5f;
+    auto innerCircle = PathBuilder::Circle(
+        CircleRadius,
+        CircleRadius,
+        CircleRadius);
+
+    renderer->save();
+    {
+      if constexpr (N == NestType::strokeInPath)
+      {
+        renderer->clipPath(outerPath);
+      }
+      else
+      {
+        renderer->clipStroke(outerPath, {.thickness = 200.0f});
+      }
+
+      for (auto yIndex = 0; yIndex < 3; yIndex++)
+      {
+        for (auto xIndex = 0; xIndex < 3; xIndex++)
         {
-            Paint p;
-            p->color(0xff000000);
-            renderer->drawPath(
-                PathBuilder::Rect(
-                    {0.0f, 0.0f, float(ImageDim), float(ImageDim)}),
-                p);
-        }
-        {
-            Paint p;
-            p->color(0xff2c1642);
-            p->feather(10.0f);
-            auto yStep = 40.0f;
-            for (auto y = 20.0f; y < float(SectionCount * SectionSize); y++)
+          renderer->save();
+          {
+            const auto box = AABB{
+                float(SectionSize * xIndex + Spacing / 2),
+                float(SectionSize * yIndex + Spacing / 2),
+                float(SectionSize * (xIndex + 1) - Spacing / 2),
+                float(SectionSize * (yIndex + 1) - Spacing / 2),
+            };
+            auto clipper = PathBuilder::RRect(
+                box,
+                float(RoundRadius),
+                float(RoundRadius));
+
+            if constexpr (N == NestType::pathInStroke)
             {
-                auto path = PathBuilder::Rect({
-                    -100.0f,
-                    y,
-                    float(ImageDim) + 100.0f,
-                    y + yStep * 0.3f,
-                });
-                path->fillRule(FillRule::clockwise);
-                renderer->drawPath(path, p);
-                y += yStep;
-                yStep *= 1.12f;
-            }
-        }
-        constexpr uint32_t Colors[] = {
-            0xffeedd00,
-            0xffee9944,
-            0xffcc6666,
-            0xffaa3355,
-            0xff881177,
-            0xff3366bb,
-            0xff00bbcc,
-            0xff22ccbb,
-            0xff99dd55,
-        };
-
-        const auto dim = float(SectionCount * SectionSize) * 0.5f;
-        auto outerPath = PathBuilder::Circle(dim, dim, dim * 0.8f);
-
-        constexpr auto CircleDiameter = 100;
-        constexpr auto CircleSpacing = 20;
-        constexpr auto CircleRadius = float(CircleDiameter) * 0.5f;
-        auto innerCircle =
-            PathBuilder::Circle(CircleRadius, CircleRadius, CircleRadius);
-
-        renderer->save();
-        {
-            if constexpr (N == NestType::strokeInPath)
-            {
-                renderer->clipPath(outerPath);
+              renderer->clipPath(clipper);
             }
             else
             {
-                renderer->clipStroke(outerPath, {.thickness = 200.0f});
+              renderer->clipStroke(clipper, {.thickness = 20.0f});
             }
 
-            for (auto yIndex = 0; yIndex < 3; yIndex++)
+            auto colorIndex = 0u;
+            for (auto y = 5; y < ImageDim; y += CircleDiameter + CircleSpacing)
             {
-                for (auto xIndex = 0; xIndex < 3; xIndex++)
+              for (auto x = 5; x < ImageDim;
+                   x += CircleDiameter + CircleSpacing)
+              {
+                Paint p;
+                p->color(Colors[colorIndex % std::size(Colors)]);
+                colorIndex++;
+                renderer->save();
                 {
-                    renderer->save();
-                    {
-                        const auto box = AABB{
-                            float(SectionSize * xIndex + Spacing / 2),
-                            float(SectionSize * yIndex + Spacing / 2),
-                            float(SectionSize * (xIndex + 1) - Spacing / 2),
-                            float(SectionSize * (yIndex + 1) - Spacing / 2),
-                        };
-                        auto clipper = PathBuilder::RRect(box,
-                                                          float(RoundRadius),
-                                                          float(RoundRadius));
-
-                        if constexpr (N == NestType::pathInStroke)
-                        {
-                            renderer->clipPath(clipper);
-                        }
-                        else
-                        {
-                            renderer->clipStroke(clipper, {.thickness = 20.0f});
-                        }
-
-                        auto colorIndex = 0u;
-                        for (auto y = 5; y < ImageDim;
-                             y += CircleDiameter + CircleSpacing)
-                        {
-                            for (auto x = 5; x < ImageDim;
-                                 x += CircleDiameter + CircleSpacing)
-                            {
-                                Paint p;
-                                p->color(
-                                    Colors[colorIndex % std::size(Colors)]);
-                                colorIndex++;
-                                renderer->save();
-                                {
-                                    renderer->translate(x, y);
-                                    renderer->drawPath(innerCircle, p);
-                                }
-                                renderer->restore();
-                            }
-                        }
-                    }
-
-                    renderer->restore();
+                  renderer->translate(x, y);
+                  renderer->drawPath(innerCircle, p);
                 }
+                renderer->restore();
+              }
             }
+          }
+
+          renderer->restore();
         }
-        renderer->restore();
+      }
     }
+    renderer->restore();
+  }
 };
 
 class ClipStrokeOpenGM : public GM
 {
 public:
-    static constexpr int32_t SectionSize = 400;
-    static constexpr int32_t SectionCount = 3;
-    static constexpr int32_t ImageDim = SectionCount * SectionSize;
-    static constexpr int32_t StrokeWidth = 50.0f;
+  static constexpr int32_t SectionSize = 400;
+  static constexpr int32_t SectionCount = 3;
+  static constexpr int32_t ImageDim = SectionCount * SectionSize;
+  static constexpr int32_t StrokeWidth = 50.0f;
 
-    ClipStrokeOpenGM() : GM(ImageDim, ImageDim) {}
+  ClipStrokeOpenGM() : GM(ImageDim, ImageDim) {}
 
-    void onDraw(rive::Renderer* renderer) override
-    {
-        Path clipper =
-            PathBuilder()
-                .addPolygon(
-                    std::vector{Vec2D{StrokeWidth, StrokeWidth},
-                                Vec2D{SectionSize - StrokeWidth, StrokeWidth},
-                                Vec2D{SectionSize - StrokeWidth,
-                                      SectionSize - StrokeWidth},
-                                Vec2D{StrokeWidth, SectionSize - StrokeWidth}},
-                    false)
-                .detach();
+  void onDraw(rive::Renderer* renderer) override
+  {
+    Path clipper = PathBuilder()
+                       .addPolygon(
+                           std::vector{
+                               Vec2D{StrokeWidth, StrokeWidth},
+                               Vec2D{SectionSize - StrokeWidth, StrokeWidth},
+                               Vec2D{
+                                   SectionSize - StrokeWidth,
+                                   SectionSize - StrokeWidth},
+                               Vec2D{StrokeWidth, SectionSize - StrokeWidth}},
+                           false)
+                       .detach();
 
-        drawStripedBackground(renderer, ImageDim);
+    drawStripedBackground(renderer, ImageDim);
 
-        constexpr uint32_t Colors[SectionCount][SectionCount] = {
-            {
-                0xff881177,
-                0xffeedd00,
-                0xff00bbcc,
-            },
-            {
-                0xffaa3355,
-                0xff99dd55,
-                0xffee9944,
-            },
-            {
-                0xffcc6666,
-                0xff3366bb,
-                0xff22ccbb,
-            },
-        };
-        for (auto yIndex = 0; yIndex < SectionCount; yIndex++)
+    constexpr uint32_t Colors[SectionCount][SectionCount] = {
         {
-            for (auto xIndex = 0; xIndex < SectionCount; xIndex++)
-            {
-                renderer->save();
-                {
-                    const auto tX = float(SectionSize * xIndex);
-                    const auto tY = float(SectionSize * yIndex);
-                    renderer->translate(tX, tY);
-                    renderer->clipStroke(clipper,
-                                         {
-                                             .thickness = StrokeWidth,
-                                             .join = StrokeJoin(xIndex),
-                                             .cap = StrokeCap(yIndex),
-                                         });
+            0xff881177,
+            0xffeedd00,
+            0xff00bbcc,
+        },
+        {
+            0xffaa3355,
+            0xff99dd55,
+            0xffee9944,
+        },
+        {
+            0xffcc6666,
+            0xff3366bb,
+            0xff22ccbb,
+        },
+    };
+    for (auto yIndex = 0; yIndex < SectionCount; yIndex++)
+    {
+      for (auto xIndex = 0; xIndex < SectionCount; xIndex++)
+      {
+        renderer->save();
+        {
+          const auto tX = float(SectionSize * xIndex);
+          const auto tY = float(SectionSize * yIndex);
+          renderer->translate(tX, tY);
+          renderer->clipStroke(
+              clipper,
+              {
+                  .thickness = StrokeWidth,
+                  .join = StrokeJoin(xIndex),
+                  .cap = StrokeCap(yIndex),
+              });
 
-                    Paint p;
-                    p->color(Colors[xIndex][yIndex]);
+          Paint p;
+          p->color(Colors[xIndex][yIndex]);
 
-                    renderer->translate(-tX, -tY);
+          renderer->translate(-tX, -tY);
 
-                    const auto dim = float(SectionCount * SectionSize) * 0.5f;
-                    auto path = PathBuilder::Circle(dim, dim, dim * 5.0f);
-                    path->fillRule(FillRule::clockwise);
-                    renderer->drawPath(path, p);
-                }
-                renderer->restore();
-            }
+          const auto dim = float(SectionCount * SectionSize) * 0.5f;
+          auto path = PathBuilder::Circle(dim, dim, dim * 5.0f);
+          path->fillRule(FillRule::clockwise);
+          renderer->drawPath(path, p);
         }
+        renderer->restore();
+      }
     }
+  }
 };
 } // namespace
 
 GMREGISTER(clip_stroke_basic, return (new ClipStrokeGM()))
-GMREGISTER(clip_stroke_nested_a,
-           return (new ClipStrokeNestedGM<NestType::pathInStroke>()))
-GMREGISTER(clip_stroke_nested_b,
-           return (new ClipStrokeNestedGM<NestType::strokeInPath>()))
-GMREGISTER(clip_stroke_nested_c,
-           return (new ClipStrokeNestedGM<NestType::strokeInStroke>()))
+GMREGISTER(
+    clip_stroke_nested_a,
+    return (new ClipStrokeNestedGM<NestType::pathInStroke>()))
+GMREGISTER(
+    clip_stroke_nested_b,
+    return (new ClipStrokeNestedGM<NestType::strokeInPath>()))
+GMREGISTER(
+    clip_stroke_nested_c,
+    return (new ClipStrokeNestedGM<NestType::strokeInStroke>()))
 GMREGISTER(clip_stroke_open, return (new ClipStrokeOpenGM()))
 
 DEF_SIMPLE_GM(clip_stroke_position, 768, 768, renderer)
 {
-    drawStripedBackground(renderer, 768);
+  drawStripedBackground(renderer, 768);
 
-    Path path = PathBuilder::Circle(128.0f, 128.0f, 100.0f);
-    path->fillRule(FillRule::clockwise);
+  Path path = PathBuilder::Circle(128.0f, 128.0f, 100.0f);
+  path->fillRule(FillRule::clockwise);
 
-    Path otherClip = PathBuilder::Polygon({Vec2D{-30.0f, 226.0f},
-                                           Vec2D{226.0f, -30.0f},
-                                           Vec2D{286.0f, 30.0f},
-                                           Vec2D{30.0f, 286.0f}},
-                                          true,
-                                          FillRule::clockwise);
+  Path otherClip = PathBuilder::Polygon(
+      {Vec2D{-30.0f, 226.0f},
+       Vec2D{226.0f, -30.0f},
+       Vec2D{286.0f, 30.0f},
+       Vec2D{30.0f, 286.0f}},
+      true,
+      FillRule::clockwise);
 
-    Path fillA =
-        PathBuilder::RRect({30.0f, 30.0f, 226.0f, 226.0f}, 50.0f, 50.0f);
-    Path fillB =
-        PathBuilder::RRect({40.0f, 40.0f, 216.0f, 216.0f}, 50.0f, 50.0f);
+  Path fillA = PathBuilder::RRect({30.0f, 30.0f, 226.0f, 226.0f}, 50.0f, 50.0f);
+  Path fillB = PathBuilder::RRect({40.0f, 40.0f, 216.0f, 216.0f}, 50.0f, 50.0f);
 
-    for (auto nestIndex = 0; nestIndex < 3; nestIndex++)
+  for (auto nestIndex = 0; nestIndex < 3; nestIndex++)
+  {
+    renderer->save();
+
+    renderer->translate(0.0f, nestIndex * 256.0f);
+
+    for (auto i = 0; i < 3; i++)
     {
-        renderer->save();
-
-        renderer->translate(0.0f, nestIndex * 256.0f);
-
-        for (auto i = 0; i < 3; i++)
+      renderer->save();
+      {
+        if (nestIndex == 1)
         {
-            renderer->save();
-            {
-                if (nestIndex == 1)
-                {
-                    // nest 1 is "positioned clip stroke inside of fill"
-                    renderer->clipPath(otherClip);
-                }
-
-                renderer->clipStroke(
-                    path,
-                    {.thickness = 20.0f, .position = StrokePosition(i)});
-
-                if (nestIndex == 2)
-                {
-                    // nest 1 is "fill inside of positioned clip stroke"
-                    renderer->clipPath(otherClip);
-                }
-
-                Paint p;
-                p->color(0xffaa3355);
-                p->style(RenderPaintStyle::fill);
-                renderer->drawPath(fillA, p);
-                p->color(0xff00bbcc);
-                renderer->drawPath(fillB, p);
-            }
-            renderer->restore();
-
-            renderer->translate(256.0f, 0.0f);
+          // nest 1 is "positioned clip stroke inside of fill"
+          renderer->clipPath(otherClip);
         }
 
-        renderer->restore();
+        renderer->clipStroke(
+            path,
+            {.thickness = 20.0f, .position = StrokePosition(i)});
+
+        if (nestIndex == 2)
+        {
+          // nest 1 is "fill inside of positioned clip stroke"
+          renderer->clipPath(otherClip);
+        }
+
+        Paint p;
+        p->color(0xffaa3355);
+        p->style(RenderPaintStyle::fill);
+        renderer->drawPath(fillA, p);
+        p->color(0xff00bbcc);
+        renderer->drawPath(fillB, p);
+      }
+      renderer->restore();
+
+      renderer->translate(256.0f, 0.0f);
     }
+
+    renderer->restore();
+  }
 }

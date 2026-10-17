@@ -5,97 +5,99 @@
 
 using namespace rive;
 
-AnimationReset::AnimationReset() :
-    m_binaryWriter(&m_WriteBuffer), m_binaryReader(nullptr, 0)
+AnimationReset::AnimationReset()
+    : m_binaryWriter(&m_WriteBuffer)
+    , m_binaryReader(nullptr, 0)
 {}
 
 void AnimationReset::writeObjectId(uint32_t objectId)
 {
-    m_binaryWriter.writeVarUint(objectId);
+  m_binaryWriter.writeVarUint(objectId);
 }
 
 void AnimationReset::writeTotalProperties(uint32_t value)
 {
-    m_binaryWriter.writeVarUint(value);
+  m_binaryWriter.writeVarUint(value);
 }
 
 void AnimationReset::writePropertyKey(uint32_t value)
 {
-    m_binaryWriter.writeVarUint(value);
+  m_binaryWriter.writeVarUint(value);
 }
 
 void AnimationReset::writePropertyValue(float value)
 {
-    m_binaryWriter.writeFloat(value);
+  m_binaryWriter.writeFloat(value);
 }
 
 void AnimationReset::clear() { m_binaryWriter.clear(); }
 
 void AnimationReset::complete()
 {
-    if (!m_WriteBuffer.empty())
-    {
-        m_binaryReader.complete(&m_WriteBuffer.front(), m_binaryWriter.size());
-    }
+  if (!m_WriteBuffer.empty())
+  {
+    m_binaryReader.complete(&m_WriteBuffer.front(), m_binaryWriter.size());
+  }
 }
 
 template <typename Visit>
 void AnimationReset::forEachValue(Artboard* artboard, Visit&& visit)
 {
-    if (m_WriteBuffer.empty())
+  if (m_WriteBuffer.empty())
+  {
+    return;
+  }
+  m_binaryReader.reset(&m_WriteBuffer.front());
+  while (!m_binaryReader.isEOF())
+  {
+    auto objectId = m_binaryReader.readVarUint32();
+    auto object = artboard->resolve(objectId);
+    auto totalProperties = m_binaryReader.readVarUint32();
+    uint32_t currentPropertyIndex = 0;
+    while (currentPropertyIndex < totalProperties)
     {
-        return;
+      auto propertyKey = m_binaryReader.readVarUint32();
+      auto propertyValue = m_binaryReader.readFloat32();
+      visit(object, propertyKey, propertyValue);
+      currentPropertyIndex++;
     }
-    m_binaryReader.reset(&m_WriteBuffer.front());
-    while (!m_binaryReader.isEOF())
-    {
-        auto objectId = m_binaryReader.readVarUint32();
-        auto object = artboard->resolve(objectId);
-        auto totalProperties = m_binaryReader.readVarUint32();
-        uint32_t currentPropertyIndex = 0;
-        while (currentPropertyIndex < totalProperties)
-        {
-            auto propertyKey = m_binaryReader.readVarUint32();
-            auto propertyValue = m_binaryReader.readFloat32();
-            visit(object, propertyKey, propertyValue);
-            currentPropertyIndex++;
-        }
-    }
+  }
 }
 
 void AnimationReset::apply(Artboard* artboard)
 {
-    forEachValue(
-        artboard,
-        [](Core* object, uint32_t propertyKey, float propertyValue) {
-            switch (CoreRegistry::propertyFieldId(propertyKey))
-            {
-                case CoreDoubleType::id:
-                    CoreRegistry::setDouble(object, propertyKey, propertyValue);
-                    break;
-                case CoreColorType::id:
-                    CoreRegistry::setColor(object, propertyKey, propertyValue);
-                    break;
-            }
-        });
+  forEachValue(
+      artboard,
+      [](Core* object, uint32_t propertyKey, float propertyValue) {
+        switch (CoreRegistry::propertyFieldId(propertyKey))
+        {
+          case CoreDoubleType::id:
+            CoreRegistry::setDouble(object, propertyKey, propertyValue);
+            break;
+          case CoreColorType::id:
+            CoreRegistry::setColor(object, propertyKey, propertyValue);
+            break;
+        }
+      });
 }
 
 void AnimationReset::seed(Artboard* artboard, BlendAccumulator& accumulator)
 {
-    forEachValue(
-        artboard,
-        [&](Core* object, uint32_t propertyKey, float propertyValue) {
-            switch (CoreRegistry::propertyFieldId(propertyKey))
-            {
-                case CoreDoubleType::id:
-                    accumulator.seedDouble(object, propertyKey, propertyValue);
-                    break;
-                case CoreColorType::id:
-                    // The same conversion apply() makes through setColor.
-                    accumulator.seedColor(object,
-                                          propertyKey,
-                                          (ColorInt)(int)propertyValue);
-                    break;
-            }
-        });
+  forEachValue(
+      artboard,
+      [&](Core* object, uint32_t propertyKey, float propertyValue) {
+        switch (CoreRegistry::propertyFieldId(propertyKey))
+        {
+          case CoreDoubleType::id:
+            accumulator.seedDouble(object, propertyKey, propertyValue);
+            break;
+          case CoreColorType::id:
+            // The same conversion apply() makes through setColor.
+            accumulator.seedColor(
+                object,
+                propertyKey,
+                (ColorInt)(int)propertyValue);
+            break;
+        }
+      });
 }

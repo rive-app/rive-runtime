@@ -5,9 +5,9 @@ namespace rive
 {
 enum class ProcessEventResult : uint8_t
 {
-    none,
-    pointer,
-    scroll,
+  none,
+  pointer,
+  scroll,
 };
 } // namespace rive
 #endif

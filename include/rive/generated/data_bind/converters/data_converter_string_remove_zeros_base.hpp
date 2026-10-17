@@ -6,14 +6,14 @@ namespace rive
 class DataConverterStringRemoveZerosBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 531;
+  static const uint16_t typeKey = 531;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

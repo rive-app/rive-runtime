@@ -12,14 +12,14 @@ namespace rive
 class DataConverterToNumber : public DataConverterToNumberBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::number; };
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::number; };
 
 private:
-    DataValue* convertString(DataValueString* value);
-    DataValue* convertColor(DataValueColor* value);
-    DataValue* convertEnum(DataValueEnum* value);
-    DataValueNumber m_output;
+  DataValue* convertString(DataValueString* value);
+  DataValue* convertColor(DataValueColor* value);
+  DataValue* convertEnum(DataValueEnum* value);
+  DataValueNumber m_output;
 };
 } // namespace rive
 

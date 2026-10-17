@@ -11,40 +11,39 @@ class DataConverterGroup : public DataConverterGroupBase
 {
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
+  void editorPrepareForDestruction() override;
 #endif
-    ~DataConverterGroup();
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
-    void addItem(DataConverterGroupItem* item);
-    DataType outputType() override
+  ~DataConverterGroup();
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+  void addItem(DataConverterGroupItem* item);
+  DataType outputType() override
+  {
+    if (m_items.size() > 0)
     {
-        if (m_items.size() > 0)
+      int currentIndex = int(m_items.size() - 1);
+      while (currentIndex >= 0)
+      {
+        if (m_items[currentIndex]->converter()->outputType() != DataType::input)
         {
-            int currentIndex = int(m_items.size() - 1);
-            while (currentIndex >= 0)
-            {
-                if (m_items[currentIndex]->converter()->outputType() !=
-                    DataType::input)
-                {
-                    return m_items[currentIndex]->converter()->outputType();
-                }
-                currentIndex--;
-            }
-        };
-        return Super::outputType();
-    }
-    const std::vector<DataConverterGroupItem*>& items() { return m_items; }
-    Core* clone() const override;
-    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
-    void unbind() override;
-    void update() override;
-    bool advance(float elapsedSeconds) override;
-    bool mayAdvance() const override;
-    void reset() override;
+          return m_items[currentIndex]->converter()->outputType();
+        }
+        currentIndex--;
+      }
+    };
+    return Super::outputType();
+  }
+  const std::vector<DataConverterGroupItem*>& items() { return m_items; }
+  Core* clone() const override;
+  void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+  void unbind() override;
+  void update() override;
+  bool advance(float elapsedSeconds) override;
+  bool mayAdvance() const override;
+  void reset() override;
 
 private:
-    std::vector<DataConverterGroupItem*> m_items;
+  std::vector<DataConverterGroupItem*> m_items;
 };
 } // namespace rive
 

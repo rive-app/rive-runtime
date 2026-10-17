@@ -10,23 +10,24 @@ namespace rive
 class DataValueAssetFont : public DataValueInteger
 {
 public:
-    DataValueAssetFont(uint32_t value) :
-        DataValueInteger(value),
-        m_fileAsset(rcp<FontAsset>(new FontAsset())) {};
-    DataValueAssetFont() :
-        DataValueInteger(-1), m_fileAsset(rcp<FontAsset>(new FontAsset())) {};
-    static const DataType typeKey = DataType::assetFont;
-    bool isTypeOf(DataType typeKey) const override
-    {
-        return typeKey == DataType::assetFont || typeKey == DataType::integer;
-    };
-    constexpr static uint32_t defaultValue = -1;
-    rcp<FontAsset> fileAsset() { return m_fileAsset; }
-    void fontValue(Font* font) { m_fileAsset->font(ref_rcp(font)); }
-    Font* fontValue() { return m_fileAsset->font().get(); }
+  DataValueAssetFont(uint32_t value)
+      : DataValueInteger(value)
+      , m_fileAsset(rcp<FontAsset>(new FontAsset())) {};
+  DataValueAssetFont()
+      : DataValueInteger(-1)
+      , m_fileAsset(rcp<FontAsset>(new FontAsset())) {};
+  static const DataType typeKey = DataType::assetFont;
+  bool isTypeOf(DataType typeKey) const override
+  {
+    return typeKey == DataType::assetFont || typeKey == DataType::integer;
+  };
+  constexpr static uint32_t defaultValue = -1;
+  rcp<FontAsset> fileAsset() { return m_fileAsset; }
+  void fontValue(Font* font) { m_fileAsset->font(ref_rcp(font)); }
+  Font* fontValue() { return m_fileAsset->font().get(); }
 
 private:
-    rcp<FontAsset> m_fileAsset = nullptr;
+  rcp<FontAsset> m_fileAsset = nullptr;
 };
 } // namespace rive
 #endif

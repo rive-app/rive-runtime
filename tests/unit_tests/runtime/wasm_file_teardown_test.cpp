@@ -20,26 +20,27 @@ using namespace rive;
 // used to destroy its wasm VMs only after deleting the artboards, so the Deck
 // instance's KeyboardListenerGroup then read the freed StateMachineListener and
 // FocusData (a SIGSEGV at every rive CLI teardown of such a file).
-TEST_CASE("a file releases its wasm VMs before its artboards",
-          "[scripting][wasm]")
+TEST_CASE(
+    "a file releases its wasm VMs before its artboards",
+    "[scripting][wasm]")
 {
-    auto file = ReadRiveFile("assets/animascript_input_keyboard.riv");
-    // ASan's larger frames overflow WAMR's native stack check at instantiate
-    // (as in script_signature_test), so there the module never runs.
+  auto file = ReadRiveFile("assets/animascript_input_keyboard.riv");
+  // ASan's larger frames overflow WAMR's native stack check at instantiate
+  // (as in script_signature_test), so there the module never runs.
 #if !defined(__SANITIZE_ADDRESS__) && !__has_feature(address_sanitizer)
-    REQUIRE(file->wasmScriptingVM() != nullptr);
+  REQUIRE(file->wasmScriptingVM() != nullptr);
 #endif
+  {
+    auto main = file->artboardNamed("Main");
+    REQUIRE(main != nullptr);
+    for (int frame = 0; frame < 3; frame++)
     {
-        auto main = file->artboardNamed("Main");
-        REQUIRE(main != nullptr);
-        for (int frame = 0; frame < 3; frame++)
-        {
-            main->advance(1.0f / 60.0f);
-        }
+      main->advance(1.0f / 60.0f);
     }
-    // The last reference: ~File must release the VM, and the Deck instance it
-    // holds, before the artboards it was made from.
-    file = nullptr;
-    CHECK(file == nullptr);
+  }
+  // The last reference: ~File must release the VM, and the Deck instance it
+  // holds, before the artboards it was made from.
+  file = nullptr;
+  CHECK(file == nullptr);
 }
 #endif

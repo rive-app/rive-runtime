@@ -9,26 +9,26 @@ namespace rive
 class CustomPropertyGroupBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 548;
+  static const uint16_t typeKey = 548;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const CustomPropertyGroupBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const CustomPropertyGroupBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ContainerComponent::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/custom_property_group_ext.inl"
 #endif

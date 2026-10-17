@@ -10,21 +10,21 @@ namespace rive
 /// reports update.
 enum class ScrollPhase : uint8_t
 {
-    /// Stops any running fling and primes velocity tracking.
-    begin = 0,
+  /// Stops any running fling and primes velocity tracking.
+  begin = 0,
 
-    update = 1,
+  update = 1,
 
-    /// Contact ended; the runtime flings from the velocity it accumulated.
-    /// Hosts whose platform generates its own momentum never send this.
-    end = 2,
+  /// Contact ended; the runtime flings from the velocity it accumulated.
+  /// Hosts whose platform generates its own momentum never send this.
+  end = 2,
 
-    /// Platform-generated after release. Applied directly, never flung on top
-    /// of; closed by going idle rather than by an end.
-    momentum = 3,
+  /// Platform-generated after release. Applied directly, never flung on top
+  /// of; closed by going idle rather than by an end.
+  momentum = 3,
 
-    /// Contact landed during momentum. Halts motion; delta is ignored.
-    inertiaCancel = 4,
+  /// Contact landed during momentum. Halts motion; delta is ignored.
+  inertiaCancel = 4,
 };
 
 /// A scroll delta from indirect input: a wheel, or a trackpad gesture the
@@ -32,15 +32,15 @@ enum class ScrollPhase : uint8_t
 /// path.
 struct ScrollEvent
 {
-    /// Distance the content moves, in artboard-space pixels -- the same sense
-    /// as ScrollConstraint::dragView, so revealing later content is negative.
-    /// Hosts normalize; the runtime never sees platform units.
-    Vec2D delta;
+  /// Distance the content moves, in artboard-space pixels -- the same sense
+  /// as ScrollConstraint::dragView, so revealing later content is negative.
+  /// Hosts normalize; the runtime never sees platform units.
+  Vec2D delta;
 
-    ScrollPhase phase = ScrollPhase::update;
+  ScrollPhase phase = ScrollPhase::update;
 
-    /// Pixel-precise source (trackpad) rather than a detented wheel.
-    bool precise = false;
+  /// Pixel-precise source (trackpad) rather than a detented wheel.
+  bool precise = false;
 };
 
 /// A gesture that reports no end of its own, like a wheel or platform

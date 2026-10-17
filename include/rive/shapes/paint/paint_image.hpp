@@ -36,110 +36,114 @@ class PaintImage : public PaintImageBase,
                    public AdvancingComponent
 {
 public:
-    // Out of line so the unique_ptr<ArtboardPaintSource> is only destroyed
-    // where its type is complete.
-    PaintImage();
-    ~PaintImage() override;
+  // Out of line so the unique_ptr<ArtboardPaintSource> is only destroyed
+  // where its type is complete.
+  PaintImage();
+  ~PaintImage() override;
 
-    StatusCode import(ImportStack& importStack) override;
-    bool validate(CoreContext* context) override;
-    StatusCode onAddedClean(CoreContext* context) override;
-    void buildDependencies() override;
-    void update(ComponentDirt value) override;
-    Core* clone() const override;
+  StatusCode import(ImportStack& importStack) override;
+  bool validate(CoreContext* context) override;
+  StatusCode onAddedClean(CoreContext* context) override;
+  void buildDependencies() override;
+  void update(ComponentDirt value) override;
+  Core* clone() const override;
 
-    // FileAssetReferencer: the image used to modulate the parent paint.
-    void setAsset(rcp<FileAsset>) override;
-    uint32_t assetId() override;
-    void assetUpdated() override;
-    ImageAsset* imageAsset() const;
-    ImageSampler imageSampler() const;
+  // FileAssetReferencer: the image used to modulate the parent paint.
+  void setAsset(rcp<FileAsset>) override;
+  uint32_t assetId() override;
+  void assetUpdated() override;
+  ImageAsset* imageAsset() const;
+  ImageSampler imageSampler() const;
 
-    // ArtboardReferencer: the artboard used to modulate the parent paint. The
-    // referenced artboard is always the file level source; each instance of
-    // the host owns its own instance of it.
-    void updateArtboard(ViewModelInstanceArtboard*) override {}
-    int referencedArtboardId() override { return (int)artboardId(); }
-    // So the importer's cycle cut covers paint sources as well as nested
-    // artboards.
-    Artboard* nestingArtboard() override { return artboard(); }
-    Artboard* sourceArtboard() const { return m_referencedArtboard; }
+  // ArtboardReferencer: the artboard used to modulate the parent paint. The
+  // referenced artboard is always the file level source; each instance of
+  // the host owns its own instance of it.
+  void updateArtboard(ViewModelInstanceArtboard*) override {}
+  int referencedArtboardId() override { return (int)artboardId(); }
+  // So the importer's cycle cut covers paint sources as well as nested
+  // artboards.
+  Artboard* nestingArtboard() override { return artboard(); }
+  Artboard* sourceArtboard() const { return m_referencedArtboard; }
 
-    // AdvancingComponent: plays the artboard source. An image source never
-    // advances, so it never keeps a list row from going quiet.
-    bool advanceComponent(float elapsedSeconds,
-                          AdvanceFlags flags = AdvanceFlags::Animate |
-                                               AdvanceFlags::NewFrame) override;
-    QuietState quietState() override
-    {
-        return m_source != nullptr ? QuietState::never : QuietState::quiet;
-    }
+  // AdvancingComponent: plays the artboard source. An image source never
+  // advances, so it never keeps a list row from going quiet.
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  QuietState quietState() override
+  {
+    return m_source != nullptr ? QuietState::never : QuietState::quiet;
+  }
 
-    // ArtboardHost: the artboard's data context reaches the source through
-    // here, passed through unchanged as a NestedArtboard with no bind path
-    // does. Only a paint with an artboard source registers as a host.
-    size_t artboardCount() override { return m_source != nullptr ? 1 : 0; }
-    ArtboardInstance* artboardInstance(int index = 0) override;
-    void internalDataContext(rcp<DataContext> dataContext) override;
-    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               rcp<DataContext> parent) override;
-    void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) override;
-    void clearDataContext() override;
-    void unbind() override;
-    void updateDataBinds() override;
-    Artboard* parentArtboard() override { return artboard(); }
-    // Nothing hit tests or lays out through a paint.
-    bool hitTestHost(const Vec2D&, bool, ArtboardInstance*) override
-    {
-        return false;
-    }
-    Vec2D hostTransformPoint(const Vec2D& point, ArtboardInstance*) override
-    {
-        return point;
-    }
-    Mat2D worldTransformForArtboard(ArtboardInstance*) override
-    {
-        return Mat2D();
-    }
-    void markHostTransformDirty() override {}
-    void file(File* value) override { m_file = value; }
-    File* file() const override { return m_file; }
-    // hostComponent() stays null on purpose: focus, semantics and parent
-    // traversal cross into a host through it, and the source is a picture of
-    // an artboard, not part of the hierarchy it is painted in.
-    int type() const override { return coreType(); }
+  // ArtboardHost: the artboard's data context reaches the source through
+  // here, passed through unchanged as a NestedArtboard with no bind path
+  // does. Only a paint with an artboard source registers as a host.
+  size_t artboardCount() override { return m_source != nullptr ? 1 : 0; }
+  ArtboardInstance* artboardInstance(int index = 0) override;
+  void internalDataContext(rcp<DataContext> dataContext) override;
+  void bindViewModelInstance(
+      rcp<ViewModelInstance> viewModelInstance,
+      rcp<DataContext> parent) override;
+  void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) override;
+  void clearDataContext() override;
+  void unbind() override;
+  void updateDataBinds() override;
+  Artboard* parentArtboard() override { return artboard(); }
+  // Nothing hit tests or lays out through a paint.
+  bool hitTestHost(const Vec2D&, bool, ArtboardInstance*) override
+  {
+    return false;
+  }
+  Vec2D hostTransformPoint(const Vec2D& point, ArtboardInstance*) override
+  {
+    return point;
+  }
+  Mat2D worldTransformForArtboard(ArtboardInstance*) override
+  {
+    return Mat2D();
+  }
+  void markHostTransformDirty() override {}
+  void file(File* value) override { m_file = value; }
+  File* file() const override { return m_file; }
+  // hostComponent() stays null on purpose: focus, semantics and parent
+  // traversal cross into a host through it, and the source is a picture of
+  // an artboard, not part of the hierarchy it is painted in.
+  int type() const override { return coreType(); }
 
-    /// Modulate [paint] with this image, auto-fit to [bounds] (the shape's
-    /// local bounds) and adjusted by the image transform (scale/offset/rotation
-    /// about the bounds center). Returns false (leaving [paint] untouched) when
-    /// no image is resolved -- the caller owns clearing any stale image, as it
-    /// also has to handle this component being removed entirely.
-    ///
-    /// [renderer] is what the path is about to be drawn with: an artboard
-    /// source sizes its raster from its transform. [target] receives the
-    /// renderer the path has to be drawn through instead, if any.
-    bool applyTo(Renderer* renderer,
-                 RenderPaint* paint,
-                 const AABB& bounds,
-                 ModulatedDrawTarget* target);
+  /// Modulate [paint] with this image, auto-fit to [bounds] (the shape's
+  /// local bounds) and adjusted by the image transform (scale/offset/rotation
+  /// about the bounds center). Returns false (leaving [paint] untouched) when
+  /// no image is resolved -- the caller owns clearing any stale image, as it
+  /// also has to handle this component being removed entirely.
+  ///
+  /// [renderer] is what the path is about to be drawn with: an artboard
+  /// source sizes its raster from its transform. [target] receives the
+  /// renderer the path has to be drawn through instead, if any.
+  bool applyTo(
+      Renderer* renderer,
+      RenderPaint* paint,
+      const AABB& bounds,
+      ModulatedDrawTarget* target);
 
-    /// Maps the image's normalized 0..1 space onto [bounds]. The base fits the
-    /// image across the bounds once ("fill") or at [originalWidth] x
-    /// [originalHeight] local units ("original"); the user transform
-    /// (scale/offset/rotation about the bounds center) modifies it.
-    Mat2D textureTransform(const AABB& bounds,
-                           float originalWidth,
-                           float originalHeight) const;
+  /// Maps the image's normalized 0..1 space onto [bounds]. The base fits the
+  /// image across the bounds once ("fill") or at [originalWidth] x
+  /// [originalHeight] local units ("original"); the user transform
+  /// (scale/offset/rotation about the bounds center) modifies it.
+  Mat2D textureTransform(
+      const AABB& bounds,
+      float originalWidth,
+      float originalHeight) const;
 
 #ifdef TESTING
-    ArtboardPaintSource* artboardSource() const { return m_source.get(); }
+  ArtboardPaintSource* artboardSource() const { return m_source.get(); }
 #endif
 
 private:
-    void invalidatePaint();
+  void invalidatePaint();
 
-    std::unique_ptr<ArtboardPaintSource> m_source;
-    File* m_file = nullptr;
+  std::unique_ptr<ArtboardPaintSource> m_source;
+  File* m_file = nullptr;
 };
 } // namespace rive
 

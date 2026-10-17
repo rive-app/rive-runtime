@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FormulaTokenArgumentSeparatorBase::clone() const
 {
-    auto cloned = new FormulaTokenArgumentSeparator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FormulaTokenArgumentSeparator();
+  cloned->copy(*this);
+  return cloned;
 }

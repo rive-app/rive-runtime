@@ -6,28 +6,29 @@
 
 using namespace rive;
 
-AudioSound::AudioSound(AudioEngine* engine,
-                       rcp<AudioSource> source,
-                       Artboard* artboard) :
-    m_decoder({}),
-    m_buffer({}),
-    m_sound({}),
-    m_source(std::move(source)),
-    m_isDisposed(false),
-    m_engine(engine),
-    m_artboard(artboard)
+AudioSound::AudioSound(
+    AudioEngine* engine,
+    rcp<AudioSource> source,
+    Artboard* artboard)
+    : m_decoder({})
+    , m_buffer({})
+    , m_sound({})
+    , m_source(std::move(source))
+    , m_isDisposed(false)
+    , m_engine(engine)
+    , m_artboard(artboard)
 {}
 
 void AudioSound::dispose()
 {
-    if (m_isDisposed)
-    {
-        return;
-    }
-    m_isDisposed = true;
-    ma_sound_uninit(&m_sound);
-    ma_decoder_uninit(&m_decoder.decoder);
-    ma_audio_buffer_uninit(&m_buffer);
+  if (m_isDisposed)
+  {
+    return;
+  }
+  m_isDisposed = true;
+  ma_sound_uninit(&m_sound);
+  ma_decoder_uninit(&m_decoder.decoder);
+  ma_audio_buffer_uninit(&m_buffer);
 }
 
 float AudioSound::volume() { return ma_sound_get_volume(&m_sound); }
@@ -35,87 +36,87 @@ void AudioSound::volume(float value) { ma_sound_set_volume(&m_sound, value); }
 
 bool AudioSound::completed() const
 {
-    if (m_isDisposed)
-    {
-        return true;
-    }
-    return (bool)ma_sound_at_end(&m_sound);
+  if (m_isDisposed)
+  {
+    return true;
+  }
+  return (bool)ma_sound_at_end(&m_sound);
 }
 
 AudioSound::~AudioSound() { dispose(); }
 
 void AudioSound::stop(uint64_t fadeTimeInFrames)
 {
-    if (m_isDisposed)
-    {
-        return;
-    }
-    if (fadeTimeInFrames == 0)
-    {
-        ma_sound_stop(&m_sound);
-    }
-    else
-    {
-        ma_sound_stop_with_fade_in_pcm_frames(&m_sound, fadeTimeInFrames);
-    }
+  if (m_isDisposed)
+  {
+    return;
+  }
+  if (fadeTimeInFrames == 0)
+  {
+    ma_sound_stop(&m_sound);
+  }
+  else
+  {
+    ma_sound_stop_with_fade_in_pcm_frames(&m_sound, fadeTimeInFrames);
+  }
 }
 
 void AudioSound::play()
 {
-    if (m_isDisposed)
-    {
-        return;
-    }
-    ma_sound_seek_to_pcm_frame(&m_sound, 0);
-    ma_sound_start(&m_sound);
+  if (m_isDisposed)
+  {
+    return;
+  }
+  ma_sound_seek_to_pcm_frame(&m_sound, 0);
+  ma_sound_start(&m_sound);
 }
 
 void AudioSound::pause() { stop(0); }
 
 void AudioSound::resume()
 {
-    if (m_isDisposed)
-    {
-        return;
-    }
-    ma_sound_start(&m_sound);
+  if (m_isDisposed)
+  {
+    return;
+  }
+  ma_sound_start(&m_sound);
 }
 
 bool AudioSound::seek(uint64_t timeInFrames)
 {
-    if (m_isDisposed)
-    {
-        return false;
-    }
-    return ma_sound_seek_to_pcm_frame(&m_sound, (ma_uint64)timeInFrames) ==
-           MA_SUCCESS;
+  if (m_isDisposed)
+  {
+    return false;
+  }
+  return ma_sound_seek_to_pcm_frame(&m_sound, (ma_uint64)timeInFrames) ==
+         MA_SUCCESS;
 }
 
 bool AudioSound::seekSeconds(float timeInSeconds)
 {
-    if (m_isDisposed)
-    {
-        return false;
-    }
-    return ma_sound_seek_to_second(&m_sound, timeInSeconds) == MA_SUCCESS;
+  if (m_isDisposed)
+  {
+    return false;
+  }
+  return ma_sound_seek_to_second(&m_sound, timeInSeconds) == MA_SUCCESS;
 }
 
 uint64_t AudioSound::timeInFrames()
 {
-    if (m_isDisposed)
-    {
-        return 0;
-    }
-    return ma_sound_get_time_in_pcm_frames(&m_sound);
+  if (m_isDisposed)
+  {
+    return 0;
+  }
+  return ma_sound_get_time_in_pcm_frames(&m_sound);
 }
 
 float AudioSound::timeInSeconds()
 {
-    if (m_isDisposed)
-    {
-        return 0.0f;
-    }
-    return ma_sound_get_time_in_milliseconds(&m_sound) / 1000.0f;
+  if (m_isDisposed)
+  {
+    return 0.0f;
+  }
+  return ma_sound_get_time_in_milliseconds(&m_sound) / 1000.0f;
 }
 
 #endif

@@ -1,0 +1,4 @@
+BasedOnStyle: InheritParentConfig
+# The shaders are full of nested preprocessor conditionals, which are hard to
+# read without indentation.
+IndentPPDirectives: BeforeHash

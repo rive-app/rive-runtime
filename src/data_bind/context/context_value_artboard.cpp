@@ -7,33 +7,34 @@
 
 using namespace rive;
 
-DataBindContextValueArtboard::DataBindContextValueArtboard(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueArtboard::DataBindContextValueArtboard(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueArtboard::apply(Core* target,
-                                         uint32_t propertyKey,
-                                         bool isMainDirection,
-                                         DataBind* dataBind)
+void DataBindContextValueArtboard::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto source = dataBind->source();
-    if (source != nullptr && source->is<ViewModelInstanceArtboard>())
+  syncSourceValue(dataBind);
+  auto source = dataBind->source();
+  if (source != nullptr && source->is<ViewModelInstanceArtboard>())
+  {
+    auto artboardReferencer = ArtboardReferencer::from(target);
+    if (artboardReferencer)
     {
-        auto artboardReferencer = ArtboardReferencer::from(target);
-        if (artboardReferencer)
-        {
 
-            artboardReferencer->updateArtboard(
-                source->as<ViewModelInstanceArtboard>());
-        }
-        else
-        {
-            auto value =
-                calculateValue<DataValueArtboard, uint32_t>(m_dataValue,
-                                                            isMainDirection,
-                                                            dataBind);
-            CoreRegistry::setUint(target, propertyKey, value);
-        }
+      artboardReferencer->updateArtboard(
+          source->as<ViewModelInstanceArtboard>());
     }
+    else
+    {
+      auto value = calculateValue<DataValueArtboard, uint32_t>(
+          m_dataValue,
+          isMainDirection,
+          dataBind);
+      CoreRegistry::setUint(target, propertyKey, value);
+    }
+  }
 }

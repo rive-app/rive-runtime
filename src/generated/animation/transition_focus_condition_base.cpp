@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionFocusConditionBase::clone() const
 {
-    auto cloned = new TransitionFocusCondition();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionFocusCondition();
+  cloned->copy(*this);
+  return cloned;
 }

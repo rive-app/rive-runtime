@@ -7,12 +7,11 @@ namespace rive
 class StringTemplateArgumentString : public StringTemplateArgumentStringBase
 {
 public:
-    // Strings are inserted as is, the spec only applies to numbers.
-    void appendValue(std::string& output,
-                     const std::string& spec) const override
-    {
-        output += propertyValue();
-    }
+  // Strings are inserted as is, the spec only applies to numbers.
+  void appendValue(std::string& output, const std::string& spec) const override
+  {
+    output += propertyValue();
+  }
 };
 } // namespace rive
 

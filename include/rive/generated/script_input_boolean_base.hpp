@@ -6,14 +6,14 @@ namespace rive
 class ScriptInputBooleanBase : public CustomPropertyBoolean
 {
 protected:
-    typedef CustomPropertyBoolean Super;
+  typedef CustomPropertyBoolean Super;
 
 public:
-    static const uint16_t typeKey = 631;
+  static const uint16_t typeKey = 631;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

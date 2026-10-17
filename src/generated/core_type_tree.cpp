@@ -83,13 +83,13 @@ static const uint16_t parentTypeKeys[1090] = {
     0,    0,   0,    0,   0,   0,   0,   0,    0,   0,   0,   22};
 bool Core::hasAncestor(uint16_t type, uint16_t typeKey)
 {
-    while (type < 1090 && (type = parentTypeKeys[type]) != 0)
+  while (type < 1090 && (type = parentTypeKeys[type]) != 0)
+  {
+    if (type == typeKey)
     {
-        if (type == typeKey)
-        {
-            return true;
-        }
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 #endif

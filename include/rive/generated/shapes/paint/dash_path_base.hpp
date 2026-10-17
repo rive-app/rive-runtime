@@ -8,74 +8,75 @@ namespace rive
 class DashPathBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 506;
+  static const uint16_t typeKey = 506;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t offsetPropertyKey = 690;
-    static const uint16_t offsetIsPercentagePropertyKey = 691;
+  static const uint16_t offsetPropertyKey = 690;
+  static const uint16_t offsetIsPercentagePropertyKey = 691;
 
 protected:
-    float m_Offset = 0.0f;
-    bool m_OffsetIsPercentage = false;
+  float m_Offset = 0.0f;
+  bool m_OffsetIsPercentage = false;
 
 public:
-    inline float offset() const { return m_Offset; }
-    void offset(float value)
+  inline float offset() const { return m_Offset; }
+  void offset(float value)
+  {
+    if (m_Offset == value)
     {
-        if (m_Offset == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
-        m_Offset = value;
-        RIVE_EDITOR_CHANGED(offsetChanged());
-        notifyPropertyChanged(offsetPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(offsetPropertyKey, &m_Offset, &value);
+    m_Offset = value;
+    RIVE_EDITOR_CHANGED(offsetChanged());
+    notifyPropertyChanged(offsetPropertyKey);
+  }
 
-    inline bool offsetIsPercentage() const { return m_OffsetIsPercentage; }
-    void offsetIsPercentage(bool value)
+  inline bool offsetIsPercentage() const { return m_OffsetIsPercentage; }
+  void offsetIsPercentage(bool value)
+  {
+    if (m_OffsetIsPercentage == value)
     {
-        if (m_OffsetIsPercentage == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetIsPercentagePropertyKey,
-                             &m_OffsetIsPercentage,
-                             &value);
-        m_OffsetIsPercentage = value;
-        RIVE_EDITOR_CHANGED(offsetIsPercentageChanged());
-        notifyPropertyChanged(offsetIsPercentagePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        offsetIsPercentagePropertyKey,
+        &m_OffsetIsPercentage,
+        &value);
+    m_OffsetIsPercentage = value;
+    RIVE_EDITOR_CHANGED(offsetIsPercentageChanged());
+    notifyPropertyChanged(offsetIsPercentagePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DashPathBase& object)
-    {
-        m_Offset = object.m_Offset;
-        m_OffsetIsPercentage = object.m_OffsetIsPercentage;
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DashPathBase& object)
+  {
+    m_Offset = object.m_Offset;
+    m_OffsetIsPercentage = object.m_OffsetIsPercentage;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case offsetPropertyKey:
-                m_Offset = CoreDoubleType::deserialize(reader);
-                return true;
-            case offsetIsPercentagePropertyKey:
-                m_OffsetIsPercentage = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case offsetPropertyKey:
+        m_Offset = CoreDoubleType::deserialize(reader);
+        return true;
+      case offsetIsPercentagePropertyKey:
+        m_OffsetIsPercentage = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void offsetChanged() {}
-    virtual void offsetIsPercentageChanged() {}
+  virtual void offsetChanged() {}
+  virtual void offsetIsPercentageChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/dash_path_ext.inl"
 #endif

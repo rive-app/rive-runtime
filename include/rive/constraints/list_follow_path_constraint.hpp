@@ -12,15 +12,16 @@ class ListFollowPathConstraint : public ListFollowPathConstraintBase,
                                  public ListConstraint
 {
 public:
-    void distanceEndChanged() override;
-    void distanceOffsetChanged() override;
-    void constrainList(ConstrainableList* list) override;
-    void buildDependencies() override;
+  void distanceEndChanged() override;
+  void distanceOffsetChanged() override;
+  void constrainList(ConstrainableList* list) override;
+  void buildDependencies() override;
 
 private:
-    TransformComponents constrainAtOffset(const Mat2D& componentTransform,
-                                          const Mat2D& parentTransform,
-                                          float componentOffset);
+  TransformComponents constrainAtOffset(
+      const Mat2D& componentTransform,
+      const Mat2D& parentTransform,
+      float componentOffset);
 };
 } // namespace rive
 

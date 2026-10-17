@@ -7,16 +7,16 @@ using namespace rive;
 
 MeshHost* MeshHost::from(Component* component)
 {
-    if (component == nullptr)
-    {
-        return nullptr;
-    }
-    switch (component->coreType())
-    {
-        case Image::typeKey:
-            return component->as<Image>();
-        case NestedArtboard::typeKey:
-            return component->as<NestedArtboard>()->meshHost();
-    }
+  if (component == nullptr)
+  {
     return nullptr;
+  }
+  switch (component->coreType())
+  {
+    case Image::typeKey:
+      return component->as<Image>();
+    case NestedArtboard::typeKey:
+      return component->as<NestedArtboard>()->meshHost();
+  }
+  return nullptr;
 }

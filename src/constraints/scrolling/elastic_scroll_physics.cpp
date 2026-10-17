@@ -5,317 +5,326 @@ using namespace rive;
 
 Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
 {
-    // Capture per-axis position before advancing so we can derive current
-    // velocity from the actual frame-to-frame motion and write it into the
-    // base m_speed (used for velocity reporting).
-    float prevX = m_physicsX != nullptr ? m_physicsX->current() : 0.0f;
-    float prevY = m_physicsY != nullptr ? m_physicsY->current() : 0.0f;
-    float advanceX =
-        m_physicsX != nullptr ? m_physicsX->advance(elapsedSeconds) : 0.0f;
-    float advanceY =
-        m_physicsY != nullptr ? m_physicsY->advance(elapsedSeconds) : 0.0f;
-    if (elapsedSeconds > 0)
-    {
-        m_speed = Vec2D((advanceX - prevX) / elapsedSeconds,
-                        (advanceY - prevY) / elapsedSeconds);
-    }
-    bool isRunningX = m_physicsX != nullptr && m_physicsX->isRunning();
-    bool isRunningY = m_physicsY != nullptr && m_physicsY->isRunning();
-    if (!isRunningX && !isRunningY)
-    {
-        reset();
-    }
-    return Vec2D(advanceX, advanceY);
+  // Capture per-axis position before advancing so we can derive current
+  // velocity from the actual frame-to-frame motion and write it into the
+  // base m_speed (used for velocity reporting).
+  float prevX = m_physicsX != nullptr ? m_physicsX->current() : 0.0f;
+  float prevY = m_physicsY != nullptr ? m_physicsY->current() : 0.0f;
+  float advanceX = m_physicsX != nullptr ? m_physicsX->advance(elapsedSeconds)
+                                         : 0.0f;
+  float advanceY = m_physicsY != nullptr ? m_physicsY->advance(elapsedSeconds)
+                                         : 0.0f;
+  if (elapsedSeconds > 0)
+  {
+    m_speed = Vec2D(
+        (advanceX - prevX) / elapsedSeconds,
+        (advanceY - prevY) / elapsedSeconds);
+  }
+  bool isRunningX = m_physicsX != nullptr && m_physicsX->isRunning();
+  bool isRunningY = m_physicsY != nullptr && m_physicsY->isRunning();
+  if (!isRunningX && !isRunningY)
+  {
+    reset();
+  }
+  return Vec2D(advanceX, advanceY);
 }
 
 Vec2D ElasticScrollPhysics::clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
 {
-    float clampX = m_physicsX != nullptr
-                       ? m_physicsX->clamp(rangeMin.x, rangeMax.x, value.x)
-                       : 0.0f;
-    float clampY = m_physicsY != nullptr
-                       ? m_physicsY->clamp(rangeMin.y, rangeMax.y, value.y)
-                       : 0.0f;
-    return Vec2D(clampX, clampY);
+  float clampX = m_physicsX != nullptr
+                     ? m_physicsX->clamp(rangeMin.x, rangeMax.x, value.x)
+                     : 0.0f;
+  float clampY = m_physicsY != nullptr
+                     ? m_physicsY->clamp(rangeMin.y, rangeMax.y, value.y)
+                     : 0.0f;
+  return Vec2D(clampX, clampY);
 }
 
-void ElasticScrollPhysics::run(Vec2D rangeMin,
-                               Vec2D rangeMax,
-                               Vec2D value,
-                               std::vector<Vec2D> snappingPoints,
-                               Vec2D contentSize,
-                               Vec2D viewportSize)
+void ElasticScrollPhysics::run(
+    Vec2D rangeMin,
+    Vec2D rangeMax,
+    Vec2D value,
+    std::vector<Vec2D> snappingPoints,
+    Vec2D contentSize,
+    Vec2D viewportSize)
 {
-    Super::run(rangeMin,
-               rangeMax,
-               value,
-               snappingPoints,
-               contentSize,
-               viewportSize);
-    std::vector<float> xPoints;
-    std::vector<float> yPoints;
-    for (auto pt : snappingPoints)
-    {
-        xPoints.push_back(pt.x);
-        yPoints.push_back(pt.y);
-    }
-    if (m_physicsX != nullptr)
-    {
-        m_physicsX->run(m_acceleration.x,
-                        rangeMin.x,
-                        rangeMax.x,
-                        value.x,
-                        xPoints,
-                        contentSize.x,
-                        viewportSize.x);
-    }
-    if (m_physicsY != nullptr)
-    {
-        m_physicsY->run(m_acceleration.y,
-                        rangeMin.y,
-                        rangeMax.y,
-                        value.y,
-                        yPoints,
-                        contentSize.y,
-                        viewportSize.y);
-    }
+  Super::run(
+      rangeMin,
+      rangeMax,
+      value,
+      snappingPoints,
+      contentSize,
+      viewportSize);
+  std::vector<float> xPoints;
+  std::vector<float> yPoints;
+  for (auto pt : snappingPoints)
+  {
+    xPoints.push_back(pt.x);
+    yPoints.push_back(pt.y);
+  }
+  if (m_physicsX != nullptr)
+  {
+    m_physicsX->run(
+        m_acceleration.x,
+        rangeMin.x,
+        rangeMax.x,
+        value.x,
+        xPoints,
+        contentSize.x,
+        viewportSize.x);
+  }
+  if (m_physicsY != nullptr)
+  {
+    m_physicsY->run(
+        m_acceleration.y,
+        rangeMin.y,
+        rangeMax.y,
+        value.y,
+        yPoints,
+        contentSize.y,
+        viewportSize.y);
+  }
 }
 
 void ElasticScrollPhysics::prepare(DraggableConstraintDirection dir)
 {
-    Super::prepare(dir);
-    if (dir == DraggableConstraintDirection::horizontal ||
-        dir == DraggableConstraintDirection::all)
-    {
-        m_physicsX =
-            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
-                                                         speedMultiplier(),
-                                                         elasticFactor());
-    }
-    if (dir == DraggableConstraintDirection::vertical ||
-        dir == DraggableConstraintDirection::all)
-    {
-        m_physicsY =
-            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
-                                                         speedMultiplier(),
-                                                         elasticFactor());
-    }
+  Super::prepare(dir);
+  if (dir == DraggableConstraintDirection::horizontal ||
+      dir == DraggableConstraintDirection::all)
+  {
+    m_physicsX = std::make_unique<ElasticScrollPhysicsHelper>(
+        friction(),
+        speedMultiplier(),
+        elasticFactor());
+  }
+  if (dir == DraggableConstraintDirection::vertical ||
+      dir == DraggableConstraintDirection::all)
+  {
+    m_physicsY = std::make_unique<ElasticScrollPhysicsHelper>(
+        friction(),
+        speedMultiplier(),
+        elasticFactor());
+  }
 }
 
 void ElasticScrollPhysics::reset()
 {
-    Super::reset();
-    m_physicsX.reset();
-    m_physicsY.reset();
+  Super::reset();
+  m_physicsX.reset();
+  m_physicsY.reset();
 }
 
 float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
 {
-    if (m_speed != 0)
+  if (m_speed != 0)
+  {
+    m_current += m_speed * elapsedSeconds;
+
+    if (m_current < m_runRangeMin)
     {
-        m_current += m_speed * elapsedSeconds;
-
-        if (m_current < m_runRangeMin)
-        {
-            m_friction *= 4;
-        }
-        else if (m_current > m_runRangeMax)
-        {
-            m_friction *= 4;
-        }
-
-        m_speed += -m_speed * std::min(1.0f, elapsedSeconds * m_friction);
-
-        if (abs(m_speed) < 5)
-        {
-            m_speed = 0;
-            if (m_current < m_runRangeMin)
-            {
-                m_target = m_runRangeMin;
-            }
-            else if (m_current > m_runRangeMax)
-            {
-                m_target = m_runRangeMax;
-            }
-            else
-            {
-                m_target = m_current;
-            }
-        }
-        return m_current;
+      m_friction *= 4;
     }
-    auto diff = m_target - m_current;
-    if (abs(diff) < 0.1)
+    else if (m_current > m_runRangeMax)
     {
-        m_current = std::isnan(m_snapTarget) ? m_target : m_snapTarget;
-        m_isRunning = false;
+      m_friction *= 4;
     }
-    else
+
+    m_speed += -m_speed * std::min(1.0f, elapsedSeconds * m_friction);
+
+    if (abs(m_speed) < 5)
     {
-        m_current += diff * std::min(1.0f, elapsedSeconds * 15.0f);
+      m_speed = 0;
+      if (m_current < m_runRangeMin)
+      {
+        m_target = m_runRangeMin;
+      }
+      else if (m_current > m_runRangeMax)
+      {
+        m_target = m_runRangeMax;
+      }
+      else
+      {
+        m_target = m_current;
+      }
     }
     return m_current;
+  }
+  auto diff = m_target - m_current;
+  if (abs(diff) < 0.1)
+  {
+    m_current = std::isnan(m_snapTarget) ? m_target : m_snapTarget;
+    m_isRunning = false;
+  }
+  else
+  {
+    m_current += diff * std::min(1.0f, elapsedSeconds * 15.0f);
+  }
+  return m_current;
 }
 
-float ElasticScrollPhysicsHelper::clamp(float rangeMin,
-                                        float rangeMax,
-                                        float value)
+float ElasticScrollPhysicsHelper::clamp(
+    float rangeMin,
+    float rangeMax,
+    float value)
 {
-    if (value < rangeMin)
-    {
-        return rangeMin - pow(-(value - rangeMin), m_elasticFactor);
-    }
-    else if (value > rangeMax)
-    {
-        return rangeMax + pow(value + rangeMax, m_elasticFactor);
-    }
-    return value;
+  if (value < rangeMin)
+  {
+    return rangeMin - pow(-(value - rangeMin), m_elasticFactor);
+  }
+  else if (value > rangeMax)
+  {
+    return rangeMax + pow(value + rangeMax, m_elasticFactor);
+  }
+  return value;
 }
 
-void ElasticScrollPhysicsHelper::run(float acceleration,
-                                     float rangeMin,
-                                     float rangeMax,
-                                     float value,
-                                     std::vector<float> snappingPoints,
-                                     float contentSize,
-                                     float viewportSize)
+void ElasticScrollPhysicsHelper::run(
+    float acceleration,
+    float rangeMin,
+    float rangeMax,
+    float value,
+    std::vector<float> snappingPoints,
+    float contentSize,
+    float viewportSize)
 {
-    m_isRunning = true;
-    m_runRangeMin = rangeMin;
-    m_runRangeMax = rangeMax;
-    // An axis whose content fits its viewport has nowhere to fling to: every
-    // reachable target is the origin. Skip the velocity phase there so a
-    // release eases the overscroll back from wherever the pointer actually
-    // left it, rather than throwing it further out first. The elastic
-    // overscroll itself is untouched, so a short list still bounces.
-    bool canScroll = rangeMin < rangeMax;
-    if (canScroll && abs(acceleration) > 100)
-    {
-        m_speed = acceleration * 0.16f * 0.16f * 0.1f * m_speedMultiplier;
-    }
-    else
-    {
-        m_speed = 0;
-    }
-    if (value < rangeMin)
-    {
-        m_target = rangeMin;
-    }
-    else if (value > rangeMax)
-    {
-        m_target = rangeMax;
-    }
-    else
-    {
-        m_target = value;
-    }
-    m_current = value;
+  m_isRunning = true;
+  m_runRangeMin = rangeMin;
+  m_runRangeMax = rangeMax;
+  // An axis whose content fits its viewport has nowhere to fling to: every
+  // reachable target is the origin. Skip the velocity phase there so a
+  // release eases the overscroll back from wherever the pointer actually
+  // left it, rather than throwing it further out first. The elastic
+  // overscroll itself is untouched, so a short list still bounces.
+  bool canScroll = rangeMin < rangeMax;
+  if (canScroll && abs(acceleration) > 100)
+  {
+    m_speed = acceleration * 0.16f * 0.16f * 0.1f * m_speedMultiplier;
+  }
+  else
+  {
+    m_speed = 0;
+  }
+  if (value < rangeMin)
+  {
+    m_target = rangeMin;
+  }
+  else if (value > rangeMax)
+  {
+    m_target = rangeMax;
+  }
+  else
+  {
+    m_target = value;
+  }
+  m_current = value;
 
-    if (canScroll && !snappingPoints.empty())
+  if (canScroll && !snappingPoints.empty())
+  {
+    float endTarget = -(m_current + m_speed / m_friction);
+    float sectionSize = contentSize != 0 ? contentSize : 1;
+    int multiple = rangeMax == std::numeric_limits<float>::infinity()
+                       ? std::floor(endTarget / sectionSize)
+                       : 0;
+    float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
+                             ? math::positive_mod(endTarget, sectionSize)
+                             : endTarget;
+    // -rangeMin is the max positive scroll position. It already accounts
+    // for viewport trailing padding (rangeMin = maxOffset =
+    // viewportSize - contentSize - paddingEnd), whereas contentSize -
+    // viewportSize does not.
+    float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
+                          ? std::numeric_limits<float>::infinity()
+                          : -rangeMin;
+    float closest = std::numeric_limits<float>::max();
+    float snapTarget = 0;
+    for (auto snap : snappingPoints)
     {
-        float endTarget = -(m_current + m_speed / m_friction);
-        float sectionSize = contentSize != 0 ? contentSize : 1;
-        int multiple = rangeMax == std::numeric_limits<float>::infinity()
-                           ? std::floor(endTarget / sectionSize)
-                           : 0;
-        float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
-                                 ? math::positive_mod(endTarget, sectionSize)
-                                 : endTarget;
-        // -rangeMin is the max positive scroll position. It already accounts
-        // for viewport trailing padding (rangeMin = maxOffset =
-        // viewportSize - contentSize - paddingEnd), whereas contentSize -
-        // viewportSize does not.
-        float maxTarget = rangeMax == std::numeric_limits<float>::infinity()
-                              ? std::numeric_limits<float>::infinity()
-                              : -rangeMin;
-        float closest = std::numeric_limits<float>::max();
-        float snapTarget = 0;
-        for (auto snap : snappingPoints)
-        {
-            float diff = std::abs(snap - modEndTarget);
-            if (diff < closest)
-            {
-                closest = diff;
-                snapTarget = snap + (multiple * sectionSize);
-            }
-        }
-        // Treat the padded end-of-scroll as a candidate snap. Otherwise a
-        // fling past the last item snaps backward to that item's leading
-        // edge, dropping the trailing padding.
-        if (maxTarget != std::numeric_limits<float>::infinity())
-        {
-            float diff = std::abs(maxTarget - modEndTarget);
-            if (diff < closest)
-            {
-                closest = diff;
-                snapTarget = maxTarget;
-            }
-        }
-        snapTarget = std::min(snapTarget, maxTarget);
-        m_speed = -(snapTarget + m_current) * m_friction;
-        m_snapTarget = -snapTarget;
+      float diff = std::abs(snap - modEndTarget);
+      if (diff < closest)
+      {
+        closest = diff;
+        snapTarget = snap + (multiple * sectionSize);
+      }
     }
-    else
+    // Treat the padded end-of-scroll as a candidate snap. Otherwise a
+    // fling past the last item snaps backward to that item's leading
+    // edge, dropping the trailing padding.
+    if (maxTarget != std::numeric_limits<float>::infinity())
     {
-        m_snapTarget = NAN;
+      float diff = std::abs(maxTarget - modEndTarget);
+      if (diff < closest)
+      {
+        closest = diff;
+        snapTarget = maxTarget;
+      }
     }
-}
-
-void ElasticScrollPhysicsHelper::scrollTo(float current,
-                                          float target,
-                                          float rangeMin,
-                                          float rangeMax)
-{
-    m_isRunning = true;
-    m_runRangeMin = rangeMin;
-    m_runRangeMax = rangeMax;
-    m_current = current;
-    m_target = target;
-    m_speed = 0; // Skip velocity phase, go directly to settling
+    snapTarget = std::min(snapTarget, maxTarget);
+    m_speed = -(snapTarget + m_current) * m_friction;
+    m_snapTarget = -snapTarget;
+  }
+  else
+  {
     m_snapTarget = NAN;
+  }
 }
 
-void ElasticScrollPhysics::scrollToPosition(Vec2D current,
-                                            Vec2D target,
-                                            Vec2D rangeMin,
-                                            Vec2D rangeMax,
-                                            bool horizontal,
-                                            bool vertical)
+void ElasticScrollPhysicsHelper::scrollTo(
+    float current,
+    float target,
+    float rangeMin,
+    float rangeMax)
 {
-    // Create physics helpers if needed
-    if (horizontal && m_physicsX == nullptr)
-    {
-        m_physicsX =
-            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
-                                                         speedMultiplier(),
-                                                         elasticFactor());
-    }
-    if (vertical && m_physicsY == nullptr)
-    {
-        m_physicsY =
-            std::make_unique<ElasticScrollPhysicsHelper>(friction(),
-                                                         speedMultiplier(),
-                                                         elasticFactor());
-    }
+  m_isRunning = true;
+  m_runRangeMin = rangeMin;
+  m_runRangeMax = rangeMax;
+  m_current = current;
+  m_target = target;
+  m_speed = 0; // Skip velocity phase, go directly to settling
+  m_snapTarget = NAN;
+}
 
-    // Initiate settling animation
-    if (m_physicsX != nullptr && horizontal)
-    {
-        m_physicsX->scrollTo(current.x, target.x, rangeMin.x, rangeMax.x);
-    }
-    if (m_physicsY != nullptr && vertical)
-    {
-        m_physicsY->scrollTo(current.y, target.y, rangeMin.y, rangeMax.y);
-    }
+void ElasticScrollPhysics::scrollToPosition(
+    Vec2D current,
+    Vec2D target,
+    Vec2D rangeMin,
+    Vec2D rangeMax,
+    bool horizontal,
+    bool vertical)
+{
+  // Create physics helpers if needed
+  if (horizontal && m_physicsX == nullptr)
+  {
+    m_physicsX = std::make_unique<ElasticScrollPhysicsHelper>(
+        friction(),
+        speedMultiplier(),
+        elasticFactor());
+  }
+  if (vertical && m_physicsY == nullptr)
+  {
+    m_physicsY = std::make_unique<ElasticScrollPhysicsHelper>(
+        friction(),
+        speedMultiplier(),
+        elasticFactor());
+  }
+
+  // Initiate settling animation
+  if (m_physicsX != nullptr && horizontal)
+  {
+    m_physicsX->scrollTo(current.x, target.x, rangeMin.x, rangeMax.x);
+  }
+  if (m_physicsY != nullptr && vertical)
+  {
+    m_physicsY->scrollTo(current.y, target.y, rangeMin.y, rangeMax.y);
+  }
 }
 void ElasticScrollPhysics::shift(Vec2D delta)
 {
-    if (m_physicsX != nullptr)
-    {
-        m_physicsX->shift(delta.x);
-    }
-    if (m_physicsY != nullptr)
-    {
-        m_physicsY->shift(delta.y);
-    }
+  if (m_physicsX != nullptr)
+  {
+    m_physicsX->shift(delta.x);
+  }
+  if (m_physicsY != nullptr)
+  {
+    m_physicsY->shift(delta.y);
+  }
 }

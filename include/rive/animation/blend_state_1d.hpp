@@ -7,8 +7,7 @@ namespace rive
 class BlendState1D : public BlendState1DBase
 {
 public:
-    std::unique_ptr<StateInstance> makeInstance(
-        ArtboardInstance*) const override;
+  std::unique_ptr<StateInstance> makeInstance(ArtboardInstance*) const override;
 };
 } // namespace rive
 

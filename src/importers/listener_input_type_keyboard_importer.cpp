@@ -3,11 +3,11 @@
 using namespace rive;
 
 ListenerInputTypeKeyboardImporter::ListenerInputTypeKeyboardImporter(
-    ListenerInputTypeKeyboard* listenerInputTypeKeyboard) :
-    m_listenerInputTypeKeyboard(listenerInputTypeKeyboard)
+    ListenerInputTypeKeyboard* listenerInputTypeKeyboard)
+    : m_listenerInputTypeKeyboard(listenerInputTypeKeyboard)
 {}
 
 StatusCode ListenerInputTypeKeyboardImporter::resolve()
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }

@@ -33,12 +33,12 @@ static const lua_CFunction rendererTypes[] = {
 
 int luaopen_rive_renderer_library(lua_State* L)
 {
-    int added = 0;
-    for (auto type : rendererTypes)
-    {
-        added += type(L);
-    }
-    return added;
+  int added = 0;
+  for (auto type : rendererTypes)
+  {
+    added += type(L);
+  }
+  return added;
 }
 
 #endif

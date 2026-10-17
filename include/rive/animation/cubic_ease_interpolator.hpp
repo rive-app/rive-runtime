@@ -7,8 +7,8 @@ namespace rive
 class CubicEaseInterpolator : public CubicEaseInterpolatorBase
 {
 public:
-    float transformValue(float valueFrom, float valueTo, float factor) override;
-    float transform(float factor) const override;
+  float transformValue(float valueFrom, float valueTo, float factor) override;
+  float transform(float factor) const override;
 };
 } // namespace rive
 

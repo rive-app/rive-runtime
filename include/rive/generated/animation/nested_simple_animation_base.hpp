@@ -8,66 +8,66 @@ namespace rive
 class NestedSimpleAnimationBase : public NestedLinearAnimation
 {
 protected:
-    typedef NestedLinearAnimation Super;
+  typedef NestedLinearAnimation Super;
 
 public:
-    static const uint16_t typeKey = 96;
+  static const uint16_t typeKey = 96;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t speedPropertyKey = 199;
-    static const uint16_t isPlayingPropertyKey = 201;
+  static const uint16_t speedPropertyKey = 199;
+  static const uint16_t isPlayingPropertyKey = 201;
 
 protected:
-    float m_Speed = 1.0f;
-    bool m_IsPlaying = false;
+  float m_Speed = 1.0f;
+  bool m_IsPlaying = false;
 
 public:
-    inline float speed() const { return m_Speed; }
-    void speed(float value)
+  inline float speed() const { return m_Speed; }
+  void speed(float value)
+  {
+    if (m_Speed == value)
     {
-        if (m_Speed == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
-        m_Speed = value;
-        notifyPropertyChanged(speedPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(speedPropertyKey, &m_Speed, &value);
+    m_Speed = value;
+    notifyPropertyChanged(speedPropertyKey);
+  }
 
-    inline bool isPlaying() const { return m_IsPlaying; }
-    void isPlaying(bool value)
+  inline bool isPlaying() const { return m_IsPlaying; }
+  void isPlaying(bool value)
+  {
+    if (m_IsPlaying == value)
     {
-        if (m_IsPlaying == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isPlayingPropertyKey, &m_IsPlaying, &value);
-        m_IsPlaying = value;
-        notifyPropertyChanged(isPlayingPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(isPlayingPropertyKey, &m_IsPlaying, &value);
+    m_IsPlaying = value;
+    notifyPropertyChanged(isPlayingPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const NestedSimpleAnimationBase& object)
-    {
-        m_Speed = object.m_Speed;
-        m_IsPlaying = object.m_IsPlaying;
-        NestedLinearAnimation::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const NestedSimpleAnimationBase& object)
+  {
+    m_Speed = object.m_Speed;
+    m_IsPlaying = object.m_IsPlaying;
+    NestedLinearAnimation::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case speedPropertyKey:
-                m_Speed = CoreDoubleType::deserialize(reader);
-                return true;
-            case isPlayingPropertyKey:
-                m_IsPlaying = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return NestedLinearAnimation::deserialize(propertyKey, reader);
+      case speedPropertyKey:
+        m_Speed = CoreDoubleType::deserialize(reader);
+        return true;
+      case isPlayingPropertyKey:
+        m_IsPlaying = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return NestedLinearAnimation::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

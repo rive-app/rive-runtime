@@ -50,245 +50,246 @@ namespace rive::gpu
 D3D12PipelineManager::D3D12PipelineManager(
     ComPtr<ID3D12Device> device,
     const D3DCapabilities& capabilities,
-    ShaderCompilationMode shaderCompilationMode) :
-    Super(device, capabilities, shaderCompilationMode, "vs_5_1", "ps_5_1")
+    ShaderCompilationMode shaderCompilationMode)
+    : Super(device, capabilities, shaderCompilationMode, "vs_5_1", "ps_5_1")
 {
-    VERIFY_OK(
-        this->device()->CreateRootSignature(0,
-                                            sig::g_ROOT_SIG,
-                                            std::size(sig::g_ROOT_SIG),
-                                            IID_PPV_ARGS(&m_rootSignature)));
+  VERIFY_OK(this->device()->CreateRootSignature(
+      0,
+      sig::g_ROOT_SIG,
+      std::size(sig::g_ROOT_SIG),
+      IID_PPV_ARGS(&m_rootSignature)));
 }
 
 inline DXGI_FORMAT getDXGIFormat(VertexElementFormat format)
 {
-    switch (format)
-    {
-        case VertexElementFormat::float1:
-            return DXGI_FORMAT_R32_FLOAT;
-        case VertexElementFormat::float2:
-            return DXGI_FORMAT_R32G32_FLOAT;
-        case VertexElementFormat::float3:
-            return DXGI_FORMAT_R32G32B32_FLOAT;
-        case VertexElementFormat::float4:
-            return DXGI_FORMAT_R32G32B32A32_FLOAT;
-        case VertexElementFormat::uint8x4:
-            return DXGI_FORMAT_R8G8B8A8_UINT;
-        case VertexElementFormat::sint8x4:
-            return DXGI_FORMAT_R8G8B8A8_SINT;
-        case VertexElementFormat::unorm8x4:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
-        case VertexElementFormat::snorm8x4:
-            return DXGI_FORMAT_R8G8B8A8_SNORM;
-        case VertexElementFormat::uint16x2:
-            return DXGI_FORMAT_R16G16_UINT;
-        case VertexElementFormat::sint16x2:
-            return DXGI_FORMAT_R16G16_SINT;
-        case VertexElementFormat::unorm16x2:
-            return DXGI_FORMAT_R16G16_UNORM;
-        case VertexElementFormat::snorm16x2:
-            return DXGI_FORMAT_R16G16_SNORM;
-        case VertexElementFormat::uint16x4:
-            return DXGI_FORMAT_R16G16B16A16_UINT;
-        case VertexElementFormat::sint16x4:
-            return DXGI_FORMAT_R16G16B16A16_SINT;
-        case VertexElementFormat::float16x2:
-            return DXGI_FORMAT_R16G16_FLOAT;
-        case VertexElementFormat::float16x4:
-            return DXGI_FORMAT_R16G16B16A16_FLOAT;
-        case VertexElementFormat::uint32:
-            return DXGI_FORMAT_R32_UINT;
-    }
-    RIVE_UNREACHABLE();
+  switch (format)
+  {
+    case VertexElementFormat::float1:
+      return DXGI_FORMAT_R32_FLOAT;
+    case VertexElementFormat::float2:
+      return DXGI_FORMAT_R32G32_FLOAT;
+    case VertexElementFormat::float3:
+      return DXGI_FORMAT_R32G32B32_FLOAT;
+    case VertexElementFormat::float4:
+      return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    case VertexElementFormat::uint8x4:
+      return DXGI_FORMAT_R8G8B8A8_UINT;
+    case VertexElementFormat::sint8x4:
+      return DXGI_FORMAT_R8G8B8A8_SINT;
+    case VertexElementFormat::unorm8x4:
+      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case VertexElementFormat::snorm8x4:
+      return DXGI_FORMAT_R8G8B8A8_SNORM;
+    case VertexElementFormat::uint16x2:
+      return DXGI_FORMAT_R16G16_UINT;
+    case VertexElementFormat::sint16x2:
+      return DXGI_FORMAT_R16G16_SINT;
+    case VertexElementFormat::unorm16x2:
+      return DXGI_FORMAT_R16G16_UNORM;
+    case VertexElementFormat::snorm16x2:
+      return DXGI_FORMAT_R16G16_SNORM;
+    case VertexElementFormat::uint16x4:
+      return DXGI_FORMAT_R16G16B16A16_UINT;
+    case VertexElementFormat::sint16x4:
+      return DXGI_FORMAT_R16G16B16A16_SINT;
+    case VertexElementFormat::float16x2:
+      return DXGI_FORMAT_R16G16_FLOAT;
+    case VertexElementFormat::float16x4:
+      return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case VertexElementFormat::uint32:
+      return DXGI_FORMAT_R32_UINT;
+  }
+  RIVE_UNREACHABLE();
 }
 
 template <typename ImageDrawInstance, uint32_t N>
 void addInstanceElements(StackVector<D3D12_INPUT_ELEMENT_DESC, N>& layoutDesc)
 {
-    for (auto& attribute : ImageDrawInstance::getAttributes())
-    {
-        layoutDesc.push_back({
-            .SemanticName = attribute.semanticName,
-            .SemanticIndex = 0,
-            .Format = getDXGIFormat(attribute.format),
-            .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
-            .AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
-            .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-            .InstanceDataStepRate = 1,
-        });
-    }
+  for (auto& attribute : ImageDrawInstance::getAttributes())
+  {
+    layoutDesc.push_back({
+        .SemanticName = attribute.semanticName,
+        .SemanticIndex = 0,
+        .Format = getDXGIFormat(attribute.format),
+        .InputSlot = IMAGE_DRAW_INSTANCE_DATA_SLOT,
+        .AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT,
+        .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+        .InstanceDataStepRate = 1,
+    });
+  }
 }
 
 std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
     compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
-    auto result = std::make_unique<D3D12DrawVertexShader>();
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-            result->m_layoutDesc.push_back({
-                GLSL_a_patchVertexData,
-                0,
-                DXGI_FORMAT_R32G32B32A32_FLOAT,
-                PATCH_VERTEX_DATA_SLOT,
-                D3D12_APPEND_ALIGNED_ELEMENT,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            result->m_layoutDesc.push_back({
-                GLSL_a_mirroredVertexData,
-                0,
-                DXGI_FORMAT_R32G32B32A32_FLOAT,
-                PATCH_VERTEX_DATA_SLOT,
-                D3D12_APPEND_ALIGNED_ELEMENT,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            break;
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-        case DrawType::clipReset:
-            result->m_layoutDesc.push_back({
-                GLSL_a_triangleVertex,
-                0,
-                DXGI_FORMAT_R32G32B32_FLOAT,
-                TRIANGLE_VERTEX_DATA_SLOT,
-                0,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            break;
-        case DrawType::imageRect:
-            result->m_layoutDesc.push_back({
-                GLSL_a_imageRectVertex,
-                0,
-                DXGI_FORMAT_R32G32B32A32_FLOAT,
-                IMAGE_RECT_VERTEX_DATA_SLOT,
-                0,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            addInstanceElements<ImageRectInstance>(result->m_layoutDesc);
-            break;
-        case DrawType::imageMesh:
-            result->m_layoutDesc.push_back({
-                GLSL_a_position,
-                0,
-                DXGI_FORMAT_R32G32_FLOAT,
-                IMAGE_MESH_VERTEX_DATA_SLOT,
-                D3D12_APPEND_ALIGNED_ELEMENT,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            result->m_layoutDesc.push_back({
-                GLSL_a_texCoord,
-                0,
-                DXGI_FORMAT_R32G32_FLOAT,
-                IMAGE_MESH_UV_DATA_SLOT,
-                D3D12_APPEND_ALIGNED_ELEMENT,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0,
-            });
-            addInstanceElements<ImageMeshInstance>(result->m_layoutDesc);
-            break;
-        // depthStencil path draws derive everything from the vertex index, so
-        // they bind no attributes at all.
-        case DrawType::renderPassResolve:
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::stencilOuterCubics:
-        case DrawType::depthStrokes:
-        case DrawType::depthAAStrokes:
-        case DrawType::depthAAOuterHairline:
-            break;
-        case DrawType::renderPassInitialize:
-            RIVE_UNREACHABLE();
-    }
+  auto result = std::make_unique<D3D12DrawVertexShader>();
+  switch (drawType)
+  {
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+      result->m_layoutDesc.push_back({
+          GLSL_a_patchVertexData,
+          0,
+          DXGI_FORMAT_R32G32B32A32_FLOAT,
+          PATCH_VERTEX_DATA_SLOT,
+          D3D12_APPEND_ALIGNED_ELEMENT,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      result->m_layoutDesc.push_back({
+          GLSL_a_mirroredVertexData,
+          0,
+          DXGI_FORMAT_R32G32B32A32_FLOAT,
+          PATCH_VERTEX_DATA_SLOT,
+          D3D12_APPEND_ALIGNED_ELEMENT,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      break;
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+    case DrawType::clipReset:
+      result->m_layoutDesc.push_back({
+          GLSL_a_triangleVertex,
+          0,
+          DXGI_FORMAT_R32G32B32_FLOAT,
+          TRIANGLE_VERTEX_DATA_SLOT,
+          0,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      break;
+    case DrawType::imageRect:
+      result->m_layoutDesc.push_back({
+          GLSL_a_imageRectVertex,
+          0,
+          DXGI_FORMAT_R32G32B32A32_FLOAT,
+          IMAGE_RECT_VERTEX_DATA_SLOT,
+          0,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      addInstanceElements<ImageRectInstance>(result->m_layoutDesc);
+      break;
+    case DrawType::imageMesh:
+      result->m_layoutDesc.push_back({
+          GLSL_a_position,
+          0,
+          DXGI_FORMAT_R32G32_FLOAT,
+          IMAGE_MESH_VERTEX_DATA_SLOT,
+          D3D12_APPEND_ALIGNED_ELEMENT,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      result->m_layoutDesc.push_back({
+          GLSL_a_texCoord,
+          0,
+          DXGI_FORMAT_R32G32_FLOAT,
+          IMAGE_MESH_UV_DATA_SLOT,
+          D3D12_APPEND_ALIGNED_ELEMENT,
+          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+          0,
+      });
+      addInstanceElements<ImageMeshInstance>(result->m_layoutDesc);
+      break;
+    // depthStencil path draws derive everything from the vertex index, so
+    // they bind no attributes at all.
+    case DrawType::renderPassResolve:
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::stencilOuterCubics:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      break;
+    case DrawType::renderPassInitialize:
+      RIVE_UNREACHABLE();
+  }
 
-    result->m_shader = blob;
-    return result;
+  result->m_shader = blob;
+  return result;
 }
 
 std::unique_ptr<D3D12DrawPixelShader> D3D12PipelineManager::
     compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob)
 {
-    auto result = std::make_unique<D3D12DrawPixelShader>();
-    result->m_shader = std::move(blob);
-    return result;
+  auto result = std::make_unique<D3D12DrawPixelShader>();
+  result->m_shader = std::move(blob);
+  return result;
 }
 
 static D3D12_STENCIL_OP d3d12_stencil_op(gpu::StencilOp op)
 {
-    switch (op)
-    {
-        case gpu::StencilOp::keep:
-            return D3D12_STENCIL_OP_KEEP;
-        case gpu::StencilOp::replace:
-            return D3D12_STENCIL_OP_REPLACE;
-        case gpu::StencilOp::zero:
-            return D3D12_STENCIL_OP_ZERO;
-        case gpu::StencilOp::decrClamp:
-            return D3D12_STENCIL_OP_DECR_SAT;
-        case gpu::StencilOp::incrWrap:
-            return D3D12_STENCIL_OP_INCR;
-        case gpu::StencilOp::decrWrap:
-            return D3D12_STENCIL_OP_DECR;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case gpu::StencilOp::keep:
+      return D3D12_STENCIL_OP_KEEP;
+    case gpu::StencilOp::replace:
+      return D3D12_STENCIL_OP_REPLACE;
+    case gpu::StencilOp::zero:
+      return D3D12_STENCIL_OP_ZERO;
+    case gpu::StencilOp::decrClamp:
+      return D3D12_STENCIL_OP_DECR_SAT;
+    case gpu::StencilOp::incrWrap:
+      return D3D12_STENCIL_OP_INCR;
+    case gpu::StencilOp::decrWrap:
+      return D3D12_STENCIL_OP_DECR;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static D3D12_COMPARISON_FUNC d3d12_stencil_compare(gpu::StencilCompareOp op)
 {
-    switch (op)
-    {
-        case gpu::StencilCompareOp::less:
-            return D3D12_COMPARISON_FUNC_LESS;
-        case gpu::StencilCompareOp::equal:
-            return D3D12_COMPARISON_FUNC_EQUAL;
-        case gpu::StencilCompareOp::lessOrEqual:
-            return D3D12_COMPARISON_FUNC_LESS_EQUAL;
-        case gpu::StencilCompareOp::notEqual:
-            return D3D12_COMPARISON_FUNC_NOT_EQUAL;
-        case gpu::StencilCompareOp::always:
-            return D3D12_COMPARISON_FUNC_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
+  switch (op)
+  {
+    case gpu::StencilCompareOp::less:
+      return D3D12_COMPARISON_FUNC_LESS;
+    case gpu::StencilCompareOp::equal:
+      return D3D12_COMPARISON_FUNC_EQUAL;
+    case gpu::StencilCompareOp::lessOrEqual:
+      return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    case gpu::StencilCompareOp::notEqual:
+      return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+    case gpu::StencilCompareOp::always:
+      return D3D12_COMPARISON_FUNC_ALWAYS;
+  }
+  RIVE_UNREACHABLE();
 }
 
-static void fill_stencil_face(const gpu::StencilFaceOps& ops,
-                              D3D12_DEPTH_STENCILOP_DESC* out)
+static void fill_stencil_face(
+    const gpu::StencilFaceOps& ops,
+    D3D12_DEPTH_STENCILOP_DESC* out)
 {
-    out->StencilFailOp = d3d12_stencil_op(ops.stencilFailOp);
-    out->StencilDepthFailOp = d3d12_stencil_op(ops.depthFailOp);
-    out->StencilPassOp = d3d12_stencil_op(ops.depthStencilPassOp);
-    out->StencilFunc = d3d12_stencil_compare(ops.compareOp);
+  out->StencilFailOp = d3d12_stencil_op(ops.stencilFailOp);
+  out->StencilDepthFailOp = d3d12_stencil_op(ops.depthFailOp);
+  out->StencilPassOp = d3d12_stencil_op(ops.depthStencilPassOp);
+  out->StencilFunc = d3d12_stencil_compare(ops.compareOp);
 }
 
 // D3D's front face is rive's clockwise front (FrontCounterClockwise=FALSE), so
 // the faces map straight across with no swap.
 static D3D12_CULL_MODE d3d12_cull_mode(gpu::CullFace cull)
 {
-    switch (cull)
-    {
-        case gpu::CullFace::none:
-            return D3D12_CULL_MODE_NONE;
-        case gpu::CullFace::clockwise:
-            return D3D12_CULL_MODE_FRONT;
-        case gpu::CullFace::counterclockwise:
-            return D3D12_CULL_MODE_BACK;
-    }
-    RIVE_UNREACHABLE();
+  switch (cull)
+  {
+    case gpu::CullFace::none:
+      return D3D12_CULL_MODE_NONE;
+    case gpu::CullFace::clockwise:
+      return D3D12_CULL_MODE_FRONT;
+    case gpu::CullFace::counterclockwise:
+      return D3D12_CULL_MODE_BACK;
+  }
+  RIVE_UNREACHABLE();
 }
 
 std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
@@ -297,357 +298,370 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
     const D3D12DrawPixelShader& ps,
     const PlatformFeatures& platformFeatures)
 {
-    ComPtr<ID3D12PipelineState> pipelineState;
+  ComPtr<ID3D12PipelineState> pipelineState;
 
-    D3D12_RASTERIZER_DESC rasterDesc = {};
-    // Wireframe is a debugging aid. The resolve is a fullscreen operation, so
-    // leave it solid even in wireframe mode.
-    rasterDesc.FillMode =
-        (props.wireframe && props.drawType != DrawType::renderPassResolve)
-            ? D3D12_FILL_MODE_WIREFRAME
-            : D3D12_FILL_MODE_SOLID;
-    rasterDesc.FrontCounterClockwise = FALSE;
-    rasterDesc.DepthBias = 0;
-    rasterDesc.SlopeScaledDepthBias = 0;
-    rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable = TRUE;
-    rasterDesc.MultisampleEnable = FALSE;
-    rasterDesc.AntialiasedLineEnable = FALSE;
+  D3D12_RASTERIZER_DESC rasterDesc = {};
+  // Wireframe is a debugging aid. The resolve is a fullscreen operation, so
+  // leave it solid even in wireframe mode.
+  rasterDesc.FillMode = (props.wireframe &&
+                         props.drawType != DrawType::renderPassResolve)
+                            ? D3D12_FILL_MODE_WIREFRAME
+                            : D3D12_FILL_MODE_SOLID;
+  rasterDesc.FrontCounterClockwise = FALSE;
+  rasterDesc.DepthBias = 0;
+  rasterDesc.SlopeScaledDepthBias = 0;
+  rasterDesc.DepthBiasClamp = 0;
+  rasterDesc.DepthClipEnable = TRUE;
+  rasterDesc.MultisampleEnable = FALSE;
+  rasterDesc.AntialiasedLineEnable = FALSE;
 
-    switch (props.drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::featherAtlasBlit:
-            rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
-            break;
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::renderPassResolve:
-            rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
-            break;
-        case DrawType::stencilMidpointFanBorrowedCoverage:
-        case DrawType::stencilDynamicMidpointFans:
-        case DrawType::stencilDynamicOuterCubics:
-        case DrawType::stencilMidpointFans:
-        case DrawType::stencilMidpointFanReset:
-        case DrawType::stencilMidpointFanWinding:
-        case DrawType::stencilMidpointFanCover:
-        case DrawType::stencilOuterCubicBorrowedCoverage:
-        case DrawType::stencilOuterCubicReset:
-        case DrawType::stencilOuterCubicWinding:
-        case DrawType::stencilOuterCubicCover:
-        case DrawType::stencilOuterCubics:
-        case DrawType::clipReset:
-        case DrawType::renderPassInitialize:
-        case DrawType::depthStrokes:
-        case DrawType::depthAAStrokes:
-        case DrawType::depthAAOuterHairline:
-            break;
-    }
+  switch (props.drawType)
+  {
+    case DrawType::midpointFanPatches:
+    case DrawType::midpointFanCenterAAPatches:
+    case DrawType::outerCurvePatches:
+    case DrawType::interiorTriangulation:
+    case DrawType::featherAtlasBlit:
+      rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+      break;
+    case DrawType::imageRect:
+    case DrawType::imageMesh:
+    case DrawType::renderPassResolve:
+      rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
+      break;
+    case DrawType::stencilMidpointFanBorrowedCoverage:
+    case DrawType::stencilDynamicMidpointFans:
+    case DrawType::stencilDynamicOuterCubics:
+    case DrawType::stencilMidpointFans:
+    case DrawType::stencilMidpointFanReset:
+    case DrawType::stencilMidpointFanWinding:
+    case DrawType::stencilMidpointFanCover:
+    case DrawType::stencilOuterCubicBorrowedCoverage:
+    case DrawType::stencilOuterCubicReset:
+    case DrawType::stencilOuterCubicWinding:
+    case DrawType::stencilOuterCubicCover:
+    case DrawType::stencilOuterCubics:
+    case DrawType::clipReset:
+    case DrawType::renderPassInitialize:
+    case DrawType::depthStrokes:
+    case DrawType::depthAAStrokes:
+    case DrawType::depthAAOuterHairline:
+      break;
+  }
 
-    D3D12_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].BlendEnable =
-        enums::is_flag_set(props.shaderMiscFlags,
-                           ShaderMiscFlags::fixedFunctionColorOutput);
-    blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-    blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        enums::any_flag_set(props.shaderMiscFlags,
-                            ShaderMiscFlags::fixedFunctionColorOutput |
-                                ShaderMiscFlags::coalescedResolveAndTransfer)
-            ? D3D12_COLOR_WRITE_ENABLE_ALL
-            : 0;
+  D3D12_BLEND_DESC blendDesc{};
+  blendDesc.RenderTarget[0].BlendEnable = enums::is_flag_set(
+      props.shaderMiscFlags,
+      ShaderMiscFlags::fixedFunctionColorOutput);
+  blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+  blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+  blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0]
+      .RenderTargetWriteMask = enums::any_flag_set(
+                                   props.shaderMiscFlags,
+                                   ShaderMiscFlags::fixedFunctionColorOutput |
+                                       ShaderMiscFlags::
+                                           coalescedResolveAndTransfer)
+                                   ? D3D12_COLOR_WRITE_ENABLE_ALL
+                                   : 0;
 
-    D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
-    const bool isDepthStencil =
-        props.interlockMode == InterlockMode::depthStencil;
-    if (isDepthStencil)
-    {
-        const gpu::PipelineState pipelineState =
-            gpu::get_pipeline_state(props.drawType,
-                                    props.interlockMode,
-                                    props.shaderMiscFlags,
-                                    props.drawContents,
-                                    props.fixedFunctionColorOutput,
-                                    props.blendMode,
-                                    platformFeatures);
+  D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
+  const bool isDepthStencil = props.interlockMode ==
+                              InterlockMode::depthStencil;
+  if (isDepthStencil)
+  {
+    const gpu::PipelineState pipelineState = gpu::get_pipeline_state(
+        props.drawType,
+        props.interlockMode,
+        props.shaderMiscFlags,
+        props.drawContents,
+        props.fixedFunctionColorOutput,
+        props.blendMode,
+        platformFeatures);
 
-        rasterDesc.CullMode = d3d12_cull_mode(pipelineState.cullFace);
+    rasterDesc.CullMode = d3d12_cull_mode(pipelineState.cullFace);
 
-        depthStencilDesc.DepthEnable =
-            pipelineState.depthTestEnabled || pipelineState.depthWriteEnabled;
-        depthStencilDesc.DepthWriteMask = pipelineState.depthWriteEnabled
-                                              ? D3D12_DEPTH_WRITE_MASK_ALL
-                                              : D3D12_DEPTH_WRITE_MASK_ZERO;
-        depthStencilDesc.DepthFunc = pipelineState.depthTestEnabled
-                                         ? D3D12_COMPARISON_FUNC_GREATER
-                                         : D3D12_COMPARISON_FUNC_ALWAYS;
-        depthStencilDesc.StencilEnable = pipelineState.stencilTestEnabled;
-        depthStencilDesc.StencilReadMask = pipelineState.stencilCompareMask;
-        depthStencilDesc.StencilWriteMask = pipelineState.stencilWriteMask;
-        fill_stencil_face(pipelineState.stencilFrontOps,
-                          &depthStencilDesc.FrontFace);
-        fill_stencil_face(pipelineState.stencilDoubleSided
-                              ? pipelineState.stencilBackOps
-                              : pipelineState.stencilFrontOps,
-                          &depthStencilDesc.BackFace);
+    depthStencilDesc.DepthEnable = pipelineState.depthTestEnabled ||
+                                   pipelineState.depthWriteEnabled;
+    depthStencilDesc.DepthWriteMask = pipelineState.depthWriteEnabled
+                                          ? D3D12_DEPTH_WRITE_MASK_ALL
+                                          : D3D12_DEPTH_WRITE_MASK_ZERO;
+    depthStencilDesc.DepthFunc = pipelineState.depthTestEnabled
+                                     ? D3D12_COMPARISON_FUNC_GREATER
+                                     : D3D12_COMPARISON_FUNC_ALWAYS;
+    depthStencilDesc.StencilEnable = pipelineState.stencilTestEnabled;
+    depthStencilDesc.StencilReadMask = pipelineState.stencilCompareMask;
+    depthStencilDesc.StencilWriteMask = pipelineState.stencilWriteMask;
+    fill_stencil_face(
+        pipelineState.stencilFrontOps,
+        &depthStencilDesc.FrontFace);
+    fill_stencil_face(
+        pipelineState.stencilDoubleSided ? pipelineState.stencilBackOps
+                                         : pipelineState.stencilFrontOps,
+        &depthStencilDesc.BackFace);
 
-        // Advanced blend draws composite into the UAV and bind no render
-        // target. Everything else blends src-over into the attachment.
-        const bool rendersToUAV =
-            enums::is_flag_set(props.shaderFeatures,
-                               ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
-            !enums::is_flag_set(props.shaderMiscFlags,
-                                ShaderMiscFlags::fixedFunctionColorOutput);
-        blendDesc.RenderTarget[0].BlendEnable = !rendersToUAV;
-        blendDesc.RenderTarget[0].RenderTargetWriteMask =
-            !rendersToUAV && pipelineState.colorWriteEnabled
-                ? D3D12_COLOR_WRITE_ENABLE_ALL
-                : 0;
-    }
+    // Advanced blend draws composite into the UAV and bind no render
+    // target. Everything else blends src-over into the attachment.
+    const bool rendersToUAV = enums::is_flag_set(
+                                  props.shaderFeatures,
+                                  ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+                              !enums::is_flag_set(
+                                  props.shaderMiscFlags,
+                                  ShaderMiscFlags::fixedFunctionColorOutput);
+    blendDesc.RenderTarget[0].BlendEnable = !rendersToUAV;
+    blendDesc.RenderTarget[0]
+        .RenderTargetWriteMask = !rendersToUAV &&
+                                         pipelineState.colorWriteEnabled
+                                     ? D3D12_COLOR_WRITE_ENABLE_ALL
+                                     : 0;
+  }
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = {vs.m_layoutDesc.data(), vs.m_layoutDesc.size()};
-    psoDesc.pRootSignature = m_rootSignature.Get();
-    psoDesc.VS = CD3DX12_SHADER_BYTECODE(vs.m_shader.Get());
-    psoDesc.PS = CD3DX12_SHADER_BYTECODE(ps.m_shader.Get());
-    psoDesc.RasterizerState = rasterDesc;
-    psoDesc.BlendState = blendDesc;
-    psoDesc.DepthStencilState = depthStencilDesc;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.DSVFormat =
-        isDepthStencil ? DXGI_FORMAT_D24_UNORM_S8_UINT : DXGI_FORMAT_UNKNOWN;
-    psoDesc.SampleDesc.Count = 1;
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+  psoDesc.InputLayout = {vs.m_layoutDesc.data(), vs.m_layoutDesc.size()};
+  psoDesc.pRootSignature = m_rootSignature.Get();
+  psoDesc.VS = CD3DX12_SHADER_BYTECODE(vs.m_shader.Get());
+  psoDesc.PS = CD3DX12_SHADER_BYTECODE(ps.m_shader.Get());
+  psoDesc.RasterizerState = rasterDesc;
+  psoDesc.BlendState = blendDesc;
+  psoDesc.DepthStencilState = depthStencilDesc;
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+  psoDesc.DSVFormat = isDepthStencil ? DXGI_FORMAT_D24_UNORM_S8_UINT
+                                     : DXGI_FORMAT_UNKNOWN;
+  psoDesc.SampleDesc.Count = 1;
 
-    auto result = std::make_unique<D3D12Pipeline>();
+  auto result = std::make_unique<D3D12Pipeline>();
 #ifdef WITH_RIVE_TOOLS
-    if (props.synthesizedFailureType ==
-            SynthesizedFailureType::pipelineCreation ||
-        props.synthesizedFailureType ==
-            SynthesizedFailureType::shaderCompilation)
-    {
-        // An empty result is what counts as "failed"
-        return result;
-    }
+  if (props.synthesizedFailureType ==
+          SynthesizedFailureType::pipelineCreation ||
+      props.synthesizedFailureType == SynthesizedFailureType::shaderCompilation)
+  {
+    // An empty result is what counts as "failed"
+    return result;
+  }
 #endif
 
-    VERIFY_OK(device()->CreateGraphicsPipelineState(
-        &psoDesc,
-        IID_PPV_ARGS(&result->m_d3dPipelineState)));
-    return result;
+  VERIFY_OK(device()->CreateGraphicsPipelineState(
+      &psoDesc,
+      IID_PPV_ARGS(&result->m_d3dPipelineState)));
+  return result;
 }
 
 void D3D12PipelineManager::compileTesselationPipeline()
 {
-    D3D12_INPUT_ELEMENT_DESC layoutDesc[] = {
-        {GLSL_a_p0p1_,
-         0,
-         DXGI_FORMAT_R32G32B32A32_FLOAT,
-         0,
-         D3D12_APPEND_ALIGNED_ELEMENT,
-         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-         1},
-        {GLSL_a_p2p3_,
-         0,
-         DXGI_FORMAT_R32G32B32A32_FLOAT,
-         0,
-         D3D12_APPEND_ALIGNED_ELEMENT,
-         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-         1},
-        {GLSL_a_joinTan_and_ys,
-         0,
-         DXGI_FORMAT_R32G32B32A32_FLOAT,
-         0,
-         D3D12_APPEND_ALIGNED_ELEMENT,
-         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-         1},
-        {GLSL_a_args,
-         0,
-         DXGI_FORMAT_R32G32B32A32_UINT,
-         0,
-         D3D12_APPEND_ALIGNED_ELEMENT,
-         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-         1}};
+  D3D12_INPUT_ELEMENT_DESC layoutDesc[] = {
+      {GLSL_a_p0p1_,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D12_APPEND_ALIGNED_ELEMENT,
+       D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_p2p3_,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D12_APPEND_ALIGNED_ELEMENT,
+       D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_joinTan_and_ys,
+       0,
+       DXGI_FORMAT_R32G32B32A32_FLOAT,
+       0,
+       D3D12_APPEND_ALIGNED_ELEMENT,
+       D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+       1},
+      {GLSL_a_args,
+       0,
+       DXGI_FORMAT_R32G32B32A32_UINT,
+       0,
+       D3D12_APPEND_ALIGNED_ELEMENT,
+       D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+       1}};
 
-    D3D12_RASTERIZER_DESC rasterDesc = {};
-    rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-    rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
-    rasterDesc.FrontCounterClockwise = FALSE;
-    rasterDesc.DepthBias = 0;
-    rasterDesc.SlopeScaledDepthBias = 0;
-    rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable = FALSE;
-    rasterDesc.MultisampleEnable = FALSE;
-    rasterDesc.AntialiasedLineEnable = FALSE;
+  D3D12_RASTERIZER_DESC rasterDesc = {};
+  rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+  rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+  rasterDesc.FrontCounterClockwise = FALSE;
+  rasterDesc.DepthBias = 0;
+  rasterDesc.SlopeScaledDepthBias = 0;
+  rasterDesc.DepthBiasClamp = 0;
+  rasterDesc.DepthClipEnable = FALSE;
+  rasterDesc.MultisampleEnable = FALSE;
+  rasterDesc.AntialiasedLineEnable = FALSE;
 
-    D3D12_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].BlendEnable = FALSE;
-    blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D12_COLOR_WRITE_ENABLE_ALL;
+  D3D12_BLEND_DESC blendDesc{};
+  blendDesc.RenderTarget[0].BlendEnable = FALSE;
+  blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+  blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+  blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0]
+      .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = {layoutDesc, _countof(layoutDesc)};
-    psoDesc.pRootSignature = m_rootSignature.Get();
-    psoDesc.VS = {shader::tess::vert::g_main,
-                  std::size(shader::tess::vert::g_main)};
-    psoDesc.PS = {shader::tess::frag::g_main,
-                  std::size(shader::tess::frag::g_main)};
-    psoDesc.RasterizerState = rasterDesc;
-    psoDesc.BlendState = blendDesc;
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
-    psoDesc.DepthStencilState.StencilEnable = FALSE;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_UINT;
-    psoDesc.SampleDesc.Count = 1;
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+  psoDesc.InputLayout = {layoutDesc, _countof(layoutDesc)};
+  psoDesc.pRootSignature = m_rootSignature.Get();
+  psoDesc.VS = {
+      shader::tess::vert::g_main,
+      std::size(shader::tess::vert::g_main)};
+  psoDesc.PS = {
+      shader::tess::frag::g_main,
+      std::size(shader::tess::frag::g_main)};
+  psoDesc.RasterizerState = rasterDesc;
+  psoDesc.BlendState = blendDesc;
+  psoDesc.DepthStencilState.DepthEnable = FALSE;
+  psoDesc.DepthStencilState.StencilEnable = FALSE;
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_UINT;
+  psoDesc.SampleDesc.Count = 1;
 
-    VERIFY_OK(device()->CreateGraphicsPipelineState(
-        &psoDesc,
-        IID_PPV_ARGS(&m_tesselationPipeline)));
+  VERIFY_OK(device()->CreateGraphicsPipelineState(
+      &psoDesc,
+      IID_PPV_ARGS(&m_tesselationPipeline)));
 }
 
 void D3D12PipelineManager::compileGradientPipeline()
 {
-    D3D12_INPUT_ELEMENT_DESC layoutDesc = {
-        GLSL_a_span,
-        0,
-        DXGI_FORMAT_R32G32B32A32_UINT,
-        0,
-        0,
-        D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
-        1};
+  D3D12_INPUT_ELEMENT_DESC layoutDesc = {
+      GLSL_a_span,
+      0,
+      DXGI_FORMAT_R32G32B32A32_UINT,
+      0,
+      0,
+      D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA,
+      1};
 
-    D3D12_RASTERIZER_DESC rasterDesc = {};
-    rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-    rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
-    rasterDesc.FrontCounterClockwise = FALSE;
-    rasterDesc.DepthBias = 0;
-    rasterDesc.SlopeScaledDepthBias = 0;
-    rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable = FALSE;
-    rasterDesc.MultisampleEnable = FALSE;
-    rasterDesc.AntialiasedLineEnable = FALSE;
+  D3D12_RASTERIZER_DESC rasterDesc = {};
+  rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+  rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+  rasterDesc.FrontCounterClockwise = FALSE;
+  rasterDesc.DepthBias = 0;
+  rasterDesc.SlopeScaledDepthBias = 0;
+  rasterDesc.DepthBiasClamp = 0;
+  rasterDesc.DepthClipEnable = FALSE;
+  rasterDesc.MultisampleEnable = FALSE;
+  rasterDesc.AntialiasedLineEnable = FALSE;
 
-    D3D12_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].BlendEnable = FALSE;
-    blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D12_COLOR_WRITE_ENABLE_ALL;
+  D3D12_BLEND_DESC blendDesc{};
+  blendDesc.RenderTarget[0].BlendEnable = FALSE;
+  blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+  blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+  blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+  blendDesc.RenderTarget[0]
+      .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = {&layoutDesc, 1};
-    psoDesc.pRootSignature = m_rootSignature.Get();
-    psoDesc.VS = {shader::grad::vert::g_main,
-                  std::size(shader::grad::vert::g_main)};
-    psoDesc.PS = {shader::grad::frag::g_main,
-                  std::size(shader::grad::frag::g_main)};
-    psoDesc.RasterizerState = rasterDesc;
-    psoDesc.BlendState = blendDesc;
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
-    psoDesc.DepthStencilState.StencilEnable = FALSE;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    psoDesc.SampleDesc.Count = 1;
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+  psoDesc.InputLayout = {&layoutDesc, 1};
+  psoDesc.pRootSignature = m_rootSignature.Get();
+  psoDesc.VS = {
+      shader::grad::vert::g_main,
+      std::size(shader::grad::vert::g_main)};
+  psoDesc.PS = {
+      shader::grad::frag::g_main,
+      std::size(shader::grad::frag::g_main)};
+  psoDesc.RasterizerState = rasterDesc;
+  psoDesc.BlendState = blendDesc;
+  psoDesc.DepthStencilState.DepthEnable = FALSE;
+  psoDesc.DepthStencilState.StencilEnable = FALSE;
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+  psoDesc.SampleDesc.Count = 1;
 
-    VERIFY_OK(device()->CreateGraphicsPipelineState(
-        &psoDesc,
-        IID_PPV_ARGS(&m_gradientPipeline)));
+  VERIFY_OK(device()->CreateGraphicsPipelineState(
+      &psoDesc,
+      IID_PPV_ARGS(&m_gradientPipeline)));
 }
 
 void D3D12PipelineManager::compileFeatherAtlasPipeline()
 {
-    D3D12_INPUT_ELEMENT_DESC layoutDesc[2];
-    layoutDesc[0] = {GLSL_a_patchVertexData,
-                     0,
-                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                     PATCH_VERTEX_DATA_SLOT,
-                     D3D12_APPEND_ALIGNED_ELEMENT,
-                     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                     0};
-    layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                     0,
-                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                     PATCH_VERTEX_DATA_SLOT,
-                     D3D12_APPEND_ALIGNED_ELEMENT,
-                     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                     0};
+  D3D12_INPUT_ELEMENT_DESC layoutDesc[2];
+  layoutDesc[0] = {
+      GLSL_a_patchVertexData,
+      0,
+      DXGI_FORMAT_R32G32B32A32_FLOAT,
+      PATCH_VERTEX_DATA_SLOT,
+      D3D12_APPEND_ALIGNED_ELEMENT,
+      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+      0};
+  layoutDesc[1] = {
+      GLSL_a_mirroredVertexData,
+      0,
+      DXGI_FORMAT_R32G32B32A32_FLOAT,
+      PATCH_VERTEX_DATA_SLOT,
+      D3D12_APPEND_ALIGNED_ELEMENT,
+      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+      0};
 
-    D3D12_RASTERIZER_DESC rasterDesc = {};
-    rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
-    rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
-    rasterDesc.FrontCounterClockwise = FALSE;
-    rasterDesc.DepthBias = 0;
-    rasterDesc.SlopeScaledDepthBias = 0;
-    rasterDesc.DepthBiasClamp = 0;
-    rasterDesc.DepthClipEnable = FALSE;
-    rasterDesc.MultisampleEnable = FALSE;
-    rasterDesc.AntialiasedLineEnable = FALSE;
+  D3D12_RASTERIZER_DESC rasterDesc = {};
+  rasterDesc.FillMode = D3D12_FILL_MODE_SOLID;
+  rasterDesc.CullMode = D3D12_CULL_MODE_BACK;
+  rasterDesc.FrontCounterClockwise = FALSE;
+  rasterDesc.DepthBias = 0;
+  rasterDesc.SlopeScaledDepthBias = 0;
+  rasterDesc.DepthBiasClamp = 0;
+  rasterDesc.DepthClipEnable = FALSE;
+  rasterDesc.MultisampleEnable = FALSE;
+  rasterDesc.AntialiasedLineEnable = FALSE;
 
-    D3D12_BLEND_DESC blendDesc{};
-    blendDesc.RenderTarget[0].BlendEnable = TRUE;
-    blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_MAX;
-    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-    blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
-    blendDesc.RenderTarget[0].RenderTargetWriteMask =
-        D3D12_COLOR_WRITE_ENABLE_ALL;
+  D3D12_BLEND_DESC blendDesc{};
+  blendDesc.RenderTarget[0].BlendEnable = TRUE;
+  blendDesc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_MAX;
+  blendDesc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+  blendDesc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+  blendDesc.RenderTarget[0]
+      .RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-    psoDesc.InputLayout = {layoutDesc, 2};
-    psoDesc.pRootSignature = m_rootSignature.Get();
-    psoDesc.VS = {shader::atlas::vert::g_main,
-                  std::size(shader::atlas::vert::g_main)};
-    psoDesc.PS = {shader::atlas::stroke::g_main,
-                  std::size(shader::atlas::stroke::g_main)};
-    psoDesc.RasterizerState = rasterDesc;
-    psoDesc.BlendState = blendDesc;
-    psoDesc.DepthStencilState.DepthEnable = FALSE;
-    psoDesc.DepthStencilState.StencilEnable = FALSE;
-    psoDesc.SampleMask = UINT_MAX;
-    psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    psoDesc.NumRenderTargets = 1;
-    psoDesc.RTVFormats[0] = DXGI_FORMAT_R16_FLOAT;
-    psoDesc.SampleDesc.Count = 1;
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+  psoDesc.InputLayout = {layoutDesc, 2};
+  psoDesc.pRootSignature = m_rootSignature.Get();
+  psoDesc.VS = {
+      shader::atlas::vert::g_main,
+      std::size(shader::atlas::vert::g_main)};
+  psoDesc.PS = {
+      shader::atlas::stroke::g_main,
+      std::size(shader::atlas::stroke::g_main)};
+  psoDesc.RasterizerState = rasterDesc;
+  psoDesc.BlendState = blendDesc;
+  psoDesc.DepthStencilState.DepthEnable = FALSE;
+  psoDesc.DepthStencilState.StencilEnable = FALSE;
+  psoDesc.SampleMask = UINT_MAX;
+  psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+  psoDesc.NumRenderTargets = 1;
+  psoDesc.RTVFormats[0] = DXGI_FORMAT_R16_FLOAT;
+  psoDesc.SampleDesc.Count = 1;
 
-    VERIFY_OK(device()->CreateGraphicsPipelineState(
-        &psoDesc,
-        IID_PPV_ARGS(&m_featherAtlasStrokePipeline)));
+  VERIFY_OK(device()->CreateGraphicsPipelineState(
+      &psoDesc,
+      IID_PPV_ARGS(&m_featherAtlasStrokePipeline)));
 
-    psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+  psoDesc.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+  psoDesc.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+  psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
-    psoDesc.PS = {shader::atlas::fill::g_main,
-                  std::size(shader::atlas::fill::g_main)};
+  psoDesc.PS = {
+      shader::atlas::fill::g_main,
+      std::size(shader::atlas::fill::g_main)};
 
-    VERIFY_OK(device()->CreateGraphicsPipelineState(
-        &psoDesc,
-        IID_PPV_ARGS(&m_featherAtlasFillPipeline)));
+  VERIFY_OK(device()->CreateGraphicsPipelineState(
+      &psoDesc,
+      IID_PPV_ARGS(&m_featherAtlasFillPipeline)));
 }
 } // namespace rive::gpu

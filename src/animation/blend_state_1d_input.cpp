@@ -8,27 +8,25 @@ using namespace rive;
 
 StatusCode BlendState1DInput::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    if (hasValidInputId())
+  if (hasValidInputId())
+  {
+    // Make sure the inputId doesn't overflow the input buffer.
+    if ((size_t)inputId() >= stateMachineImporter->stateMachine()->inputCount())
     {
-        // Make sure the inputId doesn't overflow the input buffer.
-        if ((size_t)inputId() >=
-            stateMachineImporter->stateMachine()->inputCount())
-        {
-            return StatusCode::InvalidObject;
-        }
-        auto input =
-            stateMachineImporter->stateMachine()->input((size_t)inputId());
-        if (input == nullptr || !input->is<StateMachineNumber>())
-        {
-            return StatusCode::InvalidObject;
-        }
+      return StatusCode::InvalidObject;
     }
-    return Super::import(importStack);
+    auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
+    if (input == nullptr || !input->is<StateMachineNumber>())
+    {
+      return StatusCode::InvalidObject;
+    }
+  }
+  return Super::import(importStack);
 }

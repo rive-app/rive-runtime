@@ -6,14 +6,14 @@ namespace rive
 class LayoutParticipantBase : public LayoutNodeStyle
 {
 protected:
-    typedef LayoutNodeStyle Super;
+  typedef LayoutNodeStyle Super;
 
 public:
-    static const uint16_t typeKey = 1066;
+  static const uint16_t typeKey = 1066;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

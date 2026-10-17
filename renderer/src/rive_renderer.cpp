@@ -14,89 +14,92 @@
 
 namespace rive
 {
-static rcp<RiveRenderPath> invertClockwisePath(const RiveRenderPath* path,
-                                               FillRule pathFillRule,
-                                               const Mat2D& viewMatrix,
-                                               IAABB bounds);
+static rcp<RiveRenderPath> invertClockwisePath(
+    const RiveRenderPath* path,
+    FillRule pathFillRule,
+    const Mat2D& viewMatrix,
+    IAABB bounds);
 
 bool RiveRenderer::IsAABB(const RawPath& path, AABB* result)
 {
-    RIVE_PROF_SCOPE_L(3)
-    // Any quadrilateral begins with a move plus 3 lines.
-    constexpr static size_t kAABBVerbCount = 4;
-    constexpr static PathVerb aabbVerbs[kAABBVerbCount] = {PathVerb::move,
-                                                           PathVerb::line,
-                                                           PathVerb::line,
-                                                           PathVerb::line};
-    Span<const PathVerb> verbs = path.verbs();
-    if (verbs.count() < kAABBVerbCount ||
-        memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
-    {
-        return false;
-    }
-
-    // Only accept extra verbs and points if every point after the quadrilateral
-    // is equal to p0.
-    Span<const Vec2D> pts = path.points();
-    for (size_t i = 4; i < pts.count(); ++i)
-    {
-        if (pts[i] != pts[0])
-        {
-            return false;
-        }
-    }
-
-    // We have a quadrilateral! Now check if it is an axis-aligned rectangle.
-    float4 corners = {pts[0].x, pts[0].y, pts[2].x, pts[2].y};
-    float4 oppositeCorners = {pts[1].x, pts[1].y, pts[3].x, pts[3].y};
-    if (simd::all(corners == oppositeCorners.zyxw) ||
-        simd::all(corners == oppositeCorners.xwzy))
-    {
-        float4 r = simd::join(simd::min(corners.xy, corners.zw),
-                              simd::max(corners.xy, corners.zw));
-        simd::store(result, r);
-        return true;
-    }
+  RIVE_PROF_SCOPE_L(3)
+  // Any quadrilateral begins with a move plus 3 lines.
+  constexpr static size_t kAABBVerbCount = 4;
+  constexpr static PathVerb aabbVerbs[kAABBVerbCount] =
+      {PathVerb::move, PathVerb::line, PathVerb::line, PathVerb::line};
+  Span<const PathVerb> verbs = path.verbs();
+  if (verbs.count() < kAABBVerbCount ||
+      memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
+  {
     return false;
+  }
+
+  // Only accept extra verbs and points if every point after the quadrilateral
+  // is equal to p0.
+  Span<const Vec2D> pts = path.points();
+  for (size_t i = 4; i < pts.count(); ++i)
+  {
+    if (pts[i] != pts[0])
+    {
+      return false;
+    }
+  }
+
+  // We have a quadrilateral! Now check if it is an axis-aligned rectangle.
+  float4 corners = {pts[0].x, pts[0].y, pts[2].x, pts[2].y};
+  float4 oppositeCorners = {pts[1].x, pts[1].y, pts[3].x, pts[3].y};
+  if (simd::all(corners == oppositeCorners.zyxw) ||
+      simd::all(corners == oppositeCorners.xwzy))
+  {
+    float4 r = simd::join(
+        simd::min(corners.xy, corners.zw),
+        simd::max(corners.xy, corners.zw));
+    simd::store(result, r);
+    return true;
+  }
+  return false;
 }
 
-RiveRenderer::ClipElement::ClipElement(const Mat2D& matrix_,
-                                       const RiveRenderPath* path_,
-                                       FillRule fillRule_,
-                                       IAABB pixelBounds_,
-                                       std::optional<StrokeParams> stroke_,
-                                       float feather_,
-                                       bool forceClosed_)
+RiveRenderer::ClipElement::ClipElement(
+    const Mat2D& matrix_,
+    const RiveRenderPath* path_,
+    FillRule fillRule_,
+    IAABB pixelBounds_,
+    std::optional<StrokeParams> stroke_,
+    float feather_,
+    bool forceClosed_)
 {
-    reset(matrix_,
-          path_,
-          fillRule_,
-          pixelBounds_,
-          stroke_,
-          feather_,
-          forceClosed_);
+  reset(
+      matrix_,
+      path_,
+      fillRule_,
+      pixelBounds_,
+      stroke_,
+      feather_,
+      forceClosed_);
 }
 
 RiveRenderer::ClipElement::~ClipElement() {}
 
-void RiveRenderer::ClipElement::reset(const Mat2D& matrix_,
-                                      const RiveRenderPath* path_,
-                                      FillRule fillRule_,
-                                      IAABB pixelBounds_,
-                                      std::optional<StrokeParams> stroke_,
-                                      float feather_,
-                                      bool forceClosed_)
+void RiveRenderer::ClipElement::reset(
+    const Mat2D& matrix_,
+    const RiveRenderPath* path_,
+    FillRule fillRule_,
+    IAABB pixelBounds_,
+    std::optional<StrokeParams> stroke_,
+    float feather_,
+    bool forceClosed_)
 {
-    matrix = matrix_;
-    rawPathMutationID = path_->getRawPathMutationID();
-    pathBounds = path_->getBounds();
-    path = ref_rcp(path_);
-    fillRule = fillRule_;
-    clipID = 0; // This gets initialized lazily.
-    pixelBounds = pixelBounds_;
-    stroke = stroke_;
-    feather = feather_;
-    forceClosed = forceClosed_;
+  matrix = matrix_;
+  rawPathMutationID = path_->getRawPathMutationID();
+  pathBounds = path_->getBounds();
+  path = ref_rcp(path_);
+  fillRule = fillRule_;
+  clipID = 0; // This gets initialized lazily.
+  pixelBounds = pixelBounds_;
+  stroke = stroke_;
+  feather = feather_;
+  forceClosed = forceClosed_;
 }
 
 bool RiveRenderer::ClipElement::isEquivalent(
@@ -106,22 +109,22 @@ bool RiveRenderer::ClipElement::isEquivalent(
     float feather_,
     bool forceClosed_) const
 {
-    if (stroke.has_value())
+  if (stroke.has_value())
+  {
+    if (!stroke_.has_value() || *stroke != *stroke_)
     {
-        if (!stroke_.has_value() || *stroke != *stroke_)
-        {
-            return false;
-        }
+      return false;
     }
-    else if (stroke_.has_value())
-    {
-        return false;
-    }
+  }
+  else if (stroke_.has_value())
+  {
+    return false;
+  }
 
-    return matrix_ == matrix &&
-           path_->getRawPathMutationID() == rawPathMutationID &&
-           path_->getFillRule() == fillRule && feather == feather_ &&
-           forceClosed == forceClosed_;
+  return matrix_ == matrix &&
+         path_->getRawPathMutationID() == rawPathMutationID &&
+         path_->getFillRule() == fillRule && feather == feather_ &&
+         forceClosed == forceClosed_;
 }
 
 RiveRenderer::RiveRenderer(gpu::RenderContext* context) : m_context(context) {}
@@ -130,342 +133,344 @@ RiveRenderer::~RiveRenderer() {}
 
 void RiveRenderer::save()
 {
-    // Copy the back of the stack before pushing, in case the vector grows and
-    // invalidates the reference.
-    RenderState copy = m_renderStateStack.back();
-    m_renderStateStack.push_back(copy);
+  // Copy the back of the stack before pushing, in case the vector grows and
+  // invalidates the reference.
+  RenderState copy = m_renderStateStack.back();
+  m_renderStateStack.push_back(copy);
 }
 
 void RiveRenderer::restore()
 {
-    assert(m_renderStateStack.size() > 1);
-    assert(m_renderStateStack.back().clipStackHeight >=
-           m_renderStateStack[m_renderStateStack.size() - 2].clipStackHeight);
-    m_renderStateStack.pop_back();
+  assert(m_renderStateStack.size() > 1);
+  assert(
+      m_renderStateStack.back().clipStackHeight >=
+      m_renderStateStack[m_renderStateStack.size() - 2].clipStackHeight);
+  m_renderStateStack.pop_back();
 }
 
 void RiveRenderer::transform(const Mat2D& matrix)
 {
-    m_renderStateStack.back().matrix =
-        m_renderStateStack.back().matrix * matrix;
+  m_renderStateStack.back().matrix = m_renderStateStack.back().matrix * matrix;
 }
 
 void RiveRenderer::modulateOpacity(float opacity)
 {
-    m_renderStateStack.back().modulatedOpacity =
-        std::max(0.0f, m_renderStateStack.back().modulatedOpacity * opacity);
+  m_renderStateStack.back().modulatedOpacity = std::max(
+      0.0f,
+      m_renderStateStack.back().modulatedOpacity * opacity);
 }
 
 ColorInt RiveRenderer::modulated(ColorInt color, float opacity) const
 {
-    return colorModulate(color,
-                         m_renderStateStack.back().modulatedColor,
-                         opacity);
+  return colorModulate(
+      color,
+      m_renderStateStack.back().modulatedColor,
+      opacity);
 }
 
 void RiveRenderer::modulateColor(ColorInt color, bool replace)
 {
-    RenderState& state = m_renderStateStack.back();
-    state.modulatedColor =
-        replace ? color : colorModulate(state.modulatedColor, color);
+  RenderState& state = m_renderStateStack.back();
+  state.modulatedColor = replace ? color
+                                 : colorModulate(state.modulatedColor, color);
 }
 
 void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
-    LITE_RTTI_CAST_OR_RETURN(paint, RiveRenderPaint*, renderPaint);
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
+  LITE_RTTI_CAST_OR_RETURN(paint, RiveRenderPaint*, renderPaint);
 
-    if (path->getRawPath().empty())
-    {
-        return;
-    }
+  if (path->getRawPath().empty())
+  {
+    return;
+  }
 
-    if (paint->getIsStroked() && m_context->frameDescriptor().strokesDisabled)
-    {
-        return;
-    }
-    if (!paint->getIsStroked() && m_context->frameDescriptor().fillsDisabled)
-    {
-        return;
-    }
-    if (paint->getIsStroked() &&
-        // Use inverse logic to ensure we abort when stroke thickness is NaN.
-        !(paint->getThickness() > 0))
-    {
-        return;
-    }
-    // Use inverse logic to ensure we abort when stroke thickness is NaN.
-    if (!(paint->getFeather() >= 0))
-    {
-        return;
-    }
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
+  if (paint->getIsStroked() && m_context->frameDescriptor().strokesDisabled)
+  {
+    return;
+  }
+  if (!paint->getIsStroked() && m_context->frameDescriptor().fillsDisabled)
+  {
+    return;
+  }
+  if (paint->getIsStroked() &&
+      // Use inverse logic to ensure we abort when stroke thickness is NaN.
+      !(paint->getThickness() > 0))
+  {
+    return;
+  }
+  // Use inverse logic to ensure we abort when stroke thickness is NaN.
+  if (!(paint->getFeather() >= 0))
+  {
+    return;
+  }
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
 
-    if (paint->getIsStroked() &&
-        paint->getStrokePosition() != StrokePosition::center)
+  if (paint->getIsStroked() &&
+      paint->getStrokePosition() != StrokePosition::center)
+  {
+    save();
+
+    auto stroke = paint->getStrokeParams();
+    stroke.thickness *= 2.0f;
+    stroke.position = StrokePosition::center;
+
+    if (paint->getFeather() == 0.0f)
     {
-        save();
+      // Without a feather, we can clip by the stroke, with double its
+      // current thickness, then draw path into it.
 
-        auto stroke = paint->getStrokeParams();
-        stroke.thickness *= 2.0f;
-        stroke.position = StrokePosition::center;
+      IAABB pixelBounds;
+      clipPathImpl(
+          path,
+          stroke,
+          paint->getFeather(),
+          ForceClosed::yes,
+          &pixelBounds);
 
-        if (paint->getFeather() == 0.0f)
+      // Make a version of the paint that is the same as the current one,
+      // except as a fill instead of stroke.
+      auto fillPaint = paint->clone();
+      fillPaint->style(RenderPaintStyle::fill);
+
+      if (paint->getStrokePosition() == StrokePosition::inside)
+      {
+        drawPath(renderPath, fillPaint.get());
+      }
+      else
+      {
+        assert(paint->getStrokePosition() == StrokePosition::outside);
+
+        // For outside strokes we need to fill the *inverse* of the
+        // path.
+        auto fillPath = invertClockwisePath(
+            path,
+            path->getFillRule(),
+            m_renderStateStack.back().matrix,
+            pixelBounds);
+        drawPath(fillPath.get(), fillPaint.get());
+      }
+    }
+    else
+    {
+      // For a feathered stroke we need to invert this: clip by the path
+      // (inverted for outer), then draw the (feathered) stroke
+
+      // TODO: A possible optimization here when we have stencil is to
+      // start with drawing the stroke, expanded by the feather amount (as
+      // thickness) into stencil. For large paths this would eliminate a
+      // lot of fill rate through the middle.
+      if (paint->getStrokePosition() == StrokePosition::inside)
+      {
+        clipPathImpl(path);
+      }
+      else
+      {
+        auto strokeBounds = path->calculatePixelBounds(
+            m_renderStateStack.back().matrix,
+            stroke,
+            paint->getFeather());
+        auto clip = invertClockwisePath(
+            path,
+            path->getFillRule(),
+            m_renderStateStack.back().matrix,
+            strokeBounds);
+        clipPathImpl(clip.get());
+      }
+
+      // Make a paint that has a centered stroke that's twice as thick,
+      // and force it to draw the stroke as closed.
+      auto thickenedCenteredStrokePaint = paint->clone();
+      thickenedCenteredStrokePaint->stroke(stroke);
+      thickenedCenteredStrokePaint->forceClosed(true);
+      drawPath(path, thickenedCenteredStrokePaint.get());
+    }
+    restore();
+    return;
+  }
+
+  Mat2D imageMatrix;
+  Mat2D* imageMatrixPtr = nullptr;
+  if (paint->getImageTexture() != nullptr)
+  {
+    if (!m_context->frameSupportsImagePaintForPaths())
+    {
+      // If we don't have image paint support we need to do this using
+      // ImageRect (which can do all of the drawing of image +
+      // color/gradient), clipped to the current path.
+      save();
+
+      AABB bounds;
+      if (!IsAABB(path->getRawPath(), &bounds) || paint->getIsStroked() ||
+          paint->getFeather() != 0.0f)
+      {
+        // If this is not an AABB directly we need to get the actual
+        // bounds and then clip against the path.
+        bounds = path->getBounds();
+
+        std::optional<StrokeParams> stroke;
+        if (paint->getIsStroked())
         {
-            // Without a feather, we can clip by the stroke, with double its
-            // current thickness, then draw path into it.
-
-            IAABB pixelBounds;
-            clipPathImpl(path,
-                         stroke,
-                         paint->getFeather(),
-                         ForceClosed::yes,
-                         &pixelBounds);
-
-            // Make a version of the paint that is the same as the current one,
-            // except as a fill instead of stroke.
-            auto fillPaint = paint->clone();
-            fillPaint->style(RenderPaintStyle::fill);
-
-            if (paint->getStrokePosition() == StrokePosition::inside)
-            {
-                drawPath(renderPath, fillPaint.get());
-            }
-            else
-            {
-                assert(paint->getStrokePosition() == StrokePosition::outside);
-
-                // For outside strokes we need to fill the *inverse* of the
-                // path.
-                auto fillPath =
-                    invertClockwisePath(path,
-                                        path->getFillRule(),
-                                        m_renderStateStack.back().matrix,
-                                        pixelBounds);
-                drawPath(fillPath.get(), fillPaint.get());
-            }
-        }
-        else
-        {
-            // For a feathered stroke we need to invert this: clip by the path
-            // (inverted for outer), then draw the (feathered) stroke
-
-            // TODO: A possible optimization here when we have stencil is to
-            // start with drawing the stroke, expanded by the feather amount (as
-            // thickness) into stencil. For large paths this would eliminate a
-            // lot of fill rate through the middle.
-            if (paint->getStrokePosition() == StrokePosition::inside)
-            {
-                clipPathImpl(path);
-            }
-            else
-            {
-                auto strokeBounds =
-                    path->calculatePixelBounds(m_renderStateStack.back().matrix,
-                                               stroke,
-                                               paint->getFeather());
-                auto clip =
-                    invertClockwisePath(path,
-                                        path->getFillRule(),
-                                        m_renderStateStack.back().matrix,
-                                        strokeBounds);
-                clipPathImpl(clip.get());
-            }
-
-            // Make a paint that has a centered stroke that's twice as thick,
-            // and force it to draw the stroke as closed.
-            auto thickenedCenteredStrokePaint = paint->clone();
-            thickenedCenteredStrokePaint->stroke(stroke);
-            thickenedCenteredStrokePaint->forceClosed(true);
-            drawPath(path, thickenedCenteredStrokePaint.get());
-        }
-        restore();
-        return;
-    }
-
-    Mat2D imageMatrix;
-    Mat2D* imageMatrixPtr = nullptr;
-    if (paint->getImageTexture() != nullptr)
-    {
-        if (!m_context->frameSupportsImagePaintForPaths())
-        {
-            // If we don't have image paint support we need to do this using
-            // ImageRect (which can do all of the drawing of image +
-            // color/gradient), clipped to the current path.
-            save();
-
-            AABB bounds;
-            if (!IsAABB(path->getRawPath(), &bounds) || paint->getIsStroked() ||
-                paint->getFeather() != 0.0f)
-            {
-                // If this is not an AABB directly we need to get the actual
-                // bounds and then clip against the path.
-                bounds = path->getBounds();
-
-                std::optional<StrokeParams> stroke;
-                if (paint->getIsStroked())
-                {
-                    // We should only be here with centered strokes, since
-                    // inner/outer strokes are handled above (with an early
-                    // return)
-                    assert(paint->getStrokePosition() ==
-                           StrokePosition::center);
-                    stroke = {
-                        .thickness = paint->getThickness(),
-                        .join = paint->getJoin(),
-                        .cap = paint->getCap(),
-                    };
-                }
-
-                float outset =
-                    RiveRenderPath::calculateBoundsOutset(stroke,
-                                                          paint->getFeather());
-                bounds = bounds.outset(outset, outset);
-                clipPathImpl(path, stroke, paint->getFeather());
-            }
-
-            const auto gradientMatrix = m_renderStateStack.back().matrix;
-
-            // ImageRectDraw draws as a unit square with upper-left corner of 0,
-            // 0 so we need to adjust our transform to set that up.
-            Mat2D adjust = Mat2D::fromScaleAndTranslation(bounds.width(),
-                                                          bounds.height(),
-                                                          bounds.left(),
-                                                          bounds.top());
-            transform(adjust);
-
-            const auto& m = m_renderStateStack.back().matrix;
-
-            // The image matrix needs to map from the desired image space to the
-            // "box space" (where the upper-left and lower-right coordinates are
-            // (0, 0) and (1, 1) respectively). This is effectively the inverse
-            // of undoing the adjust matrix then applying the paint's
-            // imageMatrix, which becomes the following:
-            const auto imageMatrix =
-                paint->getImageTransform().invertOrIdentity() * adjust;
-
-            ColorInt paintColor = paint->getColor();
-            if (paint->getGradient() != nullptr)
-            {
-                // Paints with gradients have no color data so use solid white.
-                paintColor = 0xFFFFFFFF;
-            }
-
-            clipAndPushDraw(
-                gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
-                    m_context,
-                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
-                    m,
-                    paint->getBlendMode(),
-                    paint->getAdditiveness(),
-                    ref_rcp(paint->getImageTexture()),
-                    ref_rcp(paint->getGradient()),
-                    paint->getImageSampler(),
-                    modulated(paintColor,
-                              m_renderStateStack.back().modulatedOpacity),
-                    imageMatrix,
-                    gradientMatrix,
-                    paint->getInverseGradientTransform())));
-
-            restore();
-            return;
+          // We should only be here with centered strokes, since
+          // inner/outer strokes are handled above (with an early
+          // return)
+          assert(paint->getStrokePosition() == StrokePosition::center);
+          stroke = {
+              .thickness = paint->getThickness(),
+              .join = paint->getJoin(),
+              .cap = paint->getCap(),
+          };
         }
 
-        imageMatrix =
-            m_renderStateStack.back().matrix * paint->getImageTransform();
-        imageMatrixPtr = &imageMatrix;
+        float outset = RiveRenderPath::calculateBoundsOutset(
+            stroke,
+            paint->getFeather());
+        bounds = bounds.outset(outset, outset);
+        clipPathImpl(path, stroke, paint->getFeather());
+      }
+
+      const auto gradientMatrix = m_renderStateStack.back().matrix;
+
+      // ImageRectDraw draws as a unit square with upper-left corner of 0,
+      // 0 so we need to adjust our transform to set that up.
+      Mat2D adjust = Mat2D::fromScaleAndTranslation(
+          bounds.width(),
+          bounds.height(),
+          bounds.left(),
+          bounds.top());
+      transform(adjust);
+
+      const auto& m = m_renderStateStack.back().matrix;
+
+      // The image matrix needs to map from the desired image space to the
+      // "box space" (where the upper-left and lower-right coordinates are
+      // (0, 0) and (1, 1) respectively). This is effectively the inverse
+      // of undoing the adjust matrix then applying the paint's
+      // imageMatrix, which becomes the following:
+      const auto imageMatrix = paint->getImageTransform().invertOrIdentity() *
+                               adjust;
+
+      ColorInt paintColor = paint->getColor();
+      if (paint->getGradient() != nullptr)
+      {
+        // Paints with gradients have no color data so use solid white.
+        paintColor = 0xFFFFFFFF;
+      }
+
+      clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
+          m_context,
+          m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+          m,
+          paint->getBlendMode(),
+          paint->getAdditiveness(),
+          ref_rcp(paint->getImageTexture()),
+          ref_rcp(paint->getGradient()),
+          paint->getImageSampler(),
+          modulated(paintColor, m_renderStateStack.back().modulatedOpacity),
+          imageMatrix,
+          gradientMatrix,
+          paint->getInverseGradientTransform())));
+
+      restore();
+      return;
     }
 
-    if (paint->getFeather() != 0 && !paint->getIsStroked())
+    imageMatrix = m_renderStateStack.back().matrix * paint->getImageTransform();
+    imageMatrixPtr = &imageMatrix;
+  }
+
+  if (paint->getFeather() != 0 && !paint->getIsStroked())
+  {
+    if (path->getFillRule() != FillRule::clockwise &&
+        !m_context->frameDescriptor().clockwiseFillOverride)
     {
-        if (path->getFillRule() != FillRule::clockwise &&
-            !m_context->frameDescriptor().clockwiseFillOverride)
-        {
-            // Don't draw feathered fills that aren't clockwise.
-            return;
-        }
-        float matrixMaxScale = m_renderStateStack.back().matrix.findMaxScale();
-        if (paint->getFeather() * matrixMaxScale > 1)
-        {
-            clipAndPushDraw(gpu::PathDraw::Make(
-                m_context,
-                m_renderStateStack.back().matrix,
-                imageMatrixPtr,
-                path->makeSoftenedCopyForFeathering(paint->getFeather(),
-                                                    matrixMaxScale),
-                path->getFillRule(),
-                paint,
-                m_renderStateStack.back().modulatedOpacity,
-                m_renderStateStack.back().modulatedColor));
-            return;
-        }
+      // Don't draw feathered fills that aren't clockwise.
+      return;
     }
+    float matrixMaxScale = m_renderStateStack.back().matrix.findMaxScale();
+    if (paint->getFeather() * matrixMaxScale > 1)
+    {
+      clipAndPushDraw(gpu::PathDraw::Make(
+          m_context,
+          m_renderStateStack.back().matrix,
+          imageMatrixPtr,
+          path->makeSoftenedCopyForFeathering(
+              paint->getFeather(),
+              matrixMaxScale),
+          path->getFillRule(),
+          paint,
+          m_renderStateStack.back().modulatedOpacity,
+          m_renderStateStack.back().modulatedColor));
+      return;
+    }
+  }
 
-    clipAndPushDraw(
-        gpu::PathDraw::Make(m_context,
-                            m_renderStateStack.back().matrix,
-                            imageMatrixPtr,
-                            ref_rcp(path),
-                            path->getFillRule(),
-                            paint,
-                            m_renderStateStack.back().modulatedOpacity,
-                            m_renderStateStack.back().modulatedColor));
+  clipAndPushDraw(gpu::PathDraw::Make(
+      m_context,
+      m_renderStateStack.back().matrix,
+      imageMatrixPtr,
+      ref_rcp(path),
+      path->getFillRule(),
+      paint,
+      m_renderStateStack.back().modulatedOpacity,
+      m_renderStateStack.back().modulatedColor));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
 {
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
 
-    if (path->getRawPath().empty())
-    {
-        m_renderStateStack.back().overallClipPixelBounds = {};
-        return;
-    }
+  if (path->getRawPath().empty())
+  {
+    m_renderStateStack.back().overallClipPixelBounds = {};
+    return;
+  }
 
-    // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT"
-    // shader feature. Multiple axis-aligned rectangles can be intersected into
-    // a single rectangle if their matrices are compatible.
-    AABB clipRectCandidate;
-    if (m_context->frameSupportsClipRects() &&
-        IsAABB(path->getRawPath(), &clipRectCandidate))
-    {
-        clipRectImpl(clipRectCandidate, path);
-    }
-    else
-    {
-        clipPathImpl(path);
-    }
+  // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT"
+  // shader feature. Multiple axis-aligned rectangles can be intersected into
+  // a single rectangle if their matrices are compatible.
+  AABB clipRectCandidate;
+  if (m_context->frameSupportsClipRects() &&
+      IsAABB(path->getRawPath(), &clipRectCandidate))
+  {
+    clipRectImpl(clipRectCandidate, path);
+  }
+  else
+  {
+    clipPathImpl(path);
+  }
 }
 
-void RiveRenderer::clipStroke(RenderPath* renderPath,
-                              const StrokeParams& params)
+void RiveRenderer::clipStroke(
+    RenderPath* renderPath,
+    const StrokeParams& params)
 {
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
 
-    if (path->getRawPath().empty())
-    {
-        m_renderStateStack.back().overallClipPixelBounds = {};
-        return;
-    }
+  if (path->getRawPath().empty())
+  {
+    m_renderStateStack.back().overallClipPixelBounds = {};
+    return;
+  }
 
-    // For centered strokes we can just clip against the path.
-    clipPathImpl(path, params);
+  // For centered strokes we can just clip against the path.
+  clipPathImpl(path, params);
 }
 
 // Finds a new rect, if such a rect exists, such that:
@@ -473,588 +478,601 @@ void RiveRenderer::clipStroke(RenderPath* renderPath,
 //     currentMatrix * rect == newMatrix * newRect
 //
 // Returns true if *rect was replaced with newRect.
-static bool transform_rect_to_new_space(AABB* rect,
-                                        const Mat2D& currentMatrix,
-                                        const Mat2D& newMatrix)
+static bool transform_rect_to_new_space(
+    AABB* rect,
+    const Mat2D& currentMatrix,
+    const Mat2D& newMatrix)
 {
-    if (currentMatrix == newMatrix)
-    {
-        return true;
-    }
-    Mat2D currentToNew;
-    if (!newMatrix.invert(&currentToNew))
-    {
-        return false;
-    }
-    currentToNew = currentToNew * currentMatrix;
-    float maxSkew = fmaxf(fabsf(currentToNew.xy()), fabsf(currentToNew.yx()));
-    float maxScale = fmaxf(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
-    if (maxSkew > math::EPSILON && maxScale > math::EPSILON)
-    {
-        // Transforming this rect to the new view matrix would turn it into
-        // something that isn't a rect.
-        return false;
-    }
-    Vec2D pts[2] = {{rect->left(), rect->top()},
-                    {rect->right(), rect->bottom()}};
-    currentToNew.mapPoints(pts, pts, 2);
-    float4 p = simd::load4f(pts);
-    float2 topLeft = simd::min(p.xy, p.zw);
-    float2 botRight = simd::max(p.xy, p.zw);
-    *rect = {topLeft.x, topLeft.y, botRight.x, botRight.y};
+  if (currentMatrix == newMatrix)
+  {
     return true;
+  }
+  Mat2D currentToNew;
+  if (!newMatrix.invert(&currentToNew))
+  {
+    return false;
+  }
+  currentToNew = currentToNew * currentMatrix;
+  float maxSkew = fmaxf(fabsf(currentToNew.xy()), fabsf(currentToNew.yx()));
+  float maxScale = fmaxf(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
+  if (maxSkew > math::EPSILON && maxScale > math::EPSILON)
+  {
+    // Transforming this rect to the new view matrix would turn it into
+    // something that isn't a rect.
+    return false;
+  }
+  Vec2D pts[2] = {{rect->left(), rect->top()}, {rect->right(), rect->bottom()}};
+  currentToNew.mapPoints(pts, pts, 2);
+  float4 p = simd::load4f(pts);
+  float2 topLeft = simd::min(p.xy, p.zw);
+  float2 botRight = simd::max(p.xy, p.zw);
+  *rect = {topLeft.x, topLeft.y, botRight.x, botRight.y};
+  return true;
 }
 
 void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 {
-    RIVE_PROF_SCOPE_L(3)
+  RIVE_PROF_SCOPE_L(3)
 
-    auto& renderState = m_renderStateStack.back();
-    bool hasClipRect = renderState.clipRectInverseMatrix != nullptr;
-    if (rect.isEmptyOrNaN())
+  auto& renderState = m_renderStateStack.back();
+  bool hasClipRect = renderState.clipRectInverseMatrix != nullptr;
+  if (rect.isEmptyOrNaN())
+  {
+    renderState.overallClipPixelBounds = {};
+    return;
+  }
+
+  // If there already is a clipRect, we can only accept another one by
+  // intersecting it with the existing one. This means the new rect must be
+  // axis-aligned with the existing clipRect.
+  if (hasClipRect && !transform_rect_to_new_space(
+                         &rect,
+                         renderState.matrix,
+                         renderState.clipRectMatrix))
+  {
+    // 'rect' is not axis-aligned with the existing clipRect. Fall back to
+    // clipPath.
+    clipPathImpl(originalPath);
+    return;
+  }
+
+  if (!hasClipRect)
+  {
+    // There wasn't an existing clipRect. This is the one!
+    renderState.clipRect = rect;
+    renderState.clipRectMatrix = renderState.matrix;
+  }
+  else
+  {
+    // Both rects are in the same space now. Intersect the two
+    // geometrically.
+    float4 a = simd::load4f(&renderState.clipRect);
+    float4 b = simd::load4f(&rect);
+    float4 intersection = simd::join(
+        simd::max(a.xy, b.xy),
+        simd::min(a.zw, b.zw));
+    simd::store(&renderState.clipRect, intersection);
+  }
+
+  // Grab the pixel bounds of the new combined (intersected) clip rect
+  renderState.clipRectPixelBounds = renderState.clipRectMatrix
+                                        .mapBoundingBox(renderState.clipRect)
+                                        .roundOut();
+
+  renderState.overallClipPixelBounds = renderState.overallClipPixelBounds
+                                           .intersect(
+                                               renderState.clipRectPixelBounds);
+
+  renderState.clipRectInverseMatrix = m_context
+                                          ->make<gpu::ClipRectInverseMatrix>(
+                                              renderState.clipRectMatrix,
+                                              renderState.clipRect);
+}
+
+void RiveRenderer::clipPathImpl(
+    const RiveRenderPath* path,
+    std::optional<StrokeParams> stroke,
+    float feather,
+    ForceClosed forceClosed,
+    IAABB* boundsOut)
+{
+  RIVE_PROF_SCOPE_L(3)
+  auto& renderState = m_renderStateStack.back();
+  if (path->getBounds().isEmptyOrNaN())
+  {
+    if (boundsOut != nullptr)
     {
-        renderState.overallClipPixelBounds = {};
-        return;
+      *boundsOut = IAABB{};
     }
 
-    // If there already is a clipRect, we can only accept another one by
-    // intersecting it with the existing one. This means the new rect must be
-    // axis-aligned with the existing clipRect.
-    if (hasClipRect && !transform_rect_to_new_space(&rect,
-                                                    renderState.matrix,
-                                                    renderState.clipRectMatrix))
+    renderState.overallClipPixelBounds = {};
+    return;
+  }
+
+  if (stroke.has_value() && stroke->position != StrokePosition::center)
+  {
+    // To handle an inner or outer stroke it's actually two clips: we need
+    // to clip by the stroke then *additionally* the path by itself (which
+    // needs to be inverted for outside strokes)
+    auto clipStroke = *stroke;
+    clipStroke.thickness *= 2.0f;
+    clipStroke.position = StrokePosition::center;
+    IAABB outerBounds;
+    clipPathImpl(path, clipStroke, 0.0f, ForceClosed::yes, &outerBounds);
+
+    if (boundsOut != nullptr)
     {
-        // 'rect' is not axis-aligned with the existing clipRect. Fall back to
-        // clipPath.
-        clipPathImpl(originalPath);
-        return;
+      *boundsOut = outerBounds;
     }
 
-    if (!hasClipRect)
+    if (stroke->position == StrokePosition::inside)
     {
-        // There wasn't an existing clipRect. This is the one!
-        renderState.clipRect = rect;
-        renderState.clipRectMatrix = renderState.matrix;
+      clipPathImpl(path);
     }
     else
     {
-        // Both rects are in the same space now. Intersect the two
-        // geometrically.
-        float4 a = simd::load4f(&renderState.clipRect);
-        float4 b = simd::load4f(&rect);
-        float4 intersection =
-            simd::join(simd::max(a.xy, b.xy), simd::min(a.zw, b.zw));
-        simd::store(&renderState.clipRect, intersection);
+      // TODO: There's an optimization that could be done here in some
+      // render modes where instead of inverting the path we could instead
+      // render them "subtractively" (in depthStencil this would be
+      // rendering with a "clear the upper bit" flag)
+      assert(stroke->position == StrokePosition::outside);
+      auto inverted = invertClockwisePath(
+          path,
+          path->getFillRule(),
+          m_renderStateStack.back().matrix,
+          outerBounds);
+      clipPath(inverted.get());
     }
 
-    // Grab the pixel bounds of the new combined (intersected) clip rect
-    renderState.clipRectPixelBounds =
-        renderState.clipRectMatrix.mapBoundingBox(renderState.clipRect)
-            .roundOut();
+    return;
+  }
 
-    renderState.overallClipPixelBounds =
-        renderState.overallClipPixelBounds.intersect(
-            renderState.clipRectPixelBounds);
+  // Only write a new clip element if this path isn't already on the stack
+  // from before. e.g.:
+  //
+  //     clipPath(samePath);
+  //     restore();
+  //     save();
+  //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!)
+  //     already in m_clipStack.
+  //
+  const size_t clipStackHeight = renderState.clipStackHeight;
+  assert(m_clipStack.size() >= clipStackHeight);
+  if (m_clipStack.size() == clipStackHeight ||
+      !m_clipStack[clipStackHeight].isEquivalent(
+          renderState.matrix,
+          path,
+          stroke,
+          feather,
+          bool(forceClosed)))
+  {
+    // Calculate the pixel bounds for this clip path before we push it into
+    // the stack to ensure that we even need to do so
+    const auto pixelBounds = path->calculatePixelBounds(
+        renderState.matrix,
+        stroke,
+        feather);
+    renderState.overallClipPixelBounds = renderState.overallClipPixelBounds
+                                             .intersect(pixelBounds);
 
-    renderState.clipRectInverseMatrix =
-        m_context->make<gpu::ClipRectInverseMatrix>(renderState.clipRectMatrix,
-                                                    renderState.clipRect);
+    if (boundsOut != nullptr)
+    {
+      *boundsOut = pixelBounds;
+    }
+    if (renderState.overallClipPixelBounds.empty())
+    {
+      // Nothing can draw under this, so no need to add to the stack.
+      return;
+    }
+
+    m_clipStack.resize(clipStackHeight);
+    m_clipStack.emplace_back(
+        renderState.matrix,
+        path,
+        path->getFillRule(),
+        pixelBounds,
+        stroke,
+        feather,
+        bool(forceClosed));
+  }
+  else
+  {
+    if (boundsOut != nullptr)
+    {
+      *boundsOut = m_clipStack[clipStackHeight].pixelBounds;
+    }
+
+    // We are going to reuse the element that is already in the clip stack,
+    // but need to re-update the overall clip pixel bounds.
+    renderState
+        .overallClipPixelBounds = renderState.overallClipPixelBounds.intersect(
+        m_clipStack[clipStackHeight].pixelBounds);
+
+    if (renderState.overallClipPixelBounds.empty())
+    {
+      // Nothing can draw under this, so no need to increment the stack
+      // height.
+      return;
+    }
+  }
+
+  renderState.clipStackHeight = clipStackHeight + 1;
 }
 
-void RiveRenderer::clipPathImpl(const RiveRenderPath* path,
-                                std::optional<StrokeParams> stroke,
-                                float feather,
-                                ForceClosed forceClosed,
-                                IAABB* boundsOut)
+void RiveRenderer::drawImage(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    BlendMode blendMode,
+    float opacity)
 {
-    RIVE_PROF_SCOPE_L(3)
-    auto& renderState = m_renderStateStack.back();
-    if (path->getBounds().isEmptyOrNaN())
-    {
-        if (boundsOut != nullptr)
-        {
-            *boundsOut = IAABB{};
-        }
-
-        renderState.overallClipPixelBounds = {};
-        return;
-    }
-
-    if (stroke.has_value() && stroke->position != StrokePosition::center)
-    {
-        // To handle an inner or outer stroke it's actually two clips: we need
-        // to clip by the stroke then *additionally* the path by itself (which
-        // needs to be inverted for outside strokes)
-        auto clipStroke = *stroke;
-        clipStroke.thickness *= 2.0f;
-        clipStroke.position = StrokePosition::center;
-        IAABB outerBounds;
-        clipPathImpl(path, clipStroke, 0.0f, ForceClosed::yes, &outerBounds);
-
-        if (boundsOut != nullptr)
-        {
-            *boundsOut = outerBounds;
-        }
-
-        if (stroke->position == StrokePosition::inside)
-        {
-            clipPathImpl(path);
-        }
-        else
-        {
-            // TODO: There's an optimization that could be done here in some
-            // render modes where instead of inverting the path we could instead
-            // render them "subtractively" (in depthStencil this would be
-            // rendering with a "clear the upper bit" flag)
-            assert(stroke->position == StrokePosition::outside);
-            auto inverted =
-                invertClockwisePath(path,
-                                    path->getFillRule(),
-                                    m_renderStateStack.back().matrix,
-                                    outerBounds);
-            clipPath(inverted.get());
-        }
-
-        return;
-    }
-
-    // Only write a new clip element if this path isn't already on the stack
-    // from before. e.g.:
-    //
-    //     clipPath(samePath);
-    //     restore();
-    //     save();
-    //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!)
-    //     already in m_clipStack.
-    //
-    const size_t clipStackHeight = renderState.clipStackHeight;
-    assert(m_clipStack.size() >= clipStackHeight);
-    if (m_clipStack.size() == clipStackHeight ||
-        !m_clipStack[clipStackHeight].isEquivalent(renderState.matrix,
-                                                   path,
-                                                   stroke,
-                                                   feather,
-                                                   bool(forceClosed)))
-    {
-        // Calculate the pixel bounds for this clip path before we push it into
-        // the stack to ensure that we even need to do so
-        const auto pixelBounds =
-            path->calculatePixelBounds(renderState.matrix, stroke, feather);
-        renderState.overallClipPixelBounds =
-            renderState.overallClipPixelBounds.intersect(pixelBounds);
-
-        if (boundsOut != nullptr)
-        {
-            *boundsOut = pixelBounds;
-        }
-        if (renderState.overallClipPixelBounds.empty())
-        {
-            // Nothing can draw under this, so no need to add to the stack.
-            return;
-        }
-
-        m_clipStack.resize(clipStackHeight);
-        m_clipStack.emplace_back(renderState.matrix,
-                                 path,
-                                 path->getFillRule(),
-                                 pixelBounds,
-                                 stroke,
-                                 feather,
-                                 bool(forceClosed));
-    }
-    else
-    {
-        if (boundsOut != nullptr)
-        {
-            *boundsOut = m_clipStack[clipStackHeight].pixelBounds;
-        }
-
-        // We are going to reuse the element that is already in the clip stack,
-        // but need to re-update the overall clip pixel bounds.
-        renderState.overallClipPixelBounds =
-            renderState.overallClipPixelBounds.intersect(
-                m_clipStack[clipStackHeight].pixelBounds);
-
-        if (renderState.overallClipPixelBounds.empty())
-        {
-            // Nothing can draw under this, so no need to increment the stack
-            // height.
-            return;
-        }
-    }
-
-    renderState.clipStackHeight = clipStackHeight + 1;
+  drawImage(renderImage, imageSampler, blendMode, opacity, 0);
 }
 
-void RiveRenderer::drawImage(const RenderImage* renderImage,
-                             ImageSampler imageSampler,
-                             BlendMode blendMode,
-                             float opacity)
+void RiveRenderer::drawImage(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    BlendMode blendMode,
+    float opacity,
+    float additiveness)
 {
-    drawImage(renderImage, imageSampler, blendMode, opacity, 0);
-}
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
-void RiveRenderer::drawImage(const RenderImage* renderImage,
-                             ImageSampler imageSampler,
-                             BlendMode blendMode,
-                             float opacity,
-                             float additiveness)
-{
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+  // ImageRectDraw below takes the blend mode directly rather than through a
+  // RiveRenderPaint, so fold additive here too.
+  blendMode = foldAdditiveToSrcOver(blendMode);
 
-    // ImageRectDraw below takes the blend mode directly rather than through a
-    // RiveRenderPaint, so fold additive here too.
-    blendMode = foldAdditiveToSrcOver(blendMode);
+  rcp<gpu::Texture> imageTexture = image->refTexture();
+  if (imageTexture == nullptr)
+  {
+    // imageTexture may be null if the backend uses a custom factory and/or
+    // updates out-of-band assets asynchronously. If there's no texture yet,
+    // just don't draw anything.
+    return;
+  }
 
-    rcp<gpu::Texture> imageTexture = image->refTexture();
-    if (imageTexture == nullptr)
+  // Apply modulated opacity (clamp to prevent negative values)
+  float finalOpacity = std::max(
+      0.0f,
+      opacity * m_renderStateStack.back().modulatedOpacity);
+
+  // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
+  save();
+  scale(image->width(), image->height());
+
+  if (!m_context->frameSupportsImagePaintForPaths())
+  {
+    // Fall back on ImageRectDraw if the current frame doesn't support
+    // drawing paths with image paints.
+    if (!m_renderStateStack.back().overallClipPixelBounds.empty())
     {
-        // imageTexture may be null if the backend uses a custom factory and/or
-        // updates out-of-band assets asynchronously. If there's no texture yet,
-        // just don't draw anything.
-        return;
+      const Mat2D& m = m_renderStateStack.back().matrix;
+      clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
+          m_context,
+          m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+          m,
+          blendMode,
+          additiveness,
+          std::move(imageTexture),
+          nullptr, // gradient
+          imageSampler,
+          modulated(0xFFFFFFFF, finalOpacity),
+          Mat2D{},    // imageMatrix
+          Mat2D{},    // gradientMatrix
+          Mat2D{}))); // inverseGradientTransform
     }
-
-    // Apply modulated opacity (clamp to prevent negative values)
-    float finalOpacity =
-        std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
-
-    // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
-    save();
-    scale(image->width(), image->height());
-
-    if (!m_context->frameSupportsImagePaintForPaths())
-    {
-        // Fall back on ImageRectDraw if the current frame doesn't support
-        // drawing paths with image paints.
-        if (!m_renderStateStack.back().overallClipPixelBounds.empty())
-        {
-            const Mat2D& m = m_renderStateStack.back().matrix;
-            clipAndPushDraw(
-                gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
-                    m_context,
-                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
-                    m,
-                    blendMode,
-                    additiveness,
-                    std::move(imageTexture),
-                    nullptr, // gradient
-                    imageSampler,
-                    modulated(0xFFFFFFFF, finalOpacity),
-                    Mat2D{},    // imageMatrix
-                    Mat2D{},    // gradientMatrix
-                    Mat2D{}))); // inverseGradientTransform
-        }
-    }
-    else
-    {
-        // Implement drawImage() as drawPath() with a rectangular path and an
-        // image paint.
-        if (m_unitRectPath == nullptr)
-        {
-            m_unitRectPath = make_rcp<RiveRenderPath>();
-            m_unitRectPath->line({1, 0});
-            m_unitRectPath->line({1, 1});
-            m_unitRectPath->line({0, 1});
-        }
-
-        RiveRenderPaint paint;
-        paint.image(std::move(imageTexture), finalOpacity);
-        paint.blendMode(blendMode);
-        paint.additiveness(additiveness);
-        paint.imageSampler(imageSampler);
-        drawPath(m_unitRectPath.get(), &paint);
-    }
-
-    restore();
-}
-
-void RiveRenderer::applyLayerMask(const RenderImage* renderImage,
-                                  ImageSampler imageSampler,
-                                  LayerMaskMode mode)
-{
-    RIVE_PROF_SCOPE_L(2)
-    if (!m_context->frameSupportsLayerMask())
-    {
-        // Leaves the layer unmasked. The alternative on a mode whose blend step
-        // has not been taught the op is worse than unmasked: find_paint_color
-        // would hand back the coverage texel and src-over would paint it over
-        // the content.
-        return;
-    }
-    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
-    rcp<gpu::Texture> maskTexture = image->refTexture();
-    if (maskTexture == nullptr)
-    {
-        return;
-    }
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
-
-    // Same shape as the image-paint branch of drawImage: a unit rect scaled to
-    // the mask's pixel extent. The caller has already put the renderer in the
-    // canvas's own space, so this covers exactly the target.
+  }
+  else
+  {
+    // Implement drawImage() as drawPath() with a rectangular path and an
+    // image paint.
     if (m_unitRectPath == nullptr)
     {
-        m_unitRectPath = make_rcp<RiveRenderPath>();
-        m_unitRectPath->line({1, 0});
-        m_unitRectPath->line({1, 1});
-        m_unitRectPath->line({0, 1});
+      m_unitRectPath = make_rcp<RiveRenderPath>();
+      m_unitRectPath->line({1, 0});
+      m_unitRectPath->line({1, 1});
+      m_unitRectPath->line({0, 1});
     }
 
-    save();
-    scale(static_cast<float>(image->width()),
-          static_cast<float>(image->height()));
     RiveRenderPaint paint;
-    paint.layerMask(std::move(maskTexture), mode);
+    paint.image(std::move(imageTexture), finalOpacity);
+    paint.blendMode(blendMode);
+    paint.additiveness(additiveness);
     paint.imageSampler(imageSampler);
     drawPath(m_unitRectPath.get(), &paint);
-    restore();
+  }
+
+  restore();
 }
 
-void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
-                                 ImageSampler imageSampler,
-                                 rcp<RenderBuffer> vertices_f32,
-                                 rcp<RenderBuffer> uvCoords_f32,
-                                 rcp<RenderBuffer> indices_u16,
-                                 uint32_t vertexCount,
-                                 uint32_t indexCount,
-                                 BlendMode blendMode,
-                                 float opacity)
+void RiveRenderer::applyLayerMask(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    LayerMaskMode mode)
 {
-    drawImageMesh(renderImage,
-                  imageSampler,
-                  std::move(vertices_f32),
-                  std::move(uvCoords_f32),
-                  std::move(indices_u16),
-                  vertexCount,
-                  indexCount,
-                  blendMode,
-                  opacity,
-                  0);
+  RIVE_PROF_SCOPE_L(2)
+  if (!m_context->frameSupportsLayerMask())
+  {
+    // Leaves the layer unmasked. The alternative on a mode whose blend step
+    // has not been taught the op is worse than unmasked: find_paint_color
+    // would hand back the coverage texel and src-over would paint it over
+    // the content.
+    return;
+  }
+  LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+  rcp<gpu::Texture> maskTexture = image->refTexture();
+  if (maskTexture == nullptr)
+  {
+    return;
+  }
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
+
+  // Same shape as the image-paint branch of drawImage: a unit rect scaled to
+  // the mask's pixel extent. The caller has already put the renderer in the
+  // canvas's own space, so this covers exactly the target.
+  if (m_unitRectPath == nullptr)
+  {
+    m_unitRectPath = make_rcp<RiveRenderPath>();
+    m_unitRectPath->line({1, 0});
+    m_unitRectPath->line({1, 1});
+    m_unitRectPath->line({0, 1});
+  }
+
+  save();
+  scale(
+      static_cast<float>(image->width()),
+      static_cast<float>(image->height()));
+  RiveRenderPaint paint;
+  paint.layerMask(std::move(maskTexture), mode);
+  paint.imageSampler(imageSampler);
+  drawPath(m_unitRectPath.get(), &paint);
+  restore();
 }
 
-void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
-                                 ImageSampler imageSampler,
-                                 rcp<RenderBuffer> vertices_f32,
-                                 rcp<RenderBuffer> uvCoords_f32,
-                                 rcp<RenderBuffer> indices_u16,
-                                 uint32_t vertexCount,
-                                 uint32_t indexCount,
-                                 BlendMode blendMode,
-                                 float opacity,
-                                 float additiveness)
+void RiveRenderer::drawImageMesh(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    rcp<RenderBuffer> vertices_f32,
+    rcp<RenderBuffer> uvCoords_f32,
+    rcp<RenderBuffer> indices_u16,
+    uint32_t vertexCount,
+    uint32_t indexCount,
+    BlendMode blendMode,
+    float opacity)
 {
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
-
-    // ImageMeshDraw below takes the blend mode directly rather than through a
-    // RiveRenderPaint, so fold additive here too.
-    blendMode = foldAdditiveToSrcOver(blendMode);
-
-    rcp<gpu::Texture> imageTexture = image->refTexture();
-    if (imageTexture == nullptr)
-    {
-        // imageTexture may be null if the backend uses a custom factory and/or
-        // updates out-of-band assets asynchronously. If there's no texture yet,
-        // just don't draw anything.
-        return;
-    }
-
-    assert(vertices_f32);
-    assert(uvCoords_f32);
-    assert(indices_u16);
-
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
-
-    // Apply modulated opacity (clamp to prevent negative values)
-    float finalOpacity =
-        std::max(0.0f, opacity * m_renderStateStack.back().modulatedOpacity);
-
-    clipAndPushDraw(gpu::DrawUniquePtr(
-        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-                                            m_renderStateStack.back().matrix,
-                                            blendMode,
-                                            additiveness,
-                                            std::move(imageTexture),
-                                            imageSampler,
-                                            std::move(vertices_f32),
-                                            std::move(uvCoords_f32),
-                                            std::move(indices_u16),
-                                            indexCount,
-                                            modulated(0xFFFFFFFF, finalOpacity),
-                                            Vec2D{0.0f, 0.0f},
-                                            Vec2D{1.0f, 1.0f})));
+  drawImageMesh(
+      renderImage,
+      imageSampler,
+      std::move(vertices_f32),
+      std::move(uvCoords_f32),
+      std::move(indices_u16),
+      vertexCount,
+      indexCount,
+      blendMode,
+      opacity,
+      0);
 }
 
-void RiveRenderer::drawImageMeshInstanced(const RenderImage* renderImage,
-                                          ImageSampler imageSampler,
-                                          rcp<RenderBuffer> vertices_f32,
-                                          rcp<RenderBuffer> uvCoords_f32,
-                                          rcp<RenderBuffer> indices_u16,
-                                          uint32_t vertexCount,
-                                          uint32_t indexCount,
-                                          rcp<ImageMeshInstances> instances)
+void RiveRenderer::drawImageMesh(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    rcp<RenderBuffer> vertices_f32,
+    rcp<RenderBuffer> uvCoords_f32,
+    rcp<RenderBuffer> indices_u16,
+    uint32_t vertexCount,
+    uint32_t indexCount,
+    BlendMode blendMode,
+    float opacity,
+    float additiveness)
 {
-    RIVE_PROF_SCOPE_L(2)
-    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
-    rcp<gpu::Texture> imageTexture = image->refTexture();
-    if (imageTexture == nullptr)
+  // ImageMeshDraw below takes the blend mode directly rather than through a
+  // RiveRenderPaint, so fold additive here too.
+  blendMode = foldAdditiveToSrcOver(blendMode);
+
+  rcp<gpu::Texture> imageTexture = image->refTexture();
+  if (imageTexture == nullptr)
+  {
+    // imageTexture may be null if the backend uses a custom factory and/or
+    // updates out-of-band assets asynchronously. If there's no texture yet,
+    // just don't draw anything.
+    return;
+  }
+
+  assert(vertices_f32);
+  assert(uvCoords_f32);
+  assert(indices_u16);
+
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
+
+  // Apply modulated opacity (clamp to prevent negative values)
+  float finalOpacity = std::max(
+      0.0f,
+      opacity * m_renderStateStack.back().modulatedOpacity);
+
+  clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
+      gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+      m_renderStateStack.back().matrix,
+      blendMode,
+      additiveness,
+      std::move(imageTexture),
+      imageSampler,
+      std::move(vertices_f32),
+      std::move(uvCoords_f32),
+      std::move(indices_u16),
+      indexCount,
+      modulated(0xFFFFFFFF, finalOpacity),
+      Vec2D{0.0f, 0.0f},
+      Vec2D{1.0f, 1.0f})));
+}
+
+void RiveRenderer::drawImageMeshInstanced(
+    const RenderImage* renderImage,
+    ImageSampler imageSampler,
+    rcp<RenderBuffer> vertices_f32,
+    rcp<RenderBuffer> uvCoords_f32,
+    rcp<RenderBuffer> indices_u16,
+    uint32_t vertexCount,
+    uint32_t indexCount,
+    rcp<ImageMeshInstances> instances)
+{
+  RIVE_PROF_SCOPE_L(2)
+  LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+
+  rcp<gpu::Texture> imageTexture = image->refTexture();
+  if (imageTexture == nullptr)
+  {
+    // imageTexture may be null if the backend uses a custom factory and/or
+    // updates out-of-band assets asynchronously. If there's no texture yet,
+    // just don't draw anything.
+    return;
+  }
+
+  assert(vertices_f32);
+  assert(uvCoords_f32);
+  assert(indices_u16);
+
+  if (instances == nullptr || instances->count() == 0)
+  {
+    return;
+  }
+
+  if (m_renderStateStack.back().overallClipPixelBounds.empty())
+  {
+    return;
+  }
+
+  if (m_context->frameInterlockMode() == gpu::InterlockMode::atomics)
+  {
+    // If we're in atomic mode, meshes can't self-overlap, so we can't
+    // safely issue instanced calls without barriers since the individual
+    // instances may overlap. As a workaround, issue individual draw calls
+    // for each instance instead. This is slow, and I'm only doing it this
+    // way because atomic mode is soon going away.
+    for (const auto& instanceData : instances->instanceData())
     {
-        // imageTexture may be null if the backend uses a custom factory and/or
-        // updates out-of-band assets asynchronously. If there's no texture yet,
-        // just don't draw anything.
-        return;
-    }
+      float finalOpacity = std::max(
+          0.0f,
+          instanceData.opacity * m_renderStateStack.back().modulatedOpacity);
 
-    assert(vertices_f32);
-    assert(uvCoords_f32);
-    assert(indices_u16);
-
-    if (instances == nullptr || instances->count() == 0)
-    {
-        return;
+      clipAndPushDraw(gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
+          gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+          m_renderStateStack.back().matrix * instanceData.transform,
+          BlendMode::srcOver,
+          instanceData.additiveness,
+          imageTexture,
+          imageSampler,
+          vertices_f32,
+          uvCoords_f32,
+          indices_u16,
+          indexCount,
+          modulated(0xFFFFFFFF, finalOpacity),
+          instanceData.uvTranslate,
+          instanceData.uvScale)));
     }
-
-    if (m_renderStateStack.back().overallClipPixelBounds.empty())
-    {
-        return;
-    }
-
-    if (m_context->frameInterlockMode() == gpu::InterlockMode::atomics)
-    {
-        // If we're in atomic mode, meshes can't self-overlap, so we can't
-        // safely issue instanced calls without barriers since the individual
-        // instances may overlap. As a workaround, issue individual draw calls
-        // for each instance instead. This is slow, and I'm only doing it this
-        // way because atomic mode is soon going away.
-        for (const auto& instanceData : instances->instanceData())
-        {
-            float finalOpacity =
-                std::max(0.0f,
-                         instanceData.opacity *
-                             m_renderStateStack.back().modulatedOpacity);
-
-            clipAndPushDraw(
-                gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(
-                    gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-                    m_renderStateStack.back().matrix * instanceData.transform,
-                    BlendMode::srcOver,
-                    instanceData.additiveness,
-                    imageTexture,
-                    imageSampler,
-                    vertices_f32,
-                    uvCoords_f32,
-                    indices_u16,
-                    indexCount,
-                    modulated(0xFFFFFFFF, finalOpacity),
-                    instanceData.uvTranslate,
-                    instanceData.uvScale)));
-        }
-    }
-    else
-    {
-        // Unlike in drawImageMesh, we wait to resolve the modulated
-        // color/opacity because each instance has its own opacity, so we avoid
-        // precision loss if we do the float -> u8 conversion after it's been
-        // multiplied in.
-        clipAndPushDraw(
-            gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshInstancedDraw>(
-                gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
-                m_renderStateStack.back().matrix,
-                std::move(imageTexture),
-                imageSampler,
-                std::move(vertices_f32),
-                std::move(uvCoords_f32),
-                std::move(indices_u16),
-                indexCount,
-                std::move(instances),
-                m_renderStateStack.back().modulatedColor,
-                m_renderStateStack.back().modulatedOpacity)));
-    }
+  }
+  else
+  {
+    // Unlike in drawImageMesh, we wait to resolve the modulated
+    // color/opacity because each instance has its own opacity, so we avoid
+    // precision loss if we do the float -> u8 conversion after it's been
+    // multiplied in.
+    clipAndPushDraw(
+        gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshInstancedDraw>(
+            gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
+            m_renderStateStack.back().matrix,
+            std::move(imageTexture),
+            imageSampler,
+            std::move(vertices_f32),
+            std::move(uvCoords_f32),
+            std::move(indices_u16),
+            indexCount,
+            std::move(instances),
+            m_renderStateStack.back().modulatedColor,
+            m_renderStateStack.back().modulatedOpacity)));
+  }
 }
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 {
-    RIVE_PROF_SCOPE_L(3)
-    assert(!m_renderStateStack.back().overallClipPixelBounds.empty());
-    if (draw.get() == nullptr)
+  RIVE_PROF_SCOPE_L(3)
+  assert(!m_renderStateStack.back().overallClipPixelBounds.empty());
+  if (draw.get() == nullptr)
+  {
+    return;
+  }
+  if (m_context->isOutsideCurrentFrame(draw->pixelBounds()))
+  {
+    return;
+  }
+
+  // Make two attempts to issue the draw: once on the context as-is and once
+  // with a clean flush.
+  for (int i = 0; i < 2; ++i)
+  {
+    // Always make sure we begin this loop with the internal draw batch
+    // empty, and clear it when we're done.
+    struct AutoResetInternalDrawBatch
     {
-        return;
+    public:
+      AutoResetInternalDrawBatch(RiveRenderer* renderer) : m_renderer(renderer)
+      {
+        assert(m_renderer->m_internalDrawBatch.empty());
+      }
+      ~AutoResetInternalDrawBatch() { m_renderer->m_internalDrawBatch.clear(); }
+
+    private:
+      RiveRenderer* m_renderer;
+    };
+
+    AutoResetInternalDrawBatch aridb(this);
+
+    auto applyClipResult = applyClip(draw.get());
+    if (applyClipResult == ApplyClipResult::failure)
+    {
+      // There wasn't room in the GPU buffers for this path draw. Flush
+      // and try again.
+      m_context->logicalFlush();
+      continue;
     }
-    if (m_context->isOutsideCurrentFrame(draw->pixelBounds()))
+    else if (applyClipResult == ApplyClipResult::fullyClipped)
     {
-        return;
-    }
-
-    // Make two attempts to issue the draw: once on the context as-is and once
-    // with a clean flush.
-    for (int i = 0; i < 2; ++i)
-    {
-        // Always make sure we begin this loop with the internal draw batch
-        // empty, and clear it when we're done.
-        struct AutoResetInternalDrawBatch
-        {
-        public:
-            AutoResetInternalDrawBatch(RiveRenderer* renderer) :
-                m_renderer(renderer)
-            {
-                assert(m_renderer->m_internalDrawBatch.empty());
-            }
-            ~AutoResetInternalDrawBatch()
-            {
-                m_renderer->m_internalDrawBatch.clear();
-            }
-
-        private:
-            RiveRenderer* m_renderer;
-        };
-
-        AutoResetInternalDrawBatch aridb(this);
-
-        auto applyClipResult = applyClip(draw.get());
-        if (applyClipResult == ApplyClipResult::failure)
-        {
-            // There wasn't room in the GPU buffers for this path draw. Flush
-            // and try again.
-            m_context->logicalFlush();
-            continue;
-        }
-        else if (applyClipResult == ApplyClipResult::fullyClipped)
-        {
-            return;
-        }
-
-        m_internalDrawBatch.push_back(std::move(draw));
-        if (!m_context->pushDraws(m_internalDrawBatch.data(),
-                                  m_internalDrawBatch.size()))
-        {
-            // There wasn't room in the GPU buffers for this path draw. Flush
-            // and try again.
-            m_context->logicalFlush();
-            // Reclaim "draw" because we will use it again on the next
-            // iteration.
-            draw = std::move(m_internalDrawBatch.back());
-            assert(draw != nullptr);
-            m_internalDrawBatch.pop_back();
-            continue;
-        }
-
-        // Success!
-        return;
+      return;
     }
 
-    // We failed to process the draw. Release its refs.
-    fprintf(stderr,
-            "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack "
-            "are too complex.\n");
+    m_internalDrawBatch.push_back(std::move(draw));
+    if (!m_context->pushDraws(
+            m_internalDrawBatch.data(),
+            m_internalDrawBatch.size()))
+    {
+      // There wasn't room in the GPU buffers for this path draw. Flush
+      // and try again.
+      m_context->logicalFlush();
+      // Reclaim "draw" because we will use it again on the next
+      // iteration.
+      draw = std::move(m_internalDrawBatch.back());
+      assert(draw != nullptr);
+      m_internalDrawBatch.pop_back();
+      continue;
+    }
+
+    // Success!
+    return;
+  }
+
+  // We failed to process the draw. Release its refs.
+  fprintf(
+      stderr,
+      "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack "
+      "are too complex.\n");
 }
 
 // Used by clipping in clockwiseAtomic mode.
@@ -1068,255 +1086,258 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 // NOTE: The returned path is always clockwise, even if the given path was not.
 // If the given path is not clockwise, we attempt to convert it to clockwise
 // based on its dominant winding direction. This may or may not be accurate.
-static rcp<RiveRenderPath> invertClockwisePath(const RiveRenderPath* path,
-                                               FillRule pathFillRule,
-                                               const Mat2D& viewMatrix,
-                                               IAABB bounds)
+static rcp<RiveRenderPath> invertClockwisePath(
+    const RiveRenderPath* path,
+    FillRule pathFillRule,
+    const Mat2D& viewMatrix,
+    IAABB bounds)
 {
-    auto inversePath = make_rcp<RiveRenderPath>();
-    inversePath->fillRule(FillRule::clockwise);
-    Mat2D viewInverseMatrix;
-    if (viewMatrix.invert(&viewInverseMatrix))
+  auto inversePath = make_rcp<RiveRenderPath>();
+  inversePath->fillRule(FillRule::clockwise);
+  Mat2D viewInverseMatrix;
+  if (viewMatrix.invert(&viewInverseMatrix))
+  {
+    // Add the pre-viewMatrix "bounds" rect to the new path.
+    std::array<Vec2D, 4> boundsVertices = {
+        Vec2D(bounds.left, bounds.top),
+        Vec2D(bounds.right, bounds.top),
+        Vec2D(bounds.right, bounds.bottom),
+        Vec2D(bounds.left, bounds.bottom),
+    };
+    viewInverseMatrix.mapPoints(
+        boundsVertices.data(),
+        boundsVertices.data(),
+        4);
+    inversePath->move(boundsVertices[0]);
+    if (const float viewMatrixDeterminant = viewMatrix[0] * viewMatrix[3] -
+                                            viewMatrix[2] * viewMatrix[1];
+        viewMatrixDeterminant >= 0)
     {
-        // Add the pre-viewMatrix "bounds" rect to the new path.
-        std::array<Vec2D, 4> boundsVertices = {
-            Vec2D(bounds.left, bounds.top),
-            Vec2D(bounds.right, bounds.top),
-            Vec2D(bounds.right, bounds.bottom),
-            Vec2D(bounds.left, bounds.bottom),
-        };
-        viewInverseMatrix.mapPoints(boundsVertices.data(),
-                                    boundsVertices.data(),
-                                    4);
-        inversePath->move(boundsVertices[0]);
-        if (const float viewMatrixDeterminant =
-                viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1];
-            viewMatrixDeterminant >= 0)
-        {
-            inversePath->line(boundsVertices[1]);
-            inversePath->line(boundsVertices[2]);
-            inversePath->line(boundsVertices[3]);
-        }
-        else
-        {
-            inversePath->line(boundsVertices[3]);
-            inversePath->line(boundsVertices[2]);
-            inversePath->line(boundsVertices[1]);
-        }
-        // Subtract the given path out of the bounds rect.
-        if (pathFillRule == FillRule::clockwise || path->getCoarseArea() >= 0)
-        {
-            inversePath->addRenderPathBackwards(path, Mat2D());
-        }
-        else
-        {
-            inversePath->addRenderPath(path, Mat2D());
-        }
+      inversePath->line(boundsVertices[1]);
+      inversePath->line(boundsVertices[2]);
+      inversePath->line(boundsVertices[3]);
     }
-    return inversePath;
+    else
+    {
+      inversePath->line(boundsVertices[3]);
+      inversePath->line(boundsVertices[2]);
+      inversePath->line(boundsVertices[1]);
+    }
+    // Subtract the given path out of the bounds rect.
+    if (pathFillRule == FillRule::clockwise || path->getCoarseArea() >= 0)
+    {
+      inversePath->addRenderPathBackwards(path, Mat2D());
+    }
+    else
+    {
+      inversePath->addRenderPath(path, Mat2D());
+    }
+  }
+  return inversePath;
 }
 
 RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 {
-    RIVE_PROF_SCOPE_L(3)
-    auto& renderState = m_renderStateStack.back();
+  RIVE_PROF_SCOPE_L(3)
+  auto& renderState = m_renderStateStack.back();
 
-    draw->setClipRect(renderState.clipRectInverseMatrix,
-                      renderState.overallClipPixelBounds);
+  draw->setClipRect(
+      renderState.clipRectInverseMatrix,
+      renderState.overallClipPixelBounds);
 
-    if (draw->clippedPixelBounds().empty() ||
-        m_context->isOutsideCurrentFrame(draw->clippedPixelBounds()))
-    {
-        // Either this draw is outside of the current frame (in which case it's
-        // not visible) or it was completely clipped by the current overall clip
-        // bounds.
-        return ApplyClipResult::fullyClipped;
-    }
+  if (draw->clippedPixelBounds().empty() ||
+      m_context->isOutsideCurrentFrame(draw->clippedPixelBounds()))
+  {
+    // Either this draw is outside of the current frame (in which case it's
+    // not visible) or it was completely clipped by the current overall clip
+    // bounds.
+    return ApplyClipResult::fullyClipped;
+  }
 
-    const size_t clipStackHeight = renderState.clipStackHeight;
-    if (clipStackHeight == 0)
-    {
-        assert(draw->clipID() == 0);
-        return ApplyClipResult::success;
-    }
-
-    // Find which clip element in the stack (if any) is currently rendered to
-    // the clip buffer.
-    size_t clipIdxCurrentlyInClipBuffer = -1; // i.e., "none".
-    if (m_context->getClipContentID() != 0)
-    {
-        for (size_t i = clipStackHeight - 1; i != -1; --i)
-        {
-            if (m_clipStack[i].clipID == m_context->getClipContentID())
-            {
-                clipIdxCurrentlyInClipBuffer = i;
-                break;
-            }
-        }
-    }
-
-    // Draw the necessary updates to the clip buffer (i.e., draw every clip
-    // element after clipIdxCurrentlyInClipBuffer).
-    uint32_t parentClipID =
-        clipIdxCurrentlyInClipBuffer == -1
-            ? 0 // The next clip to be drawn is not nested.
-            : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
-    if (m_context->frameInterlockMode() ==
-            gpu::InterlockMode::clockwiseAtomic ||
-        m_context->frameInterlockMode() == gpu::InterlockMode::depthStencil)
-    {
-        if (parentClipID == 0 && m_context->getClipContentID() != 0)
-        {
-            // Time for a new stencil clip! Erase the clip currently in the
-            // stencil buffer before we draw the new one.
-            auto stencilClipClear =
-                gpu::DrawUniquePtr(m_context->make<gpu::ClipReset>(
-                    m_context,
-                    m_context->getClipContentID(),
-                    gpu::DrawContents::none,
-                    gpu::ClipReset::ResetAction::clearPreviousClip));
-            if (!m_context->isOutsideCurrentFrame(
-                    stencilClipClear->pixelBounds()))
-            {
-                m_internalDrawBatch.push_back(std::move(stencilClipClear));
-            }
-        }
-    }
-
-    for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < clipStackHeight; ++i)
-    {
-        ClipElement& clip = m_clipStack[i];
-        assert(clip.pathBounds == clip.path->getBounds());
-
-        IAABB clipDrawBounds;
-        RiveRenderPaint clipUpdatePaint;
-        clipUpdatePaint.clipUpdate(
-            /*clip THIS clipDraw against:*/ parentClipID);
-        clipUpdatePaint.feather(clip.feather);
-        if (clip.stroke.has_value())
-        {
-            clipUpdatePaint.stroke(*clip.stroke);
-        }
-
-        clipUpdatePaint.forceClosed(clip.forceClosed);
-
-        rcp clipPath = clip.path;
-        FillRule clipFillRule = clip.fillRule;
-        std::optional pixelBounds = clip.pixelBounds;
-
-        if (m_context->frameInterlockMode() ==
-                gpu::InterlockMode::clockwiseAtomic &&
-            parentClipID != 0)
-        {
-            // clockwiseAtomic implements nested clips by erasing the inverse
-            // of the inner path from the outer clip.
-            clipPath = invertClockwisePath(
-                clipPath.get(),
-                clipFillRule,
-                clip.matrix,
-                m_context->getClipContentBounds(parentClipID));
-            clipFillRule = FillRule::clockwise;
-
-            // Clear this because the inverted path has different pixel bounds
-            // (as it now contains the clip content bounds as a box around the
-            // path)
-            pixelBounds = std::nullopt;
-        }
-
-        gpu::DrawUniquePtr clipDraw =
-            gpu::PathDraw::Make(m_context,
-                                clip.matrix,
-                                nullptr, // imageMatrix, unneeded for clips
-                                std::move(clipPath),
-                                clipFillRule,
-                                &clipUpdatePaint,
-                                1.0f, // no modulation for clips
-                                0xFFFFFFFF,
-                                pixelBounds);
-
-        // We have already validated that the clip path is within the screen
-        //  bounds, so this should never return null (which is the "this is
-        //  offscreen" result).
-        assert(clipDraw != nullptr);
-
-        clipDrawBounds = clipDraw->pixelBounds();
-
-        // Generate a new clipID every time we (re-)render an element to the
-        // clip buffer. (Each embodiment of the element needs its own
-        // separate readBounds.)
-        {
-            // if we have a parent, use its current adjusted write bounds as its
-            // outer bounds, otherwise limit it to the screen area.
-            // TODO: This should take into account any clip rect that might be
-            // applied.
-            const auto outerBounds =
-                (parentClipID != 0)
-                    ? m_context->getTightenedClipBounds(parentClipID)
-                    : AABBu16::MakeWH(
-                          m_context->frameDescriptor().renderTargetWidth,
-                          m_context->frameDescriptor().renderTargetHeight);
-
-            // Trim the draw bounds to the outer bounds as the initial minimal
-            // clip bounds (we shouldn't need to write to or read from anywhere
-            // that is outside of the screen or a parent clip's box, if one
-            // exists).
-            const auto tightenedBounds = outerBounds.intersect(clipDrawBounds);
-
-            // If there is a parent clip, the next element up the clip stack
-            // should have its ID.
-            assert(parentClipID == 0 ||
-                   (i != 0 && m_clipStack[i - 1].clipID == parentClipID));
-
-            clip.clipID = m_context->generateClipID(clipDrawBounds,
-                                                    parentClipID,
-                                                    tightenedBounds);
-        }
-        assert(clip.clipID != m_context->getClipContentID());
-        if (clip.clipID == 0)
-        {
-            return ApplyClipResult::failure; // The context is out of
-                                             // clipIDs. We will flush and
-                                             // try again.
-        }
-        clipDraw->setClipID(clip.clipID);
-
-        gpu::DrawContents clipDrawContents = clipDraw->combinedDrawContents();
-        if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
-        {
-            m_internalDrawBatch.push_back(std::move(clipDraw));
-        }
-
-        if (parentClipID != 0)
-        {
-            if (m_context->frameInterlockMode() ==
-                gpu::InterlockMode::depthStencil)
-            {
-                // When drawing nested stencil clips, we need to intersect them,
-                // which involves erasing the region of the current clip in the
-                // stencil buffer that is outside the the one we just drew.
-                auto stencilClipIntersect =
-                    gpu::DrawUniquePtr(m_context->make<gpu::ClipReset>(
-                        m_context,
-                        parentClipID,
-                        clipDrawContents,
-                        gpu::ClipReset::ResetAction::intersectPreviousClip));
-                if (!m_context->isOutsideCurrentFrame(
-                        stencilClipIntersect->pixelBounds()))
-                {
-                    m_internalDrawBatch.push_back(
-                        std::move(stencilClipIntersect));
-                }
-            }
-        }
-
-        parentClipID = clip.clipID; // Nest the next clip (if any) inside the
-                                    // one we just rendered.
-    }
-
-    assert(parentClipID == m_clipStack[clipStackHeight - 1].clipID);
-    draw->setClipID(parentClipID);
-    m_context->setClipContentID(parentClipID);
-
+  const size_t clipStackHeight = renderState.clipStackHeight;
+  if (clipStackHeight == 0)
+  {
+    assert(draw->clipID() == 0);
     return ApplyClipResult::success;
+  }
+
+  // Find which clip element in the stack (if any) is currently rendered to
+  // the clip buffer.
+  size_t clipIdxCurrentlyInClipBuffer = -1; // i.e., "none".
+  if (m_context->getClipContentID() != 0)
+  {
+    for (size_t i = clipStackHeight - 1; i != -1; --i)
+    {
+      if (m_clipStack[i].clipID == m_context->getClipContentID())
+      {
+        clipIdxCurrentlyInClipBuffer = i;
+        break;
+      }
+    }
+  }
+
+  // Draw the necessary updates to the clip buffer (i.e., draw every clip
+  // element after clipIdxCurrentlyInClipBuffer).
+  uint32_t parentClipID = clipIdxCurrentlyInClipBuffer == -1
+                              ? 0 // The next clip to be drawn is not nested.
+                              : m_clipStack[clipIdxCurrentlyInClipBuffer]
+                                    .clipID;
+  if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic ||
+      m_context->frameInterlockMode() == gpu::InterlockMode::depthStencil)
+  {
+    if (parentClipID == 0 && m_context->getClipContentID() != 0)
+    {
+      // Time for a new stencil clip! Erase the clip currently in the
+      // stencil buffer before we draw the new one.
+      auto stencilClipClear = gpu::DrawUniquePtr(
+          m_context->make<gpu::ClipReset>(
+              m_context,
+              m_context->getClipContentID(),
+              gpu::DrawContents::none,
+              gpu::ClipReset::ResetAction::clearPreviousClip));
+      if (!m_context->isOutsideCurrentFrame(stencilClipClear->pixelBounds()))
+      {
+        m_internalDrawBatch.push_back(std::move(stencilClipClear));
+      }
+    }
+  }
+
+  for (size_t i = clipIdxCurrentlyInClipBuffer + 1; i < clipStackHeight; ++i)
+  {
+    ClipElement& clip = m_clipStack[i];
+    assert(clip.pathBounds == clip.path->getBounds());
+
+    IAABB clipDrawBounds;
+    RiveRenderPaint clipUpdatePaint;
+    clipUpdatePaint.clipUpdate(
+        /*clip THIS clipDraw against:*/ parentClipID);
+    clipUpdatePaint.feather(clip.feather);
+    if (clip.stroke.has_value())
+    {
+      clipUpdatePaint.stroke(*clip.stroke);
+    }
+
+    clipUpdatePaint.forceClosed(clip.forceClosed);
+
+    rcp clipPath = clip.path;
+    FillRule clipFillRule = clip.fillRule;
+    std::optional pixelBounds = clip.pixelBounds;
+
+    if (m_context->frameInterlockMode() ==
+            gpu::InterlockMode::clockwiseAtomic &&
+        parentClipID != 0)
+    {
+      // clockwiseAtomic implements nested clips by erasing the inverse
+      // of the inner path from the outer clip.
+      clipPath = invertClockwisePath(
+          clipPath.get(),
+          clipFillRule,
+          clip.matrix,
+          m_context->getClipContentBounds(parentClipID));
+      clipFillRule = FillRule::clockwise;
+
+      // Clear this because the inverted path has different pixel bounds
+      // (as it now contains the clip content bounds as a box around the
+      // path)
+      pixelBounds = std::nullopt;
+    }
+
+    gpu::DrawUniquePtr clipDraw = gpu::PathDraw::Make(
+        m_context,
+        clip.matrix,
+        nullptr, // imageMatrix, unneeded for clips
+        std::move(clipPath),
+        clipFillRule,
+        &clipUpdatePaint,
+        1.0f, // no modulation for clips
+        0xFFFFFFFF,
+        pixelBounds);
+
+    // We have already validated that the clip path is within the screen
+    //  bounds, so this should never return null (which is the "this is
+    //  offscreen" result).
+    assert(clipDraw != nullptr);
+
+    clipDrawBounds = clipDraw->pixelBounds();
+
+    // Generate a new clipID every time we (re-)render an element to the
+    // clip buffer. (Each embodiment of the element needs its own
+    // separate readBounds.)
+    {
+      // if we have a parent, use its current adjusted write bounds as its
+      // outer bounds, otherwise limit it to the screen area.
+      // TODO: This should take into account any clip rect that might be
+      // applied.
+      const auto outerBounds = (parentClipID != 0)
+                                   ? m_context->getTightenedClipBounds(
+                                         parentClipID)
+                                   : AABBu16::MakeWH(
+                                         m_context->frameDescriptor()
+                                             .renderTargetWidth,
+                                         m_context->frameDescriptor()
+                                             .renderTargetHeight);
+
+      // Trim the draw bounds to the outer bounds as the initial minimal
+      // clip bounds (we shouldn't need to write to or read from anywhere
+      // that is outside of the screen or a parent clip's box, if one
+      // exists).
+      const auto tightenedBounds = outerBounds.intersect(clipDrawBounds);
+
+      // If there is a parent clip, the next element up the clip stack
+      // should have its ID.
+      assert(
+          parentClipID == 0 ||
+          (i != 0 && m_clipStack[i - 1].clipID == parentClipID));
+
+      clip.clipID = m_context->generateClipID(
+          clipDrawBounds,
+          parentClipID,
+          tightenedBounds);
+    }
+    assert(clip.clipID != m_context->getClipContentID());
+    if (clip.clipID == 0)
+    {
+      return ApplyClipResult::failure; // The context is out of
+                                       // clipIDs. We will flush and
+                                       // try again.
+    }
+    clipDraw->setClipID(clip.clipID);
+
+    gpu::DrawContents clipDrawContents = clipDraw->combinedDrawContents();
+    if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
+    {
+      m_internalDrawBatch.push_back(std::move(clipDraw));
+    }
+
+    if (parentClipID != 0)
+    {
+      if (m_context->frameInterlockMode() == gpu::InterlockMode::depthStencil)
+      {
+        // When drawing nested stencil clips, we need to intersect them,
+        // which involves erasing the region of the current clip in the
+        // stencil buffer that is outside the the one we just drew.
+        auto stencilClipIntersect = gpu::DrawUniquePtr(
+            m_context->make<gpu::ClipReset>(
+                m_context,
+                parentClipID,
+                clipDrawContents,
+                gpu::ClipReset::ResetAction::intersectPreviousClip));
+        if (!m_context->isOutsideCurrentFrame(
+                stencilClipIntersect->pixelBounds()))
+        {
+          m_internalDrawBatch.push_back(std::move(stencilClipIntersect));
+        }
+      }
+    }
+
+    parentClipID = clip.clipID; // Nest the next clip (if any) inside the
+                                // one we just rendered.
+  }
+
+  assert(parentClipID == m_clipStack[clipStackHeight - 1].clipID);
+  draw->setClipID(parentClipID);
+  m_context->setClipContentID(parentClipID);
+
+  return ApplyClipResult::success;
 }
 } // namespace rive

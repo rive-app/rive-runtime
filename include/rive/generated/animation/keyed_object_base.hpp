@@ -11,50 +11,50 @@ namespace rive
 class KeyedObjectBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 25;
+  static const uint16_t typeKey = 25;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t objectIdPropertyKey = 51;
+  static const uint16_t objectIdPropertyKey = 51;
 
 protected:
-    Id m_ObjectId = 0;
+  Id m_ObjectId = 0;
 
 public:
-    inline Id objectId() const { return m_ObjectId; }
-    void objectId(Id value)
+  inline Id objectId() const { return m_ObjectId; }
+  void objectId(Id value)
+  {
+    if (m_ObjectId == value)
     {
-        if (m_ObjectId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
-        m_ObjectId = value;
-        notifyPropertyChanged(objectIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
+    m_ObjectId = value;
+    notifyPropertyChanged(objectIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyedObjectBase& object)
-    {
-        m_ObjectId = object.m_ObjectId;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyedObjectBase& object)
+  {
+    m_ObjectId = object.m_ObjectId;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case objectIdPropertyKey:
-                m_ObjectId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case objectIdPropertyKey:
+        m_ObjectId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

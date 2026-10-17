@@ -21,111 +21,116 @@ class Pipeline : public rive::gpu::GPUResource,
                  public ENABLE_LITE_RTTI(Pipeline)
 {
 public:
-    const PipelineDesc& desc() const { return m_desc; }
+  const PipelineDesc& desc() const { return m_desc; }
 
-    // What the entry points bind, each stage from its own module; backends
-    // validate the layouts against it.
-    BindingMap m_bindingMap;
+  // What the entry points bind, each stage from its own module; backends
+  // validate the layouts against it.
+  BindingMap m_bindingMap;
 
-    // Older bakes leave it false, and their layouts then cover whole files.
-    bool m_entryUseKnown = false;
+  // Older bakes leave it false, and their layouts then cover whole files.
+  bool m_entryUseKnown = false;
 
-    // Which sampler serves which texture. GL needs it: GLSL folds the two
-    // into one uniform at the texture's unit. Empty on other backends.
-    std::vector<ShaderModule::TextureSamplerPair> m_textureSamplerPairs;
+  // Which sampler serves which texture. GL needs it: GLSL folds the two
+  // into one uniform at the texture's unit. Empty on other backends.
+  std::vector<ShaderModule::TextureSamplerPair> m_textureSamplerPairs;
 
-    // Layouts the pipeline was created with — one per `@group(N)`. Keeps
-    // them alive (the per-backend native handles inside the layouts are
-    // referenced by the pipeline's compiled state). Script lanes check each
-    // draw's bind groups against them.
-    rcp<BindGroupLayout> m_layouts[kMaxBindGroups];
+  // Layouts the pipeline was created with — one per `@group(N)`. Keeps
+  // them alive (the per-backend native handles inside the layouts are
+  // referenced by the pipeline's compiled state). Script lanes check each
+  // draw's bind groups against them.
+  rcp<BindGroupLayout> m_layouts[kMaxBindGroups];
 
-    virtual ~Pipeline() = default;
+  virtual ~Pipeline() = default;
 
 protected:
-    friend class Context;
-    friend class RenderPass;
+  friend class Context;
+  friend class RenderPass;
 
-    Pipeline(const PipelineDesc& desc) : Pipeline(nullptr, desc) {}
+  Pipeline(const PipelineDesc& desc) : Pipeline(nullptr, desc) {}
 
-    Pipeline(rcp<rive::gpu::GPUResourceManager> manager,
-             const PipelineDesc& desc) :
-        rive::gpu::GPUResource(std::move(manager)), m_desc(desc)
+  Pipeline(rcp<rive::gpu::GPUResourceManager> manager, const PipelineDesc& desc)
+      : rive::gpu::GPUResource(std::move(manager))
+      , m_desc(desc)
+  {
+    m_bindingMap = bindingMapForEntries(
+        desc.vertexModule,
+        desc.vertexEntryPoint,
+        desc.fragmentModule,
+        desc.fragmentEntryPoint);
+    m_entryUseKnown = entryUseKnown(
+        desc.vertexModule,
+        desc.vertexEntryPoint,
+        desc.fragmentModule,
+        desc.fragmentEntryPoint);
+    // Unioned: each GLSL entry point knows only its own pairs.
+    for (const ShaderModule* shaderModule :
+         {desc.vertexModule, desc.fragmentModule})
     {
-        m_bindingMap = bindingMapForEntries(desc.vertexModule,
-                                            desc.vertexEntryPoint,
-                                            desc.fragmentModule,
-                                            desc.fragmentEntryPoint);
-        m_entryUseKnown = entryUseKnown(desc.vertexModule,
-                                        desc.vertexEntryPoint,
-                                        desc.fragmentModule,
-                                        desc.fragmentEntryPoint);
-        // Unioned: each GLSL entry point knows only its own pairs.
-        for (const ShaderModule* shaderModule :
-             {desc.vertexModule, desc.fragmentModule})
-        {
-            if (shaderModule == nullptr)
-                continue;
-            m_textureSamplerPairs.insert(
-                m_textureSamplerPairs.end(),
-                shaderModule->m_textureSamplerPairs.begin(),
-                shaderModule->m_textureSamplerPairs.end());
-        }
-
-        // Stash the user-supplied layouts. Backends overwrite NULL
-        // entries (groups the shader doesn't bind) with a no-op
-        // BindGroupLayout if needed for empty-set semantics.
-        const uint32_t count = std::min(desc.bindGroupLayoutCount,
-                                        static_cast<uint32_t>(kMaxBindGroups));
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            m_layouts[i] = ref_rcp(desc.bindGroupLayouts[i]);
-        }
-        ownVertexLayout();
+      if (shaderModule == nullptr)
+        continue;
+      m_textureSamplerPairs.insert(
+          m_textureSamplerPairs.end(),
+          shaderModule->m_textureSamplerPairs.begin(),
+          shaderModule->m_textureSamplerPairs.end());
     }
 
-    PipelineDesc m_desc;
+    // Stash the user-supplied layouts. Backends overwrite NULL
+    // entries (groups the shader doesn't bind) with a no-op
+    // BindGroupLayout if needed for empty-set semantics.
+    const uint32_t count = std::min(
+        desc.bindGroupLayoutCount,
+        static_cast<uint32_t>(kMaxBindGroups));
+    for (uint32_t i = 0; i < count; ++i)
+    {
+      m_layouts[i] = ref_rcp(desc.bindGroupLayouts[i]);
+    }
+    ownVertexLayout();
+  }
+
+  PipelineDesc m_desc;
 
 private:
-    // The desc's vertex layout points into caller memory the deferred replay
-    // frees right after makePipeline, so deep copy it into owned storage.
-    std::vector<VertexBufferLayout> m_ownedVertexBuffers;
-    std::vector<VertexAttribute> m_ownedAttributes;
+  // The desc's vertex layout points into caller memory the deferred replay
+  // frees right after makePipeline, so deep copy it into owned storage.
+  std::vector<VertexBufferLayout> m_ownedVertexBuffers;
+  std::vector<VertexAttribute> m_ownedAttributes;
 
-    void ownVertexLayout()
+  void ownVertexLayout()
+  {
+    if (m_desc.vertexBufferCount == 0 || m_desc.vertexBuffers == nullptr)
     {
-        if (m_desc.vertexBufferCount == 0 || m_desc.vertexBuffers == nullptr)
-        {
-            m_desc.vertexBuffers = nullptr;
-            m_desc.vertexBufferCount = 0;
-            return;
-        }
-        // Reserve up front so the vector never reallocates while we repoint
-        // into it.
-        size_t total = 0;
-        for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
-        {
-            total += m_desc.vertexBuffers[i].attributeCount;
-        }
-        m_ownedAttributes.reserve(total);
-        m_ownedVertexBuffers.assign(m_desc.vertexBuffers,
-                                    m_desc.vertexBuffers +
-                                        m_desc.vertexBufferCount);
-        for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
-        {
-            const VertexBufferLayout& src = m_desc.vertexBuffers[i];
-            size_t start = m_ownedAttributes.size();
-            if (src.attributes != nullptr && src.attributeCount > 0)
-            {
-                m_ownedAttributes.insert(m_ownedAttributes.end(),
-                                         src.attributes,
-                                         src.attributes + src.attributeCount);
-            }
-            m_ownedVertexBuffers[i].attributes =
-                src.attributeCount > 0 ? &m_ownedAttributes[start] : nullptr;
-        }
-        m_desc.vertexBuffers = m_ownedVertexBuffers.data();
+      m_desc.vertexBuffers = nullptr;
+      m_desc.vertexBufferCount = 0;
+      return;
     }
+    // Reserve up front so the vector never reallocates while we repoint
+    // into it.
+    size_t total = 0;
+    for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
+    {
+      total += m_desc.vertexBuffers[i].attributeCount;
+    }
+    m_ownedAttributes.reserve(total);
+    m_ownedVertexBuffers.assign(
+        m_desc.vertexBuffers,
+        m_desc.vertexBuffers + m_desc.vertexBufferCount);
+    for (uint32_t i = 0; i < m_desc.vertexBufferCount; ++i)
+    {
+      const VertexBufferLayout& src = m_desc.vertexBuffers[i];
+      size_t start = m_ownedAttributes.size();
+      if (src.attributes != nullptr && src.attributeCount > 0)
+      {
+        m_ownedAttributes.insert(
+            m_ownedAttributes.end(),
+            src.attributes,
+            src.attributes + src.attributeCount);
+      }
+      m_ownedVertexBuffers[i].attributes = src.attributeCount > 0
+                                               ? &m_ownedAttributes[start]
+                                               : nullptr;
+    }
+    m_desc.vertexBuffers = m_ownedVertexBuffers.data();
+  }
 };
 
 } // namespace rive::ore

@@ -53,26 +53,26 @@ static constexpr unsigned int crc_table[256] = {
 template <std::size_t IDX>
 constexpr uint32_t combine_crc32(const char* str, uint32_t part)
 {
-    return (part >> 8) ^ crc_table[(part ^ str[IDX]) & 0x000000FF];
+  return (part >> 8) ^ crc_table[(part ^ str[IDX]) & 0x000000FF];
 }
 
 template <std::size_t IDX> constexpr uint32_t crc32(const char* str)
 {
-    return combine_crc32<IDX>(str, crc32<IDX - 1>(str));
+  return combine_crc32<IDX>(str, crc32<IDX - 1>(str));
 }
 
 // This is the stop-recursion function
 template <> constexpr uint32_t crc32<std::size_t(-1)>(const char* str)
 {
-    return 0xFFFFFFFF;
+  return 0xFFFFFFFF;
 }
 
 } // namespace detail
 
 template <std::size_t LEN> constexpr uint32_t ctcrc32(const char (&str)[LEN])
 {
-    // LEN-1 is to remove the null terminator at the end of the string const.
-    return detail::crc32<LEN - 1>(str) ^ 0xFFFFFFFF;
+  // LEN-1 is to remove the null terminator at the end of the string const.
+  return detail::crc32<LEN - 1>(str) ^ 0xFFFFFFFF;
 }
 
 #define CONST_ID(VALUE) ctcrc32(#VALUE)

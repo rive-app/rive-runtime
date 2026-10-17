@@ -10,21 +10,21 @@ class CustomProperty;
 class CustomPropertyContainer
 {
 protected:
-    std::vector<CustomProperty*> m_customProperties;
-    void syncCustomProperties();
+  std::vector<CustomProperty*> m_customProperties;
+  void syncCustomProperties();
 
 public:
-    virtual void addProperty(CustomProperty* prop);
-    virtual void removeProperty(CustomProperty* prop);
-    virtual const std::vector<Component*>& containerChildren() const
-    {
-        static const std::vector<Component*> emptyVec;
-        return emptyVec;
-    }
-    const std::vector<CustomProperty*>& customProperties() const
-    {
-        return m_customProperties;
-    }
+  virtual void addProperty(CustomProperty* prop);
+  virtual void removeProperty(CustomProperty* prop);
+  virtual const std::vector<Component*>& containerChildren() const
+  {
+    static const std::vector<Component*> emptyVec;
+    return emptyVec;
+  }
+  const std::vector<CustomProperty*>& customProperties() const
+  {
+    return m_customProperties;
+  }
 };
 } // namespace rive
 

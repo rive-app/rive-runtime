@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextFollowPathModifierBase::clone() const
 {
-    auto cloned = new TextFollowPathModifier();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextFollowPathModifier();
+  cloned->copy(*this);
+  return cloned;
 }

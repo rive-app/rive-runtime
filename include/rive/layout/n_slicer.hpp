@@ -13,20 +13,20 @@ class SliceMesh;
 class NSlicer : public NSlicerBase, public NSlicerDetails
 {
 private:
-    std::unique_ptr<SliceMesh> m_sliceMesh; // the mesh that gets drawn
+  std::unique_ptr<SliceMesh> m_sliceMesh; // the mesh that gets drawn
 
 public:
-    NSlicer();
-    StatusCode onAddedDirty(CoreContext* context) override;
-    void update(ComponentDirt value) override;
-    void buildDependencies() override;
+  NSlicer();
+  StatusCode onAddedDirty(CoreContext* context) override;
+  void update(ComponentDirt value) override;
+  void buildDependencies() override;
 
-    MeshHost* host();
-    SliceMesh* sliceMesh() { return m_sliceMesh.get(); };
-    void axisChanged() override;
+  MeshHost* host();
+  SliceMesh* sliceMesh() { return m_sliceMesh.get(); };
+  void axisChanged() override;
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
 #endif
 };
 } // namespace rive

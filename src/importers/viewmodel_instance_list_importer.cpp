@@ -5,13 +5,13 @@
 using namespace rive;
 
 ViewModelInstanceListImporter::ViewModelInstanceListImporter(
-    ViewModelInstanceList* viewModelInstanceList) :
-    m_ViewModelInstanceList(viewModelInstanceList)
+    ViewModelInstanceList* viewModelInstanceList)
+    : m_ViewModelInstanceList(viewModelInstanceList)
 {}
 void ViewModelInstanceListImporter::addItem(
     rcp<ViewModelInstanceListItem> listItem)
 {
-    m_ViewModelInstanceList->internalAddItem(listItem);
+  m_ViewModelInstanceList->internalAddItem(listItem);
 }
 
 StatusCode ViewModelInstanceListImporter::resolve() { return StatusCode::Ok; }

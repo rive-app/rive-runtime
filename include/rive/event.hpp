@@ -7,7 +7,7 @@ namespace rive
 class Event : public EventBase
 {
 public:
-    void trigger(const CallbackData& value) override;
+  void trigger(const CallbackData& value) override;
 };
 } // namespace rive
 

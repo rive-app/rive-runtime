@@ -22,36 +22,39 @@ const uint16_t SliceMesh::triangulation[] = {0, 1, 3, 1, 2, 3};
 
 SliceMesh::SliceMesh(NSlicer* nslicer) : m_nslicer(nslicer) {}
 
-void SliceMesh::draw(Renderer* renderer,
-                     const RenderImage* renderImage,
-                     ImageSampler ImageSampler,
-                     BlendMode blendMode,
-                     float opacity,
-                     float additiveness)
+void SliceMesh::draw(
+    Renderer* renderer,
+    const RenderImage* renderImage,
+    ImageSampler ImageSampler,
+    BlendMode blendMode,
+    float opacity,
+    float additiveness)
 {
-    MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
-    if (host == nullptr)
-    {
-        return;
-    }
-    if (!m_VertexRenderBuffer || !m_UVRenderBuffer || !m_IndexRenderBuffer)
-    {
-        return;
-    }
-    const Vec2D origin = host->meshHostOrigin();
-    renderer->transform(host->meshHostWorldTransform());
-    renderer->translate(-host->meshHostWidth() * origin.x,
-                        -host->meshHostHeight() * origin.y);
-    renderer->drawImageMesh(renderImage,
-                            ImageSampler,
-                            m_VertexRenderBuffer,
-                            m_UVRenderBuffer,
-                            m_IndexRenderBuffer,
-                            static_cast<uint32_t>(m_vertices.size()),
-                            static_cast<uint32_t>(m_indices.size()),
-                            blendMode,
-                            opacity,
-                            additiveness);
+  MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
+  if (host == nullptr)
+  {
+    return;
+  }
+  if (!m_VertexRenderBuffer || !m_UVRenderBuffer || !m_IndexRenderBuffer)
+  {
+    return;
+  }
+  const Vec2D origin = host->meshHostOrigin();
+  renderer->transform(host->meshHostWorldTransform());
+  renderer->translate(
+      -host->meshHostWidth() * origin.x,
+      -host->meshHostHeight() * origin.y);
+  renderer->drawImageMesh(
+      renderImage,
+      ImageSampler,
+      m_VertexRenderBuffer,
+      m_UVRenderBuffer,
+      m_IndexRenderBuffer,
+      static_cast<uint32_t>(m_vertices.size()),
+      static_cast<uint32_t>(m_indices.size()),
+      blendMode,
+      opacity,
+      additiveness);
 }
 
 void SliceMesh::onAssetLoaded(RenderImage* renderImage) {}
@@ -60,346 +63,347 @@ void SliceMesh::uvTransformChanged(const Mat2D& uvTransform) { update(); }
 
 void SliceMesh::updateBuffers()
 {
-    auto factory = m_nslicer->artboard()->factory();
+  auto factory = m_nslicer->artboard()->factory();
 
-    // 1. vertex render buffer
-    size_t vertexSizeInBytes = m_vertices.size() * sizeof(Vec2D);
-    if (m_VertexRenderBuffer != nullptr &&
-        m_VertexRenderBuffer->sizeInBytes() != vertexSizeInBytes)
+  // 1. vertex render buffer
+  size_t vertexSizeInBytes = m_vertices.size() * sizeof(Vec2D);
+  if (m_VertexRenderBuffer != nullptr &&
+      m_VertexRenderBuffer->sizeInBytes() != vertexSizeInBytes)
+  {
+    m_VertexRenderBuffer = nullptr;
+  }
+
+  if (m_VertexRenderBuffer == nullptr && vertexSizeInBytes != 0)
+  {
+    m_VertexRenderBuffer = factory->makeRenderBuffer(
+        RenderBufferType::vertex,
+        RenderBufferFlags::none, // optimization?
+        vertexSizeInBytes);
+  }
+
+  if (m_VertexRenderBuffer != nullptr)
+  {
+    Vec2D* mappedVertices = reinterpret_cast<Vec2D*>(
+        m_VertexRenderBuffer->map());
+    if (mappedVertices != nullptr)
     {
-        m_VertexRenderBuffer = nullptr;
+      for (auto v : m_vertices)
+      {
+        *mappedVertices++ = v;
+      }
+      m_VertexRenderBuffer->unmap();
     }
+  }
 
-    if (m_VertexRenderBuffer == nullptr && vertexSizeInBytes != 0)
+  // 2. uv render buffer
+  size_t uvSizeInBytes = m_uvs.size() * sizeof(Vec2D);
+  if (m_UVRenderBuffer != nullptr &&
+      m_UVRenderBuffer->sizeInBytes() != uvSizeInBytes)
+  {
+    m_UVRenderBuffer = nullptr;
+  }
+
+  if (m_UVRenderBuffer == nullptr && uvSizeInBytes != 0)
+  {
+    m_UVRenderBuffer = factory->makeRenderBuffer(
+        RenderBufferType::vertex,
+        RenderBufferFlags::none,
+        uvSizeInBytes);
+  }
+
+  if (m_UVRenderBuffer)
+  {
+    Mat2D uvTransform = m_nslicer->host()->meshHostUVTransform();
+
+    Vec2D* mappedUVs = reinterpret_cast<Vec2D*>(m_UVRenderBuffer->map());
+    if (mappedUVs != nullptr)
     {
-        m_VertexRenderBuffer =
-            factory->makeRenderBuffer(RenderBufferType::vertex,
-                                      RenderBufferFlags::none, // optimization?
-                                      vertexSizeInBytes);
+      for (auto uv : m_uvs)
+      {
+        Vec2D xformedUV = uvTransform * uv;
+        *mappedUVs++ = xformedUV;
+      }
+      m_UVRenderBuffer->unmap();
     }
+  }
 
-    if (m_VertexRenderBuffer != nullptr)
+  // 3. index render buffer
+  size_t indexSizeInBytes = m_indices.size() * sizeof(uint16_t);
+  if (m_IndexRenderBuffer != nullptr &&
+      m_IndexRenderBuffer->sizeInBytes() != indexSizeInBytes)
+  {
+    m_IndexRenderBuffer = nullptr;
+  }
+
+  if (m_IndexRenderBuffer == nullptr && indexSizeInBytes != 0)
+  {
+    m_IndexRenderBuffer = factory->makeRenderBuffer(
+        RenderBufferType::index,
+        RenderBufferFlags::none,
+        indexSizeInBytes);
+  }
+
+  if (m_IndexRenderBuffer)
+  {
+    void* mappedIndex = m_IndexRenderBuffer->map();
+    if (mappedIndex != nullptr)
     {
-        Vec2D* mappedVertices =
-            reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
-        if (mappedVertices != nullptr)
-        {
-            for (auto v : m_vertices)
-            {
-                *mappedVertices++ = v;
-            }
-            m_VertexRenderBuffer->unmap();
-        }
+      memcpy(mappedIndex, m_indices.data(), indexSizeInBytes);
+      m_IndexRenderBuffer->unmap();
     }
-
-    // 2. uv render buffer
-    size_t uvSizeInBytes = m_uvs.size() * sizeof(Vec2D);
-    if (m_UVRenderBuffer != nullptr &&
-        m_UVRenderBuffer->sizeInBytes() != uvSizeInBytes)
-    {
-        m_UVRenderBuffer = nullptr;
-    }
-
-    if (m_UVRenderBuffer == nullptr && uvSizeInBytes != 0)
-    {
-        m_UVRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
-                                                     RenderBufferFlags::none,
-                                                     uvSizeInBytes);
-    }
-
-    if (m_UVRenderBuffer)
-    {
-        Mat2D uvTransform = m_nslicer->host()->meshHostUVTransform();
-
-        Vec2D* mappedUVs = reinterpret_cast<Vec2D*>(m_UVRenderBuffer->map());
-        if (mappedUVs != nullptr)
-        {
-            for (auto uv : m_uvs)
-            {
-                Vec2D xformedUV = uvTransform * uv;
-                *mappedUVs++ = xformedUV;
-            }
-            m_UVRenderBuffer->unmap();
-        }
-    }
-
-    // 3. index render buffer
-    size_t indexSizeInBytes = m_indices.size() * sizeof(uint16_t);
-    if (m_IndexRenderBuffer != nullptr &&
-        m_IndexRenderBuffer->sizeInBytes() != indexSizeInBytes)
-    {
-        m_IndexRenderBuffer = nullptr;
-    }
-
-    if (m_IndexRenderBuffer == nullptr && indexSizeInBytes != 0)
-    {
-        m_IndexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::index,
-                                                        RenderBufferFlags::none,
-                                                        indexSizeInBytes);
-    }
-
-    if (m_IndexRenderBuffer)
-    {
-        void* mappedIndex = m_IndexRenderBuffer->map();
-        if (mappedIndex != nullptr)
-        {
-            memcpy(mappedIndex, m_indices.data(), indexSizeInBytes);
-            m_IndexRenderBuffer->unmap();
-        }
-    }
+  }
 }
 
 std::vector<float> SliceMesh::uvStops(AxisType forAxis)
 {
-    MeshHost* host = m_nslicer->host();
-    float imageSize =
-        forAxis == AxisType::X ? host->meshHostWidth() : host->meshHostHeight();
-    float imageScale =
-        std::abs(forAxis == AxisType::X ? host->meshHostScaleX()
-                                        : host->meshHostScaleY());
-    if (imageSize == 0 || imageScale == 0)
-    {
-        return {};
-    }
+  MeshHost* host = m_nslicer->host();
+  float imageSize = forAxis == AxisType::X ? host->meshHostWidth()
+                                           : host->meshHostHeight();
+  float imageScale = std::abs(
+      forAxis == AxisType::X ? host->meshHostScaleX() : host->meshHostScaleY());
+  if (imageSize == 0 || imageScale == 0)
+  {
+    return {};
+  }
 
-    const std::vector<Axis*>& axes =
-        (forAxis == AxisType::X) ? m_nslicer->xs() : m_nslicer->ys();
+  const std::vector<Axis*>& axes = (forAxis == AxisType::X) ? m_nslicer->xs()
+                                                            : m_nslicer->ys();
 
-    return NSlicerHelpers::uvStops(axes, imageSize);
+  return NSlicerHelpers::uvStops(axes, imageSize);
 }
 
 std::vector<float> SliceMesh::vertexStops(
     const std::vector<float>& normalizedStops,
     AxisType forAxis)
 {
-    MeshHost* host = m_nslicer->host();
-    float imageSize =
-        forAxis == AxisType::X ? host->meshHostWidth() : host->meshHostHeight();
+  MeshHost* host = m_nslicer->host();
+  float imageSize = forAxis == AxisType::X ? host->meshHostWidth()
+                                           : host->meshHostHeight();
 
-    // When doing calculations, we assume scale is always non-negative to keep
-    // everything in image space.
-    float imageScale =
-        std::abs(forAxis == AxisType::X ? host->meshHostScaleX()
-                                        : host->meshHostScaleY());
-    if (imageSize == 0 || imageScale == 0)
-    {
-        return {};
-    }
+  // When doing calculations, we assume scale is always non-negative to keep
+  // everything in image space.
+  float imageScale = std::abs(
+      forAxis == AxisType::X ? host->meshHostScaleX() : host->meshHostScaleY());
+  if (imageSize == 0 || imageScale == 0)
+  {
+    return {};
+  }
 
-    ScaleInfo scaleInfo =
-        NSlicerHelpers::analyzeUVStops(normalizedStops, imageSize, imageScale);
+  ScaleInfo scaleInfo = NSlicerHelpers::analyzeUVStops(
+      normalizedStops,
+      imageSize,
+      imageScale);
 
-    std::vector<float> vertices;
-    float vertex = 0.0;
-    float vertexInBounds = 0.0;
+  std::vector<float> vertices;
+  float vertex = 0.0;
+  float vertexInBounds = 0.0;
 
-    for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
-    {
-        vertices.emplace_back(vertexInBounds);
-        float segment = imageSize *
-                        (normalizedStops[i + 1] - normalizedStops[i]) /
-                        imageScale;
-        if (NSlicerHelpers::isFixedSegment(i))
-        {
-            vertex += segment;
-        }
-        else
-        {
-            if (scaleInfo.useScale)
-            {
-                vertex += segment * scaleInfo.scaleFactor;
-            }
-            else
-            {
-                vertex += scaleInfo.fallbackSize;
-            }
-        }
-        vertexInBounds = math::clamp(vertex, 0, imageSize);
-    }
+  for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
+  {
     vertices.emplace_back(vertexInBounds);
-    return vertices;
+    float segment = imageSize * (normalizedStops[i + 1] - normalizedStops[i]) /
+                    imageScale;
+    if (NSlicerHelpers::isFixedSegment(i))
+    {
+      vertex += segment;
+    }
+    else
+    {
+      if (scaleInfo.useScale)
+      {
+        vertex += segment * scaleInfo.scaleFactor;
+      }
+      else
+      {
+        vertex += scaleInfo.fallbackSize;
+      }
+    }
+    vertexInBounds = math::clamp(vertex, 0, imageSize);
+  }
+  vertices.emplace_back(vertexInBounds);
+  return vertices;
 }
 
-uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
-                               std::vector<uint16_t>& indices,
-                               const std::vector<SliceMeshVertex>& box,
-                               uint16_t start)
+uint16_t SliceMesh::tileRepeat(
+    std::vector<SliceMeshVertex>& vertices,
+    std::vector<uint16_t>& indices,
+    const std::vector<SliceMeshVertex>& box,
+    uint16_t start)
 {
-    assert(box.size() == 4);
+  assert(box.size() == 4);
 
-    const float startX = box[0].vertex.x;
-    const float startY = box[0].vertex.y;
-    const float endX = box[2].vertex.x;
-    const float endY = box[2].vertex.y;
+  const float startX = box[0].vertex.x;
+  const float startY = box[0].vertex.y;
+  const float endX = box[2].vertex.x;
+  const float endY = box[2].vertex.y;
 
-    const float startU = box[0].uv.x;
-    const float startV = box[0].uv.y;
-    const float endU = box[2].uv.x;
-    const float endV = box[2].uv.y;
+  const float startU = box[0].uv.x;
+  const float startV = box[0].uv.y;
+  const float endU = box[2].uv.x;
+  const float endV = box[2].uv.y;
 
-    // The size of each repeated tile in image space
-    MeshHost* host = m_nslicer->host();
-    float scaleX = std::abs(host->meshHostScaleX());
-    float scaleY = std::abs(host->meshHostScaleY());
+  // The size of each repeated tile in image space
+  MeshHost* host = m_nslicer->host();
+  float scaleX = std::abs(host->meshHostScaleX());
+  float scaleY = std::abs(host->meshHostScaleY());
 
-    if (scaleX == 0 || scaleY == 0)
+  if (scaleX == 0 || scaleY == 0)
+  {
+    return 0;
+  }
+
+  const float sizeX = host->meshHostWidth() * (endU - startU) / scaleX;
+  const float sizeY = host->meshHostHeight() * (endV - startV) / scaleY;
+
+  if (std::abs(sizeX) < 1 || std::abs(sizeY) < 1)
+  {
+    return 0;
+  }
+
+  float curX = startX;
+  float curY = startY;
+  int curV = start;
+
+  int escape = 10000;
+  while (curY < endY && escape > 0)
+  {
+    escape--;
+    float fracY = (curY + sizeY) > endY ? (endY - curY) / sizeY : 1;
+    curX = startX;
+    while (curX < endX && escape > 0)
     {
-        return 0;
+      escape--;
+      int v0 = curV;
+      float fracX = (curX + sizeX) > endX ? (endX - curX) / sizeX : 1;
+
+      std::vector<SliceMeshVertex> curTile;
+      float endU1 = startU + (endU - startU) * fracX;
+      float endV1 = startV + (endV - startV) * fracY;
+      float endX1 = curX + sizeX * fracX;
+      float endY1 = curY + sizeY * fracY;
+
+      // top left
+      SliceMeshVertex v = SliceMeshVertex();
+      v.id = curV++;
+      v.uv = Vec2D(startU, startV);
+      v.vertex = Vec2D(curX, curY);
+      curTile.emplace_back(v);
+
+      // top right
+      v = SliceMeshVertex();
+      v.id = curV++;
+      v.uv = Vec2D(endU1, startV);
+      v.vertex = Vec2D(endX1, curY);
+      curTile.emplace_back(v);
+
+      // bottom right
+      v = SliceMeshVertex();
+      v.id = curV++;
+      v.uv = Vec2D(endU1, endV1);
+      v.vertex = Vec2D(endX1, endY1);
+      curTile.emplace_back(v);
+
+      // bottom left
+      v = SliceMeshVertex();
+      v.id = curV++;
+      v.uv = Vec2D(startU, endV1);
+      v.vertex = Vec2D(curX, endY1);
+      curTile.emplace_back(v);
+
+      // Commit the four vertices, and the triangulation
+      vertices.insert(vertices.end(), curTile.begin(), curTile.end());
+      for (uint16_t t : triangulation)
+      {
+        indices.emplace_back(v0 + t);
+      }
+
+      curX += sizeX;
     }
-
-    const float sizeX = host->meshHostWidth() * (endU - startU) / scaleX;
-    const float sizeY = host->meshHostHeight() * (endV - startV) / scaleY;
-
-    if (std::abs(sizeX) < 1 || std::abs(sizeY) < 1)
-    {
-        return 0;
-    }
-
-    float curX = startX;
-    float curY = startY;
-    int curV = start;
-
-    int escape = 10000;
-    while (curY < endY && escape > 0)
-    {
-        escape--;
-        float fracY = (curY + sizeY) > endY ? (endY - curY) / sizeY : 1;
-        curX = startX;
-        while (curX < endX && escape > 0)
-        {
-            escape--;
-            int v0 = curV;
-            float fracX = (curX + sizeX) > endX ? (endX - curX) / sizeX : 1;
-
-            std::vector<SliceMeshVertex> curTile;
-            float endU1 = startU + (endU - startU) * fracX;
-            float endV1 = startV + (endV - startV) * fracY;
-            float endX1 = curX + sizeX * fracX;
-            float endY1 = curY + sizeY * fracY;
-
-            // top left
-            SliceMeshVertex v = SliceMeshVertex();
-            v.id = curV++;
-            v.uv = Vec2D(startU, startV);
-            v.vertex = Vec2D(curX, curY);
-            curTile.emplace_back(v);
-
-            // top right
-            v = SliceMeshVertex();
-            v.id = curV++;
-            v.uv = Vec2D(endU1, startV);
-            v.vertex = Vec2D(endX1, curY);
-            curTile.emplace_back(v);
-
-            // bottom right
-            v = SliceMeshVertex();
-            v.id = curV++;
-            v.uv = Vec2D(endU1, endV1);
-            v.vertex = Vec2D(endX1, endY1);
-            curTile.emplace_back(v);
-
-            // bottom left
-            v = SliceMeshVertex();
-            v.id = curV++;
-            v.uv = Vec2D(startU, endV1);
-            v.vertex = Vec2D(curX, endY1);
-            curTile.emplace_back(v);
-
-            // Commit the four vertices, and the triangulation
-            vertices.insert(vertices.end(), curTile.begin(), curTile.end());
-            for (uint16_t t : triangulation)
-            {
-                indices.emplace_back(v0 + t);
-            }
-
-            curX += sizeX;
-        }
-        curY += sizeY;
-    }
-    return curV - start;
+    curY += sizeY;
+  }
+  return curV - start;
 }
 
 void SliceMesh::calc()
 {
-    m_vertices = {};
-    m_indices = {};
-    m_uvs = {};
+  m_vertices = {};
+  m_indices = {};
+  m_uvs = {};
 
-    std::vector<float> us = uvStops(AxisType::X);
-    std::vector<float> vs = uvStops(AxisType::Y);
-    std::vector<float> xs = vertexStops(us, AxisType::X);
-    std::vector<float> ys = vertexStops(vs, AxisType::Y);
-    const auto& tileModes = m_nslicer->tileModes();
+  std::vector<float> us = uvStops(AxisType::X);
+  std::vector<float> vs = uvStops(AxisType::Y);
+  std::vector<float> xs = vertexStops(us, AxisType::X);
+  std::vector<float> ys = vertexStops(vs, AxisType::Y);
+  const auto& tileModes = m_nslicer->tileModes();
 
-    std::vector<SliceMeshVertex> vertices;
-    uint16_t vertexIndex = 0;
-    for (int patchY = 0; patchY < (int)vs.size() - 1; patchY++)
+  std::vector<SliceMeshVertex> vertices;
+  uint16_t vertexIndex = 0;
+  for (int patchY = 0; patchY < (int)vs.size() - 1; patchY++)
+  {
+    for (int patchX = 0; patchX < (int)us.size() - 1; patchX++)
     {
-        for (int patchX = 0; patchX < (int)us.size() - 1; patchX++)
+      auto tileModeIt = tileModes.find(m_nslicer->patchIndex(patchX, patchY));
+      auto tileMode = tileModeIt == tileModes.end()
+                          ? NSlicerTileModeType::STRETCH
+                          : tileModeIt->second;
+
+      // Do nothing if hidden
+      if (tileMode == NSlicerTileModeType::HIDDEN)
+      {
+        continue;
+      }
+
+      const uint16_t v0 = vertexIndex;
+      std::vector<SliceMeshVertex> patchVertices;
+      for (const Corner& corner : patchCorners)
+      {
+        int xIndex = patchX + corner.x;
+        int yIndex = patchY + corner.y;
+
+        SliceMeshVertex v;
+        if (tileMode != NSlicerTileModeType::REPEAT)
         {
-            auto tileModeIt =
-                tileModes.find(m_nslicer->patchIndex(patchX, patchY));
-            auto tileMode = tileModeIt == tileModes.end()
-                                ? NSlicerTileModeType::STRETCH
-                                : tileModeIt->second;
-
-            // Do nothing if hidden
-            if (tileMode == NSlicerTileModeType::HIDDEN)
-            {
-                continue;
-            }
-
-            const uint16_t v0 = vertexIndex;
-            std::vector<SliceMeshVertex> patchVertices;
-            for (const Corner& corner : patchCorners)
-            {
-                int xIndex = patchX + corner.x;
-                int yIndex = patchY + corner.y;
-
-                SliceMeshVertex v;
-                if (tileMode != NSlicerTileModeType::REPEAT)
-                {
-                    v.id = vertexIndex++;
-                }
-                v.uv = Vec2D(us[xIndex], vs[yIndex]);
-                v.vertex = Vec2D(xs[xIndex], ys[yIndex]);
-
-                patchVertices.emplace_back(v);
-            }
-
-            if (tileMode == NSlicerTileModeType::REPEAT)
-            {
-                vertexIndex +=
-                    tileRepeat(vertices, m_indices, patchVertices, v0);
-            }
-            else
-            {
-                vertices.insert(vertices.end(),
-                                patchVertices.begin(),
-                                patchVertices.end());
-                for (uint16_t t : triangulation)
-                {
-                    m_indices.emplace_back(v0 + t);
-                }
-            }
+          v.id = vertexIndex++;
         }
-    }
+        v.uv = Vec2D(us[xIndex], vs[yIndex]);
+        v.vertex = Vec2D(xs[xIndex], ys[yIndex]);
 
-    for (const SliceMeshVertex& v : vertices)
-    {
-        m_vertices.emplace_back(v.vertex);
-        m_uvs.emplace_back(v.uv);
+        patchVertices.emplace_back(v);
+      }
+
+      if (tileMode == NSlicerTileModeType::REPEAT)
+      {
+        vertexIndex += tileRepeat(vertices, m_indices, patchVertices, v0);
+      }
+      else
+      {
+        vertices.insert(
+            vertices.end(),
+            patchVertices.begin(),
+            patchVertices.end());
+        for (uint16_t t : triangulation)
+        {
+          m_indices.emplace_back(v0 + t);
+        }
+      }
     }
+  }
+
+  for (const SliceMeshVertex& v : vertices)
+  {
+    m_vertices.emplace_back(v.vertex);
+    m_uvs.emplace_back(v.uv);
+  }
 }
 
 void SliceMesh::update()
 {
-    MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
-    if (host == nullptr || !host->meshHostReady())
-    {
-        return;
-    }
+  MeshHost* host = m_nslicer != nullptr ? m_nslicer->host() : nullptr;
+  if (host == nullptr || !host->meshHostReady())
+  {
+    return;
+  }
 
-    calc();
-    updateBuffers();
+  calc();
+  updateBuffers();
 }

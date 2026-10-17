@@ -8,23 +8,23 @@ using namespace rive;
 bool TransitionBoolCondition::validateInputType(
     const StateMachineInput* input) const
 {
-    // A null input is valid as the StateMachine can attempt to limp along if we
-    // introduce new input types that old conditions are expected to handle in
-    // newer runtimes. The older runtimes will just evaluate them to true.
-    return input == nullptr || input->is<StateMachineBool>();
+  // A null input is valid as the StateMachine can attempt to limp along if we
+  // introduce new input types that old conditions are expected to handle in
+  // newer runtimes. The older runtimes will just evaluate them to true.
+  return input == nullptr || input->is<StateMachineBool>();
 }
 
 bool TransitionBoolCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const
 {
-    auto inputInstance = stateMachineInstance->input(inputId());
-    if (inputInstance == nullptr)
-    {
-        return true;
-    }
-    auto boolInput = static_cast<const SMIBool*>(inputInstance);
+  auto inputInstance = stateMachineInstance->input(inputId());
+  if (inputInstance == nullptr)
+  {
+    return true;
+  }
+  auto boolInput = static_cast<const SMIBool*>(inputInstance);
 
-    return (boolInput->value() && op() == TransitionConditionOp::equal) ||
-           (!boolInput->value() && op() == TransitionConditionOp::notEqual);
+  return (boolInput->value() && op() == TransitionConditionOp::equal) ||
+         (!boolInput->value() && op() == TransitionConditionOp::notEqual);
 }

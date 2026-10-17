@@ -29,627 +29,619 @@ namespace rive::gpu
 {
 static const char* wgpu_backend_name(wgpu::BackendType backendType)
 {
-    switch (backendType)
-    {
-        case wgpu::BackendType::Undefined:
-            return "<unknown backend>";
-        case wgpu::BackendType::Null:
-            return "<null backend>";
-        case wgpu::BackendType::WebGPU:
-            return "WebGPU";
-        case wgpu::BackendType::D3D11:
-            return "D3D11";
-        case wgpu::BackendType::D3D12:
-            return "D3D12";
-        case wgpu::BackendType::Metal:
-            return "Metal";
-        case wgpu::BackendType::Vulkan:
-            return "Vulkan";
-        case wgpu::BackendType::OpenGL:
-            return "OpenGL";
-        case wgpu::BackendType::OpenGLES:
-            return "OpenGLES";
-    }
-    RIVE_UNREACHABLE();
+  switch (backendType)
+  {
+    case wgpu::BackendType::Undefined:
+      return "<unknown backend>";
+    case wgpu::BackendType::Null:
+      return "<null backend>";
+    case wgpu::BackendType::WebGPU:
+      return "WebGPU";
+    case wgpu::BackendType::D3D11:
+      return "D3D11";
+    case wgpu::BackendType::D3D12:
+      return "D3D12";
+    case wgpu::BackendType::Metal:
+      return "Metal";
+    case wgpu::BackendType::Vulkan:
+      return "Vulkan";
+    case wgpu::BackendType::OpenGL:
+      return "OpenGL";
+    case wgpu::BackendType::OpenGLES:
+      return "OpenGLES";
+  }
+  RIVE_UNREACHABLE();
 }
 
 static const char* pls_impl_name(
     const RenderContextWebGPUImpl::Capabilities& capabilities)
 {
 #ifdef RIVE_WAGYU
-    switch (capabilities.plsType)
-    {
-        case RenderContextWebGPUImpl::PixelLocalStorageType::
-            GL_EXT_shader_pixel_local_storage:
-            return "GL_EXT_shader_pixel_local_storage";
-        case RenderContextWebGPUImpl::PixelLocalStorageType::
-            VK_EXT_rasterization_order_attachment_access:
-            return "VK_EXT_rasterization_order_attachment_access";
-        case RenderContextWebGPUImpl::PixelLocalStorageType::none:
-            break;
-    }
+  switch (capabilities.plsType)
+  {
+    case RenderContextWebGPUImpl::PixelLocalStorageType::
+        GL_EXT_shader_pixel_local_storage:
+      return "GL_EXT_shader_pixel_local_storage";
+    case RenderContextWebGPUImpl::PixelLocalStorageType::
+        VK_EXT_rasterization_order_attachment_access:
+      return "VK_EXT_rasterization_order_attachment_access";
+    case RenderContextWebGPUImpl::PixelLocalStorageType::none:
+      break;
+  }
 #endif
-    return "<no pixel local storage>";
+  return "<no pixel local storage>";
 }
 
 class TestingWindowWGPU : public TestingWindow
 {
 public:
-    TestingWindowWGPU(const BackendParams& backendParams) :
-        m_backendParams(backendParams)
+  TestingWindowWGPU(const BackendParams& backendParams)
+      : m_backendParams(backendParams)
+  {
+    m_instance = wgpu::CreateInstance(nullptr);
+    assert(m_instance);
+
+    wgpu::RequestAdapterOptions requestAdapterOptions = {
+        .powerPreference = backendParams.gpuNameFilter == "i" ||
+                                   backendParams.gpuNameFilter == "integrated"
+                               ? wgpu::PowerPreference::LowPower
+                               : wgpu::PowerPreference::HighPerformance,
+    };
+
+#ifdef RIVE_WAGYU
+    // Wagyu's OpenGL ES backend requires WebGPU compatibility mode.
+    const bool compatibilityMode = wgpuWagyuInstanceGetBackend(
+                                       m_instance.Get()) ==
+                                   WGPUBackendType_OpenGLES;
+    if (compatibilityMode)
     {
-        m_instance = wgpu::CreateInstance(nullptr);
-        assert(m_instance);
-
-        wgpu::RequestAdapterOptions requestAdapterOptions = {
-            .powerPreference =
-                backendParams.gpuNameFilter == "i" ||
-                        backendParams.gpuNameFilter == "integrated"
-                    ? wgpu::PowerPreference::LowPower
-                    : wgpu::PowerPreference::HighPerformance,
-        };
-
-#ifdef RIVE_WAGYU
-        // Wagyu's OpenGL ES backend requires WebGPU compatibility mode.
-        const bool compatibilityMode =
-            wgpuWagyuInstanceGetBackend(m_instance.Get()) ==
-            WGPUBackendType_OpenGLES;
-        if (compatibilityMode)
-        {
-            requestAdapterOptions.featureLevel =
-                wgpu::FeatureLevel::Compatibility;
-        }
+      requestAdapterOptions.featureLevel = wgpu::FeatureLevel::Compatibility;
+    }
 #endif
 
-        m_instance.RequestAdapter(
-            &requestAdapterOptions,
-            wgpu::CallbackMode::AllowSpontaneous,
-            [](wgpu::RequestAdapterStatus status,
-               wgpu::Adapter adapter,
-               wgpu::StringView message,
-               TestingWindowWGPU* this_) {
-                assert(status == wgpu::RequestAdapterStatus::Success);
-                this_->m_adapter = adapter;
-            },
-            this);
-        while (!m_adapter)
-        {
-            emscripten_sleep(1);
-        }
+    m_instance.RequestAdapter(
+        &requestAdapterOptions,
+        wgpu::CallbackMode::AllowSpontaneous,
+        [](wgpu::RequestAdapterStatus status,
+           wgpu::Adapter adapter,
+           wgpu::StringView message,
+           TestingWindowWGPU* this_) {
+          assert(status == wgpu::RequestAdapterStatus::Success);
+          this_->m_adapter = adapter;
+        },
+        this);
+    while (!m_adapter)
+    {
+      emscripten_sleep(1);
+    }
 
-        wgpu::DeviceDescriptor deviceDesc = {};
+    wgpu::DeviceDescriptor deviceDesc = {};
 #ifdef RIVE_WAGYU
-        wgpu::Limits requiredLimits = {};
-        wgpu::CompatibilityModeLimits compatLimits = {};
-        if (compatibilityMode)
-        {
-            // Rive uses storage buffers in the vertex shader. In compatibility
-            // mode this isn't allowed by default, so explicitly request it if
-            // supported. Otherwise, the renderer can fall back to polyfilling
-            // vertex storage buffers via textures.
-            wgpu::Limits adapterLimits = {};
-            wgpu::CompatibilityModeLimits adapterCompatLimits = {};
-            adapterLimits.nextInChain = &adapterCompatLimits;
-            m_adapter.GetLimits(&adapterLimits);
+    wgpu::Limits requiredLimits = {};
+    wgpu::CompatibilityModeLimits compatLimits = {};
+    if (compatibilityMode)
+    {
+      // Rive uses storage buffers in the vertex shader. In compatibility
+      // mode this isn't allowed by default, so explicitly request it if
+      // supported. Otherwise, the renderer can fall back to polyfilling
+      // vertex storage buffers via textures.
+      wgpu::Limits adapterLimits = {};
+      wgpu::CompatibilityModeLimits adapterCompatLimits = {};
+      adapterLimits.nextInChain = &adapterCompatLimits;
+      m_adapter.GetLimits(&adapterLimits);
 
-            if (adapterCompatLimits.maxStorageBuffersInVertexStage !=
-                wgpu::kLimitU32Undefined)
-            {
-                compatLimits.maxStorageBuffersInVertexStage =
-                    std::min<uint32_t>(
-                        gpu::kMaxStorageBuffers,
-                        adapterCompatLimits.maxStorageBuffersInVertexStage);
-                requiredLimits.nextInChain = &compatLimits;
-                deviceDesc.requiredLimits = &requiredLimits;
-            }
-        }
+      if (adapterCompatLimits.maxStorageBuffersInVertexStage !=
+          wgpu::kLimitU32Undefined)
+      {
+        compatLimits.maxStorageBuffersInVertexStage = std::min<uint32_t>(
+            gpu::kMaxStorageBuffers,
+            adapterCompatLimits.maxStorageBuffersInVertexStage);
+        requiredLimits.nextInChain = &compatLimits;
+        deviceDesc.requiredLimits = &requiredLimits;
+      }
+    }
 #endif
 
-        std::vector<wgpu::FeatureName> requiredFeatures;
+    std::vector<wgpu::FeatureName> requiredFeatures;
 #ifdef RIVE_WAGYU
-        // Request coherent advanced blend when the adapter advertises it. This
-        // enables Rive to take the "supportsBlendAdvancedCoherentKHR" path on
-        // MSAA, and skip the framebuffer copies and renderPass interruptions
-        // for advanced blend.
-        if (m_adapter.HasFeature(static_cast<wgpu::FeatureName>(
-                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent)))
-        {
-            requiredFeatures.push_back(static_cast<wgpu::FeatureName>(
-                WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
-        }
+    // Request coherent advanced blend when the adapter advertises it. This
+    // enables Rive to take the "supportsBlendAdvancedCoherentKHR" path on
+    // MSAA, and skip the framebuffer copies and renderPass interruptions
+    // for advanced blend.
+    if (m_adapter.HasFeature(static_cast<wgpu::FeatureName>(
+            WGPUFeatureName_WagyuBlendEquationAdvancedCoherent)))
+    {
+      requiredFeatures.push_back(static_cast<wgpu::FeatureName>(
+          WGPUFeatureName_WagyuBlendEquationAdvancedCoherent));
+    }
 #endif
-        if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
-        {
-            requiredFeatures.push_back(wgpu::FeatureName::ClipDistances);
-        }
-        deviceDesc.requiredFeatureCount = requiredFeatures.size();
-        deviceDesc.requiredFeatures = requiredFeatures.data();
+    if (m_adapter.HasFeature(wgpu::FeatureName::ClipDistances))
+    {
+      requiredFeatures.push_back(wgpu::FeatureName::ClipDistances);
+    }
+    deviceDesc.requiredFeatureCount = requiredFeatures.size();
+    deviceDesc.requiredFeatures = requiredFeatures.data();
 
-        m_adapter.RequestDevice(
-            &deviceDesc,
-            wgpu::CallbackMode::AllowSpontaneous,
-            [](wgpu::RequestDeviceStatus status,
-               wgpu::Device device,
-               wgpu::StringView message,
-               TestingWindowWGPU* this_) {
-                assert(status == wgpu::RequestDeviceStatus::Success);
-                this_->m_device = device;
-            },
-            this);
-        while (!m_device)
-        {
-            emscripten_sleep(1);
-        }
+    m_adapter.RequestDevice(
+        &deviceDesc,
+        wgpu::CallbackMode::AllowSpontaneous,
+        [](wgpu::RequestDeviceStatus status,
+           wgpu::Device device,
+           wgpu::StringView message,
+           TestingWindowWGPU* this_) {
+          assert(status == wgpu::RequestDeviceStatus::Success);
+          this_->m_device = device;
+        },
+        this);
+    while (!m_device)
+    {
+      emscripten_sleep(1);
+    }
 
-        m_queue = m_device.GetQueue();
-        assert(m_queue);
+    m_queue = m_device.GetQueue();
+    assert(m_queue);
 
-        {
-            wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector htmlSelector;
-            htmlSelector.selector = "#canvas";
+    {
+      wgpu::EmscriptenSurfaceSourceCanvasHTMLSelector htmlSelector;
+      htmlSelector.selector = "#canvas";
 
-            wgpu::SurfaceDescriptor surfaceDesc = {
-                .nextInChain = &htmlSelector,
-            };
+      wgpu::SurfaceDescriptor surfaceDesc = {
+          .nextInChain = &htmlSelector,
+      };
 
-            m_surface = m_instance.CreateSurface(&surfaceDesc);
-            assert(m_surface);
+      m_surface = m_instance.CreateSurface(&surfaceDesc);
+      assert(m_surface);
 
-            int w, h;
-            emscripten_get_canvas_element_size("#canvas", &w, &h);
-            m_width = w;
-            m_height = h;
-        }
+      int w, h;
+      emscripten_get_canvas_element_size("#canvas", &w, &h);
+      m_width = w;
+      m_height = h;
+    }
 
-        {
-            wgpu::SurfaceCapabilities capabilities;
-            m_surface.GetCapabilities(m_adapter, &capabilities);
-            assert(capabilities.formatCount > 0);
-            m_format = capabilities.formats[0];
-            assert(m_format != wgpu::TextureFormat::Undefined);
-            if (m_format != wgpu::TextureFormat::RGBA8Unorm &&
-                m_format != wgpu::TextureFormat::BGRA8Unorm)
-            {
-                m_format = wgpu::TextureFormat::RGBA8Unorm;
-            }
-        }
+    {
+      wgpu::SurfaceCapabilities capabilities;
+      m_surface.GetCapabilities(m_adapter, &capabilities);
+      assert(capabilities.formatCount > 0);
+      m_format = capabilities.formats[0];
+      assert(m_format != wgpu::TextureFormat::Undefined);
+      if (m_format != wgpu::TextureFormat::RGBA8Unorm &&
+          m_format != wgpu::TextureFormat::BGRA8Unorm)
+      {
+        m_format = wgpu::TextureFormat::RGBA8Unorm;
+      }
+    }
 
-        {
-            wgpu::SurfaceConfiguration conf = {
-                .device = m_device,
-                .format = m_format,
+    {
+      wgpu::SurfaceConfiguration conf = {
+          .device = m_device,
+          .format = m_format,
 #ifndef RIVE_WAGYU
-                // CopySrc so endFrame can read pixels back from the canvas
-                // texture; CopyDst so the overflow texture can be blitted in.
-                .usage = wgpu::TextureUsage::RenderAttachment |
-                         wgpu::TextureUsage::CopySrc |
-                         wgpu::TextureUsage::CopyDst,
-                .width = static_cast<uint32_t>(m_width),
-                .height = static_cast<uint32_t>(m_height),
-                // Opaque so that pixels with alpha are more obvious, rather
-                // than being composited into the browser below.
-                .alphaMode = wgpu::CompositeAlphaMode::Opaque,
+          // CopySrc so endFrame can read pixels back from the canvas
+          // texture; CopyDst so the overflow texture can be blitted in.
+          .usage = wgpu::TextureUsage::RenderAttachment |
+                   wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst,
+          .width = static_cast<uint32_t>(m_width),
+          .height = static_cast<uint32_t>(m_height),
+          // Opaque so that pixels with alpha are more obvious, rather
+          // than being composited into the browser below.
+          .alphaMode = wgpu::CompositeAlphaMode::Opaque,
 #endif
-            };
-            m_surface.Configure(&conf);
-        }
+      };
+      m_surface.Configure(&conf);
+    }
 
-        RenderContextWebGPUImpl::ContextOptions contextOptions;
+    RenderContextWebGPUImpl::ContextOptions contextOptions;
 #ifdef RIVE_WAGYU
-        contextOptions.compatibilityMode = compatibilityMode;
+    contextOptions.compatibilityMode = compatibilityMode;
 #endif
-        m_renderContext = RenderContextWebGPUImpl::MakeContext(m_adapter,
-                                                               m_device,
-                                                               m_queue,
-                                                               contextOptions);
+    m_renderContext = RenderContextWebGPUImpl::MakeContext(
+        m_adapter,
+        m_device,
+        m_queue,
+        contextOptions);
 
-        wgpu::AdapterInfo adapterInfo;
-        m_adapter.GetInfo(&adapterInfo);
-        printf("==== WGPU device: %.*s %.*s %.*s (%s",
-               static_cast<int>(adapterInfo.vendor.length),
-               adapterInfo.vendor.data,
-               static_cast<int>(adapterInfo.device.length),
-               adapterInfo.device.data,
-               static_cast<int>(adapterInfo.description.length),
-               adapterInfo.description.data,
-               wgpu_backend_name(impl()->capabilities().backendType));
+    wgpu::AdapterInfo adapterInfo;
+    m_adapter.GetInfo(&adapterInfo);
+    printf(
+        "==== WGPU device: %.*s %.*s %.*s (%s",
+        static_cast<int>(adapterInfo.vendor.length),
+        adapterInfo.vendor.data,
+        static_cast<int>(adapterInfo.device.length),
+        adapterInfo.device.data,
+        static_cast<int>(adapterInfo.description.length),
+        adapterInfo.description.data,
+        wgpu_backend_name(impl()->capabilities().backendType));
 #ifdef RIVE_WAGYU
-        switch (impl()->capabilities().plsType)
-        {
-            case RenderContextWebGPUImpl::PixelLocalStorageType::
-                GL_EXT_shader_pixel_local_storage:
-                printf(", GL_EXT_shader_pixel_local_storage");
-                break;
-            case RenderContextWebGPUImpl::PixelLocalStorageType::
-                VK_EXT_rasterization_order_attachment_access:
-                printf(", VK_EXT_rasterization_order_attachment_access");
-                break;
-            case RenderContextWebGPUImpl::PixelLocalStorageType::none:
-                break;
-        }
+    switch (impl()->capabilities().plsType)
+    {
+      case RenderContextWebGPUImpl::PixelLocalStorageType::
+          GL_EXT_shader_pixel_local_storage:
+        printf(", GL_EXT_shader_pixel_local_storage");
+        break;
+      case RenderContextWebGPUImpl::PixelLocalStorageType::
+          VK_EXT_rasterization_order_attachment_access:
+        printf(", VK_EXT_rasterization_order_attachment_access");
+        break;
+      case RenderContextWebGPUImpl::PixelLocalStorageType::none:
+        break;
+    }
 #endif
-        if (m_renderContext->platformFeatures()
-                .supportsBlendAdvancedCoherentKHR)
-        {
-            printf(", WagyuBlendEquationAdvancedCoherent");
-        }
-        if (m_renderContext->platformFeatures().supportsClipPlanes)
-        {
-            printf(", WGPUFeatureName_ClipDistances");
-        }
-        printf(") ====\n");
-    }
-
-    rive::Factory* factory() override { return m_renderContext.get(); }
-
-    rive::gpu::RenderContext* renderContext() const override
+    if (m_renderContext->platformFeatures().supportsBlendAdvancedCoherentKHR)
     {
-        return m_renderContext.get();
+      printf(", WagyuBlendEquationAdvancedCoherent");
     }
-
-    rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        bool riveRenderable) const override
+    if (m_renderContext->platformFeatures().supportsClipPlanes)
     {
-        return rive_tests::OffscreenRenderTarget::MakeWebGPU(impl(),
-                                                             width,
-                                                             height);
+      printf(", WGPUFeatureName_ClipDistances");
     }
+    printf(") ====\n");
+  }
 
-    void resize(int width, int height) override
+  rive::Factory* factory() override { return m_renderContext.get(); }
+
+  rive::gpu::RenderContext* renderContext() const override
+  {
+    return m_renderContext.get();
+  }
+
+  rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+      uint32_t width,
+      uint32_t height,
+      bool riveRenderable) const override
+  {
+    return rive_tests::OffscreenRenderTarget::MakeWebGPU(impl(), width, height);
+  }
+
+  void resize(int width, int height) override
+  {
+    if (m_width != width || m_height != height)
     {
-        if (m_width != width || m_height != height)
-        {
-            m_overflowTexture = {};
-            m_overflowTextureView = {};
-            m_pixelReadBuff = {};
-            m_renderTarget = nullptr;
-            TestingWindow::resize(width, height);
+      m_overflowTexture = {};
+      m_overflowTextureView = {};
+      m_pixelReadBuff = {};
+      m_renderTarget = nullptr;
+      TestingWindow::resize(width, height);
 
 #ifndef RIVE_WAGYU
-            // Match the canvas drawing buffer to the new size and
-            // reconfigure the surface. Without this the canvas keeps its
-            // default backing size and only a corner is ever presented.
-            emscripten_set_canvas_element_size("#canvas", width, height);
-            wgpu::SurfaceConfiguration conf = {
-                .device = m_device,
-                .format = m_format,
-                .usage = wgpu::TextureUsage::RenderAttachment |
-                         wgpu::TextureUsage::CopySrc |
-                         wgpu::TextureUsage::CopyDst |
-                         wgpu::TextureUsage::TextureBinding,
-                .width = static_cast<uint32_t>(width),
-                .height = static_cast<uint32_t>(height),
-                .alphaMode = wgpu::CompositeAlphaMode::Opaque,
-            };
-            m_surface.Configure(&conf);
+      // Match the canvas drawing buffer to the new size and
+      // reconfigure the surface. Without this the canvas keeps its
+      // default backing size and only a corner is ever presented.
+      emscripten_set_canvas_element_size("#canvas", width, height);
+      wgpu::SurfaceConfiguration conf = {
+          .device = m_device,
+          .format = m_format,
+          .usage = wgpu::TextureUsage::RenderAttachment |
+                   wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst |
+                   wgpu::TextureUsage::TextureBinding,
+          .width = static_cast<uint32_t>(width),
+          .height = static_cast<uint32_t>(height),
+          .alphaMode = wgpu::CompositeAlphaMode::Opaque,
+      };
+      m_surface.Configure(&conf);
 #endif
-        }
     }
+  }
 
-    std::unique_ptr<rive::Renderer> beginFrame(
-        const FrameOptions& options) override
+  std::unique_ptr<rive::Renderer> beginFrame(
+      const FrameOptions& options) override
+  {
+    assert(m_currentCanvasTexture == nullptr);
+
+    wgpu::SurfaceTexture surfaceTexture;
+    m_surface.GetCurrentTexture(&surfaceTexture);
+
+    m_currentCanvasTexture = surfaceTexture.texture;
+    uint32_t surfaceWidth = m_currentCanvasTexture.GetWidth();
+    uint32_t surfaceHeight = m_currentCanvasTexture.GetHeight();
+
+    wgpu::TextureViewDescriptor textureViewDesc = {
+        .format = m_format,
+        .dimension = wgpu::TextureViewDimension::e2D,
+    };
+
+    m_currentCanvasTextureView = m_currentCanvasTexture.CreateView(
+        &textureViewDesc);
+
+    if (surfaceWidth < m_width || surfaceHeight < m_height)
     {
-        assert(m_currentCanvasTexture == nullptr);
-
-        wgpu::SurfaceTexture surfaceTexture;
-        m_surface.GetCurrentTexture(&surfaceTexture);
-
-        m_currentCanvasTexture = surfaceTexture.texture;
-        uint32_t surfaceWidth = m_currentCanvasTexture.GetWidth();
-        uint32_t surfaceHeight = m_currentCanvasTexture.GetHeight();
-
-        wgpu::TextureViewDescriptor textureViewDesc = {
+      if (!m_overflowTexture)
+      {
+        wgpu::TextureDescriptor overflowTextureDesc = {
+            .usage = wgpu::TextureUsage::RenderAttachment |
+                     wgpu::TextureUsage::CopySrc |
+                     wgpu::TextureUsage::TextureBinding,
+            .dimension = wgpu::TextureDimension::e2D,
+            .size = {m_width, m_height},
             .format = m_format,
-            .dimension = wgpu::TextureViewDimension::e2D,
         };
 
-        m_currentCanvasTextureView =
-            m_currentCanvasTexture.CreateView(&textureViewDesc);
+        m_overflowTexture = m_device.CreateTexture(&overflowTextureDesc);
+        m_overflowTextureView = m_overflowTexture.CreateView();
+      }
+      assert(m_overflowTexture.GetWidth() == m_width);
+      assert(m_overflowTexture.GetHeight() == m_height);
 
-        if (surfaceWidth < m_width || surfaceHeight < m_height)
-        {
-            if (!m_overflowTexture)
-            {
-                wgpu::TextureDescriptor overflowTextureDesc = {
-                    .usage = wgpu::TextureUsage::RenderAttachment |
-                             wgpu::TextureUsage::CopySrc |
-                             wgpu::TextureUsage::TextureBinding,
-                    .dimension = wgpu::TextureDimension::e2D,
-                    .size = {m_width, m_height},
-                    .format = m_format,
-                };
-
-                m_overflowTexture =
-                    m_device.CreateTexture(&overflowTextureDesc);
-                m_overflowTextureView = m_overflowTexture.CreateView();
-            }
-            assert(m_overflowTexture.GetWidth() == m_width);
-            assert(m_overflowTexture.GetHeight() == m_height);
-
-            if (m_renderTarget == nullptr)
-            {
-                m_renderTarget =
-                    m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                        ->makeRenderTarget(m_format, m_width, m_height);
-            }
-            assert(m_renderTarget->width() == m_width);
-            assert(m_renderTarget->height() == m_height);
-            m_renderTarget->setTargetTextureView(m_overflowTextureView,
-                                                 m_overflowTexture);
-        }
-        else
-        {
-            if (m_renderTarget == nullptr)
-            {
-                m_renderTarget =
-                    m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                        ->makeRenderTarget(m_format,
-                                           surfaceWidth,
-                                           surfaceHeight);
-            }
-            assert(m_renderTarget->width() == surfaceWidth);
-            assert(m_renderTarget->height() == surfaceHeight);
-            m_renderTarget->setTargetTextureView(m_currentCanvasTextureView,
-                                                 m_currentCanvasTexture);
-        }
-
-        FrameMode mode = frameMode(options);
-        rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
-            .renderTargetWidth = m_renderTarget->width(),
-            .renderTargetHeight = m_renderTarget->height(),
-            .loadAction = options.doClear
-                              ? rive::gpu::LoadAction::clear
-                              : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = options.clearColor,
-            .msaaSampleCount = mode.msaaSampleCount,
-            .disableRasterOrdering = mode.disableRasterOrdering,
-            .triangulationThresholds = options.triangulationThresholds,
-            .wireframe = options.wireframe,
-            .fillsDisabled = options.fillsDisabled,
-            .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride = mode.clockwiseFillOverride,
-            .inkbleedOverride = mode.inkbleed,
-            .synthesizedFailureType = options.synthesizedFailureType,
-        };
-        m_renderContext->beginFrame(frameDescriptor);
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
+      if (m_renderTarget == nullptr)
+      {
+        m_renderTarget = m_renderContext
+                             ->static_impl_cast<RenderContextWebGPUImpl>()
+                             ->makeRenderTarget(m_format, m_width, m_height);
+      }
+      assert(m_renderTarget->width() == m_width);
+      assert(m_renderTarget->height() == m_height);
+      m_renderTarget->setTargetTextureView(
+          m_overflowTextureView,
+          m_overflowTexture);
+    }
+    else
+    {
+      if (m_renderTarget == nullptr)
+      {
+        m_renderTarget = m_renderContext
+                             ->static_impl_cast<RenderContextWebGPUImpl>()
+                             ->makeRenderTarget(
+                                 m_format,
+                                 surfaceWidth,
+                                 surfaceHeight);
+      }
+      assert(m_renderTarget->width() == surfaceWidth);
+      assert(m_renderTarget->height() == surfaceHeight);
+      m_renderTarget->setTargetTextureView(
+          m_currentCanvasTextureView,
+          m_currentCanvasTexture);
     }
 
-    FrameMode frameMode(const FrameOptions& options) const override
+    FrameMode mode = frameMode(options);
+    rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
+        .renderTargetWidth = m_renderTarget->width(),
+        .renderTargetHeight = m_renderTarget->height(),
+        .loadAction = options.doClear
+                          ? rive::gpu::LoadAction::clear
+                          : rive::gpu::LoadAction::preserveRenderTarget,
+        .clearColor = options.clearColor,
+        .msaaSampleCount = mode.msaaSampleCount,
+        .disableRasterOrdering = mode.disableRasterOrdering,
+        .triangulationThresholds = options.triangulationThresholds,
+        .wireframe = options.wireframe,
+        .fillsDisabled = options.fillsDisabled,
+        .strokesDisabled = options.strokesDisabled,
+        .clockwiseFillOverride = mode.clockwiseFillOverride,
+        .inkbleedOverride = mode.inkbleed,
+        .synthesizedFailureType = options.synthesizedFailureType,
+    };
+    m_renderContext->beginFrame(frameDescriptor);
+    return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
+
+  FrameMode frameMode(const FrameOptions& options) const override
+  {
+    return {
+        m_backendParams.msaaSampleCount,
+        options.disableRasterOrdering,
+        m_backendParams.clockwise || options.clockwiseFillOverride,
+        m_backendParams.inkbleed};
+  }
+
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  {
+    wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
+    m_renderContext->flush({
+        .renderTarget = offscreenRenderTarget != nullptr ? offscreenRenderTarget
+                                                         : m_renderTarget.get(),
+        .externalCommandBuffer = encoder.Get(),
+    });
+    wgpu::CommandBuffer commands = encoder.Finish();
+    m_queue.Submit(1, &commands);
+  }
+
+  void endFrame(std::vector<uint8_t>* pixelData) override
+  {
+    flushPLSContext(nullptr);
+    assert(m_currentCanvasTexture != nullptr);
+
+    if (m_overflowTexture)
     {
-        return {m_backendParams.msaaSampleCount,
-                options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride,
-                m_backendParams.inkbleed};
+      // Blit the overflow texture back to the canvas.
+      wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
+
+      wgpu::TexelCopyTextureInfo src = {
+          .texture = m_overflowTexture,
+          .origin = {0, 0, 0},
+      };
+
+      wgpu::TexelCopyTextureInfo dst = {
+          .texture = m_currentCanvasTexture,
+          .origin = {0, 0, 0},
+      };
+
+      wgpu::Extent3D copySize{
+          std::min(m_width, m_currentCanvasTexture.GetWidth()),
+          std::min(m_height, m_currentCanvasTexture.GetHeight()),
+      };
+
+      encoder.CopyTextureToTexture(&src, &dst, &copySize);
+
+      wgpu::CommandBuffer commands = encoder.Finish();
+      m_queue.Submit(1, &commands);
     }
 
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+    if (pixelData != nullptr)
     {
-        wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTarget.get(),
-            .externalCommandBuffer = encoder.Get(),
-        });
-        wgpu::CommandBuffer commands = encoder.Finish();
-        m_queue.Submit(1, &commands);
-    }
-
-    void endFrame(std::vector<uint8_t>* pixelData) override
-    {
-        flushPLSContext(nullptr);
-        assert(m_currentCanvasTexture != nullptr);
-
-        if (m_overflowTexture)
-        {
-            // Blit the overflow texture back to the canvas.
-            wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
-
-            wgpu::TexelCopyTextureInfo src = {
-                .texture = m_overflowTexture,
-                .origin = {0, 0, 0},
-            };
-
-            wgpu::TexelCopyTextureInfo dst = {
-                .texture = m_currentCanvasTexture,
-                .origin = {0, 0, 0},
-            };
-
-            wgpu::Extent3D copySize{
-                std::min(m_width, m_currentCanvasTexture.GetWidth()),
-                std::min(m_height, m_currentCanvasTexture.GetHeight()),
-            };
-
-            encoder.CopyTextureToTexture(&src, &dst, &copySize);
-
-            wgpu::CommandBuffer commands = encoder.Finish();
-            m_queue.Submit(1, &commands);
-        }
-
-        if (pixelData != nullptr)
-        {
-            assert(m_format == wgpu::TextureFormat::RGBA8Unorm ||
-                   m_format == wgpu::TextureFormat::BGRA8Unorm);
-            bool invertY = false;
+      assert(
+          m_format == wgpu::TextureFormat::RGBA8Unorm ||
+          m_format == wgpu::TextureFormat::BGRA8Unorm);
+      bool invertY = false;
 #ifdef RIVE_WAGYU
-            invertY =
-                impl()->capabilities().backendType ==
+      invertY = impl()->capabilities().backendType ==
                     wgpu::BackendType::OpenGLES &&
                 wgpuWagyuTextureIsSwapchain(m_currentCanvasTexture.Get()) &&
                 m_overflowTexture == nullptr;
 #endif
-            const uint32_t rowBytesInReadBuff =
-                math::round_up_to_multiple_of<256>(m_width * 4);
+      const uint32_t rowBytesInReadBuff = math::round_up_to_multiple_of<256>(
+          m_width * 4);
 
-            // Create a buffer to receive the pixels.
-            if (!m_pixelReadBuff)
-            {
-                wgpu::BufferDescriptor buffDesc{
-                    .usage =
-                        wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst,
-                    .size = m_height * rowBytesInReadBuff,
-                };
-                m_pixelReadBuff = m_device.CreateBuffer(&buffDesc);
-            }
-            assert(m_pixelReadBuff.GetSize() == m_height * rowBytesInReadBuff);
+      // Create a buffer to receive the pixels.
+      if (!m_pixelReadBuff)
+      {
+        wgpu::BufferDescriptor buffDesc{
+            .usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst,
+            .size = m_height * rowBytesInReadBuff,
+        };
+        m_pixelReadBuff = m_device.CreateBuffer(&buffDesc);
+      }
+      assert(m_pixelReadBuff.GetSize() == m_height * rowBytesInReadBuff);
 
-            // Blit the framebuffer into m_pixelReadBuff.
-            wgpu::CommandEncoder readEncoder = m_device.CreateCommandEncoder();
-            wgpu::TexelCopyTextureInfo srcTexture = {
-                .texture = m_overflowTexture != nullptr
-                               ? m_overflowTexture
-                               : m_currentCanvasTexture,
-                .origin = {0,
-                           invertY ? m_renderTarget->height() - m_height : 0,
-                           0},
-            };
-            wgpu::TexelCopyBufferInfo dstBuffer = {
-                .layout =
-                    {
-                        .offset = 0,
-                        .bytesPerRow = rowBytesInReadBuff,
-                    },
-                .buffer = m_pixelReadBuff,
-            };
-            wgpu::Extent3D copySize = {
-                .width = m_width,
-                .height = m_height,
-            };
-            readEncoder.CopyTextureToBuffer(&srcTexture, &dstBuffer, &copySize);
+      // Blit the framebuffer into m_pixelReadBuff.
+      wgpu::CommandEncoder readEncoder = m_device.CreateCommandEncoder();
+      wgpu::TexelCopyTextureInfo srcTexture = {
+          .texture = m_overflowTexture != nullptr ? m_overflowTexture
+                                                  : m_currentCanvasTexture,
+          .origin = {0, invertY ? m_renderTarget->height() - m_height : 0, 0},
+      };
+      wgpu::TexelCopyBufferInfo dstBuffer = {
+          .layout =
+              {
+                  .offset = 0,
+                  .bytesPerRow = rowBytesInReadBuff,
+              },
+          .buffer = m_pixelReadBuff,
+      };
+      wgpu::Extent3D copySize = {
+          .width = m_width,
+          .height = m_height,
+      };
+      readEncoder.CopyTextureToBuffer(&srcTexture, &dstBuffer, &copySize);
 
-            wgpu::CommandBuffer commands = readEncoder.Finish(NULL);
-            m_queue.Submit(1, &commands);
+      wgpu::CommandBuffer commands = readEncoder.Finish(NULL);
+      m_queue.Submit(1, &commands);
 
-            {
-                // Map m_pixelReadBuff.
-                bool mappingFinished = false;
-                m_pixelReadBuff.MapAsync(
-                    wgpu::MapMode::Read,
-                    0,
-                    m_height * rowBytesInReadBuff,
-                    wgpu::CallbackMode::AllowSpontaneous,
-                    [](wgpu::MapAsyncStatus status,
-                       wgpu::StringView message,
-                       bool* mappingFinished) {
-                        if (status != wgpu::MapAsyncStatus::Success)
-                        {
-                            fprintf(stderr,
-                                    "failed to map m_pixelReadBuff: %s\n",
-                                    message.data);
-                            abort();
-                        }
-                        *mappingFinished = true;
-                    },
-                    &mappingFinished);
-                while (!mappingFinished)
-                {
-                    emscripten_sleep(1);
-                }
-            }
-
-            // Copy the image data from m_pixelReadBuff to pixelData.
-            const size_t rowBytesInDst = m_width * 4;
-            pixelData->resize(m_height * rowBytesInDst);
-            const uint8_t* pixelReadBuffData = reinterpret_cast<const uint8_t*>(
-                m_pixelReadBuff.GetConstMappedRange());
-            for (size_t y = 0; y < m_height; ++y)
-            {
-                const uint8_t* src;
-                if (invertY)
-                {
-                    src = &pixelReadBuffData[y * rowBytesInReadBuff];
-                }
-                else
-                {
-                    src = &pixelReadBuffData[(m_height - y - 1) *
-                                             rowBytesInReadBuff];
-                }
-                uint8_t* dst = &(*pixelData)[y * rowBytesInDst];
-                if (m_format == wgpu::TextureFormat::RGBA8Unorm)
-                {
-                    memcpy(dst, src, rowBytesInDst);
-                }
-                else
-                {
-                    assert(m_format == wgpu::TextureFormat::BGRA8Unorm);
-                    for (size_t x = 0; x < rowBytesInDst; x += 4)
-                    {
-                        // BGBRA -> RGBA.
-                        dst[x + 0] = src[x + 2];
-                        dst[x + 1] = src[x + 1];
-                        dst[x + 2] = src[x + 0];
-                        dst[x + 3] = src[x + 3];
-                    }
-                }
-            }
-            m_pixelReadBuff.Unmap();
+      {
+        // Map m_pixelReadBuff.
+        bool mappingFinished = false;
+        m_pixelReadBuff.MapAsync(
+            wgpu::MapMode::Read,
+            0,
+            m_height * rowBytesInReadBuff,
+            wgpu::CallbackMode::AllowSpontaneous,
+            [](wgpu::MapAsyncStatus status,
+               wgpu::StringView message,
+               bool* mappingFinished) {
+              if (status != wgpu::MapAsyncStatus::Success)
+              {
+                fprintf(
+                    stderr,
+                    "failed to map m_pixelReadBuff: %s\n",
+                    message.data);
+                abort();
+              }
+              *mappingFinished = true;
+            },
+            &mappingFinished);
+        while (!mappingFinished)
+        {
+          emscripten_sleep(1);
         }
+      }
 
-        m_currentCanvasTextureView = {};
-        m_currentCanvasTexture = {};
+      // Copy the image data from m_pixelReadBuff to pixelData.
+      const size_t rowBytesInDst = m_width * 4;
+      pixelData->resize(m_height * rowBytesInDst);
+      const uint8_t* pixelReadBuffData = reinterpret_cast<const uint8_t*>(
+          m_pixelReadBuff.GetConstMappedRange());
+      for (size_t y = 0; y < m_height; ++y)
+      {
+        const uint8_t* src;
+        if (invertY)
+        {
+          src = &pixelReadBuffData[y * rowBytesInReadBuff];
+        }
+        else
+        {
+          src = &pixelReadBuffData[(m_height - y - 1) * rowBytesInReadBuff];
+        }
+        uint8_t* dst = &(*pixelData)[y * rowBytesInDst];
+        if (m_format == wgpu::TextureFormat::RGBA8Unorm)
+        {
+          memcpy(dst, src, rowBytesInDst);
+        }
+        else
+        {
+          assert(m_format == wgpu::TextureFormat::BGRA8Unorm);
+          for (size_t x = 0; x < rowBytesInDst; x += 4)
+          {
+            // BGBRA -> RGBA.
+            dst[x + 0] = src[x + 2];
+            dst[x + 1] = src[x + 1];
+            dst[x + 2] = src[x + 0];
+            dst[x + 3] = src[x + 3];
+          }
+        }
+      }
+      m_pixelReadBuff.Unmap();
     }
 
-    void* getCurrentCommandBuffer() const override { return &m_oreEncoder; }
+    m_currentCanvasTextureView = {};
+    m_currentCanvasTexture = {};
+  }
 
-    void* getOreContext() const override
-    {
-        return m_renderContext->getOreContext();
-    }
+  void* getCurrentCommandBuffer() const override { return &m_oreEncoder; }
 
-    void beginOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
-        m_oreEncoder = m_device.CreateCommandEncoder();
+  void* getOreContext() const override
+  {
+    return m_renderContext->getOreContext();
+  }
 
-        // Ore move-takes the encoder, pass a copy so we retain our ref.
-        wgpu::CommandEncoder borrowed = m_oreEncoder;
-        oreContext->beginFrame({.externalCommandBuffer = &borrowed});
-    }
+  void beginOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
+    m_oreEncoder = m_device.CreateCommandEncoder();
 
-    void endOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
-        oreContext->endFrame();
+    // Ore move-takes the encoder, pass a copy so we retain our ref.
+    wgpu::CommandEncoder borrowed = m_oreEncoder;
+    oreContext->beginFrame({.externalCommandBuffer = &borrowed});
+  }
 
-        wgpu::CommandBuffer commands = m_oreEncoder.Finish();
-        m_queue.Submit(1, &commands);
-        m_oreEncoder = nullptr;
-    }
+  void endOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
+    oreContext->endFrame();
+
+    wgpu::CommandBuffer commands = m_oreEncoder.Finish();
+    m_queue.Submit(1, &commands);
+    m_oreEncoder = nullptr;
+  }
 
 private:
-    RenderContextWebGPUImpl* impl() const
-    {
-        return m_renderContext->static_impl_cast<RenderContextWebGPUImpl>();
-    }
+  RenderContextWebGPUImpl* impl() const
+  {
+    return m_renderContext->static_impl_cast<RenderContextWebGPUImpl>();
+  }
 
-    const BackendParams m_backendParams;
+  const BackendParams m_backendParams;
 
-    wgpu::Instance m_instance = nullptr;
-    wgpu::Adapter m_adapter;
-    wgpu::Device m_device;
-    wgpu::Surface m_surface;
-    wgpu::TextureFormat m_format = wgpu::TextureFormat::Undefined;
-    wgpu::Queue m_queue;
-    wgpu::Texture m_currentCanvasTexture;
-    wgpu::TextureView m_currentCanvasTextureView;
-    wgpu::Texture m_overflowTexture;
-    wgpu::TextureView m_overflowTextureView;
-    wgpu::Buffer m_pixelReadBuff;
-    mutable wgpu::CommandEncoder m_oreEncoder;
+  wgpu::Instance m_instance = nullptr;
+  wgpu::Adapter m_adapter;
+  wgpu::Device m_device;
+  wgpu::Surface m_surface;
+  wgpu::TextureFormat m_format = wgpu::TextureFormat::Undefined;
+  wgpu::Queue m_queue;
+  wgpu::Texture m_currentCanvasTexture;
+  wgpu::TextureView m_currentCanvasTextureView;
+  wgpu::Texture m_overflowTexture;
+  wgpu::TextureView m_overflowTextureView;
+  wgpu::Buffer m_pixelReadBuff;
+  mutable wgpu::CommandEncoder m_oreEncoder;
 
-    std::unique_ptr<RenderContext> m_renderContext;
-    rcp<RenderTargetWebGPU> m_renderTarget;
+  std::unique_ptr<RenderContext> m_renderContext;
+  rcp<RenderTargetWebGPU> m_renderTarget;
 }; // namespace rive::gpu
 }; // namespace rive::gpu
 
 TestingWindow* TestingWindow::MakeWGPU(const BackendParams& backendParams)
 {
-    return new rive::gpu::TestingWindowWGPU(backendParams);
+  return new rive::gpu::TestingWindowWGPU(backendParams);
 }
 
 #endif

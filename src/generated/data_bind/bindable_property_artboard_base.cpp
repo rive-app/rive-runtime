@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BindablePropertyArtboardBase::clone() const
 {
-    auto cloned = new BindablePropertyArtboard();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new BindablePropertyArtboard();
+  cloned->copy(*this);
+  return cloned;
 }

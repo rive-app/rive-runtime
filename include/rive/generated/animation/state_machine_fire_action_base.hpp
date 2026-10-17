@@ -10,49 +10,49 @@ namespace rive
 class StateMachineFireActionBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 615;
+  static const uint16_t typeKey = 615;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t occursValuePropertyKey = 393;
+  static const uint16_t occursValuePropertyKey = 393;
 
 protected:
-    uint8_t m_OccursValue = 0;
+  uint8_t m_OccursValue = 0;
 
 public:
-    inline uint8_t occursValue() const { return m_OccursValue; }
-    void occursValue(uint8_t value)
+  inline uint8_t occursValue() const { return m_OccursValue; }
+  void occursValue(uint8_t value)
+  {
+    if (m_OccursValue == value)
     {
-        if (m_OccursValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(occursValuePropertyKey, &m_OccursValue, &value);
-        m_OccursValue = value;
-        notifyPropertyChanged(occursValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(occursValuePropertyKey, &m_OccursValue, &value);
+    m_OccursValue = value;
+    notifyPropertyChanged(occursValuePropertyKey);
+  }
 
-    void copy(const StateMachineFireActionBase& object)
-    {
-        m_OccursValue = object.m_OccursValue;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  void copy(const StateMachineFireActionBase& object)
+  {
+    m_OccursValue = object.m_OccursValue;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case occursValuePropertyKey:
-                m_OccursValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case occursValuePropertyKey:
+        m_OccursValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

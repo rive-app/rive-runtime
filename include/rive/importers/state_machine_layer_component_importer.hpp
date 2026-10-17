@@ -13,13 +13,13 @@ class ListenerAction;
 class StateMachineLayerComponentImporter : public ImportStackObject
 {
 public:
-    StateMachineLayerComponentImporter(StateMachineLayerComponent* component);
+  StateMachineLayerComponentImporter(StateMachineLayerComponent* component);
 
-    void addFireEvent(StateMachineFireAction* fireEvent);
-    void addListenerAction(std::unique_ptr<ListenerAction> action);
+  void addFireEvent(StateMachineFireAction* fireEvent);
+  void addListenerAction(std::unique_ptr<ListenerAction> action);
 
 private:
-    StateMachineLayerComponent* m_stateMachineLayerComponent;
+  StateMachineLayerComponent* m_stateMachineLayerComponent;
 };
 } // namespace rive
 #endif

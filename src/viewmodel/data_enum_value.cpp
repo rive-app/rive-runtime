@@ -11,13 +11,12 @@ using namespace rive;
 
 StatusCode DataEnumValue::import(ImportStack& importStack)
 {
-    auto enumImporter =
-        importStack.latest<EnumImporter>(DataEnumCustom::typeKey);
-    if (enumImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto enumImporter = importStack.latest<EnumImporter>(DataEnumCustom::typeKey);
+  if (enumImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    enumImporter->addValue(this);
-    return Super::import(importStack);
+  enumImporter->addValue(this);
+  return Super::import(importStack);
 }

@@ -7,9 +7,9 @@ namespace rive
 class BlendState1DInput : public BlendState1DInputBase
 {
 public:
-    bool hasValidInputId() const { return inputId() != Core::emptyId; }
+  bool hasValidInputId() const { return inputId() != Core::emptyId; }
 
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

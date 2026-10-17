@@ -16,190 +16,190 @@ using namespace rive;
 
 std::string DataConverterToString::formatWithCommas(std::string& num)
 {
-    return StringTemplateFormat::formatThousands(num);
+  return StringTemplateFormat::formatThousands(num);
 }
 
 DataValue* DataConverterToString::convertNumber(DataValueNumber* input)
 {
-    auto flagsValue = static_cast<DataConverterToStringFlags>(flags());
-    float value = input->as<DataValueNumber>()->value();
-    std::string outputValue;
-    if ((flagsValue & DataConverterToStringFlags::Round) ==
-        DataConverterToStringFlags::Round)
-    {
-        int precision = (int)decimals();
-        int length = snprintf(nullptr, 0, "%.*f", precision, value);
-        outputValue.resize(length);
-        snprintf(&outputValue[0], length + 1, "%.*f", precision, value);
-    }
-    else
-    {
-        outputValue = std::to_string(value);
-    }
-    if ((flagsValue & DataConverterToStringFlags::TrailingZeros) ==
-        DataConverterToStringFlags::TrailingZeros)
-    {
-        outputValue = DataConverterStringRemoveZeros::removeZeros(outputValue);
-    }
-    if ((flagsValue & DataConverterToStringFlags::FormatWithCommas) ==
-        DataConverterToStringFlags::FormatWithCommas)
-    {
-        outputValue = formatWithCommas(outputValue);
-    }
-    m_output.value(outputValue);
-    return &m_output;
+  auto flagsValue = static_cast<DataConverterToStringFlags>(flags());
+  float value = input->as<DataValueNumber>()->value();
+  std::string outputValue;
+  if ((flagsValue & DataConverterToStringFlags::Round) ==
+      DataConverterToStringFlags::Round)
+  {
+    int precision = (int)decimals();
+    int length = snprintf(nullptr, 0, "%.*f", precision, value);
+    outputValue.resize(length);
+    snprintf(&outputValue[0], length + 1, "%.*f", precision, value);
+  }
+  else
+  {
+    outputValue = std::to_string(value);
+  }
+  if ((flagsValue & DataConverterToStringFlags::TrailingZeros) ==
+      DataConverterToStringFlags::TrailingZeros)
+  {
+    outputValue = DataConverterStringRemoveZeros::removeZeros(outputValue);
+  }
+  if ((flagsValue & DataConverterToStringFlags::FormatWithCommas) ==
+      DataConverterToStringFlags::FormatWithCommas)
+  {
+    outputValue = formatWithCommas(outputValue);
+  }
+  m_output.value(outputValue);
+  return &m_output;
 }
 
 DataValue* DataConverterToString::convertColor(DataValueColor* input)
 {
-    auto colorValue = input->value();
-    std::string outputValue = "";
-    if (colorFormat() != "")
+  auto colorValue = input->value();
+  std::string outputValue = "";
+  if (colorFormat() != "")
+  {
+    m_converter.color(colorValue);
+
+    bool isEscaped = false;
+    bool isMarker = false;
+
+    for (const char& c : colorFormat())
     {
-        m_converter.color(colorValue);
-
-        bool isEscaped = false;
-        bool isMarker = false;
-
-        for (const char& c : colorFormat())
+      if (isEscaped)
+      {
+        outputValue += c;
+        isEscaped = false;
+      }
+      // Escape
+      else if (c == '\\')
+      {
+        if (isMarker)
         {
-            if (isEscaped)
-            {
-                outputValue += c;
-                isEscaped = false;
-            }
-            // Escape
-            else if (c == '\\')
-            {
-                if (isMarker)
-                {
-                    outputValue += '%';
-                    isMarker = false;
-                }
-                isEscaped = true;
-            }
-            // Marker
-            else if (c == '%')
-            {
-                if (isMarker)
-                {
-                    outputValue += '%';
-                }
-                isMarker = true;
-            }
-            else if (isMarker)
-            {
-                if (c == 'r')
-                {
-                    outputValue += m_converter.red();
-                }
-                else if (c == 'g')
-                {
-                    outputValue += m_converter.green();
-                }
-                else if (c == 'b')
-                {
-                    outputValue += m_converter.blue();
-                }
-                else if (c == 'a')
-                {
-                    outputValue += m_converter.alpha();
-                }
-                else if (c == 'R')
-                {
-                    m_converter.redHex(outputValue);
-                }
-                else if (c == 'G')
-                {
-                    m_converter.greenHex(outputValue);
-                }
-                else if (c == 'B')
-                {
-                    m_converter.blueHex(outputValue);
-                }
-                else if (c == 'A')
-                {
-                    m_converter.alphaHex(outputValue);
-                }
-                else if (c == 'h')
-                {
-                    outputValue += m_converter.hue();
-                }
-                else if (c == 'l')
-                {
-                    outputValue += m_converter.luminance();
-                }
-                else if (c == 's')
-                {
-                    outputValue += m_converter.saturation();
-                }
-                else
-                {
-                    outputValue += '%';
-                    outputValue += c;
-                }
-                isMarker = false;
-            }
-            else
-            {
-                outputValue += c;
-            }
+          outputValue += '%';
+          isMarker = false;
         }
+        isEscaped = true;
+      }
+      // Marker
+      else if (c == '%')
+      {
+        if (isMarker)
+        {
+          outputValue += '%';
+        }
+        isMarker = true;
+      }
+      else if (isMarker)
+      {
+        if (c == 'r')
+        {
+          outputValue += m_converter.red();
+        }
+        else if (c == 'g')
+        {
+          outputValue += m_converter.green();
+        }
+        else if (c == 'b')
+        {
+          outputValue += m_converter.blue();
+        }
+        else if (c == 'a')
+        {
+          outputValue += m_converter.alpha();
+        }
+        else if (c == 'R')
+        {
+          m_converter.redHex(outputValue);
+        }
+        else if (c == 'G')
+        {
+          m_converter.greenHex(outputValue);
+        }
+        else if (c == 'B')
+        {
+          m_converter.blueHex(outputValue);
+        }
+        else if (c == 'A')
+        {
+          m_converter.alphaHex(outputValue);
+        }
+        else if (c == 'h')
+        {
+          outputValue += m_converter.hue();
+        }
+        else if (c == 'l')
+        {
+          outputValue += m_converter.luminance();
+        }
+        else if (c == 's')
+        {
+          outputValue += m_converter.saturation();
+        }
+        else
+        {
+          outputValue += '%';
+          outputValue += c;
+        }
+        isMarker = false;
+      }
+      else
+      {
+        outputValue += c;
+      }
     }
-    else
-    {
-        outputValue = std::to_string(colorValue);
-    }
-    m_output.value(outputValue);
-    return &m_output;
+  }
+  else
+  {
+    outputValue = std::to_string(colorValue);
+  }
+  m_output.value(outputValue);
+  return &m_output;
 }
 
 DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
 {
-    if (input->is<DataValueNumber>())
+  if (input->is<DataValueNumber>())
+  {
+    return convertNumber(input->as<DataValueNumber>());
+  }
+  else if (input->is<DataValueEnum>())
+  {
+    auto dataEnum = input->as<DataValueEnum>()->dataEnum();
+    if (dataEnum)
     {
-        return convertNumber(input->as<DataValueNumber>());
+      auto index = input->as<DataValueEnum>()->value();
+      auto enumValue = dataEnum->value(index);
+      m_output.value(enumValue);
     }
-    else if (input->is<DataValueEnum>())
-    {
-        auto dataEnum = input->as<DataValueEnum>()->dataEnum();
-        if (dataEnum)
-        {
-            auto index = input->as<DataValueEnum>()->value();
-            auto enumValue = dataEnum->value(index);
-            m_output.value(enumValue);
-        }
-    }
-    else if (input->is<DataValueString>())
-    {
-        m_output.value(input->as<DataValueString>()->value());
-    }
-    else if (input->is<DataValueColor>())
-    {
-        return convertColor(input->as<DataValueColor>());
-    }
-    else if (input->is<DataValueBoolean>())
-    {
+  }
+  else if (input->is<DataValueString>())
+  {
+    m_output.value(input->as<DataValueString>()->value());
+  }
+  else if (input->is<DataValueColor>())
+  {
+    return convertColor(input->as<DataValueColor>());
+  }
+  else if (input->is<DataValueBoolean>())
+  {
 
-        auto value = input->as<DataValueBoolean>()->value();
-        m_output.value(value ? "1" : "0");
-    }
-    else if (input->is<DataValueTrigger>())
-    {
+    auto value = input->as<DataValueBoolean>()->value();
+    m_output.value(value ? "1" : "0");
+  }
+  else if (input->is<DataValueTrigger>())
+  {
 
-        auto value = input->as<DataValueTrigger>()->value();
-        m_output.value(std::to_string(value));
-    }
-    else if (input->is<DataValueSymbolListIndex>())
-    {
-        auto value = input->as<DataValueSymbolListIndex>()->value();
-        m_output.value(std::to_string(value));
-    }
-    else
-    {
-        m_output.value(DataValueString::defaultValue);
-    }
-    return &m_output;
+    auto value = input->as<DataValueTrigger>()->value();
+    m_output.value(std::to_string(value));
+  }
+  else if (input->is<DataValueSymbolListIndex>())
+  {
+    auto value = input->as<DataValueSymbolListIndex>()->value();
+    m_output.value(std::to_string(value));
+  }
+  else
+  {
+    m_output.value(DataValueString::defaultValue);
+  }
+  return &m_output;
 }
 
 void DataConverterToString::decimalsChanged() { markConverterDirty(); }

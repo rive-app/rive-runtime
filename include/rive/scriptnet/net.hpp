@@ -31,14 +31,14 @@ using RequestId = uint32_t;
 class FetchListener : public RefCnt<FetchListener>
 {
 public:
-    virtual ~FetchListener() = default;
-    /// From poll(), on the thread that started the request.
-    virtual void onResponse(HttpResponse&& response) = 0;
-    /// From poll(), on the thread that started the request.
-    virtual void onError(const NetError& error) = 0;
-    /// From cancel() or cancelAllForOwner(), possibly while the owner's VM is
-    /// closing, so it must not call into Lua.
-    virtual void onCancel() {}
+  virtual ~FetchListener() = default;
+  /// From poll(), on the thread that started the request.
+  virtual void onResponse(HttpResponse&& response) = 0;
+  /// From poll(), on the thread that started the request.
+  virtual void onError(const NetError& error) = 0;
+  /// From cancel() or cancelAllForOwner(), possibly while the owner's VM is
+  /// closing, so it must not call into Lua.
+  virtual void onCancel() {}
 };
 
 /// A transport, chosen by the host, never by a file. start() runs on the
@@ -47,12 +47,12 @@ public:
 class Provider : public RefCnt<Provider>
 {
 public:
-    virtual ~Provider() = default;
-    /// Begin sending `request`, which NetPolicy already checked. The outcome
-    /// may be reported from inside this call.
-    virtual void start(RequestId id, const HttpRequest& request) = 0;
-    /// Best effort; later outcomes for `id` are dropped either way.
-    virtual void abort(RequestId id) {}
+  virtual ~Provider() = default;
+  /// Begin sending `request`, which NetPolicy already checked. The outcome
+  /// may be reported from inside this call.
+  virtual void start(RequestId id, const HttpRequest& request) = 0;
+  /// Best effort; later outcomes for `id` are dropped either way.
+  virtual void abort(RequestId id) {}
 };
 
 /// This platform's transport, or null where there is none yet. Apple builds
@@ -71,9 +71,10 @@ NetLimits limits();
 /// provider. Always returns a nonzero id: refusals settle through poll() like
 /// every other outcome, so a script never sees its promise settle during the
 /// fetch() call.
-RequestId fetch(uint64_t ownerId,
-                HttpRequest request,
-                rcp<FetchListener> listener);
+RequestId fetch(
+    uint64_t ownerId,
+    HttpRequest request,
+    rcp<FetchListener> listener);
 
 /// Forgets the request and aborts it at the provider. Returns true when the
 /// listener got onCancel(), false when it was or is being delivered instead.

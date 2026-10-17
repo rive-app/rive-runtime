@@ -4,18 +4,20 @@
 
 using namespace rive;
 
-DataBindContextValueBoolean::DataBindContextValueBoolean(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueBoolean::DataBindContextValueBoolean(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueBoolean::apply(Core* target,
-                                        uint32_t propertyKey,
-                                        bool isMainDirection,
-                                        DataBind* dataBind)
+void DataBindContextValueBoolean::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value = calculateValue<DataValueBoolean, bool>(m_dataValue,
-                                                        isMainDirection,
-                                                        dataBind);
-    CoreRegistry::setBool(target, propertyKey, value);
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueBoolean, bool>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  CoreRegistry::setBool(target, propertyKey, value);
 }

@@ -12,61 +12,61 @@ using namespace rive;
 
 static bool tryNodeWorldBounds(Node* node, AABB& outBounds)
 {
-    if (node == nullptr)
-    {
-        return false;
-    }
+  if (node == nullptr)
+  {
+    return false;
+  }
 
-    const auto localBounds = node->localBounds();
-    if (localBounds.isEmptyOrNaN())
-    {
-        return false;
-    }
-    const auto worldTransform = node->worldTransform();
-    const auto worldBounds = worldTransform.mapBoundingBox(localBounds);
-    if (worldBounds.isEmptyOrNaN())
-    {
-        return false;
-    }
-    outBounds = worldBounds;
-    return true;
+  const auto localBounds = node->localBounds();
+  if (localBounds.isEmptyOrNaN())
+  {
+    return false;
+  }
+  const auto worldTransform = node->worldTransform();
+  const auto worldBounds = worldTransform.mapBoundingBox(localBounds);
+  if (worldBounds.isEmptyOrNaN())
+  {
+    return false;
+  }
+  outBounds = worldBounds;
+  return true;
 }
 
 AABB SemanticProvider::rootTransformAABB(Artboard* ab, const AABB& bounds)
 {
-    AABB out = AABB::forExpansion();
-    AABB::expandTo(out, ab->rootTransform({bounds.minX, bounds.minY}));
-    AABB::expandTo(out, ab->rootTransform({bounds.maxX, bounds.minY}));
-    AABB::expandTo(out, ab->rootTransform({bounds.maxX, bounds.maxY}));
-    AABB::expandTo(out, ab->rootTransform({bounds.minX, bounds.maxY}));
-    return out;
+  AABB out = AABB::forExpansion();
+  AABB::expandTo(out, ab->rootTransform({bounds.minX, bounds.minY}));
+  AABB::expandTo(out, ab->rootTransform({bounds.maxX, bounds.minY}));
+  AABB::expandTo(out, ab->rootTransform({bounds.maxX, bounds.maxY}));
+  AABB::expandTo(out, ab->rootTransform({bounds.minX, bounds.maxY}));
+  return out;
 }
 
 bool SemanticProvider::canInferSemantics(Component* component)
 {
-    return supportsInferredSemantics(component);
+  return supportsInferredSemantics(component);
 }
 
 ResolvedSemanticData SemanticProvider::resolveSemanticData(Component* component)
 {
-    ResolvedSemanticData out;
-    if (component == nullptr || !component->is<Node>())
-    {
-        return out;
-    }
-
-    if (auto* sd = component->as<Node>()->firstChild<SemanticData>())
-    {
-        out.hasSemantics = true;
-        out.role = sd->role();
-        out.label = sd->label();
-        return out;
-    }
-
-    // Inference fallback (Text -> label)
-    resolveInferredSemantics(component, out);
-
+  ResolvedSemanticData out;
+  if (component == nullptr || !component->is<Node>())
+  {
     return out;
+  }
+
+  if (auto* sd = component->as<Node>()->firstChild<SemanticData>())
+  {
+    out.hasSemantics = true;
+    out.role = sd->role();
+    out.label = sd->label();
+    return out;
+  }
+
+  // Inference fallback (Text -> label)
+  resolveInferredSemantics(component, out);
+
+  return out;
 }
 
 // Computes world-space bounds for a component. Three strategies:
@@ -75,74 +75,74 @@ ResolvedSemanticData SemanticProvider::resolveSemanticData(Component* component)
 // 3. Fallback: world transform translation (degenerate point bounds)
 AABB SemanticProvider::semanticBounds(Component* component)
 {
-    if (component == nullptr || !component->is<Node>())
-    {
-        return AABB();
-    }
+  if (component == nullptr || !component->is<Node>())
+  {
+    return AABB();
+  }
 
-    auto* node = component->as<Node>();
+  auto* node = component->as<Node>();
 
-    AABB worldBounds;
-    if (tryNodeWorldBounds(node, worldBounds))
-    {
-        auto* ab = node->artboard();
-        if (ab != nullptr)
-        {
-            return rootTransformAABB(ab, worldBounds);
-        }
-        return worldBounds;
-    }
-
-    // If this semantic node is a non-drawable container/group, derive bounds
-    // from visual descendant nodes. ContainerComponent::forEachChild walks
-    // the whole subtree (not just direct children): the predicate runs for
-    // each descendant, and returning `true` tells forEachChild to keep
-    // descending into that descendant's children. We always return true so
-    // every Node descendant contributes bounds; non-Node descendants and
-    // Nodes without valid bounds are skipped but their subtrees are still
-    // walked.
-    if (component->is<ContainerComponent>())
-    {
-        AABB merged = AABB::forExpansion();
-        bool hasDescendantBounds = false;
-        component->as<ContainerComponent>()->forEachChild(
-            [&](Component* child) -> bool {
-                if (child == nullptr || !child->is<Node>())
-                {
-                    return true;
-                }
-
-                AABB childBounds;
-                if (!tryNodeWorldBounds(child->as<Node>(), childBounds))
-                {
-                    return true;
-                }
-
-                merged.expand(childBounds);
-                hasDescendantBounds = true;
-                return true;
-            });
-
-        if (hasDescendantBounds)
-        {
-            auto* ab = node->artboard();
-            if (ab != nullptr)
-            {
-                return rootTransformAABB(ab, merged);
-            }
-            return merged;
-        }
-    }
-
-    // Fallback for nodes/components without local bounds.
-    const auto worldTransform = node->worldTransform();
-    const float x = worldTransform[4];
-    const float y = worldTransform[5];
+  AABB worldBounds;
+  if (tryNodeWorldBounds(node, worldBounds))
+  {
     auto* ab = node->artboard();
     if (ab != nullptr)
     {
-        Vec2D pos = ab->rootTransform(Vec2D(x, y));
-        return AABB(pos.x, pos.y, pos.x, pos.y);
+      return rootTransformAABB(ab, worldBounds);
     }
-    return AABB(x, y, x, y);
+    return worldBounds;
+  }
+
+  // If this semantic node is a non-drawable container/group, derive bounds
+  // from visual descendant nodes. ContainerComponent::forEachChild walks
+  // the whole subtree (not just direct children): the predicate runs for
+  // each descendant, and returning `true` tells forEachChild to keep
+  // descending into that descendant's children. We always return true so
+  // every Node descendant contributes bounds; non-Node descendants and
+  // Nodes without valid bounds are skipped but their subtrees are still
+  // walked.
+  if (component->is<ContainerComponent>())
+  {
+    AABB merged = AABB::forExpansion();
+    bool hasDescendantBounds = false;
+    component->as<ContainerComponent>()->forEachChild(
+        [&](Component* child) -> bool {
+          if (child == nullptr || !child->is<Node>())
+          {
+            return true;
+          }
+
+          AABB childBounds;
+          if (!tryNodeWorldBounds(child->as<Node>(), childBounds))
+          {
+            return true;
+          }
+
+          merged.expand(childBounds);
+          hasDescendantBounds = true;
+          return true;
+        });
+
+    if (hasDescendantBounds)
+    {
+      auto* ab = node->artboard();
+      if (ab != nullptr)
+      {
+        return rootTransformAABB(ab, merged);
+      }
+      return merged;
+    }
+  }
+
+  // Fallback for nodes/components without local bounds.
+  const auto worldTransform = node->worldTransform();
+  const float x = worldTransform[4];
+  const float y = worldTransform[5];
+  auto* ab = node->artboard();
+  if (ab != nullptr)
+  {
+    Vec2D pos = ab->rootTransform(Vec2D(x, y));
+    return AABB(pos.x, pos.y, pos.x, pos.y);
+  }
+  return AABB(x, y, x, y);
 }

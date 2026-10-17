@@ -7,88 +7,87 @@ namespace rive
 class ElasticScrollPhysicsBase : public ScrollPhysics
 {
 protected:
-    typedef ScrollPhysics Super;
+  typedef ScrollPhysics Super;
 
 public:
-    static const uint16_t typeKey = 525;
+  static const uint16_t typeKey = 525;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t frictionPropertyKey = 728;
-    static const uint16_t speedMultiplierPropertyKey = 729;
-    static const uint16_t elasticFactorPropertyKey = 730;
+  static const uint16_t frictionPropertyKey = 728;
+  static const uint16_t speedMultiplierPropertyKey = 729;
+  static const uint16_t elasticFactorPropertyKey = 730;
 
 protected:
-    float m_Friction = 8.0f;
-    float m_SpeedMultiplier = 1.0f;
-    float m_ElasticFactor = 0.66f;
+  float m_Friction = 8.0f;
+  float m_SpeedMultiplier = 1.0f;
+  float m_ElasticFactor = 0.66f;
 
 public:
-    inline float friction() const { return m_Friction; }
-    void friction(float value)
+  inline float friction() const { return m_Friction; }
+  void friction(float value)
+  {
+    if (m_Friction == value)
     {
-        if (m_Friction == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(frictionPropertyKey, &m_Friction, &value);
-        m_Friction = value;
-        notifyPropertyChanged(frictionPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(frictionPropertyKey, &m_Friction, &value);
+    m_Friction = value;
+    notifyPropertyChanged(frictionPropertyKey);
+  }
 
-    inline float speedMultiplier() const { return m_SpeedMultiplier; }
-    void speedMultiplier(float value)
+  inline float speedMultiplier() const { return m_SpeedMultiplier; }
+  void speedMultiplier(float value)
+  {
+    if (m_SpeedMultiplier == value)
     {
-        if (m_SpeedMultiplier == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(speedMultiplierPropertyKey,
-                             &m_SpeedMultiplier,
-                             &value);
-        m_SpeedMultiplier = value;
-        notifyPropertyChanged(speedMultiplierPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        speedMultiplierPropertyKey,
+        &m_SpeedMultiplier,
+        &value);
+    m_SpeedMultiplier = value;
+    notifyPropertyChanged(speedMultiplierPropertyKey);
+  }
 
-    inline float elasticFactor() const { return m_ElasticFactor; }
-    void elasticFactor(float value)
+  inline float elasticFactor() const { return m_ElasticFactor; }
+  void elasticFactor(float value)
+  {
+    if (m_ElasticFactor == value)
     {
-        if (m_ElasticFactor == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(elasticFactorPropertyKey,
-                             &m_ElasticFactor,
-                             &value);
-        m_ElasticFactor = value;
-        notifyPropertyChanged(elasticFactorPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(elasticFactorPropertyKey, &m_ElasticFactor, &value);
+    m_ElasticFactor = value;
+    notifyPropertyChanged(elasticFactorPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ElasticScrollPhysicsBase& object)
-    {
-        m_Friction = object.m_Friction;
-        m_SpeedMultiplier = object.m_SpeedMultiplier;
-        m_ElasticFactor = object.m_ElasticFactor;
-        ScrollPhysics::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ElasticScrollPhysicsBase& object)
+  {
+    m_Friction = object.m_Friction;
+    m_SpeedMultiplier = object.m_SpeedMultiplier;
+    m_ElasticFactor = object.m_ElasticFactor;
+    ScrollPhysics::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case frictionPropertyKey:
-                m_Friction = CoreDoubleType::deserialize(reader);
-                return true;
-            case speedMultiplierPropertyKey:
-                m_SpeedMultiplier = CoreDoubleType::deserialize(reader);
-                return true;
-            case elasticFactorPropertyKey:
-                m_ElasticFactor = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return ScrollPhysics::deserialize(propertyKey, reader);
+      case frictionPropertyKey:
+        m_Friction = CoreDoubleType::deserialize(reader);
+        return true;
+      case speedMultiplierPropertyKey:
+        m_SpeedMultiplier = CoreDoubleType::deserialize(reader);
+        return true;
+      case elasticFactorPropertyKey:
+        m_ElasticFactor = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return ScrollPhysics::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

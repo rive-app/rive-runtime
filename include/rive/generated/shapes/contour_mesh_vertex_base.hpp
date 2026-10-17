@@ -6,14 +6,14 @@ namespace rive
 class ContourMeshVertexBase : public MeshVertex
 {
 protected:
-    typedef MeshVertex Super;
+  typedef MeshVertex Super;
 
 public:
-    static const uint16_t typeKey = 111;
+  static const uint16_t typeKey = 111;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

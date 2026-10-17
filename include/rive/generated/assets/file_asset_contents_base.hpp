@@ -11,46 +11,46 @@ namespace rive
 class FileAssetContentsBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 106;
+  static const uint16_t typeKey = 106;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t bytesPropertyKey = 212;
-    static const uint16_t signaturePropertyKey = 911;
+  static const uint16_t bytesPropertyKey = 212;
+  static const uint16_t signaturePropertyKey = 911;
 
 public:
-    virtual void decodeBytes(Span<const uint8_t> value) = 0;
-    virtual void copyBytes(const FileAssetContentsBase& object) = 0;
+  virtual void decodeBytes(Span<const uint8_t> value) = 0;
+  virtual void copyBytes(const FileAssetContentsBase& object) = 0;
 
-    virtual void decodeSignature(Span<const uint8_t> value) = 0;
-    virtual void copySignature(const FileAssetContentsBase& object) = 0;
+  virtual void decodeSignature(Span<const uint8_t> value) = 0;
+  virtual void copySignature(const FileAssetContentsBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const FileAssetContentsBase& object)
+  Core* clone() const override;
+  void copy(const FileAssetContentsBase& object)
+  {
+    copyBytes(object);
+    copySignature(object);
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
+
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        copyBytes(object);
-        copySignature(object);
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
+      case bytesPropertyKey:
+        decodeBytes(CoreBytesType::deserialize(reader));
+        return true;
+      case signaturePropertyKey:
+        decodeSignature(CoreBytesType::deserialize(reader));
+        return true;
     }
-
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        switch (propertyKey)
-        {
-            case bytesPropertyKey:
-                decodeBytes(CoreBytesType::deserialize(reader));
-                return true;
-            case signaturePropertyKey:
-                decodeSignature(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
-    }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

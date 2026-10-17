@@ -14,51 +14,51 @@ class NestedArtboardLayout : public NestedArtboardLayoutBase,
 {
 public:
 #ifdef WITH_RIVE_LAYOUT
-    void* layoutNode(int index) override;
+  void* layoutNode(int index) override;
 #endif
-    Core* clone() const override;
-    void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
-    void markLayoutNodeDirty(
-        bool shouldForceUpdateLayoutBounds = false) override;
-    void updateConstraints() override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  Core* clone() const override;
+  void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
+  void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false) override;
+  void updateConstraints() override;
+  StatusCode onAddedClean(CoreContext* context) override;
 
-    bool syncStyleChanges() override;
-    void updateLayoutBounds(bool animate = true) override;
+  bool syncStyleChanges() override;
+  void updateLayoutBounds(bool animate = true) override;
 #ifdef WITH_RIVE_LAYOUT
-    bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
-                            KeyFrameInterpolator* inheritedInterpolator,
-                            float inheritedInterpolationTime,
-                            LayoutDirection direction) override;
+  bool cascadeLayoutStyle(
+      LayoutStyleInterpolation inheritedInterpolation,
+      KeyFrameInterpolator* inheritedInterpolator,
+      float inheritedInterpolationTime,
+      LayoutDirection direction) override;
 #endif
-    AABB layoutBounds() override;
-    size_t numLayoutNodes() override { return 1; }
-    bool isLayoutProvider() override { return true; }
-    void referencedArtboard(Artboard* artboard) override;
-    void updateArtboard(
-        ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  AABB layoutBounds() override;
+  size_t numLayoutNodes() override { return 1; }
+  bool isLayoutProvider() override { return true; }
+  void referencedArtboard(Artboard* artboard) override;
+  void updateArtboard(
+      ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
 
-    TransformComponent* transformComponent() override
-    {
-        return this->as<TransformComponent>();
-    }
-    bool isRow();
-    bool isStack();
+  TransformComponent* transformComponent() override
+  {
+    return this->as<TransformComponent>();
+  }
+  bool isRow();
+  bool isStack();
 
 protected:
-    void instanceWidthChanged() override;
-    void instanceHeightChanged() override;
-    void instanceWidthUnitsValueChanged() override;
-    void instanceHeightUnitsValueChanged() override;
-    void instanceWidthScaleTypeChanged() override;
-    void instanceHeightScaleTypeChanged() override;
+  void instanceWidthChanged() override;
+  void instanceHeightChanged() override;
+  void instanceWidthUnitsValueChanged() override;
+  void instanceHeightUnitsValueChanged() override;
+  void instanceWidthScaleTypeChanged() override;
+  void instanceHeightScaleTypeChanged() override;
 
 private:
-    void applyLayoutPlacement();
-    void updateWidthOverride();
-    void updateHeightOverride();
-    StyleOverrider<NestedArtboardLayout> m_styleOverrider =
-        StyleOverrider<NestedArtboardLayout>(this);
+  void applyLayoutPlacement();
+  void updateWidthOverride();
+  void updateHeightOverride();
+  StyleOverrider<NestedArtboardLayout>
+      m_styleOverrider = StyleOverrider<NestedArtboardLayout>(this);
 };
 } // namespace rive
 

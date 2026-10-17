@@ -8,35 +8,35 @@
 
 class RiveFont
 {
-    struct Pair
-    {
-        uint16_t fChar;
-        uint16_t fGlyph;
-    };
-    std::vector<Pair> fCMap;
+  struct Pair
+  {
+    uint16_t fChar;
+    uint16_t fGlyph;
+  };
+  std::vector<Pair> fCMap;
 
-    struct Glyph
-    {
-        SkPath fPath;
-        float fAdvance;
-    };
-    std::vector<Glyph> fGlyphs;
+  struct Glyph
+  {
+    SkPath fPath;
+    float fAdvance;
+  };
+  std::vector<Glyph> fGlyphs;
 
 public:
-    uint16_t charToGlyph(SkUnichar) const;
-    float advance(uint16_t glyph) const;
-    const SkPath* path(uint16_t glyph) const;
+  uint16_t charToGlyph(SkUnichar) const;
+  float advance(uint16_t glyph) const;
+  const SkPath* path(uint16_t glyph) const;
 
-    void clear()
-    {
-        fCMap.clear();
-        fGlyphs.clear();
-    }
+  void clear()
+  {
+    fCMap.clear();
+    fGlyphs.clear();
+  }
 
-    void load(sk_sp<SkTypeface>, const char text[], size_t length);
+  void load(sk_sp<SkTypeface>, const char text[], size_t length);
 
-    sk_sp<SkData> encode() const;
-    bool decode(const void*, size_t);
+  sk_sp<SkData> encode() const;
+  bool decode(const void*, size_t);
 };
 
 #endif

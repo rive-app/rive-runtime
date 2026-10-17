@@ -8,11 +8,12 @@ class DataBindContextValueString : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueString(DataBind* m_dataBind);
-    void apply(Core* component,
-               uint32_t propertyKey,
-               bool isMainDirection,
-               DataBind* dataBind) override;
+  DataBindContextValueString(DataBind* m_dataBind);
+  void apply(
+      Core* component,
+      uint32_t propertyKey,
+      bool isMainDirection,
+      DataBind* dataBind) override;
 };
 } // namespace rive
 

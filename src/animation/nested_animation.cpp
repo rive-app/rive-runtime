@@ -7,27 +7,27 @@ using namespace rive;
 
 bool NestedAnimation::validate(CoreContext* context)
 {
-    if (!Super::validate(context))
-    {
-        return false;
-    }
+  if (!Super::validate(context))
+  {
+    return false;
+  }
 
-    auto parentObject = context->resolve(parentId());
-    // We know parentObject is not null from Super::validate().
-    return parentObject->is<NestedArtboard>();
+  auto parentObject = context->resolve(parentId());
+  // We know parentObject is not null from Super::validate().
+  return parentObject->is<NestedArtboard>();
 }
 
 StatusCode NestedAnimation::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
+  StatusCode code = Super::onAddedDirty(context);
 #ifndef WITH_RIVE_EDITOR
-    // Runtime-only: importer guarantees parent is a NestedArtboard.
-    // Editor build registers via editorParentChanged (Pass 4.5).
-    if (code == StatusCode::Ok)
-    {
-        auto nestedArtboard = parent()->as<NestedArtboard>();
-        nestedArtboard->addNestedAnimation(this);
-    }
+  // Runtime-only: importer guarantees parent is a NestedArtboard.
+  // Editor build registers via editorParentChanged (Pass 4.5).
+  if (code == StatusCode::Ok)
+  {
+    auto nestedArtboard = parent()->as<NestedArtboard>();
+    nestedArtboard->addNestedAnimation(this);
+  }
 #endif
-    return code;
+  return code;
 }

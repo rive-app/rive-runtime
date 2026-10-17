@@ -23,90 +23,95 @@ class LevelsNode;
 class Artboard;
 class AudioEngine : public RefCnt<AudioEngine>
 {
-    friend class AudioSound;
-    friend class AudioSource;
-    friend class LevelsNode;
+  friend class AudioSound;
+  friend class AudioSource;
+  friend class LevelsNode;
 
 public:
-    static const uint32_t defaultNumChannels = 2;
-    static const uint32_t defaultSampleRate = 48000;
+  static const uint32_t defaultNumChannels = 2;
+  static const uint32_t defaultSampleRate = 48000;
 
-    static rcp<AudioEngine> Make(uint32_t numChannels, uint32_t sampleRate);
+  static rcp<AudioEngine> Make(uint32_t numChannels, uint32_t sampleRate);
 
-    static rcp<AudioEngine> MakeAndStore(uint32_t numChannels,
-                                         uint32_t sampleRate);
+  static rcp<AudioEngine> MakeAndStore(
+      uint32_t numChannels,
+      uint32_t sampleRate);
 
-    ma_device* device() { return m_device; }
-    ma_engine* engine() { return m_engine; }
+  ma_device* device() { return m_device; }
+  ma_engine* engine() { return m_engine; }
 
-    uint32_t channels() const;
-    uint32_t sampleRate() const;
-    uint64_t timeInFrames();
-    float timeInSeconds();
+  uint32_t channels() const;
+  uint32_t sampleRate() const;
+  uint64_t timeInFrames();
+  float timeInSeconds();
 
-    ~AudioEngine();
-    rcp<AudioSound> play(rcp<AudioSource> source,
-                         uint64_t startTime,
-                         uint64_t endTime,
-                         uint64_t soundStartTime,
-                         Artboard* artboard = nullptr);
-    rcp<AudioSound> playSeconds(rcp<AudioSource> source,
-                                float startTime,
-                                uint64_t endTime,
-                                uint64_t soundStartTime,
-                                Artboard* artboard = nullptr);
+  ~AudioEngine();
+  rcp<AudioSound> play(
+      rcp<AudioSource> source,
+      uint64_t startTime,
+      uint64_t endTime,
+      uint64_t soundStartTime,
+      Artboard* artboard = nullptr);
+  rcp<AudioSound> playSeconds(
+      rcp<AudioSource> source,
+      float startTime,
+      uint64_t endTime,
+      uint64_t soundStartTime,
+      Artboard* artboard = nullptr);
 
-    static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
-    static void ReleaseRuntimeEngine();
+  static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
+  static void ReleaseRuntimeEngine();
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-    bool readAudioFrames(float* frames,
-                         uint64_t numFrames,
-                         uint64_t* framesRead = nullptr);
-    bool sumAudioFrames(float* frames, uint64_t numFrames);
+  bool readAudioFrames(
+      float* frames,
+      uint64_t numFrames,
+      uint64_t* framesRead = nullptr);
+  bool sumAudioFrames(float* frames, uint64_t numFrames);
 #endif
 
 #ifdef WITH_RIVE_AUDIO_TOOLS
-    void initLevelMonitor();
-    void levels(Span<float> levels);
-    float level(uint32_t channel);
+  void initLevelMonitor();
+  void levels(Span<float> levels);
+  float level(uint32_t channel);
 #endif
 
-    void start();
-    void stop();
-    void stop(Artboard* artboard);
+  void start();
+  void stop();
+  void stop(Artboard* artboard);
 
 #ifdef TESTING
-    size_t playingSoundCount();
-    rcp<AudioSound> playingSoundsHead();
+  size_t playingSoundCount();
+  rcp<AudioSound> playingSoundsHead();
 #endif
 private:
-    AudioEngine(ma_engine* engine, ma_context* context);
-    ma_device* m_device;
-    ma_engine* m_engine;
-    ma_context* m_context;
-    std::mutex m_mutex;
-    rcp<AudioSound> internalPlaySound(rcp<AudioSource> source,
-                                      uint64_t duration,
-                                      uint64_t endTime,
-                                      uint64_t soundStartTime,
-                                      Artboard* artboard = nullptr);
+  AudioEngine(ma_engine* engine, ma_context* context);
+  ma_device* m_device;
+  ma_engine* m_engine;
+  ma_context* m_context;
+  std::mutex m_mutex;
+  rcp<AudioSound> internalPlaySound(
+      rcp<AudioSource> source,
+      uint64_t duration,
+      uint64_t endTime,
+      uint64_t soundStartTime,
+      Artboard* artboard = nullptr);
 
-    void soundCompleted(rcp<AudioSound> sound);
-    void unlinkSound(rcp<AudioSound> sound);
-    rcp<AudioSound> initializeAudioSound(rcp<AudioSound>);
+  void soundCompleted(rcp<AudioSound> sound);
+  void unlinkSound(rcp<AudioSound> sound);
+  rcp<AudioSound> initializeAudioSound(rcp<AudioSound>);
 
-    std::vector<rcp<AudioSound>> m_completedSounds;
-    rcp<AudioSound> m_playingSoundsHead;
-    static void SoundCompleted(void* pUserData, ma_sound* pSound);
+  std::vector<rcp<AudioSound>> m_completedSounds;
+  rcp<AudioSound> m_playingSoundsHead;
+  static void SoundCompleted(void* pUserData, ma_sound* pSound);
 
 #ifdef WITH_RIVE_AUDIO_TOOLS
-    void measureLevels(const float* frames, uint32_t frameCount);
-    std::vector<float> m_levels;
-    LevelsNode* m_levelMonitor = nullptr;
+  void measureLevels(const float* frames, uint32_t frameCount);
+  std::vector<float> m_levels;
+  LevelsNode* m_levelMonitor = nullptr;
 #endif
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-    std::vector<float> m_readFrames;
+  std::vector<float> m_readFrames;
 #endif
 };
 } // namespace rive

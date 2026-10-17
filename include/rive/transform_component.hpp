@@ -16,72 +16,72 @@ class TransformComponent : public TransformComponentBase,
                            public IntrinsicallySizeable
 {
 protected:
-    Mat2D m_Transform;
-    float m_RenderOpacity = 0.0f;
-    WorldTransformComponent* m_ParentTransformComponent = nullptr;
-    LazyVector<Constraint*> m_Constraints;
+  Mat2D m_Transform;
+  float m_RenderOpacity = 0.0f;
+  WorldTransformComponent* m_ParentTransformComponent = nullptr;
+  LazyVector<Constraint*> m_Constraints;
 
 protected:
-    virtual void updateConstraints();
+  virtual void updateConstraints();
 
 public:
-    bool collapse(bool value) override;
-    const std::vector<Constraint*>& constraints() const
-    {
-        return m_Constraints.view();
-    }
-    StatusCode onAddedClean(CoreContext* context) override;
-    void buildDependencies() override;
-    void update(ComponentDirt value) override;
-    virtual void updateTransform();
-    /// Builds m_WorldTransform from the parent world and our local transform.
-    /// Split out of updateWorldTransform so a subclass can substitute its own
-    /// composition (a layout participant inserts its slot) without the base
-    /// first composing and constraining a value that is then thrown away.
-    /// Constraints are applied by updateWorldTransform, once, afterwards.
-    virtual void composeWorldTransform();
-    virtual void updateWorldTransform();
-    void markTransformDirty();
+  bool collapse(bool value) override;
+  const std::vector<Constraint*>& constraints() const
+  {
+    return m_Constraints.view();
+  }
+  StatusCode onAddedClean(CoreContext* context) override;
+  void buildDependencies() override;
+  void update(ComponentDirt value) override;
+  virtual void updateTransform();
+  /// Builds m_WorldTransform from the parent world and our local transform.
+  /// Split out of updateWorldTransform so a subclass can substitute its own
+  /// composition (a layout participant inserts its slot) without the base
+  /// first composing and constraining a value that is then thrown away.
+  /// Constraints are applied by updateWorldTransform, once, afterwards.
+  virtual void composeWorldTransform();
+  virtual void updateWorldTransform();
+  void markTransformDirty();
 
-    /// Opacity inherited by any child of this transform component. This'll
-    /// later get overridden by effect layers.
-    float childOpacity() override { return m_RenderOpacity; }
-    float renderOpacity() const { return m_RenderOpacity; }
+  /// Opacity inherited by any child of this transform component. This'll
+  /// later get overridden by effect layers.
+  float childOpacity() override { return m_RenderOpacity; }
+  float renderOpacity() const { return m_RenderOpacity; }
 
-    const Mat2D& transform() const;
+  const Mat2D& transform() const;
 
-    /// Explicitly dangerous. Use transform/worldTransform when you don't
-    /// need to transform things outside of their hierarchy.
-    Mat2D& mutableTransform();
+  /// Explicitly dangerous. Use transform/worldTransform when you don't
+  /// need to transform things outside of their hierarchy.
+  Mat2D& mutableTransform();
 
-    virtual float x() const = 0;
-    virtual float y() const = 0;
+  virtual float x() const = 0;
+  virtual float y() const = 0;
 
-    /// Our translation in the parent's frame — what a constraint's offset
-    /// preserves. x/y, plus where the layout engine placed anything laid out.
-    virtual Vec2D composedTranslation() const { return Vec2D(x(), y()); }
+  /// Our translation in the parent's frame — what a constraint's offset
+  /// preserves. x/y, plus where the layout engine placed anything laid out.
+  virtual Vec2D composedTranslation() const { return Vec2D(x(), y()); }
 
-    /// Where our anchor sits in our own local space. Zero for anything drawn
-    /// about its origin; a layout's box starts at local zero, so its origin
-    /// is this far in.
-    virtual Vec2D localAnchor() const { return Vec2D(); }
+  /// Where our anchor sits in our own local space. Zero for anything drawn
+  /// about its origin; a layout's box starts at local zero, so its origin
+  /// is this far in.
+  virtual Vec2D localAnchor() const { return Vec2D(); }
 
-    void rotationChanged() override;
-    void scaleXChanged() override;
-    void scaleYChanged() override;
+  void rotationChanged() override;
+  void scaleXChanged() override;
+  void scaleYChanged() override;
 
-    void addConstraint(Constraint* constraint);
-    virtual AABB constraintBounds() const { return AABB(); }
-    virtual AABB localBounds() const;
-    void markDirtyIfConstrained();
+  void addConstraint(Constraint* constraint);
+  virtual AABB constraintBounds() const { return AABB(); }
+  virtual AABB localBounds() const;
+  void markDirtyIfConstrained();
 
 #ifdef WITH_RIVE_EDITOR
-    /// Idempotent add — `Constraint::editorParentChanged` calls this
-    /// when transitioning into us as the parent.
-    void addConstraintForEditor(Constraint* constraint);
-    /// Remove if present — `Constraint::editorParentChanged` calls
-    /// this when transitioning away (re-parent or unregister).
-    void removeConstraintForEditor(Constraint* constraint);
+  /// Idempotent add — `Constraint::editorParentChanged` calls this
+  /// when transitioning into us as the parent.
+  void addConstraintForEditor(Constraint* constraint);
+  /// Remove if present — `Constraint::editorParentChanged` calls
+  /// this when transitioning away (re-parent or unregister).
+  void removeConstraintForEditor(Constraint* constraint);
 #endif
 };
 } // namespace rive

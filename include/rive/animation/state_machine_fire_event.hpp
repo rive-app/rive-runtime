@@ -8,7 +8,7 @@ namespace rive
 class StateMachineFireEvent : public StateMachineFireEventBase
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance) const override;
+  void perform(StateMachineInstance* stateMachineInstance) const override;
 };
 
 } // namespace rive

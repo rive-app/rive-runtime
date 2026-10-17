@@ -8,36 +8,36 @@ namespace rive
 class DataBindContextBase : public DataBind
 {
 protected:
-    typedef DataBind Super;
+  typedef DataBind Super;
 
 public:
-    static const uint16_t typeKey = 447;
+  static const uint16_t typeKey = 447;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t sourcePathIdsPropertyKey = 588;
+  static const uint16_t sourcePathIdsPropertyKey = 588;
 
 public:
-    virtual void decodeSourcePathIds(Span<const uint8_t> value) = 0;
-    virtual void copySourcePathIds(const DataBindContextBase& object) = 0;
+  virtual void decodeSourcePathIds(Span<const uint8_t> value) = 0;
+  virtual void copySourcePathIds(const DataBindContextBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const DataBindContextBase& object)
-    {
-        copySourcePathIds(object);
-        DataBind::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataBindContextBase& object)
+  {
+    copySourcePathIds(object);
+    DataBind::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case sourcePathIdsPropertyKey:
-                decodeSourcePathIds(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        return DataBind::deserialize(propertyKey, reader);
+      case sourcePathIdsPropertyKey:
+        decodeSourcePathIds(CoreBytesType::deserialize(reader));
+        return true;
     }
+    return DataBind::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

@@ -7,92 +7,92 @@ namespace rive
 class CubicAsymmetricVertexBase : public CubicVertex
 {
 protected:
-    typedef CubicVertex Super;
+  typedef CubicVertex Super;
 
 public:
-    static const uint16_t typeKey = 34;
+  static const uint16_t typeKey = 34;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t rotationPropertyKey = 79;
-    static const uint16_t inDistancePropertyKey = 80;
-    static const uint16_t outDistancePropertyKey = 81;
+  static const uint16_t rotationPropertyKey = 79;
+  static const uint16_t inDistancePropertyKey = 80;
+  static const uint16_t outDistancePropertyKey = 81;
 
 protected:
-    float m_Rotation = 0.0f;
-    float m_InDistance = 0.0f;
-    float m_OutDistance = 0.0f;
+  float m_Rotation = 0.0f;
+  float m_InDistance = 0.0f;
+  float m_OutDistance = 0.0f;
 
 public:
-    inline float rotation() const { return m_Rotation; }
-    void rotation(float value)
+  inline float rotation() const { return m_Rotation; }
+  void rotation(float value)
+  {
+    if (m_Rotation == value)
     {
-        if (m_Rotation == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(rotationPropertyKey, &m_Rotation, &value);
-        m_Rotation = value;
-        RIVE_EDITOR_CHANGED(rotationChanged());
-        notifyPropertyChanged(rotationPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(rotationPropertyKey, &m_Rotation, &value);
+    m_Rotation = value;
+    RIVE_EDITOR_CHANGED(rotationChanged());
+    notifyPropertyChanged(rotationPropertyKey);
+  }
 
-    inline float inDistance() const { return m_InDistance; }
-    void inDistance(float value)
+  inline float inDistance() const { return m_InDistance; }
+  void inDistance(float value)
+  {
+    if (m_InDistance == value)
     {
-        if (m_InDistance == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inDistancePropertyKey, &m_InDistance, &value);
-        m_InDistance = value;
-        RIVE_EDITOR_CHANGED(inDistanceChanged());
-        notifyPropertyChanged(inDistancePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inDistancePropertyKey, &m_InDistance, &value);
+    m_InDistance = value;
+    RIVE_EDITOR_CHANGED(inDistanceChanged());
+    notifyPropertyChanged(inDistancePropertyKey);
+  }
 
-    inline float outDistance() const { return m_OutDistance; }
-    void outDistance(float value)
+  inline float outDistance() const { return m_OutDistance; }
+  void outDistance(float value)
+  {
+    if (m_OutDistance == value)
     {
-        if (m_OutDistance == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(outDistancePropertyKey, &m_OutDistance, &value);
-        m_OutDistance = value;
-        RIVE_EDITOR_CHANGED(outDistanceChanged());
-        notifyPropertyChanged(outDistancePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(outDistancePropertyKey, &m_OutDistance, &value);
+    m_OutDistance = value;
+    RIVE_EDITOR_CHANGED(outDistanceChanged());
+    notifyPropertyChanged(outDistancePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const CubicAsymmetricVertexBase& object)
-    {
-        m_Rotation = object.m_Rotation;
-        m_InDistance = object.m_InDistance;
-        m_OutDistance = object.m_OutDistance;
-        CubicVertex::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const CubicAsymmetricVertexBase& object)
+  {
+    m_Rotation = object.m_Rotation;
+    m_InDistance = object.m_InDistance;
+    m_OutDistance = object.m_OutDistance;
+    CubicVertex::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case rotationPropertyKey:
-                m_Rotation = CoreDoubleType::deserialize(reader);
-                return true;
-            case inDistancePropertyKey:
-                m_InDistance = CoreDoubleType::deserialize(reader);
-                return true;
-            case outDistancePropertyKey:
-                m_OutDistance = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return CubicVertex::deserialize(propertyKey, reader);
+      case rotationPropertyKey:
+        m_Rotation = CoreDoubleType::deserialize(reader);
+        return true;
+      case inDistancePropertyKey:
+        m_InDistance = CoreDoubleType::deserialize(reader);
+        return true;
+      case outDistancePropertyKey:
+        m_OutDistance = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return CubicVertex::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void rotationChanged() {}
-    virtual void inDistanceChanged() {}
-    virtual void outDistanceChanged() {}
+  virtual void rotationChanged() {}
+  virtual void inDistanceChanged() {}
+  virtual void outDistanceChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/cubic_asymmetric_vertex_ext.inl"
 #endif

@@ -22,8 +22,8 @@ using namespace rive;
 
 TEST_CASE("scripted object can set and read number input", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   myNumber: Input<number>,
 }
 
@@ -43,52 +43,52 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Test reading initial value directly from table
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myNumber");
-        CHECK(lua_type(L, -1) == LUA_TNUMBER);
-        CHECK(lua_tonumber(L, -1) == 42.0);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test reading initial value directly from table
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myNumber");
+    CHECK(lua_type(L, -1) == LUA_TNUMBER);
+    CHECK(lua_tonumber(L, -1) == 42.0);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test setting value via ScriptedObject pattern
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushnumber(L, 100.5);
-        lua_setfield(L, -2, "myNumber");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test setting value via ScriptedObject pattern
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushnumber(L, 100.5);
+    lua_setfield(L, -2, "myNumber");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the value was set
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myNumber");
-        CHECK(lua_type(L, -1) == LUA_TNUMBER);
-        CHECK(lua_tonumber(L, -1) == 100.5);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the value was set
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myNumber");
+    CHECK(lua_type(L, -1) == LUA_TNUMBER);
+    CHECK(lua_tonumber(L, -1) == 100.5);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted object can set and read string input", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   myString: Input<string>,
 }
 
@@ -112,52 +112,52 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Test reading initial value directly from table
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myString");
-        CHECK(lua_type(L, -1) == LUA_TSTRING);
-        CHECK(std::string(lua_tostring(L, -1)) == "initial");
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test reading initial value directly from table
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myString");
+    CHECK(lua_type(L, -1) == LUA_TSTRING);
+    CHECK(std::string(lua_tostring(L, -1)) == "initial");
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test setting value
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushstring(L, "updated");
-        lua_setfield(L, -2, "myString");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test setting value
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushstring(L, "updated");
+    lua_setfield(L, -2, "myString");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the value was set
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myString");
-        CHECK(lua_type(L, -1) == LUA_TSTRING);
-        CHECK(std::string(lua_tostring(L, -1)) == "updated");
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the value was set
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myString");
+    CHECK(lua_type(L, -1) == LUA_TSTRING);
+    CHECK(std::string(lua_tostring(L, -1)) == "updated");
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted object can set and read boolean input", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   myBoolean: Input<boolean>,
 }
 
@@ -177,52 +177,52 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Test reading initial value directly from table
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myBoolean");
-        CHECK(lua_type(L, -1) == LUA_TBOOLEAN);
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test reading initial value directly from table
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myBoolean");
+    CHECK(lua_type(L, -1) == LUA_TBOOLEAN);
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test setting value
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushboolean(L, 1);
-        lua_setfield(L, -2, "myBoolean");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test setting value
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushboolean(L, 1);
+    lua_setfield(L, -2, "myBoolean");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the value was set
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myBoolean");
-        CHECK(lua_type(L, -1) == LUA_TBOOLEAN);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the value was set
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myBoolean");
+    CHECK(lua_type(L, -1) == LUA_TBOOLEAN);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted object can set and read integer input", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   myInteger: Input<number>,
 }
 
@@ -242,52 +242,52 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Test reading initial value directly from table
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myInteger");
-        CHECK(lua_type(L, -1) == LUA_TNUMBER);
-        CHECK(lua_tonumber(L, -1) == 10.0);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test reading initial value directly from table
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myInteger");
+    CHECK(lua_type(L, -1) == LUA_TNUMBER);
+    CHECK(lua_tonumber(L, -1) == 10.0);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test setting value using unsigned (for integers)
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushunsigned(L, 99);
-        lua_setfield(L, -2, "myInteger");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Test setting value using unsigned (for integers)
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushunsigned(L, 99);
+    lua_setfield(L, -2, "myInteger");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify the value was set
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "myInteger");
-        CHECK(lua_type(L, -1) == LUA_TNUMBER);
-        CHECK(lua_tonumber(L, -1) == 99.0);
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify the value was set
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "myInteger");
+    CHECK(lua_type(L, -1) == LUA_TNUMBER);
+    CHECK(lua_tonumber(L, -1) == 99.0);
+    lua_pop(L, 2); // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted object can use multiple inputs", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   count: Input<number>,
   label: Input<string>,
   enabled: Input<boolean>,
@@ -319,96 +319,97 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Test initial values directly from table
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "count");
-        CHECK(lua_tonumber(L, -1) == 0.0);
-        lua_pop(L, 1); // Pop count
+  // Test initial values directly from table
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "count");
+    CHECK(lua_tonumber(L, -1) == 0.0);
+    lua_pop(L, 1); // Pop count
 
-        lua_getfield(L, -1, "label");
-        CHECK(std::string(lua_tostring(L, -1)) == "default");
-        lua_pop(L, 1); // Pop label
+    lua_getfield(L, -1, "label");
+    CHECK(std::string(lua_tostring(L, -1)) == "default");
+    lua_pop(L, 1); // Pop label
 
-        lua_getfield(L, -1, "enabled");
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 2); // Pop enabled and duplicated self
+    lua_getfield(L, -1, "enabled");
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 2); // Pop enabled and duplicated self
 
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Set multiple inputs
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushnumber(L, 42.0);
-        lua_setfield(L, -2, "count");
-        lua_pushstring(L, "test");
-        lua_setfield(L, -2, "label");
-        lua_pushboolean(L, 0);
-        lua_setfield(L, -2, "enabled");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Set multiple inputs
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushnumber(L, 42.0);
+    lua_setfield(L, -2, "count");
+    lua_pushstring(L, "test");
+    lua_setfield(L, -2, "label");
+    lua_pushboolean(L, 0);
+    lua_setfield(L, -2, "enabled");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify values were set
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "count");
-        CHECK(lua_tonumber(L, -1) == 42.0);
-        lua_pop(L, 1); // Pop count
+  // Verify values were set
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "count");
+    CHECK(lua_tonumber(L, -1) == 42.0);
+    lua_pop(L, 1); // Pop count
 
-        lua_getfield(L, -1, "label");
-        CHECK(std::string(lua_tostring(L, -1)) == "test");
-        lua_pop(L, 1); // Pop label
+    lua_getfield(L, -1, "label");
+    CHECK(std::string(lua_tostring(L, -1)) == "test");
+    lua_pop(L, 1); // Pop label
 
-        lua_getfield(L, -1, "enabled");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1); // Pop enabled
+    lua_getfield(L, -1, "enabled");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1); // Pop enabled
 
-        // Test computation using inputs
-        lua_getglobal(L, "compute");
-        lua_pushvalue(L, -2); // Push self (original table)
-        CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "disabled");
-        lua_pop(L, 2); // Pop result and duplicated self
+    // Test computation using inputs
+    lua_getglobal(L, "compute");
+    lua_pushvalue(L, -2); // Push self (original table)
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "disabled");
+    lua_pop(L, 2); // Pop result and duplicated self
 
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Re-enable and verify computation
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushboolean(L, 1);
-        lua_setfield(L, -2, "enabled");
-        lua_pop(L, 1); // Pop duplicated self
+  // Re-enable and verify computation
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushboolean(L, 1);
+    lua_setfield(L, -2, "enabled");
+    lua_pop(L, 1); // Pop duplicated self
 
-        lua_getglobal(L, "compute");
-        lua_pushvalue(L, -2); // Push self
-        CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
-        CHECK(std::string(lua_tostring(L, -1)) == "test: 42");
-        lua_pop(L, 1); // Pop result
+    lua_getglobal(L, "compute");
+    lua_pushvalue(L, -2); // Push self
+    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+    CHECK(std::string(lua_tostring(L, -1)) == "test: 42");
+    lua_pop(L, 1); // Pop result
 
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("scripted object inputs can be used in advance function",
-          "[scripting]")
+TEST_CASE(
+    "scripted object inputs can be used in advance function",
+    "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   speed: Input<number>,
   position: Input<number>,
 }
@@ -432,61 +433,61 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the code and leaves the factory function on the
-    // stack
-    REQUIRE(top >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the code and leaves the factory function on the
+  // stack
+  REQUIRE(top >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Call the factory function to get the actual table
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    top = lua_gettop(L);
-    REQUIRE(top == 1);
+  // Call the factory function to get the actual table
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  top = lua_gettop(L);
+  REQUIRE(top == 1);
 
-    // Set speed input
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_pushnumber(L, 50.0);
-        lua_setfield(L, -2, "speed");
-        lua_pop(L, 1); // Pop duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Set speed input
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_pushnumber(L, 50.0);
+    lua_setfield(L, -2, "speed");
+    lua_pop(L, 1); // Pop duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Advance multiple times
-    {
-        lua_getglobal(L, "advance");
-        lua_pushvalue(L, -2);   // Push self
-        lua_pushnumber(L, 0.1); // 0.1 seconds
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1); // Pop result
-        CHECK(top == lua_gettop(L));
-    }
+  // Advance multiple times
+  {
+    lua_getglobal(L, "advance");
+    lua_pushvalue(L, -2);   // Push self
+    lua_pushnumber(L, 0.1); // 0.1 seconds
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1); // Pop result
+    CHECK(top == lua_gettop(L));
+  }
 
-    {
-        lua_getglobal(L, "advance");
-        lua_pushvalue(L, -2);   // Push self
-        lua_pushnumber(L, 0.1); // Another 0.1 seconds
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        lua_pop(L, 1); // Pop result
-        CHECK(top == lua_gettop(L));
-    }
+  {
+    lua_getglobal(L, "advance");
+    lua_pushvalue(L, -2);   // Push self
+    lua_pushnumber(L, 0.1); // Another 0.1 seconds
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    lua_pop(L, 1); // Pop result
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify position was updated using speed input
-    {
-        lua_pushvalue(L, -1); // Duplicate self table
-        lua_getfield(L, -1, "position");
-        CHECK(lua_tonumber(L, -1) == Approx(10.0)); // 50.0 * 0.1 * 2 = 10.0
-        lua_pop(L, 2); // Pop value and duplicated self
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify position was updated using speed input
+  {
+    lua_pushvalue(L, -1); // Duplicate self table
+    lua_getfield(L, -1, "position");
+    CHECK(lua_tonumber(L, -1) == Approx(10.0)); // 50.0 * 0.1 * 2 = 10.0
+    lua_pop(L, 2);                              // Pop value and duplicated self
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("ScriptedDrawable can be created and initialized", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   count: Input<number>,
 }
 
@@ -510,63 +511,64 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Create ScriptedDrawable instance
-    ScriptedDrawable drawable;
+  // Create ScriptedDrawable instance
+  ScriptedDrawable drawable;
 
-    // Manually set the inits flag since we're not using ScriptAsset
-    // The inits flag indicates that the script has an init function
-    drawable.implementedMethods(drawable.implementedMethods() |
-                                (1 << 9)); // m_initsBit
+  // Manually set the inits flag since we're not using ScriptAsset
+  // The inits flag indicates that the script has an init function
+  drawable.implementedMethods(
+      drawable.implementedMethods() | (1 << 9)); // m_initsBit
 
-    // ensureScriptInitialized expects the factory function on the stack
-    // ScriptingTest already left it there, so we can call
-    // ensureScriptInitialized directly Call
-    // ScriptedObject::ensureScriptInitialized directly to avoid addDirt which
-    // requires an artboard
-    CHECK(drawable.ScriptedObject::ensureScriptInitialized(vm.vm(),
-                                                           refTopFunction(L)));
-    drawable.ScriptedObject::hydrateScriptInputs();
+  // ensureScriptInitialized expects the factory function on the stack
+  // ScriptingTest already left it there, so we can call
+  // ensureScriptInitialized directly Call
+  // ScriptedObject::ensureScriptInitialized directly to avoid addDirt which
+  // requires an artboard
+  CHECK(drawable.ScriptedObject::ensureScriptInitialized(
+      vm.vm(),
+      refTopFunction(L)));
+  drawable.ScriptedObject::hydrateScriptInputs();
 
-    // Manually set implemented methods flags since we're not using ScriptAsset
-    // Check if advance function exists and set the flag
-    // After ensureScriptInitialized, the self table is stored in m_self, so we
-    // can push it
+  // Manually set implemented methods flags since we're not using ScriptAsset
+  // Check if advance function exists and set the flag
+  // After ensureScriptInitialized, the self table is stored in m_self, so we
+  // can push it
+  {
+    rive_lua_pushRef(L, drawable.self());
+    lua_getfield(L, -1, "advance");
+    if (lua_type(L, -1) == LUA_TFUNCTION)
     {
-        rive_lua_pushRef(L, drawable.self());
-        lua_getfield(L, -1, "advance");
-        if (lua_type(L, -1) == LUA_TFUNCTION)
-        {
-            drawable.implementedMethods(drawable.implementedMethods() |
-                                        (1 << 0)); // m_advancesBit
-        }
-        lua_pop(L, 2); // Pop function check and self table
+      drawable.implementedMethods(
+          drawable.implementedMethods() | (1 << 0)); // m_advancesBit
     }
+    lua_pop(L, 2); // Pop function check and self table
+  }
 
-    // Test that we can set and get inputs
-    drawable.setNumberInput("count", 42.0);
+  // Test that we can set and get inputs
+  drawable.setNumberInput("count", 42.0);
 
-    // Test advance - need AdvanceNested flag for it to work
-    CHECK(drawable.advanceComponent(0.1f,
-                                    AdvanceFlags::AdvanceNested |
-                                        AdvanceFlags::Animate |
-                                        AdvanceFlags::NewFrame));
+  // Test advance - need AdvanceNested flag for it to work
+  CHECK(drawable.advanceComponent(
+      0.1f,
+      AdvanceFlags::AdvanceNested | AdvanceFlags::Animate |
+          AdvanceFlags::NewFrame));
 
-    // Test draw
-    NoOpRenderer renderer;
-    drawable.draw(&renderer);
+  // Test draw
+  NoOpRenderer renderer;
+  drawable.draw(&renderer);
 
-    // Cleanup
-    drawable.scriptDispose();
+  // Cleanup
+  drawable.scriptDispose();
 }
 
 TEST_CASE("ScriptedLayout can be created and initialized", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyLayout = {
+  ScriptingTest vm(
+      R"(type MyLayout = {
   width: Input<number>,
 }
 
@@ -595,75 +597,78 @@ return function(): Layout<MyLayout>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Create ScriptedLayout instance
-    ScriptedLayout layout;
+  // Create ScriptedLayout instance
+  ScriptedLayout layout;
 
-    // Manually set the inits flag since we're not using ScriptAsset
-    layout.implementedMethods(layout.implementedMethods() |
-                              (1 << 9)); // m_initsBit
+  // Manually set the inits flag since we're not using ScriptAsset
+  layout.implementedMethods(
+      layout.implementedMethods() | (1 << 9)); // m_initsBit
 
-    // ensureScriptInitialized expects the factory function on the stack
-    // Call ScriptedObject::ensureScriptInitialized directly to avoid addDirt
-    // which requires an artboard
-    CHECK(layout.ScriptedObject::ensureScriptInitialized(vm.vm(),
-                                                         refTopFunction(L)));
-    layout.ScriptedObject::hydrateScriptInputs();
+  // ensureScriptInitialized expects the factory function on the stack
+  // Call ScriptedObject::ensureScriptInitialized directly to avoid addDirt
+  // which requires an artboard
+  CHECK(layout.ScriptedObject::ensureScriptInitialized(
+      vm.vm(),
+      refTopFunction(L)));
+  layout.ScriptedObject::hydrateScriptInputs();
 
-    // Manually set implemented methods flags
-    // After ensureScriptInitialized, the self table is stored in m_self
+  // Manually set implemented methods flags
+  // After ensureScriptInitialized, the self table is stored in m_self
+  {
+    rive_lua_pushRef(L, layout.self());
+    lua_getfield(L, -1, "advance");
+    if (lua_type(L, -1) == LUA_TFUNCTION)
     {
-        rive_lua_pushRef(L, layout.self());
-        lua_getfield(L, -1, "advance");
-        if (lua_type(L, -1) == LUA_TFUNCTION)
-        {
-            layout.implementedMethods(layout.implementedMethods() |
-                                      (1 << 0)); // m_advancesBit
-        }
-        lua_pop(L, 1);
-        lua_getfield(L, -1, "measure");
-        if (lua_type(L, -1) == LUA_TFUNCTION)
-        {
-            layout.implementedMethods(layout.implementedMethods() |
-                                      (1 << 2)); // m_measuresBit
-        }
-        lua_pop(L, 2); // Pop function check and self table
+      layout.implementedMethods(
+          layout.implementedMethods() | (1 << 0)); // m_advancesBit
     }
+    lua_pop(L, 1);
+    lua_getfield(L, -1, "measure");
+    if (lua_type(L, -1) == LUA_TFUNCTION)
+    {
+      layout.implementedMethods(
+          layout.implementedMethods() | (1 << 2)); // m_measuresBit
+    }
+    lua_pop(L, 2); // Pop function check and self table
+  }
 
-    // Test that we can set inputs
-    layout.setNumberInput("width", 300.0);
+  // Test that we can set inputs
+  layout.setNumberInput("width", 300.0);
 
-    // Test measureLayout
-    Vec2D measured = layout.measureLayout(0,
-                                          LayoutMeasureMode::undefined,
-                                          0,
-                                          LayoutMeasureMode::undefined);
-    CHECK(measured.x == 200.0f);
-    CHECK(measured.y == 150.0f);
+  // Test measureLayout
+  Vec2D measured = layout.measureLayout(
+      0,
+      LayoutMeasureMode::undefined,
+      0,
+      LayoutMeasureMode::undefined);
+  CHECK(measured.x == 200.0f);
+  CHECK(measured.y == 150.0f);
 
-    // Test controlSize
-    layout.controlSize(Vec2D(250, 200),
-                       LayoutScaleType::fill,
-                       LayoutScaleType::fill,
-                       LayoutDirection::ltr);
+  // Test controlSize
+  layout.controlSize(
+      Vec2D(250, 200),
+      LayoutScaleType::fill,
+      LayoutScaleType::fill,
+      LayoutDirection::ltr);
 
-    // Test advance - need AdvanceNested flag
-    CHECK(layout.advanceComponent(0.1f,
-                                  AdvanceFlags::AdvanceNested |
-                                      AdvanceFlags::Animate |
-                                      AdvanceFlags::NewFrame));
+  // Test advance - need AdvanceNested flag
+  CHECK(layout.advanceComponent(
+      0.1f,
+      AdvanceFlags::AdvanceNested | AdvanceFlags::Animate |
+          AdvanceFlags::NewFrame));
 
-    // Cleanup
-    layout.scriptDispose();
+  // Cleanup
+  layout.scriptDispose();
 }
 
 TEST_CASE("ScriptedDataConverter can be created and initialized", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyConverter = {
+  ScriptingTest vm(
+      R"(type MyConverter = {
   multiplier: Input<number>,
 }
 
@@ -697,86 +702,85 @@ return function(): Converter<MyConverter, DataValueNumber, DataValueNumber>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(L != nullptr);
+  lua_State* L = vm.state();
+  REQUIRE(L != nullptr);
 
-    // Ensure stack is clean and has the factory function
-    int stackTop = lua_gettop(L);
-    REQUIRE(stackTop >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  // Ensure stack is clean and has the factory function
+  int stackTop = lua_gettop(L);
+  REQUIRE(stackTop >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    // Create ScriptedDataConverter instance on heap to avoid potential stack
-    // alignment issues Note: ScriptedDataConverter has multiple inheritance
-    // which might cause memory layout issues when tests run together
-    auto converter = std::make_unique<ScriptedDataConverter>();
+  // Create ScriptedDataConverter instance on heap to avoid potential stack
+  // alignment issues Note: ScriptedDataConverter has multiple inheritance
+  // which might cause memory layout issues when tests run together
+  auto converter = std::make_unique<ScriptedDataConverter>();
 
-    // Manually set the inits flag since we're not using ScriptAsset
-    converter->implementedMethods(converter->implementedMethods() |
-                                  (1 << 9)); // m_initsBit
+  // Manually set the inits flag since we're not using ScriptAsset
+  converter->implementedMethods(
+      converter->implementedMethods() | (1 << 9)); // m_initsBit
 
-    // ensureScriptInitialized expects the factory function on the stack
-    // Verify stack state before calling ensureScriptInitialized
-    REQUIRE(lua_gettop(L) == stackTop);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  // ensureScriptInitialized expects the factory function on the stack
+  // Verify stack state before calling ensureScriptInitialized
+  REQUIRE(lua_gettop(L) == stackTop);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    REQUIRE(
-        converter->ScriptedObject::ensureScriptInitialized(vm.vm(),
-                                                           refTopFunction(L)));
-    converter->ScriptedObject::hydrateScriptInputs();
-    converter->addScriptedDirt(ComponentDirt::Bindings);
+  REQUIRE(converter->ScriptedObject::ensureScriptInitialized(
+      vm.vm(),
+      refTopFunction(L)));
+  converter->ScriptedObject::hydrateScriptInputs();
+  converter->addScriptedDirt(ComponentDirt::Bindings);
 
-    // Verify self() is valid before using it
-    REQUIRE(converter->self() != 0);
+  // Verify self() is valid before using it
+  REQUIRE(converter->self() != 0);
 
-    // Manually set implemented methods flags
-    // After ensureScriptInitialized, the self table is stored in m_self
+  // Manually set implemented methods flags
+  // After ensureScriptInitialized, the self table is stored in m_self
+  {
+    rive_lua_pushRef(L, converter->self());
+    REQUIRE(lua_type(L, -1) == LUA_TTABLE); // Verify we got a valid table
+    lua_getfield(L, -1, "advance");
+    if (lua_type(L, -1) == LUA_TFUNCTION)
     {
-        rive_lua_pushRef(L, converter->self());
-        REQUIRE(lua_type(L, -1) == LUA_TTABLE); // Verify we got a valid table
-        lua_getfield(L, -1, "advance");
-        if (lua_type(L, -1) == LUA_TFUNCTION)
-        {
-            converter->implementedMethods(converter->implementedMethods() |
-                                          (1 << 0)); // m_advancesBit
-        }
-        lua_pop(L, 2); // Pop function check and self table
+      converter->implementedMethods(
+          converter->implementedMethods() | (1 << 0)); // m_advancesBit
     }
+    lua_pop(L, 2); // Pop function check and self table
+  }
 
-    // Test that we can set inputs
-    converter->setNumberInput("multiplier", 3.0);
+  // Test that we can set inputs
+  converter->setNumberInput("multiplier", 3.0);
 
-    // Test advance - need AdvanceNested flag
-    // Note: luaState must still be in scope here since converter.m_state points
-    // to it
-    CHECK(converter->advanceComponent(0.1f,
-                                      AdvanceFlags::AdvanceNested |
-                                          AdvanceFlags::Animate |
-                                          AdvanceFlags::NewFrame));
+  // Test advance - need AdvanceNested flag
+  // Note: luaState must still be in scope here since converter.m_state points
+  // to it
+  CHECK(converter->advanceComponent(
+      0.1f,
+      AdvanceFlags::AdvanceNested | AdvanceFlags::Animate |
+          AdvanceFlags::NewFrame));
 
-    // Note: Testing convert() would require creating DataValueNumber and
-    // DataBind objects, which is more complex. The initialization test verifies
-    // the basic setup works.
+  // Note: Testing convert() would require creating DataValueNumber and
+  // DataBind objects, which is more complex. The initialization test verifies
+  // the basic setup works.
 
-    // Cleanup - must happen before luaState goes out of scope
-    converter->scriptDispose();
+  // Cleanup - must happen before luaState goes out of scope
+  converter->scriptDispose();
 }
 
 TEST_CASE("scriptDispose clears viewmodel listeners immediately", "[scripting]")
 {
-    auto file = ReadRiveFile("assets/scripted_color.riv");
-    auto artboard = file->artboard("ColorArtboard")->instance();
-    REQUIRE(artboard != nullptr);
+  auto file = ReadRiveFile("assets/scripted_color.riv");
+  auto artboard = file->artboard("ColorArtboard")->instance();
+  REQUIRE(artboard != nullptr);
 
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto property = viewModelInstance->propertyValue("colorProp");
-    REQUIRE(property != nullptr);
-    auto colorProperty = property->as<ViewModelInstanceColor>();
-    REQUIRE(colorProperty != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto property = viewModelInstance->propertyValue("colorProp");
+  REQUIRE(property != nullptr);
+  auto colorProperty = property->as<ViewModelInstanceColor>();
+  REQUIRE(colorProperty != nullptr);
 
-    ScriptingTest vm(
-        R"(
+  ScriptingTest vm(
+      R"(
 function init(self, context)
   local vm = context:viewModel()
   local prop = vm:getColor("colorProp")
@@ -801,90 +805,91 @@ return function()
 end
 )");
 
-    lua_State* L = vm.state();
-    REQUIRE(L != nullptr);
-    REQUIRE(lua_gettop(L) >= 1);
-    REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
+  lua_State* L = vm.state();
+  REQUIRE(L != nullptr);
+  REQUIRE(lua_gettop(L) >= 1);
+  REQUIRE(lua_type(L, -1) == LUA_TFUNCTION);
 
-    ScriptedObjectTest object;
-    object.implementedMethods(object.implementedMethods() | (1 << 9));
-    object.dataContext(make_rcp<DataContext>(viewModelInstance));
-    REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    object.hydrateScriptInputs();
+  ScriptedObjectTest object;
+  object.implementedMethods(object.implementedMethods() | (1 << 9));
+  object.dataContext(make_rcp<DataContext>(viewModelInstance));
+  REQUIRE(object.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  object.hydrateScriptInputs();
 
-    ViewModelInstanceViewModel vmInput;
-    vmInput.referenceViewModelInstance(viewModelInstance);
-    object.setViewModelInput("selfVm", &vmInput);
-    object.trigger("registerSelfListener");
+  ViewModelInstanceViewModel vmInput;
+  vmInput.referenceViewModelInstance(viewModelInstance);
+  object.setViewModelInput("selfVm", &vmInput);
+  object.trigger("registerSelfListener");
 
-    colorProperty->propertyValue(0xFF101567);
-    REQUIRE(vm.console.size() == 2);
-    CHECK(vm.console[0] == "context listener fired");
-    CHECK(vm.console[1] == "self listener fired");
+  colorProperty->propertyValue(0xFF101567);
+  REQUIRE(vm.console.size() == 2);
+  CHECK(vm.console[0] == "context listener fired");
+  CHECK(vm.console[1] == "self listener fired");
 
-    object.scriptDispose();
+  object.scriptDispose();
 
-    colorProperty->propertyValue(0xFF101568);
-    CHECK(vm.console.size() == 2);
+  colorProperty->propertyValue(0xFF101568);
+  CHECK(vm.console.size() == 2);
 }
 
 TEST_CASE("scripted input color and trigger test", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/script_inputs_test_1.riv", &silver);
-    auto artboard = file->artboardNamed("Artboard");
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/script_inputs_test_1.riv", &silver);
+  auto artboard = file->artboardNamed("Artboard");
 
-    silver.frameSize(artboard->width(), artboard->height());
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  silver.frameSize(artboard->width(), artboard->height());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  rive::ViewModelInstanceTrigger*
+      trigger = vmi->propertyValue("Trigger")
+                    ->as<rive::ViewModelInstanceTrigger>();
+  REQUIRE(trigger != nullptr);
+
+  int frames = 30;
+  for (int i = 0; i < frames; i++)
+  {
+    trigger->trigger();
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    rive::ViewModelInstanceTrigger* trigger =
-        vmi->propertyValue("Trigger")->as<rive::ViewModelInstanceTrigger>();
-    REQUIRE(trigger != nullptr);
-
-    int frames = 30;
-    for (int i = 0; i < frames; i++)
-    {
-        trigger->trigger();
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("script_input_color_trigger"));
+  CHECK(silver.matches("script_input_color_trigger"));
 }
 
 TEST_CASE(
     "This test ensures there is no memory leak from attaching listeners to properties",
     "[scripting]")
 {
-    auto file = ReadRiveFile("assets/scripted_memory_leak.riv");
-    REQUIRE(file != nullptr);
+  auto file = ReadRiveFile("assets/scripted_memory_leak.riv");
+  REQUIRE(file != nullptr);
 
-    auto artboard = file->artboardDefault()->instance();
-    REQUIRE(artboard != nullptr);
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    auto machine = artboard->defaultStateMachine();
-    REQUIRE(machine != nullptr);
-    machine->bindViewModelInstance(vmi);
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboardDefault()->instance();
+  REQUIRE(artboard != nullptr);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto machine = artboard->defaultStateMachine();
+  REQUIRE(machine != nullptr);
+  machine->bindViewModelInstance(vmi);
+  machine->advanceAndApply(0.0f);
 }
 
-TEST_CASE("ensureScriptInitialized then hydrate twice keeps same self ref",
-          "[scripting]")
+TEST_CASE(
+    "ensureScriptInitialized then hydrate twice keeps same self ref",
+    "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   count: Input<number>,
 }
 
@@ -908,27 +913,27 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    ScriptedDrawable drawable;
-    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  ScriptedDrawable drawable;
+  drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
 
-    CHECK(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    int selfRef = drawable.self();
-    REQUIRE(selfRef != 0);
-    CHECK(drawable.hydrateScriptInputs());
-    CHECK(drawable.self() == selfRef);
-    CHECK(drawable.hydrateScriptInputs());
-    CHECK(drawable.self() == selfRef);
-    drawable.scriptDispose();
+  CHECK(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  int selfRef = drawable.self();
+  REQUIRE(selfRef != 0);
+  CHECK(drawable.hydrateScriptInputs());
+  CHECK(drawable.self() == selfRef);
+  CHECK(drawable.hydrateScriptInputs());
+  CHECK(drawable.self() == selfRef);
+  drawable.scriptDispose();
 }
 
 TEST_CASE(
     "hydrateScriptInputs runs Lua init without DataContext when inputs allow",
     "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   x: Input<number>,
 }
 
@@ -953,27 +958,28 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
-    ScriptedDrawable drawable;
-    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
+  ScriptedDrawable drawable;
+  drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
 
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    REQUIRE(drawable.hydrateScriptInputs());
+  REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  REQUIRE(drawable.hydrateScriptInputs());
 
-    rive_lua_pushRef(L, drawable.self());
-    REQUIRE(lua_getfield(L, -1, "initRan") == LUA_TBOOLEAN);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 2);
+  rive_lua_pushRef(L, drawable.self());
+  REQUIRE(lua_getfield(L, -1, "initRan") == LUA_TBOOLEAN);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 2);
 
-    drawable.scriptDispose();
+  drawable.scriptDispose();
 }
 
-TEST_CASE("hydration preflight fails atomically when VM input cannot resolve",
-          "[scripting]")
+TEST_CASE(
+    "hydration preflight fails atomically when VM input cannot resolve",
+    "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyNode = {
+  ScriptingTest vm(
+      R"(type MyNode = {
   count: Input<number>,
 }
 
@@ -997,30 +1003,30 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    REQUIRE(lua_gettop(L) >= 1);
+  lua_State* L = vm.state();
+  REQUIRE(lua_gettop(L) >= 1);
 
-    ScriptedDrawable drawable;
-    drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
+  ScriptedDrawable drawable;
+  drawable.implementedMethods(drawable.implementedMethods() | (1 << 9));
 
-    auto* numInput = new ScriptInputNumber();
-    numInput->name("count");
-    numInput->propertyValue(999.0f);
-    drawable.addProperty(numInput);
+  auto* numInput = new ScriptInputNumber();
+  numInput->name("count");
+  numInput->propertyValue(999.0f);
+  drawable.addProperty(numInput);
 
-    auto* vmInput = new ScriptInputViewModelProperty();
-    vmInput->name("vmBound");
-    drawable.addProperty(vmInput);
+  auto* vmInput = new ScriptInputViewModelProperty();
+  vmInput->name("vmBound");
+  drawable.addProperty(vmInput);
 
-    REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
-    CHECK_FALSE(drawable.hydrateScriptInputs());
+  REQUIRE(drawable.ensureScriptInitialized(vm.vm(), refTopFunction(L)));
+  CHECK_FALSE(drawable.hydrateScriptInputs());
 
-    rive_lua_pushRef(L, drawable.self());
-    REQUIRE(lua_getfield(L, -1, "count") == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 7.0);
-    lua_pop(L, 2);
+  rive_lua_pushRef(L, drawable.self());
+  REQUIRE(lua_getfield(L, -1, "count") == LUA_TNUMBER);
+  CHECK(lua_tonumber(L, -1) == 7.0);
+  lua_pop(L, 2);
 
-    drawable.scriptDispose();
-    delete numInput;
-    delete vmInput;
+  drawable.scriptDispose();
+  delete numInput;
+  delete vmInput;
 }

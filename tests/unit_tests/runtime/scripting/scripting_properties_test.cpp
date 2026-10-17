@@ -42,25 +42,25 @@
 
 using namespace rive;
 
-TEST_CASE("property listeners survive userdata gc while subscribed",
-          "[scripting_properties]")
+TEST_CASE(
+    "property listeners survive userdata gc while subscribed",
+    "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-1")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("artboard-1")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    auto rotationProperty = viewModelInstance->propertyValue("rotation");
-    REQUIRE(rotationProperty != nullptr);
-    REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
+  auto rotationProperty = viewModelInstance->propertyValue("rotation");
+  REQUIRE(rotationProperty != nullptr);
+  REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 listenerHit = false
 listenerHitAfterRemove = false
 
@@ -79,105 +79,102 @@ function registerThenRemove(vm)
 end
 )TEST_SRC");
 
-    auto L = vm.state();
+  auto L = vm.state();
 
-    SECTION("chained addListener keeps property alive across gc")
-    {
-        lua_getglobal(L, "registerRotationListener");
-        lua_newrive<ScriptedViewModel>(L,
-                                       L,
-                                       ref_rcp(viewModelInstance->viewModel()),
-                                       viewModelInstance);
-        REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  SECTION("chained addListener keeps property alive across gc")
+  {
+    lua_getglobal(L, "registerRotationListener");
+    lua_newrive<ScriptedViewModel>(
+        L,
+        L,
+        ref_rcp(viewModelInstance->viewModel()),
+        viewModelInstance);
+    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-        lua_gc(L, LUA_GCCOLLECT, 0);
-        lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
 
-        rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
-            42.0f);
+    rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(42.0f);
 
-        lua_getglobal(L, "listenerHit");
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1);
-    }
+    lua_getglobal(L, "listenerHit");
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1);
+  }
 
-    SECTION("removeListener releases anchor before value change")
-    {
-        lua_getglobal(L, "registerThenRemove");
-        lua_newrive<ScriptedViewModel>(L,
-                                       L,
-                                       ref_rcp(viewModelInstance->viewModel()),
-                                       viewModelInstance);
-        REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  SECTION("removeListener releases anchor before value change")
+  {
+    lua_getglobal(L, "registerThenRemove");
+    lua_newrive<ScriptedViewModel>(
+        L,
+        L,
+        ref_rcp(viewModelInstance->viewModel()),
+        viewModelInstance);
+    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-        lua_gc(L, LUA_GCCOLLECT, 0);
-        lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    lua_gc(L, LUA_GCCOLLECT, 0);
 
-        rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
-            99.0f);
+    rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(99.0f);
 
-        lua_getglobal(L, "listenerHitAfterRemove");
-        CHECK(lua_toboolean(L, -1) == 0);
-        lua_pop(L, 1);
-    }
+    lua_getglobal(L, "listenerHitAfterRemove");
+    CHECK(lua_toboolean(L, -1) == 0);
+    lua_pop(L, 1);
+  }
 }
 
 TEST_CASE("scripted properties can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-1")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("artboard-1")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "vm1");
-    // View model properties
-    // Number
-    auto widthProperty = viewModelInstance->propertyValue("width");
-    REQUIRE(widthProperty != nullptr);
-    REQUIRE(widthProperty->is<rive::ViewModelInstanceNumber>());
-    // Number with comverter
-    auto rotationProperty = viewModelInstance->propertyValue("rotation");
-    REQUIRE(rotationProperty != nullptr);
-    REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
-    // Color
-    auto colorProperty = viewModelInstance->propertyValue("color");
-    REQUIRE(colorProperty != nullptr);
-    REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
-    // String
-    auto textProperty = viewModelInstance->propertyValue("text");
-    REQUIRE(textProperty != nullptr);
-    REQUIRE(textProperty->is<rive::ViewModelInstanceString>());
-    // Boolean
-    auto orientProperty = viewModelInstance->propertyValue("orient");
-    REQUIRE(orientProperty != nullptr);
-    REQUIRE(orientProperty->is<rive::ViewModelInstanceBoolean>());
-    // Update view model values
-    widthProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200.0f);
-    rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
-        180.0f);
-    colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
-        rive::colorARGB(255, 0, 255, 0));
-    textProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "New text");
-    orientProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
+  CHECK(viewModelInstance->viewModel()->name() == "vm1");
+  // View model properties
+  // Number
+  auto widthProperty = viewModelInstance->propertyValue("width");
+  REQUIRE(widthProperty != nullptr);
+  REQUIRE(widthProperty->is<rive::ViewModelInstanceNumber>());
+  // Number with comverter
+  auto rotationProperty = viewModelInstance->propertyValue("rotation");
+  REQUIRE(rotationProperty != nullptr);
+  REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
+  // Color
+  auto colorProperty = viewModelInstance->propertyValue("color");
+  REQUIRE(colorProperty != nullptr);
+  REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
+  // String
+  auto textProperty = viewModelInstance->propertyValue("text");
+  REQUIRE(textProperty != nullptr);
+  REQUIRE(textProperty->is<rive::ViewModelInstanceString>());
+  // Boolean
+  auto orientProperty = viewModelInstance->propertyValue("orient");
+  REQUIRE(orientProperty != nullptr);
+  REQUIRE(orientProperty->is<rive::ViewModelInstanceBoolean>());
+  // Update view model values
+  widthProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200.0f);
+  rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(180.0f);
+  colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
+      rive::colorARGB(255, 0, 255, 0));
+  textProperty->as<rive::ViewModelInstanceString>()->propertyValue("New text");
+  orientProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
 
-    auto artboardWithTrigger = file->artboard("artboard-2")->instance();
-    REQUIRE(artboardWithTrigger != nullptr);
-    auto viewModelInstanceWithTrigger =
-        file->createDefaultViewModelInstance(artboardWithTrigger.get());
-    REQUIRE(viewModelInstanceWithTrigger != nullptr);
-    auto triggerProperty =
-        viewModelInstanceWithTrigger->propertyValue("trigger-prop");
-    REQUIRE(triggerProperty != nullptr);
-    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+  auto artboardWithTrigger = file->artboard("artboard-2")->instance();
+  REQUIRE(artboardWithTrigger != nullptr);
+  auto viewModelInstanceWithTrigger = file->createDefaultViewModelInstance(
+      artboardWithTrigger.get());
+  REQUIRE(viewModelInstanceWithTrigger != nullptr);
+  auto triggerProperty = viewModelInstanceWithTrigger->propertyValue(
+      "trigger-prop");
+  REQUIRE(triggerProperty != nullptr);
+  REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 type ViewModel = {
     getNumber: (self, name:string)->Property<number>?,
     getTrigger: (self, name:string)->PropertyTrigger?
@@ -251,85 +248,84 @@ function callTriggerIndirectly()
     end
 end
 )TEST_SRC");
-    auto L = vm.state();
-    lua_getglobal(L, "provide");
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_newrive<ScriptedViewModel>(
-        L,
-        L,
-        ref_rcp(viewModelInstanceWithTrigger->viewModel()),
-        viewModelInstanceWithTrigger);
-    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-    CHECK(vm.console.size() == 2);
-    CHECK(vm.console[0] == "trigger is good");
-    CHECK(vm.console[1] == "data provided");
+  auto L = vm.state();
+  lua_getglobal(L, "provide");
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstanceWithTrigger->viewModel()),
+      viewModelInstanceWithTrigger);
+  CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+  CHECK(vm.console.size() == 2);
+  CHECK(vm.console[0] == "trigger is good");
+  CHECK(vm.console[1] == "data provided");
 
-    lua_getglobal(L, "getRotation");
-    lua_pcall(L, 0, 1, 0);
-    REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
-    lua_pop(L, 1);
+  lua_getglobal(L, "getRotation");
+  lua_pcall(L, 0, 1, 0);
+  REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
+  lua_pop(L, 1);
 
-    lua_getglobal(L, "getRotationByName");
-    lua_pcall(L, 0, 1, 0);
-    REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
-    lua_pop(L, 1);
+  lua_getglobal(L, "getRotationByName");
+  lua_pcall(L, 0, 1, 0);
+  REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
+  lua_pop(L, 1);
 
-    lua_getglobal(L, "calledBoth");
-    lua_pcall(L, 0, 1, 0);
-    CHECK(lua_toboolean(L, -1) == 0);
-    lua_pop(L, 1);
+  lua_getglobal(L, "calledBoth");
+  lua_pcall(L, 0, 1, 0);
+  CHECK(lua_toboolean(L, -1) == 0);
+  lua_pop(L, 1);
 
-    // Change the rotation value
-    rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
-        360.0f);
+  // Change the rotation value
+  rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(360.0f);
 
-    // Expect calledBoth to now return true.
-    lua_getglobal(L, "calledBoth");
-    lua_pcall(L, 0, 1, 0);
-    CHECK(lua_toboolean(L, -1) == 1);
-    lua_pop(L, 1);
+  // Expect calledBoth to now return true.
+  lua_getglobal(L, "calledBoth");
+  lua_pcall(L, 0, 1, 0);
+  CHECK(lua_toboolean(L, -1) == 1);
+  lua_pop(L, 1);
 
-    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
+  triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
 
-    // Check print statements.
-    CHECK(vm.console.size() == 5);
-    CHECK(vm.console[0] == "trigger is good");
-    CHECK(vm.console[1] == "data provided");
-    CHECK(vm.console[2] == "changed");
-    CHECK(vm.console[3] == "changed with context");
-    CHECK(vm.console[4] == "trigger was triggered!");
+  // Check print statements.
+  CHECK(vm.console.size() == 5);
+  CHECK(vm.console[0] == "trigger is good");
+  CHECK(vm.console[1] == "data provided");
+  CHECK(vm.console[2] == "changed");
+  CHECK(vm.console[3] == "changed with context");
+  CHECK(vm.console[4] == "trigger was triggered!");
 
-    lua_getglobal(L, "callTriggerIndirectly");
-    lua_pcall(L, 0, 0, 0);
-    // another print
-    CHECK(vm.console.size() == 6);
-    CHECK(vm.console[5] == "trigger was triggered!");
+  lua_getglobal(L, "callTriggerIndirectly");
+  lua_pcall(L, 0, 0, 0);
+  // another print
+  CHECK(vm.console.size() == 6);
+  CHECK(vm.console[5] == "trigger was triggered!");
 }
 
 TEST_CASE("scripted list can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_graph.riv");
+  auto file = ReadRiveFile("assets/scripted_graph.riv");
 
-    auto artboard = file->artboard("Artboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("Artboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "Graph");
-    // View model properties
-    // Number
-    auto pointsProperty = viewModelInstance->propertyValue("points");
-    REQUIRE(pointsProperty != nullptr);
-    REQUIRE(pointsProperty->is<rive::ViewModelInstanceList>());
+  CHECK(viewModelInstance->viewModel()->name() == "Graph");
+  // View model properties
+  // Number
+  auto pointsProperty = viewModelInstance->propertyValue("points");
+  REQUIRE(pointsProperty != nullptr);
+  REQUIRE(pointsProperty->is<rive::ViewModelInstanceList>());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function provide(vm)
         local points = vm.points
         print(`length is {points.length}`)
@@ -355,104 +351,104 @@ function yChanged(point)
     end
 end
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_getglobal(L, "provide");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    auto list = pointsProperty->as<ViewModelInstanceList>();
-    list->removeItem(1);
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_getglobal(L, "provide");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  auto list = pointsProperty->as<ViewModelInstanceList>();
+  list->removeItem(1);
 
-    auto item = list->listItems()[1]; // 2 is now at 1
-    auto vmi = item->viewModelInstance();
-    auto yProperty = vmi->propertyValue("y");
-    CHECK(yProperty->is<rive::ViewModelInstanceNumber>());
-    yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(22);
+  auto item = list->listItems()[1]; // 2 is now at 1
+  auto vmi = item->viewModelInstance();
+  auto yProperty = vmi->propertyValue("y");
+  CHECK(yProperty->is<rive::ViewModelInstanceNumber>());
+  yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(22);
 
-    lua_getglobal(L, "iterateAgain");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(23);
+  lua_getglobal(L, "iterateAgain");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(23);
 
-    CHECK(vm.console.size() == 13);
-    CHECK(vm.console[0] == "length is 5");
-    CHECK(vm.console[1] == "point is 0 10");
-    CHECK(vm.console[2] == "point is 1 15");
-    CHECK(vm.console[3] == "point is 2 16");
-    CHECK(vm.console[4] == "point is 3 18");
-    CHECK(vm.console[5] == "point is 4 9");
-    CHECK(vm.console[6] == "y changed to: 22");
-    CHECK(vm.console[7] == "length is 4");
-    CHECK(vm.console[8] == "point is 0 10");
-    CHECK(vm.console[9] == "point is 2 22");
-    CHECK(vm.console[10] == "point is 3 18");
-    CHECK(vm.console[11] == "point is 4 9");
-    CHECK(vm.console[12] == "y changed to: 23");
+  CHECK(vm.console.size() == 13);
+  CHECK(vm.console[0] == "length is 5");
+  CHECK(vm.console[1] == "point is 0 10");
+  CHECK(vm.console[2] == "point is 1 15");
+  CHECK(vm.console[3] == "point is 2 16");
+  CHECK(vm.console[4] == "point is 3 18");
+  CHECK(vm.console[5] == "point is 4 9");
+  CHECK(vm.console[6] == "y changed to: 22");
+  CHECK(vm.console[7] == "length is 4");
+  CHECK(vm.console[8] == "point is 0 10");
+  CHECK(vm.console[9] == "point is 2 22");
+  CHECK(vm.console[10] == "point is 3 18");
+  CHECK(vm.console[11] == "point is 4 9");
+  CHECK(vm.console[12] == "y changed to: 23");
 }
 
-TEST_CASE("ViewModelInstanceList removes every row for one instance",
-          "[scripting_properties]")
+TEST_CASE(
+    "ViewModelInstanceList removes every row for one instance",
+    "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_graph.riv");
+  auto file = ReadRiveFile("assets/scripted_graph.riv");
 
-    auto artboard = file->artboard("Artboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("Artboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    auto pointsProperty = viewModelInstance->propertyValue("points");
-    REQUIRE(pointsProperty != nullptr);
-    auto list = pointsProperty->as<ViewModelInstanceList>();
+  auto pointsProperty = viewModelInstance->propertyValue("points");
+  REQUIRE(pointsProperty != nullptr);
+  auto list = pointsProperty->as<ViewModelInstanceList>();
 
-    const size_t initialCount = list->listItems().size();
-    REQUIRE(initialCount >= 2);
+  const size_t initialCount = list->listItems().size();
+  REQUIRE(initialCount >= 2);
 
-    auto& targetItem = list->listItems()[0];
-    ViewModelInstance* shared = targetItem->viewModelInstance().get();
-    REQUIRE(shared != nullptr);
+  auto& targetItem = list->listItems()[0];
+  ViewModelInstance* shared = targetItem->viewModelInstance().get();
+  REQUIRE(shared != nullptr);
 
-    auto duplicateRow = make_rcp<ViewModelInstanceListItem>();
-    duplicateRow->viewModelInstance(ref_rcp(shared));
-    list->addItem(duplicateRow);
+  auto duplicateRow = make_rcp<ViewModelInstanceListItem>();
+  duplicateRow->viewModelInstance(ref_rcp(shared));
+  list->addItem(duplicateRow);
 
-    REQUIRE(list->listItems().size() == initialCount + 1);
+  REQUIRE(list->listItems().size() == initialCount + 1);
 
-    list->removeAllItemsWithViewModelInstance(shared);
+  list->removeAllItemsWithViewModelInstance(shared);
 
-    CHECK(list->listItems().size() == initialCount - 1);
-    for (const auto& item : list->listItems())
-    {
-        CHECK(item->viewModelInstance().get() != shared);
-    }
+  CHECK(list->listItems().size() == initialCount - 1);
+  for (const auto& item : list->listItems())
+  {
+    CHECK(item->viewModelInstance().get() != shared);
+  }
 }
 
 TEST_CASE("scripted color can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_color.riv");
+  auto file = ReadRiveFile("assets/scripted_color.riv");
 
-    auto artboard = file->artboard("ColorArtboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("ColorArtboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "colorsVm");
-    auto property = viewModelInstance->propertyValue("colorProp");
-    REQUIRE(property != nullptr);
-    REQUIRE(property->is<rive::ViewModelInstanceColor>());
-    auto colorProperty = property->as<rive::ViewModelInstanceColor>();
+  CHECK(viewModelInstance->viewModel()->name() == "colorsVm");
+  auto property = viewModelInstance->propertyValue("colorProp");
+  REQUIRE(property != nullptr);
+  REQUIRE(property->is<rive::ViewModelInstanceColor>());
+  auto colorProperty = property->as<rive::ViewModelInstanceColor>();
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function init(vm)
     print(`color init to {vm.colorProp.value}`)
     vm.colorProp:addListener(vm.colorProp, colorChanged)
@@ -468,50 +464,50 @@ function colorChanged(color)
 end
 
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_getglobal(L, "init");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(colorProperty->propertyValue() == 0xFF101566);
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_getglobal(L, "init");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(colorProperty->propertyValue() == 0xFF101566);
 
-    colorProperty->propertyValue(0xFF101567);
+  colorProperty->propertyValue(0xFF101567);
 
-    lua_getglobal(L, "setRed");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_getglobal(L, "setRed");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    CHECK(vm.console.size() == 4);
-    CHECK(vm.console[0] == ("color init to " + std::to_string(0xff101566)));
-    CHECK(vm.console[1] == ("color changed to " + std::to_string(0xff101567)));
-    CHECK(vm.console[2] == ("color changed to " + std::to_string(0xffff0000)));
-    CHECK(vm.console[3] == ("color is " + std::to_string(0xffff0000)));
+  CHECK(vm.console.size() == 4);
+  CHECK(vm.console[0] == ("color init to " + std::to_string(0xff101566)));
+  CHECK(vm.console[1] == ("color changed to " + std::to_string(0xff101567)));
+  CHECK(vm.console[2] == ("color changed to " + std::to_string(0xffff0000)));
+  CHECK(vm.console[3] == ("color is " + std::to_string(0xffff0000)));
 }
 
 TEST_CASE("scripted string can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_string.riv");
+  auto file = ReadRiveFile("assets/scripted_string.riv");
 
-    auto artboard = file->artboard("StringArtboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("StringArtboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "stringVm");
-    auto property = viewModelInstance->propertyValue("stringProp");
-    REQUIRE(property != nullptr);
-    REQUIRE(property->is<rive::ViewModelInstanceString>());
-    auto stringProperty = property->as<rive::ViewModelInstanceString>();
+  CHECK(viewModelInstance->viewModel()->name() == "stringVm");
+  auto property = viewModelInstance->propertyValue("stringProp");
+  REQUIRE(property != nullptr);
+  REQUIRE(property->is<rive::ViewModelInstanceString>());
+  auto stringProperty = property->as<rive::ViewModelInstanceString>();
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function init(vm)
     print(`string init to {vm.stringProp.value}`)
     vm.stringProp:addListener(vm.stringProp, stringChanged)
@@ -527,50 +523,50 @@ function stringChanged(str)
 end
 
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_getglobal(L, "init");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(stringProperty->propertyValue() == "yo");
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_getglobal(L, "init");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(stringProperty->propertyValue() == "yo");
 
-    stringProperty->propertyValue("yoo");
+  stringProperty->propertyValue("yoo");
 
-    lua_getglobal(L, "setHello");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_getglobal(L, "setHello");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    CHECK(vm.console.size() == 4);
-    CHECK(vm.console[0] == "string init to yo");
-    CHECK(vm.console[1] == "string changed to yoo");
-    CHECK(vm.console[2] == "string changed to Hello World");
-    CHECK(vm.console[3] == "string is Hello World");
+  CHECK(vm.console.size() == 4);
+  CHECK(vm.console[0] == "string init to yo");
+  CHECK(vm.console[1] == "string changed to yoo");
+  CHECK(vm.console[2] == "string changed to Hello World");
+  CHECK(vm.console[3] == "string is Hello World");
 }
 
 TEST_CASE("scripted boolean can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_boolean.riv");
+  auto file = ReadRiveFile("assets/scripted_boolean.riv");
 
-    auto artboard = file->artboard("BooleanArtboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("BooleanArtboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "BoolVM");
-    auto property = viewModelInstance->propertyValue("BoolProp");
-    REQUIRE(property != nullptr);
-    REQUIRE(property->is<rive::ViewModelInstanceBoolean>());
-    auto boolProperty = property->as<rive::ViewModelInstanceBoolean>();
+  CHECK(viewModelInstance->viewModel()->name() == "BoolVM");
+  auto property = viewModelInstance->propertyValue("BoolProp");
+  REQUIRE(property != nullptr);
+  REQUIRE(property->is<rive::ViewModelInstanceBoolean>());
+  auto boolProperty = property->as<rive::ViewModelInstanceBoolean>();
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function init(vm)
     print(`bool init to {vm.BoolProp.value}`)
     vm.BoolProp:addListener(vm.BoolProp, boolChanged)
@@ -586,49 +582,49 @@ function boolChanged(bool)
 end
 
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_getglobal(L, "init");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    CHECK(boolProperty->propertyValue() == false);
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_getglobal(L, "init");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  CHECK(boolProperty->propertyValue() == false);
 
-    lua_getglobal(L, "setTrue");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_getglobal(L, "setTrue");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    boolProperty->propertyValue(false);
+  boolProperty->propertyValue(false);
 
-    CHECK(vm.console.size() == 4);
-    CHECK(vm.console[0] == ("bool init to false"));
-    CHECK(vm.console[1] == ("bool changed to true"));
-    CHECK(vm.console[2] == ("bool is true"));
-    CHECK(vm.console[3] == ("bool changed to false"));
+  CHECK(vm.console.size() == 4);
+  CHECK(vm.console[0] == ("bool init to false"));
+  CHECK(vm.console[1] == ("bool changed to true"));
+  CHECK(vm.console[2] == ("bool is true"));
+  CHECK(vm.console[3] == ("bool changed to false"));
 }
 
 TEST_CASE("scripted enum can be passed to luau", "[scripting_properties]")
 {
-    auto file = ReadRiveFile("assets/scripted_enum.riv");
+  auto file = ReadRiveFile("assets/scripted_enum.riv");
 
-    auto artboard = file->artboard("EnumArtboard")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboard("EnumArtboard")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    CHECK(viewModelInstance->viewModel()->name() == "EnumVM");
-    auto property = viewModelInstance->propertyValue("EnumProp");
-    REQUIRE(property != nullptr);
-    REQUIRE(property->is<rive::ViewModelInstanceEnum>());
+  CHECK(viewModelInstance->viewModel()->name() == "EnumVM");
+  auto property = viewModelInstance->propertyValue("EnumProp");
+  REQUIRE(property != nullptr);
+  REQUIRE(property->is<rive::ViewModelInstanceEnum>());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function init(vm)
     print(`enum init to {vm.EnumProp.value}`)
     vm.EnumProp:addListener(vm.EnumProp, enumChanged)
@@ -644,282 +640,283 @@ function enumChanged(e)
 end
 
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedViewModel>(L,
-                                   L,
-                                   ref_rcp(viewModelInstance->viewModel()),
-                                   viewModelInstance);
-    lua_getglobal(L, "init");
-    lua_pushvalue(L, -2);
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_newrive<ScriptedViewModel>(
+      L,
+      L,
+      ref_rcp(viewModelInstance->viewModel()),
+      viewModelInstance);
+  lua_getglobal(L, "init");
+  lua_pushvalue(L, -2);
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    // Change the enum value via script multiple times
-    lua_getglobal(L, "setValue");
-    lua_pushvalue(L, -2); // vm
-    lua_pushstring(L, "blue");
-    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+  // Change the enum value via script multiple times
+  lua_getglobal(L, "setValue");
+  lua_pushvalue(L, -2); // vm
+  lua_pushstring(L, "blue");
+  CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
 
-    lua_getglobal(L, "setValue");
-    lua_pushvalue(L, -2); // vm
-    lua_pushstring(L, "orange");
-    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+  lua_getglobal(L, "setValue");
+  lua_pushvalue(L, -2); // vm
+  lua_pushstring(L, "orange");
+  CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
 
-    lua_getglobal(L, "setValue");
-    lua_pushvalue(L, -2); // vm
-    lua_pushstring(L, "red");
-    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+  lua_getglobal(L, "setValue");
+  lua_pushvalue(L, -2); // vm
+  lua_pushstring(L, "red");
+  CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
 
-    CHECK(vm.console.size() == 7);
-    CHECK(vm.console[0] == std::string("enum init to ") + std::string("white"));
-    CHECK(vm.console[1] ==
-          std::string("enum changed to ") + std::string("blue"));
-    CHECK(vm.console[2] == std::string("enum is ") + std::string("blue"));
-    CHECK(vm.console[3] ==
-          std::string("enum changed to ") + std::string("orange"));
-    CHECK(vm.console[4] == std::string("enum is ") + std::string("orange"));
-    CHECK(vm.console[5] ==
-          std::string("enum changed to ") + std::string("red"));
-    CHECK(vm.console[6] == std::string("enum is ") + std::string("red"));
+  CHECK(vm.console.size() == 7);
+  CHECK(vm.console[0] == std::string("enum init to ") + std::string("white"));
+  CHECK(vm.console[1] == std::string("enum changed to ") + std::string("blue"));
+  CHECK(vm.console[2] == std::string("enum is ") + std::string("blue"));
+  CHECK(
+      vm.console[3] == std::string("enum changed to ") + std::string("orange"));
+  CHECK(vm.console[4] == std::string("enum is ") + std::string("orange"));
+  CHECK(vm.console[5] == std::string("enum changed to ") + std::string("red"));
+  CHECK(vm.console[6] == std::string("enum is ") + std::string("red"));
 }
 
 TEST_CASE("Access view model properties and enum properties", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/viewmodel_access.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/viewmodel_access.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("viewmodel_access"));
+  CHECK(silver.matches("viewmodel_access"));
 }
 
 TEST_CASE("Creates view models from specified named instances", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/viewmodel_from_instance.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/viewmodel_from_instance.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("viewmodel_from_instance"));
+  CHECK(silver.matches("viewmodel_from_instance"));
 }
 
 TEST_CASE("Replace a view model property value from a script", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/replace_view_model.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/replace_view_model.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
 
-    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
-    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
+  stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, 480.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("replace_view_model"));
+  CHECK(silver.matches("replace_view_model"));
 }
 
 TEST_CASE("Scripts can remove items from lists", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/remove_from_list.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/remove_from_list.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 10;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 10;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("remove_from_list"));
+  CHECK(silver.matches("remove_from_list"));
 }
 
-TEST_CASE("Expose list index to scripts and ensure the type is correct",
-          "[silver]")
+TEST_CASE(
+    "Expose list index to scripts and ensure the type is correct",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/list_index_script_access.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/list_index_script_access.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    auto renderer = silver.makeRenderer();
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("list_index_script_access"));
+  CHECK(silver.matches("list_index_script_access"));
 }
 
 TEST_CASE("Scripted image properties", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/scripted_property_image.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/scripted_property_image.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripted_property_image"));
+  CHECK(silver.matches("scripted_property_image"));
 }
 
 TEST_CASE("Image read from propertyValue", "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/image_scripting_property_value.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/image_scripting_property_value.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.25f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.25f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("image_scripting_property_value"));
+  CHECK(silver.matches("image_scripting_property_value"));
 }
 
 TEST_CASE("Reset detached view model instances at end of frame", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/reset_shared_viewmodel_instance_test.riv",
-                             &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/reset_shared_viewmodel_instance_test.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
-    auto valueProp = vmi->propertyValue("tri1")->as<ViewModelInstanceTrigger>();
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto valueProp = vmi->propertyValue("tri1")->as<ViewModelInstanceTrigger>();
 
-    auto renderer = silver.makeRenderer();
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    valueProp->trigger();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  valueProp->trigger();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    valueProp->trigger();
-    stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
-    stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  valueProp->trigger();
+  stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
+  stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
-    stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(45.0f, 165.0f));
+  stateMachine->pointerUp(rive::Vec2D(45.0f, 165.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("reset_shared_viewmodel_instance_test"));
+  CHECK(silver.matches("reset_shared_viewmodel_instance_test"));
 }
 
 // Fixture-free coverage of ScriptedPropertyBlob: a script can read the byte
 // count and bytes out of a bound blob property and write new bytes back into
 // it.
-TEST_CASE("Scripted blob property reads and writes bytes",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted blob property reads and writes bytes",
+    "[scripting_properties]")
 {
-    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
-    auto initial = make_rcp<BlobAsset>();
-    {
-        std::vector<uint8_t> data = {10, 20, 30};
-        SimpleArray<uint8_t> bytes(data.data(), data.size());
-        initial->decode(bytes, nullptr);
-    }
-    vmiBlob->value(initial.get());
+  auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+  auto initial = make_rcp<BlobAsset>();
+  {
+    std::vector<uint8_t> data = {10, 20, 30};
+    SimpleArray<uint8_t> bytes(data.data(), data.size());
+    initial->decode(bytes, nullptr);
+  }
+  vmiBlob->value(initial.get());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function readSize(prop)
     local v = prop.value
     if v then return v.size end
@@ -936,65 +933,66 @@ function writeBytes(prop, s)
     prop.value = s
 end
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    // Initial size is 3.
-    lua_getglobal(L, "readSize");
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx(3));
-    lua_pop(L, 1);
+  // Initial size is 3.
+  lua_getglobal(L, "readSize");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx(3));
+  lua_pop(L, 1);
 
-    // First byte is 10.
-    lua_getglobal(L, "readByte");
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_pushinteger(L, 0);
-    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx(10));
-    lua_pop(L, 1);
+  // First byte is 10.
+  lua_getglobal(L, "readByte");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_pushinteger(L, 0);
+  CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx(10));
+  lua_pop(L, 1);
 
-    // Write four bytes from a string.
-    lua_getglobal(L, "writeBytes");
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_pushstring(L, "abcd");
-    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+  // Write four bytes from a string.
+  lua_getglobal(L, "writeBytes");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_pushstring(L, "abcd");
+  CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
 
-    REQUIRE(vmiBlob->asset() != nullptr);
-    CHECK(vmiBlob->asset()->bytes().size() == 4);
+  REQUIRE(vmiBlob->asset() != nullptr);
+  CHECK(vmiBlob->asset()->bytes().size() == 4);
 
-    // The script now sees the updated bytes.
-    lua_getglobal(L, "readSize");
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx(4));
-    lua_pop(L, 1);
+  // The script now sees the updated bytes.
+  lua_getglobal(L, "readSize");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx(4));
+  lua_pop(L, 1);
 
-    lua_getglobal(L, "readByte");
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_pushinteger(L, 0);
-    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx('a'));
-    lua_pop(L, 1);
+  lua_getglobal(L, "readByte");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_pushinteger(L, 0);
+  CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx('a'));
+  lua_pop(L, 1);
 }
 
 // Reading `prop.value` twice with no change in between returns the SAME Blob
 // object (stable identity), so scripts can detect changes with the natural
 // `newVal ~= oldVal`. After the underlying value changes, the next read returns
 // a different object.
-TEST_CASE("Scripted blob property value has stable identity across reads",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted blob property value has stable identity across reads",
+    "[scripting_properties]")
 {
-    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
-    auto initial = make_rcp<BlobAsset>();
-    {
-        std::vector<uint8_t> data = {1, 2, 3};
-        SimpleArray<uint8_t> bytes(data.data(), data.size());
-        initial->decode(bytes, nullptr);
-    }
-    vmiBlob->value(initial.get());
+  auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+  auto initial = make_rcp<BlobAsset>();
+  {
+    std::vector<uint8_t> data = {1, 2, 3};
+    SimpleArray<uint8_t> bytes(data.data(), data.size());
+    initial->decode(bytes, nullptr);
+  }
+  vmiBlob->value(initial.get());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function sameAcrossReads(): boolean
     local a = blobProp.value
     local b = blobProp.value
@@ -1007,35 +1005,36 @@ function changesAfterWrite(): boolean
     return a ~= b
 end
 )TEST_SRC");
-    auto L = vm.state();
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_setglobal(L, "blobProp");
+  auto L = vm.state();
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_setglobal(L, "blobProp");
 
-    // Two reads with no change in between yield the same object.
-    lua_getglobal(L, "sameAcrossReads");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // Two reads with no change in between yield the same object.
+  lua_getglobal(L, "sameAcrossReads");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 
-    // A write invalidates the cache, so the next read is a fresh object.
-    lua_getglobal(L, "changesAfterWrite");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // A write invalidates the cache, so the next read is a fresh object.
+  lua_getglobal(L, "changesAfterWrite");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 }
 
 // Same stable-identity guarantee for image properties: two `.value` reads with
 // no change in between return the same userdata, and after the underlying value
 // changes the next read returns a different object.
-TEST_CASE("Scripted image property value has stable identity across reads",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted image property value has stable identity across reads",
+    "[scripting_properties]")
 {
-    auto vmiImage = make_rcp<ViewModelInstanceAssetImage>();
-    auto imageA = make_rcp<RenderImage>();
-    vmiImage->value(imageA.get());
+  auto vmiImage = make_rcp<ViewModelInstanceAssetImage>();
+  auto imageA = make_rcp<RenderImage>();
+  vmiImage->value(imageA.get());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 local saved
 function sameAcrossReads(): boolean
     local a = imageProp.value
@@ -1049,43 +1048,44 @@ function differsFromSaved(): boolean
     return imageProp.value ~= saved
 end
 )TEST_SRC");
-    auto L = vm.state();
-    lua_newrive<ScriptedPropertyImage>(L, L, vmiImage);
-    lua_setglobal(L, "imageProp");
+  auto L = vm.state();
+  lua_newrive<ScriptedPropertyImage>(L, L, vmiImage);
+  lua_setglobal(L, "imageProp");
 
-    // Two reads with no change in between yield the same object.
-    lua_getglobal(L, "sameAcrossReads");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // Two reads with no change in between yield the same object.
+  lua_getglobal(L, "sameAcrossReads");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 
-    // Capture the current wrapper, then change the underlying value.
-    lua_getglobal(L, "capture");
-    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+  // Capture the current wrapper, then change the underlying value.
+  lua_getglobal(L, "capture");
+  CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
 
-    auto imageB = make_rcp<RenderImage>();
-    vmiImage->value(imageB.get()); // fires valueChanged -> cache invalidated
+  auto imageB = make_rcp<RenderImage>();
+  vmiImage->value(imageB.get()); // fires valueChanged -> cache invalidated
 
-    // The next read is a fresh object, so identity differs from the saved one.
-    lua_getglobal(L, "differsFromSaved");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // The next read is a fresh object, so identity differs from the saved one.
+  lua_getglobal(L, "differsFromSaved");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 }
 
 // And for font properties.
-TEST_CASE("Scripted font property value has stable identity across reads",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted font property value has stable identity across reads",
+    "[scripting_properties]")
 {
-    auto fontBytes = ReadFile("assets/kablammo.ttf");
-    auto fontA = HBFont::Decode(fontBytes);
-    REQUIRE(fontA != nullptr);
+  auto fontBytes = ReadFile("assets/kablammo.ttf");
+  auto fontA = HBFont::Decode(fontBytes);
+  REQUIRE(fontA != nullptr);
 
-    auto vmiFont = make_rcp<ViewModelInstanceAssetFont>();
-    vmiFont->value(fontA.get());
+  auto vmiFont = make_rcp<ViewModelInstanceAssetFont>();
+  vmiFont->value(fontA.get());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 local saved
 function sameAcrossReads(): boolean
     local a = fontProp.value
@@ -1099,48 +1099,49 @@ function differsFromSaved(): boolean
     return fontProp.value ~= saved
 end
 )TEST_SRC");
-    auto L = vm.state();
-    lua_newrive<ScriptedPropertyFont>(L, L, vmiFont);
-    lua_setglobal(L, "fontProp");
+  auto L = vm.state();
+  lua_newrive<ScriptedPropertyFont>(L, L, vmiFont);
+  lua_setglobal(L, "fontProp");
 
-    // Two reads with no change in between yield the same object.
-    lua_getglobal(L, "sameAcrossReads");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // Two reads with no change in between yield the same object.
+  lua_getglobal(L, "sameAcrossReads");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 
-    // Capture the current wrapper, then change the underlying value.
-    lua_getglobal(L, "capture");
-    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+  // Capture the current wrapper, then change the underlying value.
+  lua_getglobal(L, "capture");
+  CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
 
-    auto fontB = HBFont::Decode(fontBytes); // a distinct Font instance
-    REQUIRE(fontB != nullptr);
-    vmiFont->value(fontB.get()); // fires valueChanged -> cache invalidated
+  auto fontB = HBFont::Decode(fontBytes); // a distinct Font instance
+  REQUIRE(fontB != nullptr);
+  vmiFont->value(fontB.get()); // fires valueChanged -> cache invalidated
 
-    // The next read is a fresh object, so identity differs from the saved one.
-    lua_getglobal(L, "differsFromSaved");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_toboolean(L, -1));
-    lua_pop(L, 1);
+  // The next read is a fresh object, so identity differs from the saved one.
+  lua_getglobal(L, "differsFromSaved");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_toboolean(L, -1));
+  lua_pop(L, 1);
 }
 
 // A script can addListener on a blob property and the callback fires when the
 // blob changes (regression: blob's luaTag was missing from property_namecall,
 // so :addListener threw a type error).
-TEST_CASE("Scripted blob property fires listeners on change",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted blob property fires listeners on change",
+    "[scripting_properties]")
 {
-    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
-    auto initial = make_rcp<BlobAsset>();
-    {
-        std::vector<uint8_t> data = {1};
-        SimpleArray<uint8_t> bytes(data.data(), data.size());
-        initial->decode(bytes, nullptr);
-    }
-    vmiBlob->value(initial.get());
+  auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+  auto initial = make_rcp<BlobAsset>();
+  {
+    std::vector<uint8_t> data = {1};
+    SimpleArray<uint8_t> bytes(data.data(), data.size());
+    initial->decode(bytes, nullptr);
+  }
+  vmiBlob->value(initial.get());
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 local count = 0
 function attach()
     blobProp:addListener(changed)
@@ -1155,36 +1156,37 @@ function writeBytes(s)
     blobProp.value = s
 end
 )TEST_SRC");
-    auto L = vm.state();
+  auto L = vm.state();
 
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_setglobal(L, "blobProp");
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_setglobal(L, "blobProp");
 
-    // addListener must not throw for a blob property.
-    lua_getglobal(L, "attach");
-    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+  // addListener must not throw for a blob property.
+  lua_getglobal(L, "attach");
+  CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
 
-    // Changing the value fires the listener.
-    lua_getglobal(L, "writeBytes");
-    lua_pushstring(L, "abcd");
-    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  // Changing the value fires the listener.
+  lua_getglobal(L, "writeBytes");
+  lua_pushstring(L, "abcd");
+  CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
 
-    lua_getglobal(L, "getCount");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx(1));
-    lua_pop(L, 1);
+  lua_getglobal(L, "getCount");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx(1));
+  lua_pop(L, 1);
 }
 
 // A runtime-set empty blob (`prop.value = ""`) is a real value: reading it back
 // yields a Blob with size 0, not nil (regression: an empty asset used to be
 // treated as id-bound and resolved away to nil).
-TEST_CASE("Scripted blob property preserves a runtime-set empty blob",
-          "[scripting_properties]")
+TEST_CASE(
+    "Scripted blob property preserves a runtime-set empty blob",
+    "[scripting_properties]")
 {
-    auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
+  auto vmiBlob = make_rcp<ViewModelInstanceAssetBlob>();
 
-    ScriptingTest vm(
-        R"TEST_SRC(
+  ScriptingTest vm(
+      R"TEST_SRC(
 function writeEmpty()
     blobProp.value = ""
 end
@@ -1196,31 +1198,32 @@ function readSize(): number
     return -1
 end
 )TEST_SRC");
-    auto L = vm.state();
-    lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
-    lua_setglobal(L, "blobProp");
+  auto L = vm.state();
+  lua_newrive<ScriptedPropertyBlob>(L, L, vmiBlob);
+  lua_setglobal(L, "blobProp");
 
-    lua_getglobal(L, "writeEmpty");
-    CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
+  lua_getglobal(L, "writeEmpty");
+  CHECK(lua_pcall(L, 0, 0, 0) == LUA_OK);
 
-    // The instance holds a non-null, zero-byte blob (a runtime value).
-    REQUIRE(vmiBlob->asset() != nullptr);
-    CHECK(vmiBlob->asset()->bytes().empty());
+  // The instance holds a non-null, zero-byte blob (a runtime value).
+  REQUIRE(vmiBlob->asset() != nullptr);
+  CHECK(vmiBlob->asset()->bytes().empty());
 
-    // The script sees a Blob with size 0, not nil.
-    lua_getglobal(L, "readSize");
-    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(luaL_checknumber(L, -1) == Approx(0));
-    lua_pop(L, 1);
+  // The script sees a Blob with size 0, not nil.
+  lua_getglobal(L, "readSize");
+  CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(luaL_checknumber(L, -1) == Approx(0));
+  lua_pop(L, 1);
 }
 // An async body runs on its own coroutine, while the wrappers it reaches were
 // made on the main thread (or the other way round). Values have to land on
 // the calling thread's stack, and a wrapper minted inside a coroutine has to
 // keep working after that coroutine is gone.
-TEST_CASE("view model properties work from async bodies",
-          "[scripting_properties]")
+TEST_CASE(
+    "view model properties work from async bodies",
+    "[scripting_properties]")
 {
-    ScriptingTest vm(R"(
+  ScriptingTest vm(R"(
 results = {}
 
 function run(model: ViewModel)
@@ -1240,39 +1243,39 @@ function readKept(): number
     return results.kept.value
 end
 )");
-    lua_State* L = vm.state();
+  lua_State* L = vm.state();
 
-    auto viewModel = rcp<ViewModel>(new ViewModel());
-    auto* property = new ViewModelPropertyNumber();
-    property->name("n");
-    viewModel->addProperty(property);
-    auto instance = make_rcp<ViewModelInstance>();
-    instance->viewModel(viewModel.get());
-    auto* number = new ViewModelInstanceNumber();
-    number->viewModelProperty(property);
-    number->propertyValue(7);
-    instance->addValue(number);
+  auto viewModel = rcp<ViewModel>(new ViewModel());
+  auto* property = new ViewModelPropertyNumber();
+  property->name("n");
+  viewModel->addProperty(property);
+  auto instance = make_rcp<ViewModelInstance>();
+  instance->viewModel(viewModel.get());
+  auto* number = new ViewModelInstanceNumber();
+  number->viewModelProperty(property);
+  number->propertyValue(7);
+  instance->addValue(number);
 
-    lua_getglobal(L, "run");
-    lua_newrive<ScriptedViewModel>(L, L, viewModel, instance);
-    REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
-    lua_gc(L, LUA_GCCOLLECT, 0);
+  lua_getglobal(L, "run");
+  lua_newrive<ScriptedViewModel>(L, L, viewModel, instance);
+  REQUIRE(lua_pcall(L, 1, 0, 0) == LUA_OK);
+  lua_gc(L, LUA_GCCOLLECT, 0);
 
-    lua_getglobal(L, "results");
-    lua_getfield(L, -1, "method");
-    CHECK(lua_tonumber(L, -1) == 7);
-    lua_getfield(L, -2, "index");
-    CHECK(lua_tonumber(L, -1) == 7);
-    lua_pop(L, 2);
+  lua_getglobal(L, "results");
+  lua_getfield(L, -1, "method");
+  CHECK(lua_tonumber(L, -1) == 7);
+  lua_getfield(L, -2, "index");
+  CHECK(lua_tonumber(L, -1) == 7);
+  lua_pop(L, 2);
 
-    // The listener registered from the coroutine fires on the main thread.
-    number->propertyValue(9);
-    lua_getfield(L, -1, "heard");
-    CHECK(lua_tonumber(L, -1) == 9);
-    lua_pop(L, 2);
+  // The listener registered from the coroutine fires on the main thread.
+  number->propertyValue(9);
+  lua_getfield(L, -1, "heard");
+  CHECK(lua_tonumber(L, -1) == 9);
+  lua_pop(L, 2);
 
-    lua_getglobal(L, "readKept");
-    REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
-    CHECK(lua_tonumber(L, -1) == 9);
-    lua_pop(L, 1);
+  lua_getglobal(L, "readKept");
+  REQUIRE(lua_pcall(L, 0, 1, 0) == LUA_OK);
+  CHECK(lua_tonumber(L, -1) == 9);
+  lua_pop(L, 1);
 }

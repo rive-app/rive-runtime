@@ -6,7 +6,7 @@ using namespace rive;
 
 Scene::Scene(ArtboardInstance* abi) : m_artboardInstance(abi)
 {
-    assert(m_artboardInstance->isInstance());
+  assert(m_artboardInstance->isInstance());
 }
 
 float Scene::width() const { return m_artboardInstance->width(); }
@@ -17,20 +17,20 @@ void Scene::draw(Renderer* renderer) { m_artboardInstance->draw(renderer); }
 
 HitResult Scene::pointerDown(Vec2D, int, PointerButton)
 {
-    return HitResult::none;
+  return HitResult::none;
 }
 HitResult Scene::pointerMove(Vec2D, float timeStamp, int)
 {
-    return HitResult::none;
+  return HitResult::none;
 }
 HitResult Scene::pointerUp(Vec2D, int, PointerButton)
 {
-    return HitResult::none;
+  return HitResult::none;
 }
 HitResult Scene::pointerExit(Vec2D, int) { return HitResult::none; }
 HitResult Scene::pointerScroll(Vec2D, const ScrollEvent&, float, int)
 {
-    return HitResult::none;
+  return HitResult::none;
 }
 
 size_t Scene::inputCount() const { return 0; }
@@ -40,11 +40,12 @@ SMINumber* Scene::getNumber(const std::string&) const { return nullptr; }
 SMITrigger* Scene::getTrigger(const std::string&) const { return nullptr; }
 void Scene::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance) {}
 
-void Scene::reportKeyedCallback(uint32_t objectId,
-                                uint32_t propertyKey,
-                                float elapsedSeconds)
+void Scene::reportKeyedCallback(
+    uint32_t objectId,
+    uint32_t propertyKey,
+    float elapsedSeconds)
 {
-    auto coreObject = m_artboardInstance->resolve(objectId);
-    CallbackData data(this, elapsedSeconds);
-    CoreRegistry::setCallback(coreObject, propertyKey, data);
+  auto coreObject = m_artboardInstance->resolve(objectId);
+  CallbackData data(this, elapsedSeconds);
+  CoreRegistry::setCallback(coreObject, propertyKey, data);
 }

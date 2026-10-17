@@ -10,66 +10,66 @@ class TransitionPropertyComponentComparatorBase
     : public TransitionPropertyComparator
 {
 protected:
-    typedef TransitionPropertyComparator Super;
+  typedef TransitionPropertyComparator Super;
 
 public:
-    static const uint16_t typeKey = 667;
+  static const uint16_t typeKey = 667;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t objectIdPropertyKey = 977;
-    static const uint16_t propertyKeyPropertyKey = 978;
+  static const uint16_t objectIdPropertyKey = 977;
+  static const uint16_t propertyKeyPropertyKey = 978;
 
 protected:
-    Id m_ObjectId = 0;
-    uint32_t m_PropertyKey = 0;
+  Id m_ObjectId = 0;
+  uint32_t m_PropertyKey = 0;
 
 public:
-    inline Id objectId() const { return m_ObjectId; }
-    void objectId(Id value)
+  inline Id objectId() const { return m_ObjectId; }
+  void objectId(Id value)
+  {
+    if (m_ObjectId == value)
     {
-        if (m_ObjectId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
-        m_ObjectId = value;
-        notifyPropertyChanged(objectIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(objectIdPropertyKey, &m_ObjectId, &value);
+    m_ObjectId = value;
+    notifyPropertyChanged(objectIdPropertyKey);
+  }
 
-    inline uint32_t propertyKey() const { return m_PropertyKey; }
-    void propertyKey(uint32_t value)
+  inline uint32_t propertyKey() const { return m_PropertyKey; }
+  void propertyKey(uint32_t value)
+  {
+    if (m_PropertyKey == value)
     {
-        if (m_PropertyKey == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
-        m_PropertyKey = value;
-        notifyPropertyChanged(propertyKeyPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
+    m_PropertyKey = value;
+    notifyPropertyChanged(propertyKeyPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TransitionPropertyComponentComparatorBase& object)
-    {
-        m_ObjectId = object.m_ObjectId;
-        m_PropertyKey = object.m_PropertyKey;
-        TransitionPropertyComparator::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TransitionPropertyComponentComparatorBase& object)
+  {
+    m_ObjectId = object.m_ObjectId;
+    m_PropertyKey = object.m_PropertyKey;
+    TransitionPropertyComparator::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case objectIdPropertyKey:
-                m_ObjectId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case propertyKeyPropertyKey:
-                m_PropertyKey = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return TransitionPropertyComparator::deserialize(propertyKey, reader);
+      case objectIdPropertyKey:
+        m_ObjectId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case propertyKeyPropertyKey:
+        m_PropertyKey = CoreUintType::deserialize(reader);
+        return true;
     }
+    return TransitionPropertyComparator::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

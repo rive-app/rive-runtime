@@ -11,24 +11,24 @@ namespace rive
 // still renders here.
 inline void ScriptBackend::TransitionChildRef::draw(Renderer* renderer) const
 {
-    if (artboard == nullptr)
-    {
-        return;
-    }
-    renderer->save();
-    renderer->transform(transform);
-    artboard->drawInternal(renderer);
-    renderer->restore();
+  if (artboard == nullptr)
+  {
+    return;
+  }
+  renderer->save();
+  renderer->transform(transform);
+  artboard->drawInternal(renderer);
+  renderer->restore();
 }
 
 inline float ScriptBackend::TransitionChildRef::width() const
 {
-    return artboard != nullptr ? artboard->width() : 0.0f;
+  return artboard != nullptr ? artboard->width() : 0.0f;
 }
 
 inline float ScriptBackend::TransitionChildRef::height() const
 {
-    return artboard != nullptr ? artboard->height() : 0.0f;
+  return artboard != nullptr ? artboard->height() : 0.0f;
 }
 } // namespace rive
 

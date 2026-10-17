@@ -10,92 +10,92 @@ namespace rive
 class ClippingShapeBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 42;
+  static const uint16_t typeKey = 42;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t sourceIdPropertyKey = 92;
-    static const uint16_t fillRulePropertyKey = 93;
-    static const uint16_t isVisiblePropertyKey = 94;
+  static const uint16_t sourceIdPropertyKey = 92;
+  static const uint16_t fillRulePropertyKey = 93;
+  static const uint16_t isVisiblePropertyKey = 94;
 
 protected:
-    Id m_SourceId = kEmptyId;
-    uint8_t m_FillRule = 0;
-    bool m_IsVisible = true;
+  Id m_SourceId = kEmptyId;
+  uint8_t m_FillRule = 0;
+  bool m_IsVisible = true;
 
 public:
-    inline Id sourceId() const { return m_SourceId; }
-    void sourceId(Id value)
+  inline Id sourceId() const { return m_SourceId; }
+  void sourceId(Id value)
+  {
+    if (m_SourceId == value)
     {
-        if (m_SourceId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(sourceIdPropertyKey, &m_SourceId, &value);
-        m_SourceId = value;
-        RIVE_EDITOR_CHANGED(sourceIdChanged());
-        notifyPropertyChanged(sourceIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(sourceIdPropertyKey, &m_SourceId, &value);
+    m_SourceId = value;
+    RIVE_EDITOR_CHANGED(sourceIdChanged());
+    notifyPropertyChanged(sourceIdPropertyKey);
+  }
 
-    inline uint8_t fillRule() const { return m_FillRule; }
-    void fillRule(uint8_t value)
+  inline uint8_t fillRule() const { return m_FillRule; }
+  void fillRule(uint8_t value)
+  {
+    if (m_FillRule == value)
     {
-        if (m_FillRule == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(fillRulePropertyKey, &m_FillRule, &value);
-        m_FillRule = value;
-        RIVE_EDITOR_CHANGED(fillRuleChanged());
-        notifyPropertyChanged(fillRulePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(fillRulePropertyKey, &m_FillRule, &value);
+    m_FillRule = value;
+    RIVE_EDITOR_CHANGED(fillRuleChanged());
+    notifyPropertyChanged(fillRulePropertyKey);
+  }
 
-    inline bool isVisible() const { return m_IsVisible; }
-    void isVisible(bool value)
+  inline bool isVisible() const { return m_IsVisible; }
+  void isVisible(bool value)
+  {
+    if (m_IsVisible == value)
     {
-        if (m_IsVisible == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isVisiblePropertyKey, &m_IsVisible, &value);
-        m_IsVisible = value;
-        RIVE_EDITOR_CHANGED(isVisibleChanged());
-        notifyPropertyChanged(isVisiblePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(isVisiblePropertyKey, &m_IsVisible, &value);
+    m_IsVisible = value;
+    RIVE_EDITOR_CHANGED(isVisibleChanged());
+    notifyPropertyChanged(isVisiblePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ClippingShapeBase& object)
-    {
-        m_SourceId = object.m_SourceId;
-        m_FillRule = object.m_FillRule;
-        m_IsVisible = object.m_IsVisible;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ClippingShapeBase& object)
+  {
+    m_SourceId = object.m_SourceId;
+    m_FillRule = object.m_FillRule;
+    m_IsVisible = object.m_IsVisible;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case sourceIdPropertyKey:
-                m_SourceId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case fillRulePropertyKey:
-                m_FillRule = CoreUintType::deserialize(reader);
-                return true;
-            case isVisiblePropertyKey:
-                m_IsVisible = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case sourceIdPropertyKey:
+        m_SourceId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case fillRulePropertyKey:
+        m_FillRule = CoreUintType::deserialize(reader);
+        return true;
+      case isVisiblePropertyKey:
+        m_IsVisible = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void sourceIdChanged() {}
-    virtual void fillRuleChanged() {}
-    virtual void isVisibleChanged() {}
+  virtual void sourceIdChanged() {}
+  virtual void fillRuleChanged() {}
+  virtual void isVisibleChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/clipping_shape_ext.inl"
 #endif

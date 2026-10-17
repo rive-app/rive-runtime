@@ -12,96 +12,97 @@ using namespace rive;
 
 DataEnum::~DataEnum()
 {
-    for (auto& enumValue : m_Values)
-    {
-        delete enumValue;
-    }
+  for (auto& enumValue : m_Values)
+  {
+    delete enumValue;
+  }
 }
 
 void DataEnum::addValue(DataEnumValue* value) { m_Values.push_back(value); }
 
 std::string DataEnum::value(std::string key)
 {
-    for (auto enumValue : m_Values)
+  for (auto enumValue : m_Values)
+  {
+    if (enumValue->key() == key)
     {
-        if (enumValue->key() == key)
-        {
-            if (enumValue->value() != "")
-            {
-                return enumValue->value();
-            }
-            return enumValue->key();
-        };
-    }
-    return "";
+      if (enumValue->value() != "")
+      {
+        return enumValue->value();
+      }
+      return enumValue->key();
+    };
+  }
+  return "";
 }
 
 std::string DataEnum::value(uint32_t index)
 {
-    if (index < m_Values.size())
+  if (index < m_Values.size())
+  {
+    if (m_Values[index]->value() != "")
     {
-        if (m_Values[index]->value() != "")
-        {
-            return m_Values[index]->value();
-        }
-        return m_Values[index]->key();
+      return m_Values[index]->value();
     }
-    return "";
+    return m_Values[index]->key();
+  }
+  return "";
 }
 
 bool DataEnum::value(std::string key, std::string value)
 {
-    for (auto enumValue : m_Values)
+  for (auto enumValue : m_Values)
+  {
+    if (enumValue->key() == key)
     {
-        if (enumValue->key() == key)
-        {
-            enumValue->value(value);
-            return true;
-        };
-    }
-    return false;
+      enumValue->value(value);
+      return true;
+    };
+  }
+  return false;
 }
 
 bool DataEnum::value(uint32_t index, std::string value)
 {
-    if (index < m_Values.size())
-    {
-        m_Values[index]->value(value);
-        return true;
-    }
-    return false;
+  if (index < m_Values.size())
+  {
+    m_Values[index]->value(value);
+    return true;
+  }
+  return false;
 }
 
 int DataEnum::valueIndex(std::string key)
 {
-    int index = 0;
-    for (auto enumValue : m_Values)
+  int index = 0;
+  for (auto enumValue : m_Values)
+  {
+    if (enumValue->key() == key)
     {
-        if (enumValue->key() == key)
-        {
-            return index;
-        };
-        index++;
-    }
-    return -1;
+      return index;
+    };
+    index++;
+  }
+  return -1;
 }
 
 int DataEnum::valueIndex(uint32_t index)
 {
-    if (index < m_Values.size())
-    {
-        return index;
-    }
-    return -1;
+  if (index < m_Values.size())
+  {
+    return index;
+  }
+  return -1;
 }
 #ifdef WITH_RIVE_EDITOR
 void DataEnum::editorPrepareForDestruction()
 {
-    m_Values.erase(
-        std::remove_if(m_Values.begin(),
-                       m_Values.end(),
-                       [](auto* c) { return c->editorArena() != nullptr; }),
-        m_Values.end());
+  m_Values.erase(
+      std::remove_if(
+          m_Values.begin(),
+          m_Values.end(),
+          [](auto* c) { return c->editorArena() != nullptr; }),
+      m_Values.end());
 }
 
 #endif

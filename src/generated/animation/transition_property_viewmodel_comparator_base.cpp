@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionPropertyViewModelComparatorBase::clone() const
 {
-    auto cloned = new TransitionPropertyViewModelComparator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionPropertyViewModelComparator();
+  cloned->copy(*this);
+  return cloned;
 }

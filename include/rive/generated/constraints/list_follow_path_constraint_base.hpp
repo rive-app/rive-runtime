@@ -7,74 +7,72 @@ namespace rive
 class ListFollowPathConstraintBase : public FollowPathConstraint
 {
 protected:
-    typedef FollowPathConstraint Super;
+  typedef FollowPathConstraint Super;
 
 public:
-    static const uint16_t typeKey = 625;
+  static const uint16_t typeKey = 625;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t distanceEndPropertyKey = 888;
-    static const uint16_t distanceOffsetPropertyKey = 889;
+  static const uint16_t distanceEndPropertyKey = 888;
+  static const uint16_t distanceOffsetPropertyKey = 889;
 
 protected:
-    float m_DistanceEnd = 1.0f;
-    float m_DistanceOffset = 0.0f;
+  float m_DistanceEnd = 1.0f;
+  float m_DistanceOffset = 0.0f;
 
 public:
-    inline float distanceEnd() const { return m_DistanceEnd; }
-    void distanceEnd(float value)
+  inline float distanceEnd() const { return m_DistanceEnd; }
+  void distanceEnd(float value)
+  {
+    if (m_DistanceEnd == value)
     {
-        if (m_DistanceEnd == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(distanceEndPropertyKey, &m_DistanceEnd, &value);
-        m_DistanceEnd = value;
-        RIVE_EDITOR_CHANGED(distanceEndChanged());
-        notifyPropertyChanged(distanceEndPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(distanceEndPropertyKey, &m_DistanceEnd, &value);
+    m_DistanceEnd = value;
+    RIVE_EDITOR_CHANGED(distanceEndChanged());
+    notifyPropertyChanged(distanceEndPropertyKey);
+  }
 
-    inline float distanceOffset() const { return m_DistanceOffset; }
-    void distanceOffset(float value)
+  inline float distanceOffset() const { return m_DistanceOffset; }
+  void distanceOffset(float value)
+  {
+    if (m_DistanceOffset == value)
     {
-        if (m_DistanceOffset == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(distanceOffsetPropertyKey,
-                             &m_DistanceOffset,
-                             &value);
-        m_DistanceOffset = value;
-        RIVE_EDITOR_CHANGED(distanceOffsetChanged());
-        notifyPropertyChanged(distanceOffsetPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(distanceOffsetPropertyKey, &m_DistanceOffset, &value);
+    m_DistanceOffset = value;
+    RIVE_EDITOR_CHANGED(distanceOffsetChanged());
+    notifyPropertyChanged(distanceOffsetPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListFollowPathConstraintBase& object)
-    {
-        m_DistanceEnd = object.m_DistanceEnd;
-        m_DistanceOffset = object.m_DistanceOffset;
-        FollowPathConstraint::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListFollowPathConstraintBase& object)
+  {
+    m_DistanceEnd = object.m_DistanceEnd;
+    m_DistanceOffset = object.m_DistanceOffset;
+    FollowPathConstraint::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case distanceEndPropertyKey:
-                m_DistanceEnd = CoreDoubleType::deserialize(reader);
-                return true;
-            case distanceOffsetPropertyKey:
-                m_DistanceOffset = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return FollowPathConstraint::deserialize(propertyKey, reader);
+      case distanceEndPropertyKey:
+        m_DistanceEnd = CoreDoubleType::deserialize(reader);
+        return true;
+      case distanceOffsetPropertyKey:
+        m_DistanceOffset = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return FollowPathConstraint::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void distanceEndChanged() {}
-    virtual void distanceOffsetChanged() {}
+  virtual void distanceEndChanged() {}
+  virtual void distanceOffsetChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/list_follow_path_constraint_ext.inl"
 #endif

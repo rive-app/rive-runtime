@@ -18,60 +18,60 @@ class LayoutStyleApplier;
 class LayoutNodeProvider
 {
 protected:
-    // Lazily allocated: null (8 bytes, no heap) until this provider actually
-    // gains a layout constraint — which most instances never do.
-    std::vector<LayoutConstraint*>* m_layoutConstraints = nullptr;
+  // Lazily allocated: null (8 bytes, no heap) until this provider actually
+  // gains a layout constraint — which most instances never do.
+  std::vector<LayoutConstraint*>* m_layoutConstraints = nullptr;
 
-    // Read access; returns a shared empty list when none are allocated.
-    const std::vector<LayoutConstraint*>& layoutConstraints() const
-    {
-        static const std::vector<LayoutConstraint*> empty;
-        return m_layoutConstraints != nullptr ? *m_layoutConstraints : empty;
-    }
+  // Read access; returns a shared empty list when none are allocated.
+  const std::vector<LayoutConstraint*>& layoutConstraints() const
+  {
+    static const std::vector<LayoutConstraint*> empty;
+    return m_layoutConstraints != nullptr ? *m_layoutConstraints : empty;
+  }
 
 public:
-    virtual ~LayoutNodeProvider() { delete m_layoutConstraints; }
+  virtual ~LayoutNodeProvider() { delete m_layoutConstraints; }
 #ifdef WITH_RIVE_LAYOUT
-    virtual void* layoutNode(int index) = 0;
-    // Appends the nodes that exist, in index order.
-    virtual void collectLayoutNodes(std::vector<void*>& out)
+  virtual void* layoutNode(int index) = 0;
+  // Appends the nodes that exist, in index order.
+  virtual void collectLayoutNodes(std::vector<void*>& out)
+  {
+    for (size_t i = 0; i < numLayoutNodes(); i++)
     {
-        for (size_t i = 0; i < numLayoutNodes(); i++)
-        {
-            if (auto node = layoutNode((int)i))
-            {
-                out.push_back(node);
-            }
-        }
+      if (auto node = layoutNode((int)i))
+      {
+        out.push_back(node);
+      }
     }
+  }
 #endif
-    static LayoutNodeProvider* from(Component* component);
-    virtual TransformComponent* transformComponent() = 0;
-    void addLayoutConstraint(LayoutConstraint* constraint);
-    virtual AABB layoutBounds() = 0;
-    virtual AABB layoutBoundsForNode(int index) { return layoutBounds(); }
-    virtual bool syncStyleChanges() { return false; };
-    virtual void updateLayoutBounds(bool animate = true) {};
-    virtual void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false)
-    {}
+  static LayoutNodeProvider* from(Component* component);
+  virtual TransformComponent* transformComponent() = 0;
+  void addLayoutConstraint(LayoutConstraint* constraint);
+  virtual AABB layoutBounds() = 0;
+  virtual AABB layoutBoundsForNode(int index) { return layoutBounds(); }
+  virtual bool syncStyleChanges() { return false; };
+  virtual void updateLayoutBounds(bool animate = true) {};
+  virtual void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false)
+  {}
 #ifdef WITH_RIVE_LAYOUT
-    /// Registers an object that contributes to this provider's yoga style.
-    /// Lets an applier attach without caring whether its owner is a
-    /// LayoutComponent or a LayoutParticipant, and without the provider having
-    /// to publish its LayoutData. Runtime objects are never removed, so there
-    /// is no unregister — the editor handles that in Dart.
-    virtual void addLayoutStyleApplier(LayoutStyleApplier* applier) {}
+  /// Registers an object that contributes to this provider's yoga style.
+  /// Lets an applier attach without caring whether its owner is a
+  /// LayoutComponent or a LayoutParticipant, and without the provider having
+  /// to publish its LayoutData. Runtime objects are never removed, so there
+  /// is no unregister — the editor handles that in Dart.
+  virtual void addLayoutStyleApplier(LayoutStyleApplier* applier) {}
 #endif
-    virtual size_t numLayoutNodes() = 0;
+  virtual size_t numLayoutNodes() = 0;
 #ifdef WITH_RIVE_LAYOUT
-    virtual bool cascadeLayoutStyle(
-        LayoutStyleInterpolation inheritedInterpolation,
-        KeyFrameInterpolator* inheritedInterpolator,
-        float inheritedInterpolationTime,
-        LayoutDirection direction)
-    {
-        return false;
-    }
+  virtual bool cascadeLayoutStyle(
+      LayoutStyleInterpolation inheritedInterpolation,
+      KeyFrameInterpolator* inheritedInterpolator,
+      float inheritedInterpolationTime,
+      LayoutDirection direction)
+  {
+    return false;
+  }
 #endif
 };
 } // namespace rive

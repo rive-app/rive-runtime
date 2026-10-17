@@ -13,18 +13,19 @@ class FileAsset;
 class FileAssetLoader : public RefCnt<FileAssetLoader>
 {
 public:
-    virtual ~FileAssetLoader() {}
+  virtual ~FileAssetLoader() {}
 
-    /// Load the contents of the given asset
-    ///
-    /// @param asset describes the asset that Rive is looking for the
-    /// contents of.
-    /// @param inBandBytes is a pointer to the bytes in question
-    /// @returns bool indicating if we are loading or have loaded the contents
+  /// Load the contents of the given asset
+  ///
+  /// @param asset describes the asset that Rive is looking for the
+  /// contents of.
+  /// @param inBandBytes is a pointer to the bytes in question
+  /// @returns bool indicating if we are loading or have loaded the contents
 
-    virtual bool loadContents(FileAsset& asset,
-                              Span<const uint8_t> inBandBytes,
-                              Factory* factory) = 0;
+  virtual bool loadContents(
+      FileAsset& asset,
+      Span<const uint8_t> inBandBytes,
+      Factory* factory) = 0;
 };
 } // namespace rive
 #endif

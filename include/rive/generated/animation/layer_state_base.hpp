@@ -10,53 +10,53 @@ namespace rive
 class LayerStateBase : public StateMachineLayerComponent
 {
 protected:
-    typedef StateMachineLayerComponent Super;
+  typedef StateMachineLayerComponent Super;
 
 public:
-    static const uint16_t typeKey = 60;
+  static const uint16_t typeKey = 60;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t flagsPropertyKey = 536;
+  static const uint16_t flagsPropertyKey = 536;
 
 protected:
-    uint32_t m_Flags = 0;
+  uint32_t m_Flags = 0;
 
 public:
-    inline uint32_t flags() const { return m_Flags; }
-    void flags(uint32_t value)
+  inline uint32_t flags() const { return m_Flags; }
+  void flags(uint32_t value)
+  {
+    if (m_Flags == value)
     {
-        if (m_Flags == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(flagsPropertyKey, &m_Flags, &value);
-        m_Flags = value;
-        RIVE_EDITOR_CHANGED(flagsChanged());
-        notifyPropertyChanged(flagsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(flagsPropertyKey, &m_Flags, &value);
+    m_Flags = value;
+    RIVE_EDITOR_CHANGED(flagsChanged());
+    notifyPropertyChanged(flagsPropertyKey);
+  }
 
-    void copy(const LayerStateBase& object)
-    {
-        m_Flags = object.m_Flags;
-        RIVE_EDITOR_COPY(object);
-        StateMachineLayerComponent::copy(object);
-    }
+  void copy(const LayerStateBase& object)
+  {
+    m_Flags = object.m_Flags;
+    RIVE_EDITOR_COPY(object);
+    StateMachineLayerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case flagsPropertyKey:
-                m_Flags = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return StateMachineLayerComponent::deserialize(propertyKey, reader);
+      case flagsPropertyKey:
+        m_Flags = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return StateMachineLayerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void flagsChanged() {}
+  virtual void flagsChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/layer_state_ext.inl"
 #endif

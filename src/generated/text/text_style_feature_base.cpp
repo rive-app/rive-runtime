@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TextStyleFeatureBase::clone() const
 {
-    auto cloned = new TextStyleFeature();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TextStyleFeature();
+  cloned->copy(*this);
+  return cloned;
 }

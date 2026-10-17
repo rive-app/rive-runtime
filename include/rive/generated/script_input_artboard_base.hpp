@@ -11,54 +11,54 @@ namespace rive
 class ScriptInputArtboardBase : public CustomProperty
 {
 protected:
-    typedef CustomProperty Super;
+  typedef CustomProperty Super;
 
 public:
-    static const uint16_t typeKey = 621;
+  static const uint16_t typeKey = 621;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t artboardIdPropertyKey = 876;
+  static const uint16_t artboardIdPropertyKey = 876;
 
 protected:
-    Id m_ArtboardId = kEmptyId;
+  Id m_ArtboardId = kEmptyId;
 
 public:
-    inline Id artboardId() const { return m_ArtboardId; }
-    void artboardId(Id value)
+  inline Id artboardId() const { return m_ArtboardId; }
+  void artboardId(Id value)
+  {
+    if (m_ArtboardId == value)
     {
-        if (m_ArtboardId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(artboardIdPropertyKey, &m_ArtboardId, &value);
-        m_ArtboardId = value;
-        RIVE_EDITOR_CHANGED(artboardIdChanged());
-        notifyPropertyChanged(artboardIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(artboardIdPropertyKey, &m_ArtboardId, &value);
+    m_ArtboardId = value;
+    RIVE_EDITOR_CHANGED(artboardIdChanged());
+    notifyPropertyChanged(artboardIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ScriptInputArtboardBase& object)
-    {
-        m_ArtboardId = object.m_ArtboardId;
-        RIVE_EDITOR_COPY(object);
-        CustomProperty::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ScriptInputArtboardBase& object)
+  {
+    m_ArtboardId = object.m_ArtboardId;
+    RIVE_EDITOR_COPY(object);
+    CustomProperty::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case artboardIdPropertyKey:
-                m_ArtboardId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return CustomProperty::deserialize(propertyKey, reader);
+      case artboardIdPropertyKey:
+        m_ArtboardId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return CustomProperty::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void artboardIdChanged() {}
+  virtual void artboardIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/script_input_artboard_ext.inl"
 #endif

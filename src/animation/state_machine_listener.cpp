@@ -33,213 +33,213 @@ StateMachineListener::~StateMachineListener() {}
 
 bool StateMachineListener::hasListener(ListenerType listenerType) const
 {
-    for (auto& listenerInputType : m_listenerInputTypes)
+  for (auto& listenerInputType : m_listenerInputTypes)
+  {
+    if (listenerInputType->listenerTypeValue() == (int)listenerType)
     {
-        if (listenerInputType->listenerTypeValue() == (int)listenerType)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #ifdef WITH_RIVE_EDITOR
-    for (auto* listenerInputType : m_editorListenerInputTypes)
+  for (auto* listenerInputType : m_editorListenerInputTypes)
+  {
+    if (listenerInputType != nullptr &&
+        listenerInputType->listenerTypeValue() == (int)listenerType)
     {
-        if (listenerInputType != nullptr &&
-            listenerInputType->listenerTypeValue() == (int)listenerType)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #endif
-    return false;
+  return false;
 }
 
 static bool listenerTypeHasButton(ListenerType listenerType)
 {
-    switch (listenerType)
-    {
-        case ListenerType::down:
-        case ListenerType::up:
-        case ListenerType::click:
-        case ListenerType::drag:
-        case ListenerType::dragStart:
-        case ListenerType::dragEnd:
-            return true;
-        default:
-            return false;
-    }
+  switch (listenerType)
+  {
+    case ListenerType::down:
+    case ListenerType::up:
+    case ListenerType::click:
+    case ListenerType::drag:
+    case ListenerType::dragStart:
+    case ListenerType::dragEnd:
+      return true;
+    default:
+      return false;
+  }
 }
 
-bool StateMachineListener::hasListener(ListenerType listenerType,
-                                       PointerButton button) const
+bool StateMachineListener::hasListener(
+    ListenerType listenerType,
+    PointerButton button) const
 {
-    if (!listenerTypeHasButton(listenerType))
+  if (!listenerTypeHasButton(listenerType))
+  {
+    return hasListener(listenerType);
+  }
+  for (auto& listenerInputType : m_listenerInputTypes)
+  {
+    if (listenerInputType->listenerTypeValue() == (int)listenerType &&
+        listenerInputType->pointerButton() == button)
     {
-        return hasListener(listenerType);
+      return true;
     }
-    for (auto& listenerInputType : m_listenerInputTypes)
-    {
-        if (listenerInputType->listenerTypeValue() == (int)listenerType &&
-            listenerInputType->pointerButton() == button)
-        {
-            return true;
-        }
-    }
+  }
 #ifdef WITH_RIVE_EDITOR
-    for (auto* listenerInputType : m_editorListenerInputTypes)
+  for (auto* listenerInputType : m_editorListenerInputTypes)
+  {
+    if (listenerInputType != nullptr &&
+        listenerInputType->listenerTypeValue() == (int)listenerType &&
+        listenerInputType->pointerButton() == button)
     {
-        if (listenerInputType != nullptr &&
-            listenerInputType->listenerTypeValue() == (int)listenerType &&
-            listenerInputType->pointerButton() == button)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #endif
-    return false;
+  return false;
 }
 
 bool StateMachineListener::listensToButton(PointerButton button) const
 {
-    for (auto& listenerInputType : m_listenerInputTypes)
+  for (auto& listenerInputType : m_listenerInputTypes)
+  {
+    if (listenerTypeHasButton(
+            (ListenerType)listenerInputType->listenerTypeValue()) &&
+        listenerInputType->pointerButton() == button)
     {
-        if (listenerTypeHasButton(
-                (ListenerType)listenerInputType->listenerTypeValue()) &&
-            listenerInputType->pointerButton() == button)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #ifdef WITH_RIVE_EDITOR
-    for (auto* listenerInputType : m_editorListenerInputTypes)
+  for (auto* listenerInputType : m_editorListenerInputTypes)
+  {
+    if (listenerInputType != nullptr &&
+        listenerTypeHasButton(
+            (ListenerType)listenerInputType->listenerTypeValue()) &&
+        listenerInputType->pointerButton() == button)
     {
-        if (listenerInputType != nullptr &&
-            listenerTypeHasButton(
-                (ListenerType)listenerInputType->listenerTypeValue()) &&
-            listenerInputType->pointerButton() == button)
-        {
-            return true;
-        }
+      return true;
     }
+  }
 #endif
-    return false;
+  return false;
 }
 
 bool StateMachineListener::hasListeners(
     Span<const ListenerType> listenerTypes) const
 {
-    for (auto listenerType : listenerTypes)
+  for (auto listenerType : listenerTypes)
+  {
+    if (hasListener(listenerType))
     {
-        if (hasListener(listenerType))
-        {
-            return true;
-        }
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 {
-    m_actions.push_back(std::move(action));
+  m_actions.push_back(std::move(action));
 }
 
 void StateMachineListener::addListenerInputType(
     std::unique_ptr<ListenerInputType> listenerInputType)
 {
-    m_listenerInputTypes.push_back(std::move(listenerInputType));
+  m_listenerInputTypes.push_back(std::move(listenerInputType));
 }
 
 StatusCode StateMachineListener::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    // Handing off ownership of this!
-    stateMachineImporter->addListener(
-        std::unique_ptr<StateMachineListener>(this));
-    return Super::import(importStack);
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachineBase::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  // Handing off ownership of this!
+  stateMachineImporter->addListener(
+      std::unique_ptr<StateMachineListener>(this));
+  return Super::import(importStack);
 }
 
 bool StateMachineListener::hasPointerListeners() const
 {
-    return hasListeners(kPointerHitListenerTypes);
+  return hasListeners(kPointerHitListenerTypes);
 }
 
 StatusCode StateMachineListener::onAddedClean(CoreContext* context)
 {
-    // A pointer listener that targets a LayoutComponent registers the layout's
-    // proxy in the hit lookup (StateMachineInstance). For that proxy to sort
-    // correctly against overlapping drawables it must be in the draw order, so
-    // stamp the target here — before the artboard's one-time proxy injection.
-    // This hook only runs on the source artboard; LayoutComponent::clone()
-    // carries the flag to instances.
-    if (hasPointerListeners())
+  // A pointer listener that targets a LayoutComponent registers the layout's
+  // proxy in the hit lookup (StateMachineInstance). For that proxy to sort
+  // correctly against overlapping drawables it must be in the draw order, so
+  // stamp the target here — before the artboard's one-time proxy injection.
+  // This hook only runs on the source artboard; LayoutComponent::clone()
+  // carries the flag to instances.
+  if (hasPointerListeners())
+  {
+    auto* target = context->resolve(targetId());
+    if (target != nullptr && target->is<LayoutComponent>())
     {
-        auto* target = context->resolve(targetId());
-        if (target != nullptr && target->is<LayoutComponent>())
-        {
-            target->as<LayoutComponent>()->markListenerTarget();
-        }
+      target->as<LayoutComponent>()->markListenerTarget();
     }
-    return Super::onAddedClean(context);
+  }
+  return Super::onAddedClean(context);
 }
 
 const ListenerAction* StateMachineListener::action(size_t index) const
 {
-    if (index < m_actions.size())
-    {
-        return m_actions[index].get();
-    }
+  if (index < m_actions.size())
+  {
+    return m_actions[index].get();
+  }
 #ifdef WITH_RIVE_EDITOR
-    if (m_actions.empty() && index < m_editorActions.size())
-    {
-        return m_editorActions[index];
-    }
+  if (m_actions.empty() && index < m_editorActions.size())
+  {
+    return m_editorActions[index];
+  }
 #endif
-    return nullptr;
+  return nullptr;
 }
 
 const ListenerInputType* StateMachineListener::listenerInputType(
     size_t index) const
 {
-    if (index < m_listenerInputTypes.size())
-    {
-        return m_listenerInputTypes[index].get();
-    }
+  if (index < m_listenerInputTypes.size())
+  {
+    return m_listenerInputTypes[index].get();
+  }
 #ifdef WITH_RIVE_EDITOR
-    if (m_listenerInputTypes.empty() &&
-        index < m_editorListenerInputTypes.size())
-    {
-        return m_editorListenerInputTypes[index];
-    }
+  if (m_listenerInputTypes.empty() && index < m_editorListenerInputTypes.size())
+  {
+    return m_editorListenerInputTypes[index];
+  }
 #endif
-    return nullptr;
+  return nullptr;
 }
 
 void StateMachineListener::performChanges(
     StateMachineInstance* stateMachineInstance,
     const ListenerInvocation& invocation) const
 {
-    // Every listener kind acts through here, including keyboard and text ones
-    // that mark nothing else, so a quiet list row wakes up to what they do.
-    stateMachineInstance->wakeRow();
-    RIVE_WRITE_SOURCE(listener, this, stateMachineInstance);
-    for (auto& action : m_actions)
-    {
-        action->perform(stateMachineInstance, invocation);
-    }
+  // Every listener kind acts through here, including keyboard and text ones
+  // that mark nothing else, so a quiet list row wakes up to what they do.
+  stateMachineInstance->wakeRow();
+  RIVE_WRITE_SOURCE(listener, this, stateMachineInstance);
+  for (auto& action : m_actions)
+  {
+    action->perform(stateMachineInstance, invocation);
+  }
 #ifdef WITH_RIVE_EDITOR
-    if (m_actions.empty())
+  if (m_actions.empty())
+  {
+    for (auto* action : m_editorActions)
     {
-        for (auto* action : m_editorActions)
-        {
-            if (action != nullptr)
-            {
-                action->perform(stateMachineInstance, invocation);
-            }
-        }
+      if (action != nullptr)
+      {
+        action->perform(stateMachineInstance, invocation);
+      }
     }
+  }
 #endif
 }

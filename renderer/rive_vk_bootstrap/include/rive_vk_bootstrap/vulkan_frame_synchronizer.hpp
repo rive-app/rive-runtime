@@ -18,172 +18,174 @@ class VulkanInstance;
 class VulkanFrameSynchronizer
 {
 public:
-    virtual ~VulkanFrameSynchronizer();
+  virtual ~VulkanFrameSynchronizer();
 
-    VulkanFrameSynchronizer(const VulkanFrameSynchronizer&) = delete;
-    VulkanFrameSynchronizer& operator=(const VulkanFrameSynchronizer&) = delete;
-    VkCommandBuffer currentCommandBuffer() const
-    {
-        return current().commandBuffer;
-    }
-    uint64_t safeFrameNumber() const { return current().safeFrameNumber; }
-    uint64_t currentFrameNumber() const { return m_monotonicFrameNumber; }
+  VulkanFrameSynchronizer(const VulkanFrameSynchronizer&) = delete;
+  VulkanFrameSynchronizer& operator=(const VulkanFrameSynchronizer&) = delete;
+  VkCommandBuffer currentCommandBuffer() const
+  {
+    return current().commandBuffer;
+  }
+  uint64_t safeFrameNumber() const { return current().safeFrameNumber; }
+  uint64_t currentFrameNumber() const { return m_monotonicFrameNumber; }
 
-    /** @return Width of the prepared frame image. */
-    virtual uint32_t width() const = 0;
-    /** @return Height of the prepared frame image. */
-    virtual uint32_t height() const = 0;
-    /** @return Vulkan format of the prepared frame image. */
-    virtual VkFormat imageFormat() const = 0;
-    /** @return Vulkan usage flags for the prepared frame image. */
-    virtual VkImageUsageFlags imageUsageFlags() const = 0;
-    /** @return Vulkan image for the current prepared frame. */
-    virtual VkImage vkImage() const = 0;
-    /** @return Vulkan image view for the current prepared frame. */
-    virtual VkImageView vkImageView() const = 0;
-    /** @return Last known access state for the current prepared frame image. */
-    virtual rive::gpu::vkutil::ImageAccess lastAccess() const = 0;
+  /** @return Width of the prepared frame image. */
+  virtual uint32_t width() const = 0;
+  /** @return Height of the prepared frame image. */
+  virtual uint32_t height() const = 0;
+  /** @return Vulkan format of the prepared frame image. */
+  virtual VkFormat imageFormat() const = 0;
+  /** @return Vulkan usage flags for the prepared frame image. */
+  virtual VkImageUsageFlags imageUsageFlags() const = 0;
+  /** @return Vulkan image for the current prepared frame. */
+  virtual VkImage vkImage() const = 0;
+  /** @return Vulkan image view for the current prepared frame. */
+  virtual VkImageView vkImageView() const = 0;
+  /** @return Last known access state for the current prepared frame image. */
+  virtual rive::gpu::vkutil::ImageAccess lastAccess() const = 0;
 
-    // Queue a copy of the specified image with optional bounds. Must be done
-    // before endFrame.
-    void queueImageCopy(VkImage,
-                        VkFormat,
-                        rive::gpu::vkutil::ImageAccess* inOutLastAccess,
-                        rive::IAABB pixelReadBounds);
+  // Queue a copy of the specified image with optional bounds. Must be done
+  // before endFrame.
+  void queueImageCopy(
+      VkImage,
+      VkFormat,
+      rive::gpu::vkutil::ImageAccess* inOutLastAccess,
+      rive::IAABB pixelReadBounds);
 
-    // This gets the pixels from the last image copy requested. Must be called
-    // after the endFrame of the frame the request occurred during.
-    [[nodiscard]] VkResult getPixelsFromLastImageCopy(
-        std::vector<uint8_t>* outPixels);
+  // This gets the pixels from the last image copy requested. Must be called
+  // after the endFrame of the frame the request occurred during.
+  [[nodiscard]] VkResult getPixelsFromLastImageCopy(
+      std::vector<uint8_t>* outPixels);
 
-    // Zero-copy pixel readback: waits for the GPU fence and returns a pointer
-    // directly into the mapped Vulkan buffer. The pointer is valid until the
-    // next call to submitRender / beginFrame that reuses the same in-flight
-    // slot. Caller must call finishPixelRead() when done.
-    struct MappedPixelRead
-    {
-        const uint8_t* data;
-        uint32_t width;
-        uint32_t height;
-        uint32_t strideBytes;
-        VkFormat format;
-    };
+  // Zero-copy pixel readback: waits for the GPU fence and returns a pointer
+  // directly into the mapped Vulkan buffer. The pointer is valid until the
+  // next call to submitRender / beginFrame that reuses the same in-flight
+  // slot. Caller must call finishPixelRead() when done.
+  struct MappedPixelRead
+  {
+    const uint8_t* data;
+    uint32_t width;
+    uint32_t height;
+    uint32_t strideBytes;
+    VkFormat format;
+  };
 
-    [[nodiscard]] VkResult waitForPixelRead(MappedPixelRead* outRead);
-    void finishPixelRead();
+  [[nodiscard]] VkResult waitForPixelRead(MappedPixelRead* outRead);
+  void finishPixelRead();
 
-    VkQueue graphicsQueue() const { return m_graphicsQueue; }
+  VkQueue graphicsQueue() const { return m_graphicsQueue; }
 
-    bool checkMostRecentFrameCompletion();
+  bool checkMostRecentFrameCompletion();
 
 protected:
-    struct Options
-    {
-        uint64_t initialFrameNumber = 0;
+  struct Options
+  {
+    uint64_t initialFrameNumber = 0;
 
-        // In effectively all cases it's best to have 2 in-flight frames (rather
-        // than one per swapchain image), to keep latency down.
-        uint32_t inFlightFrameCount = 2;
+    // In effectively all cases it's best to have 2 in-flight frames (rather
+    // than one per swapchain image), to keep latency down.
+    uint32_t inFlightFrameCount = 2;
 
-        // This should be true for swapchains, since the acquire/present calls
-        // need to use semaphores
-        bool externalGPUSynchronization = false;
-    };
+    // This should be true for swapchains, since the acquire/present calls
+    // need to use semaphores
+    bool externalGPUSynchronization = false;
+  };
 
-    struct InFlightFrame
-    {
-        VkFence fence = VK_NULL_HANDLE;
-        VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-        VkSemaphore semaphore = VK_NULL_HANDLE;
-        uint64_t safeFrameNumber = 0;
-    };
+  struct InFlightFrame
+  {
+    VkFence fence = VK_NULL_HANDLE;
+    VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+    VkSemaphore semaphore = VK_NULL_HANDLE;
+    uint64_t safeFrameNumber = 0;
+  };
 
-    VulkanFrameSynchronizer(VulkanInstance&,
-                            VulkanDevice&,
-                            rive::rcp<rive::gpu::VulkanContext>&&,
-                            const Options&,
-                            bool* successOut);
+  VulkanFrameSynchronizer(
+      VulkanInstance&,
+      VulkanDevice&,
+      rive::rcp<rive::gpu::VulkanContext>&&,
+      const Options&,
+      bool* successOut);
 
-    VkDevice vkDevice() const { return m_device; }
+  VkDevice vkDevice() const { return m_device; }
 
-    [[nodiscard]] VkResult waitForFenceAndBeginFrame(VkSemaphore* = nullptr);
-    [[nodiscard]] VkResult endFrame(
-        std::optional<VkSemaphore> externalSignalSemaphore = std::nullopt);
+  [[nodiscard]] VkResult waitForFenceAndBeginFrame(VkSemaphore* = nullptr);
+  [[nodiscard]] VkResult endFrame(
+      std::optional<VkSemaphore> externalSignalSemaphore = std::nullopt);
 
-    const InFlightFrame& current() const
-    {
-        return m_inFlightFrames[m_renderFrameIndex];
-    }
-    InFlightFrame& current() { return m_inFlightFrames[m_renderFrameIndex]; }
+  const InFlightFrame& current() const
+  {
+    return m_inFlightFrames[m_renderFrameIndex];
+  }
+  InFlightFrame& current() { return m_inFlightFrames[m_renderFrameIndex]; }
 
-    // Get the previous in-flight frame
-    InFlightFrame& prev()
-    {
-        return m_inFlightFrames[(m_renderFrameIndex + m_inFlightFrames.size() -
-                                 1) %
-                                m_inFlightFrames.size()];
-    }
+  // Get the previous in-flight frame
+  InFlightFrame& prev()
+  {
+    return m_inFlightFrames
+        [(m_renderFrameIndex + m_inFlightFrames.size() - 1) %
+         m_inFlightFrames.size()];
+  }
 
-    rive::gpu::VulkanContext* context() const { return m_vk.get(); }
+  rive::gpu::VulkanContext* context() const { return m_vk.get(); }
 
-    VkResult createSemaphore(VkSemaphore*);
-    void destroySemaphore(VkSemaphore);
+  VkResult createSemaphore(VkSemaphore*);
+  void destroySemaphore(VkSemaphore);
 
 private:
-    rive::rcp<rive::gpu::VulkanContext> m_vk;
-    VkDevice m_device;
+  rive::rcp<rive::gpu::VulkanContext> m_vk;
+  VkDevice m_device;
 
-    enum class PixelReadState
-    {
-        None,
-        Queued,
-        Ready,
-    };
+  enum class PixelReadState
+  {
+    None,
+    Queued,
+    Ready,
+  };
 
-    rive::rcp<rive::gpu::vkutil::Buffer> m_pixelReadBuffer;
-    uint32_t m_pixelReadWidth = 0;
-    uint32_t m_pixelReadHeight = 0;
-    VkFormat m_pixelReadFormat = VK_FORMAT_UNDEFINED;
-    PixelReadState m_pixelReadState = PixelReadState::None;
+  rive::rcp<rive::gpu::vkutil::Buffer> m_pixelReadBuffer;
+  uint32_t m_pixelReadWidth = 0;
+  uint32_t m_pixelReadHeight = 0;
+  VkFormat m_pixelReadFormat = VK_FORMAT_UNDEFINED;
+  PixelReadState m_pixelReadState = PixelReadState::None;
 
-    VkQueue m_graphicsQueue = VK_NULL_HANDLE;
-    VkCommandPool m_commandPool = VK_NULL_HANDLE;
+  VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+  VkCommandPool m_commandPool = VK_NULL_HANDLE;
 
-    uint64_t m_monotonicFrameNumber = 0;
-    uint32_t m_renderFrameIndex = 0;
+  uint64_t m_monotonicFrameNumber = 0;
+  uint32_t m_renderFrameIndex = 0;
 
-    // Best practice, regardless of how many swapchain images there are, is to
-    // have exactly two sets of frame objects, one for the previously-completed
-    // frame, and one for the currently-building frame.
-    std::vector<InFlightFrame> m_inFlightFrames;
+  // Best practice, regardless of how many swapchain images there are, is to
+  // have exactly two sets of frame objects, one for the previously-completed
+  // frame, and one for the currently-building frame.
+  std::vector<InFlightFrame> m_inFlightFrames;
 
-    bool m_isFrameStarted = false;
-    bool m_isMostRecentFrameDone = false;
+  bool m_isFrameStarted = false;
+  bool m_isMostRecentFrameDone = false;
 
-    // These are all the commands the swapchain needs to do its work - this
-    // macro is also used to load them in the .cpp
+  // These are all the commands the swapchain needs to do its work - this
+  // macro is also used to load them in the .cpp
 #define RIVE_VK_FRAME_SYNC_INSTANCE_COMMANDS(F)                                \
-    F(vkCreateCommandPool)                                                     \
-    F(vkDestroyCommandPool)                                                    \
-    F(vkCreateFence)                                                           \
-    F(vkDestroyFence)                                                          \
-    F(vkCreateSemaphore)                                                       \
-    F(vkDestroySemaphore)                                                      \
-    F(vkAllocateCommandBuffers)                                                \
-    F(vkFreeCommandBuffers)                                                    \
-    F(vkWaitForFences)                                                         \
-    F(vkGetFenceStatus)                                                        \
-    F(vkCmdPipelineBarrier)                                                    \
-    F(vkQueueSubmit)                                                           \
-    F(vkGetDeviceQueue)                                                        \
-    F(vkResetFences)                                                           \
-    F(vkResetCommandBuffer)                                                    \
-    F(vkBeginCommandBuffer)                                                    \
-    F(vkEndCommandBuffer)                                                      \
-    F(vkCmdCopyImageToBuffer)
+  F(vkCreateCommandPool)                                                       \
+  F(vkDestroyCommandPool)                                                      \
+  F(vkCreateFence)                                                             \
+  F(vkDestroyFence)                                                            \
+  F(vkCreateSemaphore)                                                         \
+  F(vkDestroySemaphore)                                                        \
+  F(vkAllocateCommandBuffers)                                                  \
+  F(vkFreeCommandBuffers)                                                      \
+  F(vkWaitForFences)                                                           \
+  F(vkGetFenceStatus)                                                          \
+  F(vkCmdPipelineBarrier)                                                      \
+  F(vkQueueSubmit)                                                             \
+  F(vkGetDeviceQueue)                                                          \
+  F(vkResetFences)                                                             \
+  F(vkResetCommandBuffer)                                                      \
+  F(vkBeginCommandBuffer)                                                      \
+  F(vkEndCommandBuffer)                                                        \
+  F(vkCmdCopyImageToBuffer)
 
 #define DECLARE_VULKAN_COMMAND(name) PFN_##name m_##name = nullptr;
-    RIVE_VK_FRAME_SYNC_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
+  RIVE_VK_FRAME_SYNC_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 };
 } // namespace rive_vkb

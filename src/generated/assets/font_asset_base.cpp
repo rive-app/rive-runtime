@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FontAssetBase::clone() const
 {
-    auto cloned = new FontAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FontAsset();
+  cloned->copy(*this);
+  return cloned;
 }

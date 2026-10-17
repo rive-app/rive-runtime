@@ -19,108 +19,110 @@ class FocusListener;
 class FocusData : public FocusDataBase, public Focusable
 {
 public:
-    ~FocusData() override;
+  ~FocusData() override;
 
-    rcp<FocusNode> focusNode();
+  rcp<FocusNode> focusNode();
 
-    void detachFocusable()
+  void detachFocusable()
+  {
+    if (m_focusNode != nullptr)
     {
-        if (m_focusNode != nullptr)
-        {
-            m_focusNode->clearFocusable();
-        }
+      m_focusNode->clearFocusable();
     }
+  }
 
-    /// Register a listener to be notified of focus/blur events.
-    void addFocusListener(FocusListener* listener);
+  /// Register a listener to be notified of focus/blur events.
+  void addFocusListener(FocusListener* listener);
 
-    /// Unregister a listener.
-    void removeFocusListener(FocusListener* listener);
+  /// Unregister a listener.
+  void removeFocusListener(FocusListener* listener);
 
-    /// Register a listener to be notified of key input events.
-    void addKeyboardListener(KeyboardListener* listener);
+  /// Register a listener to be notified of key input events.
+  void addKeyboardListener(KeyboardListener* listener);
 
-    /// Unregister a keyboard listener.
-    void removeKeyboardListener(KeyboardListener* listener);
+  /// Unregister a keyboard listener.
+  void removeKeyboardListener(KeyboardListener* listener);
 
-    /// Register a listener to be notified of text input events.
-    void addTextInputListener(KeyboardListener* listener);
+  /// Register a listener to be notified of text input events.
+  void addTextInputListener(KeyboardListener* listener);
 
-    /// Unregister a text input listener.
-    void removeTextInputListener(KeyboardListener* listener);
+  /// Unregister a text input listener.
+  void removeTextInputListener(KeyboardListener* listener);
 
-    void addGamepadListener(GamepadListener* listener);
-    void removeGamepadListener(GamepadListener* listener);
+  void addGamepadListener(GamepadListener* listener);
+  void removeGamepadListener(GamepadListener* listener);
 
-    /// Programmatically focus this node.
-    void focus();
+  /// Programmatically focus this node.
+  void focus();
 
-    /// Find the parent FocusData by walking up the component hierarchy.
-    /// Returns nullptr if no parent FocusData exists.
-    FocusData* findParentFocusData() const;
+  /// Find the parent FocusData by walking up the component hierarchy.
+  /// Returns nullptr if no parent FocusData exists.
+  FocusData* findParentFocusData() const;
 
-    /// Find the closest FocusNode for a component by walking up the hierarchy.
-    /// Checks parent nodes for FocusData children, and crosses artboard
-    /// boundaries using externalParentFocusNode.
-    /// @param component The component to start searching from
-    /// @return The closest FocusNode, or nullptr if none found
-    static rcp<FocusNode> findClosestFocusNode(Component* component);
+  /// Find the closest FocusNode for a component by walking up the hierarchy.
+  /// Checks parent nodes for FocusData children, and crosses artboard
+  /// boundaries using externalParentFocusNode.
+  /// @param component The component to start searching from
+  /// @return The closest FocusNode, or nullptr if none found
+  static rcp<FocusNode> findClosestFocusNode(Component* component);
 
-    /// True if this focus target should participate in tab/spatial navigation
-    /// and pointer focus (not under a collapsed/hidden/opacity-zero branch,
-    /// including nested artboard hosts). Non-FocusData focusables are treated
-    /// as visible by FocusManager.
-    bool isEligibleForFocusTraversal() const override;
+  /// True if this focus target should participate in tab/spatial navigation
+  /// and pointer focus (not under a collapsed/hidden/opacity-zero branch,
+  /// including nested artboard hosts). Non-FocusData focusables are treated
+  /// as visible by FocusManager.
+  bool isEligibleForFocusTraversal() const override;
 
-    // Focusable interface implementation
-    bool keyInput(Key value,
-                  KeyModifiers modifiers,
-                  bool isPressed,
-                  bool isRepeat) override;
-    bool textInput(const std::string& text) override;
-    /// Forwards to the parent TextInput's selection (mirroring how
-    /// key/text input special-case a TextInput parent).
-    bool selectedText(std::string& outText) const override;
-    /// True when the parent is a TextInput (same special case).
-    bool acceptsTextInput() const override;
-    /// Forwards to the parent TextInput (same special case): it asks to blur
-    /// on an outside press and owns the hit test for it.
-    bool blursOnOutsidePress() const override;
-    bool hitTestFocusable(const Vec2D& rootPosition) override;
-    bool gamepadDispatch(
-        const ListenerInvocation& invocation,
-        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
-    void focused() override;
-    void blurred() override;
-    bool worldPosition(Vec2D& outPosition) override;
-    /// Root-space bounds computed at call time; the FocusNode's cached bounds
-    /// go stale when an ancestor host moves this artboard instance.
-    bool worldBounds(AABB& outBounds) override;
-    Artboard* focusableArtboard() const override { return artboard(); }
-    bool acceptsKeyboardInput() const override
-    {
-        return !m_keyboardListeners.empty() || !m_textInputListeners.empty();
-    }
+  // Focusable interface implementation
+  bool keyInput(
+      Key value,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat) override;
+  bool textInput(const std::string& text) override;
+  /// Forwards to the parent TextInput's selection (mirroring how
+  /// key/text input special-case a TextInput parent).
+  bool selectedText(std::string& outText) const override;
+  /// True when the parent is a TextInput (same special case).
+  bool acceptsTextInput() const override;
+  /// Forwards to the parent TextInput (same special case): it asks to blur
+  /// on an outside press and owns the hit test for it.
+  bool blursOnOutsidePress() const override;
+  bool hitTestFocusable(const Vec2D& rootPosition) override;
+  bool gamepadDispatch(
+      const ListenerInvocation& invocation,
+      ScriptedDrawable** outDispatchedScriptedDrawable = nullptr) override;
+  void focused() override;
+  void blurred() override;
+  bool worldPosition(Vec2D& outPosition) override;
+  /// Root-space bounds computed at call time; the FocusNode's cached bounds
+  /// go stale when an ancestor host moves this artboard instance.
+  bool worldBounds(AABB& outBounds) override;
+  Artboard* focusableArtboard() const override { return artboard(); }
+  bool acceptsKeyboardInput() const override
+  {
+    return !m_keyboardListeners.empty() || !m_textInputListeners.empty();
+  }
 
-    // Component overrides for update cycle
-    void buildDependencies() override;
-    void update(ComponentDirt value) override;
+  // Component overrides for update cycle
+  void buildDependencies() override;
+  void update(ComponentDirt value) override;
 
 protected:
-    void focusFlagsChanged() override;
-    void edgeBehaviorValueChanged() override;
-    void nameChanged() override;
+  void focusFlagsChanged() override;
+  void edgeBehaviorValueChanged() override;
+  void nameChanged() override;
 
 private:
-    void updateWorldBounds();
-    void scrollIntoView();
-    void scrollConstraintToShowBounds(class ScrollConstraint* constraint,
-                                      const AABB& elementBounds);
-    rcp<FocusNode> m_focusNode;
-    std::vector<FocusListener*> m_focusListeners;
-    std::vector<KeyboardListener*> m_keyboardListeners;
-    std::vector<KeyboardListener*> m_textInputListeners;
-    std::vector<GamepadListener*> m_gamepadListeners;
+  void updateWorldBounds();
+  void scrollIntoView();
+  void scrollConstraintToShowBounds(
+      class ScrollConstraint* constraint,
+      const AABB& elementBounds);
+  rcp<FocusNode> m_focusNode;
+  std::vector<FocusListener*> m_focusListeners;
+  std::vector<KeyboardListener*> m_keyboardListeners;
+  std::vector<KeyboardListener*> m_textInputListeners;
+  std::vector<GamepadListener*> m_gamepadListeners;
 };
 } // namespace rive
 

@@ -7,52 +7,52 @@ namespace rive
 class NestedRemapAnimationBase : public NestedLinearAnimation
 {
 protected:
-    typedef NestedLinearAnimation Super;
+  typedef NestedLinearAnimation Super;
 
 public:
-    static const uint16_t typeKey = 98;
+  static const uint16_t typeKey = 98;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t timePropertyKey = 202;
+  static const uint16_t timePropertyKey = 202;
 
 protected:
-    float m_Time = 0.0f;
+  float m_Time = 0.0f;
 
 public:
-    inline float time() const { return m_Time; }
-    void time(float value)
+  inline float time() const { return m_Time; }
+  void time(float value)
+  {
+    if (m_Time == value)
     {
-        if (m_Time == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(timePropertyKey, &m_Time, &value);
-        m_Time = value;
-        RIVE_EDITOR_CHANGED(timeChanged());
-        notifyPropertyChanged(timePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(timePropertyKey, &m_Time, &value);
+    m_Time = value;
+    RIVE_EDITOR_CHANGED(timeChanged());
+    notifyPropertyChanged(timePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const NestedRemapAnimationBase& object)
-    {
-        m_Time = object.m_Time;
-        NestedLinearAnimation::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const NestedRemapAnimationBase& object)
+  {
+    m_Time = object.m_Time;
+    NestedLinearAnimation::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case timePropertyKey:
-                m_Time = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return NestedLinearAnimation::deserialize(propertyKey, reader);
+      case timePropertyKey:
+        m_Time = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return NestedLinearAnimation::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void timeChanged() {}
+  virtual void timeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/nested_remap_animation_ext.inl"
 #endif

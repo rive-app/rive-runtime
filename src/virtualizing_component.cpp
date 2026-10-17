@@ -8,17 +8,17 @@ using namespace rive;
 
 VirtualizingComponent* VirtualizingComponent::from(Component* component)
 {
-    switch (component->coreType())
-    {
-        case ArtboardComponentList::typeKey:
-            return component->as<ArtboardComponentList>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case ArtboardComponentList::typeKey:
+      return component->as<ArtboardComponentList>();
+  }
+  return nullptr;
 }
 
 VirtualizingComponent* VirtualizingComponent::fromScrollChild(
     LayoutNodeProvider* child)
 {
-    auto component = child != nullptr ? child->transformComponent() : nullptr;
-    return component != nullptr ? from(component) : nullptr;
+  auto component = child != nullptr ? child->transformComponent() : nullptr;
+  return component != nullptr ? from(component) : nullptr;
 }

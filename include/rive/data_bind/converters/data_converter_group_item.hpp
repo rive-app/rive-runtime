@@ -9,18 +9,18 @@ class DataConverterGroupItem : public DataConverterGroupItemBase
 {
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
+  void editorPrepareForDestruction() override;
 #endif
-    ~DataConverterGroupItem();
-    StatusCode import(ImportStack& importStack) override;
-    DataConverter* converter() const { return m_dataConverter; };
-    void converter(DataConverter* value) { m_dataConverter = value; };
-    void ownsConverter(bool value) { m_ownsConverter = value; };
-    Core* clone() const override;
+  ~DataConverterGroupItem();
+  StatusCode import(ImportStack& importStack) override;
+  DataConverter* converter() const { return m_dataConverter; };
+  void converter(DataConverter* value) { m_dataConverter = value; };
+  void ownsConverter(bool value) { m_ownsConverter = value; };
+  Core* clone() const override;
 
 protected:
-    DataConverter* m_dataConverter = nullptr;
-    bool m_ownsConverter = false;
+  DataConverter* m_dataConverter = nullptr;
+  bool m_ownsConverter = false;
 };
 } // namespace rive
 

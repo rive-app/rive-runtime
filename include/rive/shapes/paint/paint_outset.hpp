@@ -34,8 +34,8 @@ namespace paint_outset_detail
 // here would crop feathers at a raster edge, which is exactly the kind of bug
 // that survives review.
 constexpr float kMiterLimit = 4.0f; // RIVE_MITER_LIMIT
-constexpr float kGaussianIntegralStdDevs =
-    3.0f; // GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS
+constexpr float
+    kGaussianIntegralStdDevs = 3.0f; // GAUSSIAN_INTEGRAL_TEXTURE_STDDEVS
 } // namespace paint_outset_detail
 
 using paint_outset_detail::kGaussianIntegralStdDevs;
@@ -46,7 +46,7 @@ using paint_outset_detail::kMiterLimit;
 // feather of N reaches 1.5N in every direction.
 constexpr float featherRadiusFromFeather(float feather)
 {
-    return feather * (kGaussianIntegralStdDevs / 2);
+  return feather * (kGaussianIntegralStdDevs / 2);
 }
 
 // The symmetric distance a stroke and/or a feather adds to a path's bounding
@@ -56,30 +56,31 @@ constexpr float featherRadiusFromFeather(float feather)
 // RiveRenderPath::calculatePixelBounds adds on top. That is a pixel-space
 // quantity and this function does not know the raster scale; callers sizing a
 // surface cover it with a guard band instead.
-float paintBoundsOutset(const std::optional<StrokeParams>& stroke,
-                        float feather);
+float paintBoundsOutset(
+    const std::optional<StrokeParams>& stroke,
+    float feather);
 
 // What one ShapePaint adds to its shape's bounds.
 struct ShapePaintOutset
 {
-    // Symmetric, in the space `pathIsLocal` names.
-    float outset = 0.0f;
-    // A Feather can be offset, which is not symmetric, so it is kept apart from
-    // `outset` rather than folded in as a worst case on all four sides.
-    Vec2D featherOffset = {0.0f, 0.0f};
-    // Whether featherOffset applies in world space (concatenated before the
-    // shape transform) or in the shape's local space (after it).
-    bool featherOffsetInWorld = false;
-    // Which space `outset` is in. A Fill always paints the local path; a Stroke
-    // paints the local path only when the transform affects it, and the world
-    // path otherwise. Getting this backwards scales the outset by the shape's
-    // scale twice, or not at all.
-    bool pathIsLocal = true;
-    // False when this paint carries a StrokeEffect that can place geometry
-    // outside the raw path it was built from, so bounds measured off that raw
-    // path understate what gets painted. Trim and dash only ever subset the
-    // source path, but nothing distinguishes them here yet.
-    bool trustworthy = true;
+  // Symmetric, in the space `pathIsLocal` names.
+  float outset = 0.0f;
+  // A Feather can be offset, which is not symmetric, so it is kept apart from
+  // `outset` rather than folded in as a worst case on all four sides.
+  Vec2D featherOffset = {0.0f, 0.0f};
+  // Whether featherOffset applies in world space (concatenated before the
+  // shape transform) or in the shape's local space (after it).
+  bool featherOffsetInWorld = false;
+  // Which space `outset` is in. A Fill always paints the local path; a Stroke
+  // paints the local path only when the transform affects it, and the world
+  // path otherwise. Getting this backwards scales the outset by the shape's
+  // scale twice, or not at all.
+  bool pathIsLocal = true;
+  // False when this paint carries a StrokeEffect that can place geometry
+  // outside the raw path it was built from, so bounds measured off that raw
+  // path understate what gets painted. Trim and dash only ever subset the
+  // source path, but nothing distinguishes them here yet.
+  bool trustworthy = true;
 };
 
 // A paint that would not draw contributes nothing and is trustworthy about it.
@@ -88,19 +89,20 @@ ShapePaintOutset shapePaintOutset(const ShapePaint* paint);
 // How far past its geometry a whole container's paints reach, in world units.
 struct PaintReach
 {
-    // The furthest-reaching visible paint. The max rather than the sum: every
-    // paint reaches outward from the same geometry, so they overlap.
-    float worldOutset = 0.0f;
-    // False when any paint can place geometry outside the raw path a bounding
-    // box was measured from, so that box understates what is painted.
-    bool trustworthy = true;
+  // The furthest-reaching visible paint. The max rather than the sum: every
+  // paint reaches outward from the same geometry, so they overlap.
+  float worldOutset = 0.0f;
+  // False when any paint can place geometry outside the raw path a bounding
+  // box was measured from, so that box understates what is painted.
+  bool trustworthy = true;
 };
 
 // `world` is the container's world transform, needed to get a local-space
 // outset (a Fill's, or a Stroke's when the transform affects it) into the same
 // units as a world-space bounding box.
-PaintReach shapePaintsWorldReach(const ShapePaintContainer* container,
-                                 const Mat2D& world);
+PaintReach shapePaintsWorldReach(
+    const ShapePaintContainer* container,
+    const Mat2D& world);
 
 } // namespace rive
 

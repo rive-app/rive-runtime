@@ -6,12 +6,12 @@ namespace rive
 class TextShapeModifierBase : public TextModifier
 {
 protected:
-    typedef TextModifier Super;
+  typedef TextModifier Super;
 
 public:
-    static const uint16_t typeKey = 161;
+  static const uint16_t typeKey = 161;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 };
 } // namespace rive
 

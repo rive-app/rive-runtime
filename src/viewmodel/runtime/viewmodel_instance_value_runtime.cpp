@@ -8,42 +8,42 @@ using namespace rive;
 
 ViewModelInstanceValueRuntime::~ViewModelInstanceValueRuntime()
 {
-    if (m_viewModelInstanceValue != nullptr)
-    {
-        m_viewModelInstanceValue->removeDependent(this);
-        m_viewModelInstanceValue->unref();
-        m_viewModelInstanceValue = nullptr;
-    }
+  if (m_viewModelInstanceValue != nullptr)
+  {
+    m_viewModelInstanceValue->removeDependent(this);
+    m_viewModelInstanceValue->unref();
+    m_viewModelInstanceValue = nullptr;
+  }
 }
 
 ViewModelInstanceValueRuntime::ViewModelInstanceValueRuntime(
-    ViewModelInstanceValue* instanceValue) :
-    m_viewModelInstanceValue(instanceValue)
+    ViewModelInstanceValue* instanceValue)
+    : m_viewModelInstanceValue(instanceValue)
 {
-    instanceValue->ref();
-    instanceValue->addDependent(this);
+  instanceValue->ref();
+  instanceValue->addDependent(this);
 }
 
 void ViewModelInstanceValueRuntime::relinkDataBind() {}
 
 void ViewModelInstanceValueRuntime::addDirt(ComponentDirt dirt, bool recurse)
 {
-    m_hasChanged = true;
+  m_hasChanged = true;
 }
 
 void ViewModelInstanceValueRuntime::clearChanges() { m_hasChanged = false; }
 
 bool ViewModelInstanceValueRuntime::flushChanges()
 {
-    if (m_hasChanged)
-    {
-        m_hasChanged = false;
-        return true;
-    }
-    return false;
+  if (m_hasChanged)
+  {
+    m_hasChanged = false;
+    return true;
+  }
+  return false;
 }
 
 const std::string& ViewModelInstanceValueRuntime::name() const
 {
-    return m_viewModelInstanceValue->name();
+  return m_viewModelInstanceValue->name();
 }

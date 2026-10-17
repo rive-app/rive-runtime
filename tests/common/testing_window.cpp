@@ -15,17 +15,17 @@
 #if defined(_WIN32) && !defined(RIVE_UNREAL)
 extern "C"
 {
-    // https://stackoverflow.com/questions/68469954/how-to-choose-specific-gpu-when-create-opengl-context:
-    //
-    //   OpenGL, or rather the Win32 GDI integration of it, doesn't offer means
-    //   to explicitly select the desired device. However the drivers of Nvidia
-    //   and AMD offer a workaround to have programs select, that they prefer to
-    //   execute on the discrete GPU rather than the CPU integrated one.
-    //
-    // These also appear to select the discrete "Arc" GPU on an Intel system,
-    // and to influence the GPU selection on D3D11.
-    __declspec(dllexport) uint32_t NvOptimusEnablement = 1;
-    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+  // https://stackoverflow.com/questions/68469954/how-to-choose-specific-gpu-when-create-opengl-context:
+  //
+  //   OpenGL, or rather the Win32 GDI integration of it, doesn't offer means
+  //   to explicitly select the desired device. However the drivers of Nvidia
+  //   and AMD offer a workaround to have programs select, that they prefer to
+  //   execute on the discrete GPU rather than the CPU integrated one.
+  //
+  // These also appear to select the discrete "Arc" GPU on an Intel system,
+  // and to influence the GPU selection on D3D11.
+  __declspec(dllexport) uint32_t NvOptimusEnablement = 1;
+  __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 }
 #endif
 
@@ -50,588 +50,592 @@ constexpr static uint32_t MSAASampleCount = 4;
 
 const char* TestingWindow::BackendName(Backend backend)
 {
-    switch (backend)
-    {
-        case Backend::gl:
-            return "gl";
-        case Backend::d3d:
-            return "d3d";
-        case Backend::d3d12:
-            return "d3d12";
-        case Backend::metal:
-            return "metal";
-        case Backend::vk:
-            return "vk";
-        case Backend::moltenvk:
-            return "moltenvk";
-        case Backend::swiftshader:
-            return "swiftshader";
-        case Backend::angle:
-            return "angle";
-        case Backend::dawn:
-            return "dawn";
-        case Backend::wgpu:
-            return "wgpu";
-        case Backend::external:
-            return "external";
-        case Backend::coregraphics:
-            return "coregraphics";
-        case Backend::skia:
-            return "skia";
-        case Backend::canvas2d:
-            return "canvas2d";
-        case Backend::svg:
-            return "svg";
-        case Backend::null:
-            return "null";
-        case Backend::invalid:
-            return "invalid";
-    }
-    RIVE_UNREACHABLE();
+  switch (backend)
+  {
+    case Backend::gl:
+      return "gl";
+    case Backend::d3d:
+      return "d3d";
+    case Backend::d3d12:
+      return "d3d12";
+    case Backend::metal:
+      return "metal";
+    case Backend::vk:
+      return "vk";
+    case Backend::moltenvk:
+      return "moltenvk";
+    case Backend::swiftshader:
+      return "swiftshader";
+    case Backend::angle:
+      return "angle";
+    case Backend::dawn:
+      return "dawn";
+    case Backend::wgpu:
+      return "wgpu";
+    case Backend::external:
+      return "external";
+    case Backend::coregraphics:
+      return "coregraphics";
+    case Backend::skia:
+      return "skia";
+    case Backend::canvas2d:
+      return "canvas2d";
+    case Backend::svg:
+      return "svg";
+    case Backend::null:
+      return "null";
+    case Backend::invalid:
+      return "invalid";
+  }
+  RIVE_UNREACHABLE();
 }
 
 static std::vector<std::string> split(const char* str, char delimiter)
 {
-    std::stringstream ss(str);
-    std::string token;
-    std::vector<std::string> tokens;
-    while (std::getline(ss, token, delimiter))
-    {
-        tokens.push_back(token);
-    }
-    return tokens;
+  std::stringstream ss(str);
+  std::string token;
+  std::vector<std::string> tokens;
+  while (std::getline(ss, token, delimiter))
+  {
+    tokens.push_back(token);
+  }
+  return tokens;
 }
 
-TestingWindow::Backend TestingWindow::TryParseBackend(const char* name,
-                                                      BackendParams* params)
+TestingWindow::Backend TestingWindow::TryParseBackend(
+    const char* name,
+    BackendParams* params)
 {
-    *params = {};
-    // Backends can come in the form <backendName>, or
-    // <gpuNameFilter>/<backendName>.
-    std::vector<std::string> tokens = split(name, '/');
-    assert(!tokens.empty());
-    params->gpuNameFilter =
-        tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
-    const std::string nameStr = tokens.back();
-    const auto nameStartsWith = [&](std::string str) {
-        return nameStr.rfind(str, 0) == 0;
-    };
-    const auto nameEndsWith = [&](std::string str) {
-        auto result = nameStr.rfind(str);
-        return result != std::string::npos &&
-               result == nameStr.size() - str.size();
-    };
-    if (nameStartsWith("angle"))
-    {
-        if (nameStartsWith("anglemsaa"))
-            params->msaaSampleCount = MSAASampleCount;
-        if (nameEndsWith("_mtl") || nameEndsWith("_metal"))
-            params->angleRenderer = ANGLERenderer::metal;
-        else if (nameEndsWith("_d3d") || nameEndsWith("_d3d11"))
-            params->angleRenderer = ANGLERenderer::d3d11;
-        else if (nameEndsWith("_vk") || nameEndsWith("_vulkan"))
-            params->angleRenderer = ANGLERenderer::vk;
-        else if (nameEndsWith("_gles"))
-            params->angleRenderer = ANGLERenderer::gles;
-        else if (nameEndsWith("_gl"))
-            params->angleRenderer = ANGLERenderer::gl;
-        return Backend::angle;
-    }
-    if (nameStr == "gl")
-    {
-        return Backend::gl;
-    }
-    if (nameStr == "glatomic")
-    {
-        params->atomic = true;
-        return Backend::gl;
-    }
-    if (nameStr == "glcw")
-    {
-        params->clockwise = true;
-        return Backend::gl;
-    }
-    if (nameStr == "glcwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::gl;
-    }
-    if (nameStr == "glcwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::gl;
-    }
-    if (nameStr == "glmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::gl;
-    }
-    if (nameStr == "d3d")
-    {
-        return Backend::d3d;
-    }
-    if (nameStr == "d3datomic")
-    {
-        params->atomic = true;
-        return Backend::d3d;
-    }
-    if (nameStr == "d3dmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::d3d;
-    }
-    if (nameStr == "d3dcwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::d3d;
-    }
-    if (nameStr == "d3dcwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::d3d;
-    }
-    if (nameStr == "d3d12")
-    {
-        return Backend::d3d12;
-    }
-    if (nameStr == "d3d12atomic")
-    {
-        params->atomic = true;
-        return Backend::d3d12;
-    }
-    if (nameStr == "d3d12msaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::d3d12;
-    }
-    if (nameStr == "d3d12cwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::d3d12;
-    }
-    if (nameStr == "d3d12cwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::d3d12;
-    }
-    if (nameStr == "metal")
-    {
-        return Backend::metal;
-    }
-    if (nameStr == "metalcw")
-    {
-        params->clockwise = true;
-        return Backend::metal;
-    }
-    if (nameStr == "metalatomic")
-    {
-        params->atomic = true;
-        return Backend::metal;
-    }
-    if (nameStr == "metalmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::metal;
-    }
-    if (nameStr == "vulkan" || nameStr == "vk")
-    {
-        return Backend::vk;
-    }
-    if (nameStr == "vulkanatomic" || nameStr == "vkatomic")
-    {
-        params->atomic = true;
-        return Backend::vk;
-    }
-    if (nameStr == "vulkanmsaa" || nameStr == "vkmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::vk;
-    }
-    if (nameStr == "vulkancore" || nameStr == "vkcore")
-    {
-        params->core = true;
-        return Backend::vk;
-    }
-    if (nameStr == "vulkanmsaacore" || nameStr == "vkmsaacore")
-    {
-        params->core = true;
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::vk;
-    }
-    if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
-    {
-        params->srgb = true;
-        return Backend::vk;
-    }
-    if (nameStr == "vkcw")
-    {
-        params->clockwise = true;
-        return Backend::vk;
-    }
-    if (nameStr == "vkcwatomic" || nameStr == "vkcwa")
-    {
-        params->clockwise = true;
-        params->atomic = true;
-        return Backend::vk;
-    }
-    if (nameStr == "vkcwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::vk;
-    }
-    if (nameStr == "vkcwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::vk;
-    }
-    if (nameStr == "moltenvk" || nameStr == "mvk")
-    {
-        return Backend::moltenvk;
-    }
-    if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
-    {
-        params->core = true;
-        return Backend::moltenvk;
-    }
-    if (nameStr == "mvkcwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::moltenvk;
-    }
-    if (nameStr == "mvkcwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::moltenvk;
-    }
-    if (nameStr == "swiftshader" || nameStr == "sw")
-    {
-        return Backend::swiftshader;
-    }
-    if (nameStr == "swiftshadercore" || nameStr == "swcore")
-    {
-        params->core = true;
-        return Backend::swiftshader;
-    }
-    if (nameStr == "dawn")
-    {
-        return Backend::dawn;
-    }
-    if (nameStr == "dawnmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::dawn;
-    }
-    if (nameStr == "dawncwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::dawn;
-    }
-    if (nameStr == "dawncwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::dawn;
-    }
-    if (nameStr == "wgpu")
-    {
-        return Backend::wgpu;
-    }
-    if (nameStr == "wgpucw")
-    {
-        params->clockwise = true;
-        return Backend::wgpu;
-    }
-    if (nameStr == "wgpumsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::wgpu;
-    }
-    if (nameStr == "wgpucwmsaa1")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        return Backend::wgpu;
-    }
-    if (nameStr == "wgpucwib")
-    {
-        params->clockwise = true;
-        params->msaaSampleCount = 1;
-        params->inkbleed = true;
-        return Backend::wgpu;
-    }
-    if (nameStr == "coregraphics")
-    {
-        return Backend::coregraphics;
-    }
-    if (nameStr == "skia")
-    {
-        return Backend::skia;
-    }
-    if (nameStr == "external" || nameStr == "ext" || nameStr == "x")
-    {
-        return Backend::external;
-    }
-    if (nameStr == "externalatomic" || nameStr == "extatomic" ||
-        nameStr == "xatomic")
-    {
-        params->atomic = true;
-        return Backend::external;
-    }
-    if (nameStr == "externalmsaa" || nameStr == "extmsaa" || nameStr == "xmsaa")
-    {
-        params->msaaSampleCount = MSAASampleCount;
-        return Backend::external;
-    }
-    if (nameStr == "canvas2d" || nameStr == "c2d")
-    {
-        return Backend::canvas2d;
-    }
-    if (nameStr == "svg")
-    {
-        return Backend::svg;
-    }
-    if (nameStr == "null")
-    {
-        return Backend::null;
-    }
-    return Backend::invalid;
+  *params = {};
+  // Backends can come in the form <backendName>, or
+  // <gpuNameFilter>/<backendName>.
+  std::vector<std::string> tokens = split(name, '/');
+  assert(!tokens.empty());
+  params->gpuNameFilter = tokens.size() > 1 ? tokens[tokens.size() - 2].c_str()
+                                            : "";
+  const std::string nameStr = tokens.back();
+  const auto nameStartsWith = [&](std::string str) {
+    return nameStr.rfind(str, 0) == 0;
+  };
+  const auto nameEndsWith = [&](std::string str) {
+    auto result = nameStr.rfind(str);
+    return result != std::string::npos && result == nameStr.size() - str.size();
+  };
+  if (nameStartsWith("angle"))
+  {
+    if (nameStartsWith("anglemsaa"))
+      params->msaaSampleCount = MSAASampleCount;
+    if (nameEndsWith("_mtl") || nameEndsWith("_metal"))
+      params->angleRenderer = ANGLERenderer::metal;
+    else if (nameEndsWith("_d3d") || nameEndsWith("_d3d11"))
+      params->angleRenderer = ANGLERenderer::d3d11;
+    else if (nameEndsWith("_vk") || nameEndsWith("_vulkan"))
+      params->angleRenderer = ANGLERenderer::vk;
+    else if (nameEndsWith("_gles"))
+      params->angleRenderer = ANGLERenderer::gles;
+    else if (nameEndsWith("_gl"))
+      params->angleRenderer = ANGLERenderer::gl;
+    return Backend::angle;
+  }
+  if (nameStr == "gl")
+  {
+    return Backend::gl;
+  }
+  if (nameStr == "glatomic")
+  {
+    params->atomic = true;
+    return Backend::gl;
+  }
+  if (nameStr == "glcw")
+  {
+    params->clockwise = true;
+    return Backend::gl;
+  }
+  if (nameStr == "glcwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::gl;
+  }
+  if (nameStr == "glcwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::gl;
+  }
+  if (nameStr == "glmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::gl;
+  }
+  if (nameStr == "d3d")
+  {
+    return Backend::d3d;
+  }
+  if (nameStr == "d3datomic")
+  {
+    params->atomic = true;
+    return Backend::d3d;
+  }
+  if (nameStr == "d3dmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::d3d;
+  }
+  if (nameStr == "d3dcwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::d3d;
+  }
+  if (nameStr == "d3dcwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::d3d;
+  }
+  if (nameStr == "d3d12")
+  {
+    return Backend::d3d12;
+  }
+  if (nameStr == "d3d12atomic")
+  {
+    params->atomic = true;
+    return Backend::d3d12;
+  }
+  if (nameStr == "d3d12msaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::d3d12;
+  }
+  if (nameStr == "d3d12cwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::d3d12;
+  }
+  if (nameStr == "d3d12cwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::d3d12;
+  }
+  if (nameStr == "metal")
+  {
+    return Backend::metal;
+  }
+  if (nameStr == "metalcw")
+  {
+    params->clockwise = true;
+    return Backend::metal;
+  }
+  if (nameStr == "metalatomic")
+  {
+    params->atomic = true;
+    return Backend::metal;
+  }
+  if (nameStr == "metalmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::metal;
+  }
+  if (nameStr == "vulkan" || nameStr == "vk")
+  {
+    return Backend::vk;
+  }
+  if (nameStr == "vulkanatomic" || nameStr == "vkatomic")
+  {
+    params->atomic = true;
+    return Backend::vk;
+  }
+  if (nameStr == "vulkanmsaa" || nameStr == "vkmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::vk;
+  }
+  if (nameStr == "vulkancore" || nameStr == "vkcore")
+  {
+    params->core = true;
+    return Backend::vk;
+  }
+  if (nameStr == "vulkanmsaacore" || nameStr == "vkmsaacore")
+  {
+    params->core = true;
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::vk;
+  }
+  if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
+  {
+    params->srgb = true;
+    return Backend::vk;
+  }
+  if (nameStr == "vkcw")
+  {
+    params->clockwise = true;
+    return Backend::vk;
+  }
+  if (nameStr == "vkcwatomic" || nameStr == "vkcwa")
+  {
+    params->clockwise = true;
+    params->atomic = true;
+    return Backend::vk;
+  }
+  if (nameStr == "vkcwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::vk;
+  }
+  if (nameStr == "vkcwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::vk;
+  }
+  if (nameStr == "moltenvk" || nameStr == "mvk")
+  {
+    return Backend::moltenvk;
+  }
+  if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
+  {
+    params->core = true;
+    return Backend::moltenvk;
+  }
+  if (nameStr == "mvkcwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::moltenvk;
+  }
+  if (nameStr == "mvkcwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::moltenvk;
+  }
+  if (nameStr == "swiftshader" || nameStr == "sw")
+  {
+    return Backend::swiftshader;
+  }
+  if (nameStr == "swiftshadercore" || nameStr == "swcore")
+  {
+    params->core = true;
+    return Backend::swiftshader;
+  }
+  if (nameStr == "dawn")
+  {
+    return Backend::dawn;
+  }
+  if (nameStr == "dawnmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::dawn;
+  }
+  if (nameStr == "dawncwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::dawn;
+  }
+  if (nameStr == "dawncwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::dawn;
+  }
+  if (nameStr == "wgpu")
+  {
+    return Backend::wgpu;
+  }
+  if (nameStr == "wgpucw")
+  {
+    params->clockwise = true;
+    return Backend::wgpu;
+  }
+  if (nameStr == "wgpumsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::wgpu;
+  }
+  if (nameStr == "wgpucwmsaa1")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    return Backend::wgpu;
+  }
+  if (nameStr == "wgpucwib")
+  {
+    params->clockwise = true;
+    params->msaaSampleCount = 1;
+    params->inkbleed = true;
+    return Backend::wgpu;
+  }
+  if (nameStr == "coregraphics")
+  {
+    return Backend::coregraphics;
+  }
+  if (nameStr == "skia")
+  {
+    return Backend::skia;
+  }
+  if (nameStr == "external" || nameStr == "ext" || nameStr == "x")
+  {
+    return Backend::external;
+  }
+  if (nameStr == "externalatomic" || nameStr == "extatomic" ||
+      nameStr == "xatomic")
+  {
+    params->atomic = true;
+    return Backend::external;
+  }
+  if (nameStr == "externalmsaa" || nameStr == "extmsaa" || nameStr == "xmsaa")
+  {
+    params->msaaSampleCount = MSAASampleCount;
+    return Backend::external;
+  }
+  if (nameStr == "canvas2d" || nameStr == "c2d")
+  {
+    return Backend::canvas2d;
+  }
+  if (nameStr == "svg")
+  {
+    return Backend::svg;
+  }
+  if (nameStr == "null")
+  {
+    return Backend::null;
+  }
+  return Backend::invalid;
 }
 
-TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
-                                                   BackendParams* params)
+TestingWindow::Backend TestingWindow::ParseBackend(
+    const char* name,
+    BackendParams* params)
 {
-    Backend backend = TryParseBackend(name, params);
-    if (backend == Backend::invalid)
-    {
-        fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
-        abort();
-    }
-    return backend;
+  Backend backend = TryParseBackend(name, params);
+  if (backend == Backend::invalid)
+  {
+    fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
+    abort();
+  }
+  return backend;
 }
 
 static void set_environment_variable(const char* name, const char* value)
 {
 #ifndef PLATFORM_NO_ENV_API
-    if (const char* existingValue = getenv(name))
-    {
-        printf("warning: %s=%s already set. Overriding with %s=%s\n",
-               name,
-               existingValue,
-               name,
-               value);
-    }
+  if (const char* existingValue = getenv(name))
+  {
+    printf(
+        "warning: %s=%s already set. Overriding with %s=%s\n",
+        name,
+        existingValue,
+        name,
+        value);
+  }
 #ifdef _WIN32
-    SetEnvironmentVariableA(name, value);
+  SetEnvironmentVariableA(name, value);
 #else
-    setenv(name, value, /*overwrite=*/true);
+  setenv(name, value, /*overwrite=*/true);
 #endif
 #endif
 }
 
-TestingWindow* TestingWindow::Init(Backend backend,
-                                   const BackendParams& backendParams,
-                                   Visibility visibility,
-                                   void* platformWindow)
+TestingWindow* TestingWindow::Init(
+    Backend backend,
+    const BackendParams& backendParams,
+    Visibility visibility,
+    void* platformWindow)
 {
-    if (s_TestingWindow != nullptr)
-    {
-        s_Backend = backend;
-        return s_TestingWindow;
-    }
-
-#if defined(_WIN32) && !defined(RIVE_UNREAL)
-    // Set our backdoor GPU selection variables in case the API doesn't
-    // allow us to select explicitly.
-    const char* nameFilter = backendParams.gpuNameFilter.c_str();
-    if (const char* gpuFromEnv = getenv("RIVE_GPU"); gpuFromEnv != nullptr)
-    {
-        // Override the program's GPU filter with one from the environment if
-        // it's set.
-        nameFilter = gpuFromEnv;
-    }
-    // "i" and "integrated" are special-case gpuNameFilters that mean "use
-    // the integrated GPU".
-    bool wantIntegratedGPU = static_cast<uint32_t>(
-        strcmp(nameFilter, "integrated") == 0 || strcmp(nameFilter, "i") == 0);
-    NvOptimusEnablement = !wantIntegratedGPU;
-    AmdPowerXpressRequestHighPerformance = !wantIntegratedGPU;
-#endif
-
-    switch (backend)
-    {
-        case Backend::gl:
-        case Backend::angle:
-#ifndef RIVE_TOOLS_NO_GLFW
-            if (backend != Backend::angle || visibility != Visibility::headless)
-            {
-                s_TestingWindow =
-                    TestingWindow::MakeFiddleContext(backend,
-                                                     backendParams,
-                                                     visibility,
-                                                     platformWindow);
-            }
-            else
-#endif
-            {
-                s_TestingWindow =
-                    MakeEGL(backend, backendParams, platformWindow);
-            }
-            break;
-        case Backend::vk:
-        case Backend::moltenvk:
-        case Backend::swiftshader:
-            if (backend == Backend::moltenvk)
-            {
-                // Use the MoltenVK built by
-                // packages/runtime/renderer/make_moltenvk.sh
-                constexpr static char kMoltenVKICD[] =
-                    "../renderer/dependencies/MoltenVK/Package/Release/"
-                    "MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
-                set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
-            }
-            else if (backend == Backend::swiftshader)
-            {
-                // Use the swiftshader built by
-                // packages/runtime/renderer/make_swiftshader.sh
-                constexpr static char kSwiftShaderICD[] =
-#ifdef __APPLE__
-                    "../renderer/dependencies/SwiftShader/build/Darwin/"
-                    "vk_swiftshader_icd.json";
-#elif defined(_WIN32)
-                    "../renderer/dependencies/SwiftShader/build/Windows/"
-                    "vk_swiftshader_icd.json";
-#else
-                    "../renderer/dependencies/SwiftShader/build/Linux/"
-                    "vk_swiftshader_icd.json";
-#endif
-                set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
-            }
-#ifdef RIVE_ANDROID
-            if (platformWindow != nullptr)
-            {
-                s_TestingWindow =
-                    TestingWindow::MakeAndroidVulkan(backendParams,
-                                                     platformWindow);
-                break;
-            }
-#endif
-            // Hook for platforms without rive_vk_bootstrap.
-            if (auto* platformVulkanWindow =
-                    TestingWindow::MakePlatformVulkan(backendParams))
-            {
-                s_TestingWindow = platformVulkanWindow;
-                break;
-            }
-            if (visibility == Visibility::headless)
-            {
-                s_TestingWindow =
-                    TestingWindow::MakeVulkanTexture(backendParams);
-            }
-            else
-            {
-                s_TestingWindow =
-                    TestingWindow::MakeFiddleContext(backend,
-                                                     backendParams,
-                                                     visibility,
-                                                     platformWindow);
-            }
-            break;
-        case Backend::metal:
-#if defined(__APPLE__) && !defined(RIVE_UNREAL)
-            if (visibility == Visibility::headless)
-            {
-                s_TestingWindow =
-                    TestingWindow::MakeMetalTexture(backendParams);
-                break;
-            }
-#endif
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
-            s_TestingWindow =
-                TestingWindow::MakeMetalLayer(backendParams, platformWindow);
-#else
-            s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                               backendParams,
-                                                               visibility,
-                                                               platformWindow);
-#endif
-            break;
-        case Backend::d3d:
-        case Backend::d3d12:
-        case Backend::dawn:
-            s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                               backendParams,
-                                                               visibility,
-                                                               platformWindow);
-            break;
-        case Backend::wgpu:
-            s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
-            break;
-        case Backend::external:
-            break;
-        case Backend::coregraphics:
-            s_TestingWindow = MakeCoreGraphics();
-            break;
-        case Backend::skia:
-            s_TestingWindow = MakeSkia();
-            break;
-        case Backend::canvas2d:
-            s_TestingWindow = MakeCanvas2D();
-            break;
-        case Backend::svg:
-            s_TestingWindow = MakeSVG();
-            break;
-        case Backend::null:
-            s_TestingWindow = MakeNULL();
-            break;
-        case Backend::invalid:
-            break;
-    }
-    if (!s_TestingWindow)
-    {
-        fprintf(stderr,
-                "Failed to create testing window for Backend::%s\n",
-                BackendName(backend));
-        abort();
-    }
-
+  if (s_TestingWindow != nullptr)
+  {
     s_Backend = backend;
     return s_TestingWindow;
+  }
+
+#if defined(_WIN32) && !defined(RIVE_UNREAL)
+  // Set our backdoor GPU selection variables in case the API doesn't
+  // allow us to select explicitly.
+  const char* nameFilter = backendParams.gpuNameFilter.c_str();
+  if (const char* gpuFromEnv = getenv("RIVE_GPU"); gpuFromEnv != nullptr)
+  {
+    // Override the program's GPU filter with one from the environment if
+    // it's set.
+    nameFilter = gpuFromEnv;
+  }
+  // "i" and "integrated" are special-case gpuNameFilters that mean "use
+  // the integrated GPU".
+  bool wantIntegratedGPU = static_cast<uint32_t>(
+      strcmp(nameFilter, "integrated") == 0 || strcmp(nameFilter, "i") == 0);
+  NvOptimusEnablement = !wantIntegratedGPU;
+  AmdPowerXpressRequestHighPerformance = !wantIntegratedGPU;
+#endif
+
+  switch (backend)
+  {
+    case Backend::gl:
+    case Backend::angle:
+#ifndef RIVE_TOOLS_NO_GLFW
+      if (backend != Backend::angle || visibility != Visibility::headless)
+      {
+        s_TestingWindow = TestingWindow::MakeFiddleContext(
+            backend,
+            backendParams,
+            visibility,
+            platformWindow);
+      }
+      else
+#endif
+      {
+        s_TestingWindow = MakeEGL(backend, backendParams, platformWindow);
+      }
+      break;
+    case Backend::vk:
+    case Backend::moltenvk:
+    case Backend::swiftshader:
+      if (backend == Backend::moltenvk)
+      {
+        // Use the MoltenVK built by
+        // packages/runtime/renderer/make_moltenvk.sh
+        constexpr static char kMoltenVKICD
+            [] = "../renderer/dependencies/MoltenVK/Package/Release/"
+                 "MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
+        set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
+      }
+      else if (backend == Backend::swiftshader)
+      {
+        // Use the swiftshader built by
+        // packages/runtime/renderer/make_swiftshader.sh
+        constexpr static char kSwiftShaderICD[] =
+#ifdef __APPLE__
+            "../renderer/dependencies/SwiftShader/build/Darwin/"
+            "vk_swiftshader_icd.json";
+#elif defined(_WIN32)
+            "../renderer/dependencies/SwiftShader/build/Windows/"
+            "vk_swiftshader_icd.json";
+#else
+            "../renderer/dependencies/SwiftShader/build/Linux/"
+            "vk_swiftshader_icd.json";
+#endif
+        set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
+      }
+#ifdef RIVE_ANDROID
+      if (platformWindow != nullptr)
+      {
+        s_TestingWindow = TestingWindow::MakeAndroidVulkan(
+            backendParams,
+            platformWindow);
+        break;
+      }
+#endif
+      // Hook for platforms without rive_vk_bootstrap.
+      if (auto* platformVulkanWindow = TestingWindow::MakePlatformVulkan(
+              backendParams))
+      {
+        s_TestingWindow = platformVulkanWindow;
+        break;
+      }
+      if (visibility == Visibility::headless)
+      {
+        s_TestingWindow = TestingWindow::MakeVulkanTexture(backendParams);
+      }
+      else
+      {
+        s_TestingWindow = TestingWindow::MakeFiddleContext(
+            backend,
+            backendParams,
+            visibility,
+            platformWindow);
+      }
+      break;
+    case Backend::metal:
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
+      if (visibility == Visibility::headless)
+      {
+        s_TestingWindow = TestingWindow::MakeMetalTexture(backendParams);
+        break;
+      }
+#endif
+#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+      s_TestingWindow = TestingWindow::MakeMetalLayer(
+          backendParams,
+          platformWindow);
+#else
+      s_TestingWindow = TestingWindow::MakeFiddleContext(
+          backend,
+          backendParams,
+          visibility,
+          platformWindow);
+#endif
+      break;
+    case Backend::d3d:
+    case Backend::d3d12:
+    case Backend::dawn:
+      s_TestingWindow = TestingWindow::MakeFiddleContext(
+          backend,
+          backendParams,
+          visibility,
+          platformWindow);
+      break;
+    case Backend::wgpu:
+      s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
+      break;
+    case Backend::external:
+      break;
+    case Backend::coregraphics:
+      s_TestingWindow = MakeCoreGraphics();
+      break;
+    case Backend::skia:
+      s_TestingWindow = MakeSkia();
+      break;
+    case Backend::canvas2d:
+      s_TestingWindow = MakeCanvas2D();
+      break;
+    case Backend::svg:
+      s_TestingWindow = MakeSVG();
+      break;
+    case Backend::null:
+      s_TestingWindow = MakeNULL();
+      break;
+    case Backend::invalid:
+      break;
+  }
+  if (!s_TestingWindow)
+  {
+    fprintf(
+        stderr,
+        "Failed to create testing window for Backend::%s\n",
+        BackendName(backend));
+    abort();
+  }
+
+  s_Backend = backend;
+  return s_TestingWindow;
 }
 
 TestingWindow* TestingWindow::Get()
 {
-    assert(s_TestingWindow); // Call Init() first!
-    return s_TestingWindow;
+  assert(s_TestingWindow); // Call Init() first!
+  return s_TestingWindow;
 }
 
 void TestingWindow::Set(TestingWindow* inWindow)
 {
-    assert(inWindow);
-    s_TestingWindow = inWindow;
+  assert(inWindow);
+  s_TestingWindow = inWindow;
 }
 
 void TestingWindow::Destroy()
 {
-    assert(s_TestingWindow);
-    delete s_TestingWindow;
-    s_TestingWindow = nullptr;
+  assert(s_TestingWindow);
+  delete s_TestingWindow;
+  s_TestingWindow = nullptr;
 }
 
 // Default no-op; platforms with their own impl define
@@ -639,6 +643,6 @@ void TestingWindow::Destroy()
 #ifndef RIVE_PLATFORM_TESTING_WINDOW
 TestingWindow* TestingWindow::MakePlatformVulkan(const BackendParams&)
 {
-    return nullptr;
+  return nullptr;
 }
 #endif

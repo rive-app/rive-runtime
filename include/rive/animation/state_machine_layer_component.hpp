@@ -10,22 +10,22 @@ namespace rive
 class StateMachineFireAction;
 class StateMachineLayerComponent : public StateMachineLayerComponentBase
 {
-    friend class StateMachineLayerComponentImporter;
+  friend class StateMachineLayerComponentImporter;
 
 public:
-    const std::vector<StateMachineFireAction*>& events() const
-    {
-        return m_events;
-    }
-    const std::vector<std::unique_ptr<ListenerAction>>& listenerActions() const
-    {
-        return m_listenerActions;
-    }
-    ~StateMachineLayerComponent() override;
+  const std::vector<StateMachineFireAction*>& events() const
+  {
+    return m_events;
+  }
+  const std::vector<std::unique_ptr<ListenerAction>>& listenerActions() const
+  {
+    return m_listenerActions;
+  }
+  ~StateMachineLayerComponent() override;
 
 private:
-    std::vector<StateMachineFireAction*> m_events;
-    std::vector<std::unique_ptr<ListenerAction>> m_listenerActions;
+  std::vector<StateMachineFireAction*> m_events;
+  std::vector<std::unique_ptr<ListenerAction>> m_listenerActions;
 };
 } // namespace rive
 

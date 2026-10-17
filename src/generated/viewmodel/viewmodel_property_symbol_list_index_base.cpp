@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelPropertySymbolListIndexBase::clone() const
 {
-    auto cloned = new ViewModelPropertySymbolListIndex();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelPropertySymbolListIndex();
+  cloned->copy(*this);
+  return cloned;
 }

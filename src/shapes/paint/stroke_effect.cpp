@@ -12,15 +12,15 @@ using namespace rive;
 // work on itself
 void StrokeEffect::invalidateEffectFromLocal()
 {
-    for (auto& effectPath : m_effectPaths)
-    {
-        effectPath.second->invalidateEffect();
-    }
-    auto parentShapePaint = parentPaint();
-    if (parentShapePaint != nullptr)
-    {
-        parentShapePaint->invalidateEffects(this);
-    }
+  for (auto& effectPath : m_effectPaths)
+  {
+    effectPath.second->invalidateEffect();
+  }
+  auto parentShapePaint = parentPaint();
+  if (parentShapePaint != nullptr)
+  {
+    parentShapePaint->invalidateEffects(this);
+  }
 }
 
 // This is called from outside StrokeEffect.
@@ -30,37 +30,37 @@ void StrokeEffect::invalidateEffectFromLocal()
 void StrokeEffect::invalidateEffect(PathProvider* pathProvider)
 {
 
-    if (pathProvider)
+  if (pathProvider)
+  {
+    auto effectPathIt = m_effectPaths.find(pathProvider);
+    if (effectPathIt != m_effectPaths.end())
     {
-        auto effectPathIt = m_effectPaths.find(pathProvider);
-        if (effectPathIt != m_effectPaths.end())
-        {
-            effectPathIt->second->invalidateEffect();
-        }
+      effectPathIt->second->invalidateEffect();
     }
-    else
+  }
+  else
+  {
+    for (auto& effectPath : m_effectPaths)
     {
-        for (auto& effectPath : m_effectPaths)
-        {
-            effectPath.second->invalidateEffect();
-        }
+      effectPath.second->invalidateEffect();
     }
+  }
 }
 
 StrokeEffect::~StrokeEffect()
 {
-    for (auto& effectPath : m_effectPaths)
-    {
-        delete effectPath.second;
-    }
+  for (auto& effectPath : m_effectPaths)
+  {
+    delete effectPath.second;
+  }
 }
 
 ShapePaintPath* StrokeEffect::effectPath(PathProvider* pathProvider)
 {
-    auto it = m_effectPaths.find(pathProvider);
-    if (it != m_effectPaths.end())
-    {
-        return it->second->path();
-    }
-    return nullptr;
+  auto it = m_effectPaths.find(pathProvider);
+  if (it != m_effectPaths.end())
+  {
+    return it->second->path();
+  }
+  return nullptr;
 }

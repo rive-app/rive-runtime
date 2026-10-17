@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelInstanceValueBase::clone() const
 {
-    auto cloned = new ViewModelInstanceValue();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelInstanceValue();
+  cloned->copy(*this);
+  return cloned;
 }

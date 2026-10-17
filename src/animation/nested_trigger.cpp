@@ -10,13 +10,13 @@ void NestedTrigger::fire(const CallbackData& value) { this->applyValue(); }
 
 void NestedTrigger::applyValue()
 {
-    auto inputInstance = input();
-    if (inputInstance != nullptr)
+  auto inputInstance = input();
+  if (inputInstance != nullptr)
+  {
+    auto numInput = static_cast<SMITrigger*>(inputInstance);
+    if (numInput != nullptr)
     {
-        auto numInput = static_cast<SMITrigger*>(inputInstance);
-        if (numInput != nullptr)
-        {
-            numInput->fire();
-        }
+      numInput->fire();
     }
+  }
 }

@@ -11,59 +11,57 @@ namespace rive
 class ViewModelInstanceTriggerBase : public ViewModelInstanceValue
 {
 protected:
-    typedef ViewModelInstanceValue Super;
+  typedef ViewModelInstanceValue Super;
 
 public:
-    static const uint16_t typeKey = 501;
+  static const uint16_t typeKey = 501;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyValuePropertyKey = 687;
-    static const uint16_t firePropertyKey = 1016;
+  static const uint16_t propertyValuePropertyKey = 687;
+  static const uint16_t firePropertyKey = 1016;
 
 protected:
-    uint32_t m_PropertyValue = 0;
+  uint32_t m_PropertyValue = 0;
 
 public:
-    inline uint32_t propertyValue() const { return m_PropertyValue; }
-    void propertyValue(uint32_t value)
+  inline uint32_t propertyValue() const { return m_PropertyValue; }
+  void propertyValue(uint32_t value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    virtual void fire(const CallbackData& value) = 0;
+  virtual void fire(const CallbackData& value) = 0;
 
-    Core* clone() const override;
-    void copy(const ViewModelInstanceTriggerBase& object)
+  Core* clone() const override;
+  void copy(const ViewModelInstanceTriggerBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    RIVE_EDITOR_COPY(object);
+    ViewModelInstanceValue::copy(object);
+  }
+
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        m_PropertyValue = object.m_PropertyValue;
-        RIVE_EDITOR_COPY(object);
-        ViewModelInstanceValue::copy(object);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreUintType::deserialize(reader);
+        return true;
     }
-
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ViewModelInstanceValue::deserialize(propertyKey, reader);
-    }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ViewModelInstanceValue::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/viewmodel_instance_trigger_ext.inl"
 #endif

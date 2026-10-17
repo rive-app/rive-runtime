@@ -13,237 +13,247 @@
 
 TEST_CASE("A 0 scale path will trim with no crash", "[file]")
 {
-    auto file = ReadRiveFile("assets/trim.riv");
+  auto file = ReadRiveFile("assets/trim.riv");
 
-    auto artboard = file->artboard();
-    auto node = artboard->find<rive::Node>("I");
-    REQUIRE(node != nullptr);
-    REQUIRE(node->scaleX() != 0);
-    REQUIRE(node->scaleY() != 0);
+  auto artboard = file->artboard();
+  auto node = artboard->find<rive::Node>("I");
+  REQUIRE(node != nullptr);
+  REQUIRE(node->scaleX() != 0);
+  REQUIRE(node->scaleY() != 0);
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    rive::NoOpRenderer renderer;
-    artboard->draw(&renderer);
+  rive::NoOpRenderer renderer;
+  artboard->draw(&renderer);
 
-    // Now set scale to 0 and make sure it doesn't crash.
-    node->scaleX(0.0f);
-    node->scaleY(0.0f);
-    artboard->advance(0.0f);
-    artboard->draw(&renderer);
+  // Now set scale to 0 and make sure it doesn't crash.
+  node->scaleX(0.0f);
+  node->scaleY(0.0f);
+  artboard->advance(0.0f);
+  artboard->draw(&renderer);
 }
 
-static void testRawPath(rive::Artboard* artboard,
-                        std::string shapeName,
-                        std::vector<rive::PathVerb> verbs)
+static void testRawPath(
+    rive::Artboard* artboard,
+    std::string shapeName,
+    std::vector<rive::PathVerb> verbs)
 {
-    auto node = artboard->find<rive::Shape>(shapeName);
-    rive::Stroke* stroke;
-    for (auto& child : node->children())
+  auto node = artboard->find<rive::Shape>(shapeName);
+  rive::Stroke* stroke;
+  for (auto& child : node->children())
+  {
+    if (child->is<rive::Stroke>())
     {
-        if (child->is<rive::Stroke>())
-        {
-            stroke = child->as<rive::Stroke>();
-            break;
-        }
+      stroke = child->as<rive::Stroke>();
+      break;
     }
-    REQUIRE(stroke != nullptr);
-    REQUIRE(stroke->is<rive::Stroke>());
-    auto effect = stroke->effect();
-    REQUIRE(effect != nullptr);
-    auto effectPath = effect->effectPath(stroke);
-    REQUIRE(effectPath != nullptr);
-    auto rawPath = effectPath->rawPath();
-    REQUIRE(rawPath != nullptr);
-    size_t index = 0;
-    for (auto iter : *rawPath)
-    {
-        REQUIRE(verbs.size() > index);
-        rive::PathVerb verb = std::get<0>(iter);
-        REQUIRE(verb == verbs[index]);
-        index++;
-    }
-    REQUIRE(verbs.size() == index);
+  }
+  REQUIRE(stroke != nullptr);
+  REQUIRE(stroke->is<rive::Stroke>());
+  auto effect = stroke->effect();
+  REQUIRE(effect != nullptr);
+  auto effectPath = effect->effectPath(stroke);
+  REQUIRE(effectPath != nullptr);
+  auto rawPath = effectPath->rawPath();
+  REQUIRE(rawPath != nullptr);
+  size_t index = 0;
+  for (auto iter : *rawPath)
+  {
+    REQUIRE(verbs.size() > index);
+    rive::PathVerb verb = std::get<0>(iter);
+    REQUIRE(verb == verbs[index]);
+    index++;
+  }
+  REQUIRE(verbs.size() == index);
 }
 
 TEST_CASE("Different types of trim paths", "[trim]")
 {
-    auto file = ReadRiveFile("assets/trim_path.riv");
+  auto file = ReadRiveFile("assets/trim_path.riv");
 
-    auto artboard = file->artboard("artboard-2");
-    REQUIRE(artboard != nullptr);
-    artboard->updateComponents();
-    // Closed Path with start at 50%, end at 100% and offset at 75% doesn't add
-    // an extra move between end and start of path
-    // This is two quarter circle lines joined together
-    std::vector<rive::PathVerb> verbs1 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line};
-    testRawPath(artboard, "clipped-rect", verbs1);
-    // Open Path with start at 50%, end at 100% and offset at 75% does add
-    // an extra move between end and start of path
-    std::vector<rive::PathVerb> verbs2 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line};
-    testRawPath(artboard, "clipped-rect-open", verbs2);
-    // Multiple closed paths with start at 0%, end at 50% and offset at 90% do
-    // move between paths
-    std::vector<rive::PathVerb> verbs3 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::close};
-    testRawPath(artboard, "clipped-rect-multi", verbs3);
-    // Multiple closed paths with trim path synced with start at 0%, end at 50%
-    // and offset at 90% do move between paths
-    std::vector<rive::PathVerb> verbs4 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line};
-    testRawPath(artboard, "clipped-rect-multi-sync", verbs4);
-    // Open Shape with trim path at 0% 100% 0% does not close
-    std::vector<rive::PathVerb> verbs5 = {rive::PathVerb::move,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic};
-    testRawPath(artboard, "pen-shape", verbs5);
-    // Closed Shape with trim path at 0% 100% 0% does close
-    std::vector<rive::PathVerb> verbs6 = {rive::PathVerb::move,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::close};
-    testRawPath(artboard, "pen-shape-close", verbs6);
-    // Mixed shapes with open and closed paths respect their close value
-    std::vector<rive::PathVerb> verbs7 = {rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::close,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic};
-    testRawPath(artboard, "mixed-shapes", verbs7);
-    // Mixed shapes with synced trim path with open and closed paths respect
-    // their close value
-    std::vector<rive::PathVerb> verbs8 = {rive::PathVerb::move,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::cubic,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::move,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line,
-                                          rive::PathVerb::line};
-    testRawPath(artboard, "mixed-shapes-synced", verbs8);
-    // Mixed shapes with synced trim path with open and closed paths respect
-    // their close value at 100%
-    std::vector<rive::PathVerb> verbs9 = {
-        rive::PathVerb::move, rive::PathVerb::cubic, rive::PathVerb::cubic,
-        rive::PathVerb::move, rive::PathVerb::cubic, rive::PathVerb::cubic,
-        rive::PathVerb::move, rive::PathVerb::line,  rive::PathVerb::line,
-        rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::line,
-        rive::PathVerb::line, rive::PathVerb::close, rive::PathVerb::move,
-        rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::line,
-        rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::close};
-    testRawPath(artboard, "mixed-shapes-synced-100", verbs9);
-    // Mixed shapes with open and closed paths respect their close value at 100%
-    std::vector<rive::PathVerb> verbs10 = {rive::PathVerb::move,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::move,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::line,
-                                           rive::PathVerb::close,
-                                           rive::PathVerb::move,
-                                           rive::PathVerb::cubic,
-                                           rive::PathVerb::cubic,
-                                           rive::PathVerb::cubic};
-    testRawPath(artboard, "mixed-shapes-100", verbs10);
+  auto artboard = file->artboard("artboard-2");
+  REQUIRE(artboard != nullptr);
+  artboard->updateComponents();
+  // Closed Path with start at 50%, end at 100% and offset at 75% doesn't add
+  // an extra move between end and start of path
+  // This is two quarter circle lines joined together
+  std::vector<rive::PathVerb> verbs1 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line};
+  testRawPath(artboard, "clipped-rect", verbs1);
+  // Open Path with start at 50%, end at 100% and offset at 75% does add
+  // an extra move between end and start of path
+  std::vector<rive::PathVerb> verbs2 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line};
+  testRawPath(artboard, "clipped-rect-open", verbs2);
+  // Multiple closed paths with start at 0%, end at 50% and offset at 90% do
+  // move between paths
+  std::vector<rive::PathVerb> verbs3 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::close};
+  testRawPath(artboard, "clipped-rect-multi", verbs3);
+  // Multiple closed paths with trim path synced with start at 0%, end at 50%
+  // and offset at 90% do move between paths
+  std::vector<rive::PathVerb> verbs4 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line};
+  testRawPath(artboard, "clipped-rect-multi-sync", verbs4);
+  // Open Shape with trim path at 0% 100% 0% does not close
+  std::vector<rive::PathVerb> verbs5 = {
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic};
+  testRawPath(artboard, "pen-shape", verbs5);
+  // Closed Shape with trim path at 0% 100% 0% does close
+  std::vector<rive::PathVerb> verbs6 = {
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::close};
+  testRawPath(artboard, "pen-shape-close", verbs6);
+  // Mixed shapes with open and closed paths respect their close value
+  std::vector<rive::PathVerb> verbs7 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::close,
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic};
+  testRawPath(artboard, "mixed-shapes", verbs7);
+  // Mixed shapes with synced trim path with open and closed paths respect
+  // their close value
+  std::vector<rive::PathVerb> verbs8 = {
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line};
+  testRawPath(artboard, "mixed-shapes-synced", verbs8);
+  // Mixed shapes with synced trim path with open and closed paths respect
+  // their close value at 100%
+  std::vector<rive::PathVerb> verbs9 = {
+      rive::PathVerb::move, rive::PathVerb::cubic, rive::PathVerb::cubic,
+      rive::PathVerb::move, rive::PathVerb::cubic, rive::PathVerb::cubic,
+      rive::PathVerb::move, rive::PathVerb::line,  rive::PathVerb::line,
+      rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::line,
+      rive::PathVerb::line, rive::PathVerb::close, rive::PathVerb::move,
+      rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::line,
+      rive::PathVerb::line, rive::PathVerb::line,  rive::PathVerb::close};
+  testRawPath(artboard, "mixed-shapes-synced-100", verbs9);
+  // Mixed shapes with open and closed paths respect their close value at 100%
+  std::vector<rive::PathVerb> verbs10 = {
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::move,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::line,
+      rive::PathVerb::close,
+      rive::PathVerb::move,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic,
+      rive::PathVerb::cubic};
+  testRawPath(artboard, "mixed-shapes-100", verbs10);
 }
 
-static std::vector<rive::Vec2D> trimPoints(rive::Artboard* artboard,
-                                           const char* shapeName)
+static std::vector<rive::Vec2D> trimPoints(
+    rive::Artboard* artboard,
+    const char* shapeName)
 {
-    auto shape = artboard->find<rive::Shape>(shapeName);
-    for (auto& child : shape->children())
+  auto shape = artboard->find<rive::Shape>(shapeName);
+  for (auto& child : shape->children())
+  {
+    if (child->is<rive::Stroke>())
     {
-        if (child->is<rive::Stroke>())
-        {
-            auto stroke = child->as<rive::Stroke>();
-            auto points =
-                stroke->effect()->effectPath(stroke)->rawPath()->points();
-            return std::vector<rive::Vec2D>(points.begin(), points.end());
-        }
+      auto stroke = child->as<rive::Stroke>();
+      auto points = stroke->effect()->effectPath(stroke)->rawPath()->points();
+      return std::vector<rive::Vec2D>(points.begin(), points.end());
     }
-    return {};
+  }
+  return {};
 }
 
 TEST_CASE("Hidden stroke picks up path changes once shown", "[trim]")
 {
-    auto file = ReadRiveFile("assets/trim_path.riv");
-    auto artboard = file->artboard("artboard-2")->instance();
-    auto control = file->artboard("artboard-2")->instance();
-    auto shape = artboard->find<rive::Shape>("clipped-rect");
-    REQUIRE(shape != nullptr);
-    REQUIRE(shape->paths()[0]->is<rive::Rectangle>());
-    auto rect = shape->paths()[0]->as<rive::Rectangle>();
-    artboard->advance(0.0f);
-    auto before = trimPoints(artboard.get(), "clipped-rect");
-    REQUIRE(!before.empty());
+  auto file = ReadRiveFile("assets/trim_path.riv");
+  auto artboard = file->artboard("artboard-2")->instance();
+  auto control = file->artboard("artboard-2")->instance();
+  auto shape = artboard->find<rive::Shape>("clipped-rect");
+  REQUIRE(shape != nullptr);
+  REQUIRE(shape->paths()[0]->is<rive::Rectangle>());
+  auto rect = shape->paths()[0]->as<rive::Rectangle>();
+  artboard->advance(0.0f);
+  auto before = trimPoints(artboard.get(), "clipped-rect");
+  REQUIRE(!before.empty());
 
-    shape->opacity(0.0f);
-    artboard->advance(0.0f);
-    rect->width(rect->width() * 2);
-    artboard->advance(0.0f);
-    shape->opacity(1.0f);
-    artboard->advance(0.0f);
+  shape->opacity(0.0f);
+  artboard->advance(0.0f);
+  rect->width(rect->width() * 2);
+  artboard->advance(0.0f);
+  shape->opacity(1.0f);
+  artboard->advance(0.0f);
 
-    control->find<rive::Shape>("clipped-rect")
-        ->paths()[0]
-        ->as<rive::Rectangle>()
-        ->width(rect->width());
-    control->advance(0.0f);
-    auto expected = trimPoints(control.get(), "clipped-rect");
-    auto after = trimPoints(artboard.get(), "clipped-rect");
-    REQUIRE(after.size() == expected.size());
-    REQUIRE(after != before);
-    for (size_t i = 0; i < after.size(); i++)
-    {
-        CHECK(after[i].x == Approx(expected[i].x));
-        CHECK(after[i].y == Approx(expected[i].y));
-    }
+  control->find<rive::Shape>("clipped-rect")
+      ->paths()[0]
+      ->as<rive::Rectangle>()
+      ->width(rect->width());
+  control->advance(0.0f);
+  auto expected = trimPoints(control.get(), "clipped-rect");
+  auto after = trimPoints(artboard.get(), "clipped-rect");
+  REQUIRE(after.size() == expected.size());
+  REQUIRE(after != before);
+  for (size_t i = 0; i < after.size(); i++)
+  {
+    CHECK(after[i].x == Approx(expected[i].x));
+    CHECK(after[i].y == Approx(expected[i].y));
+  }
 }

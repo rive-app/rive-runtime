@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelInstanceColorBase::clone() const
 {
-    auto cloned = new ViewModelInstanceColor();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelInstanceColor();
+  cloned->copy(*this);
+  return cloned;
 }

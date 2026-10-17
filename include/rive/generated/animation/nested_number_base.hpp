@@ -7,39 +7,39 @@ namespace rive
 class NestedNumberBase : public NestedInput
 {
 protected:
-    typedef NestedInput Super;
+  typedef NestedInput Super;
 
 public:
-    static const uint16_t typeKey = 124;
+  static const uint16_t typeKey = 124;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t nestedValuePropertyKey = 239;
+  static const uint16_t nestedValuePropertyKey = 239;
 
 protected:
-    float m_NestedValue = 0.0f;
+  float m_NestedValue = 0.0f;
 
 public:
-    virtual float nestedValue() const { return m_NestedValue; }
-    virtual void nestedValue(float value) = 0;
+  virtual float nestedValue() const { return m_NestedValue; }
+  virtual void nestedValue(float value) = 0;
 
-    Core* clone() const override;
-    void copy(const NestedNumberBase& object)
-    {
-        m_NestedValue = object.m_NestedValue;
-        NestedInput::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const NestedNumberBase& object)
+  {
+    m_NestedValue = object.m_NestedValue;
+    NestedInput::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case nestedValuePropertyKey:
-                m_NestedValue = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return NestedInput::deserialize(propertyKey, reader);
+      case nestedValuePropertyKey:
+        m_NestedValue = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return NestedInput::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

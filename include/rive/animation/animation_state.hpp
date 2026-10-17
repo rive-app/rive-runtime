@@ -10,23 +10,22 @@ class StateMachineLayerImporter;
 
 class AnimationState : public AnimationStateBase
 {
-    friend class StateMachineLayerImporter;
+  friend class StateMachineLayerImporter;
 
 private:
-    LinearAnimation* m_Animation = nullptr;
+  LinearAnimation* m_Animation = nullptr;
 
 public:
-    const LinearAnimation* animation() const { return m_Animation; }
+  const LinearAnimation* animation() const { return m_Animation; }
 #ifdef WITH_RIVE_EDITOR
-    void setAnimationForEditor(LinearAnimation* value) { m_Animation = value; }
+  void setAnimationForEditor(LinearAnimation* value) { m_Animation = value; }
 #endif
 
 #ifdef TESTING
-    void animation(LinearAnimation* animation);
+  void animation(LinearAnimation* animation);
 #endif
 
-    std::unique_ptr<StateInstance> makeInstance(
-        ArtboardInstance*) const override;
+  std::unique_ptr<StateInstance> makeInstance(ArtboardInstance*) const override;
 };
 } // namespace rive
 

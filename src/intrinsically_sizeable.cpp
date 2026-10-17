@@ -6,13 +6,13 @@ using namespace rive;
 
 IntrinsicallySizeable* IntrinsicallySizeable::from(Component* component)
 {
-    if (component->is<TransformComponent>())
-    {
-        return component->as<TransformComponent>();
-    }
-    else if (component->is<Joystick>())
-    {
-        return component->as<Joystick>();
-    }
-    return nullptr;
+  if (component->is<TransformComponent>())
+  {
+    return component->as<TransformComponent>();
+  }
+  else if (component->is<Joystick>())
+  {
+    return component->as<Joystick>();
+  }
+  return nullptr;
 }

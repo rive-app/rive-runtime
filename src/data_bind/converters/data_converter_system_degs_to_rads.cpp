@@ -5,24 +5,26 @@
 
 using namespace rive;
 
-DataValue* DataConverterSystemDegsToRads::convert(DataValue* input,
-                                                  DataBind* dataBind)
+DataValue* DataConverterSystemDegsToRads::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
-    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource))
-    {
-        return DataConverterOperationValue::reverseConvert(input, dataBind);
-    }
-    return DataConverterOperationValue::convert(input, dataBind);
+  auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
+  if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource))
+  {
+    return DataConverterOperationValue::reverseConvert(input, dataBind);
+  }
+  return DataConverterOperationValue::convert(input, dataBind);
 }
 
-DataValue* DataConverterSystemDegsToRads::reverseConvert(DataValue* input,
-                                                         DataBind* dataBind)
+DataValue* DataConverterSystemDegsToRads::reverseConvert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
-    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToTarget))
-    {
-        return DataConverterOperationValue::convert(input, dataBind);
-    }
-    return DataConverterOperationValue::reverseConvert(input, dataBind);
+  auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
+  if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToTarget))
+  {
+    return DataConverterOperationValue::convert(input, dataBind);
+  }
+  return DataConverterOperationValue::reverseConvert(input, dataBind);
 }

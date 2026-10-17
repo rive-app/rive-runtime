@@ -8,52 +8,52 @@ namespace rive
 class SolidColorBase : public Component, public ColorChannelsBase
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 18;
+  static const uint16_t typeKey = 18;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t colorValuePropertyKey = 37;
+  static const uint16_t colorValuePropertyKey = 37;
 
 protected:
-    int m_ColorValue = 0xFF747474;
+  int m_ColorValue = 0xFF747474;
 
 public:
-    inline int colorValue() const override { return m_ColorValue; }
-    void colorValue(int value) override
+  inline int colorValue() const override { return m_ColorValue; }
+  void colorValue(int value) override
+  {
+    if (m_ColorValue == value)
     {
-        if (m_ColorValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(colorValuePropertyKey, &m_ColorValue, &value);
-        m_ColorValue = value;
-        RIVE_EDITOR_CHANGED(colorValueChanged());
-        notifyPropertyChanged(colorValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(colorValuePropertyKey, &m_ColorValue, &value);
+    m_ColorValue = value;
+    RIVE_EDITOR_CHANGED(colorValueChanged());
+    notifyPropertyChanged(colorValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const SolidColorBase& object)
-    {
-        m_ColorValue = object.m_ColorValue;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const SolidColorBase& object)
+  {
+    m_ColorValue = object.m_ColorValue;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case colorValuePropertyKey:
-                m_ColorValue = CoreColorType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case colorValuePropertyKey:
+        m_ColorValue = CoreColorType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void colorValueChanged() {}
+  virtual void colorValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/solid_color_ext.inl"
 #endif

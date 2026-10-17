@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ShaderAssetBase::clone() const
 {
-    auto cloned = new ShaderAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ShaderAsset();
+  cloned->copy(*this);
+  return cloned;
 }

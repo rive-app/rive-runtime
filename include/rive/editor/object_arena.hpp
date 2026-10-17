@@ -27,22 +27,22 @@ class Core;
 class ObjectArena
 {
 public:
-    virtual ~ObjectArena() = default;
+  virtual ~ObjectArena() = default;
 
-    // Resolve a handle to its live Core object, or nullptr if the handle
-    // is stale (slot freed, generation bumped), out of range, or never
-    // allocated.
-    virtual Core* resolve(CoreHandle handle) const = 0;
+  // Resolve a handle to its live Core object, or nullptr if the handle
+  // is stale (slot freed, generation bumped), out of range, or never
+  // allocated.
+  virtual Core* resolve(CoreHandle handle) const = 0;
 
-    // Find the current handle for an object that this arena owns.
-    // Returns a null handle if the object isn't in this arena.
-    virtual CoreHandle handleOf(const Core* object) const = 0;
+  // Find the current handle for an object that this arena owns.
+  // Returns a null handle if the object isn't in this arena.
+  virtual CoreHandle handleOf(const Core* object) const = 0;
 
-    // A borrowed artboard owner calls this before its derived destructor
-    // touches children. Other externally destroyed entries invalidate their
-    // registration from Core's destructor.
-    virtual void ownerDestroyed(Core*) {}
-    virtual void objectDestroyed(Core*) {}
+  // A borrowed artboard owner calls this before its derived destructor
+  // touches children. Other externally destroyed entries invalidate their
+  // registration from Core's destructor.
+  virtual void ownerDestroyed(Core*) {}
+  virtual void objectDestroyed(Core*) {}
 };
 
 } // namespace rive

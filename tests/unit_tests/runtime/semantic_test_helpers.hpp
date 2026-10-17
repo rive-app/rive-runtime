@@ -41,100 +41,103 @@ constexpr float kSettleDt = 0.1f;
 // multiple files at once).
 constexpr const char* kDropdownLabel = "Select a fandom";
 
-inline void advance(StateMachineInstance* sm,
-                    int frames = kSettleFrames,
-                    float dt = kSettleDt)
+inline void advance(
+    StateMachineInstance* sm,
+    int frames = kSettleFrames,
+    float dt = kSettleDt)
 {
-    for (int i = 0; i < frames; ++i)
-    {
-        sm->advanceAndApply(dt);
-    }
+  for (int i = 0; i < frames; ++i)
+  {
+    sm->advanceAndApply(dt);
+  }
 }
 
-inline SemanticsDiff settleAndDrainDiff(StateMachineInstance* sm,
-                                        int frames = kSettleFrames,
-                                        float dt = kSettleDt)
+inline SemanticsDiff settleAndDrainDiff(
+    StateMachineInstance* sm,
+    int frames = kSettleFrames,
+    float dt = kSettleDt)
 {
-    advance(sm, frames, dt);
-    auto* mgr = sm->semanticManager();
-    return mgr != nullptr ? mgr->drainDiff() : SemanticsDiff{};
+  advance(sm, frames, dt);
+  auto* mgr = sm->semanticManager();
+  return mgr != nullptr ? mgr->drainDiff() : SemanticsDiff{};
 }
 
-inline const SemanticsDiffNode* findAddedByLabel(const SemanticsDiff& diff,
-                                                 const std::string& label)
+inline const SemanticsDiffNode* findAddedByLabel(
+    const SemanticsDiff& diff,
+    const std::string& label)
 {
-    for (const auto& n : diff.added)
+  for (const auto& n : diff.added)
+  {
+    if (n.label == label)
     {
-        if (n.label == label)
-        {
-            return &n;
-        }
+      return &n;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
-inline const SemanticsDiffNode* findAddedByRole(const SemanticsDiff& diff,
-                                                SemanticRole role)
+inline const SemanticsDiffNode* findAddedByRole(
+    const SemanticsDiff& diff,
+    SemanticRole role)
 {
-    const uint32_t asU = static_cast<uint32_t>(role);
-    for (const auto& n : diff.added)
+  const uint32_t asU = static_cast<uint32_t>(role);
+  for (const auto& n : diff.added)
+  {
+    if (n.role == asU)
     {
-        if (n.role == asU)
-        {
-            return &n;
-        }
+      return &n;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 inline Vec2D centerOf(const SemanticsDiffNode& node)
 {
-    return Vec2D((node.minX + node.maxX) * 0.5f,
-                 (node.minY + node.maxY) * 0.5f);
+  return Vec2D((node.minX + node.maxX) * 0.5f, (node.minY + node.maxY) * 0.5f);
 }
 
 inline bool isSelected(const SemanticNode* node)
 {
-    return node != nullptr &&
-           hasSemanticState(node->stateFlags(), SemanticState::Selected);
+  return node != nullptr &&
+         hasSemanticState(node->stateFlags(), SemanticState::Selected);
 }
 
 // Holds a loaded .riv + its default artboard, state machine, and bound view
 // model instance, with semantics enabled and the tree already settled.
 struct Fixture
 {
-    rcp<File> file;
-    std::unique_ptr<ArtboardInstance> artboard;
-    std::unique_ptr<StateMachineInstance> sm;
-    rcp<ViewModelInstance> vmi;
+  rcp<File> file;
+  std::unique_ptr<ArtboardInstance> artboard;
+  std::unique_ptr<StateMachineInstance> sm;
+  rcp<ViewModelInstance> vmi;
 };
 
 // Load a fixture, enable semantics, bind the default VMI (if any), advance
 // to settle. Every fixture-driven test in the suite uses this.
 inline Fixture loadFixture(const char* path)
 {
-    Fixture f;
-    f.file = ReadRiveFile(path);
-    f.artboard = f.file->artboardDefault();
-    f.sm = f.artboard->stateMachineAt(0);
+  Fixture f;
+  f.file = ReadRiveFile(path);
+  f.artboard = f.file->artboardDefault();
+  f.sm = f.artboard->stateMachineAt(0);
+  if (f.sm != nullptr)
+  {
+    f.sm->enableSemantics();
+  }
+  f.vmi = f.file->createDefaultViewModelInstance(f.artboard.get());
+  if (f.vmi != nullptr)
+  {
+    f.artboard->bindViewModelInstance(f.vmi);
     if (f.sm != nullptr)
     {
-        f.sm->enableSemantics();
+      f.sm->bindViewModelInstance(f.vmi);
     }
-    f.vmi = f.file->createDefaultViewModelInstance(f.artboard.get());
-    if (f.vmi != nullptr)
-    {
-        f.artboard->bindViewModelInstance(f.vmi);
-        if (f.sm != nullptr)
-        {
-            f.sm->bindViewModelInstance(f.vmi);
-        }
-    }
-    if (f.sm != nullptr)
-    {
-        advance(f.sm.get());
-    }
-    return f;
+  }
+  if (f.sm != nullptr)
+  {
+    advance(f.sm.get());
+  }
+  return f;
 }
 
 } // namespace semantic_test

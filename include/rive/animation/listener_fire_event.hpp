@@ -7,8 +7,9 @@ namespace rive
 class ListenerFireEvent : public ListenerFireEventBase
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
 };
 } // namespace rive
 

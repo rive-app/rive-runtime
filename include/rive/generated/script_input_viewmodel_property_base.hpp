@@ -11,39 +11,39 @@ namespace rive
 class ScriptInputViewModelPropertyBase : public CustomProperty
 {
 protected:
-    typedef CustomProperty Super;
+  typedef CustomProperty Super;
 
 public:
-    static const uint16_t typeKey = 612;
+  static const uint16_t typeKey = 612;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t dataBindPathIdsPropertyKey = 866;
+  static const uint16_t dataBindPathIdsPropertyKey = 866;
 
 public:
-    virtual void decodeDataBindPathIds(Span<const uint8_t> value) = 0;
-    virtual void copyDataBindPathIds(
-        const ScriptInputViewModelPropertyBase& object) = 0;
+  virtual void decodeDataBindPathIds(Span<const uint8_t> value) = 0;
+  virtual void copyDataBindPathIds(
+      const ScriptInputViewModelPropertyBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const ScriptInputViewModelPropertyBase& object)
-    {
-        copyDataBindPathIds(object);
-        RIVE_EDITOR_COPY(object);
-        CustomProperty::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ScriptInputViewModelPropertyBase& object)
+  {
+    copyDataBindPathIds(object);
+    RIVE_EDITOR_COPY(object);
+    CustomProperty::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case dataBindPathIdsPropertyKey:
-                decodeDataBindPathIds(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return CustomProperty::deserialize(propertyKey, reader);
+      case dataBindPathIdsPropertyKey:
+        decodeDataBindPathIds(CoreBytesType::deserialize(reader));
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return CustomProperty::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedLayoutBase::clone() const
 {
-    auto cloned = new ScriptedLayout();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedLayout();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionViewModelConditionBase::clone() const
 {
-    auto cloned = new TransitionViewModelCondition();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionViewModelCondition();
+  cloned->copy(*this);
+  return cloned;
 }

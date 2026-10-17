@@ -7,8 +7,7 @@ namespace rive
 class StringTemplateArgumentNumber : public StringTemplateArgumentNumberBase
 {
 public:
-    void appendValue(std::string& output,
-                     const std::string& spec) const override;
+  void appendValue(std::string& output, const std::string& spec) const override;
 };
 } // namespace rive
 

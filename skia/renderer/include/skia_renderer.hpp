@@ -15,30 +15,32 @@ namespace rive
 class SkiaRenderer : public Renderer
 {
 protected:
-    SkCanvas* m_Canvas;
-    std::vector<float> m_opacityStack{1.0f};
+  SkCanvas* m_Canvas;
+  std::vector<float> m_opacityStack{1.0f};
 
 public:
-    SkiaRenderer(SkCanvas* canvas) : m_Canvas(canvas) {}
-    void save() override;
-    void restore() override;
-    void transform(const Mat2D& transform) override;
-    void modulateOpacity(float opacity) override;
-    void clipPath(RenderPath* path) override;
-    void drawPath(RenderPath* path, RenderPaint* paint) override;
-    void drawImage(const RenderImage*,
-                   const rive::ImageSampler,
-                   BlendMode,
-                   float opacity) override;
-    void drawImageMesh(const RenderImage*,
-                       const rive::ImageSampler,
-                       rcp<RenderBuffer> vertices_f32,
-                       rcp<RenderBuffer> uvCoords_f32,
-                       rcp<RenderBuffer> indices_u16,
-                       uint32_t vertexCount,
-                       uint32_t indexCount,
-                       BlendMode,
-                       float opacity) override;
+  SkiaRenderer(SkCanvas* canvas) : m_Canvas(canvas) {}
+  void save() override;
+  void restore() override;
+  void transform(const Mat2D& transform) override;
+  void modulateOpacity(float opacity) override;
+  void clipPath(RenderPath* path) override;
+  void drawPath(RenderPath* path, RenderPaint* paint) override;
+  void drawImage(
+      const RenderImage*,
+      const rive::ImageSampler,
+      BlendMode,
+      float opacity) override;
+  void drawImageMesh(
+      const RenderImage*,
+      const rive::ImageSampler,
+      rcp<RenderBuffer> vertices_f32,
+      rcp<RenderBuffer> uvCoords_f32,
+      rcp<RenderBuffer> indices_u16,
+      uint32_t vertexCount,
+      uint32_t indexCount,
+      BlendMode,
+      float opacity) override;
 };
 } // namespace rive
 #endif

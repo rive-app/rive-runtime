@@ -6,8 +6,9 @@ namespace rive
 class FocusActionClear : public FocusActionClearBase
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance,
-                 const ListenerInvocation& invocation) const override;
+  void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const override;
 };
 } // namespace rive
 

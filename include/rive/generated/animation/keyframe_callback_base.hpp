@@ -6,14 +6,14 @@ namespace rive
 class KeyFrameCallbackBase : public KeyFrame
 {
 protected:
-    typedef KeyFrame Super;
+  typedef KeyFrame Super;
 
 public:
-    static const uint16_t typeKey = 171;
+  static const uint16_t typeKey = 171;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

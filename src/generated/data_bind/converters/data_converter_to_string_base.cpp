@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterToStringBase::clone() const
 {
-    auto cloned = new DataConverterToString();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterToString();
+  cloned->copy(*this);
+  return cloned;
 }

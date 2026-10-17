@@ -6,14 +6,14 @@ namespace rive
 class DataConverterSystemNormalizerBase : public DataConverterOperationValue
 {
 protected:
-    typedef DataConverterOperationValue Super;
+  typedef DataConverterOperationValue Super;
 
 public:
-    static const uint16_t typeKey = 515;
+  static const uint16_t typeKey = 515;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

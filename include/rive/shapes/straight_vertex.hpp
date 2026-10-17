@@ -6,7 +6,7 @@ namespace rive
 class StraightVertex : public StraightVertexBase
 {
 protected:
-    void radiusChanged() override;
+  void radiusChanged() override;
 };
 } // namespace rive
 

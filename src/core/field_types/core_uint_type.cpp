@@ -5,12 +5,12 @@ using namespace rive;
 
 unsigned int CoreUintType::deserialize(BinaryReader& reader)
 {
-    return reader.readVarUintAs<unsigned int>();
+  return reader.readVarUintAs<unsigned int>();
 }
 
 #ifdef WITH_RIVE_TOOLS
 unsigned int CoreUintType::deserializeRev(BinaryReader& reader)
 {
-    return deserialize(reader);
+  return deserialize(reader);
 }
 #endif

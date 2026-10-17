@@ -17,9 +17,9 @@ namespace rive
 {
 enum class ScriptingLogLevel
 {
-    info,
-    warn,
-    error,
+  info,
+  warn,
+  error,
 };
 
 // Receives a single fully-assembled UTF-8 log line from a script. The line has

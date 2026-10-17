@@ -6,12 +6,12 @@ namespace rive
 class SkeletalComponentBase : public TransformComponent
 {
 protected:
-    typedef TransformComponent Super;
+  typedef TransformComponent Super;
 
 public:
-    static const uint16_t typeKey = 39;
+  static const uint16_t typeKey = 39;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 };
 } // namespace rive
 

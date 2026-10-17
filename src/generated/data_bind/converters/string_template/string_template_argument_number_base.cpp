@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StringTemplateArgumentNumberBase::clone() const
 {
-    auto cloned = new StringTemplateArgumentNumber();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new StringTemplateArgumentNumber();
+  cloned->copy(*this);
+  return cloned;
 }

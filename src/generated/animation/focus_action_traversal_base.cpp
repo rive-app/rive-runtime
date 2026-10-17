@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FocusActionTraversalBase::clone() const
 {
-    auto cloned = new FocusActionTraversal();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FocusActionTraversal();
+  cloned->copy(*this);
+  return cloned;
 }

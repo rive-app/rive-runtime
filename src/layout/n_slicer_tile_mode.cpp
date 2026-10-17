@@ -6,18 +6,18 @@ using namespace rive;
 
 StatusCode NSlicerTileMode::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    NSlicerDetails* container = NSlicerDetails::from(parent());
-    if (container == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  NSlicerDetails* container = NSlicerDetails::from(parent());
+  if (container == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    container->addTileMode(patchIndex(), NSlicerTileModeType(style()));
-    return StatusCode::Ok;
+  container->addTileMode(patchIndex(), NSlicerTileModeType(style()));
+  return StatusCode::Ok;
 }

@@ -14,6 +14,6 @@
 // without the fix loading it alone leaks 320 bytes.
 TEST_CASE("script inputs on a scripted interpolator are freed", "[scripting]")
 {
-    auto file = ReadRiveFile("assets/data_bound_keyframe_test.riv");
-    REQUIRE(file != nullptr);
+  auto file = ReadRiveFile("assets/data_bound_keyframe_test.riv");
+  REQUIRE(file != nullptr);
 }

@@ -12,13 +12,13 @@ class BlendAnimation;
 class LayerStateImporter : public ImportStackObject
 {
 private:
-    LayerState* m_State;
+  LayerState* m_State;
 
 public:
-    LayerStateImporter(LayerState* state);
-    void addTransition(StateTransition* transition);
-    bool addBlendAnimation(BlendAnimation* animation);
-    StatusCode resolve() override;
+  LayerStateImporter(LayerState* state);
+  void addTransition(StateTransition* transition);
+  bool addBlendAnimation(BlendAnimation* animation);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

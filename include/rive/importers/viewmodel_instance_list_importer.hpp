@@ -12,12 +12,12 @@ class ViewModelInstanceListItem;
 class ViewModelInstanceListImporter : public ImportStackObject
 {
 private:
-    ViewModelInstanceList* m_ViewModelInstanceList;
+  ViewModelInstanceList* m_ViewModelInstanceList;
 
 public:
-    ViewModelInstanceListImporter(ViewModelInstanceList* viewModelInstanceList);
-    void addItem(rcp<ViewModelInstanceListItem> listItem);
-    StatusCode resolve() override;
+  ViewModelInstanceListImporter(ViewModelInstanceList* viewModelInstanceList);
+  void addItem(rcp<ViewModelInstanceListItem> listItem);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

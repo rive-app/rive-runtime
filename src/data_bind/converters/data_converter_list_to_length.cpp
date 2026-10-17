@@ -5,17 +5,18 @@
 
 using namespace rive;
 
-DataValue* DataConverterListToLength::convert(DataValue* input,
-                                              DataBind* dataBind)
+DataValue* DataConverterListToLength::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    if (input->is<DataValueList>())
-    {
-        size_t length = input->as<DataValueList>()->value()->size();
-        m_output.value((float)length);
-    }
-    else
-    {
-        m_output.value(DataValueNumber::defaultValue);
-    }
-    return &m_output;
+  if (input->is<DataValueList>())
+  {
+    size_t length = input->as<DataValueList>()->value()->size();
+    m_output.value((float)length);
+  }
+  else
+  {
+    m_output.value(DataValueNumber::defaultValue);
+  }
+  return &m_output;
 }

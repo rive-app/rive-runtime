@@ -11,74 +11,75 @@ namespace rive
 class ViewModelInstanceListItemBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 427;
+  static const uint16_t typeKey = 427;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t viewModelIdPropertyKey = 549;
-    static const uint16_t viewModelInstanceIdPropertyKey = 550;
+  static const uint16_t viewModelIdPropertyKey = 549;
+  static const uint16_t viewModelInstanceIdPropertyKey = 550;
 
 protected:
-    Id m_ViewModelId = kEmptyId;
-    Id m_ViewModelInstanceId = kEmptyId;
+  Id m_ViewModelId = kEmptyId;
+  Id m_ViewModelInstanceId = kEmptyId;
 
 public:
-    inline Id viewModelId() const { return m_ViewModelId; }
-    void viewModelId(Id value)
+  inline Id viewModelId() const { return m_ViewModelId; }
+  void viewModelId(Id value)
+  {
+    if (m_ViewModelId == value)
     {
-        if (m_ViewModelId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
-        m_ViewModelId = value;
-        RIVE_EDITOR_CHANGED(viewModelIdChanged());
-        notifyPropertyChanged(viewModelIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
+    m_ViewModelId = value;
+    RIVE_EDITOR_CHANGED(viewModelIdChanged());
+    notifyPropertyChanged(viewModelIdPropertyKey);
+  }
 
-    inline Id viewModelInstanceId() const { return m_ViewModelInstanceId; }
-    void viewModelInstanceId(Id value)
+  inline Id viewModelInstanceId() const { return m_ViewModelInstanceId; }
+  void viewModelInstanceId(Id value)
+  {
+    if (m_ViewModelInstanceId == value)
     {
-        if (m_ViewModelInstanceId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(viewModelInstanceIdPropertyKey,
-                             &m_ViewModelInstanceId,
-                             &value);
-        m_ViewModelInstanceId = value;
-        notifyPropertyChanged(viewModelInstanceIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        viewModelInstanceIdPropertyKey,
+        &m_ViewModelInstanceId,
+        &value);
+    m_ViewModelInstanceId = value;
+    notifyPropertyChanged(viewModelInstanceIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ViewModelInstanceListItemBase& object)
-    {
-        m_ViewModelId = object.m_ViewModelId;
-        m_ViewModelInstanceId = object.m_ViewModelInstanceId;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const ViewModelInstanceListItemBase& object)
+  {
+    m_ViewModelId = object.m_ViewModelId;
+    m_ViewModelInstanceId = object.m_ViewModelInstanceId;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case viewModelIdPropertyKey:
-                m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case viewModelInstanceIdPropertyKey:
-                m_ViewModelInstanceId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case viewModelIdPropertyKey:
+        m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case viewModelInstanceIdPropertyKey:
+        m_ViewModelInstanceId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
-    virtual void viewModelIdChanged() {}
+  virtual void viewModelIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/viewmodel_instance_list_item_ext.inl"
 #endif

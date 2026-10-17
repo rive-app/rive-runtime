@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptAssetBase::clone() const
 {
-    auto cloned = new ScriptAsset();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptAsset();
+  cloned->copy(*this);
+  return cloned;
 }

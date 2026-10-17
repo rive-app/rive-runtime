@@ -15,14 +15,14 @@ namespace rive
 class ComponentOrigin : public ComponentOriginBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 
 protected:
-    void originXChanged() override;
-    void originYChanged() override;
+  void originXChanged() override;
+  void originYChanged() override;
 
 private:
-    void reapply();
+  void reapply();
 };
 
 } // namespace rive

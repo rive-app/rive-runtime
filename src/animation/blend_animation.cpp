@@ -10,30 +10,30 @@ LinearAnimation BlendAnimation::m_EmptyAnimation;
 
 StatusCode BlendAnimation::import(ImportStack& importStack)
 {
-    auto importer =
-        importStack.latest<LayerStateImporter>(LayerStateBase::typeKey);
-    if (importer == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    else if (!importer->addBlendAnimation(this))
-    {
-        return StatusCode::InvalidObject;
-    }
+  auto importer = importStack.latest<LayerStateImporter>(
+      LayerStateBase::typeKey);
+  if (importer == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  else if (!importer->addBlendAnimation(this))
+  {
+    return StatusCode::InvalidObject;
+  }
 
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    auto artboard = artboardImporter->artboard();
-    size_t animationCount = artboard->animationCount();
-    if ((size_t)animationId() < animationCount)
-    {
-        m_Animation = artboardImporter->artboard()->animation(animationId());
-    }
+  auto artboard = artboardImporter->artboard();
+  size_t animationCount = artboard->animationCount();
+  if ((size_t)animationId() < animationCount)
+  {
+    m_Animation = artboardImporter->artboard()->animation(animationId());
+  }
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }

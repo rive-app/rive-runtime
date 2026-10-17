@@ -12,11 +12,11 @@ namespace rive::ore
 
 SamplerGL::~SamplerGL()
 {
-    if (m_glSampler != 0)
-    {
-        GLuint samp = m_glSampler;
-        glDeleteSamplers(1, &samp);
-    }
+  if (m_glSampler != 0)
+  {
+    GLuint samp = m_glSampler;
+    glDeleteSamplers(1, &samp);
+  }
 }
 
 #endif // ORE_BACKEND_GL

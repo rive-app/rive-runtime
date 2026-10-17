@@ -5,35 +5,37 @@
 
 using namespace rive;
 
-DataBindContextValueString::DataBindContextValueString(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueString::DataBindContextValueString(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueString::apply(Core* target,
-                                       uint32_t propertyKey,
-                                       bool isMainDirection,
-                                       DataBind* dataBind)
+void DataBindContextValueString::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value = calculateValue<DataValueString, std::string>(m_dataValue,
-                                                              isMainDirection,
-                                                              dataBind);
-    switch (CoreRegistry::propertyFieldId(propertyKey))
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueString, std::string>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  switch (CoreRegistry::propertyFieldId(propertyKey))
+  {
+    case CoreUintType::id:
     {
-        case CoreUintType::id:
-        {
-            if (target && target->is<Solo>())
-            {
-                target->as<Solo>()->updateByName(value);
-            }
-            else if (target && target->is<ScriptedTransition>())
-            {
-                target->as<ScriptedTransition>()->updateByName(value);
-            }
-            break;
-        }
-        default:
-            CoreRegistry::setString(target, propertyKey, value);
-            break;
+      if (target && target->is<Solo>())
+      {
+        target->as<Solo>()->updateByName(value);
+      }
+      else if (target && target->is<ScriptedTransition>())
+      {
+        target->as<ScriptedTransition>()->updateByName(value);
+      }
+      break;
     }
+    default:
+      CoreRegistry::setString(target, propertyKey, value);
+      break;
+  }
 }

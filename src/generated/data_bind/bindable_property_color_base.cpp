@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* BindablePropertyColorBase::clone() const
 {
-    auto cloned = new BindablePropertyColor();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new BindablePropertyColor();
+  cloned->copy(*this);
+  return cloned;
 }

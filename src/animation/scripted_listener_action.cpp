@@ -10,22 +10,22 @@ ScriptedListenerAction::~ScriptedListenerAction() { disposeScriptInputs(); }
 
 void ScriptedListenerAction::disposeScriptInputs()
 {
-    auto props = m_customProperties;
-    ScriptedObject::disposeScriptInputs();
-    for (auto prop : props)
+  auto props = m_customProperties;
+  ScriptedObject::disposeScriptInputs();
+  for (auto prop : props)
+  {
+    auto scriptInput = ScriptInput::from(prop);
+    if (scriptInput != nullptr)
     {
-        auto scriptInput = ScriptInput::from(prop);
-        if (scriptInput != nullptr)
-        {
 #ifdef WITH_RIVE_EDITOR
-            if (prop->editorArena() != nullptr)
-                continue;
+      if (prop->editorArena() != nullptr)
+        continue;
 #endif
-            // ScriptedDataConverters need to delete their own inputs
-            // because they are not components
-            delete scriptInput;
-        }
+      // ScriptedDataConverters need to delete their own inputs
+      // because they are not components
+      delete scriptInput;
     }
+  }
 }
 
 // Note: performStateful is the actual instance of the ScriptedListenerAction
@@ -41,90 +41,91 @@ void ScriptedListenerAction::performStateful(
     const ListenerInvocation& invocation) const
 {
 #ifdef WITH_RIVE_SCRIPTING
-    (void)stateMachineInstance;
-    if (m_vm == nullptr || !m_vm->valid())
-    {
-        return;
-    }
-    m_vm->callListenerPerform(const_cast<ScriptedListenerAction*>(this),
-                              m_self,
-                              invocation);
+  (void)stateMachineInstance;
+  if (m_vm == nullptr || !m_vm->valid())
+  {
+    return;
+  }
+  m_vm->callListenerPerform(
+      const_cast<ScriptedListenerAction*>(this),
+      m_self,
+      invocation);
 #else
-    (void)stateMachineInstance;
-    (void)invocation;
+  (void)stateMachineInstance;
+  (void)invocation;
 #endif
 }
 
-void ScriptedListenerAction::perform(StateMachineInstance* stateMachineInstance,
-                                     const ListenerInvocation& invocation) const
+void ScriptedListenerAction::perform(
+    StateMachineInstance* stateMachineInstance,
+    const ListenerInvocation& invocation) const
 {
 #ifdef WITH_RIVE_SCRIPTING
-    auto scriptedObject = stateMachineInstance->scriptedObject(this);
-    if (scriptedObject != nullptr)
-    {
-        auto statefulListenerAction =
-            static_cast<ScriptedListenerAction*>(scriptedObject);
-        statefulListenerAction->performStateful(stateMachineInstance,
-                                                invocation);
-    }
+  auto scriptedObject = stateMachineInstance->scriptedObject(this);
+  if (scriptedObject != nullptr)
+  {
+    auto statefulListenerAction = static_cast<ScriptedListenerAction*>(
+        scriptedObject);
+    statefulListenerAction->performStateful(stateMachineInstance, invocation);
+  }
 #else
-    (void)stateMachineInstance;
-    (void)invocation;
+  (void)stateMachineInstance;
+  (void)invocation;
 #endif
 }
 
 StatusCode ScriptedListenerAction::import(ImportStack& importStack)
 {
-    auto result = registerReferencer(importStack);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
+  auto result = registerReferencer(importStack);
+  if (result != StatusCode::Ok)
+  {
+    return result;
+  }
 
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    stateMachineImporter->addScriptedObject(this);
-    return Super::import(importStack);
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  stateMachineImporter->addScriptedObject(this);
+  return Super::import(importStack);
 }
 
 Core* ScriptedListenerAction::clone() const
 {
-    ScriptedListenerAction* twin =
-        ScriptedListenerActionBase::clone()->as<ScriptedListenerAction>();
-    if (m_fileAsset != nullptr)
-    {
-        twin->setAsset(m_fileAsset);
-    }
-    return twin;
+  ScriptedListenerAction* twin = ScriptedListenerActionBase::clone()
+                                     ->as<ScriptedListenerAction>();
+  if (m_fileAsset != nullptr)
+  {
+    twin->setAsset(m_fileAsset);
+  }
+  return twin;
 }
 
 ScriptedObject* ScriptedListenerAction::cloneScriptedObject(
     DataBindContainer* dataBindContainer) const
 {
-    auto clonedScriptedObject = clone()->as<ScriptedListenerAction>();
-    cloneProperties(clonedScriptedObject, dataBindContainer);
-    clonedScriptedObject->reinit();
-    return clonedScriptedObject;
+  auto clonedScriptedObject = clone()->as<ScriptedListenerAction>();
+  cloneProperties(clonedScriptedObject, dataBindContainer);
+  clonedScriptedObject->reinit();
+  return clonedScriptedObject;
 }
 void ScriptedListenerAction::addProperty(CustomProperty* prop)
 {
-    auto scriptInput = ScriptInput::from(prop);
-    if (scriptInput != nullptr)
-    {
-        scriptInput->scriptedObject(this);
-    }
-    CustomPropertyContainer::addProperty(prop);
+  auto scriptInput = ScriptInput::from(prop);
+  if (scriptInput != nullptr)
+  {
+    scriptInput->scriptedObject(this);
+  }
+  CustomPropertyContainer::addProperty(prop);
 }
 
 #ifdef WITH_RIVE_EDITOR
 void ScriptedListenerAction::editorPrepareForDestruction()
 {
-    scriptDispose();
-    dataContext(nullptr);
+  scriptDispose();
+  dataContext(nullptr);
 }
 
 #endif

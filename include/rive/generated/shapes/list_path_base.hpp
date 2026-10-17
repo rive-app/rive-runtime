@@ -8,52 +8,52 @@ namespace rive
 class ListPathBase : public PointsCommonPath
 {
 protected:
-    typedef PointsCommonPath Super;
+  typedef PointsCommonPath Super;
 
 public:
-    static const uint16_t typeKey = 619;
+  static const uint16_t typeKey = 619;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t listSourcePropertyKey = 874;
+  static const uint16_t listSourcePropertyKey = 874;
 
 protected:
-    Id m_ListSource = kEmptyId;
+  Id m_ListSource = kEmptyId;
 
 public:
-    inline Id listSource() const { return m_ListSource; }
-    void listSource(Id value)
+  inline Id listSource() const { return m_ListSource; }
+  void listSource(Id value)
+  {
+    if (m_ListSource == value)
     {
-        if (m_ListSource == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(listSourcePropertyKey, &m_ListSource, &value);
-        m_ListSource = value;
-        RIVE_EDITOR_CHANGED(listSourceChanged());
-        notifyPropertyChanged(listSourcePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(listSourcePropertyKey, &m_ListSource, &value);
+    m_ListSource = value;
+    RIVE_EDITOR_CHANGED(listSourceChanged());
+    notifyPropertyChanged(listSourcePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListPathBase& object)
-    {
-        m_ListSource = object.m_ListSource;
-        PointsCommonPath::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListPathBase& object)
+  {
+    m_ListSource = object.m_ListSource;
+    PointsCommonPath::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case listSourcePropertyKey:
-                m_ListSource = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return PointsCommonPath::deserialize(propertyKey, reader);
+      case listSourcePropertyKey:
+        m_ListSource = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return PointsCommonPath::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void listSourceChanged() {}
+  virtual void listSourceChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/list_path_ext.inl"
 #endif

@@ -7,48 +7,48 @@ namespace rive
 class FormulaTokenFunctionBase : public FormulaTokenParenthesis
 {
 protected:
-    typedef FormulaTokenParenthesis Super;
+  typedef FormulaTokenParenthesis Super;
 
 public:
-    static const uint16_t typeKey = 542;
+  static const uint16_t typeKey = 542;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t functionTypePropertyKey = 776;
+  static const uint16_t functionTypePropertyKey = 776;
 
 protected:
-    uint32_t m_FunctionType = 0;
+  uint32_t m_FunctionType = 0;
 
 public:
-    inline uint32_t functionType() const { return m_FunctionType; }
-    void functionType(uint32_t value)
+  inline uint32_t functionType() const { return m_FunctionType; }
+  void functionType(uint32_t value)
+  {
+    if (m_FunctionType == value)
     {
-        if (m_FunctionType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(functionTypePropertyKey, &m_FunctionType, &value);
-        m_FunctionType = value;
-        notifyPropertyChanged(functionTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(functionTypePropertyKey, &m_FunctionType, &value);
+    m_FunctionType = value;
+    notifyPropertyChanged(functionTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const FormulaTokenFunctionBase& object)
-    {
-        m_FunctionType = object.m_FunctionType;
-        FormulaTokenParenthesis::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FormulaTokenFunctionBase& object)
+  {
+    m_FunctionType = object.m_FunctionType;
+    FormulaTokenParenthesis::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case functionTypePropertyKey:
-                m_FunctionType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return FormulaTokenParenthesis::deserialize(propertyKey, reader);
+      case functionTypePropertyKey:
+        m_FunctionType = CoreUintType::deserialize(reader);
+        return true;
     }
+    return FormulaTokenParenthesis::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

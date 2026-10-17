@@ -6,18 +6,20 @@
 
 using namespace rive;
 
-ScriptedObjectImporter::ScriptedObjectImporter(ScriptedObject* obj,
-                                               uint32_t inputParentId) :
-    m_scriptedObject(obj), m_inputParentId(inputParentId)
+ScriptedObjectImporter::ScriptedObjectImporter(
+    ScriptedObject* obj,
+    uint32_t inputParentId)
+    : m_scriptedObject(obj)
+    , m_inputParentId(inputParentId)
 {}
 
 void ScriptedObjectImporter::addInput(CustomProperty* value)
 {
-    auto input = ScriptInput::from(value);
-    if (input != nullptr)
-    {
-        m_scriptedObject->addProperty(value);
-    }
+  auto input = ScriptInput::from(value);
+  if (input != nullptr)
+  {
+    m_scriptedObject->addProperty(value);
+  }
 }
 
 StatusCode ScriptedObjectImporter::resolve() { return StatusCode::Ok; }

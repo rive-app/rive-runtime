@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FollowPathConstraintBase::clone() const
 {
-    auto cloned = new FollowPathConstraint();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FollowPathConstraint();
+  cloned->copy(*this);
+  return cloned;
 }

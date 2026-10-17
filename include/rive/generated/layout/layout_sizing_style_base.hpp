@@ -15,619 +15,625 @@ namespace rive
 #ifndef WITH_RIVE_EDITOR
 struct LayoutSizingStyleMinMaxSizingSidecar
 {
-    float minWidth = 0.0f;
-    float maxWidth = 0.0f;
-    float minHeight = 0.0f;
-    float maxHeight = 0.0f;
-    uint8_t minWidthUnitsValue = 0;
-    uint8_t maxWidthUnitsValue = 0;
-    uint8_t minHeightUnitsValue = 0;
-    uint8_t maxHeightUnitsValue = 0;
-    bool hugUnbounded = false;
+  float minWidth = 0.0f;
+  float maxWidth = 0.0f;
+  float minHeight = 0.0f;
+  float maxHeight = 0.0f;
+  uint8_t minWidthUnitsValue = 0;
+  uint8_t maxWidthUnitsValue = 0;
+  uint8_t minHeightUnitsValue = 0;
+  uint8_t maxHeightUnitsValue = 0;
+  bool hugUnbounded = false;
 };
 #endif
 class LayoutSizingStyleBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 1056;
+  static const uint16_t typeKey = 1056;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t minWidthPropertyKey = 502;
-    static const uint16_t maxWidthPropertyKey = 500;
-    static const uint16_t minHeightPropertyKey = 503;
-    static const uint16_t maxHeightPropertyKey = 501;
-    static const uint16_t minWidthUnitsValuePropertyKey = 627;
-    static const uint16_t maxWidthUnitsValuePropertyKey = 629;
-    static const uint16_t minHeightUnitsValuePropertyKey = 628;
-    static const uint16_t maxHeightUnitsValuePropertyKey = 630;
-    static const uint16_t layoutWidthScaleTypePropertyKey = 655;
-    static const uint16_t layoutHeightScaleTypePropertyKey = 656;
-    static const uint16_t hugUnboundedPropertyKey = 451;
-    static const uint16_t widthUnitsValuePropertyKey = 607;
-    static const uint16_t heightUnitsValuePropertyKey = 608;
-    static const uint16_t justifySelfValuePropertyKey = 1046;
-    static const uint16_t displayValuePropertyKey = 596;
+  static const uint16_t minWidthPropertyKey = 502;
+  static const uint16_t maxWidthPropertyKey = 500;
+  static const uint16_t minHeightPropertyKey = 503;
+  static const uint16_t maxHeightPropertyKey = 501;
+  static const uint16_t minWidthUnitsValuePropertyKey = 627;
+  static const uint16_t maxWidthUnitsValuePropertyKey = 629;
+  static const uint16_t minHeightUnitsValuePropertyKey = 628;
+  static const uint16_t maxHeightUnitsValuePropertyKey = 630;
+  static const uint16_t layoutWidthScaleTypePropertyKey = 655;
+  static const uint16_t layoutHeightScaleTypePropertyKey = 656;
+  static const uint16_t hugUnboundedPropertyKey = 451;
+  static const uint16_t widthUnitsValuePropertyKey = 607;
+  static const uint16_t heightUnitsValuePropertyKey = 608;
+  static const uint16_t justifySelfValuePropertyKey = 1046;
+  static const uint16_t displayValuePropertyKey = 596;
 
 protected:
 #ifdef WITH_RIVE_EDITOR
-    float m_MinWidth = 0.0f;
+  float m_MinWidth = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_MaxWidth = 0.0f;
+  float m_MaxWidth = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_MinHeight = 0.0f;
+  float m_MinHeight = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_MaxHeight = 0.0f;
+  float m_MaxHeight = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    uint8_t m_MinWidthUnitsValue = 0;
+  uint8_t m_MinWidthUnitsValue = 0;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    uint8_t m_MaxWidthUnitsValue = 0;
+  uint8_t m_MaxWidthUnitsValue = 0;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    uint8_t m_MinHeightUnitsValue = 0;
+  uint8_t m_MinHeightUnitsValue = 0;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    uint8_t m_MaxHeightUnitsValue = 0;
+  uint8_t m_MaxHeightUnitsValue = 0;
 #endif
-    uint8_t m_LayoutWidthScaleType = 0;
-    uint8_t m_LayoutHeightScaleType = 0;
+  uint8_t m_LayoutWidthScaleType = 0;
+  uint8_t m_LayoutHeightScaleType = 0;
 #ifdef WITH_RIVE_EDITOR
-    bool m_HugUnbounded = false;
+  bool m_HugUnbounded = false;
 #endif
-    uint8_t m_WidthUnitsValue = 1;
-    uint8_t m_HeightUnitsValue = 1;
-    uint8_t m_JustifySelfValue = 6;
-    uint8_t m_DisplayValue = 0;
+  uint8_t m_WidthUnitsValue = 1;
+  uint8_t m_HeightUnitsValue = 1;
+  uint8_t m_JustifySelfValue = 6;
+  uint8_t m_DisplayValue = 0;
 #ifndef WITH_RIVE_EDITOR
-    Sidecar<LayoutSizingStyleMinMaxSizingSidecar> m_minMaxSizing;
+  Sidecar<LayoutSizingStyleMinMaxSizingSidecar> m_minMaxSizing;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR
-    inline float minWidth() const { return m_MinWidth; }
-    void minWidth(float value)
+  inline float minWidth() const { return m_MinWidth; }
+  void minWidth(float value)
+  {
+    if (m_MinWidth == value)
     {
-        if (m_MinWidth == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(minWidthPropertyKey, &m_MinWidth, &value);
-        m_MinWidth = value;
-        RIVE_EDITOR_CHANGED(minWidthChanged());
-        notifyPropertyChanged(minWidthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(minWidthPropertyKey, &m_MinWidth, &value);
+    m_MinWidth = value;
+    RIVE_EDITOR_CHANGED(minWidthChanged());
+    notifyPropertyChanged(minWidthPropertyKey);
+  }
 #else
-    inline float minWidth() const
+  inline float minWidth() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->minWidth : 0.0f;
+  }
+  void minWidth(float value)
+  {
+    if (minWidth() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->minWidth : 0.0f;
+      return;
     }
-    void minWidth(float value)
-    {
-        if (minWidth() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->minWidth = value;
-        minWidthChanged();
-        notifyPropertyChanged(minWidthPropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->minWidth = value;
+    minWidthChanged();
+    notifyPropertyChanged(minWidthPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float maxWidth() const { return m_MaxWidth; }
-    void maxWidth(float value)
+  inline float maxWidth() const { return m_MaxWidth; }
+  void maxWidth(float value)
+  {
+    if (m_MaxWidth == value)
     {
-        if (m_MaxWidth == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(maxWidthPropertyKey, &m_MaxWidth, &value);
-        m_MaxWidth = value;
-        RIVE_EDITOR_CHANGED(maxWidthChanged());
-        notifyPropertyChanged(maxWidthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(maxWidthPropertyKey, &m_MaxWidth, &value);
+    m_MaxWidth = value;
+    RIVE_EDITOR_CHANGED(maxWidthChanged());
+    notifyPropertyChanged(maxWidthPropertyKey);
+  }
 #else
-    inline float maxWidth() const
+  inline float maxWidth() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->maxWidth : 0.0f;
+  }
+  void maxWidth(float value)
+  {
+    if (maxWidth() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->maxWidth : 0.0f;
+      return;
     }
-    void maxWidth(float value)
-    {
-        if (maxWidth() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->maxWidth = value;
-        maxWidthChanged();
-        notifyPropertyChanged(maxWidthPropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->maxWidth = value;
+    maxWidthChanged();
+    notifyPropertyChanged(maxWidthPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float minHeight() const { return m_MinHeight; }
-    void minHeight(float value)
+  inline float minHeight() const { return m_MinHeight; }
+  void minHeight(float value)
+  {
+    if (m_MinHeight == value)
     {
-        if (m_MinHeight == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(minHeightPropertyKey, &m_MinHeight, &value);
-        m_MinHeight = value;
-        RIVE_EDITOR_CHANGED(minHeightChanged());
-        notifyPropertyChanged(minHeightPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(minHeightPropertyKey, &m_MinHeight, &value);
+    m_MinHeight = value;
+    RIVE_EDITOR_CHANGED(minHeightChanged());
+    notifyPropertyChanged(minHeightPropertyKey);
+  }
 #else
-    inline float minHeight() const
+  inline float minHeight() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->minHeight : 0.0f;
+  }
+  void minHeight(float value)
+  {
+    if (minHeight() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->minHeight : 0.0f;
+      return;
     }
-    void minHeight(float value)
-    {
-        if (minHeight() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->minHeight = value;
-        minHeightChanged();
-        notifyPropertyChanged(minHeightPropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->minHeight = value;
+    minHeightChanged();
+    notifyPropertyChanged(minHeightPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float maxHeight() const { return m_MaxHeight; }
-    void maxHeight(float value)
+  inline float maxHeight() const { return m_MaxHeight; }
+  void maxHeight(float value)
+  {
+    if (m_MaxHeight == value)
     {
-        if (m_MaxHeight == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(maxHeightPropertyKey, &m_MaxHeight, &value);
-        m_MaxHeight = value;
-        RIVE_EDITOR_CHANGED(maxHeightChanged());
-        notifyPropertyChanged(maxHeightPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(maxHeightPropertyKey, &m_MaxHeight, &value);
+    m_MaxHeight = value;
+    RIVE_EDITOR_CHANGED(maxHeightChanged());
+    notifyPropertyChanged(maxHeightPropertyKey);
+  }
 #else
-    inline float maxHeight() const
+  inline float maxHeight() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->maxHeight : 0.0f;
+  }
+  void maxHeight(float value)
+  {
+    if (maxHeight() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->maxHeight : 0.0f;
+      return;
     }
-    void maxHeight(float value)
-    {
-        if (maxHeight() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->maxHeight = value;
-        maxHeightChanged();
-        notifyPropertyChanged(maxHeightPropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->maxHeight = value;
+    maxHeightChanged();
+    notifyPropertyChanged(maxHeightPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline uint8_t minWidthUnitsValue() const { return m_MinWidthUnitsValue; }
-    void minWidthUnitsValue(uint8_t value)
+  inline uint8_t minWidthUnitsValue() const { return m_MinWidthUnitsValue; }
+  void minWidthUnitsValue(uint8_t value)
+  {
+    if (m_MinWidthUnitsValue == value)
     {
-        if (m_MinWidthUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(minWidthUnitsValuePropertyKey,
-                             &m_MinWidthUnitsValue,
-                             &value);
-        m_MinWidthUnitsValue = value;
-        RIVE_EDITOR_CHANGED(minWidthUnitsValueChanged());
-        notifyPropertyChanged(minWidthUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        minWidthUnitsValuePropertyKey,
+        &m_MinWidthUnitsValue,
+        &value);
+    m_MinWidthUnitsValue = value;
+    RIVE_EDITOR_CHANGED(minWidthUnitsValueChanged());
+    notifyPropertyChanged(minWidthUnitsValuePropertyKey);
+  }
 #else
-    inline uint8_t minWidthUnitsValue() const
+  inline uint8_t minWidthUnitsValue() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->minWidthUnitsValue : 0;
+  }
+  void minWidthUnitsValue(uint8_t value)
+  {
+    if (minWidthUnitsValue() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->minWidthUnitsValue : 0;
+      return;
     }
-    void minWidthUnitsValue(uint8_t value)
-    {
-        if (minWidthUnitsValue() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->minWidthUnitsValue = value;
-        minWidthUnitsValueChanged();
-        notifyPropertyChanged(minWidthUnitsValuePropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->minWidthUnitsValue = value;
+    minWidthUnitsValueChanged();
+    notifyPropertyChanged(minWidthUnitsValuePropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline uint8_t maxWidthUnitsValue() const { return m_MaxWidthUnitsValue; }
-    void maxWidthUnitsValue(uint8_t value)
+  inline uint8_t maxWidthUnitsValue() const { return m_MaxWidthUnitsValue; }
+  void maxWidthUnitsValue(uint8_t value)
+  {
+    if (m_MaxWidthUnitsValue == value)
     {
-        if (m_MaxWidthUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(maxWidthUnitsValuePropertyKey,
-                             &m_MaxWidthUnitsValue,
-                             &value);
-        m_MaxWidthUnitsValue = value;
-        RIVE_EDITOR_CHANGED(maxWidthUnitsValueChanged());
-        notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        maxWidthUnitsValuePropertyKey,
+        &m_MaxWidthUnitsValue,
+        &value);
+    m_MaxWidthUnitsValue = value;
+    RIVE_EDITOR_CHANGED(maxWidthUnitsValueChanged());
+    notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
+  }
 #else
-    inline uint8_t maxWidthUnitsValue() const
+  inline uint8_t maxWidthUnitsValue() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->maxWidthUnitsValue : 0;
+  }
+  void maxWidthUnitsValue(uint8_t value)
+  {
+    if (maxWidthUnitsValue() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->maxWidthUnitsValue : 0;
+      return;
     }
-    void maxWidthUnitsValue(uint8_t value)
-    {
-        if (maxWidthUnitsValue() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->maxWidthUnitsValue = value;
-        maxWidthUnitsValueChanged();
-        notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->maxWidthUnitsValue = value;
+    maxWidthUnitsValueChanged();
+    notifyPropertyChanged(maxWidthUnitsValuePropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline uint8_t minHeightUnitsValue() const { return m_MinHeightUnitsValue; }
-    void minHeightUnitsValue(uint8_t value)
+  inline uint8_t minHeightUnitsValue() const { return m_MinHeightUnitsValue; }
+  void minHeightUnitsValue(uint8_t value)
+  {
+    if (m_MinHeightUnitsValue == value)
     {
-        if (m_MinHeightUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(minHeightUnitsValuePropertyKey,
-                             &m_MinHeightUnitsValue,
-                             &value);
-        m_MinHeightUnitsValue = value;
-        RIVE_EDITOR_CHANGED(minHeightUnitsValueChanged());
-        notifyPropertyChanged(minHeightUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        minHeightUnitsValuePropertyKey,
+        &m_MinHeightUnitsValue,
+        &value);
+    m_MinHeightUnitsValue = value;
+    RIVE_EDITOR_CHANGED(minHeightUnitsValueChanged());
+    notifyPropertyChanged(minHeightUnitsValuePropertyKey);
+  }
 #else
-    inline uint8_t minHeightUnitsValue() const
+  inline uint8_t minHeightUnitsValue() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->minHeightUnitsValue : 0;
+  }
+  void minHeightUnitsValue(uint8_t value)
+  {
+    if (minHeightUnitsValue() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->minHeightUnitsValue : 0;
+      return;
     }
-    void minHeightUnitsValue(uint8_t value)
-    {
-        if (minHeightUnitsValue() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->minHeightUnitsValue = value;
-        minHeightUnitsValueChanged();
-        notifyPropertyChanged(minHeightUnitsValuePropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->minHeightUnitsValue = value;
+    minHeightUnitsValueChanged();
+    notifyPropertyChanged(minHeightUnitsValuePropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline uint8_t maxHeightUnitsValue() const { return m_MaxHeightUnitsValue; }
-    void maxHeightUnitsValue(uint8_t value)
+  inline uint8_t maxHeightUnitsValue() const { return m_MaxHeightUnitsValue; }
+  void maxHeightUnitsValue(uint8_t value)
+  {
+    if (m_MaxHeightUnitsValue == value)
     {
-        if (m_MaxHeightUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(maxHeightUnitsValuePropertyKey,
-                             &m_MaxHeightUnitsValue,
-                             &value);
-        m_MaxHeightUnitsValue = value;
-        RIVE_EDITOR_CHANGED(maxHeightUnitsValueChanged());
-        notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        maxHeightUnitsValuePropertyKey,
+        &m_MaxHeightUnitsValue,
+        &value);
+    m_MaxHeightUnitsValue = value;
+    RIVE_EDITOR_CHANGED(maxHeightUnitsValueChanged());
+    notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
+  }
 #else
-    inline uint8_t maxHeightUnitsValue() const
+  inline uint8_t maxHeightUnitsValue() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->maxHeightUnitsValue : 0;
+  }
+  void maxHeightUnitsValue(uint8_t value)
+  {
+    if (maxHeightUnitsValue() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->maxHeightUnitsValue : 0;
+      return;
     }
-    void maxHeightUnitsValue(uint8_t value)
-    {
-        if (maxHeightUnitsValue() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->maxHeightUnitsValue = value;
-        maxHeightUnitsValueChanged();
-        notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->maxHeightUnitsValue = value;
+    maxHeightUnitsValueChanged();
+    notifyPropertyChanged(maxHeightUnitsValuePropertyKey);
+  }
 #endif
 
-    inline uint8_t layoutWidthScaleType() const
+  inline uint8_t layoutWidthScaleType() const { return m_LayoutWidthScaleType; }
+  void layoutWidthScaleType(uint8_t value)
+  {
+    if (m_LayoutWidthScaleType == value)
     {
-        return m_LayoutWidthScaleType;
+      return;
     }
-    void layoutWidthScaleType(uint8_t value)
-    {
-        if (m_LayoutWidthScaleType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(layoutWidthScaleTypePropertyKey,
-                             &m_LayoutWidthScaleType,
-                             &value);
-        m_LayoutWidthScaleType = value;
-        RIVE_EDITOR_CHANGED(layoutWidthScaleTypeChanged());
-        notifyPropertyChanged(layoutWidthScaleTypePropertyKey);
-    }
+    RIVE_EDITOR_CHANGING(
+        layoutWidthScaleTypePropertyKey,
+        &m_LayoutWidthScaleType,
+        &value);
+    m_LayoutWidthScaleType = value;
+    RIVE_EDITOR_CHANGED(layoutWidthScaleTypeChanged());
+    notifyPropertyChanged(layoutWidthScaleTypePropertyKey);
+  }
 
-    inline uint8_t layoutHeightScaleType() const
+  inline uint8_t layoutHeightScaleType() const
+  {
+    return m_LayoutHeightScaleType;
+  }
+  void layoutHeightScaleType(uint8_t value)
+  {
+    if (m_LayoutHeightScaleType == value)
     {
-        return m_LayoutHeightScaleType;
+      return;
     }
-    void layoutHeightScaleType(uint8_t value)
-    {
-        if (m_LayoutHeightScaleType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(layoutHeightScaleTypePropertyKey,
-                             &m_LayoutHeightScaleType,
-                             &value);
-        m_LayoutHeightScaleType = value;
-        RIVE_EDITOR_CHANGED(layoutHeightScaleTypeChanged());
-        notifyPropertyChanged(layoutHeightScaleTypePropertyKey);
-    }
+    RIVE_EDITOR_CHANGING(
+        layoutHeightScaleTypePropertyKey,
+        &m_LayoutHeightScaleType,
+        &value);
+    m_LayoutHeightScaleType = value;
+    RIVE_EDITOR_CHANGED(layoutHeightScaleTypeChanged());
+    notifyPropertyChanged(layoutHeightScaleTypePropertyKey);
+  }
 
 #ifdef WITH_RIVE_EDITOR
-    inline bool hugUnbounded() const { return m_HugUnbounded; }
-    void hugUnbounded(bool value)
+  inline bool hugUnbounded() const { return m_HugUnbounded; }
+  void hugUnbounded(bool value)
+  {
+    if (m_HugUnbounded == value)
     {
-        if (m_HugUnbounded == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(hugUnboundedPropertyKey, &m_HugUnbounded, &value);
-        m_HugUnbounded = value;
-        RIVE_EDITOR_CHANGED(hugUnboundedChanged());
-        notifyPropertyChanged(hugUnboundedPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(hugUnboundedPropertyKey, &m_HugUnbounded, &value);
+    m_HugUnbounded = value;
+    RIVE_EDITOR_CHANGED(hugUnboundedChanged());
+    notifyPropertyChanged(hugUnboundedPropertyKey);
+  }
 #else
-    inline bool hugUnbounded() const
+  inline bool hugUnbounded() const
+  {
+    auto* sidecar = m_minMaxSizing.get();
+    return sidecar != nullptr ? sidecar->hugUnbounded : false;
+  }
+  void hugUnbounded(bool value)
+  {
+    if (hugUnbounded() == value)
     {
-        auto* sidecar = m_minMaxSizing.get();
-        return sidecar != nullptr ? sidecar->hugUnbounded : false;
+      return;
     }
-    void hugUnbounded(bool value)
-    {
-        if (hugUnbounded() == value)
-        {
-            return;
-        }
-        m_minMaxSizing.ensureAllocated()->hugUnbounded = value;
-        hugUnboundedChanged();
-        notifyPropertyChanged(hugUnboundedPropertyKey);
-    }
+    m_minMaxSizing.ensureAllocated()->hugUnbounded = value;
+    hugUnboundedChanged();
+    notifyPropertyChanged(hugUnboundedPropertyKey);
+  }
 #endif
 
-    inline uint8_t widthUnitsValue() const { return m_WidthUnitsValue; }
-    void widthUnitsValue(uint8_t value)
+  inline uint8_t widthUnitsValue() const { return m_WidthUnitsValue; }
+  void widthUnitsValue(uint8_t value)
+  {
+    if (m_WidthUnitsValue == value)
     {
-        if (m_WidthUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(widthUnitsValuePropertyKey,
-                             &m_WidthUnitsValue,
-                             &value);
-        m_WidthUnitsValue = value;
-        RIVE_EDITOR_CHANGED(widthUnitsValueChanged());
-        notifyPropertyChanged(widthUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        widthUnitsValuePropertyKey,
+        &m_WidthUnitsValue,
+        &value);
+    m_WidthUnitsValue = value;
+    RIVE_EDITOR_CHANGED(widthUnitsValueChanged());
+    notifyPropertyChanged(widthUnitsValuePropertyKey);
+  }
 
-    inline uint8_t heightUnitsValue() const { return m_HeightUnitsValue; }
-    void heightUnitsValue(uint8_t value)
+  inline uint8_t heightUnitsValue() const { return m_HeightUnitsValue; }
+  void heightUnitsValue(uint8_t value)
+  {
+    if (m_HeightUnitsValue == value)
     {
-        if (m_HeightUnitsValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(heightUnitsValuePropertyKey,
-                             &m_HeightUnitsValue,
-                             &value);
-        m_HeightUnitsValue = value;
-        RIVE_EDITOR_CHANGED(heightUnitsValueChanged());
-        notifyPropertyChanged(heightUnitsValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        heightUnitsValuePropertyKey,
+        &m_HeightUnitsValue,
+        &value);
+    m_HeightUnitsValue = value;
+    RIVE_EDITOR_CHANGED(heightUnitsValueChanged());
+    notifyPropertyChanged(heightUnitsValuePropertyKey);
+  }
 
-    inline uint8_t justifySelfValue() const { return m_JustifySelfValue; }
-    void justifySelfValue(uint8_t value)
+  inline uint8_t justifySelfValue() const { return m_JustifySelfValue; }
+  void justifySelfValue(uint8_t value)
+  {
+    if (m_JustifySelfValue == value)
     {
-        if (m_JustifySelfValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(justifySelfValuePropertyKey,
-                             &m_JustifySelfValue,
-                             &value);
-        m_JustifySelfValue = value;
-        RIVE_EDITOR_CHANGED(justifySelfValueChanged());
-        notifyPropertyChanged(justifySelfValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        justifySelfValuePropertyKey,
+        &m_JustifySelfValue,
+        &value);
+    m_JustifySelfValue = value;
+    RIVE_EDITOR_CHANGED(justifySelfValueChanged());
+    notifyPropertyChanged(justifySelfValuePropertyKey);
+  }
 
-    inline uint8_t displayValue() const { return m_DisplayValue; }
-    void displayValue(uint8_t value)
+  inline uint8_t displayValue() const { return m_DisplayValue; }
+  void displayValue(uint8_t value)
+  {
+    if (m_DisplayValue == value)
     {
-        if (m_DisplayValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(displayValuePropertyKey, &m_DisplayValue, &value);
-        m_DisplayValue = value;
-        RIVE_EDITOR_CHANGED(displayValueChanged());
-        notifyPropertyChanged(displayValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(displayValuePropertyKey, &m_DisplayValue, &value);
+    m_DisplayValue = value;
+    RIVE_EDITOR_CHANGED(displayValueChanged());
+    notifyPropertyChanged(displayValuePropertyKey);
+  }
 
-    void copy(const LayoutSizingStyleBase& object)
-    {
+  void copy(const LayoutSizingStyleBase& object)
+  {
 #ifdef WITH_RIVE_EDITOR
-        m_MinWidth = object.m_MinWidth;
+    m_MinWidth = object.m_MinWidth;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MaxWidth = object.m_MaxWidth;
+    m_MaxWidth = object.m_MaxWidth;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MinHeight = object.m_MinHeight;
+    m_MinHeight = object.m_MinHeight;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MaxHeight = object.m_MaxHeight;
+    m_MaxHeight = object.m_MaxHeight;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MinWidthUnitsValue = object.m_MinWidthUnitsValue;
+    m_MinWidthUnitsValue = object.m_MinWidthUnitsValue;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MaxWidthUnitsValue = object.m_MaxWidthUnitsValue;
+    m_MaxWidthUnitsValue = object.m_MaxWidthUnitsValue;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MinHeightUnitsValue = object.m_MinHeightUnitsValue;
+    m_MinHeightUnitsValue = object.m_MinHeightUnitsValue;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_MaxHeightUnitsValue = object.m_MaxHeightUnitsValue;
+    m_MaxHeightUnitsValue = object.m_MaxHeightUnitsValue;
 #endif
-        m_LayoutWidthScaleType = object.m_LayoutWidthScaleType;
-        m_LayoutHeightScaleType = object.m_LayoutHeightScaleType;
+    m_LayoutWidthScaleType = object.m_LayoutWidthScaleType;
+    m_LayoutHeightScaleType = object.m_LayoutHeightScaleType;
 #ifdef WITH_RIVE_EDITOR
-        m_HugUnbounded = object.m_HugUnbounded;
+    m_HugUnbounded = object.m_HugUnbounded;
 #endif
-        m_WidthUnitsValue = object.m_WidthUnitsValue;
-        m_HeightUnitsValue = object.m_HeightUnitsValue;
-        m_JustifySelfValue = object.m_JustifySelfValue;
-        m_DisplayValue = object.m_DisplayValue;
+    m_WidthUnitsValue = object.m_WidthUnitsValue;
+    m_HeightUnitsValue = object.m_HeightUnitsValue;
+    m_JustifySelfValue = object.m_JustifySelfValue;
+    m_DisplayValue = object.m_DisplayValue;
 #ifndef WITH_RIVE_EDITOR
-        m_minMaxSizing = object.m_minMaxSizing;
+    m_minMaxSizing = object.m_minMaxSizing;
 #endif
-        RIVE_EDITOR_COPY(object);
-        Component::copy(object);
-    }
+    RIVE_EDITOR_COPY(object);
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case minWidthPropertyKey:
+      case minWidthPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MinWidth = CoreDoubleType::deserialize(reader);
+        m_MinWidth = CoreDoubleType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->minWidth =
-                    CoreDoubleType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->minWidth = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case maxWidthPropertyKey:
+        return true;
+      case maxWidthPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MaxWidth = CoreDoubleType::deserialize(reader);
+        m_MaxWidth = CoreDoubleType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->maxWidth =
-                    CoreDoubleType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->maxWidth = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case minHeightPropertyKey:
+        return true;
+      case minHeightPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MinHeight = CoreDoubleType::deserialize(reader);
+        m_MinHeight = CoreDoubleType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->minHeight =
-                    CoreDoubleType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->minHeight = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case maxHeightPropertyKey:
+        return true;
+      case maxHeightPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MaxHeight = CoreDoubleType::deserialize(reader);
+        m_MaxHeight = CoreDoubleType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->maxHeight =
-                    CoreDoubleType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->maxHeight = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case minWidthUnitsValuePropertyKey:
+        return true;
+      case minWidthUnitsValuePropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MinWidthUnitsValue = CoreUintType::deserialize(reader);
+        m_MinWidthUnitsValue = CoreUintType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->minWidthUnitsValue =
-                    CoreUintType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->minWidthUnitsValue = CoreUintType::deserialize(reader);
 #endif
-                return true;
-            case maxWidthUnitsValuePropertyKey:
+        return true;
+      case maxWidthUnitsValuePropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MaxWidthUnitsValue = CoreUintType::deserialize(reader);
+        m_MaxWidthUnitsValue = CoreUintType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->maxWidthUnitsValue =
-                    CoreUintType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->maxWidthUnitsValue = CoreUintType::deserialize(reader);
 #endif
-                return true;
-            case minHeightUnitsValuePropertyKey:
+        return true;
+      case minHeightUnitsValuePropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MinHeightUnitsValue = CoreUintType::deserialize(reader);
+        m_MinHeightUnitsValue = CoreUintType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->minHeightUnitsValue =
-                    CoreUintType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->minHeightUnitsValue = CoreUintType::deserialize(reader);
 #endif
-                return true;
-            case maxHeightUnitsValuePropertyKey:
+        return true;
+      case maxHeightUnitsValuePropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_MaxHeightUnitsValue = CoreUintType::deserialize(reader);
+        m_MaxHeightUnitsValue = CoreUintType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->maxHeightUnitsValue =
-                    CoreUintType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->maxHeightUnitsValue = CoreUintType::deserialize(reader);
 #endif
-                return true;
-            case layoutWidthScaleTypePropertyKey:
-                m_LayoutWidthScaleType = CoreUintType::deserialize(reader);
-                return true;
-            case layoutHeightScaleTypePropertyKey:
-                m_LayoutHeightScaleType = CoreUintType::deserialize(reader);
-                return true;
-            case hugUnboundedPropertyKey:
+        return true;
+      case layoutWidthScaleTypePropertyKey:
+        m_LayoutWidthScaleType = CoreUintType::deserialize(reader);
+        return true;
+      case layoutHeightScaleTypePropertyKey:
+        m_LayoutHeightScaleType = CoreUintType::deserialize(reader);
+        return true;
+      case hugUnboundedPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_HugUnbounded = CoreBoolType::deserialize(reader);
+        m_HugUnbounded = CoreBoolType::deserialize(reader);
 #else
-                m_minMaxSizing.ensureAllocated()->hugUnbounded =
-                    CoreBoolType::deserialize(reader);
+        m_minMaxSizing.ensureAllocated()
+            ->hugUnbounded = CoreBoolType::deserialize(reader);
 #endif
-                return true;
-            case widthUnitsValuePropertyKey:
-                m_WidthUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case heightUnitsValuePropertyKey:
-                m_HeightUnitsValue = CoreUintType::deserialize(reader);
-                return true;
-            case justifySelfValuePropertyKey:
-                m_JustifySelfValue = CoreUintType::deserialize(reader);
-                return true;
-            case displayValuePropertyKey:
-                m_DisplayValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return Component::deserialize(propertyKey, reader);
+        return true;
+      case widthUnitsValuePropertyKey:
+        m_WidthUnitsValue = CoreUintType::deserialize(reader);
+        return true;
+      case heightUnitsValuePropertyKey:
+        m_HeightUnitsValue = CoreUintType::deserialize(reader);
+        return true;
+      case justifySelfValuePropertyKey:
+        m_JustifySelfValue = CoreUintType::deserialize(reader);
+        return true;
+      case displayValuePropertyKey:
+        m_DisplayValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void minWidthChanged() {}
-    virtual void maxWidthChanged() {}
-    virtual void minHeightChanged() {}
-    virtual void maxHeightChanged() {}
-    virtual void minWidthUnitsValueChanged() {}
-    virtual void maxWidthUnitsValueChanged() {}
-    virtual void minHeightUnitsValueChanged() {}
-    virtual void maxHeightUnitsValueChanged() {}
-    virtual void layoutWidthScaleTypeChanged() {}
-    virtual void layoutHeightScaleTypeChanged() {}
-    virtual void hugUnboundedChanged() {}
-    virtual void widthUnitsValueChanged() {}
-    virtual void heightUnitsValueChanged() {}
-    virtual void justifySelfValueChanged() {}
-    virtual void displayValueChanged() {}
+  virtual void minWidthChanged() {}
+  virtual void maxWidthChanged() {}
+  virtual void minHeightChanged() {}
+  virtual void maxHeightChanged() {}
+  virtual void minWidthUnitsValueChanged() {}
+  virtual void maxWidthUnitsValueChanged() {}
+  virtual void minHeightUnitsValueChanged() {}
+  virtual void maxHeightUnitsValueChanged() {}
+  virtual void layoutWidthScaleTypeChanged() {}
+  virtual void layoutHeightScaleTypeChanged() {}
+  virtual void hugUnboundedChanged() {}
+  virtual void widthUnitsValueChanged() {}
+  virtual void heightUnitsValueChanged() {}
+  virtual void justifySelfValueChanged() {}
+  virtual void displayValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/layout/layout_sizing_style_ext.inl"
 #endif

@@ -12,21 +12,23 @@ namespace rive
 class IntrinsicallySizeable
 {
 public:
-    virtual Vec2D measureLayout(float width,
-                                LayoutMeasureMode widthMode,
-                                float height,
-                                LayoutMeasureMode heightMode)
-    {
-        return Vec2D();
-    }
+  virtual Vec2D measureLayout(
+      float width,
+      LayoutMeasureMode widthMode,
+      float height,
+      LayoutMeasureMode heightMode)
+  {
+    return Vec2D();
+  }
 
-    virtual void controlSize(Vec2D size,
-                             LayoutScaleType widthScaleType,
-                             LayoutScaleType heightScaleType,
-                             LayoutDirection direction)
-    {}
-    virtual bool shouldPropagateSizeToChildren() { return true; }
-    static IntrinsicallySizeable* from(Component* component);
+  virtual void controlSize(
+      Vec2D size,
+      LayoutScaleType widthScaleType,
+      LayoutScaleType heightScaleType,
+      LayoutDirection direction)
+  {}
+  virtual bool shouldPropagateSizeToChildren() { return true; }
+  static IntrinsicallySizeable* from(Component* component);
 };
 } // namespace rive
 #endif

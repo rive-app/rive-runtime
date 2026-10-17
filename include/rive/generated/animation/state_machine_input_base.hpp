@@ -9,25 +9,25 @@ namespace rive
 class StateMachineInputBase : public StateMachineComponent
 {
 protected:
-    typedef StateMachineComponent Super;
+  typedef StateMachineComponent Super;
 
 public:
-    static const uint16_t typeKey = 55;
+  static const uint16_t typeKey = 55;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    void copy(const StateMachineInputBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        StateMachineComponent::copy(object);
-    }
+  void copy(const StateMachineInputBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    StateMachineComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return StateMachineComponent::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return StateMachineComponent::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/state_machine_input_ext.inl"
 #endif

@@ -7,52 +7,52 @@ namespace rive
 class StraightVertexBase : public PathVertex
 {
 protected:
-    typedef PathVertex Super;
+  typedef PathVertex Super;
 
 public:
-    static const uint16_t typeKey = 5;
+  static const uint16_t typeKey = 5;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t radiusPropertyKey = 26;
+  static const uint16_t radiusPropertyKey = 26;
 
 protected:
-    float m_Radius = 0.0f;
+  float m_Radius = 0.0f;
 
 public:
-    inline float radius() const { return m_Radius; }
-    void radius(float value)
+  inline float radius() const { return m_Radius; }
+  void radius(float value)
+  {
+    if (m_Radius == value)
     {
-        if (m_Radius == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(radiusPropertyKey, &m_Radius, &value);
-        m_Radius = value;
-        RIVE_EDITOR_CHANGED(radiusChanged());
-        notifyPropertyChanged(radiusPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(radiusPropertyKey, &m_Radius, &value);
+    m_Radius = value;
+    RIVE_EDITOR_CHANGED(radiusChanged());
+    notifyPropertyChanged(radiusPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const StraightVertexBase& object)
-    {
-        m_Radius = object.m_Radius;
-        PathVertex::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const StraightVertexBase& object)
+  {
+    m_Radius = object.m_Radius;
+    PathVertex::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case radiusPropertyKey:
-                m_Radius = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return PathVertex::deserialize(propertyKey, reader);
+      case radiusPropertyKey:
+        m_Radius = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return PathVertex::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void radiusChanged() {}
+  virtual void radiusChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/straight_vertex_ext.inl"
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* GridItemPlacementBase::clone() const
 {
-    auto cloned = new GridItemPlacement();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new GridItemPlacement();
+  cloned->copy(*this);
+  return cloned;
 }

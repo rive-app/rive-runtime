@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedInterpolatorBase::clone() const
 {
-    auto cloned = new ScriptedInterpolator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedInterpolator();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -3,8 +3,9 @@
 
 using namespace rive;
 
-void StringTemplateArgumentNumber::appendValue(std::string& output,
-                                               const std::string& spec) const
+void StringTemplateArgumentNumber::appendValue(
+    std::string& output,
+    const std::string& spec) const
 {
-    output += StringTemplateFormat::formatNumber(propertyValue(), spec);
+  output += StringTemplateFormat::formatNumber(propertyValue(), spec);
 }

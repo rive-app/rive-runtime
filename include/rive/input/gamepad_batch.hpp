@@ -16,9 +16,9 @@ constexpr uint8_t kGamepadBatchMaxAxes = 16;
 /// Record `uint8` type after the version field.
 enum class GamepadRecordType : uint8_t
 {
-    connected = 0,
-    update = 1,
-    disconnected = 2,
+  connected = 0,
+  update = 1,
+  disconnected = 2,
 };
 
 } // namespace rive

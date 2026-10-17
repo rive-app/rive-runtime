@@ -8,48 +8,48 @@ class TransitionPropertyArtboardComparatorBase
     : public TransitionPropertyComparator
 {
 protected:
-    typedef TransitionPropertyComparator Super;
+  typedef TransitionPropertyComparator Super;
 
 public:
-    static const uint16_t typeKey = 496;
+  static const uint16_t typeKey = 496;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyTypePropertyKey = 677;
+  static const uint16_t propertyTypePropertyKey = 677;
 
 protected:
-    uint32_t m_PropertyType = 0;
+  uint32_t m_PropertyType = 0;
 
 public:
-    inline uint32_t propertyType() const { return m_PropertyType; }
-    void propertyType(uint32_t value)
+  inline uint32_t propertyType() const { return m_PropertyType; }
+  void propertyType(uint32_t value)
+  {
+    if (m_PropertyType == value)
     {
-        if (m_PropertyType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyTypePropertyKey, &m_PropertyType, &value);
-        m_PropertyType = value;
-        notifyPropertyChanged(propertyTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyTypePropertyKey, &m_PropertyType, &value);
+    m_PropertyType = value;
+    notifyPropertyChanged(propertyTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TransitionPropertyArtboardComparatorBase& object)
-    {
-        m_PropertyType = object.m_PropertyType;
-        TransitionPropertyComparator::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TransitionPropertyArtboardComparatorBase& object)
+  {
+    m_PropertyType = object.m_PropertyType;
+    TransitionPropertyComparator::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyTypePropertyKey:
-                m_PropertyType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return TransitionPropertyComparator::deserialize(propertyKey, reader);
+      case propertyTypePropertyKey:
+        m_PropertyType = CoreUintType::deserialize(reader);
+        return true;
     }
+    return TransitionPropertyComparator::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

@@ -7,52 +7,52 @@ namespace rive
 class TransitionValueBooleanComparatorBase : public TransitionValueComparator
 {
 protected:
-    typedef TransitionValueComparator Super;
+  typedef TransitionValueComparator Super;
 
 public:
-    static const uint16_t typeKey = 481;
+  static const uint16_t typeKey = 481;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 647;
+  static const uint16_t valuePropertyKey = 647;
 
 protected:
-    bool m_Value = false;
+  bool m_Value = false;
 
 public:
-    inline bool value() const { return m_Value; }
-    void value(bool value)
+  inline bool value() const { return m_Value; }
+  void value(bool value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TransitionValueBooleanComparatorBase& object)
-    {
-        m_Value = object.m_Value;
-        TransitionValueComparator::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TransitionValueBooleanComparatorBase& object)
+  {
+    m_Value = object.m_Value;
+    TransitionValueComparator::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return TransitionValueComparator::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return TransitionValueComparator::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/transition_value_boolean_comparator_ext.inl"
 #endif

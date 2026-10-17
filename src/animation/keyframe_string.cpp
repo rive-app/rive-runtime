@@ -8,30 +8,32 @@ using namespace rive;
 const std::string& KeyFrameString::effectiveValue(
     const LinearAnimationInstance* context) const
 {
-    if (context != nullptr)
+  if (context != nullptr)
+  {
+    if (auto* holder = context->keyFrameValueHolder(this))
     {
-        if (auto* holder = context->keyFrameValueHolder(this))
-        {
-            return holder->as<BindablePropertyString>()->propertyValue();
-        }
+      return holder->as<BindablePropertyString>()->propertyValue();
     }
-    return value();
+  }
+  return value();
 }
 
-void KeyFrameString::apply(Core* object,
-                           int propertyKey,
-                           float mix,
-                           const LinearAnimationInstance* context)
+void KeyFrameString::apply(
+    Core* object,
+    int propertyKey,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    CoreRegistry::setString(object, propertyKey, effectiveValue(context));
+  CoreRegistry::setString(object, propertyKey, effectiveValue(context));
 }
 
-void KeyFrameString::applyInterpolation(Core* object,
-                                        int propertyKey,
-                                        float currentTime,
-                                        const KeyFrame* nextFrame,
-                                        float mix,
-                                        const LinearAnimationInstance* context)
+void KeyFrameString::applyInterpolation(
+    Core* object,
+    int propertyKey,
+    float currentTime,
+    const KeyFrame* nextFrame,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    CoreRegistry::setString(object, propertyKey, effectiveValue(context));
+  CoreRegistry::setString(object, propertyKey, effectiveValue(context));
 }

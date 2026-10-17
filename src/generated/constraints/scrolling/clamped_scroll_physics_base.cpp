@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ClampedScrollPhysicsBase::clone() const
 {
-    auto cloned = new ClampedScrollPhysics();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ClampedScrollPhysics();
+  cloned->copy(*this);
+  return cloned;
 }

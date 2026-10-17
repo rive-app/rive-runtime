@@ -6,14 +6,14 @@ namespace rive
 class BlendStateDirectBase : public BlendState
 {
 protected:
-    typedef BlendState Super;
+  typedef BlendState Super;
 
 public:
-    static const uint16_t typeKey = 73;
+  static const uint16_t typeKey = 73;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

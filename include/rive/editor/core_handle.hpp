@@ -27,21 +27,21 @@ namespace rive
 
 struct CoreHandle
 {
-    static constexpr uint32_t kNullIndex = UINT32_MAX;
+  static constexpr uint32_t kNullIndex = UINT32_MAX;
 
-    uint32_t index = kNullIndex;
-    uint32_t generation = 0;
+  uint32_t index = kNullIndex;
+  uint32_t generation = 0;
 
-    bool isNull() const { return index == kNullIndex; }
+  bool isNull() const { return index == kNullIndex; }
 
-    friend bool operator==(const CoreHandle& a, const CoreHandle& b)
-    {
-        return a.index == b.index && a.generation == b.generation;
-    }
-    friend bool operator!=(const CoreHandle& a, const CoreHandle& b)
-    {
-        return !(a == b);
-    }
+  friend bool operator==(const CoreHandle& a, const CoreHandle& b)
+  {
+    return a.index == b.index && a.generation == b.generation;
+  }
+  friend bool operator!=(const CoreHandle& a, const CoreHandle& b)
+  {
+    return !(a == b);
+  }
 };
 
 } // namespace rive

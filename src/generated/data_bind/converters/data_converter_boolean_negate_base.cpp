@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataConverterBooleanNegateBase::clone() const
 {
-    auto cloned = new DataConverterBooleanNegate();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataConverterBooleanNegate();
+  cloned->copy(*this);
+  return cloned;
 }

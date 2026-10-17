@@ -282,9 +282,9 @@ typedef khronos_int64_t khronos_stime_nanoseconds_t;
  */
 typedef enum
 {
-    KHRONOS_FALSE = 0,
-    KHRONOS_TRUE = 1,
-    KHRONOS_BOOLEAN_ENUM_FORCE_SIZE = KHRONOS_MAX_ENUM
+  KHRONOS_FALSE = 0,
+  KHRONOS_TRUE = 1,
+  KHRONOS_BOOLEAN_ENUM_FORCE_SIZE = KHRONOS_MAX_ENUM
 } khronos_boolean_enum_t;
 
 #endif /* __khrplatform_h_ */

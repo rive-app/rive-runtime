@@ -6,14 +6,14 @@ namespace rive
 class TriangleBase : public ParametricPath
 {
 protected:
-    typedef ParametricPath Super;
+  typedef ParametricPath Super;
 
 public:
-    static const uint16_t typeKey = 8;
+  static const uint16_t typeKey = 8;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

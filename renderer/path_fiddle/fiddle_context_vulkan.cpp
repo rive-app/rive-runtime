@@ -9,7 +9,7 @@
 std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(
     FiddleContextOptions options)
 {
-    return nullptr;
+  return nullptr;
 }
 
 #else
@@ -31,319 +31,314 @@ using namespace rive::gpu;
 class FiddleContextVulkanPLS : public FiddleContext
 {
 public:
-    FiddleContextVulkanPLS(FiddleContextOptions options) : m_options(options)
-    {
-        using namespace rive_vkb;
+  FiddleContextVulkanPLS(FiddleContextOptions options) : m_options(options)
+  {
+    using namespace rive_vkb;
 
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions;
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        m_instance = VulkanInstance::Create(VulkanInstance::Options{
-            .appName = "path_fiddle",
-            .idealAPIVersion = options.coreFeaturesOnly ? VK_API_VERSION_1_1
-                                                        : VK_API_VERSION_1_3,
-            .requiredExtensions = make_span(glfwExtensions, glfwExtensionCount),
+    m_instance = VulkanInstance::Create(VulkanInstance::Options{
+        .appName = "path_fiddle",
+        .idealAPIVersion = options.coreFeaturesOnly ? VK_API_VERSION_1_1
+                                                    : VK_API_VERSION_1_3,
+        .requiredExtensions = make_span(glfwExtensions, glfwExtensionCount),
 #ifndef NDEBUG
-            .desiredValidationType =
-                options.enableVulkanCoreValidationLayers
-                    ? VulkanValidationType::core
-                    : (options.enableVulkanSynchronizationValidationLayers
-                           ? VulkanValidationType::synchronization
-                           : VulkanValidationType::none),
-            .wantDebugCallbacks = !options.disableDebugCallbacks,
+        .desiredValidationType =
+            options.enableVulkanCoreValidationLayers
+                ? VulkanValidationType::core
+                : (options.enableVulkanSynchronizationValidationLayers
+                       ? VulkanValidationType::synchronization
+                       : VulkanValidationType::none),
+        .wantDebugCallbacks = !options.disableDebugCallbacks,
 #endif
+    });
+    assert(m_instance != nullptr);
+
+    m_vkDestroySurfaceKHR = m_instance
+                                ->loadInstanceFunc<PFN_vkDestroySurfaceKHR>(
+                                    "vkDestroySurfaceKHR");
+    assert(m_vkDestroySurfaceKHR != nullptr);
+
+    m_device = VulkanDevice::Create(
+        *m_instance,
+        VulkanDevice::Options{
+            .coreFeaturesOnly = options.coreFeaturesOnly,
+            .gpuNameFilter = options.gpuNameFilter,
         });
-        assert(m_instance != nullptr);
+    assert(m_device != nullptr);
 
-        m_vkDestroySurfaceKHR =
-            m_instance->loadInstanceFunc<PFN_vkDestroySurfaceKHR>(
-                "vkDestroySurfaceKHR");
-        assert(m_vkDestroySurfaceKHR != nullptr);
-
-        m_device = VulkanDevice::Create(
-            *m_instance,
-            VulkanDevice::Options{
-                .coreFeaturesOnly = options.coreFeaturesOnly,
-                .gpuNameFilter = options.gpuNameFilter,
-            });
-        assert(m_device != nullptr);
-
-        m_renderContext = RenderContextVulkanImpl::MakeContext(
-            m_instance->vkInstance(),
-            m_device->vkPhysicalDevice(),
-            m_device->vkDevice(),
-            m_device->vulkanFeatures(),
-            m_instance->getVkGetInstanceProcAddrPtr(),
-            {
-                .forceAtomicMode = options.disableRasterOrdering,
-                .shaderCompilationMode = m_options.shaderCompilationMode,
-            });
-    }
-
-    ~FiddleContextVulkanPLS()
-    {
-        // Destroy the swapchain first because it synchronizes for in-flight
-        // command buffers.
-        m_swapchain = nullptr;
-
-        m_renderContext.reset();
-        m_renderTarget.reset();
-
-        if (m_windowSurface != VK_NULL_HANDLE)
+    m_renderContext = RenderContextVulkanImpl::MakeContext(
+        m_instance->vkInstance(),
+        m_device->vkPhysicalDevice(),
+        m_device->vkDevice(),
+        m_device->vulkanFeatures(),
+        m_instance->getVkGetInstanceProcAddrPtr(),
         {
-            m_vkDestroySurfaceKHR(m_instance->vkInstance(),
-                                  m_windowSurface,
-                                  nullptr);
-        }
-    }
+            .forceAtomicMode = options.disableRasterOrdering,
+            .shaderCompilationMode = m_options.shaderCompilationMode,
+        });
+  }
 
-    float dpiScale(GLFWwindow* window) const final
+  ~FiddleContextVulkanPLS()
+  {
+    // Destroy the swapchain first because it synchronizes for in-flight
+    // command buffers.
+    m_swapchain = nullptr;
+
+    m_renderContext.reset();
+    m_renderTarget.reset();
+
+    if (m_windowSurface != VK_NULL_HANDLE)
     {
+      m_vkDestroySurfaceKHR(m_instance->vkInstance(), m_windowSurface, nullptr);
+    }
+  }
+
+  float dpiScale(GLFWwindow* window) const final
+  {
 #ifdef __APPLE__
-        return 2;
+    return 2;
 #else
-        return 1;
+    return 1;
 #endif
+  }
+
+  Factory* factory() final { return m_renderContext.get(); }
+
+  rive::gpu::RenderContext* renderContextOrNull() final
+  {
+    return m_renderContext.get();
+  }
+
+  rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const final
+  {
+    return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+  }
+
+  rive::gpu::RenderTarget* renderTargetOrNull() final
+  {
+    return m_renderTarget.get();
+  }
+
+  void* getCommandBuffer() override
+  {
+    return m_swapchain->currentCommandBuffer();
+  }
+
+  void beginOreFrame(rive::ore::Context* oreContext) override
+  {
+    if (!m_swapchain->isFrameStarted())
+    {
+      VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
+
+      m_renderTarget->setTargetImageView(
+          m_swapchain->currentVkImageView(),
+          m_swapchain->currentVkImage(),
+          m_swapchain->currentLastAccess());
     }
 
-    Factory* factory() final { return m_renderContext.get(); }
+    oreContext->beginFrame(
+        {.externalCommandBuffer = m_swapchain->currentCommandBuffer(),
+         .safeFrameNumber = m_swapchain->safeFrameNumber(),
+         .currentFrameNumber = m_swapchain->currentFrameNumber()});
+  }
+  // The Ore frame runs inside the screen frame, which end() presents.
+  void endOreFrame(rive::ore::Context* oreContext) override
+  {
+    FiddleContext::endOreFrame(oreContext);
+  }
 
-    rive::gpu::RenderContext* renderContextOrNull() final
+  void onSizeChanged(
+      GLFWwindow* window,
+      int width,
+      int height,
+      uint32_t sampleCount) final
+  {
+    uint64_t currentFrameNumber = 0;
+    if (m_swapchain != nullptr)
     {
-        return m_renderContext.get();
+      currentFrameNumber = m_swapchain->currentFrameNumber();
+      m_swapchain = nullptr;
     }
 
-    rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const final
+    if (m_windowSurface != VK_NULL_HANDLE)
     {
-        return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+      m_vkDestroySurfaceKHR(m_instance->vkInstance(), m_windowSurface, nullptr);
     }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() final
-    {
-        return m_renderTarget.get();
-    }
+    VK_ABORT_ON_FAIL(glfwCreateWindowSurface(
+        m_instance->vkInstance(),
+        window,
+        nullptr,
+        &m_windowSurface));
 
-    void* getCommandBuffer() override
-    {
-        return m_swapchain->currentCommandBuffer();
-    }
-
-    void beginOreFrame(rive::ore::Context* oreContext) override
-    {
-        if (!m_swapchain->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
-
-            m_renderTarget->setTargetImageView(
-                m_swapchain->currentVkImageView(),
-                m_swapchain->currentVkImage(),
-                m_swapchain->currentLastAccess());
-        }
-
-        oreContext->beginFrame(
-            {.externalCommandBuffer = m_swapchain->currentCommandBuffer(),
-             .safeFrameNumber = m_swapchain->safeFrameNumber(),
-             .currentFrameNumber = m_swapchain->currentFrameNumber()});
-    }
-    // The Ore frame runs inside the screen frame, which end() presents.
-    void endOreFrame(rive::ore::Context* oreContext) override
-    {
-        FiddleContext::endOreFrame(oreContext);
-    }
-
-    void onSizeChanged(GLFWwindow* window,
-                       int width,
-                       int height,
-                       uint32_t sampleCount) final
-    {
-        uint64_t currentFrameNumber = 0;
-        if (m_swapchain != nullptr)
-        {
-            currentFrameNumber = m_swapchain->currentFrameNumber();
-            m_swapchain = nullptr;
-        }
-
-        if (m_windowSurface != VK_NULL_HANDLE)
-        {
-            m_vkDestroySurfaceKHR(m_instance->vkInstance(),
-                                  m_windowSurface,
-                                  nullptr);
-        }
-
-        VK_ABORT_ON_FAIL(glfwCreateWindowSurface(m_instance->vkInstance(),
-                                                 window,
-                                                 nullptr,
-                                                 &m_windowSurface));
-
-        auto vkGetPhysicalDeviceSurfaceCapabilitiesKHR =
-            m_instance->loadInstanceFunc<
-                PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
+    auto vkGetPhysicalDeviceSurfaceCapabilitiesKHR =
+        m_instance
+            ->loadInstanceFunc<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
                 "vkGetPhysicalDeviceSurfaceCapabilitiesKHR");
-        VkSurfaceCapabilitiesKHR windowCapabilities{};
-        VK_ABORT_ON_FAIL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-            m_device->vkPhysicalDevice(),
-            m_windowSurface,
-            &windowCapabilities));
+    VkSurfaceCapabilitiesKHR windowCapabilities{};
+    VK_ABORT_ON_FAIL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+        m_device->vkPhysicalDevice(),
+        m_windowSurface,
+        &windowCapabilities));
 
-        auto swapOpts = rive_vkb::VulkanSwapchain::Options{
-            .formatPreferences =
+    auto swapOpts = rive_vkb::VulkanSwapchain::Options{
+        .formatPreferences =
+            {
                 {
-                    {
-                        .format = m_options.srgb ? VK_FORMAT_R8G8B8A8_SRGB
-                                  : m_options.coreFeaturesOnly
-                                      ? VK_FORMAT_B8G8R8A8_UNORM
-                                      : VK_FORMAT_R8G8B8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
-
-                    // Fall back to either ordering of ARGB
-                    {
-                        .format = VK_FORMAT_R8G8B8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
-                    {
-                        .format = VK_FORMAT_B8G8R8A8_UNORM,
-                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                    },
+                    .format = m_options.srgb ? VK_FORMAT_R8G8B8A8_SRGB
+                              : m_options.coreFeaturesOnly
+                                  ? VK_FORMAT_B8G8R8A8_UNORM
+                                  : VK_FORMAT_R8G8B8A8_UNORM,
+                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
                 },
-            .presentModePreferences =
+
+                // Fall back to either ordering of ARGB
                 {
-                    VK_PRESENT_MODE_IMMEDIATE_KHR,
-                    VK_PRESENT_MODE_MAILBOX_KHR,
-                    VK_PRESENT_MODE_FIFO_RELAXED_KHR,
-                    VK_PRESENT_MODE_FIFO_KHR,
+                    .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
                 },
-            .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            .initialFrameNumber = currentFrameNumber,
-        };
+                {
+                    .format = VK_FORMAT_B8G8R8A8_UNORM,
+                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                },
+            },
+        .presentModePreferences =
+            {
+                VK_PRESENT_MODE_IMMEDIATE_KHR,
+                VK_PRESENT_MODE_MAILBOX_KHR,
+                VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+                VK_PRESENT_MODE_FIFO_KHR,
+            },
+        .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                           VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .initialFrameNumber = currentFrameNumber,
+    };
 
-        if (!m_options.coreFeaturesOnly &&
-            (windowCapabilities.supportedUsageFlags &
-             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
-        {
-            swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-        }
-
-        if (!m_options.coreFeaturesOnly &&
-            (windowCapabilities.supportedUsageFlags &
-             VK_IMAGE_USAGE_STORAGE_BIT))
-        {
-            swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
-        }
-
-        m_swapchain = rive_vkb::VulkanSwapchain::Create(*m_instance,
-                                                        *m_device,
-                                                        ref_rcp(vk()),
-                                                        m_windowSurface,
-                                                        swapOpts);
-        assert(m_swapchain != nullptr);
-
-        // Enable canvas pre-pass support
-        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
-        // for canvas rendering.
-        renderContextVulkanImpl()->setCanvasQueue(
-            m_swapchain->graphicsQueue(),
-            m_device->graphicsQueueFamilyIndex());
-
-        m_renderTarget = renderContextVulkanImpl()->makeRenderTarget(
-            width,
-            height,
-            m_swapchain->imageFormat(),
-            m_swapchain->imageUsageFlags());
-    }
-
-    void toggleZoomWindow() final {}
-
-    void hotloadShaders() final
+    if (!m_options.coreFeaturesOnly && (windowCapabilities.supportedUsageFlags &
+                                        VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
     {
-        m_device->waitUntilIdle();
-        rive::Span<const uint32_t> newShaderBytecodeData =
-            loadNewShaderFileData();
-        if (newShaderBytecodeData.size() > 0)
-        {
-            renderContextVulkanImpl()->hotloadShaders(newShaderBytecodeData);
-        }
+      swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
     }
 
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) final
+    if (!m_options.coreFeaturesOnly &&
+        (windowCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_STORAGE_BIT))
     {
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
+      swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_STORAGE_BIT;
     }
 
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) final
+    m_swapchain = rive_vkb::VulkanSwapchain::Create(
+        *m_instance,
+        *m_device,
+        ref_rcp(vk()),
+        m_windowSurface,
+        swapOpts);
+    assert(m_swapchain != nullptr);
+
+    // Enable canvas pre-pass support
+    // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+    // for canvas rendering.
+    renderContextVulkanImpl()->setCanvasQueue(
+        m_swapchain->graphicsQueue(),
+        m_device->graphicsQueueFamilyIndex());
+
+    m_renderTarget = renderContextVulkanImpl()->makeRenderTarget(
+        width,
+        height,
+        m_swapchain->imageFormat(),
+        m_swapchain->imageUsageFlags());
+  }
+
+  void toggleZoomWindow() final {}
+
+  void hotloadShaders() final
+  {
+    m_device->waitUntilIdle();
+    rive::Span<const uint32_t> newShaderBytecodeData = loadNewShaderFileData();
+    if (newShaderBytecodeData.size() > 0)
     {
-        m_renderContext->beginFrame(frameDescriptor);
+      renderContextVulkanImpl()->hotloadShaders(newShaderBytecodeData);
     }
+  }
 
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  std::unique_ptr<Renderer> makeRenderer(int width, int height) final
+  {
+    return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
+
+  void begin(const RenderContext::FrameDescriptor& frameDescriptor) final
+  {
+    m_renderContext->beginFrame(frameDescriptor);
+  }
+
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  {
+    if (!m_swapchain->isFrameStarted())
     {
-        if (!m_swapchain->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
+      VK_ABORT_ON_FAIL(m_swapchain->beginFrame());
 
-            m_renderTarget->setTargetImageView(
-                m_swapchain->currentVkImageView(),
-                m_swapchain->currentVkImage(),
-                m_swapchain->currentLastAccess());
-        }
-
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTarget.get(),
-            .externalCommandBuffer = m_swapchain->currentCommandBuffer(),
-            .currentFrameNumber = m_swapchain->currentFrameNumber(),
-            .safeFrameNumber = m_swapchain->safeFrameNumber(),
-        });
+      m_renderTarget->setTargetImageView(
+          m_swapchain->currentVkImageView(),
+          m_swapchain->currentVkImage(),
+          m_swapchain->currentLastAccess());
     }
 
-    void end(GLFWwindow*, std::vector<uint8_t>* pixelData) final
+    m_renderContext->flush({
+        .renderTarget = offscreenRenderTarget != nullptr ? offscreenRenderTarget
+                                                         : m_renderTarget.get(),
+        .externalCommandBuffer = m_swapchain->currentCommandBuffer(),
+        .currentFrameNumber = m_swapchain->currentFrameNumber(),
+        .safeFrameNumber = m_swapchain->safeFrameNumber(),
+    });
+  }
+
+  void end(GLFWwindow*, std::vector<uint8_t>* pixelData) final
+  {
+    flushPLSContext(nullptr);
+
+    auto lastAccess = m_renderTarget->targetLastAccess();
+    if (pixelData != nullptr)
     {
-        flushPLSContext(nullptr);
-
-        auto lastAccess = m_renderTarget->targetLastAccess();
-        if (pixelData != nullptr)
-        {
-            m_swapchain->queueImageCopy(
-                &lastAccess,
-                rive::IAABB::MakeWH(m_renderTarget->width(),
-                                    m_renderTarget->height()));
-        }
-        VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
-
-        if (pixelData != nullptr)
-        {
-            VK_ABORT_ON_FAIL(
-                m_swapchain->getPixelsFromLastImageCopy(pixelData));
-        }
+      m_swapchain->queueImageCopy(
+          &lastAccess,
+          rive::IAABB::MakeWH(
+              m_renderTarget->width(),
+              m_renderTarget->height()));
     }
+    VK_ABORT_ON_FAIL(m_swapchain->endFrame(lastAccess));
+
+    if (pixelData != nullptr)
+    {
+      VK_ABORT_ON_FAIL(m_swapchain->getPixelsFromLastImageCopy(pixelData));
+    }
+  }
 
 private:
-    VulkanContext* vk() const
-    {
-        return renderContextVulkanImpl()->vulkanContext();
-    }
+  VulkanContext* vk() const
+  {
+    return renderContextVulkanImpl()->vulkanContext();
+  }
 
-    const FiddleContextOptions m_options;
-    std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
-    std::unique_ptr<rive_vkb::VulkanDevice> m_device;
-    std::unique_ptr<rive_vkb::VulkanSwapchain> m_swapchain;
+  const FiddleContextOptions m_options;
+  std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
+  std::unique_ptr<rive_vkb::VulkanDevice> m_device;
+  std::unique_ptr<rive_vkb::VulkanSwapchain> m_swapchain;
 
-    VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
+  VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
 
-    std::unique_ptr<RenderContext> m_renderContext;
-    rcp<RenderTargetVulkanImpl> m_renderTarget;
+  std::unique_ptr<RenderContext> m_renderContext;
+  rcp<RenderTargetVulkanImpl> m_renderTarget;
 
-    PFN_vkDestroySurfaceKHR m_vkDestroySurfaceKHR = nullptr;
+  PFN_vkDestroySurfaceKHR m_vkDestroySurfaceKHR = nullptr;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(
     FiddleContextOptions options)
 {
-    return std::make_unique<FiddleContextVulkanPLS>(options);
+  return std::make_unique<FiddleContextVulkanPLS>(options);
 }
 
 #endif

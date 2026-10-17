@@ -9,11 +9,12 @@ class DataBindContextValueViewModel : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueViewModel(DataBind* m_dataBind);
-    void apply(Core* component,
-               uint32_t propertyKey,
-               bool isMainDirection,
-               DataBind* dataBind) override;
+  DataBindContextValueViewModel(DataBind* m_dataBind);
+  void apply(
+      Core* component,
+      uint32_t propertyKey,
+      bool isMainDirection,
+      DataBind* dataBind) override;
 };
 } // namespace rive
 

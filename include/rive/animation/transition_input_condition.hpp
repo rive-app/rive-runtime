@@ -7,7 +7,7 @@ namespace rive
 class TransitionInputCondition : public TransitionInputConditionBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

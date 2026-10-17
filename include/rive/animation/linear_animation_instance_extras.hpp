@@ -34,24 +34,25 @@ class StatefulScriptedInterpolator;
 /// declaration order.
 struct LAIBindingExtras
 {
-    /// Per-(this LAI, keyframe) stateful clones of the shared
-    /// ScriptedInterpolator templates. Each holder pulls the input binds it
-    /// parked on the artboard before destroying its clone (and Lua ref).
-    std::unordered_map<const InterpolatingKeyFrame*,
-                       std::unique_ptr<StatefulScriptedInterpolator>>
-        scriptedInterpolators;
+  /// Per-(this LAI, keyframe) stateful clones of the shared
+  /// ScriptedInterpolator templates. Each holder pulls the input binds it
+  /// parked on the artboard before destroying its clone (and Lua ref).
+  std::unordered_map<
+      const InterpolatingKeyFrame*,
+      std::unique_ptr<StatefulScriptedInterpolator>>
+      scriptedInterpolators;
 
-    /// Per-keyframe holders receiving data-bound values for this instance,
-    /// keyed by the shared KeyFrame*. Built lazily by keyFrameValueHolder() on
-    /// first apply of a bound keyframe; owned here.
-    std::unordered_map<const KeyFrame*, BindableProperty*> keyFrameValueHolders;
+  /// Per-keyframe holders receiving data-bound values for this instance,
+  /// keyed by the shared KeyFrame*. Built lazily by keyFrameValueHolder() on
+  /// first apply of a bound keyframe; owned here.
+  std::unordered_map<const KeyFrame*, BindableProperty*> keyFrameValueHolders;
 
-    /// Clones of the source keyframe data binds, retargeted to the holders
-    /// above and appended to the artboard's data-bind container, keyed by the
-    /// keyframe so keyFrameValueHolder can refresh a holder at read time.
-    /// Removed + deleted BEFORE the holders they target, same discipline as
-    /// the input binds of `scriptedInterpolators`.
-    std::unordered_map<const KeyFrame*, DataBind*> keyFrameValueBinds;
+  /// Clones of the source keyframe data binds, retargeted to the holders
+  /// above and appended to the artboard's data-bind container, keyed by the
+  /// keyframe so keyFrameValueHolder can refresh a holder at read time.
+  /// Removed + deleted BEFORE the holders they target, same discipline as
+  /// the input binds of `scriptedInterpolators`.
+  std::unordered_map<const KeyFrame*, DataBind*> keyFrameValueBinds;
 };
 } // namespace rive
 #endif

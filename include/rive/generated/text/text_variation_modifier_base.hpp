@@ -8,70 +8,70 @@ namespace rive
 class TextVariationModifierBase : public TextShapeModifier
 {
 protected:
-    typedef TextShapeModifier Super;
+  typedef TextShapeModifier Super;
 
 public:
-    static const uint16_t typeKey = 162;
+  static const uint16_t typeKey = 162;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t axisTagPropertyKey = 320;
-    static const uint16_t axisValuePropertyKey = 321;
+  static const uint16_t axisTagPropertyKey = 320;
+  static const uint16_t axisValuePropertyKey = 321;
 
 protected:
-    uint32_t m_AxisTag = 0;
-    float m_AxisValue = 0.0f;
+  uint32_t m_AxisTag = 0;
+  float m_AxisValue = 0.0f;
 
 public:
-    inline uint32_t axisTag() const { return m_AxisTag; }
-    void axisTag(uint32_t value)
+  inline uint32_t axisTag() const { return m_AxisTag; }
+  void axisTag(uint32_t value)
+  {
+    if (m_AxisTag == value)
     {
-        if (m_AxisTag == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(axisTagPropertyKey, &m_AxisTag, &value);
-        m_AxisTag = value;
-        notifyPropertyChanged(axisTagPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(axisTagPropertyKey, &m_AxisTag, &value);
+    m_AxisTag = value;
+    notifyPropertyChanged(axisTagPropertyKey);
+  }
 
-    inline float axisValue() const { return m_AxisValue; }
-    void axisValue(float value)
+  inline float axisValue() const { return m_AxisValue; }
+  void axisValue(float value)
+  {
+    if (m_AxisValue == value)
     {
-        if (m_AxisValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(axisValuePropertyKey, &m_AxisValue, &value);
-        m_AxisValue = value;
-        RIVE_EDITOR_CHANGED(axisValueChanged());
-        notifyPropertyChanged(axisValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(axisValuePropertyKey, &m_AxisValue, &value);
+    m_AxisValue = value;
+    RIVE_EDITOR_CHANGED(axisValueChanged());
+    notifyPropertyChanged(axisValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextVariationModifierBase& object)
-    {
-        m_AxisTag = object.m_AxisTag;
-        m_AxisValue = object.m_AxisValue;
-        TextShapeModifier::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextVariationModifierBase& object)
+  {
+    m_AxisTag = object.m_AxisTag;
+    m_AxisValue = object.m_AxisValue;
+    TextShapeModifier::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case axisTagPropertyKey:
-                m_AxisTag = CoreUintType::deserialize(reader);
-                return true;
-            case axisValuePropertyKey:
-                m_AxisValue = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return TextShapeModifier::deserialize(propertyKey, reader);
+      case axisTagPropertyKey:
+        m_AxisTag = CoreUintType::deserialize(reader);
+        return true;
+      case axisValuePropertyKey:
+        m_AxisValue = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return TextShapeModifier::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void axisValueChanged() {}
+  virtual void axisValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_variation_modifier_ext.inl"
 #endif

@@ -8,11 +8,11 @@ namespace rive
 class CubicInterpolatorComponent : public CubicInterpolatorComponentBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
-    float transform(float factor) const;
+  StatusCode onAddedDirty(CoreContext* context) override;
+  float transform(float factor) const;
 
 private:
-    CubicInterpolatorSolver m_solver;
+  CubicInterpolatorSolver m_solver;
 };
 } // namespace rive
 

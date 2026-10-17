@@ -6,14 +6,14 @@ namespace rive
 class AxisXBase : public Axis
 {
 protected:
-    typedef Axis Super;
+  typedef Axis Super;
 
 public:
-    static const uint16_t typeKey = 495;
+  static const uint16_t typeKey = 495;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

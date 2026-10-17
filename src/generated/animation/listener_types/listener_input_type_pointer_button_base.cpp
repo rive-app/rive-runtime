@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerInputTypePointerButtonBase::clone() const
 {
-    auto cloned = new ListenerInputTypePointerButton();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerInputTypePointerButton();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -19,95 +19,97 @@ using namespace rive;
 void Image::draw(Renderer* renderer)
 {
 
-    rive::ImageAsset* asset = this->imageAsset();
+  rive::ImageAsset* asset = this->imageAsset();
 
-    rive::RenderImage* renderImage = asset->renderImage();
-    if (renderImage == nullptr)
-    {
-        return;
-    }
-    if (needsSaveOperation())
-    {
+  rive::RenderImage* renderImage = asset->renderImage();
+  if (renderImage == nullptr)
+  {
+    return;
+  }
+  if (needsSaveOperation())
+  {
 
-        renderer->save();
-    }
+    renderer->save();
+  }
 
-    float width = (float)renderImage->width();
-    float height = (float)renderImage->height();
+  float width = (float)renderImage->width();
+  float height = (float)renderImage->height();
 
-    if (m_Mesh != nullptr)
-    {
-        m_Mesh->draw(renderer,
-                     renderImage,
-                     imageSampler(),
-                     blendMode(),
-                     renderOpacity(),
-                     additiveness());
-    }
-    else
-    {
-        renderer->transform(worldTransform());
-        renderer->translate(-width * originX(), -height * originY());
-        renderer->drawImage(renderImage,
-                            imageSampler(),
-                            blendMode(),
-                            renderOpacity(),
-                            additiveness());
-    }
-    if (needsSaveOperation())
-    {
-        renderer->restore();
-    }
+  if (m_Mesh != nullptr)
+  {
+    m_Mesh->draw(
+        renderer,
+        renderImage,
+        imageSampler(),
+        blendMode(),
+        renderOpacity(),
+        additiveness());
+  }
+  else
+  {
+    renderer->transform(worldTransform());
+    renderer->translate(-width * originX(), -height * originY());
+    renderer->drawImage(
+        renderImage,
+        imageSampler(),
+        blendMode(),
+        renderOpacity(),
+        additiveness());
+  }
+  if (needsSaveOperation())
+  {
+    renderer->restore();
+  }
 }
 
 bool Image::willDraw()
 {
-    return Super::willDraw() && renderOpacity() != 0.0f &&
-           this->imageAsset() != nullptr;
+  return Super::willDraw() && renderOpacity() != 0.0f &&
+         this->imageAsset() != nullptr;
 }
 
 Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
 {
-    // TODO: handle clip?
+  // TODO: handle clip?
 
-    auto renderImage = imageAsset()->renderImage();
-    float width = (float)renderImage->width();
-    float height = (float)renderImage->height();
+  auto renderImage = imageAsset()->renderImage();
+  float width = (float)renderImage->width();
+  float height = (float)renderImage->height();
 
-    if (m_Mesh)
+  if (m_Mesh)
+  {
+    printf("Missing mesh\n");
+    // TODO: hittest mesh
+  }
+  else
+  {
+    auto mx = xform * worldTransform() *
+              Mat2D::fromTranslate(-width * originX(), -height * originY());
+    HitTester tester(hinfo->area);
+    tester.addRect(AABB(0, 0, (float)width, (float)height), mx);
+    if (tester.test())
     {
-        printf("Missing mesh\n");
-        // TODO: hittest mesh
+      return this;
     }
-    else
-    {
-        auto mx = xform * worldTransform() *
-                  Mat2D::fromTranslate(-width * originX(), -height * originY());
-        HitTester tester(hinfo->area);
-        tester.addRect(AABB(0, 0, (float)width, (float)height), mx);
-        if (tester.test())
-        {
-            return this;
-        }
-    }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 StatusCode Image::import(ImportStack& importStack)
 {
-    auto result = registerReferencer(importStack);
-    if (result != StatusCode::Ok)
-    {
-        return result;
-    }
-    // Files exported before 7.2 overwrite scaleX/scaleY with the layout fit, so
-    // any stored scale on a layout image was ignored. Keep that legacy behavior
-    // for those files; newer files compose the fit as a separate scale so the
-    // user scale stays editable/animatable.
-    int major = importStack.majorVersion();
-    int minor = importStack.minorVersion();
-    m_layoutScaleSeparate = major > 7 || (major == 7 && minor >= 2);
-    return Super::import(importStack);
+  auto result = registerReferencer(importStack);
+  if (result != StatusCode::Ok)
+  {
+    return result;
+  }
+  // Files exported before 7.2 overwrite scaleX/scaleY with the layout fit, so
+  // any stored scale on a layout image was ignored. Keep that legacy behavior
+  // for those files; newer files compose the fit as a separate scale so the
+  // user scale stays editable/animatable.
+  int major = importStack.majorVersion();
+  int minor = importStack.minorVersion();
+  m_layoutScaleSeparate = major > 7 || (major == 7 && minor >= 2);
+  return Super::import(importStack);
 }
 
 // Question: thoughts on this? it looks a bit odd to me,
@@ -117,372 +119,372 @@ uint32_t Image::assetId() { return ImageBase::assetId(); }
 
 void Image::setAsset(rcp<FileAsset> asset)
 {
-    if (asset != nullptr && asset->is<ImageAsset>())
-    {
-        FileAssetReferencer::setAsset(asset);
+  if (asset != nullptr && asset->is<ImageAsset>())
+  {
+    FileAssetReferencer::setAsset(asset);
 
-        // If we have a mesh and we're in the source artboard, let's initialize
-        // the mesh buffers.
-        if (m_Mesh != nullptr && !artboard()->isInstance())
-        {
-            m_Mesh->onAssetLoaded(imageAsset()->renderImage());
-        }
-        updateImageScale();
+    // If we have a mesh and we're in the source artboard, let's initialize
+    // the mesh buffers.
+    if (m_Mesh != nullptr && !artboard()->isInstance())
+    {
+      m_Mesh->onAssetLoaded(imageAsset()->renderImage());
     }
+    updateImageScale();
+  }
 }
 
 void Image::assetUpdated()
 {
-    updateImageScale();
-    markWorldTransformDirty();
+  updateImageScale();
+  markWorldTransformDirty();
 #ifdef WITH_RIVE_EDITOR
-    // Editor / coop path: the FileAsset's `renderImage` typically
-    // arrives AFTER `Image::setAsset` has already run (bytes are
-    // fetched asynchronously from the CDN and pushed in via a pump
-    // command). `Mesh::onAssetLoaded` allocated its GPU buffers on
-    // the first bind with `renderImage == nullptr` and wrote UVs
-    // using an identity `uvTransform`; now that the RenderImage is
-    // actually present (with a real `uvTransform`), re-run the
-    // UV/buffer initialization so sampling lines up with the
-    // decoded texture.
-    //
-    // Runtime `.riv` loads don't need this — the RenderImage is
-    // present the moment `setAsset` binds, so the single call at
-    // image.cpp:117 is enough.
-    if (m_Mesh != nullptr && artboard() != nullptr && !artboard()->isInstance())
-    {
-        auto* ia = imageAsset();
-        m_Mesh->onAssetLoaded(ia != nullptr ? ia->renderImage() : nullptr);
-    }
+  // Editor / coop path: the FileAsset's `renderImage` typically
+  // arrives AFTER `Image::setAsset` has already run (bytes are
+  // fetched asynchronously from the CDN and pushed in via a pump
+  // command). `Mesh::onAssetLoaded` allocated its GPU buffers on
+  // the first bind with `renderImage == nullptr` and wrote UVs
+  // using an identity `uvTransform`; now that the RenderImage is
+  // actually present (with a real `uvTransform`), re-run the
+  // UV/buffer initialization so sampling lines up with the
+  // decoded texture.
+  //
+  // Runtime `.riv` loads don't need this — the RenderImage is
+  // present the moment `setAsset` binds, so the single call at
+  // image.cpp:117 is enough.
+  if (m_Mesh != nullptr && artboard() != nullptr && !artboard()->isInstance())
+  {
+    auto* ia = imageAsset();
+    m_Mesh->onAssetLoaded(ia != nullptr ? ia->renderImage() : nullptr);
+  }
 #endif
 }
 
 Core* Image::clone() const
 {
-    Image* twin = ImageBase::clone()->as<Image>();
-    twin->m_layoutScaleSeparate = m_layoutScaleSeparate;
-    if (m_fileAsset != nullptr)
-    {
-        twin->setAsset(m_fileAsset);
-    }
-    return twin;
+  Image* twin = ImageBase::clone()->as<Image>();
+  twin->m_layoutScaleSeparate = m_layoutScaleSeparate;
+  if (m_fileAsset != nullptr)
+  {
+    twin->setAsset(m_fileAsset);
+  }
+  return twin;
 }
 
 Mat2D Image::meshHostUVTransform() const
 {
-    ImageAsset* asset = imageAsset();
-    RenderImage* renderImage =
-        asset != nullptr ? asset->renderImage() : nullptr;
-    return renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
+  ImageAsset* asset = imageAsset();
+  RenderImage* renderImage = asset != nullptr ? asset->renderImage() : nullptr;
+  return renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
 }
 
 void Image::setMesh(MeshDrawable* mesh)
 {
-    if (m_Mesh == mesh)
-    {
-        return;
-    }
-    m_Mesh = mesh;
-    updateImageScale();
+  if (m_Mesh == mesh)
+  {
+    return;
+  }
+  m_Mesh = mesh;
+  updateImageScale();
 }
 
 float Image::width() const
 {
-    rive::ImageAsset* asset = this->imageAsset();
-    if (asset == nullptr)
-    {
-        return 0.0f;
-    }
+  rive::ImageAsset* asset = this->imageAsset();
+  if (asset == nullptr)
+  {
+    return 0.0f;
+  }
 
-    rive::RenderImage* renderImage = asset->renderImage();
-    if (renderImage == nullptr)
-    {
-        return asset->width();
-    }
-    return (float)renderImage->width();
+  rive::RenderImage* renderImage = asset->renderImage();
+  if (renderImage == nullptr)
+  {
+    return asset->width();
+  }
+  return (float)renderImage->width();
 }
 
 float Image::height() const
 {
-    rive::ImageAsset* asset = this->imageAsset();
-    if (asset == nullptr)
-    {
-        return 0.0f;
-    }
+  rive::ImageAsset* asset = this->imageAsset();
+  if (asset == nullptr)
+  {
+    return 0.0f;
+  }
 
-    rive::RenderImage* renderImage = asset->renderImage();
-    if (renderImage == nullptr)
-    {
-        return asset->height();
-    }
-    return (float)renderImage->height();
+  rive::RenderImage* renderImage = asset->renderImage();
+  if (renderImage == nullptr)
+  {
+    return asset->height();
+  }
+  return (float)renderImage->height();
 }
 
-Vec2D Image::measureLayout(float width,
-                           LayoutMeasureMode widthMode,
-                           float height,
-                           LayoutMeasureMode heightMode)
+Vec2D Image::measureLayout(
+    float width,
+    LayoutMeasureMode widthMode,
+    float height,
+    LayoutMeasureMode heightMode)
 {
-    // Hug to the intrinsic image size. Only an `exactly` constraint overrides
-    // the natural size — `atMost` is the available space and must NOT grow a
-    // hugging image to fill it.
-    float measuredWidth =
-        widthMode == LayoutMeasureMode::exactly ? width : Image::width();
-    float measuredHeight =
-        heightMode == LayoutMeasureMode::exactly ? height : Image::height();
-    return Vec2D(measuredWidth, measuredHeight);
+  // Hug to the intrinsic image size. Only an `exactly` constraint overrides
+  // the natural size — `atMost` is the available space and must NOT grow a
+  // hugging image to fill it.
+  float measuredWidth = widthMode == LayoutMeasureMode::exactly
+                            ? width
+                            : Image::width();
+  float measuredHeight = heightMode == LayoutMeasureMode::exactly
+                             ? height
+                             : Image::height();
+  return Vec2D(measuredWidth, measuredHeight);
 }
 
-void Image::controlSize(Vec2D size,
-                        LayoutScaleType widthScaleType,
-                        LayoutScaleType heightScaleType,
-                        LayoutDirection direction)
+void Image::controlSize(
+    Vec2D size,
+    LayoutScaleType widthScaleType,
+    LayoutScaleType heightScaleType,
+    LayoutDirection direction)
 {
-    // We store layout width/height because the image asset may not be available
-    // yet (referenced images) and we have defer controlling its size
-    if (m_layoutWidth != size.x || m_layoutHeight != size.y)
-    {
-        m_layoutWidth = size.x;
-        m_layoutHeight = size.y;
+  // We store layout width/height because the image asset may not be available
+  // yet (referenced images) and we have defer controlling its size
+  if (m_layoutWidth != size.x || m_layoutHeight != size.y)
+  {
+    m_layoutWidth = size.x;
+    m_layoutHeight = size.y;
 
-        updateImageScale();
-    }
+    updateImageScale();
+  }
 }
 
 Vec2D Image::layoutBaseTranslation(LayoutParticipant* participant) const
 {
-    assert(participant != nullptr);
-    return Vec2D(participant->resolvedLeft(), participant->resolvedTop());
+  assert(participant != nullptr);
+  return Vec2D(participant->resolvedLeft(), participant->resolvedTop());
 }
 
 void Image::composeWorldTransform()
 {
 #ifdef WITH_RIVE_LAYOUT
-    auto* participant = layoutParticipant();
-    if (participant != nullptr && m_ParentTransformComponent != nullptr)
-    {
-        // Origin 0: the slot base is just the slot top-left (the image composes
-        // its origin + fit separately in updateTransform).
-        Mat2D base = Mat2D::fromTranslation(layoutBaseTranslation(participant));
-        m_WorldTransform =
-            m_ParentTransformComponent->worldTransform() * base * m_Transform;
-        return;
-    }
+  auto* participant = layoutParticipant();
+  if (participant != nullptr && m_ParentTransformComponent != nullptr)
+  {
+    // Origin 0: the slot base is just the slot top-left (the image composes
+    // its origin + fit separately in updateTransform).
+    Mat2D base = Mat2D::fromTranslation(layoutBaseTranslation(participant));
+    m_WorldTransform = m_ParentTransformComponent->worldTransform() * base *
+                       m_Transform;
+    return;
+  }
 #endif
-    Super::composeWorldTransform();
+  Super::composeWorldTransform();
 }
 
 void Image::updateConstraints()
 {
 #ifdef WITH_RIVE_LAYOUT
-    auto* participant = layoutParticipant();
-    if (participant != nullptr)
-    {
-        participant->applyLayoutConstraints();
-    }
+  auto* participant = layoutParticipant();
+  if (participant != nullptr)
+  {
+    participant->applyLayoutConstraints();
+  }
 #endif
-    Super::updateConstraints();
+  Super::updateConstraints();
 }
 
 LayoutParticipant* Image::layoutParticipant() const
 {
-    for (auto* child : children())
+  for (auto* child : children())
+  {
+    if (child->is<LayoutParticipant>())
     {
-        if (child->is<LayoutParticipant>())
-        {
-            return child->as<LayoutParticipant>();
-        }
+      return child->as<LayoutParticipant>();
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 bool Image::isParticipatingInLayout() const
 {
-    return layoutParticipant() != nullptr;
+  return layoutParticipant() != nullptr;
 }
 
 void Image::updateTransform()
 {
-    Super::updateTransform();
-    // Compose the layout fit scale on top of the user transform (innermost), so
-    // the user's scaleX/scaleY (built by Super) remain free to be animated:
-    //   M = T(offset) * UserLocal * S(fitScale)
-    m_Transform.scaleByValues(m_layoutScaleX, m_layoutScaleY);
-    m_Transform[4] += m_layoutOffsetX;
-    m_Transform[5] += m_layoutOffsetY;
+  Super::updateTransform();
+  // Compose the layout fit scale on top of the user transform (innermost), so
+  // the user's scaleX/scaleY (built by Super) remain free to be animated:
+  //   M = T(offset) * UserLocal * S(fitScale)
+  m_Transform.scaleByValues(m_layoutScaleX, m_layoutScaleY);
+  m_Transform[4] += m_layoutOffsetX;
+  m_Transform[5] += m_layoutOffsetY;
 }
 
 void Image::updateImageScale()
 {
-    if (imageAsset() == nullptr)
+  if (imageAsset() == nullptr)
+  {
+    if (m_layoutOffsetX != 0.0f || m_layoutOffsetY != 0.0f)
     {
-        if (m_layoutOffsetX != 0.0f || m_layoutOffsetY != 0.0f)
-        {
-            m_layoutOffsetX = 0.0f;
-            m_layoutOffsetY = 0.0f;
-            markTransformDirty();
-        }
-        return;
+      m_layoutOffsetX = 0.0f;
+      m_layoutOffsetY = 0.0f;
+      markTransformDirty();
+    }
+    return;
+  }
+
+  float newOffsetX = 0.0f;
+  float newOffsetY = 0.0f;
+  auto renderImage = imageAsset()->renderImage();
+  if (renderImage != nullptr && !std::isnan(m_layoutWidth) &&
+      !std::isnan(m_layoutHeight))
+  {
+    float imgW = (float)renderImage->width();
+    float imgH = (float)renderImage->height();
+    float newScaleX, newScaleY;
+    auto imageFit = static_cast<ImageFit>(fit());
+    switch (imageFit)
+    {
+      case ImageFit::contain:
+      {
+        float s = std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
+        newScaleX = newScaleY = s;
+        break;
+      }
+      case ImageFit::cover:
+      {
+        float s = std::fmax(m_layoutWidth / imgW, m_layoutHeight / imgH);
+        newScaleX = newScaleY = s;
+        break;
+      }
+      case ImageFit::fitWidth:
+        newScaleX = newScaleY = m_layoutWidth / imgW;
+        break;
+      case ImageFit::fitHeight:
+        newScaleX = newScaleY = m_layoutHeight / imgH;
+        break;
+      case ImageFit::none:
+        newScaleX = newScaleY = 1.0f;
+        break;
+      case ImageFit::scaleDown:
+      {
+        float s = std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
+        s = s < 1.0f ? s : 1.0f;
+        newScaleX = newScaleY = s;
+        break;
+      }
+      case ImageFit::fill:
+      case ImageFit::resize:
+      default:
+        newScaleX = m_layoutWidth / imgW;
+        newScaleY = m_layoutHeight / imgH;
+        break;
     }
 
-    float newOffsetX = 0.0f;
-    float newOffsetY = 0.0f;
-    auto renderImage = imageAsset()->renderImage();
-    if (renderImage != nullptr && !std::isnan(m_layoutWidth) &&
-        !std::isnan(m_layoutHeight))
+    // Compatibility: for a legacy (controlSized) parent, resize does not
+    // apply fit/alignment translation offsets (only scale). A participant
+    // composes the origin-based offset for resize too, so the image fills
+    // its slot positionally as well as in size.
+    if (imageFit != ImageFit::resize || isParticipatingInLayout())
     {
-        float imgW = (float)renderImage->width();
-        float imgH = (float)renderImage->height();
-        float newScaleX, newScaleY;
-        auto imageFit = static_cast<ImageFit>(fit());
-        switch (imageFit)
-        {
-            case ImageFit::contain:
-            {
-                float s =
-                    std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
-                newScaleX = newScaleY = s;
-                break;
-            }
-            case ImageFit::cover:
-            {
-                float s =
-                    std::fmax(m_layoutWidth / imgW, m_layoutHeight / imgH);
-                newScaleX = newScaleY = s;
-                break;
-            }
-            case ImageFit::fitWidth:
-                newScaleX = newScaleY = m_layoutWidth / imgW;
-                break;
-            case ImageFit::fitHeight:
-                newScaleX = newScaleY = m_layoutHeight / imgH;
-                break;
-            case ImageFit::none:
-                newScaleX = newScaleY = 1.0f;
-                break;
-            case ImageFit::scaleDown:
-            {
-                float s =
-                    std::fmin(m_layoutWidth / imgW, m_layoutHeight / imgH);
-                s = s < 1.0f ? s : 1.0f;
-                newScaleX = newScaleY = s;
-                break;
-            }
-            case ImageFit::fill:
-            case ImageFit::resize:
-            default:
-                newScaleX = m_layoutWidth / imgW;
-                newScaleY = m_layoutHeight / imgH;
-                break;
-        }
-
-        // Compatibility: for a legacy (controlSized) parent, resize does not
-        // apply fit/alignment translation offsets (only scale). A participant
-        // composes the origin-based offset for resize too, so the image fills
-        // its slot positionally as well as in size.
-        if (imageFit != ImageFit::resize || isParticipatingInLayout())
-        {
-            float boundsW = imgW;
-            float boundsH = imgH;
-            float boundsLeft = -imgW * originX();
-            float boundsTop = -imgH * originY();
-            if (m_Mesh != nullptr && m_Mesh->type() == MeshType::vertex)
-            {
-                // Keep fit behavior stable while editing vertex meshes.
-                boundsLeft = -imgW * 0.5f;
-                boundsTop = -imgH * 0.5f;
-            }
-            Alignment alignment(alignmentX(), alignmentY());
-            float xAlign = (alignment.x() + 1.0f) * 0.5f;
-            float yAlign = (alignment.y() + 1.0f) * 0.5f;
-            float scaledLeft = boundsLeft * newScaleX;
-            float scaledTop = boundsTop * newScaleY;
-            float widthRemainder = m_layoutWidth - (boundsW * newScaleX);
-            float heightRemainder = m_layoutHeight - (boundsH * newScaleY);
-            newOffsetX = -scaledLeft + widthRemainder * xAlign;
-            newOffsetY = -scaledTop + heightRemainder * yAlign;
-        }
-
-        if (m_layoutScaleSeparate)
-        {
-            if (newScaleX != m_layoutScaleX || newScaleY != m_layoutScaleY)
-            {
-                m_layoutScaleX = newScaleX;
-                m_layoutScaleY = newScaleY;
-                // Fit scale is composed in updateTransform(), so changing it
-                // must mark the local transform dirty (not just the world
-                // transform).
-                markTransformDirty();
-            }
-        }
-        else
-        {
-            // Legacy (pre-7.2): the fit overwrites the user scale.
-            if (newScaleX != scaleX() || newScaleY != scaleY())
-            {
-                scaleX(newScaleX);
-                scaleY(newScaleY);
-            }
-        }
+      float boundsW = imgW;
+      float boundsH = imgH;
+      float boundsLeft = -imgW * originX();
+      float boundsTop = -imgH * originY();
+      if (m_Mesh != nullptr && m_Mesh->type() == MeshType::vertex)
+      {
+        // Keep fit behavior stable while editing vertex meshes.
+        boundsLeft = -imgW * 0.5f;
+        boundsTop = -imgH * 0.5f;
+      }
+      Alignment alignment(alignmentX(), alignmentY());
+      float xAlign = (alignment.x() + 1.0f) * 0.5f;
+      float yAlign = (alignment.y() + 1.0f) * 0.5f;
+      float scaledLeft = boundsLeft * newScaleX;
+      float scaledTop = boundsTop * newScaleY;
+      float widthRemainder = m_layoutWidth - (boundsW * newScaleX);
+      float heightRemainder = m_layoutHeight - (boundsH * newScaleY);
+      newOffsetX = -scaledLeft + widthRemainder * xAlign;
+      newOffsetY = -scaledTop + heightRemainder * yAlign;
     }
-    if (newOffsetX != m_layoutOffsetX || newOffsetY != m_layoutOffsetY)
+
+    if (m_layoutScaleSeparate)
     {
-        m_layoutOffsetX = newOffsetX;
-        m_layoutOffsetY = newOffsetY;
-        // Offset is applied in updateTransform(), so changing it must mark the
-        // local transform dirty (not just world transform).
+      if (newScaleX != m_layoutScaleX || newScaleY != m_layoutScaleY)
+      {
+        m_layoutScaleX = newScaleX;
+        m_layoutScaleY = newScaleY;
+        // Fit scale is composed in updateTransform(), so changing it
+        // must mark the local transform dirty (not just the world
+        // transform).
         markTransformDirty();
+      }
     }
+    else
+    {
+      // Legacy (pre-7.2): the fit overwrites the user scale.
+      if (newScaleX != scaleX() || newScaleY != scaleY())
+      {
+        scaleX(newScaleX);
+        scaleY(newScaleY);
+      }
+    }
+  }
+  if (newOffsetX != m_layoutOffsetX || newOffsetY != m_layoutOffsetY)
+  {
+    m_layoutOffsetX = newOffsetX;
+    m_layoutOffsetY = newOffsetY;
+    // Offset is applied in updateTransform(), so changing it must mark the
+    // local transform dirty (not just world transform).
+    markTransformDirty();
+  }
 }
 
 AABB Image::localBounds() const
 {
-    if (imageAsset() == nullptr)
-    {
-        return AABB();
-    }
-    return AABB::fromLTWH(-width() * originX(),
-                          -height() * originY(),
-                          width(),
-                          height());
+  if (imageAsset() == nullptr)
+  {
+    return AABB();
+  }
+  return AABB::fromLTWH(
+      -width() * originX(),
+      -height() * originY(),
+      width(),
+      height());
 }
 
 ImageAsset* Image::imageAsset() const { return (ImageAsset*)m_fileAsset.get(); }
 
 ImageSampler Image::imageSampler() const
 {
-    // Clamp file values so the key stays inside the backends' sampler tables.
-    auto filterValue = [](uint32_t value) {
-        return value <= (uint32_t)ImageFilter::nearest
-                   ? static_cast<ImageFilter>(value)
-                   : ImageFilter::bilinear;
-    };
-    auto wrapValue = [](uint32_t value) {
-        return value <= (uint32_t)ImageWrap::mirror
-                   ? static_cast<ImageWrap>(value)
-                   : ImageWrap::clamp;
-    };
-    ImageSampler sampler = ImageSampler::LinearClamp();
-    if (ImageAsset* asset = imageAsset())
-    {
-        sampler.filter = filterValue(asset->samplerFilter());
-        sampler.wrapX = wrapValue(asset->samplerWrapX());
-        sampler.wrapY = wrapValue(asset->samplerWrapY());
-    }
-    // Node values are offset by one, zero means inherit from the asset.
-    if (samplerFilter() != 0)
-    {
-        sampler.filter = filterValue(samplerFilter() - 1);
-    }
-    if (samplerWrapX() != 0)
-    {
-        sampler.wrapX = wrapValue(samplerWrapX() - 1);
-    }
-    if (samplerWrapY() != 0)
-    {
-        sampler.wrapY = wrapValue(samplerWrapY() - 1);
-    }
-    return sampler;
+  // Clamp file values so the key stays inside the backends' sampler tables.
+  auto filterValue = [](uint32_t value) {
+    return value <= (uint32_t)ImageFilter::nearest
+               ? static_cast<ImageFilter>(value)
+               : ImageFilter::bilinear;
+  };
+  auto wrapValue = [](uint32_t value) {
+    return value <= (uint32_t)ImageWrap::mirror ? static_cast<ImageWrap>(value)
+                                                : ImageWrap::clamp;
+  };
+  ImageSampler sampler = ImageSampler::LinearClamp();
+  if (ImageAsset* asset = imageAsset())
+  {
+    sampler.filter = filterValue(asset->samplerFilter());
+    sampler.wrapX = wrapValue(asset->samplerWrapX());
+    sampler.wrapY = wrapValue(asset->samplerWrapY());
+  }
+  // Node values are offset by one, zero means inherit from the asset.
+  if (samplerFilter() != 0)
+  {
+    sampler.filter = filterValue(samplerFilter() - 1);
+  }
+  if (samplerWrapX() != 0)
+  {
+    sampler.wrapX = wrapValue(samplerWrapX() - 1);
+  }
+  if (samplerWrapY() != 0)
+  {
+    sampler.wrapY = wrapValue(samplerWrapY() - 1);
+  }
+  return sampler;
 }
 
 #ifdef TESTING
@@ -492,15 +494,12 @@ Mesh* Image::mesh() const { return static_cast<Mesh*>(m_Mesh); };
 
 BoundsFidelity Image::paintedWorldBounds(AABB* out)
 {
-    if (m_Mesh != nullptr)
-    {
-        // A mesh re-maps the image's corners onto arbitrary vertices, and an
-        // NSlicer -- which shares this pointer -- stretches them per slice. The
-        // image's own box says nothing about where the result lands.
-        return BoundsFidelity::none;
-    }
-    return paintedBoundsFromLocal(localBounds(),
-                                  worldTransform(),
-                                  nullptr,
-                                  out);
+  if (m_Mesh != nullptr)
+  {
+    // A mesh re-maps the image's corners onto arbitrary vertices, and an
+    // NSlicer -- which shares this pointer -- stretches them per slice. The
+    // image's own box says nothing about where the result lands.
+    return BoundsFidelity::none;
+  }
+  return paintedBoundsFromLocal(localBounds(), worldTransform(), nullptr, out);
 }

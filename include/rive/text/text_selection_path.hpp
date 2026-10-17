@@ -9,20 +9,22 @@ namespace rive
 class TextSelectionPath : public ShapePaintPath
 {
 public:
-    TextSelectionPath(bool isLocal = true,
-                      FillRule fillRule = FillRule::clockwise) :
-        ShapePaintPath(isLocal, fillRule)
-    {}
+  TextSelectionPath(
+      bool isLocal = true,
+      FillRule fillRule = FillRule::clockwise)
+      : ShapePaintPath(isLocal, fillRule)
+  {}
 
-    void update(Span<AABB> rects, float cornerRadius);
+  void update(Span<AABB> rects, float cornerRadius);
 
 private:
-    RectanglesToContour m_rectanglesToContour;
+  RectanglesToContour m_rectanglesToContour;
 
-    void addRoundedPath(const Contour& contour,
-                        float radius,
-                        RawPath& rawPath,
-                        bool clockwise);
+  void addRoundedPath(
+      const Contour& contour,
+      float radius,
+      RawPath& rawPath,
+      bool clockwise);
 };
 }; // namespace rive
 #endif

@@ -9,25 +9,22 @@ class ForegroundLayoutDrawable : public ForegroundLayoutDrawableBase,
                                  public ShapePaintContainer
 {
 public:
-    void draw(Renderer* renderer) override;
-    void update(ComponentDirt value) override;
-    void buildDependencies() override;
-    Core* hitTest(HitInfo*, const Mat2D&) override;
+  void draw(Renderer* renderer) override;
+  void update(ComponentDirt value) override;
+  void buildDependencies() override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
 
-    Artboard* getArtboard() override { return artboard(); }
+  Artboard* getArtboard() override { return artboard(); }
 
-    // Implemented for ShapePaintContainer.
-    const Mat2D& shapeWorldTransform() const override
-    {
-        return worldTransform();
-    }
+  // Implemented for ShapePaintContainer.
+  const Mat2D& shapeWorldTransform() const override { return worldTransform(); }
 
-    BoundsFidelity paintedWorldBounds(AABB* out) override;
+  BoundsFidelity paintedWorldBounds(AABB* out) override;
 
-    Component* pathBuilder() override;
-    ShapePaintPath* worldPath() override;
-    ShapePaintPath* localPath() override;
-    ShapePaintPath* localClockwisePath() override;
+  Component* pathBuilder() override;
+  ShapePaintPath* worldPath() override;
+  ShapePaintPath* localPath() override;
+  ShapePaintPath* localClockwisePath() override;
 };
 } // namespace rive
 

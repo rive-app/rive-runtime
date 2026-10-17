@@ -7,52 +7,52 @@ namespace rive
 class KeyFrameBoolBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef InterpolatingKeyFrame Super;
+  typedef InterpolatingKeyFrame Super;
 
 public:
-    static const uint16_t typeKey = 84;
+  static const uint16_t typeKey = 84;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 181;
+  static const uint16_t valuePropertyKey = 181;
 
 protected:
-    bool m_Value = false;
+  bool m_Value = false;
 
 public:
-    inline bool value() const { return m_Value; }
-    void value(bool value)
+  inline bool value() const { return m_Value; }
+  void value(bool value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyFrameBoolBase& object)
-    {
-        m_Value = object.m_Value;
-        InterpolatingKeyFrame::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyFrameBoolBase& object)
+  {
+    m_Value = object.m_Value;
+    InterpolatingKeyFrame::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/keyframe_bool_ext.inl"
 #endif

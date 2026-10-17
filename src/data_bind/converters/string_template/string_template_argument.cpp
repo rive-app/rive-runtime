@@ -7,34 +7,34 @@ using namespace rive;
 
 StatusCode StringTemplateArgument::import(ImportStack& importStack)
 {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    // Arguments are written right after their template (and its binds), so
-    // the template is the last converter imported.
-    auto converter = backboardImporter->lastDataConverter();
-    if (converter == nullptr || !converter->is<DataConverterStringTemplate>())
-    {
-        return StatusCode::MissingObject;
-    }
-    auto code = Super::import(importStack);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
-    // Only register once nothing can fail: on failure the file deletes this
-    // argument, which would leave the template holding a dangling pointer.
-    converter->as<DataConverterStringTemplate>()->addArgument(this);
-    return StatusCode::Ok;
+  auto backboardImporter = importStack.latest<BackboardImporter>(
+      Backboard::typeKey);
+  if (backboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  // Arguments are written right after their template (and its binds), so
+  // the template is the last converter imported.
+  auto converter = backboardImporter->lastDataConverter();
+  if (converter == nullptr || !converter->is<DataConverterStringTemplate>())
+  {
+    return StatusCode::MissingObject;
+  }
+  auto code = Super::import(importStack);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
+  // Only register once nothing can fail: on failure the file deletes this
+  // argument, which would leave the template holding a dangling pointer.
+  converter->as<DataConverterStringTemplate>()->addArgument(this);
+  return StatusCode::Ok;
 }
 
 void StringTemplateArgument::addDataBind(DataBind* dataBind)
 {
-    if (m_stringTemplate)
-    {
-        m_stringTemplate->addDataBind(dataBind);
-    }
+  if (m_stringTemplate)
+  {
+    m_stringTemplate->addDataBind(dataBind);
+  }
 }

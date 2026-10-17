@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelPropertyBooleanBase::clone() const
 {
-    auto cloned = new ViewModelPropertyBoolean();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelPropertyBoolean();
+  cloned->copy(*this);
+  return cloned;
 }

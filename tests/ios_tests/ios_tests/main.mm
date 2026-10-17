@@ -15,61 +15,61 @@ static const char** tool_argv;
 
 static void execute_tool()
 {
-    const char* pngServer = nullptr;
-    for (int i = 1; i < tool_argc - 1; ++i)
+  const char* pngServer = nullptr;
+  for (int i = 1; i < tool_argc - 1; ++i)
+  {
+    if (strcmp(tool_argv[i], "--output") == 0 ||
+        strcmp(tool_argv[i], "-o") == 0)
     {
-        if (strcmp(tool_argv[i], "--output") == 0 ||
-            strcmp(tool_argv[i], "-o") == 0)
-        {
-            pngServer = tool_argv[i + 1];
-        }
+      pngServer = tool_argv[i + 1];
     }
+  }
 
-    // If there's a PNG server, wait until the app is granted local network
-    // permissions and can connect.
-    if (pngServer != nullptr)
+  // If there's a PNG server, wait until the app is granted local network
+  // permissions and can connect.
+  if (pngServer != nullptr)
+  {
+    auto tcpCheck = TCPClient::Connect(pngServer);
+    while (tcpCheck == nullptr)
     {
-        auto tcpCheck = TCPClient::Connect(pngServer);
-        while (tcpCheck == nullptr)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            tcpCheck = TCPClient::Connect(pngServer);
-            NSLog(@"Ensure the device is connected to WiFi, is on the same "
-                   "local network as the "
-                   "host, and app has local network permissions.");
-        }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      tcpCheck = TCPClient::Connect(pngServer);
+      NSLog(@"Ensure the device is connected to WiFi, is on the same "
+             "local network as the "
+             "host, and app has local network permissions.");
     }
+  }
 
-    if (strcmp(tool_argv[0], "gms") == 0)
-    {
-        extern int gms_ios_main(int argc, const char* argv[]);
-        exit(gms_ios_main(tool_argc, tool_argv));
-    }
+  if (strcmp(tool_argv[0], "gms") == 0)
+  {
+    extern int gms_ios_main(int argc, const char* argv[]);
+    exit(gms_ios_main(tool_argc, tool_argv));
+  }
 
-    if (strcmp(tool_argv[0], "goldens") == 0)
-    {
-        extern int goldens_ios_main(int argc, const char* argv[]);
-        exit(goldens_ios_main(tool_argc, tool_argv));
-    }
+  if (strcmp(tool_argv[0], "goldens") == 0)
+  {
+    extern int goldens_ios_main(int argc, const char* argv[]);
+    exit(goldens_ios_main(tool_argc, tool_argv));
+  }
 
-    if (strcmp(tool_argv[0], "player") == 0)
-    {
-        extern int player_ios_main(int argc, const char* argv[]);
-        exit(player_ios_main(tool_argc, tool_argv));
-    }
+  if (strcmp(tool_argv[0], "player") == 0)
+  {
+    extern int player_ios_main(int argc, const char* argv[]);
+    exit(player_ios_main(tool_argc, tool_argv));
+  }
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc <= 1)
-    {
-        NSLog(@"No arguments supplied.");
-        return 0;
-    }
+  if (argc <= 1)
+  {
+    NSLog(@"No arguments supplied.");
+    return 0;
+  }
 
-    tool_argc = argc - 1;
-    tool_argv = const_cast<const char**>(argv + 1);
-    std::thread thread(execute_tool);
+  tool_argc = argc - 1;
+  tool_argv = const_cast<const char**>(argv + 1);
+  std::thread thread(execute_tool);
 
-    return UIApplicationMain(argc, argv, nil, @"RiveAppDelegate");
+  return UIApplicationMain(argc, argv, nil, @"RiveAppDelegate");
 }

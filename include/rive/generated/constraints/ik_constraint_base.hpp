@@ -8,74 +8,76 @@ namespace rive
 class IKConstraintBase : public TargetedConstraint
 {
 protected:
-    typedef TargetedConstraint Super;
+  typedef TargetedConstraint Super;
 
 public:
-    static const uint16_t typeKey = 81;
+  static const uint16_t typeKey = 81;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t invertDirectionPropertyKey = 174;
-    static const uint16_t parentBoneCountPropertyKey = 175;
+  static const uint16_t invertDirectionPropertyKey = 174;
+  static const uint16_t parentBoneCountPropertyKey = 175;
 
 protected:
-    bool m_InvertDirection = false;
-    uint32_t m_ParentBoneCount = 0;
+  bool m_InvertDirection = false;
+  uint32_t m_ParentBoneCount = 0;
 
 public:
-    inline bool invertDirection() const { return m_InvertDirection; }
-    void invertDirection(bool value)
+  inline bool invertDirection() const { return m_InvertDirection; }
+  void invertDirection(bool value)
+  {
+    if (m_InvertDirection == value)
     {
-        if (m_InvertDirection == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(invertDirectionPropertyKey,
-                             &m_InvertDirection,
-                             &value);
-        m_InvertDirection = value;
-        RIVE_EDITOR_CHANGED(invertDirectionChanged());
-        notifyPropertyChanged(invertDirectionPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        invertDirectionPropertyKey,
+        &m_InvertDirection,
+        &value);
+    m_InvertDirection = value;
+    RIVE_EDITOR_CHANGED(invertDirectionChanged());
+    notifyPropertyChanged(invertDirectionPropertyKey);
+  }
 
-    inline uint32_t parentBoneCount() const { return m_ParentBoneCount; }
-    void parentBoneCount(uint32_t value)
+  inline uint32_t parentBoneCount() const { return m_ParentBoneCount; }
+  void parentBoneCount(uint32_t value)
+  {
+    if (m_ParentBoneCount == value)
     {
-        if (m_ParentBoneCount == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(parentBoneCountPropertyKey,
-                             &m_ParentBoneCount,
-                             &value);
-        m_ParentBoneCount = value;
-        notifyPropertyChanged(parentBoneCountPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        parentBoneCountPropertyKey,
+        &m_ParentBoneCount,
+        &value);
+    m_ParentBoneCount = value;
+    notifyPropertyChanged(parentBoneCountPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const IKConstraintBase& object)
-    {
-        m_InvertDirection = object.m_InvertDirection;
-        m_ParentBoneCount = object.m_ParentBoneCount;
-        TargetedConstraint::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const IKConstraintBase& object)
+  {
+    m_InvertDirection = object.m_InvertDirection;
+    m_ParentBoneCount = object.m_ParentBoneCount;
+    TargetedConstraint::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case invertDirectionPropertyKey:
-                m_InvertDirection = CoreBoolType::deserialize(reader);
-                return true;
-            case parentBoneCountPropertyKey:
-                m_ParentBoneCount = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return TargetedConstraint::deserialize(propertyKey, reader);
+      case invertDirectionPropertyKey:
+        m_InvertDirection = CoreBoolType::deserialize(reader);
+        return true;
+      case parentBoneCountPropertyKey:
+        m_ParentBoneCount = CoreUintType::deserialize(reader);
+        return true;
     }
+    return TargetedConstraint::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void invertDirectionChanged() {}
+  virtual void invertDirectionChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/ik_constraint_ext.inl"
 #endif

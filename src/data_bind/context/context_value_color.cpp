@@ -4,18 +4,20 @@
 
 using namespace rive;
 
-DataBindContextValueColor::DataBindContextValueColor(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueColor::DataBindContextValueColor(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueColor::apply(Core* target,
-                                      uint32_t propertyKey,
-                                      bool isMainDirection,
-                                      DataBind* dataBind)
+void DataBindContextValueColor::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value = calculateValue<DataValueColor, int>(m_dataValue,
-                                                     isMainDirection,
-                                                     dataBind);
-    CoreRegistry::setColor(target, propertyKey, value);
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueColor, int>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  CoreRegistry::setColor(target, propertyKey, value);
 }

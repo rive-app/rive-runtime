@@ -15,31 +15,31 @@ class ScriptInputArtboard : public ScriptInputArtboardBase,
                             public ArtboardReferencer
 {
 private:
-    File* m_file = nullptr;
-    void syncReferencedArtboard();
+  File* m_file = nullptr;
+  void syncReferencedArtboard();
 
 public:
-    ~ScriptInputArtboard();
-    void initScriptedValue() override;
-    bool validateForScriptInit() override
-    {
-        return m_referencedArtboard != nullptr;
-    }
-    bool validateForColdScriptInit() override;
-    bool hydrateScriptInput() override;
-    bool validateHydrationPrerequisites() override;
-    StatusCode import(ImportStack& importStack) override;
-    bool claimsArtboardSlot(ImportStack& importStack) const override
-    {
-        return ScriptInput::takesArtboardSlot(this);
-    }
-    Core* clone() const override;
-    StatusCode onAddedClean(CoreContext* context) override;
-    void file(File* value) { m_file = value; };
-    void artboardIdChanged() override;
-    void updateArtboard(
-        ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
-    int referencedArtboardId() override;
+  ~ScriptInputArtboard();
+  void initScriptedValue() override;
+  bool validateForScriptInit() override
+  {
+    return m_referencedArtboard != nullptr;
+  }
+  bool validateForColdScriptInit() override;
+  bool hydrateScriptInput() override;
+  bool validateHydrationPrerequisites() override;
+  StatusCode import(ImportStack& importStack) override;
+  bool claimsArtboardSlot(ImportStack& importStack) const override
+  {
+    return ScriptInput::takesArtboardSlot(this);
+  }
+  Core* clone() const override;
+  StatusCode onAddedClean(CoreContext* context) override;
+  void file(File* value) { m_file = value; };
+  void artboardIdChanged() override;
+  void updateArtboard(
+      ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  int referencedArtboardId() override;
 };
 } // namespace rive
 

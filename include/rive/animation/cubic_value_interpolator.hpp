@@ -7,19 +7,19 @@ namespace rive
 class CubicValueInterpolator : public CubicValueInterpolatorBase
 {
 private:
-    float m_A;
-    float m_B;
-    float m_C;
-    float m_D;
-    float m_ValueTo;
+  float m_A;
+  float m_B;
+  float m_C;
+  float m_D;
+  float m_ValueTo;
 
-    void computeParameters();
+  void computeParameters();
 
 public:
-    CubicValueInterpolator();
-    float transformValue(float valueFrom, float valueTo, float factor) override;
-    float transform(float factor) const override;
-    StatusCode onAddedDirty(CoreContext* context) override;
+  CubicValueInterpolator();
+  float transformValue(float valueFrom, float valueTo, float factor) override;
+  float transform(float factor) const override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 

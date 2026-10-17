@@ -4,8 +4,8 @@ namespace rive
 {
 enum class TransformSpace : unsigned int
 {
-    world = 0,
-    local = 1
+  world = 0,
+  local = 1
 };
 }
 #endif

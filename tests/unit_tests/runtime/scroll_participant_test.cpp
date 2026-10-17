@@ -24,27 +24,27 @@ using namespace rive;
 // shape, so nothing else can carry the scroll for it.
 TEST_CASE("a scroll constraint moves a participating child", "[layoutscroll]")
 {
-    auto file = ReadRiveFile("assets/layout/scroll_participant.riv");
-    auto artboard = file->artboard();
-    REQUIRE(artboard != nullptr);
-    artboard->advance(0.0f);
+  auto file = ReadRiveFile("assets/layout/scroll_participant.riv");
+  auto artboard = file->artboard();
+  REQUIRE(artboard != nullptr);
+  artboard->advance(0.0f);
 
-    // By type, not by name: the exporter keeps only the artboard's name, so
-    // this asset carries none for its children.
-    auto shapes = artboard->find<Shape>();
-    REQUIRE(shapes.size() == 1);
-    auto* shape = shapes[0];
-    REQUIRE(shape->isParticipatingInLayout());
+  // By type, not by name: the exporter keeps only the artboard's name, so
+  // this asset carries none for its children.
+  auto shapes = artboard->find<Shape>();
+  REQUIRE(shapes.size() == 1);
+  auto* shape = shapes[0];
+  REQUIRE(shape->isParticipatingInLayout());
 
-    REQUIRE(artboard->find<ScrollConstraint>().size() == 1);
-    auto* scroll = artboard->find<ScrollConstraint>()[0];
+  REQUIRE(artboard->find<ScrollConstraint>().size() == 1);
+  auto* scroll = artboard->find<ScrollConstraint>()[0];
 
-    // There is room to scroll, so the offset below is not clamped away.
-    REQUIRE(scroll->maxOffsetY() <= -50.0f);
+  // There is room to scroll, so the offset below is not clamped away.
+  REQUIRE(scroll->maxOffsetY() <= -50.0f);
 
-    const float before = shape->worldTransform()[5];
-    scroll->scrollOffsetY(-50.0f);
-    artboard->advance(0.0f);
+  const float before = shape->worldTransform()[5];
+  scroll->scrollOffsetY(-50.0f);
+  artboard->advance(0.0f);
 
-    REQUIRE(shape->worldTransform()[5] - before == Approx(-50.0f));
+  REQUIRE(shape->worldTransform()[5] - before == Approx(-50.0f));
 }

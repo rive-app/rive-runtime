@@ -10,31 +10,32 @@ class StateMachineInstance;
 class ListenerAction : public ListenerActionBase
 {
 public:
-    enum class ParentKind : uint32_t
-    {
-        Listener = 0,
-        Transition = 1,
-        State = 2,
-    };
+  enum class ParentKind : uint32_t
+  {
+    Listener = 0,
+    Transition = 1,
+    State = 2,
+  };
 
-    StatusCode import(ImportStack& importStack) override;
-    virtual void perform(StateMachineInstance* stateMachineInstance,
-                         const ListenerInvocation& invocation) const = 0;
+  StatusCode import(ImportStack& importStack) override;
+  virtual void perform(
+      StateMachineInstance* stateMachineInstance,
+      const ListenerInvocation& invocation) const = 0;
 
-    /// Layer-scheduled actions: bit 0 matches [StateMachineFireOccurance]
-    /// (0 = atStart, 1 = atEnd). Other bits are reserved.
-    bool matchesScheduledOccurrence(StateMachineFireOccurance occurs) const
-    {
-        return (flags() & 1u) == static_cast<uint32_t>(occurs);
-    }
+  /// Layer-scheduled actions: bit 0 matches [StateMachineFireOccurance]
+  /// (0 = atStart, 1 = atEnd). Other bits are reserved.
+  bool matchesScheduledOccurrence(StateMachineFireOccurance occurs) const
+  {
+    return (flags() & 1u) == static_cast<uint32_t>(occurs);
+  }
 
-    ParentKind parentKind() const
-    {
-        auto raw = (flags() >> 1) & 0x3u;
-        return raw <= static_cast<uint32_t>(ParentKind::State)
-                   ? static_cast<ParentKind>(raw)
-                   : ParentKind::Listener;
-    }
+  ParentKind parentKind() const
+  {
+    auto raw = (flags() >> 1) & 0x3u;
+    return raw <= static_cast<uint32_t>(ParentKind::State)
+               ? static_cast<ParentKind>(raw)
+               : ParentKind::Listener;
+  }
 };
 } // namespace rive
 

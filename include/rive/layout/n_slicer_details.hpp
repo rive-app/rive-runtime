@@ -14,29 +14,29 @@ enum class NSlicerTileModeType : int;
 
 class NSlicerDetails
 {
-    friend class Axis;
+  friend class Axis;
 
 protected:
-    std::vector<Axis*> m_xs;
-    std::vector<Axis*> m_ys;
-    std::unordered_map<int, NSlicerTileModeType> m_tileModes; // patchIndex key
+  std::vector<Axis*> m_xs;
+  std::vector<Axis*> m_ys;
+  std::unordered_map<int, NSlicerTileModeType> m_tileModes; // patchIndex key
 
 public:
-    static NSlicerDetails* from(Component* component);
-    int patchIndex(int patchX, int patchY);
-    const std::vector<Axis*>& xs() const { return m_xs; }
-    const std::vector<Axis*>& ys() const { return m_ys; }
-    const std::unordered_map<int, NSlicerTileModeType>& tileModes()
-    {
-        return m_tileModes;
-    }
+  static NSlicerDetails* from(Component* component);
+  int patchIndex(int patchX, int patchY);
+  const std::vector<Axis*>& xs() const { return m_xs; }
+  const std::vector<Axis*>& ys() const { return m_ys; }
+  const std::unordered_map<int, NSlicerTileModeType>& tileModes()
+  {
+    return m_tileModes;
+  }
 
-    void addAxisX(Axis* axis);
-    void addAxisY(Axis* axis);
-    void addTileMode(int patchIndex, NSlicerTileModeType style);
-    virtual void axisChanged() = 0; // only axis gets animated at runtime
+  void addAxisX(Axis* axis);
+  void addAxisY(Axis* axis);
+  void addTileMode(int patchIndex, NSlicerTileModeType style);
+  virtual void axisChanged() = 0; // only axis gets animated at runtime
 
-    virtual ~NSlicerDetails() {}
+  virtual ~NSlicerDetails() {}
 };
 } // namespace rive
 

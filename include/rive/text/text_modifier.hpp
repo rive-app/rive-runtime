@@ -7,10 +7,10 @@ namespace rive
 class TextModifier : public TextModifierBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
 #endif
 };
 } // namespace rive

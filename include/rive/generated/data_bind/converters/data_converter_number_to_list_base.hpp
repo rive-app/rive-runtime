@@ -8,52 +8,52 @@ namespace rive
 class DataConverterNumberToListBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 568;
+  static const uint16_t typeKey = 568;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t viewModelIdPropertyKey = 816;
+  static const uint16_t viewModelIdPropertyKey = 816;
 
 protected:
-    Id m_ViewModelId = kEmptyId;
+  Id m_ViewModelId = kEmptyId;
 
 public:
-    inline Id viewModelId() const { return m_ViewModelId; }
-    void viewModelId(Id value)
+  inline Id viewModelId() const { return m_ViewModelId; }
+  void viewModelId(Id value)
+  {
+    if (m_ViewModelId == value)
     {
-        if (m_ViewModelId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
-        m_ViewModelId = value;
-        RIVE_EDITOR_CHANGED(viewModelIdChanged());
-        notifyPropertyChanged(viewModelIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
+    m_ViewModelId = value;
+    RIVE_EDITOR_CHANGED(viewModelIdChanged());
+    notifyPropertyChanged(viewModelIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataConverterNumberToListBase& object)
-    {
-        m_ViewModelId = object.m_ViewModelId;
-        DataConverter::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataConverterNumberToListBase& object)
+  {
+    m_ViewModelId = object.m_ViewModelId;
+    DataConverter::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case viewModelIdPropertyKey:
-                m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return DataConverter::deserialize(propertyKey, reader);
+      case viewModelIdPropertyKey:
+        m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return DataConverter::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void viewModelIdChanged() {}
+  virtual void viewModelIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/data_converter_number_to_list_ext.inl"
 #endif

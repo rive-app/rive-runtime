@@ -9,12 +9,13 @@ class DataBindContextValueAssetFont : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueAssetFont(DataBind* m_dataBind);
-    void apply(Core* component,
-               uint32_t propertyKey,
-               bool isMainDirection,
-               DataBind* dataBind) override;
-    rcp<FontAsset> fileAsset(DataBind* dataBind);
+  DataBindContextValueAssetFont(DataBind* m_dataBind);
+  void apply(
+      Core* component,
+      uint32_t propertyKey,
+      bool isMainDirection,
+      DataBind* dataBind) override;
+  rcp<FontAsset> fileAsset(DataBind* dataBind);
 };
 } // namespace rive
 

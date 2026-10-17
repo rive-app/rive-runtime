@@ -8,67 +8,65 @@ namespace rive
 class ListenerInputChangeBase : public ListenerAction
 {
 protected:
-    typedef ListenerAction Super;
+  typedef ListenerAction Super;
 
 public:
-    static const uint16_t typeKey = 116;
+  static const uint16_t typeKey = 116;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t inputIdPropertyKey = 227;
-    static const uint16_t nestedInputIdPropertyKey = 400;
+  static const uint16_t inputIdPropertyKey = 227;
+  static const uint16_t nestedInputIdPropertyKey = 400;
 
 protected:
-    Id m_InputId = kEmptyId;
-    Id m_NestedInputId = kEmptyId;
+  Id m_InputId = kEmptyId;
+  Id m_NestedInputId = kEmptyId;
 
 public:
-    inline Id inputId() const { return m_InputId; }
-    void inputId(Id value)
+  inline Id inputId() const { return m_InputId; }
+  void inputId(Id value)
+  {
+    if (m_InputId == value)
     {
-        if (m_InputId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
-        m_InputId = value;
-        notifyPropertyChanged(inputIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
+    m_InputId = value;
+    notifyPropertyChanged(inputIdPropertyKey);
+  }
 
-    inline Id nestedInputId() const { return m_NestedInputId; }
-    void nestedInputId(Id value)
+  inline Id nestedInputId() const { return m_NestedInputId; }
+  void nestedInputId(Id value)
+  {
+    if (m_NestedInputId == value)
     {
-        if (m_NestedInputId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(nestedInputIdPropertyKey,
-                             &m_NestedInputId,
-                             &value);
-        m_NestedInputId = value;
-        notifyPropertyChanged(nestedInputIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(nestedInputIdPropertyKey, &m_NestedInputId, &value);
+    m_NestedInputId = value;
+    notifyPropertyChanged(nestedInputIdPropertyKey);
+  }
 
-    void copy(const ListenerInputChangeBase& object)
-    {
-        m_InputId = object.m_InputId;
-        m_NestedInputId = object.m_NestedInputId;
-        ListenerAction::copy(object);
-    }
+  void copy(const ListenerInputChangeBase& object)
+  {
+    m_InputId = object.m_InputId;
+    m_NestedInputId = object.m_NestedInputId;
+    ListenerAction::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case inputIdPropertyKey:
-                m_InputId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case nestedInputIdPropertyKey:
-                m_NestedInputId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return ListenerAction::deserialize(propertyKey, reader);
+      case inputIdPropertyKey:
+        m_InputId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case nestedInputIdPropertyKey:
+        m_NestedInputId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return ListenerAction::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

@@ -4,19 +4,21 @@
 
 using namespace rive;
 
-DataValue* DataConverterOperationValue::convert(DataValue* input,
-                                                DataBind* dataBind)
+DataValue* DataConverterOperationValue::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    return convertValue(input, operationValue());
+  return convertValue(input, operationValue());
 }
 
-DataValue* DataConverterOperationValue::reverseConvert(DataValue* input,
-                                                       DataBind* dataBind)
+DataValue* DataConverterOperationValue::reverseConvert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    return reverseConvertValue(input, operationValue());
+  return reverseConvertValue(input, operationValue());
 }
 
 void DataConverterOperationValue::operationValueChanged()
 {
-    markConverterDirty();
+  markConverterDirty();
 }

@@ -7,54 +7,52 @@ namespace rive
 class BindablePropertyBooleanBase : public BindableProperty
 {
 protected:
-    typedef BindableProperty Super;
+  typedef BindableProperty Super;
 
 public:
-    static const uint16_t typeKey = 472;
+  static const uint16_t typeKey = 472;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyValuePropertyKey = 634;
+  static const uint16_t propertyValuePropertyKey = 634;
 
 protected:
-    bool m_PropertyValue = false;
+  bool m_PropertyValue = false;
 
 public:
-    inline bool propertyValue() const { return m_PropertyValue; }
-    void propertyValue(bool value)
+  inline bool propertyValue() const { return m_PropertyValue; }
+  void propertyValue(bool value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const BindablePropertyBooleanBase& object)
-    {
-        m_PropertyValue = object.m_PropertyValue;
-        BindableProperty::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const BindablePropertyBooleanBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    BindableProperty::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return BindableProperty::deserialize(propertyKey, reader);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return BindableProperty::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/bindable_property_boolean_ext.inl"
 #endif

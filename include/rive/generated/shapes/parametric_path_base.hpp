@@ -7,111 +7,111 @@ namespace rive
 class ParametricPathBase : public Path
 {
 protected:
-    typedef Path Super;
+  typedef Path Super;
 
 public:
-    static const uint16_t typeKey = 15;
+  static const uint16_t typeKey = 15;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t widthPropertyKey = 20;
-    static const uint16_t heightPropertyKey = 21;
-    static const uint16_t originXPropertyKey = 123;
-    static const uint16_t originYPropertyKey = 124;
+  static const uint16_t widthPropertyKey = 20;
+  static const uint16_t heightPropertyKey = 21;
+  static const uint16_t originXPropertyKey = 123;
+  static const uint16_t originYPropertyKey = 124;
 
 protected:
-    float m_Width = 0.0f;
-    float m_Height = 0.0f;
-    float m_OriginX = 0.5f;
-    float m_OriginY = 0.5f;
+  float m_Width = 0.0f;
+  float m_Height = 0.0f;
+  float m_OriginX = 0.5f;
+  float m_OriginY = 0.5f;
 
 public:
-    inline float width() const { return m_Width; }
-    void width(float value)
+  inline float width() const { return m_Width; }
+  void width(float value)
+  {
+    if (m_Width == value)
     {
-        if (m_Width == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(widthPropertyKey, &m_Width, &value);
-        m_Width = value;
-        RIVE_EDITOR_CHANGED(widthChanged());
-        notifyPropertyChanged(widthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(widthPropertyKey, &m_Width, &value);
+    m_Width = value;
+    RIVE_EDITOR_CHANGED(widthChanged());
+    notifyPropertyChanged(widthPropertyKey);
+  }
 
-    inline float height() const { return m_Height; }
-    void height(float value)
+  inline float height() const { return m_Height; }
+  void height(float value)
+  {
+    if (m_Height == value)
     {
-        if (m_Height == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(heightPropertyKey, &m_Height, &value);
-        m_Height = value;
-        RIVE_EDITOR_CHANGED(heightChanged());
-        notifyPropertyChanged(heightPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(heightPropertyKey, &m_Height, &value);
+    m_Height = value;
+    RIVE_EDITOR_CHANGED(heightChanged());
+    notifyPropertyChanged(heightPropertyKey);
+  }
 
-    inline float originX() const { return m_OriginX; }
-    void originX(float value)
+  inline float originX() const { return m_OriginX; }
+  void originX(float value)
+  {
+    if (m_OriginX == value)
     {
-        if (m_OriginX == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
-        m_OriginX = value;
-        RIVE_EDITOR_CHANGED(originXChanged());
-        notifyPropertyChanged(originXPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
+    m_OriginX = value;
+    RIVE_EDITOR_CHANGED(originXChanged());
+    notifyPropertyChanged(originXPropertyKey);
+  }
 
-    inline float originY() const { return m_OriginY; }
-    void originY(float value)
+  inline float originY() const { return m_OriginY; }
+  void originY(float value)
+  {
+    if (m_OriginY == value)
     {
-        if (m_OriginY == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
-        m_OriginY = value;
-        RIVE_EDITOR_CHANGED(originYChanged());
-        notifyPropertyChanged(originYPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
+    m_OriginY = value;
+    RIVE_EDITOR_CHANGED(originYChanged());
+    notifyPropertyChanged(originYPropertyKey);
+  }
 
-    void copy(const ParametricPathBase& object)
-    {
-        m_Width = object.m_Width;
-        m_Height = object.m_Height;
-        m_OriginX = object.m_OriginX;
-        m_OriginY = object.m_OriginY;
-        Path::copy(object);
-    }
+  void copy(const ParametricPathBase& object)
+  {
+    m_Width = object.m_Width;
+    m_Height = object.m_Height;
+    m_OriginX = object.m_OriginX;
+    m_OriginY = object.m_OriginY;
+    Path::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case widthPropertyKey:
-                m_Width = CoreDoubleType::deserialize(reader);
-                return true;
-            case heightPropertyKey:
-                m_Height = CoreDoubleType::deserialize(reader);
-                return true;
-            case originXPropertyKey:
-                m_OriginX = CoreDoubleType::deserialize(reader);
-                return true;
-            case originYPropertyKey:
-                m_OriginY = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return Path::deserialize(propertyKey, reader);
+      case widthPropertyKey:
+        m_Width = CoreDoubleType::deserialize(reader);
+        return true;
+      case heightPropertyKey:
+        m_Height = CoreDoubleType::deserialize(reader);
+        return true;
+      case originXPropertyKey:
+        m_OriginX = CoreDoubleType::deserialize(reader);
+        return true;
+      case originYPropertyKey:
+        m_OriginY = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return Path::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void widthChanged() {}
-    virtual void heightChanged() {}
-    virtual void originXChanged() {}
-    virtual void originYChanged() {}
+  virtual void widthChanged() {}
+  virtual void heightChanged() {}
+  virtual void originXChanged() {}
+  virtual void originYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/parametric_path_ext.inl"
 #endif

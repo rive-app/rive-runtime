@@ -9,12 +9,12 @@ namespace rive
 class DataConverterStringRemoveZeros : public DataConverterStringRemoveZerosBase
 {
 public:
-    static std::string removeZeros(std::string string);
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::string; };
+  static std::string removeZeros(std::string string);
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::string; };
 
 private:
-    DataValueString m_output;
+  DataValueString m_output;
 };
 } // namespace rive
 

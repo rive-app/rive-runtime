@@ -6,25 +6,25 @@ using namespace rive;
 
 StatusCode Axis::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    if (NSlicerDetails::from(parent()) == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  if (NSlicerDetails::from(parent()) == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void Axis::offsetChanged()
 {
-    auto details = NSlicerDetails::from(parent());
-    if (details != nullptr)
-    {
-        details->axisChanged();
-    }
+  auto details = NSlicerDetails::from(parent());
+  if (details != nullptr)
+  {
+    details->axisChanged();
+  }
 }

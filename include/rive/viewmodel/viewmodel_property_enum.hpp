@@ -10,17 +10,17 @@ class ViewModelPropertyEnum : public ViewModelPropertyEnumBase
 {
 
 public:
-    std::string value(std::string name);
-    std::string value(uint32_t index);
-    bool value(std::string name, std::string value);
-    bool value(uint32_t index, std::string value);
-    int valueIndex(std::string name);
-    int valueIndex(uint32_t index);
-    void dataEnum(DataEnum* value);
-    virtual DataEnum* dataEnum();
+  std::string value(std::string name);
+  std::string value(uint32_t index);
+  bool value(std::string name, std::string value);
+  bool value(uint32_t index, std::string value);
+  int valueIndex(std::string name);
+  int valueIndex(uint32_t index);
+  void dataEnum(DataEnum* value);
+  virtual DataEnum* dataEnum();
 
 private:
-    rcp<DataEnum> m_DataEnum;
+  rcp<DataEnum> m_DataEnum;
 };
 
 } // namespace rive

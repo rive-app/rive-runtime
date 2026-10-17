@@ -9,7 +9,7 @@
 #define LUA_API extern "C" __declspec(dllexport)
 #else
 #define LUA_API                                                                \
-    extern "C" __attribute__((visibility("default"))) __attribute__((used))
+  extern "C" __attribute__((visibility("default"))) __attribute__((used))
 #endif
 #endif
 #endif

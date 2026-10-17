@@ -10,10 +10,10 @@ using namespace rive;
 void GridTrack::markLayoutDirty()
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (parent() != nullptr && parent()->is<LayoutComponent>())
-    {
-        parent()->as<LayoutComponent>()->markLayoutNodeDirty();
-    }
+  if (parent() != nullptr && parent()->is<LayoutComponent>())
+  {
+    parent()->as<LayoutComponent>()->markLayoutNodeDirty();
+  }
 #endif
 }
 
@@ -28,40 +28,41 @@ namespace
 {
 YGStyleSizeLength gridSizeLength(GridTrackSizeType type, float value)
 {
-    switch (type)
-    {
-        case GridTrackSizeType::points:
-            return YGStyleSizeLength::points(value);
-        case GridTrackSizeType::percent:
-            return YGStyleSizeLength::percent(value);
-        case GridTrackSizeType::fr:
-            return YGStyleSizeLength::stretch(value);
-        default:
-            return YGStyleSizeLength::ofAuto();
-    }
+  switch (type)
+  {
+    case GridTrackSizeType::points:
+      return YGStyleSizeLength::points(value);
+    case GridTrackSizeType::percent:
+      return YGStyleSizeLength::percent(value);
+    case GridTrackSizeType::fr:
+      return YGStyleSizeLength::stretch(value);
+    default:
+      return YGStyleSizeLength::ofAuto();
+  }
 }
 
 YGGridTrackSize gridTrackSize(const GridTrack* track)
 {
-    auto type = (GridTrackSizeType)track->trackType();
-    if (track->trackMaxType() != 0)
-    {
-        return YGGridTrackSize::minmax(
-            gridSizeLength(type, track->trackValue()),
-            gridSizeLength((GridTrackSizeType)(track->trackMaxType() - 1),
-                           track->trackMaxValue()));
-    }
-    switch (type)
-    {
-        case GridTrackSizeType::points:
-            return YGGridTrackSize::length(track->trackValue());
-        case GridTrackSizeType::percent:
-            return YGGridTrackSize::percent(track->trackValue());
-        case GridTrackSizeType::fr:
-            return YGGridTrackSize::fr(track->trackValue());
-        default:
-            return YGGridTrackSize::auto_();
-    }
+  auto type = (GridTrackSizeType)track->trackType();
+  if (track->trackMaxType() != 0)
+  {
+    return YGGridTrackSize::minmax(
+        gridSizeLength(type, track->trackValue()),
+        gridSizeLength(
+            (GridTrackSizeType)(track->trackMaxType() - 1),
+            track->trackMaxValue()));
+  }
+  switch (type)
+  {
+    case GridTrackSizeType::points:
+      return YGGridTrackSize::length(track->trackValue());
+    case GridTrackSizeType::percent:
+      return YGGridTrackSize::percent(track->trackValue());
+    case GridTrackSizeType::fr:
+      return YGGridTrackSize::fr(track->trackValue());
+    default:
+      return YGGridTrackSize::auto_();
+  }
 }
 
 } // namespace
@@ -78,58 +79,61 @@ YGGridTrackSize gridTrackSize(const GridTrack* track)
 // leftwards, the same as CSS.
 static YGGridLine gridLine(int cell)
 {
-    if (cell == 0)
-    {
-        return YGGridLine::auto_();
-    }
-    return YGGridLine::fromInteger(cell < 0 ? cell - 1 : cell);
+  if (cell == 0)
+  {
+    return YGGridLine::auto_();
+  }
+  return YGGridLine::fromInteger(cell < 0 ? cell - 1 : cell);
 }
 
 static YGGridLine gridSpan(uint32_t span)
 {
-    return span > 1 ? YGGridLine::span((int)span) : YGGridLine::auto_();
+  return span > 1 ? YGGridLine::span((int)span) : YGGridLine::auto_();
 }
 
-void GridTrack::syncContainerStyle(YGStyle& ygStyle,
-                                   ContainerComponent* owner,
-                                   uint32_t justifyItemsValue)
+void GridTrack::syncContainerStyle(
+    YGStyle& ygStyle,
+    ContainerComponent* owner,
+    uint32_t justifyItemsValue)
 {
-    facebook::yoga::GridTrackList lists[4];
-    for (auto child : owner->children())
+  facebook::yoga::GridTrackList lists[4];
+  for (auto child : owner->children())
+  {
+    if (!child->is<GridTrack>())
     {
-        if (!child->is<GridTrack>())
-        {
-            continue;
-        }
-        auto track = child->as<GridTrack>();
-        if (track->collection() > 3)
-        {
-            continue;
-        }
-        lists[track->collection()].push_back(gridTrackSize(track));
+      continue;
     }
-    ygStyle.setGridTemplateColumns(std::move(lists[0]));
-    ygStyle.setGridTemplateRows(std::move(lists[1]));
-    ygStyle.setGridAutoColumns(std::move(lists[2]));
-    ygStyle.setGridAutoRows(std::move(lists[3]));
-    ygStyle.setJustifyItems((YGJustify)justifyItemsValue);
+    auto track = child->as<GridTrack>();
+    if (track->collection() > 3)
+    {
+      continue;
+    }
+    lists[track->collection()].push_back(gridTrackSize(track));
+  }
+  ygStyle.setGridTemplateColumns(std::move(lists[0]));
+  ygStyle.setGridTemplateRows(std::move(lists[1]));
+  ygStyle.setGridAutoColumns(std::move(lists[2]));
+  ygStyle.setGridAutoRows(std::move(lists[3]));
+  ygStyle.setJustifyItems((YGJustify)justifyItemsValue);
 }
 
 // The cell is the stack: no content floor, so overflow follows alignment.
-void GridTrack::syncStackContainerStyle(YGStyle& ygStyle,
-                                        uint32_t justifyItemsValue)
+void GridTrack::syncStackContainerStyle(
+    YGStyle& ygStyle,
+    uint32_t justifyItemsValue)
 {
-    const auto cell = YGGridTrackSize::minmax(YGStyleSizeLength::points(0),
-                                              YGStyleSizeLength::stretch(1));
-    facebook::yoga::GridTrackList single;
-    single.push_back(cell);
-    facebook::yoga::GridTrackList singleRow;
-    singleRow.push_back(cell);
-    ygStyle.setGridTemplateColumns(std::move(single));
-    ygStyle.setGridTemplateRows(std::move(singleRow));
-    ygStyle.setGridAutoColumns(facebook::yoga::GridTrackList{});
-    ygStyle.setGridAutoRows(facebook::yoga::GridTrackList{});
-    ygStyle.setJustifyItems((YGJustify)justifyItemsValue);
+  const auto cell = YGGridTrackSize::minmax(
+      YGStyleSizeLength::points(0),
+      YGStyleSizeLength::stretch(1));
+  facebook::yoga::GridTrackList single;
+  single.push_back(cell);
+  facebook::yoga::GridTrackList singleRow;
+  singleRow.push_back(cell);
+  ygStyle.setGridTemplateColumns(std::move(single));
+  ygStyle.setGridTemplateRows(std::move(singleRow));
+  ygStyle.setGridAutoColumns(facebook::yoga::GridTrackList{});
+  ygStyle.setGridAutoRows(facebook::yoga::GridTrackList{});
+  ygStyle.setJustifyItems((YGJustify)justifyItemsValue);
 }
 
 // The inline-axis (width) self-alignment for a grid item, downgrading a
@@ -137,20 +141,20 @@ void GridTrack::syncStackContainerStyle(YGStyle& ygStyle,
 // content and cannot stretch. justify-self defaults to auto (inherit the
 // container's justify-items, which itself defaults to stretch), so without this
 // a hug item would fill its cell's inline axis.
-static YGJustify resolveItemJustifySelf(uint32_t justifySelfValue,
-                                        bool inlineHugs,
-                                        uint32_t containerJustifyItems)
+static YGJustify resolveItemJustifySelf(
+    uint32_t justifySelfValue,
+    bool inlineHugs,
+    uint32_t containerJustifyItems)
 {
-    if (!inlineHugs)
-    {
-        return (YGJustify)justifySelfValue;
-    }
-    uint32_t effective = justifySelfValue == (uint32_t)YGJustifyAuto
-                             ? containerJustifyItems
-                             : justifySelfValue;
-    return effective == (uint32_t)YGJustifyStretch
-               ? YGJustifyFlexStart
-               : (YGJustify)justifySelfValue;
+  if (!inlineHugs)
+  {
+    return (YGJustify)justifySelfValue;
+  }
+  uint32_t effective = justifySelfValue == (uint32_t)YGJustifyAuto
+                           ? containerJustifyItems
+                           : justifySelfValue;
+  return effective == (uint32_t)YGJustifyStretch ? YGJustifyFlexStart
+                                                 : (YGJustify)justifySelfValue;
 }
 
 // A stack collapses every child into its single cell. There is no placement
@@ -160,48 +164,51 @@ static YGJustify resolveItemJustifySelf(uint32_t justifySelfValue,
 // parent's layoutType at runtime (neither property animates or binds), so a
 // style that was never written stays at yoga's auto-placement default. The
 // editor, where both *can* happen, resets in its own sync.
-void GridTrack::syncItemLines(YGStyle& ygStyle,
-                              int32_t column,
-                              int32_t row,
-                              uint32_t columnSpan,
-                              uint32_t rowSpan)
+void GridTrack::syncItemLines(
+    YGStyle& ygStyle,
+    int32_t column,
+    int32_t row,
+    uint32_t columnSpan,
+    uint32_t rowSpan)
 {
-    ygStyle.setGridColumnStart(gridLine(column));
-    ygStyle.setGridColumnEnd(gridSpan(columnSpan));
-    ygStyle.setGridRowStart(gridLine(row));
-    ygStyle.setGridRowEnd(gridSpan(rowSpan));
+  ygStyle.setGridColumnStart(gridLine(column));
+  ygStyle.setGridColumnEnd(gridSpan(columnSpan));
+  ygStyle.setGridRowStart(gridLine(row));
+  ygStyle.setGridRowEnd(gridSpan(rowSpan));
 }
 
 void GridTrack::syncStackItemCell(YGStyle& ygStyle)
 {
-    ygStyle.setGridColumnStart(YGGridLine::fromInteger(1));
-    ygStyle.setGridColumnEnd(YGGridLine::auto_());
-    ygStyle.setGridRowStart(YGGridLine::fromInteger(1));
-    ygStyle.setGridRowEnd(YGGridLine::auto_());
+  ygStyle.setGridColumnStart(YGGridLine::fromInteger(1));
+  ygStyle.setGridColumnEnd(YGGridLine::auto_());
+  ygStyle.setGridRowStart(YGGridLine::fromInteger(1));
+  ygStyle.setGridRowEnd(YGGridLine::auto_());
 }
 
 // Inline-axis self alignment. Stays with the style rather than moving to the
 // placement child: it resolves against the container's justify-items and the
 // item's hug state, which syncStyle already has and a child would have to walk
 // for.
-void GridTrack::syncItemJustifySelf(YGStyle& ygStyle,
-                                    uint32_t justifySelfValue,
-                                    bool stack,
-                                    bool inlineHugs,
-                                    uint32_t containerJustifyItems)
+void GridTrack::syncItemJustifySelf(
+    YGStyle& ygStyle,
+    uint32_t justifySelfValue,
+    bool stack,
+    bool inlineHugs,
+    uint32_t containerJustifyItems)
 {
-    if (stack)
-    {
-        // A stack's container justify comes from its alignment (start/center/
-        // end, never stretch), so the hug->flexStart downgrade that guards grid
-        // stretch doesn't apply. Keep the item's own justify-self (auto
-        // inherits the container's alignment) so horizontal alignment takes
-        // effect.
-        ygStyle.setJustifySelf((YGJustify)justifySelfValue);
-        return;
-    }
-    ygStyle.setJustifySelf(resolveItemJustifySelf(justifySelfValue,
-                                                  inlineHugs,
-                                                  containerJustifyItems));
+  if (stack)
+  {
+    // A stack's container justify comes from its alignment (start/center/
+    // end, never stretch), so the hug->flexStart downgrade that guards grid
+    // stretch doesn't apply. Keep the item's own justify-self (auto
+    // inherits the container's alignment) so horizontal alignment takes
+    // effect.
+    ygStyle.setJustifySelf((YGJustify)justifySelfValue);
+    return;
+  }
+  ygStyle.setJustifySelf(resolveItemJustifySelf(
+      justifySelfValue,
+      inlineHugs,
+      containerJustifyItems));
 }
 #endif

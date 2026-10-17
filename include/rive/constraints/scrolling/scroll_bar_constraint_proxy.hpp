@@ -10,43 +10,40 @@ class Drawable;
 class ThumbDraggableProxy : public DraggableProxy
 {
 private:
-    ScrollBarConstraint* m_constraint;
-    Vec2D m_lastPosition;
+  ScrollBarConstraint* m_constraint;
+  Vec2D m_lastPosition;
 
 public:
-    ThumbDraggableProxy(ScrollBarConstraint* constraint, Drawable* hittable) :
-        m_constraint(constraint)
-    {
-        m_hittable = hittable;
-    }
-    ~ThumbDraggableProxy() {}
-    bool isOpaque() override { return true; }
-    bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
-    bool drag(Vec2D mousePosition, float timeStamp = 0) override;
-    bool endDrag(Vec2D mousePosition, float timeStamp = 0) override;
+  ThumbDraggableProxy(ScrollBarConstraint* constraint, Drawable* hittable)
+      : m_constraint(constraint)
+  {
+    m_hittable = hittable;
+  }
+  ~ThumbDraggableProxy() {}
+  bool isOpaque() override { return true; }
+  bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
+  bool drag(Vec2D mousePosition, float timeStamp = 0) override;
+  bool endDrag(Vec2D mousePosition, float timeStamp = 0) override;
 };
 
 class TrackDraggableProxy : public DraggableProxy
 {
 private:
-    ScrollBarConstraint* m_constraint;
+  ScrollBarConstraint* m_constraint;
 
 public:
-    TrackDraggableProxy(ScrollBarConstraint* constraint, Drawable* hittable) :
-        m_constraint(constraint)
-    {
-        m_hittable = hittable;
-    }
-    ~TrackDraggableProxy() {}
-    bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
-    bool drag(Vec2D mousePosition, float timeStamp = 0) override
-    {
-        return true;
-    }
-    bool endDrag(Vec2D mousePosition, float timeStamp = 0) override
-    {
-        return true;
-    }
+  TrackDraggableProxy(ScrollBarConstraint* constraint, Drawable* hittable)
+      : m_constraint(constraint)
+  {
+    m_hittable = hittable;
+  }
+  ~TrackDraggableProxy() {}
+  bool startDrag(Vec2D mousePosition, float timeStamp = 0) override;
+  bool drag(Vec2D mousePosition, float timeStamp = 0) override { return true; }
+  bool endDrag(Vec2D mousePosition, float timeStamp = 0) override
+  {
+    return true;
+  }
 };
 } // namespace rive
 

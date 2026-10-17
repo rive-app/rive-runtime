@@ -13,41 +13,41 @@ ArtboardImporter::ArtboardImporter(Artboard* artboard) : m_Artboard(artboard) {}
 
 size_t ArtboardImporter::addComponent(Core* object)
 {
-    m_Artboard->addObject(object);
-    return m_Artboard->m_Objects.size() - 1;
+  m_Artboard->addObject(object);
+  return m_Artboard->m_Objects.size() - 1;
 }
 
 void ArtboardImporter::releaseSlot(size_t index)
 {
-    m_Artboard->m_Objects[index] = nullptr;
+  m_Artboard->m_Objects[index] = nullptr;
 }
 
 void ArtboardImporter::addAnimation(LinearAnimation* animation)
 {
-    m_Artboard->addAnimation(animation);
+  m_Artboard->addAnimation(animation);
 }
 
 void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
 {
-    m_Artboard->addStateMachine(stateMachine);
+  m_Artboard->addStateMachine(stateMachine);
 }
 
 void ArtboardImporter::addDataBind(DataBind* dataBind)
 {
-    m_Artboard->addDataBind(dataBind);
+  m_Artboard->addDataBind(dataBind);
 }
 
 StatusCode ArtboardImporter::resolve()
 {
-    if (!m_Artboard->validateObjects())
-    {
-        return StatusCode::InvalidObject;
-    }
-    return m_Artboard->initialize();
+  if (!m_Artboard->validateObjects())
+  {
+    return StatusCode::InvalidObject;
+  }
+  return m_Artboard->initialize();
 }
 
 bool ArtboardImporter::readNullObject()
 {
-    addComponent(nullptr);
-    return true;
+  addComponent(nullptr);
+  return true;
 }

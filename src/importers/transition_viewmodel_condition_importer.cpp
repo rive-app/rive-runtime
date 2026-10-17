@@ -6,18 +6,18 @@
 using namespace rive;
 
 TransitionViewModelConditionImporter::TransitionViewModelConditionImporter(
-    TransitionViewModelCondition* transitionViewModelCondition) :
-    m_TransitionViewModelCondition(transitionViewModelCondition)
+    TransitionViewModelCondition* transitionViewModelCondition)
+    : m_TransitionViewModelCondition(transitionViewModelCondition)
 {}
 
 void TransitionViewModelConditionImporter::setComparator(
     TransitionComparator* comparator)
 {
-    m_TransitionViewModelCondition->comparator(comparator);
+  m_TransitionViewModelCondition->comparator(comparator);
 }
 
 StatusCode TransitionViewModelConditionImporter::resolve()
 {
-    m_TransitionViewModelCondition->initialize();
-    return StatusCode::Ok;
+  m_TransitionViewModelCondition->initialize();
+  return StatusCode::Ok;
 }

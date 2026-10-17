@@ -20,61 +20,63 @@ void FollowPathConstraint::orientChanged() { markConstraintDirty(); }
 
 const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
 {
-    auto* tgt = target();
-    if (tgt->is<Shape>() || tgt->is<Path>())
-    {
-        auto result = m_pathMeasure.atPercentage(distanceOffset);
-        Vec2D position = result.pos;
-        Mat2D transformB = Mat2D(tgt->worldTransform());
+  auto* tgt = target();
+  if (tgt->is<Shape>() || tgt->is<Path>())
+  {
+    auto result = m_pathMeasure.atPercentage(distanceOffset);
+    Vec2D position = result.pos;
+    Mat2D transformB = Mat2D(tgt->worldTransform());
 
-        if (orient())
-        {
-            auto componentsB = transformB.decompose();
-            auto tangentRotation = std::atan2(result.tan.y, result.tan.x);
-            float angleB = std::fmod(componentsB.rotation(), math::PI * 2);
-            float diff = tangentRotation - angleB;
-            if (diff > math::PI)
-            {
-                diff -= math::PI * 2;
-            }
-            else if (diff < -math::PI)
-            {
-                diff += math::PI * 2;
-            }
-            transformB = Mat2D::fromRotation(angleB + diff * strength());
-        }
-        Vec2D offsetPosition = Vec2D();
-        if (offset())
-        {
-            if (parent()->is<TransformComponent>())
-            {
-                offsetPosition =
-                    parent()->as<TransformComponent>()->composedTranslation();
-            }
-        }
-        transformB[4] = position.x + offsetPosition.x;
-        transformB[5] = position.y + offsetPosition.y;
-        return transformB;
-    }
-    else
+    if (orient())
     {
-        return tgt->worldTransform();
+      auto componentsB = transformB.decompose();
+      auto tangentRotation = std::atan2(result.tan.y, result.tan.x);
+      float angleB = std::fmod(componentsB.rotation(), math::PI * 2);
+      float diff = tangentRotation - angleB;
+      if (diff > math::PI)
+      {
+        diff -= math::PI * 2;
+      }
+      else if (diff < -math::PI)
+      {
+        diff += math::PI * 2;
+      }
+      transformB = Mat2D::fromRotation(angleB + diff * strength());
     }
+    Vec2D offsetPosition = Vec2D();
+    if (offset())
+    {
+      if (parent()->is<TransformComponent>())
+      {
+        offsetPosition = parent()
+                             ->as<TransformComponent>()
+                             ->composedTranslation();
+      }
+    }
+    transformB[4] = position.x + offsetPosition.x;
+    transformB[5] = position.y + offsetPosition.y;
+    return transformB;
+  }
+  else
+  {
+    return tgt->worldTransform();
+  }
 }
 
 void FollowPathConstraint::constrain(TransformComponent* component)
 {
-    auto* tgt = target();
-    if (tgt == nullptr || tgt->isCollapsed())
-    {
-        return;
-    }
-    Mat2D transformB(targetTransform(distance()));
-    const Mat2D& targetParentWorld = getParentWorld(*component);
-    auto transformComponents = constrainHelper(component->worldTransform(),
-                                               transformB,
-                                               targetParentWorld);
-    composeLandingAnchor(component, transformComponents, strength());
+  auto* tgt = target();
+  if (tgt == nullptr || tgt->isCollapsed())
+  {
+    return;
+  }
+  Mat2D transformB(targetTransform(distance()));
+  const Mat2D& targetParentWorld = getParentWorld(*component);
+  auto transformComponents = constrainHelper(
+      component->worldTransform(),
+      transformB,
+      targetParentWorld);
+  composeLandingAnchor(component, transformComponents, strength());
 }
 
 TransformComponents FollowPathConstraint::constrainHelper(
@@ -82,121 +84,121 @@ TransformComponents FollowPathConstraint::constrainHelper(
     Mat2D& transformB,
     const Mat2D& componentParentWorld)
 {
-    const Mat2D& transformA = componentTransform;
-    if (sourceSpace() == TransformSpace::local)
+  const Mat2D& transformA = componentTransform;
+  if (sourceSpace() == TransformSpace::local)
+  {
+    const Mat2D& targetParentWorld = getParentWorld(*target());
+
+    Mat2D inverse;
+    if (!targetParentWorld.invert(&inverse))
     {
-        const Mat2D& targetParentWorld = getParentWorld(*target());
-
-        Mat2D inverse;
-        if (!targetParentWorld.invert(&inverse))
-        {
-            TransformComponents result;
-            return result;
-        }
-        transformB = inverse * transformB;
+      TransformComponents result;
+      return result;
     }
-    if (destSpace() == TransformSpace::local)
-    {
-        transformB = componentParentWorld * transformB;
-    }
+    transformB = inverse * transformB;
+  }
+  if (destSpace() == TransformSpace::local)
+  {
+    transformB = componentParentWorld * transformB;
+  }
 
-    auto componentsA = transformA.decompose();
-    auto componentsB = transformB.decompose();
+  auto componentsA = transformA.decompose();
+  auto componentsB = transformB.decompose();
 
-    float t = strength();
-    float ti = 1.0f - t;
+  float t = strength();
+  float ti = 1.0f - t;
 
-    if (!orient())
-    {
-        float angleA = std::fmod(componentsA.rotation(), math::PI * 2);
-        componentsB.rotation(angleA);
-    }
-    componentsB.x(componentsA.x() * ti + componentsB.x() * t);
-    componentsB.y(componentsA.y() * ti + componentsB.y() * t);
-    componentsB.scaleX(componentsA.scaleX());
-    componentsB.scaleY(componentsA.scaleY());
-    componentsB.skew(componentsA.skew());
-    return componentsB;
+  if (!orient())
+  {
+    float angleA = std::fmod(componentsA.rotation(), math::PI * 2);
+    componentsB.rotation(angleA);
+  }
+  componentsB.x(componentsA.x() * ti + componentsB.x() * t);
+  componentsB.y(componentsA.y() * ti + componentsB.y() * t);
+  componentsB.scaleX(componentsA.scaleX());
+  componentsB.scaleY(componentsA.scaleY());
+  componentsB.skew(componentsA.skew());
+  return componentsB;
 }
 
 void FollowPathConstraint::update(ComponentDirt value)
 {
-    // Render opacity alone, a fade reaching us through the target, doesn't
-    // move the path we follow.
-    if (value == ComponentDirt::RenderOpacity)
+  // Render opacity alone, a fade reaching us through the target, doesn't
+  // move the path we follow.
+  if (value == ComponentDirt::RenderOpacity)
+  {
+    return;
+  }
+  auto* tgt = target();
+  std::vector<Path*> paths;
+  if (tgt->is<Shape>())
+  {
+    auto shape = tgt->as<Shape>();
+    for (auto path : shape->paths())
     {
-        return;
+      paths.push_back(path);
     }
-    auto* tgt = target();
-    std::vector<Path*> paths;
-    if (tgt->is<Shape>())
+  }
+  else if (tgt->is<Path>())
+  {
+    paths.push_back(tgt->as<Path>());
+  }
+  if (paths.size() > 0)
+  {
+    m_rawPath.rewind();
+    for (auto path : paths)
     {
-        auto shape = tgt->as<Shape>();
-        for (auto path : shape->paths())
-        {
-            paths.push_back(path);
-        }
+      m_rawPath.addPath(path->rawPath(), &path->pathTransform());
     }
-    else if (tgt->is<Path>())
-    {
-        paths.push_back(tgt->as<Path>());
-    }
-    if (paths.size() > 0)
-    {
-        m_rawPath.rewind();
-        for (auto path : paths)
-        {
-            m_rawPath.addPath(path->rawPath(), &path->pathTransform());
-        }
 
-        m_pathMeasure = PathMeasure(&m_rawPath);
-    }
+    m_pathMeasure = PathMeasure(&m_rawPath);
+  }
 }
 
 StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 {
-    if (auto* tgt = target())
+  if (auto* tgt = target())
+  {
+    if (tgt->is<Shape>())
     {
-        if (tgt->is<Shape>())
-        {
-            Shape* shape = static_cast<Shape*>(tgt);
-            shape->addFlags(PathFlags::followPath);
-        }
-        else if (tgt->is<Path>())
-        {
-            Path* path = static_cast<Path*>(tgt);
-            path->addFlags(PathFlags::followPath);
-        }
+      Shape* shape = static_cast<Shape*>(tgt);
+      shape->addFlags(PathFlags::followPath);
     }
-    return Super::onAddedClean(context);
+    else if (tgt->is<Path>())
+    {
+      Path* path = static_cast<Path*>(tgt);
+      path->addFlags(PathFlags::followPath);
+    }
+  }
+  return Super::onAddedClean(context);
 }
 
 void FollowPathConstraint::buildDependencies()
 {
-    // Read through `target()` so the editor build's dual-storage
-    // (raw `m_Target` + `m_TargetHandle`) resolves through the
-    // generational handle when it's set; runtime build inlines to
-    // the raw pointer.
-    auto* tgt = target();
-    if (tgt != nullptr && tgt->is<Shape>())
+  // Read through `target()` so the editor build's dual-storage
+  // (raw `m_Target` + `m_TargetHandle`) resolves through the
+  // generational handle when it's set; runtime build inlines to
+  // the raw pointer.
+  auto* tgt = target();
+  if (tgt != nullptr && tgt->is<Shape>())
+  {
+    // Follow path should update after the target's path composer.
+    Shape* shape = static_cast<Shape*>(tgt);
+    shape->pathComposer()->addDependent(this);
+  }
+  else if (tgt != nullptr && tgt->is<Path>())
+  {
+    Path* path = static_cast<Path*>(tgt);
+    Shape* shape = path->shape();
+    if (shape != nullptr)
     {
-        // Follow path should update after the target's path composer.
-        Shape* shape = static_cast<Shape*>(tgt);
-        shape->pathComposer()->addDependent(this);
+      shape->pathComposer()->addDependent(this);
     }
-    else if (tgt != nullptr && tgt->is<Path>())
+    else
     {
-        Path* path = static_cast<Path*>(tgt);
-        Shape* shape = path->shape();
-        if (shape != nullptr)
-        {
-            shape->pathComposer()->addDependent(this);
-        }
-        else
-        {
-            path->addDependent(this);
-        }
+      path->addDependent(this);
     }
-    // The constrained component should update after follow path.
-    addDependent(parent());
+  }
+  // The constrained component should update after follow path.
+  addDependent(parent());
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelPropertyTriggerBase::clone() const
 {
-    auto cloned = new ViewModelPropertyTrigger();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelPropertyTrigger();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -29,86 +29,86 @@ namespace
 {
 struct RouterScene
 {
-    rcp<File> file;
-    std::unique_ptr<ArtboardInstance> artboard;
-    std::unique_ptr<StateMachineInstance> machine;
-    rcp<ViewModelInstance> viewModel;
+  rcp<File> file;
+  std::unique_ptr<ArtboardInstance> artboard;
+  std::unique_ptr<StateMachineInstance> machine;
+  rcp<ViewModelInstance> viewModel;
 
-    explicit RouterScene(const char* artboardName)
-    {
-        file = ReadRiveFile("assets/state_action_vm_sync.riv");
-        artboard = file->artboardNamed(artboardName);
-        REQUIRE(artboard != nullptr);
-        machine = artboard->stateMachineAt(0);
-        REQUIRE(machine != nullptr);
-        viewModel = file->createViewModelInstance(artboard->viewModelId(), 0);
-        REQUIRE(viewModel != nullptr);
-        machine->bindViewModelInstance(viewModel);
-        machine->advanceAndApply(0.0f);
-    }
+  explicit RouterScene(const char* artboardName)
+  {
+    file = ReadRiveFile("assets/state_action_vm_sync.riv");
+    artboard = file->artboardNamed(artboardName);
+    REQUIRE(artboard != nullptr);
+    machine = artboard->stateMachineAt(0);
+    REQUIRE(machine != nullptr);
+    viewModel = file->createViewModelInstance(artboard->viewModelId(), 0);
+    REQUIRE(viewModel != nullptr);
+    machine->bindViewModelInstance(viewModel);
+    machine->advanceAndApply(0.0f);
+  }
 
-    std::string state()
+  std::string state()
+  {
+    auto layerState = machine->layerState(0);
+    if (layerState == nullptr || !layerState->is<AnimationState>())
     {
-        auto layerState = machine->layerState(0);
-        if (layerState == nullptr || !layerState->is<AnimationState>())
-        {
-            return "";
-        }
-        auto animation = layerState->as<AnimationState>()->animation();
-        return animation == nullptr ? "" : animation->name();
+      return "";
     }
+    auto animation = layerState->as<AnimationState>()->animation();
+    return animation == nullptr ? "" : animation->name();
+  }
 
-    bool ready()
-    {
-        return viewModel->propertyValue("ready")
-            ->as<ViewModelInstanceBoolean>()
-            ->propertyValue();
-    }
+  bool ready()
+  {
+    return viewModel->propertyValue("ready")
+        ->as<ViewModelInstanceBoolean>()
+        ->propertyValue();
+  }
 
-    void fireGo()
-    {
-        viewModel->propertyValue("go")
-            ->as<ViewModelInstanceTrigger>()
-            ->trigger();
-    }
+  void fireGo()
+  {
+    viewModel->propertyValue("go")->as<ViewModelInstanceTrigger>()->trigger();
+  }
 };
 } // namespace
 
-TEST_CASE("a state's enter action write is visible to the next transition "
-          "check in the same advance",
-          "[state_machine][data_bind]")
+TEST_CASE(
+    "a state's enter action write is visible to the next transition "
+    "check in the same advance",
+    "[state_machine][data_bind]")
 {
-    RouterScene scene("StateEnter");
-    CHECK(scene.state() == "idle");
-    CHECK_FALSE(scene.ready());
+  RouterScene scene("StateEnter");
+  CHECK(scene.state() == "idle");
+  CHECK_FALSE(scene.ready());
 
-    // any -> ready takes the trigger; ready's enter action sets `ready`, which
-    // must block any -> idle and allow ready -> done before the frame ends.
-    scene.fireGo();
-    scene.machine->advanceAndApply(0.016f);
-    CHECK(scene.ready());
-    CHECK(scene.state() == "done");
+  // any -> ready takes the trigger; ready's enter action sets `ready`, which
+  // must block any -> idle and allow ready -> done before the frame ends.
+  scene.fireGo();
+  scene.machine->advanceAndApply(0.016f);
+  CHECK(scene.ready());
+  CHECK(scene.state() == "done");
 }
 
-TEST_CASE("a timed transition's end action write is visible to the next "
-          "transition check in the same advance",
-          "[state_machine][data_bind]")
+TEST_CASE(
+    "a timed transition's end action write is visible to the next "
+    "transition check in the same advance",
+    "[state_machine][data_bind]")
 {
-    RouterScene scene("TransitionEnd");
-    CHECK(scene.state() == "idle");
+  RouterScene scene("TransitionEnd");
+  CHECK(scene.state() == "idle");
 
-    // idle -> mid takes the trigger and mixes for 100ms.
-    scene.fireGo();
+  // idle -> mid takes the trigger and mixes for 100ms.
+  scene.fireGo();
+  scene.machine->advanceAndApply(0.016f);
+  CHECK(scene.state() == "mid");
+  CHECK_FALSE(scene.ready());
+
+  // The mix completes in updateMix, whose end action sets `ready` just
+  // before the layer's first transition check of that advance.
+  for (int i = 0; i < 10; i++)
+  {
     scene.machine->advanceAndApply(0.016f);
-    CHECK(scene.state() == "mid");
-    CHECK_FALSE(scene.ready());
-
-    // The mix completes in updateMix, whose end action sets `ready` just
-    // before the layer's first transition check of that advance.
-    for (int i = 0; i < 10; i++)
-    {
-        scene.machine->advanceAndApply(0.016f);
-    }
-    CHECK(scene.ready());
-    CHECK(scene.state() == "done");
+  }
+  CHECK(scene.ready());
+  CHECK(scene.state() == "done");
 }

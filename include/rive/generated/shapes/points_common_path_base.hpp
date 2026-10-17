@@ -10,53 +10,53 @@ namespace rive
 class PointsCommonPathBase : public Path
 {
 protected:
-    typedef Path Super;
+  typedef Path Super;
 
 public:
-    static const uint16_t typeKey = 620;
+  static const uint16_t typeKey = 620;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t isClosedPropertyKey = 32;
+  static const uint16_t isClosedPropertyKey = 32;
 
 protected:
-    bool m_IsClosed = false;
+  bool m_IsClosed = false;
 
 public:
-    inline bool isClosed() const { return m_IsClosed; }
-    void isClosed(bool value)
+  inline bool isClosed() const { return m_IsClosed; }
+  void isClosed(bool value)
+  {
+    if (m_IsClosed == value)
     {
-        if (m_IsClosed == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isClosedPropertyKey, &m_IsClosed, &value);
-        m_IsClosed = value;
-        RIVE_EDITOR_CHANGED(isClosedChanged());
-        notifyPropertyChanged(isClosedPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(isClosedPropertyKey, &m_IsClosed, &value);
+    m_IsClosed = value;
+    RIVE_EDITOR_CHANGED(isClosedChanged());
+    notifyPropertyChanged(isClosedPropertyKey);
+  }
 
-    void copy(const PointsCommonPathBase& object)
-    {
-        m_IsClosed = object.m_IsClosed;
-        RIVE_EDITOR_COPY(object);
-        Path::copy(object);
-    }
+  void copy(const PointsCommonPathBase& object)
+  {
+    m_IsClosed = object.m_IsClosed;
+    RIVE_EDITOR_COPY(object);
+    Path::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case isClosedPropertyKey:
-                m_IsClosed = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return Path::deserialize(propertyKey, reader);
+      case isClosedPropertyKey:
+        m_IsClosed = CoreBoolType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return Path::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void isClosedChanged() {}
+  virtual void isClosedChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/points_common_path_ext.inl"
 #endif

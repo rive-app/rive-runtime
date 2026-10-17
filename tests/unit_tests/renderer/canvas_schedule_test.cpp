@@ -21,367 +21,372 @@ namespace
 // A hand-built 2D stream plus its canvas segments.
 struct StreamBuilder
 {
-    std::vector<uint8_t> bytes;
-    std::vector<DeferredSegment> segments;
+  std::vector<uint8_t> bytes;
+  std::vector<DeferredSegment> segments;
 
-    template <typename POD> void append(RenderCmd c, const POD& pod)
-    {
-        bytes.push_back(static_cast<uint8_t>(c));
-        const uint8_t* p = reinterpret_cast<const uint8_t*>(&pod);
-        bytes.insert(bytes.end(), p, p + sizeof(POD));
-    }
+  template <typename POD> void append(RenderCmd c, const POD& pod)
+  {
+    bytes.push_back(static_cast<uint8_t>(c));
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(&pod);
+    bytes.insert(bytes.end(), p, p + sizeof(POD));
+  }
 
-    // Records a canvas bracket holding the given flagged image samples.
-    void canvasRange(uint64_t canvasId,
-                     std::initializer_list<uint64_t> sampledCanvasIds)
+  // Records a canvas bracket holding the given flagged image samples.
+  void canvasRange(
+      uint64_t canvasId,
+      std::initializer_list<uint64_t> sampledCanvasIds)
+  {
+    uint32_t begin = static_cast<uint32_t>(bytes.size());
+    // Noise the walker must skip.
+    DrawPathPOD path = {};
+    append(RenderCmd::drawPath, path);
+    for (uint64_t sampled : sampledCanvasIds)
     {
-        uint32_t begin = static_cast<uint32_t>(bytes.size());
-        // Noise the walker must skip.
-        DrawPathPOD path = {};
-        append(RenderCmd::drawPath, path);
-        for (uint64_t sampled : sampledCanvasIds)
-        {
-            DrawImagePOD draw = {};
-            draw.image = kCanvasHandleFlag | static_cast<RenderHandle>(sampled);
-            append(RenderCmd::drawImage, draw);
-        }
-        segments.push_back({Target::canvas,
-                            canvasId,
-                            begin,
-                            static_cast<uint32_t>(bytes.size())});
+      DrawImagePOD draw = {};
+      draw.image = kCanvasHandleFlag | static_cast<RenderHandle>(sampled);
+      append(RenderCmd::drawImage, draw);
     }
+    segments.push_back(
+        {Target::canvas, canvasId, begin, static_cast<uint32_t>(bytes.size())});
+  }
 
-    // Records a canvas bracket filling a path whose paint samples a canvas,
-    // the way the recorder names it after the draw.
-    void canvasRangeDrawingPaintSampling(uint64_t canvasId, uint64_t sampled)
-    {
-        uint32_t begin = static_cast<uint32_t>(bytes.size());
-        DrawPathPOD draw = {};
-        append(RenderCmd::drawPath, draw);
-        append(
-            RenderCmd::canvasSample,
-            ResIdPOD{kCanvasHandleFlag | static_cast<RenderHandle>(sampled)});
-        segments.push_back({Target::canvas,
-                            canvasId,
-                            begin,
-                            static_cast<uint32_t>(bytes.size())});
-    }
+  // Records a canvas bracket filling a path whose paint samples a canvas,
+  // the way the recorder names it after the draw.
+  void canvasRangeDrawingPaintSampling(uint64_t canvasId, uint64_t sampled)
+  {
+    uint32_t begin = static_cast<uint32_t>(bytes.size());
+    DrawPathPOD draw = {};
+    append(RenderCmd::drawPath, draw);
+    append(
+        RenderCmd::canvasSample,
+        ResIdPOD{kCanvasHandleFlag | static_cast<RenderHandle>(sampled)});
+    segments.push_back(
+        {Target::canvas, canvasId, begin, static_cast<uint32_t>(bytes.size())});
+  }
 
-    // A foreign image draw that is not a written canvas (host image).
-    void canvasRangeSamplingForeign(uint64_t canvasId, uint32_t foreignIndex)
-    {
-        uint32_t begin = static_cast<uint32_t>(bytes.size());
-        DrawImagePOD draw = {};
-        draw.image = kCanvasHandleFlag | foreignIndex;
-        append(RenderCmd::drawImage, draw);
-        segments.push_back({Target::canvas,
-                            canvasId,
-                            begin,
-                            static_cast<uint32_t>(bytes.size())});
-    }
+  // A foreign image draw that is not a written canvas (host image).
+  void canvasRangeSamplingForeign(uint64_t canvasId, uint32_t foreignIndex)
+  {
+    uint32_t begin = static_cast<uint32_t>(bytes.size());
+    DrawImagePOD draw = {};
+    draw.image = kCanvasHandleFlag | foreignIndex;
+    append(RenderCmd::drawImage, draw);
+    segments.push_back(
+        {Target::canvas, canvasId, begin, static_cast<uint32_t>(bytes.size())});
+  }
 
-    CanvasSchedule schedule() const
-    {
-        return scheduleCanvases(Span<const uint8_t>(bytes.data(), bytes.size()),
-                                segments);
-    }
+  CanvasSchedule schedule() const
+  {
+    return scheduleCanvases(
+        Span<const uint8_t>(bytes.data(), bytes.size()),
+        segments);
+  }
 };
 } // namespace
 
 TEST_CASE("in-order sampler keeps record order", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(1, {});  // A writes
-    b.canvasRange(2, {1}); // B samples A, recorded after
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK_FALSE(s.hadCycle);
-    CHECK_FALSE(s.multiWriteFallback);
+  StreamBuilder b;
+  b.canvasRange(1, {});  // A writes
+  b.canvasRange(2, {1}); // B samples A, recorded after
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK_FALSE(s.hadCycle);
+  CHECK_FALSE(s.multiWriteFallback);
 }
 
 TEST_CASE("reader recorded before its writer reorders", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(2, {1}); // B samples A but records first
-    b.canvasRange(1, {});  // A writes
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK_FALSE(s.hadCycle);
+  StreamBuilder b;
+  b.canvasRange(2, {1}); // B samples A but records first
+  b.canvasRange(1, {});  // A writes
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK_FALSE(s.hadCycle);
 }
 
-TEST_CASE("reversed three-canvas chain schedules writer first",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "reversed three-canvas chain schedules writer first",
+    "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(3, {2}); // C samples B
-    b.canvasRange(2, {1}); // B samples A
-    b.canvasRange(1, {});  // A writes last in record order
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2, 3});
+  StreamBuilder b;
+  b.canvasRange(3, {2}); // C samples B
+  b.canvasRange(2, {1}); // B samples A
+  b.canvasRange(1, {});  // A writes last in record order
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2, 3});
 }
 
 TEST_CASE("cycle demotes to record order and flags", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(1, {2}); // A samples B
-    b.canvasRange(2, {1}); // B samples A
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK(s.hadCycle);
+  StreamBuilder b;
+  b.canvasRange(1, {2}); // A samples B
+  b.canvasRange(2, {1}); // B samples A
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK(s.hadCycle);
 }
 
 TEST_CASE("self sample is a demoted edge, not a reorder", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(1, {1});
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1});
-    CHECK(s.hadCycle);
+  StreamBuilder b;
+  b.canvasRange(1, {1});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1});
+  CHECK(s.hadCycle);
 }
 
 TEST_CASE("sampling an unwritten id adds no edge", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRangeSamplingForeign(1, 7); // host image or unwritten canvas
-    b.canvasRange(2, {});
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK_FALSE(s.hadCycle);
+  StreamBuilder b;
+  b.canvasRangeSamplingForeign(1, 7); // host image or unwritten canvas
+  b.canvasRange(2, {});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK_FALSE(s.hadCycle);
 }
 
-TEST_CASE("read between two writes of one canvas falls back",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "read between two writes of one canvas falls back",
+    "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(1, {});  // A@v1
-    b.canvasRange(2, {1}); // B samples A mid-frame
-    b.canvasRange(1, {});  // A writes again
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK(s.multiWriteFallback);
+  StreamBuilder b;
+  b.canvasRange(1, {});  // A@v1
+  b.canvasRange(2, {1}); // B samples A mid-frame
+  b.canvasRange(1, {});  // A writes again
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK(s.multiWriteFallback);
 }
 
 TEST_CASE("drawImageMesh creates edges like drawImage", "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    uint32_t begin = static_cast<uint32_t>(b.bytes.size());
-    DrawImageMeshPOD mesh = {};
-    mesh.image = kCanvasHandleFlag | 1u;
-    b.append(RenderCmd::drawImageMesh, mesh);
-    b.segments.push_back(
-        {Target::canvas, 2, begin, static_cast<uint32_t>(b.bytes.size())});
-    b.canvasRange(1, {});
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  StreamBuilder b;
+  uint32_t begin = static_cast<uint32_t>(b.bytes.size());
+  DrawImageMeshPOD mesh = {};
+  mesh.image = kCanvasHandleFlag | 1u;
+  b.append(RenderCmd::drawImageMesh, mesh);
+  b.segments.push_back(
+      {Target::canvas, 2, begin, static_cast<uint32_t>(b.bytes.size())});
+  b.canvasRange(1, {});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
 }
 
 TEST_CASE("canvasSample creates edges like drawImage", "[cmd][canvas-dag]")
 {
-    // Image-in-paint: the canvas reaches the draw through its paint, named by
-    // the canvasSample after it.
-    StreamBuilder b;
-    b.canvasRangeDrawingPaintSampling(2, 1); // B samples A but records first
-    b.canvasRange(1, {});
-    auto s = b.schedule();
-    REQUIRE(s.order == std::vector<uint64_t>{1, 2});
-    CHECK_FALSE(s.hadCycle);
+  // Image-in-paint: the canvas reaches the draw through its paint, named by
+  // the canvasSample after it.
+  StreamBuilder b;
+  b.canvasRangeDrawingPaintSampling(2, 1); // B samples A but records first
+  b.canvasRange(1, {});
+  auto s = b.schedule();
+  REQUIRE(s.order == std::vector<uint64_t>{1, 2});
+  CHECK_FALSE(s.hadCycle);
 }
 
-TEST_CASE("independent canvases keep record order among themselves",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "independent canvases keep record order among themselves",
+    "[cmd][canvas-dag]")
 {
-    StreamBuilder b;
-    b.canvasRange(3, {});
-    b.canvasRange(1, {5}); // samples a later writer
-    b.canvasRange(4, {});
-    b.canvasRange(5, {});
-    auto s = b.schedule();
-    // 5 must precede 1; 3 and 4 stay put relative to everyone they can.
-    REQUIRE(s.order == std::vector<uint64_t>{3, 4, 5, 1});
+  StreamBuilder b;
+  b.canvasRange(3, {});
+  b.canvasRange(1, {5}); // samples a later writer
+  b.canvasRange(4, {});
+  b.canvasRange(5, {});
+  auto s = b.schedule();
+  // 5 must precede 1; 3 and 4 stay put relative to everyone they can.
+  REQUIRE(s.order == std::vector<uint64_t>{3, 4, 5, 1});
 }
 
 namespace
 {
 struct FakeTarget : gpu::RenderTarget
 {
-    FakeTarget() : RenderTarget(8, 8) {}
+  FakeTarget() : RenderTarget(8, 8) {}
 };
 
 // Logs canvas frame open order; canvas draws drop against the null renderer.
 class OrderSink : public deferred_test::TestSink
 {
 public:
-    std::vector<gpu::RenderCanvas*> opened;
-    Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t) override
-    {
-        opened.push_back(canvas);
-        return nullptr;
-    }
+  std::vector<gpu::RenderCanvas*> opened;
+  Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t) override
+  {
+    opened.push_back(canvas);
+    return nullptr;
+  }
 };
 
 rcp<gpu::RenderCanvas> fakeCanvas()
 {
-    auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
-    canvas->setBacking(nullptr, make_rcp<FakeTarget>());
-    return canvas;
+  auto canvas = make_rcp<gpu::RenderCanvas>(8, 8);
+  canvas->setBacking(nullptr, make_rcp<FakeTarget>());
+  return canvas;
 }
 
 // The image ids the recorder named with canvasSample, in record order.
 std::vector<RenderHandle> canvasSamples(DeferredSession& session)
 {
-    std::vector<RenderHandle> ids;
-    RenderCommandReader r(session.commandBuffer().commandBytes(),
-                          session.commandBuffer().blobBytes());
-    uint8_t type;
-    while (r.next(type))
+  std::vector<RenderHandle> ids;
+  RenderCommandReader r(
+      session.commandBuffer().commandBytes(),
+      session.commandBuffer().blobBytes());
+  uint8_t type;
+  while (r.next(type))
+  {
+    auto cmd = static_cast<RenderCmd>(type);
+    if (cmd == RenderCmd::canvasSample)
     {
-        auto cmd = static_cast<RenderCmd>(type);
-        if (cmd == RenderCmd::canvasSample)
-        {
-            ids.push_back(r.read<ResIdPOD>().id);
-        }
-        else
-        {
-            r.skip(payloadSizeOf(cmd));
-        }
+      ids.push_back(r.read<ResIdPOD>().id);
     }
-    return ids;
+    else
+    {
+      r.skip(payloadSizeOf(cmd));
+    }
+  }
+  return ids;
 }
 } // namespace
 
-TEST_CASE("replay opens the sampled canvas before its reader despite record "
-          "order",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "replay opens the sampled canvas before its reader despite record "
+    "order",
+    "[cmd][canvas-dag]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvasA = fakeCanvas();
-    auto canvasB = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvasA = fakeCanvas();
+  auto canvasB = fakeCanvas();
 
-    // B samples A but records first, exactly as a script may issue it.
-    Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
-    b->drawImage(canvasA->renderImage(), {}, BlendMode::srcOver, 1.0f);
-    session.endCanvasContent(canvasB.get());
-    Renderer* a = session.beginCanvasContent(canvasA.get(), 0);
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    a->drawPath(path.get(), paint.get());
-    session.endCanvasContent(canvasA.get());
-    session.closeOpenRange();
+  // B samples A but records first, exactly as a script may issue it.
+  Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
+  b->drawImage(canvasA->renderImage(), {}, BlendMode::srcOver, 1.0f);
+  session.endCanvasContent(canvasB.get());
+  Renderer* a = session.beginCanvasContent(canvasA.get(), 0);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  a->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvasA.get());
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    OrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  OrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    REQUIRE(sink.opened.size() == 2);
-    CHECK(sink.opened[0] == canvasA.get());
-    CHECK(sink.opened[1] == canvasB.get());
+  REQUIRE(sink.opened.size() == 2);
+  CHECK(sink.opened[0] == canvasA.get());
+  CHECK(sink.opened[1] == canvasB.get());
 }
 
-TEST_CASE("replay opens a canvas before a reader whose paint samples it",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "replay opens a canvas before a reader whose paint samples it",
+    "[cmd][canvas-dag]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvasA = fakeCanvas();
-    auto canvasB = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvasA = fakeCanvas();
+  auto canvasB = fakeCanvas();
 
-    // B fills a path modulated by A's image but records first.
-    auto modulated = session.makeRenderPaint();
-    modulated->modulatedImage(canvasA->renderImage(),
-                              ImageSampler::LinearClamp(),
-                              Mat2D());
-    auto path = session.makeEmptyRenderPath();
-    Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
-    b->drawPath(path.get(), modulated.get());
-    session.endCanvasContent(canvasB.get());
-    Renderer* a = session.beginCanvasContent(canvasA.get(), 0);
-    auto paint = session.makeRenderPaint();
-    a->drawPath(path.get(), paint.get());
-    session.endCanvasContent(canvasA.get());
-    session.closeOpenRange();
+  // B fills a path modulated by A's image but records first.
+  auto modulated = session.makeRenderPaint();
+  modulated->modulatedImage(
+      canvasA->renderImage(),
+      ImageSampler::LinearClamp(),
+      Mat2D());
+  auto path = session.makeEmptyRenderPath();
+  Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
+  b->drawPath(path.get(), modulated.get());
+  session.endCanvasContent(canvasB.get());
+  Renderer* a = session.beginCanvasContent(canvasA.get(), 0);
+  auto paint = session.makeRenderPaint();
+  a->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvasA.get());
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    OrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  OrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    REQUIRE(sink.opened.size() == 2);
-    CHECK(sink.opened[0] == canvasA.get());
-    CHECK(sink.opened[1] == canvasB.get());
+  REQUIRE(sink.opened.size() == 2);
+  CHECK(sink.opened[0] == canvasA.get());
+  CHECK(sink.opened[1] == canvasB.get());
 }
 
-TEST_CASE("a canvas draw names the canvas its paint samples at the draw",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "a canvas draw names the canvas its paint samples at the draw",
+    "[cmd][canvas-dag]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvasA = fakeCanvas();
-    auto canvasB = fakeCanvas();
-    auto canvasC = fakeCanvas();
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    auto modulate = [&](gpu::RenderCanvas* canvas) {
-        paint->modulatedImage(canvas != nullptr ? canvas->renderImage()
-                                                : nullptr,
-                              ImageSampler::LinearClamp(),
-                              Mat2D());
-    };
-    RenderHandle idA = session.canvases().imageDrawId(canvasA->renderImage());
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvasA = fakeCanvas();
+  auto canvasB = fakeCanvas();
+  auto canvasC = fakeCanvas();
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  auto modulate = [&](gpu::RenderCanvas* canvas) {
+    paint->modulatedImage(
+        canvas != nullptr ? canvas->renderImage() : nullptr,
+        ImageSampler::LinearClamp(),
+        Mat2D());
+  };
+  RenderHandle idA = session.canvases().imageDrawId(canvasA->renderImage());
 
-    Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
-    modulate(canvasA.get());
-    b->drawPath(path.get(), paint.get()); // samples A
-    modulate(canvasC.get());              // repointed after the draw
-    modulate(nullptr);
-    b->drawPath(path.get(), paint.get()); // cleared, samples nothing
-    session.endCanvasContent(canvasB.get());
+  Renderer* b = session.beginCanvasContent(canvasB.get(), 0);
+  modulate(canvasA.get());
+  b->drawPath(path.get(), paint.get()); // samples A
+  modulate(canvasC.get());              // repointed after the draw
+  modulate(nullptr);
+  b->drawPath(path.get(), paint.get()); // cleared, samples nothing
+  session.endCanvasContent(canvasB.get());
 
-    // Canvases replay before the screen, so a screen draw needs no edge.
-    modulate(canvasA.get());
-    session.screenRenderer()->drawPath(path.get(), paint.get());
-    session.closeOpenRange();
+  // Canvases replay before the screen, so a screen draw needs no edge.
+  modulate(canvasA.get());
+  session.screenRenderer()->drawPath(path.get(), paint.get());
+  session.closeOpenRange();
 
-    CHECK(canvasSamples(session) == std::vector<RenderHandle>{idA});
+  CHECK(canvasSamples(session) == std::vector<RenderHandle>{idA});
 }
 
 TEST_CASE("a canvas only frame still opens a screen frame", "[cmd][canvas-dag]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    auto canvas = fakeCanvas();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  auto canvas = fakeCanvas();
 
-    Renderer* c = session.beginCanvasContent(canvas.get(), 0);
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    c->drawPath(path.get(), paint.get());
-    session.endCanvasContent(canvas.get());
-    session.closeOpenRange();
+  Renderer* c = session.beginCanvasContent(canvas.get(), 0);
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  c->drawPath(path.get(), paint.get());
+  session.endCanvasContent(canvas.get());
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    OrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  auto frame = snapshotFrame(session);
+  OrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    REQUIRE(sink.opened.size() == 1);
-    // The screen frame is where the host's clear and present live, so a frame
-    // that only fills canvases still owes its target one.
-    CHECK(sink.openedTargets() == 1);
+  REQUIRE(sink.opened.size() == 1);
+  // The screen frame is where the host's clear and present live, so a frame
+  // that only fills canvases still owes its target one.
+  CHECK(sink.openedTargets() == 1);
 }
 
-TEST_CASE("a frame that only creates resources opens no screen frame",
-          "[cmd][canvas-dag]")
+TEST_CASE(
+    "a frame that only creates resources opens no screen frame",
+    "[cmd][canvas-dag]")
 {
-    DeferredSession session(rive::ore::ReplayCaps{});
-    // Creates land outside every renderer. Attributing them would open a
-    // target that drew nothing, which is why they stay unattributed.
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
-    session.closeOpenRange();
+  DeferredSession session(rive::ore::ReplayCaps{});
+  // Creates land outside every renderer. Attributing them would open a
+  // target that drew nothing, which is why they stay unattributed.
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
+  session.closeOpenRange();
 
-    auto frame = snapshotFrame(session);
-    REQUIRE_FALSE(frame.commands.empty());
+  auto frame = snapshotFrame(session);
+  REQUIRE_FALSE(frame.commands.empty());
 
-    OrderSink sink;
-    DeferredReplayer replayer;
-    replayer.replayFrame(frame, sink);
+  OrderSink sink;
+  DeferredReplayer replayer;
+  replayer.replayFrame(frame, sink);
 
-    CHECK(sink.openedTargets() == 0);
+  CHECK(sink.openedTargets() == 0);
 }

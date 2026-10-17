@@ -10,50 +10,50 @@ namespace rive
 class ViewModelPropertyEnumSystemBase : public ViewModelPropertyEnum
 {
 protected:
-    typedef ViewModelPropertyEnum Super;
+  typedef ViewModelPropertyEnum Super;
 
 public:
-    static const uint16_t typeKey = 511;
+  static const uint16_t typeKey = 511;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t enumTypePropertyKey = 708;
+  static const uint16_t enumTypePropertyKey = 708;
 
 protected:
-    uint32_t m_EnumType = 0;
+  uint32_t m_EnumType = 0;
 
 public:
-    inline uint32_t enumType() const { return m_EnumType; }
-    void enumType(uint32_t value)
+  inline uint32_t enumType() const { return m_EnumType; }
+  void enumType(uint32_t value)
+  {
+    if (m_EnumType == value)
     {
-        if (m_EnumType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(enumTypePropertyKey, &m_EnumType, &value);
-        m_EnumType = value;
-        notifyPropertyChanged(enumTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(enumTypePropertyKey, &m_EnumType, &value);
+    m_EnumType = value;
+    notifyPropertyChanged(enumTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ViewModelPropertyEnumSystemBase& object)
-    {
-        m_EnumType = object.m_EnumType;
-        RIVE_EDITOR_COPY(object);
-        ViewModelPropertyEnum::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ViewModelPropertyEnumSystemBase& object)
+  {
+    m_EnumType = object.m_EnumType;
+    RIVE_EDITOR_COPY(object);
+    ViewModelPropertyEnum::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case enumTypePropertyKey:
-                m_EnumType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ViewModelPropertyEnum::deserialize(propertyKey, reader);
+      case enumTypePropertyKey:
+        m_EnumType = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ViewModelPropertyEnum::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

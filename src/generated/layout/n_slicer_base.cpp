@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NSlicerBase::clone() const
 {
-    auto cloned = new NSlicer();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NSlicer();
+  cloned->copy(*this);
+  return cloned;
 }

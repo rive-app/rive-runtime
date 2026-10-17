@@ -8,72 +8,72 @@ namespace rive
 class TextStyleAxisBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 144;
+  static const uint16_t typeKey = 144;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t tagPropertyKey = 289;
-    static const uint16_t axisValuePropertyKey = 288;
+  static const uint16_t tagPropertyKey = 289;
+  static const uint16_t axisValuePropertyKey = 288;
 
 protected:
-    uint32_t m_Tag = 0;
-    float m_AxisValue = 0.0f;
+  uint32_t m_Tag = 0;
+  float m_AxisValue = 0.0f;
 
 public:
-    inline uint32_t tag() const { return m_Tag; }
-    void tag(uint32_t value)
+  inline uint32_t tag() const { return m_Tag; }
+  void tag(uint32_t value)
+  {
+    if (m_Tag == value)
     {
-        if (m_Tag == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(tagPropertyKey, &m_Tag, &value);
-        m_Tag = value;
-        RIVE_EDITOR_CHANGED(tagChanged());
-        notifyPropertyChanged(tagPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(tagPropertyKey, &m_Tag, &value);
+    m_Tag = value;
+    RIVE_EDITOR_CHANGED(tagChanged());
+    notifyPropertyChanged(tagPropertyKey);
+  }
 
-    inline float axisValue() const { return m_AxisValue; }
-    void axisValue(float value)
+  inline float axisValue() const { return m_AxisValue; }
+  void axisValue(float value)
+  {
+    if (m_AxisValue == value)
     {
-        if (m_AxisValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(axisValuePropertyKey, &m_AxisValue, &value);
-        m_AxisValue = value;
-        RIVE_EDITOR_CHANGED(axisValueChanged());
-        notifyPropertyChanged(axisValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(axisValuePropertyKey, &m_AxisValue, &value);
+    m_AxisValue = value;
+    RIVE_EDITOR_CHANGED(axisValueChanged());
+    notifyPropertyChanged(axisValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextStyleAxisBase& object)
-    {
-        m_Tag = object.m_Tag;
-        m_AxisValue = object.m_AxisValue;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextStyleAxisBase& object)
+  {
+    m_Tag = object.m_Tag;
+    m_AxisValue = object.m_AxisValue;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case tagPropertyKey:
-                m_Tag = CoreUintType::deserialize(reader);
-                return true;
-            case axisValuePropertyKey:
-                m_AxisValue = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case tagPropertyKey:
+        m_Tag = CoreUintType::deserialize(reader);
+        return true;
+      case axisValuePropertyKey:
+        m_AxisValue = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void tagChanged() {}
-    virtual void axisValueChanged() {}
+  virtual void tagChanged() {}
+  virtual void axisValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_style_axis_ext.inl"
 #endif

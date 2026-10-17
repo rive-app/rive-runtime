@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* AxisXBase::clone() const
 {
-    auto cloned = new AxisX();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new AxisX();
+  cloned->copy(*this);
+  return cloned;
 }

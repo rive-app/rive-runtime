@@ -12,23 +12,23 @@ using namespace rive;
 
 StatusCode StateMachineListenerSingle::import(ImportStack& importStack)
 {
-    importDataBindPath(importStack);
-    return Super::import(importStack);
+  importDataBindPath(importStack);
+  return Super::import(importStack);
 }
 
 void StateMachineListenerSingle::decodeViewModelPathIds(
     Span<const uint8_t> value)
 {
-    decodeDataBindPath(value);
+  decodeDataBindPath(value);
 }
 
 void StateMachineListenerSingle::copyViewModelPathIds(
     const StateMachineListenerSingleBase& object)
 {
-    copyDataBindPath(object.as<StateMachineListenerSingle>()->dataBindPath());
+  copyDataBindPath(object.as<StateMachineListenerSingle>()->dataBindPath());
 }
 
 std::vector<uint32_t> StateMachineListenerSingle::viewModelPathIdsBuffer() const
 {
-    return dataBindPath()->path();
+  return dataBindPath()->path();
 }

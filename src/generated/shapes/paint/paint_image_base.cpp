@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* PaintImageBase::clone() const
 {
-    auto cloned = new PaintImage();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new PaintImage();
+  cloned->copy(*this);
+  return cloned;
 }

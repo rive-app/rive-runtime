@@ -19,85 +19,88 @@ class ViewModelInstance : public ViewModelInstanceBase,
                           public RefCnt<ViewModelInstance>
 {
 private:
-    std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
-    LazyVector<DataBind*> m_valueDataBinds;
-    // Most instances have one parent, so it is kept inline.
-    ViewModelInstance* m_parent = nullptr;
-    LazyVector<ViewModelInstance*> m_moreParents;
-    LazyVector<DataBindContainer*> m_dependents;
-    std::vector<std::pair<SymbolType, ViewModelInstanceValue*>>
-        m_propertySymbols;
-    ViewModel* m_ViewModel = nullptr;
-    void rebindDependents();
-    void rebindProperties();
+  std::vector<rcp<ViewModelInstanceValue>> m_PropertyValues;
+  LazyVector<DataBind*> m_valueDataBinds;
+  // Most instances have one parent, so it is kept inline.
+  ViewModelInstance* m_parent = nullptr;
+  LazyVector<ViewModelInstance*> m_moreParents;
+  LazyVector<DataBindContainer*> m_dependents;
+  std::vector<std::pair<SymbolType, ViewModelInstanceValue*>> m_propertySymbols;
+  ViewModel* m_ViewModel = nullptr;
+  void rebindDependents();
+  void rebindProperties();
 
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
-    void detachValueForEditor(ViewModelInstanceValue* value);
-    void editorRelease() override { unref(); }
+  void editorPrepareForDestruction() override;
+  void detachValueForEditor(ViewModelInstanceValue* value);
+  void editorRelease() override { unref(); }
 #endif
-    static uint32_t pointerKey(const ViewModelInstance* instance)
+  static uint32_t pointerKey(const ViewModelInstance* instance)
+  {
+    if (instance == nullptr)
     {
-        if (instance == nullptr)
-        {
-            return -1;
-        }
-        auto ptr = reinterpret_cast<uint64_t>(instance);
-        return static_cast<uint32_t>(ptr ^ (ptr >> 32));
+      return -1;
     }
+    auto ptr = reinterpret_cast<uint64_t>(instance);
+    return static_cast<uint32_t>(ptr ^ (ptr >> 32));
+  }
 
-    ~ViewModelInstance();
-    void addValue(ViewModelInstanceValue* value);
-    // Adds a value known not to be here yet.
-    void appendValue(ViewModelInstanceValue* value);
-    // Removes the property value with the given property id, if present.
-    // Returns whether a value was removed. Used to prune editor-time override
-    // instances down to only their explicitly-overridden properties.
-    bool removeValue(uint32_t propertyId);
-    ViewModelInstanceValue* propertyValue(const uint32_t id);
-    ViewModelInstanceValue* propertyValue(const std::string& name);
-    ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
-    void propertyValue(const SymbolType symbolType,
-                       ViewModelInstanceValue* value);
-    bool replaceViewModelByName(const std::string& name,
-                                rcp<ViewModelInstance> value);
-    bool replaceViewModelByProperty(ViewModelInstanceViewModel*,
-                                    rcp<ViewModelInstance> value);
-    const std::vector<rcp<ViewModelInstanceValue>>& propertyValues();
-    void reserveValues(size_t count) { m_PropertyValues.reserve(count); }
-    ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
-                                             size_t index);
-    void viewModel(ViewModel* value);
-    ViewModel* viewModel() const;
-    void onComponentDirty(Component* component);
-    void setAsRoot(rcp<ViewModelInstance> instance);
-    void setRoot(rcp<ViewModelInstance> value);
-    Core* clone() const override;
-    StatusCode import(ImportStack& importStack) override;
-    void addParent(ViewModelInstance*);
-    void removeParent(ViewModelInstance*);
-    bool hasParents() const { return m_parent != nullptr; }
-    void addDependent(DataBindContainer*);
-    void removeDependent(DataBindContainer*);
-    // Binds targeting this instance's own values. Owned here and cloned with
-    // the instance; the container binding the instance clones them again.
-    void addValueDataBind(DataBind* dataBind);
-    const LazyVector<DataBind*>& valueDataBinds() const
-    {
-        return m_valueDataBinds;
-    }
+  ~ViewModelInstance();
+  void addValue(ViewModelInstanceValue* value);
+  // Adds a value known not to be here yet.
+  void appendValue(ViewModelInstanceValue* value);
+  // Removes the property value with the given property id, if present.
+  // Returns whether a value was removed. Used to prune editor-time override
+  // instances down to only their explicitly-overridden properties.
+  bool removeValue(uint32_t propertyId);
+  ViewModelInstanceValue* propertyValue(const uint32_t id);
+  ViewModelInstanceValue* propertyValue(const std::string& name);
+  ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
+  void propertyValue(
+      const SymbolType symbolType,
+      ViewModelInstanceValue* value);
+  bool replaceViewModelByName(
+      const std::string& name,
+      rcp<ViewModelInstance> value);
+  bool replaceViewModelByProperty(
+      ViewModelInstanceViewModel*,
+      rcp<ViewModelInstance> value);
+  const std::vector<rcp<ViewModelInstanceValue>>& propertyValues();
+  void reserveValues(size_t count) { m_PropertyValues.reserve(count); }
+  ViewModelInstanceValue* propertyFromPath(
+      std::vector<uint32_t>* path,
+      size_t index);
+  void viewModel(ViewModel* value);
+  ViewModel* viewModel() const;
+  void onComponentDirty(Component* component);
+  void setAsRoot(rcp<ViewModelInstance> instance);
+  void setRoot(rcp<ViewModelInstance> value);
+  Core* clone() const override;
+  StatusCode import(ImportStack& importStack) override;
+  void addParent(ViewModelInstance*);
+  void removeParent(ViewModelInstance*);
+  bool hasParents() const { return m_parent != nullptr; }
+  void addDependent(DataBindContainer*);
+  void removeDependent(DataBindContainer*);
+  // Binds targeting this instance's own values. Owned here and cloned with
+  // the instance; the container binding the instance clones them again.
+  void addValueDataBind(DataBind* dataBind);
+  const LazyVector<DataBind*>& valueDataBinds() const
+  {
+    return m_valueDataBinds;
+  }
 #ifdef TESTING
-    std::vector<DataBindContainer*> dependents() { return m_dependents.view(); }
-    std::vector<ViewModelInstance*> parents()
+  std::vector<DataBindContainer*> dependents() { return m_dependents.view(); }
+  std::vector<ViewModelInstance*> parents()
+  {
+    std::vector<ViewModelInstance*> parents = m_moreParents.view();
+    if (m_parent != nullptr)
     {
-        std::vector<ViewModelInstance*> parents = m_moreParents.view();
-        if (m_parent != nullptr)
-        {
-            parents.insert(parents.begin(), m_parent);
-        }
-        return parents;
+      parents.insert(parents.begin(), m_parent);
     }
+    return parents;
+  }
 #endif
 };
 } // namespace rive

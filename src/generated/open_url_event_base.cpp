@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* OpenUrlEventBase::clone() const
 {
-    auto cloned = new OpenUrlEvent();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new OpenUrlEvent();
+  cloned->copy(*this);
+  return cloned;
 }

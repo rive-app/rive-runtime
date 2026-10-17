@@ -19,24 +19,24 @@ namespace rive
 template <typename T> class ObjectStream
 {
 public:
-    bool empty() const { return m_stream.empty(); }
+  bool empty() const { return m_stream.empty(); }
 
-    ObjectStream& operator<<(T obj)
-    {
-        m_stream.push_back(std::move(obj));
-        return *this;
-    }
+  ObjectStream& operator<<(T obj)
+  {
+    m_stream.push_back(std::move(obj));
+    return *this;
+  }
 
-    ObjectStream& operator>>(T& dst)
-    {
-        assert(!empty());
-        dst = std::move(m_stream.front());
-        m_stream.pop_front();
-        return *this;
-    }
+  ObjectStream& operator>>(T& dst)
+  {
+    assert(!empty());
+    dst = std::move(m_stream.front());
+    m_stream.pop_front();
+    return *this;
+  }
 
 private:
-    std::deque<T> m_stream;
+  std::deque<T> m_stream;
 };
 
 // Stream for recording objects of any trivially-copyable type, using C++-style
@@ -45,43 +45,44 @@ private:
 class PODStream
 {
 public:
-    bool empty() const { return m_byteStream.empty(); }
+  bool empty() const { return m_byteStream.empty(); }
 
-    template <typename T> PODStream& operator<<(T obj)
-    {
-        static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
-                      "PODStream only accepts plain-old-data types");
-        const uint8_t* data = reinterpret_cast<const uint8_t*>(&obj);
-        m_byteStream.insert(m_byteStream.end(), data, data + sizeof(T));
-        return *this;
-    }
+  template <typename T> PODStream& operator<<(T obj)
+  {
+    static_assert(
+        std::is_trivial<T>() && std::is_standard_layout<T>(),
+        "PODStream only accepts plain-old-data types");
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(&obj);
+    m_byteStream.insert(m_byteStream.end(), data, data + sizeof(T));
+    return *this;
+  }
 
-    template <typename T> PODStream& operator>>(T& dst)
-    {
-        static_assert(std::is_trivial<T>() && std::is_standard_layout<T>(),
-                      "PODStream only accepts plain-old-data types");
-        assert(m_byteStream.size() >= sizeof(T));
-        uint8_t* data = reinterpret_cast<uint8_t*>(&dst);
-        std::copy(m_byteStream.begin(), m_byteStream.begin() + sizeof(T), data);
-        m_byteStream.erase(m_byteStream.begin(),
-                           m_byteStream.begin() + sizeof(T));
-        return *this;
-    }
+  template <typename T> PODStream& operator>>(T& dst)
+  {
+    static_assert(
+        std::is_trivial<T>() && std::is_standard_layout<T>(),
+        "PODStream only accepts plain-old-data types");
+    assert(m_byteStream.size() >= sizeof(T));
+    uint8_t* data = reinterpret_cast<uint8_t*>(&dst);
+    std::copy(m_byteStream.begin(), m_byteStream.begin() + sizeof(T), data);
+    m_byteStream.erase(m_byteStream.begin(), m_byteStream.begin() + sizeof(T));
+    return *this;
+  }
 
-    template <typename T> PODStream& operator<<(rcp<T> obj)
-    {
-        return *this << obj.release();
-    }
+  template <typename T> PODStream& operator<<(rcp<T> obj)
+  {
+    return *this << obj.release();
+  }
 
-    template <typename T> PODStream& operator>>(rcp<T>& obj)
-    {
-        T* raw;
-        *this >> raw;
-        obj = rcp<T>(raw);
-        return *this;
-    }
+  template <typename T> PODStream& operator>>(rcp<T>& obj)
+  {
+    T* raw;
+    *this >> raw;
+    obj = rcp<T>(raw);
+    return *this;
+  }
 
 private:
-    std::deque<uint8_t> m_byteStream;
+  std::deque<uint8_t> m_byteStream;
 };
 }; // namespace rive

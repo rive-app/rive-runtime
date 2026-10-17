@@ -18,33 +18,33 @@ static VmaAllocator make_vma_allocator(
     uint32_t apiVersion,
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
 {
-    VmaVulkanFunctions vmaVulkanFunctions = {
-        .vkGetInstanceProcAddr = pfnvkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
-            pfnvkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr")),
-        .vkGetPhysicalDeviceProperties =
-            reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
-                pfnvkGetInstanceProcAddr(instance,
-                                         "vkGetPhysicalDeviceProperties")),
-    };
+  VmaVulkanFunctions vmaVulkanFunctions = {
+      .vkGetInstanceProcAddr = pfnvkGetInstanceProcAddr,
+      .vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+          pfnvkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr")),
+      .vkGetPhysicalDeviceProperties = reinterpret_cast<
+          PFN_vkGetPhysicalDeviceProperties>(
+          pfnvkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties")),
+  };
 
-    VmaAllocatorCreateInfo vmaCreateInfo = {
-        // We are single-threaded.
-        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .pVulkanFunctions = &vmaVulkanFunctions,
-        .instance = instance,
-        .vulkanApiVersion = apiVersion,
-    };
+  VmaAllocatorCreateInfo vmaCreateInfo = {
+      // We are single-threaded.
+      .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+      .physicalDevice = physicalDevice,
+      .device = device,
+      .pVulkanFunctions = &vmaVulkanFunctions,
+      .instance = instance,
+      .vulkanApiVersion = apiVersion,
+  };
 
-    VmaAllocator vmaAllocator;
-    if (!VK_SUCCEEDED(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator),
-                      "the VMA allocator"))
-    {
-        return VK_NULL_HANDLE;
-    }
-    return vmaAllocator;
+  VmaAllocator vmaAllocator;
+  if (!VK_SUCCEEDED(
+          vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator),
+          "the VMA allocator"))
+  {
+    return VK_NULL_HANDLE;
+  }
+  return vmaAllocator;
 }
 
 rcp<VulkanContext> VulkanContext::make(
@@ -55,97 +55,106 @@ rcp<VulkanContext> VulkanContext::make(
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
     bool enableDebugNames)
 {
-    // Building the allocator first means a failure never constructs a context
-    // at all.
-    VmaAllocator vmaAllocator = make_vma_allocator(instance,
-                                                   physicalDevice,
-                                                   device,
-                                                   features.apiVersion,
-                                                   pfnvkGetInstanceProcAddr);
-    if (vmaAllocator == VK_NULL_HANDLE)
-    {
-        return nullptr;
-    }
-    return rcp<VulkanContext>(new VulkanContext(instance,
-                                                physicalDevice,
-                                                device,
-                                                features,
-                                                pfnvkGetInstanceProcAddr,
-                                                vmaAllocator,
-                                                enableDebugNames));
+  // Building the allocator first means a failure never constructs a context
+  // at all.
+  VmaAllocator vmaAllocator = make_vma_allocator(
+      instance,
+      physicalDevice,
+      device,
+      features.apiVersion,
+      pfnvkGetInstanceProcAddr);
+  if (vmaAllocator == VK_NULL_HANDLE)
+  {
+    return nullptr;
+  }
+  return rcp<VulkanContext>(new VulkanContext(
+      instance,
+      physicalDevice,
+      device,
+      features,
+      pfnvkGetInstanceProcAddr,
+      vmaAllocator,
+      enableDebugNames));
 }
 
-VulkanContext::VulkanContext(VkInstance instance,
-                             VkPhysicalDevice physicalDevice_,
-                             VkDevice device_,
-                             const VulkanFeatures& features_,
-                             PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
-                             VmaAllocator vmaAllocator,
-                             bool enableDebugNames) :
-    instance(instance),
-    physicalDevice(physicalDevice_),
-    device(device_),
+VulkanContext::VulkanContext(
+    VkInstance instance,
+    VkPhysicalDevice physicalDevice_,
+    VkDevice device_,
+    const VulkanFeatures& features_,
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
+    VmaAllocator vmaAllocator,
+    bool enableDebugNames)
+    : instance(instance)
+    , physicalDevice(physicalDevice_)
+    , device(device_)
+    ,
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                      \
-    CMD(reinterpret_cast<PFN_vk##CMD>(                                         \
-        pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
+  CMD(reinterpret_cast<PFN_vk##CMD>(                                           \
+      pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
     RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
 #undef LOAD_VULKAN_INSTANCE_COMMAND
         SetDebugUtilsObjectNameEXT(
             enableDebugNames
                 ? reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
-                      pfnvkGetInstanceProcAddr(instance,
-                                               "vkSetDebugUtilsObjectNameEXT"))
-                : nullptr),
+                      pfnvkGetInstanceProcAddr(
+                          instance,
+                          "vkSetDebugUtilsObjectNameEXT"))
+                : nullptr)
+    ,
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                        \
-    CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
+  CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
     RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
         physicalDeviceProperties([this]() {
-            VkPhysicalDeviceProperties props;
-            GetPhysicalDeviceProperties(physicalDevice, &props);
-            return props;
-        }()),
-    features([this, mutableFeatures = features_]() mutable {
-        if (physicalDeviceProperties.vendorID == vkutil::vendors::Qualcomm ||
-            physicalDeviceProperties.vendorID == vkutil::vendors::Imagination)
-        {
-            // We have observed rendering issues on both Adreno and PowerVR when
-            // using VK_EXT_color_write_enable.
-            mutableFeatures.colorWriteEnable = false;
-        }
-        return mutableFeatures;
-    }()),
-    m_vmaAllocator(vmaAllocator != VK_NULL_HANDLE
-                       ? vmaAllocator
-                       : make_vma_allocator(instance,
-                                            physicalDevice_,
-                                            device_,
-                                            features_.apiVersion,
-                                            pfnvkGetInstanceProcAddr))
+          VkPhysicalDeviceProperties props;
+          GetPhysicalDeviceProperties(physicalDevice, &props);
+          return props;
+        }())
+    , features([this, mutableFeatures = features_]() mutable {
+      if (physicalDeviceProperties.vendorID == vkutil::vendors::Qualcomm ||
+          physicalDeviceProperties.vendorID == vkutil::vendors::Imagination)
+      {
+        // We have observed rendering issues on both Adreno and PowerVR when
+        // using VK_EXT_color_write_enable.
+        mutableFeatures.colorWriteEnable = false;
+      }
+      return mutableFeatures;
+    }())
+    , m_vmaAllocator(
+          vmaAllocator != VK_NULL_HANDLE ? vmaAllocator
+                                         : make_vma_allocator(
+                                               instance,
+                                               physicalDevice_,
+                                               device_,
+                                               features_.apiVersion,
+                                               pfnvkGetInstanceProcAddr))
 {
-    // A constructor has nowhere to report this; make() is the path that can
-    // recover. make_vma_allocator() already printed why.
-    if (m_vmaAllocator == VK_NULL_HANDLE)
-    {
-        abort();
-    }
+  // A constructor has nowhere to report this; make() is the path that can
+  // recover. make_vma_allocator() already printed why.
+  if (m_vmaAllocator == VK_NULL_HANDLE)
+  {
+    abort();
+  }
 
-    // Check that we weren't told the device was more capable than it is
-    assert(physicalDeviceProperties.apiVersion >= features.apiVersion &&
-           "Supplied API version should not be newer than the physical device");
+  // Check that we weren't told the device was more capable than it is
+  assert(
+      physicalDeviceProperties.apiVersion >= features.apiVersion &&
+      "Supplied API version should not be newer than the physical device");
 
-    // VK spec says between D24_S8 and D32_S8, one of them must be supported
-    m_supportsD24S8 = isFormatSupportedWithFeatureFlags(
-        VK_FORMAT_D24_UNORM_S8_UINT,
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  // VK spec says between D24_S8 and D32_S8, one of them must be supported
+  m_supportsD24S8 = isFormatSupportedWithFeatureFlags(
+      VK_FORMAT_D24_UNORM_S8_UINT,
+      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-    // This assert should never fire unless some hardware is breaking the VK
-    // spec by reporting that it does not support one of these formats.
-    assert((m_supportsD24S8 ||
-            isFormatSupportedWithFeatureFlags(
-                VK_FORMAT_D32_SFLOAT_S8_UINT,
-                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
-           "No suitable depth format supported!");
+  // This assert should never fire unless some hardware is breaking the VK
+  // spec by reporting that it does not support one of these formats.
+  assert(
+      (m_supportsD24S8 ||
+       isFormatSupportedWithFeatureFlags(
+           VK_FORMAT_D32_SFLOAT_S8_UINT,
+           VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
+      "No suitable depth format supported!");
 }
 
 VulkanContext::~VulkanContext() { vmaDestroyAllocator(m_vmaAllocator); }
@@ -154,23 +163,25 @@ bool VulkanContext::isFormatSupportedWithFeatureFlags(
     VkFormat format,
     VkFormatFeatureFlagBits featureFlags)
 {
-    // Can flesch this out, but currently just checks if format's optimal tiling
-    // features include the provided bits.
-    VkFormatProperties properties;
-    GetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
-    return properties.optimalTilingFeatures & featureFlags;
+  // Can flesch this out, but currently just checks if format's optimal tiling
+  // features include the provided bits.
+  VkFormatProperties properties;
+  GetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+  return properties.optimalTilingFeatures & featureFlags;
 }
 
-rcp<vkutil::Buffer> VulkanContext::makeBuffer(const VkBufferCreateInfo& info,
-                                              vkutil::Mappability mappability)
+rcp<vkutil::Buffer> VulkanContext::makeBuffer(
+    const VkBufferCreateInfo& info,
+    vkutil::Mappability mappability)
 {
-    return rcp(new vkutil::Buffer(ref_rcp(this), info, mappability));
+  return rcp(new vkutil::Buffer(ref_rcp(this), info, mappability));
 }
 
-rcp<vkutil::Image> VulkanContext::makeImage(const VkImageCreateInfo& info,
-                                            const char* name)
+rcp<vkutil::Image> VulkanContext::makeImage(
+    const VkImageCreateInfo& info,
+    const char* name)
 {
-    return rcp(new vkutil::Image(ref_rcp(this), info, name));
+  return rcp(new vkutil::Image(ref_rcp(this), info, name));
 }
 
 rcp<vkutil::Image> VulkanContext::makeExternalImage(
@@ -178,62 +189,63 @@ rcp<vkutil::Image> VulkanContext::makeExternalImage(
     const VkImageCreateInfo& info,
     const char* name)
 {
-    return rcp(new vkutil::Image(ref_rcp(this), existingImage, info, name));
+  return rcp(new vkutil::Image(ref_rcp(this), existingImage, info, name));
 }
 
 rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(
     const VkFramebufferCreateInfo& info)
 {
-    return rcp(new vkutil::Framebuffer(ref_rcp(this), info));
+  return rcp(new vkutil::Framebuffer(ref_rcp(this), info));
 }
 
 static VkImageViewType image_view_type_for_image_type(VkImageType type)
 {
-    switch (type)
-    {
-        case VK_IMAGE_TYPE_2D:
-            return VK_IMAGE_VIEW_TYPE_2D;
-        default:
-            fprintf(
-                stderr,
-                "vkutil::image_view_type_for_image_type: VkImageType %u is not "
-                "supported\n",
-                type);
-    }
-    RIVE_UNREACHABLE();
+  switch (type)
+  {
+    case VK_IMAGE_TYPE_2D:
+      return VK_IMAGE_VIEW_TYPE_2D;
+    default:
+      fprintf(
+          stderr,
+          "vkutil::image_view_type_for_image_type: VkImageType %u is not "
+          "supported\n",
+          type);
+  }
+  RIVE_UNREACHABLE();
 }
 
 static VkImageAspectFlags image_aspect_flags_for_format(VkFormat format)
 {
-    switch (format)
-    {
-        case VK_FORMAT_D24_UNORM_S8_UINT:
-        case VK_FORMAT_D32_SFLOAT_S8_UINT:
-            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-        default:
-            return VK_IMAGE_ASPECT_COLOR_BIT;
-    }
-    RIVE_UNREACHABLE();
+  switch (format)
+  {
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+    case VK_FORMAT_D32_SFLOAT_S8_UINT:
+      return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+    default:
+      return VK_IMAGE_ASPECT_COLOR_BIT;
+  }
+  RIVE_UNREACHABLE();
 }
 
-rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image,
-                                                    const char* name)
+rcp<vkutil::ImageView> VulkanContext::makeImageView(
+    rcp<vkutil::Image> image,
+    const char* name)
 {
-    const VkImageCreateInfo& texInfo = image->info();
+  const VkImageCreateInfo& texInfo = image->info();
 
-    return makeImageView(
-        image,
-        {
-            .viewType = image_view_type_for_image_type(texInfo.imageType),
-            .format = texInfo.format,
-            .subresourceRange =
-                {
-                    .aspectMask = image_aspect_flags_for_format(texInfo.format),
-                    .levelCount = texInfo.mipLevels,
-                    .layerCount = 1,
-                },
-        },
-        name);
+  return makeImageView(
+      image,
+      {
+          .viewType = image_view_type_for_image_type(texInfo.imageType),
+          .format = texInfo.format,
+          .subresourceRange =
+              {
+                  .aspectMask = image_aspect_flags_for_format(texInfo.format),
+                  .levelCount = texInfo.mipLevels,
+                  .layerCount = 1,
+              },
+      },
+      name);
 }
 
 rcp<vkutil::ImageView> VulkanContext::makeImageView(
@@ -241,33 +253,33 @@ rcp<vkutil::ImageView> VulkanContext::makeImageView(
     const VkImageViewCreateInfo& info,
     const char* name)
 {
-    assert(image);
-    return rcp(
-        new vkutil::ImageView(ref_rcp(this), std::move(image), info, name));
+  assert(image);
+  return rcp(
+      new vkutil::ImageView(ref_rcp(this), std::move(image), info, name));
 }
 
 rcp<vkutil::ImageView> VulkanContext::makeExternalImageView(
     const VkImageViewCreateInfo& info,
     const char* name)
 {
-    return rcp<vkutil::ImageView>(
-        new vkutil::ImageView(ref_rcp(this), nullptr, info, name));
+  return rcp<vkutil::ImageView>(
+      new vkutil::ImageView(ref_rcp(this), nullptr, info, name));
 }
 
 rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
     const VkImageCreateInfo& info,
     const char* name)
 {
-    return rcp<vkutil::Texture2D>(
-        new vkutil::Texture2D(ref_rcp(this), info, name));
+  return rcp<vkutil::Texture2D>(
+      new vkutil::Texture2D(ref_rcp(this), info, name));
 }
 
 rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
     rcp<vkutil::Image> existingImage,
     const char* name)
 {
-    return rcp<vkutil::Texture2D>(
-        new vkutil::Texture2D(ref_rcp(this), std::move(existingImage), name));
+  return rcp<vkutil::Texture2D>(
+      new vkutil::Texture2D(ref_rcp(this), std::move(existingImage), name));
 }
 
 void VulkanContext::updateImageDescriptorSets(
@@ -275,12 +287,12 @@ void VulkanContext::updateImageDescriptorSets(
     VkWriteDescriptorSet writeSet,
     std::initializer_list<VkDescriptorImageInfo> imageInfos)
 {
-    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeSet.dstSet = vkDescriptorSet;
-    writeSet.descriptorCount =
-        math::lossless_numeric_cast<uint32_t>(imageInfos.size());
-    writeSet.pImageInfo = imageInfos.begin();
-    UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
+  writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writeSet.dstSet = vkDescriptorSet;
+  writeSet.descriptorCount = math::lossless_numeric_cast<uint32_t>(
+      imageInfos.size());
+  writeSet.pImageInfo = imageInfos.begin();
+  UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
 
 void VulkanContext::updateBufferDescriptorSets(
@@ -288,31 +300,33 @@ void VulkanContext::updateBufferDescriptorSets(
     VkWriteDescriptorSet writeSet,
     std::initializer_list<VkDescriptorBufferInfo> bufferInfos)
 {
-    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeSet.dstSet = vkDescriptorSet;
-    writeSet.descriptorCount =
-        math::lossless_numeric_cast<uint32_t>(bufferInfos.size());
-    writeSet.pBufferInfo = bufferInfos.begin();
-    UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
+  writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  writeSet.dstSet = vkDescriptorSet;
+  writeSet.descriptorCount = math::lossless_numeric_cast<uint32_t>(
+      bufferInfos.size());
+  writeSet.pBufferInfo = bufferInfos.begin();
+  UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
 
-void VulkanContext::memoryBarrier(VkCommandBuffer commandBuffer,
-                                  VkPipelineStageFlags srcStageMask,
-                                  VkPipelineStageFlags dstStageMask,
-                                  VkDependencyFlags dependencyFlags,
-                                  VkMemoryBarrier memoryBarrier)
+void VulkanContext::memoryBarrier(
+    VkCommandBuffer commandBuffer,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    VkDependencyFlags dependencyFlags,
+    VkMemoryBarrier memoryBarrier)
 {
-    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-    CmdPipelineBarrier(commandBuffer,
-                       srcStageMask,
-                       dstStageMask,
-                       dependencyFlags,
-                       1,
-                       &memoryBarrier,
-                       0,
-                       nullptr,
-                       0,
-                       nullptr);
+  memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+  CmdPipelineBarrier(
+      commandBuffer,
+      srcStageMask,
+      dstStageMask,
+      dependencyFlags,
+      1,
+      &memoryBarrier,
+      0,
+      nullptr,
+      0,
+      nullptr);
 }
 
 void VulkanContext::imageMemoryBarriers(
@@ -323,36 +337,36 @@ void VulkanContext::imageMemoryBarriers(
     uint32_t count,
     VkImageMemoryBarrier* imageMemoryBarriers)
 {
-    for (uint32_t i = 0; i < count; ++i)
+  for (uint32_t i = 0; i < count; ++i)
+  {
+    auto& imageMemoryBarrier = imageMemoryBarriers[i];
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    if (imageMemoryBarrier.subresourceRange.aspectMask == 0)
     {
-        auto& imageMemoryBarrier = imageMemoryBarriers[i];
-        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        if (imageMemoryBarrier.subresourceRange.aspectMask == 0)
-        {
-            imageMemoryBarrier.subresourceRange.aspectMask =
-                VK_IMAGE_ASPECT_COLOR_BIT;
-        }
-        if (imageMemoryBarrier.subresourceRange.levelCount == 0)
-        {
-            imageMemoryBarrier.subresourceRange.levelCount =
-                VK_REMAINING_MIP_LEVELS;
-        }
-        if (imageMemoryBarrier.subresourceRange.layerCount == 0)
-        {
-            imageMemoryBarrier.subresourceRange.layerCount =
-                VK_REMAINING_ARRAY_LAYERS;
-        }
+      imageMemoryBarrier.subresourceRange
+          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     }
-    CmdPipelineBarrier(commandBuffer,
-                       srcStageMask,
-                       dstStageMask,
-                       dependencyFlags,
-                       0,
-                       nullptr,
-                       0,
-                       nullptr,
-                       count,
-                       imageMemoryBarriers);
+    if (imageMemoryBarrier.subresourceRange.levelCount == 0)
+    {
+      imageMemoryBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    }
+    if (imageMemoryBarrier.subresourceRange.layerCount == 0)
+    {
+      imageMemoryBarrier.subresourceRange
+          .layerCount = VK_REMAINING_ARRAY_LAYERS;
+    }
+  }
+  CmdPipelineBarrier(
+      commandBuffer,
+      srcStageMask,
+      dstStageMask,
+      dependencyFlags,
+      0,
+      nullptr,
+      0,
+      nullptr,
+      count,
+      imageMemoryBarriers);
 }
 
 const vkutil::ImageAccess& VulkanContext::simpleImageMemoryBarrier(
@@ -363,26 +377,26 @@ const vkutil::ImageAccess& VulkanContext::simpleImageMemoryBarrier(
     vkutil::ImageAccessAction imageAccessAction,
     VkDependencyFlags dependencyFlags)
 {
-    assert(image != VK_NULL_HANDLE);
-    if (srcAccess != dstAccess)
-    {
-        imageMemoryBarrier(
-            commandBuffer,
-            srcAccess.pipelineStages,
-            dstAccess.pipelineStages,
-            dependencyFlags,
-            {
-                .srcAccessMask = srcAccess.accessMask,
-                .dstAccessMask = dstAccess.accessMask,
-                .oldLayout = imageAccessAction ==
-                                     vkutil::ImageAccessAction::preserveContents
-                                 ? srcAccess.layout
-                                 : VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = dstAccess.layout,
-                .image = image,
-            });
-    }
-    return dstAccess;
+  assert(image != VK_NULL_HANDLE);
+  if (srcAccess != dstAccess)
+  {
+    imageMemoryBarrier(
+        commandBuffer,
+        srcAccess.pipelineStages,
+        dstAccess.pipelineStages,
+        dependencyFlags,
+        {
+            .srcAccessMask = srcAccess.accessMask,
+            .dstAccessMask = dstAccess.accessMask,
+            .oldLayout = imageAccessAction ==
+                                 vkutil::ImageAccessAction::preserveContents
+                             ? srcAccess.layout
+                             : VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = dstAccess.layout,
+            .image = image,
+        });
+  }
+  return dstAccess;
 }
 
 void VulkanContext::bufferMemoryBarrier(
@@ -392,102 +406,108 @@ void VulkanContext::bufferMemoryBarrier(
     VkDependencyFlags dependencyFlags,
     VkBufferMemoryBarrier bufferMemoryBarrier)
 {
-    bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    if (bufferMemoryBarrier.size == 0)
-    {
-        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
-    }
-    CmdPipelineBarrier(commandBuffer,
-                       srcStageMask,
-                       dstStageMask,
-                       dependencyFlags,
-                       0,
-                       nullptr,
-                       1,
-                       &bufferMemoryBarrier,
-                       0,
-                       nullptr);
+  bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+  if (bufferMemoryBarrier.size == 0)
+  {
+    bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+  }
+  CmdPipelineBarrier(
+      commandBuffer,
+      srcStageMask,
+      dstStageMask,
+      dependencyFlags,
+      0,
+      nullptr,
+      1,
+      &bufferMemoryBarrier,
+      0,
+      nullptr);
 }
 
-void VulkanContext::clearColorImage(VkCommandBuffer commandBuffer,
-                                    ColorInt clearColor,
-                                    VkImage image,
-                                    VkImageLayout imageLayout)
+void VulkanContext::clearColorImage(
+    VkCommandBuffer commandBuffer,
+    ColorInt clearColor,
+    VkImage image,
+    VkImageLayout imageLayout)
 {
-    const VkClearColorValue colorClearValue = {
-        vkutil::color_clear_rgba32f(clearColor)};
+  const VkClearColorValue colorClearValue = {
+      vkutil::color_clear_rgba32f(clearColor)};
 
-    const VkImageSubresourceRange colorClearRange = {
-        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .levelCount = 1,
-        .layerCount = 1,
+  const VkImageSubresourceRange colorClearRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .levelCount = 1,
+      .layerCount = 1,
+  };
+
+  CmdClearColorImage(
+      commandBuffer,
+      image,
+      imageLayout,
+      &colorClearValue,
+      1,
+      &colorClearRange);
+}
+
+void VulkanContext::blitSubRect(
+    VkCommandBuffer commandBuffer,
+    VkImage srcImage,
+    VkImageLayout srcImageLayout,
+    VkImage dstImage,
+    VkImageLayout dstImageLayout,
+    const IAABB& blitBounds)
+{
+  if (blitBounds.empty())
+  {
+    return;
+  }
+
+  VkImageBlit imageBlit = {
+      .srcSubresource =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .layerCount = 1,
+          },
+      .dstSubresource =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .layerCount = 1,
+          },
+  };
+
+  imageBlit.srcOffsets[0] = {blitBounds.left, blitBounds.top, 0};
+  imageBlit.srcOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
+
+  imageBlit.dstOffsets[0] = {blitBounds.left, blitBounds.top, 0};
+  imageBlit.dstOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
+
+  CmdBlitImage(
+      commandBuffer,
+      srcImage,
+      srcImageLayout,
+      dstImage,
+      dstImageLayout,
+      1,
+      &imageBlit,
+      VK_FILTER_NEAREST);
+}
+
+void VulkanContext::setDebugNameIfEnabled(
+    uint64_t handle,
+    VkObjectType objectType,
+    const char* name)
+{
+  // A null handle means creation failed; naming it would be invalid usage.
+  if (SetDebugUtilsObjectNameEXT != nullptr && name != nullptr && handle != 0)
+  {
+    VkDebugUtilsObjectNameInfoEXT nameInfo = {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = objectType,
+        .objectHandle = handle,
+        .pObjectName = name,
     };
 
-    CmdClearColorImage(commandBuffer,
-                       image,
-                       imageLayout,
-                       &colorClearValue,
-                       1,
-                       &colorClearRange);
-}
-
-void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
-                                VkImage srcImage,
-                                VkImageLayout srcImageLayout,
-                                VkImage dstImage,
-                                VkImageLayout dstImageLayout,
-                                const IAABB& blitBounds)
-{
-    if (blitBounds.empty())
-    {
-        return;
-    }
-
-    VkImageBlit imageBlit = {
-        .srcSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-        .dstSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-    };
-
-    imageBlit.srcOffsets[0] = {blitBounds.left, blitBounds.top, 0};
-    imageBlit.srcOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
-
-    imageBlit.dstOffsets[0] = {blitBounds.left, blitBounds.top, 0};
-    imageBlit.dstOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
-
-    CmdBlitImage(commandBuffer,
-                 srcImage,
-                 srcImageLayout,
-                 dstImage,
-                 dstImageLayout,
-                 1,
-                 &imageBlit,
-                 VK_FILTER_NEAREST);
-}
-
-void VulkanContext::setDebugNameIfEnabled(uint64_t handle,
-                                          VkObjectType objectType,
-                                          const char* name)
-{
-    // A null handle means creation failed; naming it would be invalid usage.
-    if (SetDebugUtilsObjectNameEXT != nullptr && name != nullptr && handle != 0)
-    {
-        VkDebugUtilsObjectNameInfoEXT nameInfo = {
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = objectType,
-            .objectHandle = handle,
-            .pObjectName = name,
-        };
-
-        SetDebugUtilsObjectNameEXT(device, &nameInfo);
-    }
+    SetDebugUtilsObjectNameEXT(device, &nameInfo);
+  }
 }
 
 } // namespace rive::gpu

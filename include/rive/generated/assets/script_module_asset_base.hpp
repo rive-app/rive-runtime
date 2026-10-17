@@ -7,48 +7,48 @@ namespace rive
 class ScriptModuleAssetBase : public FileAsset
 {
 protected:
-    typedef FileAsset Super;
+  typedef FileAsset Super;
 
 public:
-    static const uint16_t typeKey = 1071;
+  static const uint16_t typeKey = 1071;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t languagePropertyKey = 1087;
+  static const uint16_t languagePropertyKey = 1087;
 
 protected:
-    uint32_t m_Language = 0;
+  uint32_t m_Language = 0;
 
 public:
-    inline uint32_t language() const { return m_Language; }
-    void language(uint32_t value)
+  inline uint32_t language() const { return m_Language; }
+  void language(uint32_t value)
+  {
+    if (m_Language == value)
     {
-        if (m_Language == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(languagePropertyKey, &m_Language, &value);
-        m_Language = value;
-        notifyPropertyChanged(languagePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(languagePropertyKey, &m_Language, &value);
+    m_Language = value;
+    notifyPropertyChanged(languagePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ScriptModuleAssetBase& object)
-    {
-        m_Language = object.m_Language;
-        FileAsset::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ScriptModuleAssetBase& object)
+  {
+    m_Language = object.m_Language;
+    FileAsset::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case languagePropertyKey:
-                m_Language = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return FileAsset::deserialize(propertyKey, reader);
+      case languagePropertyKey:
+        m_Language = CoreUintType::deserialize(reader);
+        return true;
     }
+    return FileAsset::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

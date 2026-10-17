@@ -6,50 +6,48 @@ using namespace rive;
 
 TextInput* TextInputDrawable::textInput() const
 {
-    return parent()->as<TextInput>();
+  return parent()->as<TextInput>();
 }
 
 ShapePaintPath* TextInputDrawable::worldPath()
 {
-    RIVE_UNREACHABLE();
-    return nullptr;
+  RIVE_UNREACHABLE();
+  return nullptr;
 }
 
 StatusCode TextInputDrawable::onAddedClean(CoreContext* context)
 {
-    if (!parent()->is<TextInput>())
-    {
-        return StatusCode::InvalidObject;
-    }
+  if (!parent()->is<TextInput>())
+  {
+    return StatusCode::InvalidObject;
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 const Mat2D& TextInputDrawable::shapeWorldTransform() const
 {
-    return worldTransform();
+  return worldTransform();
 }
 
 void TextInputDrawable::draw(Renderer* renderer)
 {
-    for (auto shapePaint : m_ShapePaints)
+  for (auto shapePaint : m_ShapePaints)
+  {
+    if (!shapePaint->isVisible())
     {
-        if (!shapePaint->isVisible())
-        {
-            continue;
-        }
-        auto shapePaintPath = shapePaint->pickPath(this);
-        if (shapePaintPath == nullptr)
-        {
-            continue;
-        }
-        shapePaint->draw(renderer,
-                         shapePaintPath,
-                         textInput()->worldTransform());
+      continue;
     }
+    auto shapePaintPath = shapePaint->pickPath(this);
+    if (shapePaintPath == nullptr)
+    {
+      continue;
+    }
+    shapePaint->draw(renderer, shapePaintPath, textInput()->worldTransform());
+  }
 }
 
 bool TextInputDrawable::willDraw()
 {
-    return Super::willDraw() && renderOpacity() != 0.0f;
+  return Super::willDraw() && renderOpacity() != 0.0f;
 }

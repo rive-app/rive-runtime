@@ -40,195 +40,202 @@ class NestedArtboard : public NestedArtboardBase,
                        public Focusable
 {
 protected:
-    // The bindable m_Instance was cloned from, when a view model artboard
-    // property supplied one. The clone shares the definitions of the file
-    // the bindable pins, which may be a different file with no other owner,
-    // so the bindable is released only after m_Instance is gone. Declared
-    // before m_Instance so it is also destroyed after it.
-    rcp<BindableArtboard> m_mountedBindable;
-    std::unique_ptr<ArtboardInstance> m_Instance; // may be null
-    std::unique_ptr<NestedStateMachine>
-        m_boundNestedStateMachine; // may be null
-    std::vector<NestedAnimation*> m_NestedAnimations;
-    File* m_file = nullptr;
-    rcp<ViewModelInstance> m_viewModelInstance = nullptr;
-    rcp<DataContext> m_dataContext = nullptr;
-    // VMI actively used for binding. Either the stateful child VMI (borrowed
-    // from children(); freed by the parent Artboard's m_Objects teardown) or a
-    // dynamically-created bound VMI for a different ViewModel (owned here, see
-    // m_ownsActiveVmi).
-    ViewModelInstance* m_activeViewModelInstance = nullptr;
-    // Global ViewModelInstance children — appended to the data context passed
-    // down to the wrapped artboard. The artboard's m_Objects owns the
-    // construction ref; this list holds an extra ref (see ref_rcp in
-    // onAddedClean) so it stays valid regardless of teardown ordering.
-    std::vector<rcp<ViewModelInstance>> m_globalViewModelInstances;
-    /// Structural scope for data-bound hosts only
-    rcp<FocusNode> m_focusScope;
-    void cloneReferencesInto(NestedArtboard* clone) const;
+  // The bindable m_Instance was cloned from, when a view model artboard
+  // property supplied one. The clone shares the definitions of the file
+  // the bindable pins, which may be a different file with no other owner,
+  // so the bindable is released only after m_Instance is gone. Declared
+  // before m_Instance so it is also destroyed after it.
+  rcp<BindableArtboard> m_mountedBindable;
+  std::unique_ptr<ArtboardInstance> m_Instance;                  // may be null
+  std::unique_ptr<NestedStateMachine> m_boundNestedStateMachine; // may be null
+  std::vector<NestedAnimation*> m_NestedAnimations;
+  File* m_file = nullptr;
+  rcp<ViewModelInstance> m_viewModelInstance = nullptr;
+  rcp<DataContext> m_dataContext = nullptr;
+  // VMI actively used for binding. Either the stateful child VMI (borrowed
+  // from children(); freed by the parent Artboard's m_Objects teardown) or a
+  // dynamically-created bound VMI for a different ViewModel (owned here, see
+  // m_ownsActiveVmi).
+  ViewModelInstance* m_activeViewModelInstance = nullptr;
+  // Global ViewModelInstance children — appended to the data context passed
+  // down to the wrapped artboard. The artboard's m_Objects owns the
+  // construction ref; this list holds an extra ref (see ref_rcp in
+  // onAddedClean) so it stays valid regardless of teardown ordering.
+  std::vector<rcp<ViewModelInstance>> m_globalViewModelInstances;
+  /// Structural scope for data-bound hosts only
+  rcp<FocusNode> m_focusScope;
+  void cloneReferencesInto(NestedArtboard* clone) const;
 
 private:
-    friend class NestedArtboardMeshHost;
-    // Null until a mesh or N-Slice attaches, so other instances pay a pointer.
-    std::unique_ptr<NestedArtboardMeshHost> m_meshHost;
-    MeshDrawable* hostedMesh() const;
-    void clearNestedAnimations();
-    float m_cumulatedSeconds = 0;
-    // True if m_activeViewModelInstance is a dynamically-created bound VMI
-    // that must be unref'd by this NestedArtboard.
-    bool m_ownsActiveVmi = false;
-    NestedArtboardHostFlags m_hostFlags = NestedArtboardHostFlags::none;
-    void nest(Artboard* artboard);
-    void detectArtboardDataBinding();
-    bool tryScheduleBindStateful();
-    void bindStateful();
-    // Walks children() for the first ViewModelInstance child (the stateful
-    // component VMI authored in the editor). Returns nullptr if none.
-    ViewModelInstance* findStatefulChildVmi() const;
-    // Releases the current active VMI if owned, then assigns the new one.
-    void setActiveViewModelInstance(ViewModelInstance* vmi, bool owns);
-    /// Create/attach this host's persistent focus scope (data-bound hosts
-    /// only). With `place` true (full build pass) the scope is re-appended
-    /// under `parentNode` so append order matches the hierarchy walk; with
-    /// `place` false an already-registered scope is never moved.
-    void registerFocusScope(FocusManager* focusManager,
-                            rcp<FocusNode> parentNode,
-                            bool place);
+  friend class NestedArtboardMeshHost;
+  // Null until a mesh or N-Slice attaches, so other instances pay a pointer.
+  std::unique_ptr<NestedArtboardMeshHost> m_meshHost;
+  MeshDrawable* hostedMesh() const;
+  void clearNestedAnimations();
+  float m_cumulatedSeconds = 0;
+  // True if m_activeViewModelInstance is a dynamically-created bound VMI
+  // that must be unref'd by this NestedArtboard.
+  bool m_ownsActiveVmi = false;
+  NestedArtboardHostFlags m_hostFlags = NestedArtboardHostFlags::none;
+  void nest(Artboard* artboard);
+  void detectArtboardDataBinding();
+  bool tryScheduleBindStateful();
+  void bindStateful();
+  // Walks children() for the first ViewModelInstance child (the stateful
+  // component VMI authored in the editor). Returns nullptr if none.
+  ViewModelInstance* findStatefulChildVmi() const;
+  // Releases the current active VMI if owned, then assigns the new one.
+  void setActiveViewModelInstance(ViewModelInstance* vmi, bool owns);
+  /// Create/attach this host's persistent focus scope (data-bound hosts
+  /// only). With `place` true (full build pass) the scope is re-appended
+  /// under `parentNode` so append order matches the hierarchy walk; with
+  /// `place` false an already-registered scope is never moved.
+  void registerFocusScope(
+      FocusManager* focusManager,
+      rcp<FocusNode> parentNode,
+      bool place);
 
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
+  void editorPrepareForDestruction() override;
 #endif
-    /// True when this host can receive runtime artboard swaps and therefore
-    /// owns (or will own) a persistent focus scope.
-    bool isArtboardDataBound() const
-    {
-        return enums::is_flag_set(m_hostFlags,
-                                  NestedArtboardHostFlags::artboardDataBound);
-    }
+  /// True when this host can receive runtime artboard swaps and therefore
+  /// owns (or will own) a persistent focus scope.
+  bool isArtboardDataBound() const
+  {
+    return enums::is_flag_set(
+        m_hostFlags,
+        NestedArtboardHostFlags::artboardDataBound);
+  }
 
-    /// Register this host's focus scope (if data-bound) and rebuild the nested
-    /// instance focus tree under the parent FocusManager. Called from the
-    /// hierarchical focus-tree build (Artboard::buildFocusTree) and from the
-    /// data-bound artboard swap path.
-    /// @param fallbackParent Parent used when the host has no closest ancestor
-    ///        FocusNode.
-    /// @param placeScope True only from the full build pass, which is the
-    ///        ordering authority: the scope is re-appended at the walk's
-    ///        current position. All other callers leave placement untouched.
-    /// @param forceRebuild When true (the default), always tear down and
-    ///        rebuild the nested instance's focus subtree. When false, skip the
-    ///        rebuild if the subtree already shares this manager, preserving
-    ///        focus resting inside an untouched instance. The full build pass
-    ///        passes false unless it just re-wired the manager (which rebuilds
-    ///        at the root and requires re-homing).
-    void syncNestedFocusTree(rcp<FocusNode> fallbackParent,
-                             bool placeScope = false,
-                             bool forceRebuild = true);
+  /// Register this host's focus scope (if data-bound) and rebuild the nested
+  /// instance focus tree under the parent FocusManager. Called from the
+  /// hierarchical focus-tree build (Artboard::buildFocusTree) and from the
+  /// data-bound artboard swap path.
+  /// @param fallbackParent Parent used when the host has no closest ancestor
+  ///        FocusNode.
+  /// @param placeScope True only from the full build pass, which is the
+  ///        ordering authority: the scope is re-appended at the walk's
+  ///        current position. All other callers leave placement untouched.
+  /// @param forceRebuild When true (the default), always tear down and
+  ///        rebuild the nested instance's focus subtree. When false, skip the
+  ///        rebuild if the subtree already shares this manager, preserving
+  ///        focus resting inside an untouched instance. The full build pass
+  ///        passes false unless it just re-wired the manager (which rebuilds
+  ///        at the root and requires re-homing).
+  void syncNestedFocusTree(
+      rcp<FocusNode> fallbackParent,
+      bool placeScope = false,
+      bool forceRebuild = true);
 
-    NestedArtboard();
-    ~NestedArtboard() override;
+  NestedArtboard();
+  ~NestedArtboard() override;
 
-    // Creates the mesh host on first use; only MeshHost::from should call it.
-    NestedArtboardMeshHost* meshHost();
-    NestedArtboardMeshHost* meshHostIfAny() const { return m_meshHost.get(); }
-    StatusCode onAddedClean(CoreContext* context) override;
-    void draw(Renderer* renderer) override;
-    bool willDraw() override;
-    Core* hitTest(HitInfo*, const Mat2D&) override;
-    void addNestedAnimation(NestedAnimation* nestedAnimation);
+  // Creates the mesh host on first use; only MeshHost::from should call it.
+  NestedArtboardMeshHost* meshHost();
+  NestedArtboardMeshHost* meshHostIfAny() const { return m_meshHost.get(); }
+  StatusCode onAddedClean(CoreContext* context) override;
+  void draw(Renderer* renderer) override;
+  bool willDraw() override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
+  void addNestedAnimation(NestedAnimation* nestedAnimation);
 #ifdef WITH_RIVE_EDITOR
-    /// Idempotent add — `NestedAnimation::editorParentChanged`
-    /// calls this when transitioning into us as the parent.
-    void addNestedAnimationForEditor(NestedAnimation* nestedAnimation);
-    /// Remove if present — `editorParentChanged` calls this when
-    /// transitioning away (re-parent or unregister).
-    void removeNestedAnimationForEditor(NestedAnimation* nestedAnimation);
+  /// Idempotent add — `NestedAnimation::editorParentChanged`
+  /// calls this when transitioning into us as the parent.
+  void addNestedAnimationForEditor(NestedAnimation* nestedAnimation);
+  /// Remove if present — `editorParentChanged` calls this when
+  /// transitioning away (re-parent or unregister).
+  void removeNestedAnimationForEditor(NestedAnimation* nestedAnimation);
 #endif
-    void updateArtboard(
-        ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
-    int referencedArtboardId() override;
-    void referencedArtboard(Artboard* artboard) override;
-    size_t artboardCount() override { return 1; }
-    int type() const override { return coreType(); }
-    ArtboardInstance* artboardInstance(int index = 0) override
-    {
-        return m_Instance.get();
-    }
-    BoundsFidelity paintedWorldBounds(AABB* out) override;
+  void updateArtboard(
+      ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
+  int referencedArtboardId() override;
+  void referencedArtboard(Artboard* artboard) override;
+  size_t artboardCount() override { return 1; }
+  int type() const override { return coreType(); }
+  ArtboardInstance* artboardInstance(int index = 0) override
+  {
+    return m_Instance.get();
+  }
+  BoundsFidelity paintedWorldBounds(AABB* out) override;
 
-    Artboard* sourceArtboard() { return m_referencedArtboard; }
+  Artboard* sourceArtboard() { return m_referencedArtboard; }
 
-    // Pushes the optional ComponentOrigin child's origin (if any) onto the
-    // mounted artboard instance. No-op when there is no override child, so
-    // nested artboards without an override carry no per-instance origin state.
-    void applyOriginOverride();
+  // Pushes the optional ComponentOrigin child's origin (if any) onto the
+  // mounted artboard instance. No-op when there is no override child, so
+  // nested artboards without an override carry no per-instance origin state.
+  void applyOriginOverride();
 
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
-    bool collapse(bool value) override;
-    void update(ComponentDirt value) override;
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
+  bool collapse(bool value) override;
+  void update(ComponentDirt value) override;
 
-    bool hasNestedStateMachines() const;
-    Span<NestedAnimation*> nestedAnimations();
-    NestedArtboard* nestedArtboard(std::string name) const;
-    NestedStateMachine* stateMachine(std::string name) const;
-    NestedInput* input(std::string name) const;
-    NestedInput* input(std::string name, std::string stateMachineName) const;
+  bool hasNestedStateMachines() const;
+  Span<NestedAnimation*> nestedAnimations();
+  NestedArtboard* nestedArtboard(std::string name) const;
+  NestedStateMachine* stateMachine(std::string name) const;
+  NestedInput* input(std::string name) const;
+  NestedInput* input(std::string name, std::string stateMachineName) const;
 
-    Vec2D measureLayout(float width,
-                        LayoutMeasureMode widthMode,
-                        float height,
-                        LayoutMeasureMode heightMode) override;
-    void controlSize(Vec2D size,
-                     LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType,
-                     LayoutDirection direction) override;
+  Vec2D measureLayout(
+      float width,
+      LayoutMeasureMode widthMode,
+      float height,
+      LayoutMeasureMode heightMode) override;
+  void controlSize(
+      Vec2D size,
+      LayoutScaleType widthScaleType,
+      LayoutScaleType heightScaleType,
+      LayoutDirection direction) override;
 
-    /// Convert a world space (relative to the artboard that this
-    /// NestedArtboard is a child of) to the local space of the Artboard
-    /// nested within. Returns true when the conversion succeeds, and false
-    /// when one is not possible.
-    bool worldToLocal(Vec2D world, Vec2D* local);
-    void decodeDataBindPathIds(Span<const uint8_t> value) override;
-    void copyDataBindPathIds(const NestedArtboardBase& object) override;
-    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               rcp<DataContext> parent) override;
-    void internalDataContext(rcp<DataContext> dataContext) override;
-    void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) override;
-    void clearDataContext() override;
-    void unbind() override;
-    void updateDataBinds() override;
+  /// Convert a world space (relative to the artboard that this
+  /// NestedArtboard is a child of) to the local space of the Artboard
+  /// nested within. Returns true when the conversion succeeds, and false
+  /// when one is not possible.
+  bool worldToLocal(Vec2D world, Vec2D* local);
+  void decodeDataBindPathIds(Span<const uint8_t> value) override;
+  void copyDataBindPathIds(const NestedArtboardBase& object) override;
+  void bindViewModelInstance(
+      rcp<ViewModelInstance> viewModelInstance,
+      rcp<DataContext> parent) override;
+  void internalDataContext(rcp<DataContext> dataContext) override;
+  void relinkDataContext(rcp<ViewModelInstance> viewModelInstance) override;
+  void clearDataContext() override;
+  void unbind() override;
+  void updateDataBinds() override;
 
-    float calculateLocalElapsedSeconds(float elapsedSeconds);
-    bool advanceComponent(float elapsedSeconds,
-                          AdvanceFlags flags = AdvanceFlags::Animate |
-                                               AdvanceFlags::NewFrame) override;
-    void reset() override;
-    Artboard* parentArtboard() override { return artboard(); }
-    Artboard* nestingArtboard() override { return artboard(); }
-    Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) override;
-    Mat2D worldTransformForArtboard(ArtboardInstance*) override;
-    bool hitTestHost(const Vec2D& position,
-                     bool skipOnUnclipped,
-                     ArtboardInstance* artboard) override;
-    void markHostTransformDirty() override { markTransformDirty(); }
-    void file(File*) override;
-    File* file() const override;
-    const File* foreignFile() const override;
-    Component* hostComponent() override { return this; }
+  float calculateLocalElapsedSeconds(float elapsedSeconds);
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  void reset() override;
+  Artboard* parentArtboard() override { return artboard(); }
+  Artboard* nestingArtboard() override { return artboard(); }
+  Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) override;
+  Mat2D worldTransformForArtboard(ArtboardInstance*) override;
+  bool hitTestHost(
+      const Vec2D& position,
+      bool skipOnUnclipped,
+      ArtboardInstance* artboard) override;
+  void markHostTransformDirty() override { markTransformDirty(); }
+  void file(File*) override;
+  File* file() const override;
+  const File* foreignFile() const override;
+  Component* hostComponent() override { return this; }
 
-    // Focusable interface - delegates to nested state machines
-    bool keyInput(Key, KeyModifiers, bool, bool) override { return false; };
-    bool textInput(const std::string&) override { return false; };
-    bool gamepadDispatch(const ListenerInvocation&,
-                         ScriptedDrawable** = nullptr) override
-    {
-        return false;
-    }
-    void focused() override {}
-    void blurred() override {}
-    Artboard* focusableArtboard() const override { return artboard(); }
+  // Focusable interface - delegates to nested state machines
+  bool keyInput(Key, KeyModifiers, bool, bool) override { return false; };
+  bool textInput(const std::string&) override { return false; };
+  bool gamepadDispatch(const ListenerInvocation&, ScriptedDrawable** = nullptr)
+      override
+  {
+    return false;
+  }
+  void focused() override {}
+  void blurred() override {}
+  Artboard* focusableArtboard() const override { return artboard(); }
 };
 } // namespace rive
 

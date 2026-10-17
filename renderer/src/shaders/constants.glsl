@@ -13,7 +13,7 @@
 // An outer cubic's tessellation stride also covers its trailing zero-length
 // bowtie-join segment. (gpu::OuterCubicPatchSegmentSpanPlusBowtie.)
 #define OUTER_CUBIC_PATCH_SEGMENT_SPAN_PLUS_BOWTIE                             \
-    (OUTER_CUBIC_PATCH_SEGMENT_SPAN + 1u)
+  (OUTER_CUBIC_PATCH_SEGMENT_SPAN + 1u)
 
 // depthStencil draws use repeating index patterns instead of instancing.
 // Per-patch vertex IDs are aligned on pow2 strides, specifically so the
@@ -25,16 +25,15 @@
 #define DS_MIDPOINT_FAN_STRIDE_LOG2 4
 #define DS_OUTER_CUBIC_STRIDE_LOG2 5
 #define DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC)                              \
-    ((IS_OUTER_CUBIC) ? DS_OUTER_CUBIC_STRIDE_LOG2                             \
-                      : DS_MIDPOINT_FAN_STRIDE_LOG2)
+  ((IS_OUTER_CUBIC) ? DS_OUTER_CUBIC_STRIDE_LOG2 : DS_MIDPOINT_FAN_STRIDE_LOG2)
 #define DS_FILL_PATCH_STRIDE(IS_OUTER_CUBIC)                                   \
-    (1 << DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
+  (1 << DS_FILL_PATCH_STRIDE_LOG2(IS_OUTER_CUBIC))
 #define DS_STROKE_STRIDE_LOG2 5
 #define DS_AA_STROKE_STRIDE_LOG2 6
 #define DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE)                              \
-    ((IS_AA_STROKE) ? DS_AA_STROKE_STRIDE_LOG2 : DS_STROKE_STRIDE_LOG2)
+  ((IS_AA_STROKE) ? DS_AA_STROKE_STRIDE_LOG2 : DS_STROKE_STRIDE_LOG2)
 #define DS_STROKE_PATCH_STRIDE(IS_AA_STROKE)                                   \
-    (1 << DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE))
+  (1 << DS_STROKE_PATCH_STRIDE_LOG2(IS_AA_STROKE))
 // Normal strokes are a single triangle strip with 2 lanes of vertices (top,
 // bottom).
 // AA strokes have an AA band on top and bottom, making 4 lanes of vertices and
@@ -81,7 +80,7 @@
 // Amount to increase "joinSegmentCount" in a feather join so the number of
 // literal vertices allocated increases by FEATHER_JOIN_HELPER_VERTEX_COUNT.
 #define FEATHER_JOIN_HELPER_SEGMENT_COUNT                                      \
-    (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
+  (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
 
 // Feather joins are split into a backward and forward section. Both sections
 // need at least one segment, thus a minimum of 2 (plus helper vertices).
@@ -110,8 +109,8 @@
 #define GRAD_SPAN_FLAG_RIGHT_BORDER 0x40000000u
 #define GRAD_SPAN_FLAG_COMPLEX_BORDER 0x20000000u
 #define GRAD_SPAN_FLAGS_MASK                                                   \
-    (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                \
-     GRAD_SPAN_FLAG_COMPLEX_BORDER)
+  (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                  \
+   GRAD_SPAN_FLAG_COMPLEX_BORDER)
 
 // Tells shaders that a cubic should actually be drawn as a non-AA triangle
 // strip of up to 5 points: [p0, p1, p3, p2, joinTangent]. This is used to
@@ -271,7 +270,7 @@
 
 #define IMAGE_COMMON_LAST_ATTRIB_IDX 8
 #define IMAGE_COMMON_ATTRIB_COUNT                                              \
-    (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_COMMON_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 #define IMAGE_RECT_IMAGE_MATRIX_ATTRIB_IDX 9
 #define IMAGE_RECT_GRADIENT_MATRIX_ATTRIB_IDX 10
@@ -279,12 +278,12 @@
 #define IMAGE_RECT_PACKED_GRADIENT_DATA 12
 #define IMAGE_RECT_LAST_ATTRIB_IDX IMAGE_RECT_PACKED_GRADIENT_DATA
 #define IMAGE_RECT_ATTRIB_COUNT                                                \
-    (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_RECT_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 #define IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX 9
 #define IMAGE_MESH_LAST_ATTRIB_IDX IMAGE_MESH_UV_TRANSFORM_ATTRIB_IDX
 #define IMAGE_MESH_ATTRIB_COUNT                                                \
-    (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
+  (IMAGE_MESH_LAST_ATTRIB_IDX + 1 - IMAGE_FIRST_ATTRIB_IDX)
 
 // depthStencil mode attaches different resources to the framebuffer than PLS
 // planes.
@@ -415,7 +414,7 @@
 #define PAINT_AUX_ENTRY_ELEMENT_COUNT 8u
 
 #ifdef __cplusplus
-#if __cplusplus >= 201703
+  #if __cplusplus >= 201703
 static_assert(BUFFER_IMAGE_TILE_SIZE == 1u << BUFFER_IMAGE_TILE_SIZE_LOG2);
-#endif
+  #endif
 #endif

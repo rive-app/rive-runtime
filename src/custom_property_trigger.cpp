@@ -5,5 +5,5 @@ using namespace rive;
 
 void CustomPropertyTrigger::propertyValueChanged()
 {
-    m_changeSequence = ViewModelInstanceValue::nextChangeSequence();
+  m_changeSequence = ViewModelInstanceValue::nextChangeSequence();
 }

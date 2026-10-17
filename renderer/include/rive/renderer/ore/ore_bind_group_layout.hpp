@@ -31,38 +31,35 @@ class BindGroupLayout : public rive::gpu::GPUResource,
                         public ENABLE_LITE_RTTI(BindGroupLayout)
 {
 public:
-    uint32_t groupIndex() const { return m_groupIndex; }
-    const std::vector<BindGroupLayoutEntry>& entries() const
-    {
-        return m_entries;
-    }
+  uint32_t groupIndex() const { return m_groupIndex; }
+  const std::vector<BindGroupLayoutEntry>& entries() const { return m_entries; }
 
-    // True if entry for `binding` (within this layout's group) is a UBO
-    // declared with `hasDynamicOffset = true`.
-    bool hasDynamicOffset(uint32_t binding) const;
+  // True if entry for `binding` (within this layout's group) is a UBO
+  // declared with `hasDynamicOffset = true`.
+  bool hasDynamicOffset(uint32_t binding) const;
 
-    // Find the entry for a given binding. Returns nullptr if not present.
-    const BindGroupLayoutEntry* findEntry(uint32_t binding) const;
+  // Find the entry for a given binding. Returns nullptr if not present.
+  const BindGroupLayoutEntry* findEntry(uint32_t binding) const;
 
-    virtual ~BindGroupLayout() = default;
+  virtual ~BindGroupLayout() = default;
 
 protected:
-    friend class Context;
-    friend class ContextMetal;
-    friend class ContextGL;
-    friend class ContextD3D11;
+  friend class Context;
+  friend class ContextMetal;
+  friend class ContextGL;
+  friend class ContextD3D11;
 
-    BindGroupLayout() : rive::gpu::GPUResource(nullptr) {}
+  BindGroupLayout() : rive::gpu::GPUResource(nullptr) {}
 
-    BindGroupLayout(rcp<rive::gpu::GPUResourceManager> manager) :
-        rive::gpu::GPUResource(std::move(manager))
-    {}
+  BindGroupLayout(rcp<rive::gpu::GPUResourceManager> manager)
+      : rive::gpu::GPUResource(std::move(manager))
+  {}
 
-    uint32_t m_groupIndex = 0;
-    std::vector<BindGroupLayoutEntry> m_entries;
+  uint32_t m_groupIndex = 0;
+  std::vector<BindGroupLayoutEntry> m_entries;
 
-    // Context back-pointer for deferred-destruction routing. Weak ref.
-    Context* m_context = nullptr;
+  // Context back-pointer for deferred-destruction routing. Weak ref.
+  Context* m_context = nullptr;
 };
 
 // Binding map covering both stages of a pipeline. When the two stages come
@@ -71,22 +68,25 @@ protected:
 // taking the vertex module's word for the fragment stage misbinds it.
 //
 // Either module may be null (depth-only pipelines pass no fragment).
-BindingMap bindingMapForStages(const ShaderModule* vertex,
-                               const ShaderModule* fragment);
+BindingMap bindingMapForStages(
+    const ShaderModule* vertex,
+    const ShaderModule* fragment);
 
 // Whether both stages' modules record what their entry points bind; older
 // bakes do not.
-bool entryUseKnown(const ShaderModule* vertex,
-                   const char* vertexEntry,
-                   const ShaderModule* fragment,
-                   const char* fragmentEntry);
+bool entryUseKnown(
+    const ShaderModule* vertex,
+    const char* vertexEntry,
+    const ShaderModule* fragment,
+    const char* fragmentEntry);
 
 // What a pipeline's entry points statically bind, as WebGPU's layout 'auto'
 // derives; whole files for modules baked without per entry use.
-BindingMap bindingMapForEntries(const ShaderModule* vertex,
-                                const char* vertexEntry,
-                                const ShaderModule* fragment,
-                                const char* fragmentEntry);
+BindingMap bindingMapForEntries(
+    const ShaderModule* vertex,
+    const char* vertexEntry,
+    const ShaderModule* fragment,
+    const char* fragmentEntry);
 
 // Walk a BindingMap for the given group, populating layout entries with
 // kind / visibility / texture metadata / native slots.
@@ -142,10 +142,11 @@ rcp<BindGroupLayout> makeBindGroupLayoutFromShader(
 //
 // Returns true on success. On failure, populates `*outError` with a human-
 // readable diagnostic and returns false. Never asserts.
-bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
-                                      BindGroupLayout* const* layouts,
-                                      uint32_t layoutCount,
-                                      std::string* outError);
+bool validateLayoutsAgainstBindingMap(
+    const BindingMap& bindingMap,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError);
 
 // How far a backend's native slot numbers reach. Metal / D3D11 give each
 // stage its own namespace; Vulkan numbers bindings within a descriptor set;
@@ -153,9 +154,9 @@ bool validateLayoutsAgainstBindingMap(const BindingMap& bindingMap,
 // pipeline.
 enum class NativeSlotScope : uint8_t
 {
-    perStage,
-    perGroup,
-    perKind,
+  perStage,
+  perGroup,
+  perKind,
 };
 
 // A pipeline whose stages come from different modules draws its slots from
@@ -164,38 +165,43 @@ enum class NativeSlotScope : uint8_t
 // Nothing downstream can tell them apart, so reject it here naming both.
 //
 // No-op for single-module pipelines, whose one allocator run cannot collide.
-bool validateSplitStageSlots(bool stagesCompiledApart,
-                             BindGroupLayout* const* layouts,
-                             uint32_t layoutCount,
-                             NativeSlotScope scope,
-                             std::string* outError);
+bool validateSplitStageSlots(
+    bool stagesCompiledApart,
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    NativeSlotScope scope,
+    std::string* outError);
 
 // Two files can declare one `(group, binding)` as different things — a UBO
 // in the vertex, a texture in the fragment. Merging keeps one of them, and
 // the layout is then built from a row the other stage disagrees with, so the
 // stage that lost reads whatever the winner bound. Compare the maps before
 // they are flattened and name the disagreement.
-bool validateStagesAgree(const BindingMap& vertexMap,
-                         const BindingMap& fragmentMap,
-                         std::string* outError);
+bool validateStagesAgree(
+    const BindingMap& vertexMap,
+    const BindingMap& fragmentMap,
+    std::string* outError);
 
 // Color outputs require a fragment shader.
-bool validateColorRequiresFragment(uint32_t colorCount,
-                                   bool hasFragmentModule,
-                                   std::string* outError);
+bool validateColorRequiresFragment(
+    uint32_t colorCount,
+    bool hasFragmentModule,
+    std::string* outError);
 
 // WebGPU's per stage binding limits, counted from the layouts the way Dawn
 // counts them, so a pipeline the web refuses fails on every backend.
-bool validateStageLimits(BindGroupLayout* const* layouts,
-                         uint32_t layoutCount,
-                         std::string* outError);
+bool validateStageLimits(
+    BindGroupLayout* const* layouts,
+    uint32_t layoutCount,
+    std::string* outError);
 
 // Every backend's `makePipeline` runs the same checks on the pipeline's
 // `m_bindingMap`; only `scope` differs.
-bool validatePipelineDesc(const PipelineDesc& desc,
-                          const BindingMap& mergedMap,
-                          NativeSlotScope scope,
-                          std::string* outError);
+bool validatePipelineDesc(
+    const PipelineDesc& desc,
+    const BindingMap& mergedMap,
+    NativeSlotScope scope,
+    std::string* outError);
 
 // Every backend's `makeBindGroup` runs this before touching native objects,
 // so a group Dawn refuses, or a UBO shorter than its block, fails everywhere.

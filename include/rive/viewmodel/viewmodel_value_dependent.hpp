@@ -8,7 +8,7 @@ class CoreObjectListener;
 class ViewModelValueDependent : public Dirtyable
 {
 public:
-    virtual void relinkDataBind() = 0;
+  virtual void relinkDataBind() = 0;
 };
 
 } // namespace rive

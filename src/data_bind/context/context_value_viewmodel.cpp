@@ -8,37 +8,37 @@
 
 using namespace rive;
 
-DataBindContextValueViewModel::DataBindContextValueViewModel(
-    DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueViewModel::DataBindContextValueViewModel(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueViewModel::apply(Core* target,
-                                          uint32_t propertyKey,
-                                          bool isMainDirection,
-                                          DataBind* dataBind)
+void DataBindContextValueViewModel::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value =
-        calculateValue<DataValueViewModel, ViewModelInstance*>(m_dataValue,
-                                                               isMainDirection,
-                                                               dataBind);
-    if (target != nullptr)
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueViewModel, ViewModelInstance*>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  if (target != nullptr)
+  {
+    auto consumer = DataBindViewModelConsumer::from(target);
+    if (consumer != nullptr)
     {
-        auto consumer = DataBindViewModelConsumer::from(target);
-        if (consumer != nullptr)
-        {
-            consumer->updateViewModel(value);
-        }
-        else if (target->is<BindablePropertyViewModel>())
-        {
-            auto bindable = target->as<BindablePropertyViewModel>();
-            bindable->viewModelInstanceValue(value);
-            CoreRegistry::setUint(
-                target,
-                BindablePropertyIdBase::propertyValuePropertyKey,
-                value != nullptr ? ViewModelInstance::pointerKey(value)
-                                 : BindablePropertyViewModel::defaultValue);
-        }
+      consumer->updateViewModel(value);
     }
+    else if (target->is<BindablePropertyViewModel>())
+    {
+      auto bindable = target->as<BindablePropertyViewModel>();
+      bindable->viewModelInstanceValue(value);
+      CoreRegistry::setUint(
+          target,
+          BindablePropertyIdBase::propertyValuePropertyKey,
+          value != nullptr ? ViewModelInstance::pointerKey(value)
+                           : BindablePropertyViewModel::defaultValue);
+    }
+  }
 }

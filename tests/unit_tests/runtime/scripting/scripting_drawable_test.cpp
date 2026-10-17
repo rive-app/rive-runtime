@@ -16,8 +16,8 @@ using namespace rive;
 
 TEST_CASE("scripted drawable draw function can be called", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyDrawing = {}
+  ScriptingTest vm(
+      R"(type MyDrawing = {}
 local drawCallCount = 0
 
 function init(self: MyDrawing, context: Context): boolean
@@ -42,39 +42,39 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
-    // ScriptingTest executes the factory function and leaves the result table
-    // on the stack
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
+  // ScriptingTest executes the factory function and leaves the result table
+  // on the stack
 
-    // Test that the draw function exists and can be called
-    {
-        lua_getglobal(L, "draw");
-        lua_pushvalue(L, -2); // Push self (the table from factory function)
+  // Test that the draw function exists and can be called
+  {
+    lua_getglobal(L, "draw");
+    lua_pushvalue(L, -2); // Push self (the table from factory function)
 
-        // Create a renderer
-        NoOpRenderer renderer;
-        auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, &renderer);
+    // Create a renderer
+    NoOpRenderer renderer;
+    auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, &renderer);
 
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(scriptedRenderer->end());
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(scriptedRenderer->end());
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify draw was called
-    {
-        lua_getglobal(L, "getDrawCallCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify draw was called
+  {
+    lua_getglobal(L, "getDrawCallCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted drawable advance function can be called", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyDrawing = {}
+  ScriptingTest vm(
+      R"(type MyDrawing = {}
 local advanceCallCount = 0
 local totalElapsed = 0.0
 
@@ -103,39 +103,39 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Test advance function
-    {
-        lua_getglobal(L, "advance");
-        lua_pushvalue(L, -2);     // Push self
-        lua_pushnumber(L, 0.016); // ~60fps
-        CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
-        CHECK(lua_toboolean(L, -1) == 1);
-        lua_pop(L, 1); // Pop result
-        CHECK(top == lua_gettop(L));
-    }
+  // Test advance function
+  {
+    lua_getglobal(L, "advance");
+    lua_pushvalue(L, -2);     // Push self
+    lua_pushnumber(L, 0.016); // ~60fps
+    CHECK(lua_pcall(L, 2, 1, 0) == LUA_OK);
+    CHECK(lua_toboolean(L, -1) == 1);
+    lua_pop(L, 1); // Pop result
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify advance was called
-    {
-        lua_getglobal(L, "getAdvanceCallCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
+  // Verify advance was called
+  {
+    lua_getglobal(L, "getAdvanceCallCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
 
-        lua_getglobal(L, "getTotalElapsed");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == Approx(0.016));
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+    lua_getglobal(L, "getTotalElapsed");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == Approx(0.016));
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted drawable update function can be called", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyDrawing = {}
+  ScriptingTest vm(
+      R"(type MyDrawing = {}
 local updateCallCount = 0
 
 function init(self: MyDrawing, context: Context): boolean
@@ -157,31 +157,31 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Test update function
-    {
-        lua_getglobal(L, "update");
-        lua_pushvalue(L, -2); // Push self
-        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  // Test update function
+  {
+    lua_getglobal(L, "update");
+    lua_pushvalue(L, -2); // Push self
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify update was called
-    {
-        lua_getglobal(L, "getUpdateCallCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
-        CHECK(top == lua_gettop(L));
-    }
+  // Verify update was called
+  {
+    lua_getglobal(L, "getUpdateCallCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
+    CHECK(top == lua_gettop(L));
+  }
 }
 
 TEST_CASE("scripted drawable pointer events can be handled", "[scripting]")
 {
-    ScriptingTest vm(
-        R"(type MyDrawing = {}
+  ScriptingTest vm(
+      R"(type MyDrawing = {}
 local pointerDownCount = 0
 local pointerUpCount = 0
 local pointerMoveCount = 0
@@ -233,109 +233,118 @@ return function(): Node<MyNode>
   }
 end
 )");
-    lua_State* L = vm.state();
-    auto top = lua_gettop(L);
+  lua_State* L = vm.state();
+  auto top = lua_gettop(L);
 
-    // Test pointerDown
-    {
-        lua_getglobal(L, "pointerDown");
-        lua_pushvalue(L, -2); // Push self
-        auto pointerEvent =
-            lua_newrive<ScriptedPointerEvent>(L, 1, Vec2D(10.0f, 20.0f));
-        CHECK(pointerEvent != nullptr);
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  // Test pointerDown
+  {
+    lua_getglobal(L, "pointerDown");
+    lua_pushvalue(L, -2); // Push self
+    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(
+        L,
+        1,
+        Vec2D(10.0f, 20.0f));
+    CHECK(pointerEvent != nullptr);
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test pointerUp
-    {
-        lua_getglobal(L, "pointerUp");
-        lua_pushvalue(L, -2); // Push self
-        auto pointerEvent =
-            lua_newrive<ScriptedPointerEvent>(L, 1, Vec2D(15.0f, 25.0f));
-        CHECK(pointerEvent != nullptr);
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  // Test pointerUp
+  {
+    lua_getglobal(L, "pointerUp");
+    lua_pushvalue(L, -2); // Push self
+    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(
+        L,
+        1,
+        Vec2D(15.0f, 25.0f));
+    CHECK(pointerEvent != nullptr);
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test pointerMove
-    {
-        lua_getglobal(L, "pointerMove");
-        lua_pushvalue(L, -2); // Push self
-        auto pointerEvent =
-            lua_newrive<ScriptedPointerEvent>(L, 1, Vec2D(20.0f, 30.0f));
-        CHECK(pointerEvent != nullptr);
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  // Test pointerMove
+  {
+    lua_getglobal(L, "pointerMove");
+    lua_pushvalue(L, -2); // Push self
+    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(
+        L,
+        1,
+        Vec2D(20.0f, 30.0f));
+    CHECK(pointerEvent != nullptr);
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Test pointerExit
-    {
-        lua_getglobal(L, "pointerExit");
-        lua_pushvalue(L, -2); // Push self
-        auto pointerEvent =
-            lua_newrive<ScriptedPointerEvent>(L, 1, Vec2D(0.0f, 0.0f));
-        CHECK(pointerEvent != nullptr);
-        CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
-        CHECK(top == lua_gettop(L));
-    }
+  // Test pointerExit
+  {
+    lua_getglobal(L, "pointerExit");
+    lua_pushvalue(L, -2); // Push self
+    auto pointerEvent = lua_newrive<ScriptedPointerEvent>(
+        L,
+        1,
+        Vec2D(0.0f, 0.0f));
+    CHECK(pointerEvent != nullptr);
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(top == lua_gettop(L));
+  }
 
-    // Verify all events were called
-    {
-        lua_getglobal(L, "getPointerDownCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
+  // Verify all events were called
+  {
+    lua_getglobal(L, "getPointerDownCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
 
-        lua_getglobal(L, "getPointerUpCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
+    lua_getglobal(L, "getPointerUpCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
 
-        lua_getglobal(L, "getPointerMoveCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
+    lua_getglobal(L, "getPointerMoveCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
 
-        lua_getglobal(L, "getPointerExitCount");
-        CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
-        CHECK(lua_tonumber(L, -1) == 1.0);
-        lua_pop(L, 1);
+    lua_getglobal(L, "getPointerExitCount");
+    CHECK(lua_pcall(L, 0, 1, 0) == LUA_OK);
+    CHECK(lua_tonumber(L, -1) == 1.0);
+    lua_pop(L, 1);
 
-        CHECK(top == lua_gettop(L));
-    }
+    CHECK(top == lua_gettop(L));
+  }
 }
 
-TEST_CASE("scripted drawable with keyboard and text input receive inputs",
-          "[silver]")
+TEST_CASE(
+    "scripted drawable with keyboard and text input receive inputs",
+    "[silver]")
 {
-    auto file = ReadRiveFile("assets/keyboard_event_to_script.riv");
+  auto file = ReadRiveFile("assets/keyboard_event_to_script.riv");
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
-    auto textKey = vmi->propertyValue("textKey")->as<ViewModelInstanceNumber>();
-    auto inputText =
-        vmi->propertyValue("inputText")->as<ViewModelInstanceString>();
-    CHECK(textKey->propertyValue() == 0);
-    CHECK(inputText->propertyValue() == "");
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  auto vmi = file->createViewModelInstance(artboard.get());
+  auto textKey = vmi->propertyValue("textKey")->as<ViewModelInstanceNumber>();
+  auto inputText = vmi->propertyValue("inputText")
+                       ->as<ViewModelInstanceString>();
+  CHECK(textKey->propertyValue() == 0);
+  CHECK(inputText->propertyValue() == "");
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    auto focusManager = artboard->focusManager();
-    focusManager->focusNext();
-    stateMachine->advanceAndApply(0.016f);
+  auto focusManager = artboard->focusManager();
+  focusManager->focusNext();
+  stateMachine->advanceAndApply(0.016f);
 
-    focusManager->keyInput(Key::a, KeyModifiers::none, true, false);
-    stateMachine->advanceAndApply(0.016f);
-    CHECK(textKey->propertyValue() == 65);
-    CHECK(inputText->propertyValue() == "");
+  focusManager->keyInput(Key::a, KeyModifiers::none, true, false);
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(textKey->propertyValue() == 65);
+  CHECK(inputText->propertyValue() == "");
 
-    focusManager->textInput("test");
-    stateMachine->advanceAndApply(0.016f);
-    CHECK(textKey->propertyValue() == 65);
-    CHECK(inputText->propertyValue() == "test");
+  focusManager->textInput("test");
+  stateMachine->advanceAndApply(0.016f);
+  CHECK(textKey->propertyValue() == 65);
+  CHECK(inputText->propertyValue() == "test");
 }

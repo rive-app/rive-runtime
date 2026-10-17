@@ -8,15 +8,16 @@ class Event;
 class EventReport
 {
 public:
-    EventReport(Event* event, float secondsDelay) :
-        m_event(event), m_secondsDelay(secondsDelay)
-    {}
-    Event* event() const { return m_event; }
-    float secondsDelay() const { return m_secondsDelay; }
+  EventReport(Event* event, float secondsDelay)
+      : m_event(event)
+      , m_secondsDelay(secondsDelay)
+  {}
+  Event* event() const { return m_event; }
+  float secondsDelay() const { return m_secondsDelay; }
 
 private:
-    Event* m_event;
-    float m_secondsDelay;
+  Event* m_event;
+  float m_secondsDelay;
 };
 } // namespace rive
 

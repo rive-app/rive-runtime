@@ -16,29 +16,29 @@ namespace rive
 class DataConverterStringTemplate : public DataConverterStringTemplateBase
 {
 public:
-    ~DataConverterStringTemplate();
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::string; };
-    void addArgument(StringTemplateArgument* argument);
-    const std::vector<StringTemplateArgument*>& arguments() const
-    {
-        return m_arguments;
-    }
-    Core* clone() const override;
+  ~DataConverterStringTemplate();
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::string; };
+  void addArgument(StringTemplateArgument* argument);
+  const std::vector<StringTemplateArgument*>& arguments() const
+  {
+    return m_arguments;
+  }
+  Core* clone() const override;
 
 protected:
-    void openDelimiterChanged() override;
-    void closeDelimiterChanged() override;
+  void openDelimiterChanged() override;
+  void closeDelimiterChanged() override;
 
 private:
-    StringTemplateArgument* argument(const std::string& name) const;
-    std::vector<StringTemplateArgument*> m_arguments;
-    std::vector<StringTemplateSegment> m_segments;
-    // The input m_segments was parsed from.
-    std::string m_parsedText;
-    // Deserialize and copy don't call the changed hooks, so start dirty.
-    bool m_segmentsDirty = true;
-    DataValueString m_output;
+  StringTemplateArgument* argument(const std::string& name) const;
+  std::vector<StringTemplateArgument*> m_arguments;
+  std::vector<StringTemplateSegment> m_segments;
+  // The input m_segments was parsed from.
+  std::string m_parsedText;
+  // Deserialize and copy don't call the changed hooks, so start dirty.
+  bool m_segmentsDirty = true;
+  DataValueString m_output;
 };
 } // namespace rive
 

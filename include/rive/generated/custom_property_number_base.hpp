@@ -7,54 +7,52 @@ namespace rive
 class CustomPropertyNumberBase : public CustomProperty
 {
 protected:
-    typedef CustomProperty Super;
+  typedef CustomProperty Super;
 
 public:
-    static const uint16_t typeKey = 127;
+  static const uint16_t typeKey = 127;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyValuePropertyKey = 243;
+  static const uint16_t propertyValuePropertyKey = 243;
 
 protected:
-    float m_PropertyValue = 0.0f;
+  float m_PropertyValue = 0.0f;
 
 public:
-    inline float propertyValue() const { return m_PropertyValue; }
-    void propertyValue(float value)
+  inline float propertyValue() const { return m_PropertyValue; }
+  void propertyValue(float value)
+  {
+    if (m_PropertyValue == value)
     {
-        if (m_PropertyValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyValuePropertyKey,
-                             &m_PropertyValue,
-                             &value);
-        m_PropertyValue = value;
-        RIVE_EDITOR_CHANGED(propertyValueChanged());
-        notifyPropertyChanged(propertyValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyValuePropertyKey, &m_PropertyValue, &value);
+    m_PropertyValue = value;
+    RIVE_EDITOR_CHANGED(propertyValueChanged());
+    notifyPropertyChanged(propertyValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const CustomPropertyNumberBase& object)
-    {
-        m_PropertyValue = object.m_PropertyValue;
-        CustomProperty::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const CustomPropertyNumberBase& object)
+  {
+    m_PropertyValue = object.m_PropertyValue;
+    CustomProperty::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyValuePropertyKey:
-                m_PropertyValue = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return CustomProperty::deserialize(propertyKey, reader);
+      case propertyValuePropertyKey:
+        m_PropertyValue = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return CustomProperty::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void propertyValueChanged() {}
+  virtual void propertyValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/custom_property_number_ext.inl"
 #endif

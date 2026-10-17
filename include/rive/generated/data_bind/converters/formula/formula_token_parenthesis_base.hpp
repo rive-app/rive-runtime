@@ -6,14 +6,14 @@ namespace rive
 class FormulaTokenParenthesisBase : public FormulaToken
 {
 protected:
-    typedef FormulaToken Super;
+  typedef FormulaToken Super;
 
 public:
-    static const uint16_t typeKey = 539;
+  static const uint16_t typeKey = 539;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

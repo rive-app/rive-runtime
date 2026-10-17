@@ -6,22 +6,22 @@ namespace rive
 class KeyFrameInterpolatorBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 175;
+  static const uint16_t typeKey = 175;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    void copy(const KeyFrameInterpolatorBase& object)
-    {
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  void copy(const KeyFrameInterpolatorBase& object)
+  {
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        return false;
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    return false;
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/keyframe_interpolator_ext.inl"
 #endif

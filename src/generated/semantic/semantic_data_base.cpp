@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* SemanticDataBase::clone() const
 {
-    auto cloned = new SemanticData();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new SemanticData();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -3,71 +3,72 @@
 
 using namespace rive;
 
-void GroupEffect::updateEffect(PathProvider* pathProvider,
-                               const ShapePaintPath* source,
-                               const ShapePaint* shapePaint)
+void GroupEffect::updateEffect(
+    PathProvider* pathProvider,
+    const ShapePaintPath* source,
+    const ShapePaint* shapePaint)
 {
-    auto path = source;
-    for (auto& effect : *effects())
+  auto path = source;
+  for (auto& effect : *effects())
+  {
+    effect->updateEffect(pathProvider, path, shapePaint);
+    auto newPath = effect->effectPath(pathProvider);
+    if (newPath)
     {
-        effect->updateEffect(pathProvider, path, shapePaint);
-        auto newPath = effect->effectPath(pathProvider);
-        if (newPath)
-        {
-            path = newPath;
-        }
+      path = newPath;
     }
+  }
 }
 
 void GroupEffect::invalidateEffects(StrokeEffect* invalidatingEffect)
 {
-    for (auto& targetEffect : m_targetEffects)
-    {
-        targetEffect->invalidateEffectFromLocal();
-    }
-    EffectsContainer::invalidateEffects(invalidatingEffect);
+  for (auto& targetEffect : m_targetEffects)
+  {
+    targetEffect->invalidateEffectFromLocal();
+  }
+  EffectsContainer::invalidateEffects(invalidatingEffect);
 }
 
 void GroupEffect::invalidateEffects() { invalidateEffects(nullptr); }
 
 void GroupEffect::addTargetEffect(TargetEffect* targetEffect)
 {
-    m_targetEffects.push_back(targetEffect);
+  m_targetEffects.push_back(targetEffect);
 }
 
 EffectsContainer* GroupEffect::parentPaint() { return nullptr; }
 
 void GroupEffect::addPathProvider(PathProvider* component)
 {
-    StrokeEffect::addPathProvider(component);
-    for (auto& effect : *effects())
-    {
-        effect->addPathProvider(component);
-    }
+  StrokeEffect::addPathProvider(component);
+  for (auto& effect : *effects())
+  {
+    effect->addPathProvider(component);
+  }
 }
 
 void GroupEffect::addStrokeEffect(StrokeEffect* effect)
 {
-    EffectsContainer::addStrokeEffect(effect);
-    for (auto& effectPath : m_effectPaths)
-    {
-        effect->addPathProvider(effectPath.first);
-    }
+  EffectsContainer::addStrokeEffect(effect);
+  for (auto& effectPath : m_effectPaths)
+  {
+    effect->addPathProvider(effectPath.first);
+  }
 }
 void GroupEffect::invalidateEffect(PathProvider* component)
 {
-    StrokeEffect::invalidateEffect(component);
-    for (auto& effect : *effects())
-    {
-        effect->invalidateEffect(component);
-    }
+  StrokeEffect::invalidateEffect(component);
+  for (auto& effect : *effects())
+  {
+    effect->invalidateEffect(component);
+  }
 }
 
 void GroupEffect::buildDependencies()
 {
-    Super::buildDependencies();
-    if (parent())
-    {
-        parent()->addDependent(this);
-    }
+  Super::buildDependencies();
+  if (parent())
+  {
+    parent()->addDependent(this);
+  }
 }

@@ -25,59 +25,60 @@ static const uint8_t kTinyModule[] = {
 
 } // namespace
 
-TEST_CASE("a boot compiles the top species unless asked for -O0",
-          "[tier-ladder]")
+TEST_CASE(
+    "a boot compiles the top species unless asked for -O0",
+    "[tier-ladder]")
 {
-    unsetenv("RIVE_WASM_AOT_SYNC");
+  unsetenv("RIVE_WASM_AOT_SYNC");
 #ifdef RIVE_WASM_HW_BOUNDS
-    CHECK(bootTierSpecies() == TierSpecies::hw);
+  CHECK(bootTierSpecies() == TierSpecies::hw);
 #else
-    CHECK(bootTierSpecies() == TierSpecies::o3);
+  CHECK(bootTierSpecies() == TierSpecies::o3);
 #endif
-    setenv("RIVE_WASM_AOT_SYNC", "o0", 1);
-    CHECK(bootTierSpecies() == TierSpecies::o0);
-    unsetenv("RIVE_WASM_AOT_SYNC");
+  setenv("RIVE_WASM_AOT_SYNC", "o0", 1);
+  CHECK(bootTierSpecies() == TierSpecies::o0);
+  unsetenv("RIVE_WASM_AOT_SYNC");
 }
 
 // Hidden: needs a wamrc binary via RIVE_WAMRC, which CI and dev machines
 // provide explicitly.
 TEST_CASE("tier ladder compiles a module to an artifact", "[.][tier-ladder]")
 {
-    REQUIRE(getenv("RIVE_WAMRC") != nullptr);
+  REQUIRE(getenv("RIVE_WAMRC") != nullptr);
 
-    char dirTemplate[] = "/tmp/rive_tier_ladder_XXXXXX";
-    char* cacheDir = mkdtemp(dirTemplate);
-    REQUIRE(cacheDir != nullptr);
+  char dirTemplate[] = "/tmp/rive_tier_ladder_XXXXXX";
+  char* cacheDir = mkdtemp(dirTemplate);
+  REQUIRE(cacheDir != nullptr);
 
-    auto& ladder = ModuleTierLadder::instance();
-    ladder.configure(std::string(), cacheDir);
-    REQUIRE(ladder.enabled());
+  auto& ladder = ModuleTierLadder::instance();
+  ladder.configure(std::string(), cacheDir);
+  REQUIRE(ladder.enabled());
 
-    const TierSpecies kTopSpecies = bootTierSpecies();
-    const uint64_t key = 0x1122334455667788ull;
-    Span<const uint8_t> module(kTinyModule, sizeof(kTinyModule));
-    CHECK(ladder.artifactPath(key, kTopSpecies).empty());
-    TierCompile compile = ladder.compileSync(key, module, kTopSpecies);
-    CHECK(compile.compiled);
-    std::string path = compile.path;
-    REQUIRE(!path.empty());
-    CHECK(ladder.artifactPath(key, kTopSpecies) == path);
-    CHECK(ladder.artifactPath(key, TierSpecies::o0).empty());
+  const TierSpecies kTopSpecies = bootTierSpecies();
+  const uint64_t key = 0x1122334455667788ull;
+  Span<const uint8_t> module(kTinyModule, sizeof(kTinyModule));
+  CHECK(ladder.artifactPath(key, kTopSpecies).empty());
+  TierCompile compile = ladder.compileSync(key, module, kTopSpecies);
+  CHECK(compile.compiled);
+  std::string path = compile.path;
+  REQUIRE(!path.empty());
+  CHECK(ladder.artifactPath(key, kTopSpecies) == path);
+  CHECK(ladder.artifactPath(key, TierSpecies::o0).empty());
 
-    std::ifstream artifact(path, std::ios::binary);
-    char magic[4] = {0};
-    artifact.read(magic, 4);
-    CHECK(magic[0] == '\0');
-    CHECK(magic[1] == 'a');
-    CHECK(magic[2] == 'o');
-    CHECK(magic[3] == 't');
+  std::ifstream artifact(path, std::ios::binary);
+  char magic[4] = {0};
+  artifact.read(magic, 4);
+  CHECK(magic[0] == '\0');
+  CHECK(magic[1] == 'a');
+  CHECK(magic[2] == 'o');
+  CHECK(magic[3] == 't');
 
-    // A second compile of the same content is a cache hit.
-    TierCompile hit = ladder.compileSync(key, module, kTopSpecies);
-    CHECK(hit.path == path);
-    CHECK(!hit.compiled);
+  // A second compile of the same content is a cache hit.
+  TierCompile hit = ladder.compileSync(key, module, kTopSpecies);
+  CHECK(hit.path == path);
+  CHECK(!hit.compiled);
 
-    ladder.unconfigure();
+  ladder.unconfigure();
 }
 
 #endif // WITH_RIVE_SCRIPTING_WASM

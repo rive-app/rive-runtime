@@ -15,35 +15,35 @@ using InferSemanticFn = bool (*)(Component*, ResolvedSemanticData&);
 
 struct InferenceRule
 {
-    uint16_t typeKey;
-    InferSemanticFn infer;
+  uint16_t typeKey;
+  InferSemanticFn infer;
 };
 
 static std::string inferredTextLabel(Text* text)
 {
-    std::string label;
-    for (auto run : text->runs())
+  std::string label;
+  for (auto run : text->runs())
+  {
+    if (run != nullptr)
     {
-        if (run != nullptr)
-        {
-            label += run->text();
-        }
+      label += run->text();
     }
-    return label;
+  }
+  return label;
 }
 
 static bool inferTextSemantics(Component* component, ResolvedSemanticData& out)
 {
-    const auto label = inferredTextLabel(component->as<Text>());
-    if (label.empty())
-    {
-        return false;
-    }
+  const auto label = inferredTextLabel(component->as<Text>());
+  if (label.empty())
+  {
+    return false;
+  }
 
-    out.hasSemantics = true;
-    out.role = static_cast<uint32_t>(SemanticRole::text);
-    out.label = label;
-    return true;
+  out.hasSemantics = true;
+  out.role = static_cast<uint32_t>(SemanticRole::text);
+  out.label = label;
+  return true;
 }
 
 static constexpr InferenceRule kInferenceRules[] = {
@@ -54,34 +54,34 @@ static constexpr InferenceRule kInferenceRules[] = {
 
 bool supportsInferredSemantics(Component* component)
 {
-    if (component == nullptr)
-    {
-        return false;
-    }
-    for (const auto& rule : kInferenceRules)
-    {
-        if (component->isTypeOf(rule.typeKey))
-        {
-            return true;
-        }
-    }
+  if (component == nullptr)
+  {
     return false;
+  }
+  for (const auto& rule : kInferenceRules)
+  {
+    if (component->isTypeOf(rule.typeKey))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool resolveInferredSemantics(Component* component, ResolvedSemanticData& out)
 {
-    if (component == nullptr)
-    {
-        return false;
-    }
-    for (const auto& rule : kInferenceRules)
-    {
-        if (component->isTypeOf(rule.typeKey) && rule.infer(component, out))
-        {
-            return true;
-        }
-    }
+  if (component == nullptr)
+  {
     return false;
+  }
+  for (const auto& rule : kInferenceRules)
+  {
+    if (component->isTypeOf(rule.typeKey) && rule.infer(component, out))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 #else
 // No inference rules are active when the text engine is compiled out —
@@ -90,7 +90,7 @@ bool supportsInferredSemantics(Component*) { return false; }
 
 bool resolveInferredSemantics(Component*, ResolvedSemanticData&)
 {
-    return false;
+  return false;
 }
 #endif
 

@@ -32,9 +32,10 @@ DEF_SIMPLE_GM_WITH_CLEAR_COLOR(emptyclear, 0xff00ff00, 64, 64, renderer) {}
 // rate in reproducing the artifact.
 //
 // See: https://github.com/rive-app/rive-react-native/issues/279
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(emptytransparentclear,
-                               0x00000000,
-                               320,
-                               320,
-                               renderer)
+DEF_SIMPLE_GM_WITH_CLEAR_COLOR(
+    emptytransparentclear,
+    0x00000000,
+    320,
+    320,
+    renderer)
 {}

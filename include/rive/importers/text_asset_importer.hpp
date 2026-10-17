@@ -16,14 +16,14 @@ class TextAssetImporter;
 /// import, held until the aggregate signature is verified in resolve().
 class InBandContent
 {
-    friend class TextAssetImporter;
+  friend class TextAssetImporter;
 
 public:
-    InBandContent(FileAsset* asset, SimpleArray<uint8_t>& bytes);
+  InBandContent(FileAsset* asset, SimpleArray<uint8_t>& bytes);
 
 private:
-    FileAsset* m_asset;
-    SimpleArray<uint8_t> m_bytes;
+  FileAsset* m_asset;
+  SimpleArray<uint8_t> m_bytes;
 };
 
 /// Importer shared by every signed code-derived asset (ScriptAsset,
@@ -35,17 +35,18 @@ private:
 class TextAssetImporter : public FileAssetImporter
 {
 public:
-    TextAssetImporter(FileAsset*,
-                      rcp<FileAssetLoader>,
-                      Factory*,
-                      std::vector<InBandContent>*);
-    StatusCode resolve() override;
-    void onFileAssetContents(
-        std::unique_ptr<FileAssetContents> contents) override;
+  TextAssetImporter(
+      FileAsset*,
+      rcp<FileAssetLoader>,
+      Factory*,
+      std::vector<InBandContent>*);
+  StatusCode resolve() override;
+  void onFileAssetContents(
+      std::unique_ptr<FileAssetContents> contents) override;
 
 private:
-    // The set of in-band contents which are signed together.
-    std::vector<InBandContent>* m_verificationSet;
+  // The set of in-band contents which are signed together.
+  std::vector<InBandContent>* m_verificationSet;
 };
 
 // Public key for in-band content signature verification (32 bytes)
@@ -53,8 +54,9 @@ private:
 extern const uint8_t g_scriptVerificationPublicKey[32];
 
 /// Whether signature is Rive's signature over content.
-bool verifiesContentSignature(Span<const uint8_t> signature,
-                              Span<const uint8_t> content);
+bool verifiesContentSignature(
+    Span<const uint8_t> signature,
+    Span<const uint8_t> content);
 } // namespace rive
 #endif
 #endif

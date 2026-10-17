@@ -18,148 +18,151 @@ extern int riveImageViewImpl(lua_State* L);
 ScriptedImage::~ScriptedImage() = default;
 ScriptedImage* ScriptedImage::luaNew(lua_State* L)
 {
-    return lua_newrive<ScriptedImage>(L);
+  return lua_newrive<ScriptedImage>(L);
 }
 #endif
 
 static void image_direct_width(void* udata, void* result)
 {
-    auto* self = (ScriptedImage*)udata;
-    lua_userdatadirectfield_setnumber(result,
-                                      self->image ? (double)self->image->width()
-                                                  : 0);
+  auto* self = (ScriptedImage*)udata;
+  lua_userdatadirectfield_setnumber(
+      result,
+      self->image ? (double)self->image->width() : 0);
 }
 
 static void image_direct_height(void* udata, void* result)
 {
-    auto* self = (ScriptedImage*)udata;
-    lua_userdatadirectfield_setnumber(
-        result,
-        self->image ? (double)self->image->height() : 0);
+  auto* self = (ScriptedImage*)udata;
+  lua_userdatadirectfield_setnumber(
+      result,
+      self->image ? (double)self->image->height() : 0);
 }
 
 static int image_index(lua_State* L)
 {
-    auto image = lua_torive<ScriptedImage>(L, 1);
+  auto image = lua_torive<ScriptedImage>(L, 1);
 
-    int atom;
-    const char* name = lua_tostringatom(L, 2, &atom);
-    if (!name)
-    {
-        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
-    }
-    switch (atom)
-    {
-        case (int)LuaAtoms::width:
-            lua_pushnumber(L, image->image ? image->image->width() : 0);
-            return 1;
-        case (int)LuaAtoms::height:
-            lua_pushnumber(L, image->image ? image->image->height() : 0);
-            return 1;
+  int atom;
+  const char* name = lua_tostringatom(L, 2, &atom);
+  if (!name)
+  {
+    luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+  }
+  switch (atom)
+  {
+    case (int)LuaAtoms::width:
+      lua_pushnumber(L, image->image ? image->image->width() : 0);
+      return 1;
+    case (int)LuaAtoms::height:
+      lua_pushnumber(L, image->image ? image->image->height() : 0);
+      return 1;
 #ifdef RIVE_ORE
-        case (int)LuaAtoms::view:
-            lua_pushcfunction(L, riveImageViewImpl, "Image.view");
-            return 1;
+    case (int)LuaAtoms::view:
+      lua_pushcfunction(L, riveImageViewImpl, "Image.view");
+      return 1;
 #endif
-    }
-    luaL_error(L,
-               "'%s' is not a valid index of %s",
-               name,
-               ScriptedImage::luaName);
-    return 0;
+  }
+  luaL_error(
+      L,
+      "'%s' is not a valid index of %s",
+      name,
+      ScriptedImage::luaName);
+  return 0;
 }
 
 static int imagesampler_construct(lua_State* L)
 {
-    int wrapXAtom;
-    const char* wrapXName = lua_tostringatom(L, 1, &wrapXAtom);
-    if (!wrapXName)
-    {
-        luaL_typeerrorL(L, 1, lua_typename(L, LUA_TSTRING));
-    }
-    int wrapYAtom;
-    const char* wrapYName = lua_tostringatom(L, 2, &wrapYAtom);
-    if (!wrapYName)
-    {
-        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
-    }
-    int imageFilterAtom;
-    const char* imageFilterName = lua_tostringatom(L, 3, &imageFilterAtom);
-    if (!imageFilterName)
-    {
-        luaL_typeerrorL(L, 3, lua_typename(L, LUA_TSTRING));
-    }
-    ImageWrap wrapX = ImageWrap::clamp;
-    ImageWrap wrapY = ImageWrap::clamp;
-    ImageFilter filter = ImageFilter::bilinear;
-    switch (wrapXAtom)
-    {
-        case (int)LuaAtoms::clamp:
-            break;
-        case (int)LuaAtoms::repeat:
-            wrapX = ImageWrap::repeat;
-            break;
-        case (int)LuaAtoms::mirror:
-            wrapX = ImageWrap::mirror;
-            break;
-        default:
-            luaL_error(L, "'%s' is not a valid ImageWrap", wrapXName);
-            break;
-    }
-    switch (wrapYAtom)
-    {
-        case (int)LuaAtoms::clamp:
-            break;
-        case (int)LuaAtoms::repeat:
-            wrapY = ImageWrap::repeat;
-            break;
-        case (int)LuaAtoms::mirror:
-            wrapY = ImageWrap::mirror;
-            break;
-        default:
-            luaL_error(L, "'%s' is not a valid ImageWrap", wrapYName);
-            break;
-    }
+  int wrapXAtom;
+  const char* wrapXName = lua_tostringatom(L, 1, &wrapXAtom);
+  if (!wrapXName)
+  {
+    luaL_typeerrorL(L, 1, lua_typename(L, LUA_TSTRING));
+  }
+  int wrapYAtom;
+  const char* wrapYName = lua_tostringatom(L, 2, &wrapYAtom);
+  if (!wrapYName)
+  {
+    luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+  }
+  int imageFilterAtom;
+  const char* imageFilterName = lua_tostringatom(L, 3, &imageFilterAtom);
+  if (!imageFilterName)
+  {
+    luaL_typeerrorL(L, 3, lua_typename(L, LUA_TSTRING));
+  }
+  ImageWrap wrapX = ImageWrap::clamp;
+  ImageWrap wrapY = ImageWrap::clamp;
+  ImageFilter filter = ImageFilter::bilinear;
+  switch (wrapXAtom)
+  {
+    case (int)LuaAtoms::clamp:
+      break;
+    case (int)LuaAtoms::repeat:
+      wrapX = ImageWrap::repeat;
+      break;
+    case (int)LuaAtoms::mirror:
+      wrapX = ImageWrap::mirror;
+      break;
+    default:
+      luaL_error(L, "'%s' is not a valid ImageWrap", wrapXName);
+      break;
+  }
+  switch (wrapYAtom)
+  {
+    case (int)LuaAtoms::clamp:
+      break;
+    case (int)LuaAtoms::repeat:
+      wrapY = ImageWrap::repeat;
+      break;
+    case (int)LuaAtoms::mirror:
+      wrapY = ImageWrap::mirror;
+      break;
+    default:
+      luaL_error(L, "'%s' is not a valid ImageWrap", wrapYName);
+      break;
+  }
 
-    switch (imageFilterAtom)
-    {
-        case (int)LuaAtoms::bilinear:
-            break;
-        case (int)LuaAtoms::nearest:
-            filter = ImageFilter::nearest;
-            break;
-        default:
-            luaL_error(L, "'%s' is not a valid ImageFilter", imageFilterName);
-            break;
-    }
+  switch (imageFilterAtom)
+  {
+    case (int)LuaAtoms::bilinear:
+      break;
+    case (int)LuaAtoms::nearest:
+      filter = ImageFilter::nearest;
+      break;
+    default:
+      luaL_error(L, "'%s' is not a valid ImageFilter", imageFilterName);
+      break;
+  }
 
-    lua_newrive<ScriptedImageSampler>(L, wrapX, wrapY, filter);
-    return 1;
+  lua_newrive<ScriptedImageSampler>(L, wrapX, wrapY, filter);
+  return 1;
 }
 
 int luaopen_rive_image(lua_State* L)
 {
-    lua_register_rive<ScriptedImage>(L);
+  lua_register_rive<ScriptedImage>(L);
 
-    lua_pushcfunction(L, image_index, nullptr);
-    lua_setfield(L, -2, "__index");
-    lua_setreadonly(L, -1, true);
-    lua_pop(L, 1);
+  lua_pushcfunction(L, image_index, nullptr);
+  lua_setfield(L, -2, "__index");
+  lua_setreadonly(L, -1, true);
+  lua_pop(L, 1);
 
-    lua_registeruserdatadirectfieldget(L,
-                                       ScriptedImage::luaTag,
-                                       "width",
-                                       image_direct_width);
-    lua_registeruserdatadirectfieldget(L,
-                                       ScriptedImage::luaTag,
-                                       "height",
-                                       image_direct_height);
+  lua_registeruserdatadirectfieldget(
+      L,
+      ScriptedImage::luaTag,
+      "width",
+      image_direct_width);
+  lua_registeruserdatadirectfieldget(
+      L,
+      ScriptedImage::luaTag,
+      "height",
+      image_direct_height);
 
-    lua_pushcfunction(L, imagesampler_construct, ScriptedImageSampler::luaName);
-    lua_setfield(L, LUA_GLOBALSINDEX, ScriptedImageSampler::luaName);
-    lua_register_rive<ScriptedImageSampler>(L);
+  lua_pushcfunction(L, imagesampler_construct, ScriptedImageSampler::luaName);
+  lua_setfield(L, LUA_GLOBALSINDEX, ScriptedImageSampler::luaName);
+  lua_register_rive<ScriptedImageSampler>(L);
 
-    return 0;
+  return 0;
 }
 
 #endif

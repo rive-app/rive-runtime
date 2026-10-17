@@ -13,24 +13,24 @@ namespace rive
 class VectorBinaryStream : public BinaryStream
 {
 public:
-    void write(const uint8_t* bytes, std::size_t length) override
-    {
-        m_memory.insert(m_memory.end(), bytes, bytes + length);
-    }
+  void write(const uint8_t* bytes, std::size_t length) override
+  {
+    m_memory.insert(m_memory.end(), bytes, bytes + length);
+  }
 
-    void flush() override {}
+  void flush() override {}
 
-    void clear() override { m_memory.clear(); }
+  void clear() override { m_memory.clear(); }
 
-    Span<uint8_t> memory()
-    {
-        return Span<uint8_t>(m_memory.data(), m_memory.size());
-    }
+  Span<uint8_t> memory()
+  {
+    return Span<uint8_t>(m_memory.data(), m_memory.size());
+  }
 
-    const std::vector<uint8_t>& data() const { return m_memory; }
+  const std::vector<uint8_t>& data() const { return m_memory; }
 
 private:
-    std::vector<uint8_t> m_memory;
+  std::vector<uint8_t> m_memory;
 };
 } // namespace rive
 

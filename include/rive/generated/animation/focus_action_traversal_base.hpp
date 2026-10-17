@@ -7,50 +7,48 @@ namespace rive
 class FocusActionTraversalBase : public FocusAction
 {
 protected:
-    typedef FocusAction Super;
+  typedef FocusAction Super;
 
 public:
-    static const uint16_t typeKey = 672;
+  static const uint16_t typeKey = 672;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t traversalKindPropertyKey = 1011;
+  static const uint16_t traversalKindPropertyKey = 1011;
 
 protected:
-    uint32_t m_TraversalKind = 0;
+  uint32_t m_TraversalKind = 0;
 
 public:
-    inline uint32_t traversalKind() const { return m_TraversalKind; }
-    void traversalKind(uint32_t value)
+  inline uint32_t traversalKind() const { return m_TraversalKind; }
+  void traversalKind(uint32_t value)
+  {
+    if (m_TraversalKind == value)
     {
-        if (m_TraversalKind == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(traversalKindPropertyKey,
-                             &m_TraversalKind,
-                             &value);
-        m_TraversalKind = value;
-        notifyPropertyChanged(traversalKindPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(traversalKindPropertyKey, &m_TraversalKind, &value);
+    m_TraversalKind = value;
+    notifyPropertyChanged(traversalKindPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const FocusActionTraversalBase& object)
-    {
-        m_TraversalKind = object.m_TraversalKind;
-        FocusAction::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FocusActionTraversalBase& object)
+  {
+    m_TraversalKind = object.m_TraversalKind;
+    FocusAction::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case traversalKindPropertyKey:
-                m_TraversalKind = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return FocusAction::deserialize(propertyKey, reader);
+      case traversalKindPropertyKey:
+        m_TraversalKind = CoreUintType::deserialize(reader);
+        return true;
     }
+    return FocusAction::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

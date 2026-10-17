@@ -14,122 +14,116 @@ TextStylePaint::TextStylePaint() : m_path(true, FillRule::clockwise) {}
 
 void TextStylePaint::rewindPath()
 {
-    m_path.rewind();
-    m_hasContents = false;
-    m_opacityPaths.clear();
+  m_path.rewind();
+  m_hasContents = false;
+  m_opacityPaths.clear();
 }
 
 bool TextStylePaint::addPath(const RawPath& rawPath, float opacity)
 {
-    bool hadContents = m_hasContents;
-    m_hasContents = true;
-    if (opacity > 0.0f)
+  bool hadContents = m_hasContents;
+  m_hasContents = true;
+  if (opacity > 0.0f)
+  {
+
+    // m_path contains everything, so inner feather bounds can work.
+    m_path.addPathClockwise(rawPath);
+
+    // Bucket by opacity
+    auto itr = m_opacityPaths.find(opacity);
+    ShapePaintPath* shapePaintPath = nullptr;
+    if (itr != m_opacityPaths.end())
     {
-
-        // m_path contains everything, so inner feather bounds can work.
-        m_path.addPathClockwise(rawPath);
-
-        // Bucket by opacity
-        auto itr = m_opacityPaths.find(opacity);
-        ShapePaintPath* shapePaintPath = nullptr;
-        if (itr != m_opacityPaths.end())
-        {
-            ShapePaintPath& path = itr->second;
-            shapePaintPath = &path;
-        }
-        else
-        {
-            m_opacityPaths[opacity] = ShapePaintPath(true, FillRule::clockwise);
-            shapePaintPath = &m_opacityPaths.at(opacity);
-        }
-        shapePaintPath->addPathClockwise(rawPath);
+      ShapePaintPath& path = itr->second;
+      shapePaintPath = &path;
     }
+    else
+    {
+      m_opacityPaths[opacity] = ShapePaintPath(true, FillRule::clockwise);
+      shapePaintPath = &m_opacityPaths.at(opacity);
+    }
+    shapePaintPath->addPathClockwise(rawPath);
+  }
 
-    return !hadContents;
+  return !hadContents;
 }
 
 void TextStylePaint::draw(Renderer* renderer, const Mat2D& worldTransform)
 {
-    for (auto shapePaint : m_ShapePaints)
+  for (auto shapePaint : m_ShapePaints)
+  {
+    if (!shapePaint->shouldDraw())
     {
-        if (!shapePaint->shouldDraw())
-        {
-            continue;
-        }
-        shapePaint->blendMode(parent()->as<Text>()->blendMode(),
-                              parent()->as<Text>()->additiveAmount());
-
-        // For blend modes to work, opaque paths render first
-        auto itr = m_opacityPaths.find(1.0f);
-        if (itr != m_opacityPaths.end())
-        {
-            ShapePaintPath& path = itr->second;
-            shapePaint->draw(renderer, &path, worldTransform, true);
-        }
-
-        if (m_paintPool.size() < m_opacityPaths.size())
-        {
-            m_paintPool.reserve(m_opacityPaths.size());
-            Factory* factory = artboard()->factory();
-            while (m_paintPool.size() < m_opacityPaths.size())
-            {
-                m_paintPool.emplace_back(factory->makeRenderPaint());
-            }
-        }
-
-        uint32_t paintIndex = 0;
-        for (itr = m_opacityPaths.begin(); itr != m_opacityPaths.end(); itr++)
-        {
-            // Don't render opaque paths twice
-            if (itr->first == 1.0f)
-            {
-                continue;
-            }
-            RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
-            shapePaint->applyTo(renderPaint, itr->first);
-            // Pooled paints are shared across shape paints; always set feather
-            // so one paint's feather doesn't leak into the others.
-            auto feather = shapePaint->feather();
-            renderPaint->feather(feather != nullptr ? feather->strength()
-                                                    : 0.0f);
-            ShapePaintPath& path = itr->second;
-            shapePaint->draw(renderer,
-                             &path,
-                             worldTransform,
-                             true,
-                             renderPaint);
-        }
+      continue;
     }
+    shapePaint->blendMode(
+        parent()->as<Text>()->blendMode(),
+        parent()->as<Text>()->additiveAmount());
+
+    // For blend modes to work, opaque paths render first
+    auto itr = m_opacityPaths.find(1.0f);
+    if (itr != m_opacityPaths.end())
+    {
+      ShapePaintPath& path = itr->second;
+      shapePaint->draw(renderer, &path, worldTransform, true);
+    }
+
+    if (m_paintPool.size() < m_opacityPaths.size())
+    {
+      m_paintPool.reserve(m_opacityPaths.size());
+      Factory* factory = artboard()->factory();
+      while (m_paintPool.size() < m_opacityPaths.size())
+      {
+        m_paintPool.emplace_back(factory->makeRenderPaint());
+      }
+    }
+
+    uint32_t paintIndex = 0;
+    for (itr = m_opacityPaths.begin(); itr != m_opacityPaths.end(); itr++)
+    {
+      // Don't render opaque paths twice
+      if (itr->first == 1.0f)
+      {
+        continue;
+      }
+      RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
+      shapePaint->applyTo(renderPaint, itr->first);
+      // Pooled paints are shared across shape paints; always set feather
+      // so one paint's feather doesn't leak into the others.
+      auto feather = shapePaint->feather();
+      renderPaint->feather(feather != nullptr ? feather->strength() : 0.0f);
+      ShapePaintPath& path = itr->second;
+      shapePaint->draw(renderer, &path, worldTransform, true, renderPaint);
+    }
+  }
 }
 
 ColorInt TextStylePaint::foregroundColor() const
 {
-    for (auto shapePaint : m_ShapePaints)
+  for (auto shapePaint : m_ShapePaints)
+  {
+    if (shapePaint->is<Fill>() && shapePaint->paint()->is<SolidColor>())
     {
-        if (shapePaint->is<Fill>() && shapePaint->paint()->is<SolidColor>())
-        {
-            return (ColorInt)shapePaint->paint()
-                ->as<SolidColor>()
-                ->colorValue();
-        }
+      return (ColorInt)shapePaint->paint()->as<SolidColor>()->colorValue();
     }
-    return 0xFF000000;
+  }
+  return 0xFF000000;
 }
 
 const Mat2D& TextStylePaint::shapeWorldTransform() const
 {
-    return parent()->as<Text>()->shapeWorldTransform();
+  return parent()->as<Text>()->shapeWorldTransform();
 }
 
 Component* TextStylePaint::pathBuilder() { return parent(); }
 
 Core* TextStylePaint::clone() const
 {
-    TextStylePaint* twin = TextStylePaintBase::clone()->as<TextStylePaint>();
-    if (m_fileAsset != nullptr)
-    {
-        twin->setAsset(m_fileAsset);
-    }
+  TextStylePaint* twin = TextStylePaintBase::clone()->as<TextStylePaint>();
+  if (m_fileAsset != nullptr)
+  {
+    twin->setAsset(m_fileAsset);
+  }
 
-    return twin;
+  return twin;
 }

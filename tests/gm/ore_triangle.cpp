@@ -42,8 +42,8 @@ using namespace rive::ore;
 // Interleaved position (float2) + color (float4) per vertex.
 struct Vertex
 {
-    float x, y;
-    float r, g, b, a;
+  float x, y;
+  float r, g, b, a;
 };
 
 static const Vertex kTriangleVertices[] = {
@@ -58,110 +58,111 @@ static const Vertex kTriangleVertices[] = {
 class OreTriangleGM : public GM
 {
 public:
-    OreTriangleGM() : GM(256, 256) {}
+  OreTriangleGM() : GM(256, 256) {}
 
-    ColorInt clearColor() const override { return 0xff000000; } // black
+  ColorInt clearColor() const override { return 0xff000000; } // black
 
-    void onDraw(rive::Renderer* originalRenderer) override
-    {
-        auto renderContext = TestingWindow::Get()->renderContext();
-        if (!renderContext || !m_ore.ensureContext(renderContext))
-            return;
+  void onDraw(rive::Renderer* originalRenderer) override
+  {
+    auto renderContext = TestingWindow::Get()->renderContext();
+    if (!renderContext || !m_ore.ensureContext(renderContext))
+      return;
 
 #if defined(ORE_BACKEND_METAL) || defined(ORE_BACKEND_D3D11) ||                \
     defined(ORE_BACKEND_D3D12) || defined(ORE_BACKEND_GL) ||                   \
     defined(ORE_BACKEND_WGPU) || defined(ORE_BACKEND_VK) ||                    \
     defined(ORE_BACKEND_RHI)
-        auto& ctx = *renderContext->getOreContext();
-        // Create a RenderCanvas to render into.
-        auto canvas = renderContext->makeRenderCanvas(256, 256);
-        if (!canvas)
-            return;
+    auto& ctx = *renderContext->getOreContext();
+    // Create a RenderCanvas to render into.
+    auto canvas = renderContext->makeRenderCanvas(256, 256);
+    if (!canvas)
+      return;
 
-        // Wrap the canvas texture for Ore.
-        auto colorTarget = ctx.wrapCanvasTexture(canvas.get());
-        if (!colorTarget)
-            return;
+    // Wrap the canvas texture for Ore.
+    auto colorTarget = ctx.wrapCanvasTexture(canvas.get());
+    if (!colorTarget)
+      return;
 
-        // Create vertex buffer.
-        BufferDesc bufDesc{};
-        bufDesc.usage = BufferUsage::vertex;
-        bufDesc.size = sizeof(kTriangleVertices);
-        bufDesc.data = kTriangleVertices;
-        bufDesc.label = "ore_triangle_vbo";
-        auto vbo = ctx.makeBuffer(bufDesc);
+    // Create vertex buffer.
+    BufferDesc bufDesc{};
+    bufDesc.usage = BufferUsage::vertex;
+    bufDesc.size = sizeof(kTriangleVertices);
+    bufDesc.data = kTriangleVertices;
+    bufDesc.label = "ore_triangle_vbo";
+    auto vbo = ctx.makeBuffer(bufDesc);
 
-        // Load shader from the pre-compiled RSTB.
-        auto shader = ore_gm::loadShader(ctx, ore_gm::kTriangle);
-        if (!shader.vsModule)
-            return;
+    // Load shader from the pre-compiled RSTB.
+    auto shader = ore_gm::loadShader(ctx, ore_gm::kTriangle);
+    if (!shader.vsModule)
+      return;
 
-        // Vertex layout: float2 position + float4 color, interleaved.
-        ore::VertexAttribute attrs[] = {
-            {offsetof(Vertex, x), 0, VertexFormat::float2}, // position
-            {offsetof(Vertex, r), 1, VertexFormat::float4}, // color
-        };
-        VertexBufferLayout vertexLayout{};
-        vertexLayout.stride = sizeof(Vertex);
-        vertexLayout.stepMode = VertexStepMode::vertex;
-        vertexLayout.attributes = attrs;
-        vertexLayout.attributeCount = 2;
+    // Vertex layout: float2 position + float4 color, interleaved.
+    ore::VertexAttribute attrs[] = {
+        {offsetof(Vertex, x), 0, VertexFormat::float2}, // position
+        {offsetof(Vertex, r), 1, VertexFormat::float4}, // color
+    };
+    VertexBufferLayout vertexLayout{};
+    vertexLayout.stride = sizeof(Vertex);
+    vertexLayout.stepMode = VertexStepMode::vertex;
+    vertexLayout.attributes = attrs;
+    vertexLayout.attributeCount = 2;
 
-        // Pipeline.
-        PipelineDesc pipeDesc{};
-        pipeDesc.vertexModule = shader.vsModule.get();
-        pipeDesc.fragmentModule = shader.psModule.get();
-        pipeDesc.vertexEntryPoint = shader.vsEntryPoint;
-        pipeDesc.fragmentEntryPoint = shader.fsEntryPoint;
-        pipeDesc.vertexBuffers = &vertexLayout;
-        pipeDesc.vertexBufferCount = 1;
-        pipeDesc.topology = PrimitiveTopology::triangleList;
-        pipeDesc.colorTargets[0].format = TextureFormat::rgba8unorm;
-        pipeDesc.colorCount = 1;
-        // No depth/stencil for this simple test.
-        pipeDesc.depthStencil.depthCompare = CompareFunction::always;
-        pipeDesc.depthStencil.depthWriteEnabled = false;
-        pipeDesc.label = "ore_triangle_pipeline";
-        auto pipeline = ctx.makePipeline(pipeDesc);
+    // Pipeline.
+    PipelineDesc pipeDesc{};
+    pipeDesc.vertexModule = shader.vsModule.get();
+    pipeDesc.fragmentModule = shader.psModule.get();
+    pipeDesc.vertexEntryPoint = shader.vsEntryPoint;
+    pipeDesc.fragmentEntryPoint = shader.fsEntryPoint;
+    pipeDesc.vertexBuffers = &vertexLayout;
+    pipeDesc.vertexBufferCount = 1;
+    pipeDesc.topology = PrimitiveTopology::triangleList;
+    pipeDesc.colorTargets[0].format = TextureFormat::rgba8unorm;
+    pipeDesc.colorCount = 1;
+    // No depth/stencil for this simple test.
+    pipeDesc.depthStencil.depthCompare = CompareFunction::always;
+    pipeDesc.depthStencil.depthWriteEnabled = false;
+    pipeDesc.label = "ore_triangle_pipeline";
+    auto pipeline = ctx.makePipeline(pipeDesc);
 
-        // Render the triangle via Ore.
-        m_ore.beginFrame(renderContext);
+    // Render the triangle via Ore.
+    m_ore.beginFrame(renderContext);
 
-        ColorAttachment ca{};
-        ca.view = colorTarget.get();
-        ca.loadOp = LoadOp::clear;
-        ca.storeOp = StoreOp::store;
-        ca.clearColor = {0.1f, 0.1f, 0.1f, 1.0f}; // dark grey
+    ColorAttachment ca{};
+    ca.view = colorTarget.get();
+    ca.loadOp = LoadOp::clear;
+    ca.storeOp = StoreOp::store;
+    ca.clearColor = {0.1f, 0.1f, 0.1f, 1.0f}; // dark grey
 
-        RenderPassDesc rpDesc{};
-        rpDesc.colorAttachments[0] = ca;
-        rpDesc.colorCount = 1;
-        rpDesc.label = "ore_triangle_pass";
+    RenderPassDesc rpDesc{};
+    rpDesc.colorAttachments[0] = ca;
+    rpDesc.colorCount = 1;
+    rpDesc.label = "ore_triangle_pass";
 
-        auto pass = ctx.beginRenderPass(rpDesc);
-        pass->setPipeline(pipeline.get());
-        pass->setVertexBuffer(0, vbo.get());
-        pass->setViewport(0, 0, 256, 256);
-        pass->draw(3);
-        pass->finish();
+    auto pass = ctx.beginRenderPass(rpDesc);
+    pass->setPipeline(pipeline.get());
+    pass->setVertexBuffer(0, vbo.get());
+    pass->setViewport(0, 0, 256, 256);
+    pass->draw(3);
+    pass->finish();
 
-        m_ore.endFrame(renderContext);
-        ore_gm::invalidateGLStateAfterOre(renderContext);
+    m_ore.endFrame(renderContext);
+    ore_gm::invalidateGLStateAfterOre(renderContext);
 
-        // Composite the canvas into the main framebuffer via the original
-        // renderer. No frame break needed — Ore rendered to a separate canvas
-        // texture, not the main render target.
-        originalRenderer->save();
-        originalRenderer->drawImage(canvas->renderImage(),
-                                    {.filter = ImageFilter::nearest},
-                                    BlendMode::srcOver,
-                                    1);
-        originalRenderer->restore();
+    // Composite the canvas into the main framebuffer via the original
+    // renderer. No frame break needed — Ore rendered to a separate canvas
+    // texture, not the main render target.
+    originalRenderer->save();
+    originalRenderer->drawImage(
+        canvas->renderImage(),
+        {.filter = ImageFilter::nearest},
+        BlendMode::srcOver,
+        1);
+    originalRenderer->restore();
 #endif
-    }
+  }
 
 private:
-    ore_gm::OreGMContext m_ore;
+  ore_gm::OreGMContext m_ore;
 };
 
 GMREGISTER(ore_triangle, return new OreTriangleGM())

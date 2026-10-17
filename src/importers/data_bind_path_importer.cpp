@@ -3,13 +3,13 @@
 
 using namespace rive;
 
-DataBindPathImporter::DataBindPathImporter(DataBindPath* obj) :
-    m_dataBindPath(obj)
+DataBindPathImporter::DataBindPathImporter(DataBindPath* obj)
+    : m_dataBindPath(obj)
 {}
 
 DataBindPath* DataBindPathImporter::claim()
 {
-    auto path = m_dataBindPath;
-    m_dataBindPath = nullptr;
-    return path;
+  auto path = m_dataBindPath;
+  m_dataBindPath = nullptr;
+  return path;
 }

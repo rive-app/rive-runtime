@@ -48,20 +48,20 @@ class ViewModelInstanceValue;
 /// reports an event or registers a viewModel listener.
 struct SMIReporting
 {
-    /// Events reported since the last applyEvents, awaiting delivery.
-    std::vector<EventReport> reportedEvents;
-    /// The batch currently being delivered. The reported/reporting split is
-    /// load-bearing for re-entrancy, not just capacity caching: a listener
-    /// action can re-enter reportEvent() while this batch is being notified,
-    /// and those new events must land in `reportedEvents` for the next pass.
-    std::vector<EventReport> reportingEvents;
-    /// Events first reported inside the applyEvents loop; kept host visible
-    /// until the next applyEvents so hosts see them exactly once.
-    std::vector<EventReport> eventsAppliedDuringLoop;
-    /// Owned, one per viewModel listener declared by the state machine.
-    std::vector<ListenerViewModel*> listenerViewModels;
-    std::vector<ListenerViewModel*> reportedListenerViewModels;
-    std::vector<ListenerViewModel*> reportingListenerViewModels;
+  /// Events reported since the last applyEvents, awaiting delivery.
+  std::vector<EventReport> reportedEvents;
+  /// The batch currently being delivered. The reported/reporting split is
+  /// load-bearing for re-entrancy, not just capacity caching: a listener
+  /// action can re-enter reportEvent() while this batch is being notified,
+  /// and those new events must land in `reportedEvents` for the next pass.
+  std::vector<EventReport> reportingEvents;
+  /// Events first reported inside the applyEvents loop; kept host visible
+  /// until the next applyEvents so hosts see them exactly once.
+  std::vector<EventReport> eventsAppliedDuringLoop;
+  /// Owned, one per viewModel listener declared by the state machine.
+  std::vector<ListenerViewModel*> listenerViewModels;
+  std::vector<ListenerViewModel*> reportedListenerViewModels;
+  std::vector<ListenerViewModel*> reportingListenerViewModels;
 };
 
 /// Shared BindableProperty -> an instance's clone of it. Transition conditions
@@ -72,99 +72,99 @@ struct SMIReporting
 class BindablePropertyInstances
 {
 public:
-    BindableProperty* find(const BindableProperty* shared) const
+  BindableProperty* find(const BindableProperty* shared) const
+  {
+    if (m_entries.empty())
     {
-        if (m_entries.empty())
-        {
-            return nullptr;
-        }
-        const size_t mask = m_entries.size() - 1;
-        for (size_t i = slotOf(shared) & mask;; i = (i + 1) & mask)
-        {
-            const Entry& entry = m_entries[i];
-            if (entry.shared == shared)
-            {
-                return entry.instance;
-            }
-            if (entry.shared == nullptr)
-            {
-                return nullptr;
-            }
-        }
+      return nullptr;
     }
+    const size_t mask = m_entries.size() - 1;
+    for (size_t i = slotOf(shared) & mask;; i = (i + 1) & mask)
+    {
+      const Entry& entry = m_entries[i];
+      if (entry.shared == shared)
+      {
+        return entry.instance;
+      }
+      if (entry.shared == nullptr)
+      {
+        return nullptr;
+      }
+    }
+  }
 
-    /// Adds [shared] -> [instance]; [shared] must not be in the table yet.
-    void insert(BindableProperty* shared, BindableProperty* instance)
+  /// Adds [shared] -> [instance]; [shared] must not be in the table yet.
+  void insert(BindableProperty* shared, BindableProperty* instance)
+  {
+    // Keep at least half the entries empty so probes stay short.
+    if ((m_count + 1) * 2 > m_entries.size())
     {
-        // Keep at least half the entries empty so probes stay short.
-        if ((m_count + 1) * 2 > m_entries.size())
-        {
-            grow();
-        }
-        place(shared, instance);
-        m_count++;
+      grow();
     }
+    place(shared, instance);
+    m_count++;
+  }
 
-    template <typename F> void forEachInstance(F&& visit) const
+  template <typename F> void forEachInstance(F&& visit) const
+  {
+    for (const Entry& entry : m_entries)
     {
-        for (const Entry& entry : m_entries)
-        {
-            if (entry.shared != nullptr)
-            {
-                visit(entry.instance);
-            }
-        }
+      if (entry.shared != nullptr)
+      {
+        visit(entry.instance);
+      }
     }
+  }
 
-    void clear()
-    {
-        m_entries.clear();
-        m_count = 0;
-    }
+  void clear()
+  {
+    m_entries.clear();
+    m_count = 0;
+  }
 
 private:
-    struct Entry
-    {
-        BindableProperty* shared = nullptr;
-        BindableProperty* instance = nullptr;
-    };
+  struct Entry
+  {
+    BindableProperty* shared = nullptr;
+    BindableProperty* instance = nullptr;
+  };
 
-    // Fibonacci hashing: the multiply spreads the pointer's bits, so
-    // neighbouring allocations still land far apart.
-    static size_t slotOf(const BindableProperty* shared)
+  // Fibonacci hashing: the multiply spreads the pointer's bits, so
+  // neighbouring allocations still land far apart.
+  static size_t slotOf(const BindableProperty* shared)
+  {
+    return (
+        size_t)(((uint64_t)(uintptr_t)shared * UINT64_C(0x9E3779B97F4A7C15)) >>
+                32);
+  }
+
+  void place(BindableProperty* shared, BindableProperty* instance)
+  {
+    const size_t mask = m_entries.size() - 1;
+    size_t i = slotOf(shared) & mask;
+    while (m_entries[i].shared != nullptr)
     {
-        return (size_t)(((uint64_t)(uintptr_t)shared *
-                         UINT64_C(0x9E3779B97F4A7C15)) >>
-                        32);
+      i = (i + 1) & mask;
     }
+    m_entries[i] = {shared, instance};
+  }
 
-    void place(BindableProperty* shared, BindableProperty* instance)
+  void grow()
+  {
+    std::vector<Entry> old = std::move(m_entries);
+    m_entries.assign(old.empty() ? 8 : old.size() * 2, Entry{});
+    for (const Entry& entry : old)
     {
-        const size_t mask = m_entries.size() - 1;
-        size_t i = slotOf(shared) & mask;
-        while (m_entries[i].shared != nullptr)
-        {
-            i = (i + 1) & mask;
-        }
-        m_entries[i] = {shared, instance};
+      if (entry.shared != nullptr)
+      {
+        place(entry.shared, entry.instance);
+      }
     }
+  }
 
-    void grow()
-    {
-        std::vector<Entry> old = std::move(m_entries);
-        m_entries.assign(old.empty() ? 8 : old.size() * 2, Entry{});
-        for (const Entry& entry : old)
-        {
-            if (entry.shared != nullptr)
-            {
-                place(entry.shared, entry.instance);
-            }
-        }
-    }
-
-    // Power-of-two size; a null shared pointer marks an empty entry.
-    std::vector<Entry> m_entries;
-    size_t m_count = 0;
+  // Power-of-two size; a null shared pointer marks an empty entry.
+  std::vector<Entry> m_entries;
+  size_t m_count = 0;
 };
 
 /// Which view model changes are pending for one layer of a state machine
@@ -174,8 +174,8 @@ private:
 /// started, which becomes its next frame's baseline.
 struct SMILayerChangeWindow
 {
-    uint64_t baseline = 0;
-    uint64_t searched = 0;
+  uint64_t baseline = 0;
+  uint64_t searched = 0;
 };
 
 /// Per-instance clones of the BindableProperty / StateTransition values a data
@@ -183,53 +183,55 @@ struct SMILayerChangeWindow
 /// Allocated only when a state machine data bind targets one of them.
 struct SMIBindables
 {
-    /// Shared BindableProperty -> this instance's owned clone.
-    BindablePropertyInstances propertyInstances;
-    std::unordered_map<BindableProperty*, DataBind*> dataBindsToTarget;
-    std::unordered_map<BindableProperty*, DataBind*> dataBindsToSource;
-    /// Map from shared StateTransition* to per-instance BindablePropertyNumber
-    /// instances, keyed by original property key. Data binds write to these
-    /// instead of the shared StateTransition object.
-    std::unordered_map<const Core*,
-                       std::unordered_map<uint32_t, BindablePropertyNumber*>>
-        transitionPropertyInstances;
-    /// One SMILayerChangeWindow per layer, in layer order, when the machine's
-    /// conditions read pending changes (StateMachine::readsPendingChanges).
-    /// Held per layer rather than per instance: a layer's transition can make
-    /// a change after an earlier layer searched, and nothing guarantees that
-    /// layer searches again before the frame ends (a host's settle loop stops
-    /// once nothing is dirty, or at its cap).
-    std::unique_ptr<SMILayerChangeWindow[]> layerChanges;
-    /// The instance's own window: where changes pending for it start, which
-    /// is the window a machine made or reset while this one advances starts
-    /// in (see forgetViewModelChanges), and where its latest search started.
-    /// With layerChanges, the baseline is the earliest layer's.
-    uint64_t changeBaseline = 0;
-    uint64_t changeSearched = 0;
-    /// Where the sequence stood when this instance last handled its view
-    /// model listeners' reports (at the start of its frame), or was created or
-    /// reset. A trigger fired after it is pending for a listener that binds
-    /// now, see StateMachineInstance::viewModelTriggerPendingForListeners.
-    /// Not changeBaseline: settled layers don't search, so that one can stay
-    /// behind fires that listeners have long handled.
-    uint64_t listenerBaseline = 0;
-    /// The values each layer's taken transitions read this frame. Written
-    /// through the const instance the conditions are evaluated with.
-    mutable std::vector<std::pair<const StateMachineLayerInstance*,
-                                  const ViewModelInstanceValue*>>
-        changesUsed;
+  /// Shared BindableProperty -> this instance's owned clone.
+  BindablePropertyInstances propertyInstances;
+  std::unordered_map<BindableProperty*, DataBind*> dataBindsToTarget;
+  std::unordered_map<BindableProperty*, DataBind*> dataBindsToSource;
+  /// Map from shared StateTransition* to per-instance BindablePropertyNumber
+  /// instances, keyed by original property key. Data binds write to these
+  /// instead of the shared StateTransition object.
+  std::unordered_map<
+      const Core*,
+      std::unordered_map<uint32_t, BindablePropertyNumber*>>
+      transitionPropertyInstances;
+  /// One SMILayerChangeWindow per layer, in layer order, when the machine's
+  /// conditions read pending changes (StateMachine::readsPendingChanges).
+  /// Held per layer rather than per instance: a layer's transition can make
+  /// a change after an earlier layer searched, and nothing guarantees that
+  /// layer searches again before the frame ends (a host's settle loop stops
+  /// once nothing is dirty, or at its cap).
+  std::unique_ptr<SMILayerChangeWindow[]> layerChanges;
+  /// The instance's own window: where changes pending for it start, which
+  /// is the window a machine made or reset while this one advances starts
+  /// in (see forgetViewModelChanges), and where its latest search started.
+  /// With layerChanges, the baseline is the earliest layer's.
+  uint64_t changeBaseline = 0;
+  uint64_t changeSearched = 0;
+  /// Where the sequence stood when this instance last handled its view
+  /// model listeners' reports (at the start of its frame), or was created or
+  /// reset. A trigger fired after it is pending for a listener that binds
+  /// now, see StateMachineInstance::viewModelTriggerPendingForListeners.
+  /// Not changeBaseline: settled layers don't search, so that one can stay
+  /// behind fires that listeners have long handled.
+  uint64_t listenerBaseline = 0;
+  /// The values each layer's taken transitions read this frame. Written
+  /// through the const instance the conditions are evaluated with.
+  mutable std::vector<std::pair<
+      const StateMachineLayerInstance*,
+      const ViewModelInstanceValue*>>
+      changesUsed;
 };
 
 struct QueuedFocusEvent
 {
-    FocusListenerGroup* group;
-    bool isFocus;
+  FocusListenerGroup* group;
+  bool isFocus;
 };
 
 struct QueuedSemanticEvent
 {
-    SemanticListenerGroup* group;
-    SemanticActionType actionType;
+  SemanticListenerGroup* group;
+  SemanticActionType actionType;
 };
 
 /// Everything driven by focus, keyboard, gamepad, or accessibility rather than
@@ -238,49 +240,49 @@ struct QueuedSemanticEvent
 /// or gamepad input, or when enableSemantics() is called.
 struct SMIInputExtras
 {
-    std::vector<std::unique_ptr<FocusListenerGroup>> focusListenerGroups;
-    std::vector<std::unique_ptr<KeyboardListenerGroup>> keyboardListenerGroups;
-    std::vector<std::unique_ptr<GamepadListenerGroup>> gamepadListenerGroups;
-    std::vector<std::unique_ptr<SemanticListenerGroup>> semanticListenerGroups;
-    /// Non-owning back-references to every `ScriptedDrawable` whose script
-    /// declares a gamepad handler. Populated once at init from the artboard
-    /// (which outlives this state machine) and walked by
-    /// `broadcastGamepadToScriptedDrawables` so events reach scripts that are
-    /// not on the focus chain. Mirrors how `m_hitComponents` lets every
-    /// pointer-aware drawable react regardless of focus.
-    std::vector<ScriptedDrawable*> gamepadScriptedDrawables;
-    /// Latest embedder gamepad state for `submitGamepadsFromBuffer` (WASM/JS).
-    std::unordered_map<int, GamepadSnapshot> embedderGamepads;
+  std::vector<std::unique_ptr<FocusListenerGroup>> focusListenerGroups;
+  std::vector<std::unique_ptr<KeyboardListenerGroup>> keyboardListenerGroups;
+  std::vector<std::unique_ptr<GamepadListenerGroup>> gamepadListenerGroups;
+  std::vector<std::unique_ptr<SemanticListenerGroup>> semanticListenerGroups;
+  /// Non-owning back-references to every `ScriptedDrawable` whose script
+  /// declares a gamepad handler. Populated once at init from the artboard
+  /// (which outlives this state machine) and walked by
+  /// `broadcastGamepadToScriptedDrawables` so events reach scripts that are
+  /// not on the focus chain. Mirrors how `m_hitComponents` lets every
+  /// pointer-aware drawable react regardless of focus.
+  std::vector<ScriptedDrawable*> gamepadScriptedDrawables;
+  /// Latest embedder gamepad state for `submitGamepadsFromBuffer` (WASM/JS).
+  std::unordered_map<int, GamepadSnapshot> embedderGamepads;
 
-    std::unique_ptr<SemanticManager> semanticManager;
-    SemanticManager* externalSemanticManager = nullptr;
+  std::unique_ptr<SemanticManager> semanticManager;
+  SemanticManager* externalSemanticManager = nullptr;
 
-    /// Queued for deferred execution during advance().
-    std::vector<QueuedFocusEvent> queuedFocusEvents;
-    std::vector<QueuedSemanticEvent> queuedSemanticEvents;
+  /// Queued for deferred execution during advance().
+  std::vector<QueuedFocusEvent> queuedFocusEvents;
+  std::vector<QueuedSemanticEvent> queuedSemanticEvents;
 };
 
 /// Per-instance clones of the state machine's scripted objects. Allocated only
 /// when the file uses scripting.
 struct SMIScripting
 {
-    /// (shared source, owned instance) pairs in the state machine's authored
-    /// order. A vector rather than a map so Lua `init` runs in a deterministic
-    /// order; lookups are a handful of entries and are always followed by a VM
-    /// call that dwarfs the scan.
-    std::vector<std::pair<const ScriptedObject*, ScriptedObject*>> objects;
+  /// (shared source, owned instance) pairs in the state machine's authored
+  /// order. A vector rather than a map so Lua `init` runs in a deterministic
+  /// order; lookups are a handful of entries and are always followed by a VM
+  /// call that dwarfs the scan.
+  std::vector<std::pair<const ScriptedObject*, ScriptedObject*>> objects;
 
-    ScriptedObject* find(const ScriptedObject* source) const
+  ScriptedObject* find(const ScriptedObject* source) const
+  {
+    for (const auto& pair : objects)
     {
-        for (const auto& pair : objects)
-        {
-            if (pair.first == source)
-            {
-                return pair.second;
-            }
-        }
-        return nullptr;
+      if (pair.first == source)
+      {
+        return pair.second;
+      }
     }
+    return nullptr;
+  }
 };
 
 } // namespace rive

@@ -13,15 +13,15 @@ class ViewModelInstanceAssetImageRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceAssetImageRuntime(
-        ViewModelInstanceAssetImage* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    void value(RenderImage* renderImage);
-    const DataType dataType() override { return DataType::assetImage; }
+  ViewModelInstanceAssetImageRuntime(
+      ViewModelInstanceAssetImage* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  void value(RenderImage* renderImage);
+  const DataType dataType() override { return DataType::assetImage; }
 
 #ifdef TESTING
-    RenderImage* testing_value();
+  RenderImage* testing_value();
 #endif
 };
 } // namespace rive

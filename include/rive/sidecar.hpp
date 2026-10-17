@@ -28,63 +28,63 @@ namespace rive
 template <typename T> class Sidecar
 {
 public:
-    Sidecar() = default;
-    ~Sidecar() { delete m_v; }
+  Sidecar() = default;
+  ~Sidecar() { delete m_v; }
 
-    // Deep copy. Preserves the "copying the owner clones its cold state"
-    // semantic an inline field would have provided. An empty source
-    // (m_v == nullptr) copies as an empty wrapper — no allocation.
-    Sidecar(const Sidecar& other) :
-        m_v(other.m_v != nullptr ? new T(*other.m_v) : nullptr)
-    {}
-    Sidecar& operator=(const Sidecar& other)
+  // Deep copy. Preserves the "copying the owner clones its cold state"
+  // semantic an inline field would have provided. An empty source
+  // (m_v == nullptr) copies as an empty wrapper — no allocation.
+  Sidecar(const Sidecar& other)
+      : m_v(other.m_v != nullptr ? new T(*other.m_v) : nullptr)
+  {}
+  Sidecar& operator=(const Sidecar& other)
+  {
+    if (this != &other)
     {
-        if (this != &other)
-        {
-            delete m_v;
-            m_v = other.m_v != nullptr ? new T(*other.m_v) : nullptr;
-        }
-        return *this;
+      delete m_v;
+      m_v = other.m_v != nullptr ? new T(*other.m_v) : nullptr;
     }
+    return *this;
+  }
 
-    Sidecar(Sidecar&& other) noexcept : m_v(other.m_v) { other.m_v = nullptr; }
-    Sidecar& operator=(Sidecar&& other) noexcept
+  Sidecar(Sidecar&& other) noexcept : m_v(other.m_v) { other.m_v = nullptr; }
+  Sidecar& operator=(Sidecar&& other) noexcept
+  {
+    if (this != &other)
     {
-        if (this != &other)
-        {
-            delete m_v;
-            m_v = other.m_v;
-            other.m_v = nullptr;
-        }
-        return *this;
+      delete m_v;
+      m_v = other.m_v;
+      other.m_v = nullptr;
     }
+    return *this;
+  }
 
-    // Backing object, or nullptr when never allocated. The const overload
-    // returns a const T* so a const owner (e.g. a generated `const` getter)
-    // can read the payload but not mutate it through the sidecar; non-const
-    // owners get a writable T*.
-    const T* get() const { return m_v; }
-    T* get() { return m_v; }
+  // Backing object, or nullptr when never allocated. The const overload
+  // returns a const T* so a const owner (e.g. a generated `const` getter)
+  // can read the payload but not mutate it through the sidecar; non-const
+  // owners get a writable T*.
+  const T* get() const { return m_v; }
+  T* get() { return m_v; }
 
-    // Allocate on first use, then return the backing object. Generated setters
-    // and deserialize call this before writing an authored value.
-    T* ensureAllocated()
+  // Allocate on first use, then return the backing object. Generated setters
+  // and deserialize call this before writing an authored value.
+  T* ensureAllocated()
+  {
+    if (m_v == nullptr)
     {
-        if (m_v == nullptr)
-        {
-            m_v = new T();
-        }
-        return m_v;
+      m_v = new T();
     }
+    return m_v;
+  }
 
-    void reset()
-    {
-        delete m_v;
-        m_v = nullptr;
-    }
+  void reset()
+  {
+    delete m_v;
+    m_v = nullptr;
+  }
 
 private:
-    T* m_v = nullptr;
+  T* m_v = nullptr;
 };
 
 } // namespace rive

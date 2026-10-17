@@ -5,47 +5,47 @@
 
 using namespace rive;
 
-DataBindContextValueNumber::DataBindContextValueNumber(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueNumber::DataBindContextValueNumber(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueNumber::apply(Core* target,
-                                       uint32_t propertyKey,
-                                       bool isMainDirection,
-                                       DataBind* dataBind)
+void DataBindContextValueNumber::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto value = calculateValue<DataValueNumber, float>(m_dataValue,
-                                                        isMainDirection,
-                                                        dataBind);
-    switch (CoreRegistry::propertyFieldId(propertyKey))
-    {
-        case CoreDoubleType::id:
-            CoreRegistry::setDouble(target, propertyKey, value);
-            break;
-        case CoreUintType::id:
+  syncSourceValue(dataBind);
+  auto value = calculateValue<DataValueNumber, float>(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  switch (CoreRegistry::propertyFieldId(propertyKey))
+  {
+    case CoreDoubleType::id:
+      CoreRegistry::setDouble(target, propertyKey, value);
+      break;
+    case CoreUintType::id:
 
-            if (target && target->is<Solo>())
-            {
-                target->as<Solo>()->updateByIndex((size_t)std::round(value));
-            }
-            else if (CoreRegistry::isSignedInt(propertyKey))
-            {
-                // No clamp: a negative grid line is end-relative.
-                CoreRegistry::setInt(target,
-                                     propertyKey,
-                                     (int32_t)std::round(value));
-            }
-            else if (target && target->is<ScriptedTransition>())
-            {
-                target->as<ScriptedTransition>()->updateByIndex(
-                    (size_t)std::round(value));
-            }
-            else
-            {
-                int rounded = value < 0 ? 0 : std::round(value);
-                CoreRegistry::setUint(target, propertyKey, rounded);
-            }
-            break;
-    }
+      if (target && target->is<Solo>())
+      {
+        target->as<Solo>()->updateByIndex((size_t)std::round(value));
+      }
+      else if (CoreRegistry::isSignedInt(propertyKey))
+      {
+        // No clamp: a negative grid line is end-relative.
+        CoreRegistry::setInt(target, propertyKey, (int32_t)std::round(value));
+      }
+      else if (target && target->is<ScriptedTransition>())
+      {
+        target->as<ScriptedTransition>()->updateByIndex(
+            (size_t)std::round(value));
+      }
+      else
+      {
+        int rounded = value < 0 ? 0 : std::round(value);
+        CoreRegistry::setUint(target, propertyKey, rounded);
+      }
+      break;
+  }
 }

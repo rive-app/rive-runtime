@@ -10,196 +10,196 @@ namespace rive
 class NodeBase : public TransformComponent
 {
 protected:
-    typedef TransformComponent Super;
+  typedef TransformComponent Super;
 
 public:
-    static const uint16_t typeKey = 2;
+  static const uint16_t typeKey = 2;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t xPropertyKey = 13;
-    static const uint16_t xArtboardPropertyKey = 9;
-    static const uint16_t yPropertyKey = 14;
-    static const uint16_t yArtboardPropertyKey = 10;
-    static const uint16_t computedLocalXPropertyKey = 806;
-    static const uint16_t computedLocalYPropertyKey = 807;
-    static const uint16_t computedWorldXPropertyKey = 808;
-    static const uint16_t computedWorldYPropertyKey = 809;
-    static const uint16_t computedRootXPropertyKey = 864;
-    static const uint16_t computedRootYPropertyKey = 865;
-    static const uint16_t computedWidthPropertyKey = 810;
-    static const uint16_t computedHeightPropertyKey = 811;
+  static const uint16_t xPropertyKey = 13;
+  static const uint16_t xArtboardPropertyKey = 9;
+  static const uint16_t yPropertyKey = 14;
+  static const uint16_t yArtboardPropertyKey = 10;
+  static const uint16_t computedLocalXPropertyKey = 806;
+  static const uint16_t computedLocalYPropertyKey = 807;
+  static const uint16_t computedWorldXPropertyKey = 808;
+  static const uint16_t computedWorldYPropertyKey = 809;
+  static const uint16_t computedRootXPropertyKey = 864;
+  static const uint16_t computedRootYPropertyKey = 865;
+  static const uint16_t computedWidthPropertyKey = 810;
+  static const uint16_t computedHeightPropertyKey = 811;
 
 protected:
-    float m_X = 0.0f;
-    float m_Y = 0.0f;
+  float m_X = 0.0f;
+  float m_Y = 0.0f;
 
 public:
-    inline float x() const override { return m_X; }
-    void x(float value)
+  inline float x() const override { return m_X; }
+  void x(float value)
+  {
+    if (m_X == value)
     {
-        if (m_X == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
-        m_X = value;
-        RIVE_EDITOR_CHANGED(xChanged());
-        notifyPropertyChanged(xPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(xPropertyKey, &m_X, &value);
+    m_X = value;
+    RIVE_EDITOR_CHANGED(xChanged());
+    notifyPropertyChanged(xPropertyKey);
+  }
 
-    inline float y() const override { return m_Y; }
-    void y(float value)
+  inline float y() const override { return m_Y; }
+  void y(float value)
+  {
+    if (m_Y == value)
     {
-        if (m_Y == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
-        m_Y = value;
-        RIVE_EDITOR_CHANGED(yChanged());
-        notifyPropertyChanged(yPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(yPropertyKey, &m_Y, &value);
+    m_Y = value;
+    RIVE_EDITOR_CHANGED(yChanged());
+    notifyPropertyChanged(yPropertyKey);
+  }
 
-    virtual void setComputedLocalX(float value) = 0;
-    virtual float computedLocalX() = 0;
-    void computedLocalX(float value)
+  virtual void setComputedLocalX(float value) = 0;
+  virtual float computedLocalX() = 0;
+  void computedLocalX(float value)
+  {
+    if (computedLocalX() == value)
     {
-        if (computedLocalX() == value)
-        {
-            return;
-        }
-        setComputedLocalX(value);
-        computedLocalXChanged();
-        notifyPropertyChanged(computedLocalXPropertyKey);
+      return;
     }
+    setComputedLocalX(value);
+    computedLocalXChanged();
+    notifyPropertyChanged(computedLocalXPropertyKey);
+  }
 
-    virtual void setComputedLocalY(float value) = 0;
-    virtual float computedLocalY() = 0;
-    void computedLocalY(float value)
+  virtual void setComputedLocalY(float value) = 0;
+  virtual float computedLocalY() = 0;
+  void computedLocalY(float value)
+  {
+    if (computedLocalY() == value)
     {
-        if (computedLocalY() == value)
-        {
-            return;
-        }
-        setComputedLocalY(value);
-        computedLocalYChanged();
-        notifyPropertyChanged(computedLocalYPropertyKey);
+      return;
     }
+    setComputedLocalY(value);
+    computedLocalYChanged();
+    notifyPropertyChanged(computedLocalYPropertyKey);
+  }
 
-    virtual void setComputedWorldX(float value) = 0;
-    virtual float computedWorldX() = 0;
-    void computedWorldX(float value)
+  virtual void setComputedWorldX(float value) = 0;
+  virtual float computedWorldX() = 0;
+  void computedWorldX(float value)
+  {
+    if (computedWorldX() == value)
     {
-        if (computedWorldX() == value)
-        {
-            return;
-        }
-        setComputedWorldX(value);
-        computedWorldXChanged();
-        notifyPropertyChanged(computedWorldXPropertyKey);
+      return;
     }
+    setComputedWorldX(value);
+    computedWorldXChanged();
+    notifyPropertyChanged(computedWorldXPropertyKey);
+  }
 
-    virtual void setComputedWorldY(float value) = 0;
-    virtual float computedWorldY() = 0;
-    void computedWorldY(float value)
+  virtual void setComputedWorldY(float value) = 0;
+  virtual float computedWorldY() = 0;
+  void computedWorldY(float value)
+  {
+    if (computedWorldY() == value)
     {
-        if (computedWorldY() == value)
-        {
-            return;
-        }
-        setComputedWorldY(value);
-        computedWorldYChanged();
-        notifyPropertyChanged(computedWorldYPropertyKey);
+      return;
     }
+    setComputedWorldY(value);
+    computedWorldYChanged();
+    notifyPropertyChanged(computedWorldYPropertyKey);
+  }
 
-    virtual void setComputedRootX(float value) = 0;
-    virtual float computedRootX() = 0;
-    void computedRootX(float value)
+  virtual void setComputedRootX(float value) = 0;
+  virtual float computedRootX() = 0;
+  void computedRootX(float value)
+  {
+    if (computedRootX() == value)
     {
-        if (computedRootX() == value)
-        {
-            return;
-        }
-        setComputedRootX(value);
-        computedRootXChanged();
-        notifyPropertyChanged(computedRootXPropertyKey);
+      return;
     }
+    setComputedRootX(value);
+    computedRootXChanged();
+    notifyPropertyChanged(computedRootXPropertyKey);
+  }
 
-    virtual void setComputedRootY(float value) = 0;
-    virtual float computedRootY() = 0;
-    void computedRootY(float value)
+  virtual void setComputedRootY(float value) = 0;
+  virtual float computedRootY() = 0;
+  void computedRootY(float value)
+  {
+    if (computedRootY() == value)
     {
-        if (computedRootY() == value)
-        {
-            return;
-        }
-        setComputedRootY(value);
-        computedRootYChanged();
-        notifyPropertyChanged(computedRootYPropertyKey);
+      return;
     }
+    setComputedRootY(value);
+    computedRootYChanged();
+    notifyPropertyChanged(computedRootYPropertyKey);
+  }
 
-    virtual void setComputedWidth(float value) = 0;
-    virtual float computedWidth() = 0;
-    void computedWidth(float value)
+  virtual void setComputedWidth(float value) = 0;
+  virtual float computedWidth() = 0;
+  void computedWidth(float value)
+  {
+    if (computedWidth() == value)
     {
-        if (computedWidth() == value)
-        {
-            return;
-        }
-        setComputedWidth(value);
-        computedWidthChanged();
-        notifyPropertyChanged(computedWidthPropertyKey);
+      return;
     }
+    setComputedWidth(value);
+    computedWidthChanged();
+    notifyPropertyChanged(computedWidthPropertyKey);
+  }
 
-    virtual void setComputedHeight(float value) = 0;
-    virtual float computedHeight() = 0;
-    void computedHeight(float value)
+  virtual void setComputedHeight(float value) = 0;
+  virtual float computedHeight() = 0;
+  void computedHeight(float value)
+  {
+    if (computedHeight() == value)
     {
-        if (computedHeight() == value)
-        {
-            return;
-        }
-        setComputedHeight(value);
-        computedHeightChanged();
-        notifyPropertyChanged(computedHeightPropertyKey);
+      return;
     }
+    setComputedHeight(value);
+    computedHeightChanged();
+    notifyPropertyChanged(computedHeightPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const NodeBase& object)
-    {
-        m_X = object.m_X;
-        m_Y = object.m_Y;
-        RIVE_EDITOR_COPY(object);
-        TransformComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const NodeBase& object)
+  {
+    m_X = object.m_X;
+    m_Y = object.m_Y;
+    RIVE_EDITOR_COPY(object);
+    TransformComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case xPropertyKey:
-                m_X = CoreDoubleType::deserialize(reader);
-                return true;
-            case yPropertyKey:
-                m_Y = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return TransformComponent::deserialize(propertyKey, reader);
+      case xPropertyKey:
+        m_X = CoreDoubleType::deserialize(reader);
+        return true;
+      case yPropertyKey:
+        m_Y = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return TransformComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void xChanged() {}
-    virtual void yChanged() {}
-    virtual void computedLocalXChanged() {}
-    virtual void computedLocalYChanged() {}
-    virtual void computedWorldXChanged() {}
-    virtual void computedWorldYChanged() {}
-    virtual void computedRootXChanged() {}
-    virtual void computedRootYChanged() {}
-    virtual void computedWidthChanged() {}
-    virtual void computedHeightChanged() {}
+  virtual void xChanged() {}
+  virtual void yChanged() {}
+  virtual void computedLocalXChanged() {}
+  virtual void computedLocalYChanged() {}
+  virtual void computedWorldXChanged() {}
+  virtual void computedWorldYChanged() {}
+  virtual void computedRootXChanged() {}
+  virtual void computedRootYChanged() {}
+  virtual void computedWidthChanged() {}
+  virtual void computedHeightChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/node_ext.inl"
 #endif

@@ -11,21 +11,21 @@ namespace rive
 /// `GamepadEventInvocation::change.kind`.
 enum class GamepadInputKind : uint32_t
 {
-    button = 0,
-    axis = 1,
-    connected = 2,
-    disconnected = 3,
+  button = 0,
+  axis = 1,
+  connected = 2,
+  disconnected = 3,
 };
 
 /// Values for \c GamepadInputBase::mapping() — how `inputIndex` is interpreted
 /// for `button` / `axis` kinds.
 enum class GamepadInputMapping : uint32_t
 {
-    /// `inputIndex` is a W3C standard slot (matches the corresponding
-    /// `StandardGamepadButton` / `StandardGamepadAxis` enum value).
-    standard = 0,
-    /// `inputIndex` is the raw W3C index into the buttons/axes arrays.
-    index = 1,
+  /// `inputIndex` is a W3C standard slot (matches the corresponding
+  /// `StandardGamepadButton` / `StandardGamepadAxis` enum value).
+  standard = 0,
+  /// `inputIndex` is the raw W3C index into the buttons/axes arrays.
+  index = 1,
 };
 } // namespace rive
 

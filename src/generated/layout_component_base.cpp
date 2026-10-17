@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* LayoutComponentBase::clone() const
 {
-    auto cloned = new LayoutComponent();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new LayoutComponent();
+  cloned->copy(*this);
+  return cloned;
 }

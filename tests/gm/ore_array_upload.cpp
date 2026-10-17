@@ -89,24 +89,24 @@ using namespace rive::ore;
 // brown stripes instead of the intended solid colour.
 static constexpr uint32_t kLayerWidth = 4;
 static constexpr uint32_t kLayerHeight = 4;
-static constexpr uint32_t kPaddedRowBytes =
-    32; // 4 * 4 * 2 — double the tight row.
+static constexpr uint32_t
+    kPaddedRowBytes = 32; // 4 * 4 * 2 — double the tight row.
 static constexpr uint32_t kPaddedLayerBytes = kPaddedRowBytes * kLayerHeight;
 
 static void fillSolidLayer(uint8_t* dst, uint8_t r, uint8_t g, uint8_t b)
 {
-    memset(dst, 0xCC, kPaddedLayerBytes); // padding sentinel.
-    for (uint32_t y = 0; y < kLayerHeight; ++y)
+  memset(dst, 0xCC, kPaddedLayerBytes); // padding sentinel.
+  for (uint32_t y = 0; y < kLayerHeight; ++y)
+  {
+    uint8_t* row = dst + y * kPaddedRowBytes;
+    for (uint32_t x = 0; x < kLayerWidth; ++x)
     {
-        uint8_t* row = dst + y * kPaddedRowBytes;
-        for (uint32_t x = 0; x < kLayerWidth; ++x)
-        {
-            row[x * 4 + 0] = r;
-            row[x * 4 + 1] = g;
-            row[x * 4 + 2] = b;
-            row[x * 4 + 3] = 0xFF;
-        }
+      row[x * 4 + 0] = r;
+      row[x * 4 + 1] = g;
+      row[x * 4 + 2] = b;
+      row[x * 4 + 3] = 0xFF;
     }
+  }
 }
 
 // 2×2 RGBA8 tile, non-tightly-packed (8 valid + 8 padding) so partial-region
@@ -118,233 +118,231 @@ static constexpr uint32_t kTilePaddedBytes = kTilePaddedRowBytes * kTileHeight;
 
 static void fillSolidTile(uint8_t* dst, uint8_t r, uint8_t g, uint8_t b)
 {
-    memset(dst, 0xCC, kTilePaddedBytes); // padding sentinel.
-    for (uint32_t y = 0; y < kTileHeight; ++y)
+  memset(dst, 0xCC, kTilePaddedBytes); // padding sentinel.
+  for (uint32_t y = 0; y < kTileHeight; ++y)
+  {
+    uint8_t* row = dst + y * kTilePaddedRowBytes;
+    for (uint32_t x = 0; x < kTileWidth; ++x)
     {
-        uint8_t* row = dst + y * kTilePaddedRowBytes;
-        for (uint32_t x = 0; x < kTileWidth; ++x)
-        {
-            row[x * 4 + 0] = r;
-            row[x * 4 + 1] = g;
-            row[x * 4 + 2] = b;
-            row[x * 4 + 3] = 0xFF;
-        }
+      row[x * 4 + 0] = r;
+      row[x * 4 + 1] = g;
+      row[x * 4 + 2] = b;
+      row[x * 4 + 3] = 0xFF;
     }
+  }
 }
 #endif
 
 class OreArrayUploadGM : public GM
 {
 public:
-    OreArrayUploadGM() : GM(256, 256) {}
+  OreArrayUploadGM() : GM(256, 256) {}
 
-    ColorInt clearColor() const override { return 0xff000000; }
+  ColorInt clearColor() const override { return 0xff000000; }
 
-    void onDraw(rive::Renderer* originalRenderer) override
-    {
-        auto renderContext = TestingWindow::Get()->renderContext();
-        if (!renderContext || !m_ore.ensureContext(renderContext))
-            return;
+  void onDraw(rive::Renderer* originalRenderer) override
+  {
+    auto renderContext = TestingWindow::Get()->renderContext();
+    if (!renderContext || !m_ore.ensureContext(renderContext))
+      return;
 
 #ifdef ORE_ARRAY_UPLOAD_ACTIVE
-        auto& ctx = *renderContext->getOreContext();
+    auto& ctx = *renderContext->getOreContext();
 
-        // Array texture: 4×4, 4 layers, 2 mips. The 2-mip count is the
-        // important bit — it makes the D3D12 transposed-formula bug
-        // observable.
-        TextureDesc texDesc{};
-        texDesc.width = kLayerWidth;
-        texDesc.height = kLayerHeight;
-        texDesc.depthOrArrayLayers = 4;
-        texDesc.numMipmaps = 2;
-        texDesc.format = TextureFormat::rgba8unorm;
-        texDesc.type = TextureType::array2D;
-        texDesc.label = "ore_array_upload_tex";
-        auto arrTex = ctx.makeTexture(texDesc);
-        if (!arrTex)
-            return;
+    // Array texture: 4×4, 4 layers, 2 mips. The 2-mip count is the
+    // important bit — it makes the D3D12 transposed-formula bug
+    // observable.
+    TextureDesc texDesc{};
+    texDesc.width = kLayerWidth;
+    texDesc.height = kLayerHeight;
+    texDesc.depthOrArrayLayers = 4;
+    texDesc.numMipmaps = 2;
+    texDesc.format = TextureFormat::rgba8unorm;
+    texDesc.type = TextureType::array2D;
+    texDesc.label = "ore_array_upload_tex";
+    auto arrTex = ctx.makeTexture(texDesc);
+    if (!arrTex)
+      return;
 
-        // Array2D view covering all 4 layers, both mips.
-        TextureViewDesc viewDesc{};
-        viewDesc.texture = arrTex.get();
-        viewDesc.dimension = TextureViewDimension::array2D;
-        viewDesc.baseMipLevel = 0;
-        viewDesc.mipCount = 2;
-        viewDesc.baseLayer = 0;
-        viewDesc.layerCount = 4;
-        auto arrView = ctx.makeTextureView(viewDesc);
-        if (!arrView)
-            return;
+    // Array2D view covering all 4 layers, both mips.
+    TextureViewDesc viewDesc{};
+    viewDesc.texture = arrTex.get();
+    viewDesc.dimension = TextureViewDimension::array2D;
+    viewDesc.baseMipLevel = 0;
+    viewDesc.mipCount = 2;
+    viewDesc.baseLayer = 0;
+    viewDesc.layerCount = 4;
+    auto arrView = ctx.makeTextureView(viewDesc);
+    if (!arrView)
+      return;
 
-        // Sampler clamped to mip 0 — mip 1 is never uploaded so we
-        // mustn't sample it.
-        SamplerDesc sampDesc{};
-        sampDesc.minFilter = Filter::nearest;
-        sampDesc.magFilter = Filter::nearest;
-        sampDesc.mipmapFilter = Filter::nearest;
-        sampDesc.minLod = 0.0f;
-        sampDesc.maxLod = 0.0f;
-        sampDesc.label = "ore_array_upload_sampler";
-        auto sampler = ctx.makeSampler(sampDesc);
+    // Sampler clamped to mip 0 — mip 1 is never uploaded so we
+    // mustn't sample it.
+    SamplerDesc sampDesc{};
+    sampDesc.minFilter = Filter::nearest;
+    sampDesc.magFilter = Filter::nearest;
+    sampDesc.mipmapFilter = Filter::nearest;
+    sampDesc.minLod = 0.0f;
+    sampDesc.maxLod = 0.0f;
+    sampDesc.label = "ore_array_upload_sampler";
+    auto sampler = ctx.makeSampler(sampDesc);
 
-        auto shader = ore_gm::loadShader(ctx, ore_gm::kArray2DWitness);
-        if (!shader.vsModule)
-            return;
+    auto shader = ore_gm::loadShader(ctx, ore_gm::kArray2DWitness);
+    if (!shader.vsModule)
+      return;
 
-        auto canvas = renderContext->makeRenderCanvas(256, 256);
-        if (!canvas)
-            return;
-        auto canvasView = ctx.wrapCanvasTexture(canvas.get());
-        if (!canvasView)
-            return;
+    auto canvas = renderContext->makeRenderCanvas(256, 256);
+    if (!canvas)
+      return;
+    auto canvasView = ctx.wrapCanvasTexture(canvas.get());
+    if (!canvasView)
+      return;
 
-        auto layout1 =
-            ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 1);
-        auto layout2 =
-            ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 2);
-        BindGroupLayout* layouts[] = {nullptr, layout1.get(), layout2.get()};
+    auto layout1 = ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 1);
+    auto layout2 = ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 2);
+    BindGroupLayout* layouts[] = {nullptr, layout1.get(), layout2.get()};
 
-        PipelineDesc pipeDesc{};
-        pipeDesc.vertexModule = shader.vsModule.get();
-        pipeDesc.fragmentModule = shader.psModule.get();
-        pipeDesc.vertexEntryPoint = shader.vsEntryPoint;
-        pipeDesc.fragmentEntryPoint = shader.fsEntryPoint;
-        pipeDesc.vertexBufferCount = 0;
-        pipeDesc.topology = PrimitiveTopology::triangleList;
-        pipeDesc.colorTargets[0].format = canvasView->texture()->format();
-        pipeDesc.colorCount = 1;
-        pipeDesc.depthStencil.depthCompare = CompareFunction::always;
-        pipeDesc.depthStencil.depthWriteEnabled = false;
-        pipeDesc.bindGroupLayouts = layouts;
-        pipeDesc.bindGroupLayoutCount = 3;
-        pipeDesc.label = "ore_array_upload_pipeline";
-        auto pipeline = ctx.makePipeline(pipeDesc);
-        if (!pipeline)
-        {
-            fprintf(stderr,
-                    "[ore_array_upload] pipeline creation failed: %s\n",
-                    ctx.lastError().c_str());
-            return;
-        }
-
-        BindGroupDesc::TexEntry texEntry{0, arrView.get()};
-        BindGroupDesc texBGDesc{};
-        texBGDesc.layout = layout1.get();
-        texBGDesc.textures = &texEntry;
-        texBGDesc.textureCount = 1;
-        auto texBG = ctx.makeBindGroup(texBGDesc);
-
-        BindGroupDesc::SampEntry sampEntry{0, sampler.get()};
-        BindGroupDesc sampBGDesc{};
-        sampBGDesc.layout = layout2.get();
-        sampBGDesc.samplers = &sampEntry;
-        sampBGDesc.samplerCount = 1;
-        auto sampBG = ctx.makeBindGroup(sampBGDesc);
-
-        // Per-layer uploads issued BEFORE m_ore.beginFrame() so the
-        // Vulkan backend's deferred-upload path is exercised (regression
-        // for the post-#12661 fix: upload outside an Ore frame must
-        // queue and drain at the next beginFrame / beginRenderPass).
-        // Each upload targets `(mipLevel=0, layer=N)` with a non-tightly-
-        // packed source (bytesPerRow = 32, double the tight row of 16)
-        // so the GL backend's GL_UNPACK_ROW_LENGTH plumbing is exercised.
-        uint8_t layerData[kPaddedLayerBytes];
-        struct LayerColor
-        {
-            uint8_t r, g, b;
-        };
-        const LayerColor kColors[4] = {
-            {255, 0, 0},   // 0 — red
-            {0, 255, 0},   // 1 — green
-            {0, 0, 255},   // 2 — blue
-            {255, 255, 0}, // 3 — yellow
-        };
-        for (uint32_t layer = 0; layer < 4; ++layer)
-        {
-            // Layer 0 as four 2×2 sub-rect tiles. Same solid-red result, but
-            // exercises every backend's partial-region path. Pre-fix D3D12
-            // over-read the whole mip out of each tile buffer.
-            if (layer == 0)
-            {
-                const uint32_t kTileOffsets[4][2] = {
-                    {0, 0},
-                    {kTileWidth, 0},
-                    {0, kTileHeight},
-                    {kTileWidth, kTileHeight},
-                };
-                uint8_t tileData[kTilePaddedBytes];
-                for (const auto& off : kTileOffsets)
-                {
-                    fillSolidTile(tileData,
-                                  kColors[0].r,
-                                  kColors[0].g,
-                                  kColors[0].b);
-                    TextureDataDesc upload{};
-                    upload.data = tileData;
-                    upload.bytesPerRow = kTilePaddedRowBytes;
-                    upload.rowsPerImage = kTileHeight;
-                    upload.mipLevel = 0;
-                    upload.layer = 0;
-                    upload.x = off[0];
-                    upload.y = off[1];
-                    upload.width = kTileWidth;
-                    upload.height = kTileHeight;
-                    upload.depth = 1;
-                    arrTex->upload(upload);
-                }
-                continue;
-            }
-            fillSolidLayer(layerData,
-                           kColors[layer].r,
-                           kColors[layer].g,
-                           kColors[layer].b);
-            TextureDataDesc upload{};
-            upload.data = layerData;
-            upload.bytesPerRow = kPaddedRowBytes;
-            upload.rowsPerImage = kLayerHeight;
-            upload.mipLevel = 0;
-            upload.layer = layer;
-            upload.width = kLayerWidth;
-            upload.height = kLayerHeight;
-            upload.depth = 1;
-            arrTex->upload(upload);
-        }
-
-        m_ore.beginFrame(renderContext);
-
-        ColorAttachment ca{};
-        ca.view = canvasView.get();
-        ca.loadOp = LoadOp::clear;
-        ca.storeOp = StoreOp::store;
-        ca.clearColor = {0, 0, 0, 1};
-
-        RenderPassDesc rpDesc{};
-        rpDesc.colorAttachments[0] = ca;
-        rpDesc.colorCount = 1;
-        rpDesc.label = "ore_array_upload_pass";
-
-        auto pass = ctx.beginRenderPass(rpDesc);
-        pass->setPipeline(pipeline.get());
-        pass->setBindGroup(1, texBG.get());
-        pass->setBindGroup(2, sampBG.get());
-        pass->setViewport(0, 0, 256, 256);
-        pass->draw(3); // big-triangle fullscreen — covers entire NDC.
-        pass->finish();
-
-        m_ore.endFrame(renderContext);
-        ore_gm::invalidateGLStateAfterOre(renderContext);
-
-        originalRenderer->save();
-        originalRenderer->drawImage(canvas->renderImage(),
-                                    {.filter = ImageFilter::nearest},
-                                    BlendMode::srcOver,
-                                    1);
-        originalRenderer->restore();
-#endif
+    PipelineDesc pipeDesc{};
+    pipeDesc.vertexModule = shader.vsModule.get();
+    pipeDesc.fragmentModule = shader.psModule.get();
+    pipeDesc.vertexEntryPoint = shader.vsEntryPoint;
+    pipeDesc.fragmentEntryPoint = shader.fsEntryPoint;
+    pipeDesc.vertexBufferCount = 0;
+    pipeDesc.topology = PrimitiveTopology::triangleList;
+    pipeDesc.colorTargets[0].format = canvasView->texture()->format();
+    pipeDesc.colorCount = 1;
+    pipeDesc.depthStencil.depthCompare = CompareFunction::always;
+    pipeDesc.depthStencil.depthWriteEnabled = false;
+    pipeDesc.bindGroupLayouts = layouts;
+    pipeDesc.bindGroupLayoutCount = 3;
+    pipeDesc.label = "ore_array_upload_pipeline";
+    auto pipeline = ctx.makePipeline(pipeDesc);
+    if (!pipeline)
+    {
+      fprintf(
+          stderr,
+          "[ore_array_upload] pipeline creation failed: %s\n",
+          ctx.lastError().c_str());
+      return;
     }
 
+    BindGroupDesc::TexEntry texEntry{0, arrView.get()};
+    BindGroupDesc texBGDesc{};
+    texBGDesc.layout = layout1.get();
+    texBGDesc.textures = &texEntry;
+    texBGDesc.textureCount = 1;
+    auto texBG = ctx.makeBindGroup(texBGDesc);
+
+    BindGroupDesc::SampEntry sampEntry{0, sampler.get()};
+    BindGroupDesc sampBGDesc{};
+    sampBGDesc.layout = layout2.get();
+    sampBGDesc.samplers = &sampEntry;
+    sampBGDesc.samplerCount = 1;
+    auto sampBG = ctx.makeBindGroup(sampBGDesc);
+
+    // Per-layer uploads issued BEFORE m_ore.beginFrame() so the
+    // Vulkan backend's deferred-upload path is exercised (regression
+    // for the post-#12661 fix: upload outside an Ore frame must
+    // queue and drain at the next beginFrame / beginRenderPass).
+    // Each upload targets `(mipLevel=0, layer=N)` with a non-tightly-
+    // packed source (bytesPerRow = 32, double the tight row of 16)
+    // so the GL backend's GL_UNPACK_ROW_LENGTH plumbing is exercised.
+    uint8_t layerData[kPaddedLayerBytes];
+    struct LayerColor
+    {
+      uint8_t r, g, b;
+    };
+    const LayerColor kColors[4] = {
+        {255, 0, 0},   // 0 — red
+        {0, 255, 0},   // 1 — green
+        {0, 0, 255},   // 2 — blue
+        {255, 255, 0}, // 3 — yellow
+    };
+    for (uint32_t layer = 0; layer < 4; ++layer)
+    {
+      // Layer 0 as four 2×2 sub-rect tiles. Same solid-red result, but
+      // exercises every backend's partial-region path. Pre-fix D3D12
+      // over-read the whole mip out of each tile buffer.
+      if (layer == 0)
+      {
+        const uint32_t kTileOffsets[4][2] = {
+            {0, 0},
+            {kTileWidth, 0},
+            {0, kTileHeight},
+            {kTileWidth, kTileHeight},
+        };
+        uint8_t tileData[kTilePaddedBytes];
+        for (const auto& off : kTileOffsets)
+        {
+          fillSolidTile(tileData, kColors[0].r, kColors[0].g, kColors[0].b);
+          TextureDataDesc upload{};
+          upload.data = tileData;
+          upload.bytesPerRow = kTilePaddedRowBytes;
+          upload.rowsPerImage = kTileHeight;
+          upload.mipLevel = 0;
+          upload.layer = 0;
+          upload.x = off[0];
+          upload.y = off[1];
+          upload.width = kTileWidth;
+          upload.height = kTileHeight;
+          upload.depth = 1;
+          arrTex->upload(upload);
+        }
+        continue;
+      }
+      fillSolidLayer(
+          layerData,
+          kColors[layer].r,
+          kColors[layer].g,
+          kColors[layer].b);
+      TextureDataDesc upload{};
+      upload.data = layerData;
+      upload.bytesPerRow = kPaddedRowBytes;
+      upload.rowsPerImage = kLayerHeight;
+      upload.mipLevel = 0;
+      upload.layer = layer;
+      upload.width = kLayerWidth;
+      upload.height = kLayerHeight;
+      upload.depth = 1;
+      arrTex->upload(upload);
+    }
+
+    m_ore.beginFrame(renderContext);
+
+    ColorAttachment ca{};
+    ca.view = canvasView.get();
+    ca.loadOp = LoadOp::clear;
+    ca.storeOp = StoreOp::store;
+    ca.clearColor = {0, 0, 0, 1};
+
+    RenderPassDesc rpDesc{};
+    rpDesc.colorAttachments[0] = ca;
+    rpDesc.colorCount = 1;
+    rpDesc.label = "ore_array_upload_pass";
+
+    auto pass = ctx.beginRenderPass(rpDesc);
+    pass->setPipeline(pipeline.get());
+    pass->setBindGroup(1, texBG.get());
+    pass->setBindGroup(2, sampBG.get());
+    pass->setViewport(0, 0, 256, 256);
+    pass->draw(3); // big-triangle fullscreen — covers entire NDC.
+    pass->finish();
+
+    m_ore.endFrame(renderContext);
+    ore_gm::invalidateGLStateAfterOre(renderContext);
+
+    originalRenderer->save();
+    originalRenderer->drawImage(
+        canvas->renderImage(),
+        {.filter = ImageFilter::nearest},
+        BlendMode::srcOver,
+        1);
+    originalRenderer->restore();
+#endif
+  }
+
 private:
-    ore_gm::OreGMContext m_ore;
+  ore_gm::OreGMContext m_ore;
 };
 
 GMREGISTER(ore_array_upload, return new OreArrayUploadGM())

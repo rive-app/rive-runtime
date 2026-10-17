@@ -10,11 +10,11 @@ namespace rive
 class DataConverterRounder : public DataConverterRounderBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataType outputType() override { return DataType::number; };
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::number; };
 
 private:
-    DataValueNumber m_output;
+  DataValueNumber m_output;
 };
 } // namespace rive
 

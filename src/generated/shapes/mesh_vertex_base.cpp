@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* MeshVertexBase::clone() const
 {
-    auto cloned = new MeshVertex();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new MeshVertex();
+  cloned->copy(*this);
+  return cloned;
 }

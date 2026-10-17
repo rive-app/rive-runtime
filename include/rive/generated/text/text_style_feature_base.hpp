@@ -7,70 +7,70 @@ namespace rive
 class TextStyleFeatureBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 164;
+  static const uint16_t typeKey = 164;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t tagPropertyKey = 356;
-    static const uint16_t featureValuePropertyKey = 357;
+  static const uint16_t tagPropertyKey = 356;
+  static const uint16_t featureValuePropertyKey = 357;
 
 protected:
-    uint32_t m_Tag = 0;
-    uint32_t m_FeatureValue = 1;
+  uint32_t m_Tag = 0;
+  uint32_t m_FeatureValue = 1;
 
 public:
-    inline uint32_t tag() const { return m_Tag; }
-    void tag(uint32_t value)
+  inline uint32_t tag() const { return m_Tag; }
+  void tag(uint32_t value)
+  {
+    if (m_Tag == value)
     {
-        if (m_Tag == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(tagPropertyKey, &m_Tag, &value);
-        m_Tag = value;
-        RIVE_EDITOR_CHANGED(tagChanged());
-        notifyPropertyChanged(tagPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(tagPropertyKey, &m_Tag, &value);
+    m_Tag = value;
+    RIVE_EDITOR_CHANGED(tagChanged());
+    notifyPropertyChanged(tagPropertyKey);
+  }
 
-    inline uint32_t featureValue() const { return m_FeatureValue; }
-    void featureValue(uint32_t value)
+  inline uint32_t featureValue() const { return m_FeatureValue; }
+  void featureValue(uint32_t value)
+  {
+    if (m_FeatureValue == value)
     {
-        if (m_FeatureValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(featureValuePropertyKey, &m_FeatureValue, &value);
-        m_FeatureValue = value;
-        notifyPropertyChanged(featureValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(featureValuePropertyKey, &m_FeatureValue, &value);
+    m_FeatureValue = value;
+    notifyPropertyChanged(featureValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const TextStyleFeatureBase& object)
-    {
-        m_Tag = object.m_Tag;
-        m_FeatureValue = object.m_FeatureValue;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const TextStyleFeatureBase& object)
+  {
+    m_Tag = object.m_Tag;
+    m_FeatureValue = object.m_FeatureValue;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case tagPropertyKey:
-                m_Tag = CoreUintType::deserialize(reader);
-                return true;
-            case featureValuePropertyKey:
-                m_FeatureValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case tagPropertyKey:
+        m_Tag = CoreUintType::deserialize(reader);
+        return true;
+      case featureValuePropertyKey:
+        m_FeatureValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void tagChanged() {}
+  virtual void tagChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/text/text_style_feature_ext.inl"
 #endif

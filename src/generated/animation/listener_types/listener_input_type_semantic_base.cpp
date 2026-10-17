@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerInputTypeSemanticBase::clone() const
 {
-    auto cloned = new ListenerInputTypeSemantic();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerInputTypeSemantic();
+  cloned->copy(*this);
+  return cloned;
 }

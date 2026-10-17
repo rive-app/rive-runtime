@@ -7,51 +7,51 @@ namespace rive
 class WorldTransformComponentBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 91;
+  static const uint16_t typeKey = 91;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t opacityPropertyKey = 18;
+  static const uint16_t opacityPropertyKey = 18;
 
 protected:
-    float m_Opacity = 1.0f;
+  float m_Opacity = 1.0f;
 
 public:
-    inline float opacity() const { return m_Opacity; }
-    void opacity(float value)
+  inline float opacity() const { return m_Opacity; }
+  void opacity(float value)
+  {
+    if (m_Opacity == value)
     {
-        if (m_Opacity == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
-        m_Opacity = value;
-        RIVE_EDITOR_CHANGED(opacityChanged());
-        notifyPropertyChanged(opacityPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(opacityPropertyKey, &m_Opacity, &value);
+    m_Opacity = value;
+    RIVE_EDITOR_CHANGED(opacityChanged());
+    notifyPropertyChanged(opacityPropertyKey);
+  }
 
-    void copy(const WorldTransformComponentBase& object)
-    {
-        m_Opacity = object.m_Opacity;
-        ContainerComponent::copy(object);
-    }
+  void copy(const WorldTransformComponentBase& object)
+  {
+    m_Opacity = object.m_Opacity;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case opacityPropertyKey:
-                m_Opacity = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case opacityPropertyKey:
+        m_Opacity = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void opacityChanged() {}
+  virtual void opacityChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/world_transform_component_ext.inl"
 #endif

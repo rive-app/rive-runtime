@@ -7,23 +7,23 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceNumber;
-typedef void (*ViewModelNumberChanged)(ViewModelInstanceNumber* vmi,
-                                       float value);
+typedef void (
+    *ViewModelNumberChanged)(ViewModelInstanceNumber* vmi, float value);
 #endif
 class ViewModelInstanceNumber : public ViewModelInstanceNumberBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelNumberChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelNumberChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelNumberChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelNumberChanged m_changedCallback = nullptr;
 #endif
-    void applyValue(DataValueNumber*);
+  void applyValue(DataValueNumber*);
 };
 } // namespace rive
 

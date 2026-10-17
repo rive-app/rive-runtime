@@ -20,203 +20,206 @@ namespace rive::ore
 
 RenderPassWGPU::~RenderPassWGPU()
 {
-    if (!m_finished && m_wgpuPassEncoder != nullptr)
-    {
-        finish();
-    }
+  if (!m_finished && m_wgpuPassEncoder != nullptr)
+  {
+    finish();
+  }
 }
 
-RenderPassWGPU::RenderPassWGPU(RenderPassWGPU&& other) noexcept :
-    m_wgpuContext(other.m_wgpuContext),
-    m_currentPipeline(std::move(other.m_currentPipeline)),
-    m_wgpuPassEncoder(std::move(other.m_wgpuPassEncoder)),
-    m_wgpuIndexBuffer(std::move(other.m_wgpuIndexBuffer)),
-    m_wgpuIndexFormat(other.m_wgpuIndexFormat),
-    m_wgpuIndexOffset(other.m_wgpuIndexOffset)
+RenderPassWGPU::RenderPassWGPU(RenderPassWGPU&& other) noexcept
+    : m_wgpuContext(other.m_wgpuContext)
+    , m_currentPipeline(std::move(other.m_currentPipeline))
+    , m_wgpuPassEncoder(std::move(other.m_wgpuPassEncoder))
+    , m_wgpuIndexBuffer(std::move(other.m_wgpuIndexBuffer))
+    , m_wgpuIndexFormat(other.m_wgpuIndexFormat)
+    , m_wgpuIndexOffset(other.m_wgpuIndexOffset)
 {
-    other.m_wgpuContext = nullptr;
+  other.m_wgpuContext = nullptr;
 }
 
 RenderPassWGPU& RenderPassWGPU::operator=(RenderPassWGPU&& other) noexcept
 {
-    if (this != &other)
-    {
-        if (!m_finished && m_wgpuPassEncoder != nullptr)
-            finish();
+  if (this != &other)
+  {
+    if (!m_finished && m_wgpuPassEncoder != nullptr)
+      finish();
 
-        m_wgpuContext = other.m_wgpuContext;
-        m_currentPipeline = std::move(other.m_currentPipeline);
-        m_wgpuPassEncoder = std::move(other.m_wgpuPassEncoder);
-        m_wgpuIndexBuffer = std::move(other.m_wgpuIndexBuffer);
-        m_wgpuIndexFormat = other.m_wgpuIndexFormat;
-        m_wgpuIndexOffset = other.m_wgpuIndexOffset;
+    m_wgpuContext = other.m_wgpuContext;
+    m_currentPipeline = std::move(other.m_currentPipeline);
+    m_wgpuPassEncoder = std::move(other.m_wgpuPassEncoder);
+    m_wgpuIndexBuffer = std::move(other.m_wgpuIndexBuffer);
+    m_wgpuIndexFormat = other.m_wgpuIndexFormat;
+    m_wgpuIndexOffset = other.m_wgpuIndexOffset;
 
-        other.m_wgpuContext = nullptr;
-    }
-    return *this;
+    other.m_wgpuContext = nullptr;
+  }
+  return *this;
 }
 
 void RenderPassWGPU::validate() const
 {
-    assert(!m_finished && "RenderPass already finished");
-    assert(m_wgpuPassEncoder != nullptr);
+  assert(!m_finished && "RenderPass already finished");
+  assert(m_wgpuPassEncoder != nullptr);
 }
 
 void RenderPassWGPU::setPipeline(Pipeline* inPipeline)
 {
-    validate();
-    if (!checkPipelineCompat(inPipeline))
-        return;
-    auto pipeline = lite_rtti_cast<PipelineWGPU*>(inPipeline);
-    assert(pipeline);
-    m_currentPipeline = ref_rcp(pipeline);
-    m_wgpuPassEncoder.SetPipeline(pipeline->m_wgpuPipeline);
+  validate();
+  if (!checkPipelineCompat(inPipeline))
+    return;
+  auto pipeline = lite_rtti_cast<PipelineWGPU*>(inPipeline);
+  assert(pipeline);
+  m_currentPipeline = ref_rcp(pipeline);
+  m_wgpuPassEncoder.SetPipeline(pipeline->m_wgpuPipeline);
 }
 
-void RenderPassWGPU::setVertexBuffer(uint32_t slot,
-                                     Buffer* inBuffer,
-                                     uint32_t offset)
+void RenderPassWGPU::setVertexBuffer(
+    uint32_t slot,
+    Buffer* inBuffer,
+    uint32_t offset)
 {
-    validate();
-    auto buffer = lite_rtti_cast<BufferWGPU*>(inBuffer);
-    assert(buffer);
-    buffer->markBound();
-    m_wgpuPassEncoder.SetVertexBuffer(slot,
-                                      buffer->current(),
-                                      offset,
-                                      buffer->size() - offset);
+  validate();
+  auto buffer = lite_rtti_cast<BufferWGPU*>(inBuffer);
+  assert(buffer);
+  buffer->markBound();
+  m_wgpuPassEncoder.SetVertexBuffer(
+      slot,
+      buffer->current(),
+      offset,
+      buffer->size() - offset);
 }
 
-void RenderPassWGPU::setIndexBuffer(Buffer* inBuffer,
-                                    IndexFormat format,
-                                    uint32_t offset)
+void RenderPassWGPU::setIndexBuffer(
+    Buffer* inBuffer,
+    IndexFormat format,
+    uint32_t offset)
 {
-    validate();
-    auto buffer = lite_rtti_cast<BufferWGPU*>(inBuffer);
-    assert(buffer);
-    wgpu::IndexFormat wFmt = (format == IndexFormat::uint32)
-                                 ? wgpu::IndexFormat::Uint32
-                                 : wgpu::IndexFormat::Uint16;
-    buffer->markBound();
-    m_wgpuIndexBuffer = buffer->current();
-    m_wgpuIndexFormat = wFmt;
-    m_wgpuIndexOffset = offset;
-    m_wgpuPassEncoder.SetIndexBuffer(m_wgpuIndexBuffer,
-                                     wFmt,
-                                     offset,
-                                     buffer->size() - offset);
+  validate();
+  auto buffer = lite_rtti_cast<BufferWGPU*>(inBuffer);
+  assert(buffer);
+  wgpu::IndexFormat wFmt = (format == IndexFormat::uint32)
+                               ? wgpu::IndexFormat::Uint32
+                               : wgpu::IndexFormat::Uint16;
+  buffer->markBound();
+  m_wgpuIndexBuffer = buffer->current();
+  m_wgpuIndexFormat = wFmt;
+  m_wgpuIndexOffset = offset;
+  m_wgpuPassEncoder
+      .SetIndexBuffer(m_wgpuIndexBuffer, wFmt, offset, buffer->size() - offset);
 }
 
-void RenderPassWGPU::setBindGroup(uint32_t groupIndex,
-                                  BindGroup* inBg,
-                                  const uint32_t* dynamicOffsets,
-                                  uint32_t dynamicOffsetCount)
+void RenderPassWGPU::setBindGroup(
+    uint32_t groupIndex,
+    BindGroup* inBg,
+    const uint32_t* dynamicOffsets,
+    uint32_t dynamicOffsetCount)
 {
-    validate();
-    auto bg = lite_rtti_cast<BindGroupWGPU*>(inBg);
-    assert(bg != nullptr);
-    // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
-    // successful resolve, so a failed (OOM) resolve doesn't force later
-    // update()s to orphan needlessly.
-    const wgpu::BindGroup& wgpuBg = bg->resolveBindGroup();
-    if (wgpuBg == nullptr)
-    {
-        // Bind group creation failed (device OOM). Report instead of binding
-        // null; the Lua layer reads lastError after the call.
-        m_wgpuContext->setLastError(
-            "ore: WGPU bind group creation failed for group %u",
-            groupIndex);
-        return;
-    }
-    bg->markUBOsBound();
-    m_wgpuPassEncoder.SetBindGroup(groupIndex,
-                                   wgpuBg,
-                                   dynamicOffsetCount,
-                                   dynamicOffsets);
+  validate();
+  auto bg = lite_rtti_cast<BindGroupWGPU*>(inBg);
+  assert(bg != nullptr);
+  // Resolve the live backing of each UBO. Only stamp the UBOs bound after a
+  // successful resolve, so a failed (OOM) resolve doesn't force later
+  // update()s to orphan needlessly.
+  const wgpu::BindGroup& wgpuBg = bg->resolveBindGroup();
+  if (wgpuBg == nullptr)
+  {
+    // Bind group creation failed (device OOM). Report instead of binding
+    // null; the Lua layer reads lastError after the call.
+    m_wgpuContext->setLastError(
+        "ore: WGPU bind group creation failed for group %u",
+        groupIndex);
+    return;
+  }
+  bg->markUBOsBound();
+  m_wgpuPassEncoder
+      .SetBindGroup(groupIndex, wgpuBg, dynamicOffsetCount, dynamicOffsets);
 
-    // Hold a strong ref so the BindGroup (and its retained resources) stay
-    // alive until the render pass is finished.
-    m_boundGroups[groupIndex] = ref_rcp(bg);
+  // Hold a strong ref so the BindGroup (and its retained resources) stay
+  // alive until the render pass is finished.
+  m_boundGroups[groupIndex] = ref_rcp(bg);
 }
 
-void RenderPassWGPU::setViewport(float x,
-                                 float y,
-                                 float width,
-                                 float height,
-                                 float minDepth,
-                                 float maxDepth)
+void RenderPassWGPU::setViewport(
+    float x,
+    float y,
+    float width,
+    float height,
+    float minDepth,
+    float maxDepth)
 {
-    validate();
-    m_wgpuPassEncoder.SetViewport(x, y, width, height, minDepth, maxDepth);
+  validate();
+  m_wgpuPassEncoder.SetViewport(x, y, width, height, minDepth, maxDepth);
 }
 
-void RenderPassWGPU::setScissorRect(uint32_t x,
-                                    uint32_t y,
-                                    uint32_t width,
-                                    uint32_t height)
+void RenderPassWGPU::setScissorRect(
+    uint32_t x,
+    uint32_t y,
+    uint32_t width,
+    uint32_t height)
 {
-    validate();
-    m_wgpuPassEncoder.SetScissorRect(x, y, width, height);
+  validate();
+  m_wgpuPassEncoder.SetScissorRect(x, y, width, height);
 }
 
 void RenderPassWGPU::setStencilReference(uint32_t ref)
 {
-    validate();
-    m_wgpuPassEncoder.SetStencilReference(ref);
+  validate();
+  m_wgpuPassEncoder.SetStencilReference(ref);
 }
 
 void RenderPassWGPU::setBlendColor(float r, float g, float b, float a)
 {
-    validate();
-    wgpu::Color color{r, g, b, a};
-    m_wgpuPassEncoder.SetBlendConstant(&color);
+  validate();
+  wgpu::Color color{r, g, b, a};
+  m_wgpuPassEncoder.SetBlendConstant(&color);
 }
 
-void RenderPassWGPU::draw(uint32_t vertexCount,
-                          uint32_t instanceCount,
-                          uint32_t firstVertex,
-                          uint32_t firstInstance)
+void RenderPassWGPU::draw(
+    uint32_t vertexCount,
+    uint32_t instanceCount,
+    uint32_t firstVertex,
+    uint32_t firstInstance)
 {
-    validate();
-    assert(m_currentPipeline != nullptr && "setPipeline must be called first");
+  validate();
+  assert(m_currentPipeline != nullptr && "setPipeline must be called first");
 
-    m_wgpuPassEncoder.Draw(vertexCount,
-                           instanceCount,
-                           firstVertex,
-                           firstInstance);
+  m_wgpuPassEncoder
+      .Draw(vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
-void RenderPassWGPU::drawIndexed(uint32_t indexCount,
-                                 uint32_t instanceCount,
-                                 uint32_t firstIndex,
-                                 int32_t baseVertex,
-                                 uint32_t firstInstance)
+void RenderPassWGPU::drawIndexed(
+    uint32_t indexCount,
+    uint32_t instanceCount,
+    uint32_t firstIndex,
+    int32_t baseVertex,
+    uint32_t firstInstance)
 {
-    validate();
-    assert(m_currentPipeline != nullptr && "setPipeline must be called first");
+  validate();
+  assert(m_currentPipeline != nullptr && "setPipeline must be called first");
 
-    m_wgpuPassEncoder.DrawIndexed(indexCount,
-                                  instanceCount,
-                                  firstIndex,
-                                  baseVertex,
-                                  firstInstance);
+  m_wgpuPassEncoder.DrawIndexed(
+      indexCount,
+      instanceCount,
+      firstIndex,
+      baseVertex,
+      firstInstance);
 }
 
 void RenderPassWGPU::finish()
 {
-    if (m_finished)
-        return;
-    m_finished = true;
+  if (m_finished)
+    return;
+  m_finished = true;
 
-    if (m_wgpuPassEncoder != nullptr)
-    {
-        m_wgpuPassEncoder.End();
-        m_wgpuPassEncoder = nullptr;
-    }
+  if (m_wgpuPassEncoder != nullptr)
+  {
+    m_wgpuPassEncoder.End();
+    m_wgpuPassEncoder = nullptr;
+  }
 
-    m_wgpuContext = nullptr;
-    m_currentPipeline = nullptr;
-    releaseBoundResources();
+  m_wgpuContext = nullptr;
+  m_currentPipeline = nullptr;
+  releaseBoundResources();
 }
 
 } // namespace rive::ore

@@ -18,28 +18,28 @@ using namespace rive;
 class GammaCorrectionGM : public GM
 {
 public:
-    GammaCorrectionGM() : GM(500, 500) {}
+  GammaCorrectionGM() : GM(500, 500) {}
 
 private:
-    void onDraw(Renderer* canvas) override
+  void onDraw(Renderer* canvas) override
+  {
+
     {
-
-        {
-            Paint paint(0xFFB000B0);
-            Path path;
-            path->addRect(50, 50, 400, 400);
-            canvas->drawPath(path, paint);
-        }
-
-        canvas->clipPath(PathBuilder::Rect({240, 240, 260, 260}));
-
-        {
-            Paint paint(0xFFF0B000);
-            Path path;
-            path->addRect(200, 200, 100, 100);
-            canvas->drawPath(path, paint);
-        }
+      Paint paint(0xFFB000B0);
+      Path path;
+      path->addRect(50, 50, 400, 400);
+      canvas->drawPath(path, paint);
     }
+
+    canvas->clipPath(PathBuilder::Rect({240, 240, 260, 260}));
+
+    {
+      Paint paint(0xFFF0B000);
+      Path path;
+      path->addRect(200, 200, 100, 100);
+      canvas->drawPath(path, paint);
+    }
+  }
 };
 
 GMREGISTER(gamma_correction_clip, return new GammaCorrectionGM)

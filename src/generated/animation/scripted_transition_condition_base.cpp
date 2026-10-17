@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedTransitionConditionBase::clone() const
 {
-    auto cloned = new ScriptedTransitionCondition();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedTransitionCondition();
+  cloned->copy(*this);
+  return cloned;
 }

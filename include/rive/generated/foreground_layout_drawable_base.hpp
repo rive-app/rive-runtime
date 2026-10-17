@@ -6,14 +6,14 @@ namespace rive
 class ForegroundLayoutDrawableBase : public Drawable
 {
 protected:
-    typedef Drawable Super;
+  typedef Drawable Super;
 
 public:
-    static const uint16_t typeKey = 513;
+  static const uint16_t typeKey = 513;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

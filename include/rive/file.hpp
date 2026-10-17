@@ -56,12 +56,12 @@ class ScriptedInterpolator;
 ///
 enum class ImportResult
 {
-    /// Indicates that a file's been successfully imported.
-    success,
-    /// Indicates that the Rive file is not supported by this runtime.
-    unsupportedVersion,
-    /// Indicates that the there is a formatting problem in the file itself.
-    malformed
+  /// Indicates that a file's been successfully imported.
+  success,
+  /// Indicates that the Rive file is not supported by this runtime.
+  unsupportedVersion,
+  /// Indicates that the there is a formatting problem in the file itself.
+  malformed
 };
 
 #ifdef WITH_RIVE_TOOLS
@@ -73,11 +73,12 @@ enum class ImportResult
 class ViewModelInstanceRegistrar
 {
 public:
-    virtual ~ViewModelInstanceRegistrar() = default;
-    virtual void registerInstance(ViewModelInstance* ptr,
-                                  rcp<ViewModelInstance> ref) = 0;
-    virtual bool contains(ViewModelInstance* ptr) const = 0;
-    virtual void clear() = 0;
+  virtual ~ViewModelInstanceRegistrar() = default;
+  virtual void registerInstance(
+      ViewModelInstance* ptr,
+      rcp<ViewModelInstance> ref) = 0;
+  virtual bool contains(ViewModelInstance* ptr) const = 0;
+  virtual void clear() = 0;
 };
 #endif
 
@@ -87,475 +88,483 @@ public:
 class File : public RefCnt<File>
 {
 public:
-    /// Major version number supported by the runtime.
-    static const int majorVersion = 7;
-    /// Minor version number supported by the runtime.
-    /// 7.2: images in a layout apply their fit as a separate scale, leaving
-    /// the user-facing scaleX/scaleY free to be edited/animated on top.
-    /// 7.3: layouts compose their own rotation/scale on top of the solved
-    /// slot. Older files wrote those properties but never applied them, so
-    /// they only carry intent at or above this version.
-    /// 7.4: a fitFontSize text reports its *fitted* size to the layout, so a
-    /// hug slot tracks the text actually drawn instead of reserving room at
-    /// the authored font size. Older files were laid out against the
-    /// unshrunk box, so honoring Text::fitFontSizeResizesBox below this
-    /// version would reflow them. See Text::import.
-    static const int minorVersion = 4;
-    /// deterministicMode sets a static seed for randomization and uses
-    /// timestamps for scrolling.
-    static bool deterministicMode;
+  /// Major version number supported by the runtime.
+  static const int majorVersion = 7;
+  /// Minor version number supported by the runtime.
+  /// 7.2: images in a layout apply their fit as a separate scale, leaving
+  /// the user-facing scaleX/scaleY free to be edited/animated on top.
+  /// 7.3: layouts compose their own rotation/scale on top of the solved
+  /// slot. Older files wrote those properties but never applied them, so
+  /// they only carry intent at or above this version.
+  /// 7.4: a fitFontSize text reports its *fitted* size to the layout, so a
+  /// hug slot tracks the text actually drawn instead of reserving room at
+  /// the authored font size. Older files were laid out against the
+  /// unshrunk box, so honoring Text::fitFontSizeResizesBox below this
+  /// version would reflow them. See Text::import.
+  static const int minorVersion = 4;
+  /// deterministicMode sets a static seed for randomization and uses
+  /// timestamps for scrolling.
+  static bool deterministicMode;
 
-    File(Factory*, rcp<FileAssetLoader>);
+  File(Factory*, rcp<FileAssetLoader>);
 
 public:
-    ~File();
+  ~File();
 #if defined(DEBUG)
-    static size_t debugTotalFileCount;
+  static size_t debugTotalFileCount;
 #endif
-    ///
-    /// Imports a Rive file from a binary buffer.
-    /// @param data the raw date of the file.
-    /// @param result is an optional status result.
-    /// @param assetLoader is an optional helper to load assets which
-    /// cannot be found in-band.
-    /// @param vm is an optional ScriptingVM that should be made per file. This
-    /// is the environment that any script instances in the file will be
-    /// created in.
-    /// @param requireSignedScripts uses only Rive-signed Luau scripts and
-    /// shaders, even in builds that otherwise use unsigned ones
-    /// (WITH_RIVE_TOOLS). Set it for bytes that did not come from the
-    /// embedder, such as a file a script downloaded. Wasm modules are never
-    /// gated.
-    /// @returns a pointer to the file, or null on failure.
-    static rcp<File> import(Span<const uint8_t> data,
-                            Factory* factory,
-                            ImportResult* result = nullptr,
-                            FileAssetLoader* assetLoader = nullptr,
-                            ScriptingVM* vm = nullptr,
-                            bool requireSignedScripts = false)
-    {
-        return import(data,
-                      factory,
-                      result,
-                      ref_rcp(assetLoader),
-                      vm,
-                      requireSignedScripts);
-    }
+  ///
+  /// Imports a Rive file from a binary buffer.
+  /// @param data the raw date of the file.
+  /// @param result is an optional status result.
+  /// @param assetLoader is an optional helper to load assets which
+  /// cannot be found in-band.
+  /// @param vm is an optional ScriptingVM that should be made per file. This
+  /// is the environment that any script instances in the file will be
+  /// created in.
+  /// @param requireSignedScripts uses only Rive-signed Luau scripts and
+  /// shaders, even in builds that otherwise use unsigned ones
+  /// (WITH_RIVE_TOOLS). Set it for bytes that did not come from the
+  /// embedder, such as a file a script downloaded. Wasm modules are never
+  /// gated.
+  /// @returns a pointer to the file, or null on failure.
+  static rcp<File> import(
+      Span<const uint8_t> data,
+      Factory* factory,
+      ImportResult* result = nullptr,
+      FileAssetLoader* assetLoader = nullptr,
+      ScriptingVM* vm = nullptr,
+      bool requireSignedScripts = false)
+  {
+    return import(
+        data,
+        factory,
+        result,
+        ref_rcp(assetLoader),
+        vm,
+        requireSignedScripts);
+  }
 
-    static rcp<File> import(Span<const uint8_t> data,
-                            Factory*,
-                            ImportResult* result,
-                            rcp<FileAssetLoader> assetLoader,
-                            ScriptingVM* vm = nullptr,
-                            bool requireSignedScripts = false);
+  static rcp<File> import(
+      Span<const uint8_t> data,
+      Factory*,
+      ImportResult* result,
+      rcp<FileAssetLoader> assetLoader,
+      ScriptingVM* vm = nullptr,
+      bool requireSignedScripts = false);
 
-    /// @returns the file's backboard. All files have exactly one backboard.
-    Backboard* backboard() const { return m_backboard; }
+  /// @returns the file's backboard. All files have exactly one backboard.
+  Backboard* backboard() const { return m_backboard; }
 
-    // File resources; the first is currently the default selection style.
-    size_t selectionStyleCount() const { return m_selectionStyles.size(); }
-    const SelectionStyle* selectionStyle(size_t index = 0) const
-    {
-        return index < m_selectionStyles.size() ? m_selectionStyles[index].get()
-                                                : nullptr;
-    }
+  // File resources; the first is currently the default selection style.
+  size_t selectionStyleCount() const { return m_selectionStyles.size(); }
+  const SelectionStyle* selectionStyle(size_t index = 0) const
+  {
+    return index < m_selectionStyles.size() ? m_selectionStyles[index].get()
+                                            : nullptr;
+  }
 
-    /// @returns the number of artboards in the file.
-    size_t artboardCount() const { return m_artboards.size(); }
-    std::string artboardNameAt(size_t index) const;
+  /// @returns the number of artboards in the file.
+  size_t artboardCount() const { return m_artboards.size(); }
+  std::string artboardNameAt(size_t index) const;
 
-    Span<const rcp<FileAsset>> assets() const;
+  Span<const rcp<FileAsset>> assets() const;
 
-    std::unique_ptr<ArtboardInstance> artboardDefault() const;
-    std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
-    std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
-    rcp<BindableArtboard> bindableArtboardNamed(std::string name) const;
-    rcp<BindableArtboard> bindableArtboardDefault() const;
-    rcp<BindableArtboard> internalBindableArtboardFromArtboard(Artboard*) const;
+  std::unique_ptr<ArtboardInstance> artboardDefault() const;
+  std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
+  std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
+  rcp<BindableArtboard> bindableArtboardNamed(std::string name) const;
+  rcp<BindableArtboard> bindableArtboardDefault() const;
+  rcp<BindableArtboard> internalBindableArtboardFromArtboard(Artboard*) const;
 
 #ifdef WITH_RIVE_TOOLS
-    /// Byte extent of an artboard's run within the stream it was imported
-    /// from. An artboard is a contiguous run -- its Artboard object, then its
-    /// components, then its animations and state machines -- so a changed
-    /// artboard can in principle be re-imported on its own.
-    struct ArtboardByteRange
-    {
-        size_t start;
-        size_t end;
-    };
+  /// Byte extent of an artboard's run within the stream it was imported
+  /// from. An artboard is a contiguous run -- its Artboard object, then its
+  /// components, then its animations and state machines -- so a changed
+  /// artboard can in principle be re-imported on its own.
+  struct ArtboardByteRange
+  {
+    size_t start;
+    size_t end;
+  };
 
-    /// Re-imports the artboard at [index] from [bytes] -- the artboard's own
-    /// contiguous run, as delimited by artboardByteRange() -- resolving its
-    /// asset and nested-artboard references against what this file already
-    /// holds. The artboard keeps its index, so everything referring to it by
-    /// index stays correct.
-    ///
-    /// Instances share their source's animations and state machines by
-    /// pointer, so the outgoing artboard is retired rather than deleted while
-    /// any of its instances are alive. Those keep playing the old content until
-    /// the caller releases them; only instances made afterwards see the
-    /// replacement. A retired artboard is deleted by the next replacement once
-    /// its last instance is gone, or with the file. Instances of *other*
-    /// artboards are unaffected.
-    ///
-    /// Returns malformed and leaves the file untouched if anything fails.
-    ImportResult replaceArtboard(size_t index, Span<const uint8_t> bytes);
+  /// Re-imports the artboard at [index] from [bytes] -- the artboard's own
+  /// contiguous run, as delimited by artboardByteRange() -- resolving its
+  /// asset and nested-artboard references against what this file already
+  /// holds. The artboard keeps its index, so everything referring to it by
+  /// index stays correct.
+  ///
+  /// Instances share their source's animations and state machines by
+  /// pointer, so the outgoing artboard is retired rather than deleted while
+  /// any of its instances are alive. Those keep playing the old content until
+  /// the caller releases them; only instances made afterwards see the
+  /// replacement. A retired artboard is deleted by the next replacement once
+  /// its last instance is gone, or with the file. Instances of *other*
+  /// artboards are unaffected.
+  ///
+  /// Returns malformed and leaves the file untouched if anything fails.
+  ImportResult replaceArtboard(size_t index, Span<const uint8_t> bytes);
 
-    /// How many replaced artboards are still kept alive by their instances.
-    size_t retiredArtboardCount() const { return m_retiredArtboards.size(); }
+  /// How many replaced artboards are still kept alive by their instances.
+  size_t retiredArtboardCount() const { return m_retiredArtboards.size(); }
 
-    /// Byte extent of the artboard at [index] within the stream it was
-    /// imported from, or {0, 0} if unknown.
-    ArtboardByteRange artboardByteRange(size_t index) const
-    {
-        return index < m_artboardByteRanges.size() ? m_artboardByteRanges[index]
-                                                   : ArtboardByteRange{0, 0};
-    }
+  /// Byte extent of the artboard at [index] within the stream it was
+  /// imported from, or {0, 0} if unknown.
+  ArtboardByteRange artboardByteRange(size_t index) const
+  {
+    return index < m_artboardByteRanges.size() ? m_artboardByteRanges[index]
+                                               : ArtboardByteRange{0, 0};
+  }
 #endif
 
-    Artboard* artboard() const;
+  Artboard* artboard() const;
 
-    /// @returns the named artboard. If no artboard is found with that name,
-    /// the null pointer is returned.
-    Artboard* artboard(std::string name) const;
+  /// @returns the named artboard. If no artboard is found with that name,
+  /// the null pointer is returned.
+  Artboard* artboard(std::string name) const;
 
-    /// @returns the artboard at the specified index, or the nullptr if the
-    /// index is out of range.
-    Artboard* artboard(size_t index) const;
+  /// @returns the artboard at the specified index, or the nullptr if the
+  /// index is out of range.
+  Artboard* artboard(size_t index) const;
 
-    /// @returns a view model instance of the view model with the specified
-    /// name.
-    rcp<ViewModelInstance> createViewModelInstance(std::string name) const;
+  /// @returns a view model instance of the view model with the specified
+  /// name.
+  rcp<ViewModelInstance> createViewModelInstance(std::string name) const;
 
-    /// @returns a view model instance attached to the artboard if it exists.
-    rcp<ViewModelInstance> createViewModelInstance(Artboard* artboard) const;
+  /// @returns a view model instance attached to the artboard if it exists.
+  rcp<ViewModelInstance> createViewModelInstance(Artboard* artboard) const;
 
-    /// @returns a view model instance of the viewModel.
-    rcp<ViewModelInstance> createViewModelInstance(ViewModel* viewModel) const;
+  /// @returns a view model instance of the viewModel.
+  rcp<ViewModelInstance> createViewModelInstance(ViewModel* viewModel) const;
 
-    /// @returns a view model instance of the viewModel with at most
-    /// maxInstances instances in all, itself included; view model properties
-    /// past that stay empty. createViewModelInstance caps a file's untrusted
-    /// nesting well past what an authored file holds.
-    rcp<ViewModelInstance> createBoundedViewModelInstance(
-        ViewModel* viewModel,
-        size_t maxInstances) const;
+  /// @returns a view model instance of the viewModel with at most
+  /// maxInstances instances in all, itself included; view model properties
+  /// past that stay empty. createViewModelInstance caps a file's untrusted
+  /// nesting well past what an authored file holds.
+  rcp<ViewModelInstance> createBoundedViewModelInstance(
+      ViewModel* viewModel,
+      size_t maxInstances) const;
 
-    /// @returns the default view model instance of the viewModel, or returns an
-    /// empty one if there is no default.
-    rcp<ViewModelInstance> createDefaultViewModelInstance(
-        ViewModel* viewModel) const;
+  /// @returns the default view model instance of the viewModel, or returns an
+  /// empty one if there is no default.
+  rcp<ViewModelInstance> createDefaultViewModelInstance(
+      ViewModel* viewModel) const;
 
-    /// @returns the default view model instance of the viewModel, or returns an
-    /// empty one if there is no default.
-    rcp<ViewModelInstance> createDefaultViewModelInstance(
-        Artboard* artboard) const;
+  /// @returns the default view model instance of the viewModel, or returns an
+  /// empty one if there is no default.
+  rcp<ViewModelInstance> createDefaultViewModelInstance(
+      Artboard* artboard) const;
 
-    /// @returns a view model instance of the viewModel by name and instance
-    /// name.
-    rcp<ViewModelInstance> createViewModelInstance(
-        const std::string& name,
-        const std::string& instanceName) const;
+  /// @returns a view model instance of the viewModel by name and instance
+  /// name.
+  rcp<ViewModelInstance> createViewModelInstance(
+      const std::string& name,
+      const std::string& instanceName) const;
 
-    /// @returns a view model instance of the viewModel by their indexes.
-    rcp<ViewModelInstance> createViewModelInstance(size_t index,
-                                                   size_t instanceIndex) const;
+  /// @returns a view model instance of the viewModel by their indexes.
+  rcp<ViewModelInstance> createViewModelInstance(
+      size_t index,
+      size_t instanceIndex) const;
 
-    size_t viewModelCount() const { return m_ViewModels.size(); }
-    ViewModel* viewModel(std::string name);
-    ViewModel* viewModel(size_t index) const;
-    /// @returns the file index (definition order) of the view model with the
-    /// given name — the slot key used for data-context slots — or the view
-    /// model count if no such view model exists.
-    uint32_t viewModelId(const std::string& name) const;
-    /// @returns the global view models (viewModelType == global), in file
-    /// reference order.
-    std::vector<ViewModel*> globalViewModels() const;
-    /// @returns the names of the global view models (viewModelType == global),
-    /// in file reference order.
-    std::vector<std::string> globalViewModelNames() const;
-    ViewModelRuntime* defaultArtboardViewModel(Artboard* artboard) const;
-    ViewModelRuntime* viewModelByIndex(size_t index) const;
-    ViewModelRuntime* viewModelByName(std::string name) const;
-    ViewModelInstanceListItem* viewModelInstanceListItem(
-        rcp<ViewModelInstance> viewModelInstance);
-    ViewModelInstanceListItem* viewModelInstanceListItem(
-        rcp<ViewModelInstance> viewModelInstance,
-        Artboard* artboard);
-    /// `depth` is how deep viewModelInstance sits in the graph, the root at
-    /// 1; nesting past a cap stays empty, as when creating an instance.
-    void completeViewModelInstance(
-        rcp<ViewModelInstance> viewModelInstance,
-        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-            instancesMap,
-        size_t depth = 1) const;
-    void completeViewModelInstance(
-        rcp<ViewModelInstance> viewModelInstance) const;
-    /// Clones [viewModelInstance] and completes the clone, sharing one copy per
-    /// source instance across the whole graph. Prefer this over cloning and
-    /// calling completeViewModelInstance separately: only this path registers
-    /// the root, which is what stops a cyclic graph recursing forever.
-    rcp<ViewModelInstance> copyViewModelInstance(
-        ViewModelInstance* viewModelInstance) const;
-    void completeViewModelProperties(ViewModelInstance* viewModelInstance);
-    const std::vector<DataEnum*>& enums() const;
-    rcp<FileAsset> asset(size_t index);
+  size_t viewModelCount() const { return m_ViewModels.size(); }
+  ViewModel* viewModel(std::string name);
+  ViewModel* viewModel(size_t index) const;
+  /// @returns the file index (definition order) of the view model with the
+  /// given name — the slot key used for data-context slots — or the view
+  /// model count if no such view model exists.
+  uint32_t viewModelId(const std::string& name) const;
+  /// @returns the global view models (viewModelType == global), in file
+  /// reference order.
+  std::vector<ViewModel*> globalViewModels() const;
+  /// @returns the names of the global view models (viewModelType == global),
+  /// in file reference order.
+  std::vector<std::string> globalViewModelNames() const;
+  ViewModelRuntime* defaultArtboardViewModel(Artboard* artboard) const;
+  ViewModelRuntime* viewModelByIndex(size_t index) const;
+  ViewModelRuntime* viewModelByName(std::string name) const;
+  ViewModelInstanceListItem* viewModelInstanceListItem(
+      rcp<ViewModelInstance> viewModelInstance);
+  ViewModelInstanceListItem* viewModelInstanceListItem(
+      rcp<ViewModelInstance> viewModelInstance,
+      Artboard* artboard);
+  /// `depth` is how deep viewModelInstance sits in the graph, the root at
+  /// 1; nesting past a cap stays empty, as when creating an instance.
+  void completeViewModelInstance(
+      rcp<ViewModelInstance> viewModelInstance,
+      std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
+          instancesMap,
+      size_t depth = 1) const;
+  void completeViewModelInstance(
+      rcp<ViewModelInstance> viewModelInstance) const;
+  /// Clones [viewModelInstance] and completes the clone, sharing one copy per
+  /// source instance across the whole graph. Prefer this over cloning and
+  /// calling completeViewModelInstance separately: only this path registers
+  /// the root, which is what stops a cyclic graph recursing forever.
+  rcp<ViewModelInstance> copyViewModelInstance(
+      ViewModelInstance* viewModelInstance) const;
+  void completeViewModelProperties(ViewModelInstance* viewModelInstance);
+  const std::vector<DataEnum*>& enums() const;
+  rcp<FileAsset> asset(size_t index);
 
-    std::vector<Artboard*> artboards() { return m_artboards; };
+  std::vector<Artboard*> artboards() { return m_artboards; };
 
-    bool hasAudio() const { return m_hasAudio; };
-    void addFileViewModelInstance(ViewModelInstance* viewModelInstance);
+  bool hasAudio() const { return m_hasAudio; };
+  void addFileViewModelInstance(ViewModelInstance* viewModelInstance);
 
-    /// Device pixels per layout point, passed to every script VM.
-    void displayScale(float scale);
+  /// Device pixels per layout point, passed to every script VM.
+  void displayScale(float scale);
 
-    // When the runtime is hosted in the editor, we get a pointer
-    // to the VM that we can use. If this is nullptr, we can assume
-    // we are running in the runtime and should instance our own VMs
-    // and pass them down to the root
+  // When the runtime is hosted in the editor, we get a pointer
+  // to the VM that we can use. If this is nullptr, we can assume
+  // we are running in the runtime and should instance our own VMs
+  // and pass them down to the root
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    /// Sets or replaces the ScriptingVM. Takes shared ownership via rcp.
-    void setScriptingVM(rcp<ScriptingVM> vm);
+  /// Sets or replaces the ScriptingVM. Takes shared ownership via rcp.
+  void setScriptingVM(rcp<ScriptingVM> vm);
 
-    /// Returns the ScriptingVM, or nullptr if no VM is set.
-    ScriptingVM* scriptingVM() const { return m_scriptingVM.get(); }
+  /// Returns the ScriptingVM, or nullptr if no VM is set.
+  ScriptingVM* scriptingVM() const { return m_scriptingVM.get(); }
 
-    /// Returns the lua_State from the current VM, or nullptr if no VM is set.
-    /// Do not hold a reference to this as the lifecycle is owned by the
-    /// ScriptingVM owning it.
-    lua_State* scriptingState();
+  /// Returns the lua_State from the current VM, or nullptr if no VM is set.
+  /// Do not hold a reference to this as the lifecycle is owned by the
+  /// ScriptingVM owning it.
+  lua_State* scriptingState();
 #ifdef WITH_RIVE_TOOLS
-    void clearScriptingVM() { cleanupScriptingVM(); }
-    bool hasVM() { return m_scriptingVM != nullptr; }
+  void clearScriptingVM() { cleanupScriptingVM(); }
+  bool hasVM() { return m_scriptingVM != nullptr; }
 #endif
 #endif
 
-    DataResolver* dataResolver()
+  DataResolver* dataResolver()
+  {
+    if (m_manifest)
     {
-        if (m_manifest)
-        {
-            return m_manifest.get()->as<ManifestAsset>();
-        }
-        return nullptr;
+      return m_manifest.get()->as<ManifestAsset>();
     }
+    return nullptr;
+  }
 
-    /// @returns the key custom properties of this name are read by, ~0u when
-    /// the file, which may be null, names none. It scans, so resolve once.
-    static uint32_t customPropertyKey(const File* file,
-                                      const char* name,
-                                      size_t length);
+  /// @returns the key custom properties of this name are read by, ~0u when
+  /// the file, which may be null, names none. It scans, so resolve once.
+  static uint32_t customPropertyKey(
+      const File* file,
+      const char* name,
+      size_t length);
 
-    /// @returns the file's manifest, or nullptr if it has none. Carries the
-    /// string/path tables and the watermark record.
-    ManifestAsset* manifest() const
-    {
-        return m_manifest ? m_manifest.get()->as<ManifestAsset>() : nullptr;
-    }
+  /// @returns the file's manifest, or nullptr if it has none. Carries the
+  /// string/path tables and the watermark record.
+  ManifestAsset* manifest() const
+  {
+    return m_manifest ? m_manifest.get()->as<ManifestAsset>() : nullptr;
+  }
 
 #ifdef WITH_RIVE_TOOLS
-    /// Strips FileAssetContents for FileAssets of given typeKeys.
-    /// @param data the raw data of the file.
-    /// @param result is an optional status result.
-    /// @returns the data buffer of the file with the FileAssetContents objects
-    /// stripped out.
-    static const std::vector<uint8_t> stripAssets(
-        Span<const uint8_t> data,
-        std::set<uint16_t> typeKeys,
-        ImportResult* result = nullptr);
+  /// Strips FileAssetContents for FileAssets of given typeKeys.
+  /// @param data the raw data of the file.
+  /// @param result is an optional status result.
+  /// @returns the data buffer of the file with the FileAssetContents objects
+  /// stripped out.
+  static const std::vector<uint8_t> stripAssets(
+      Span<const uint8_t> data,
+      std::set<uint16_t> typeKeys,
+      ImportResult* result = nullptr);
 #endif
 
 #ifdef WITH_RIVE_SCRIPTING
-    /// Whether a Luau script or shader with this signature status may be
-    /// used. See import()'s requireSignedScripts.
-    bool acceptsScript(bool verified) const
-    {
-        return acceptsScript(verified, m_requireSignedScripts);
-    }
-    static bool acceptsScript(bool verified, bool requireSignedScripts);
+  /// Whether a Luau script or shader with this signature status may be
+  /// used. See import()'s requireSignedScripts.
+  bool acceptsScript(bool verified) const
+  {
+    return acceptsScript(verified, m_requireSignedScripts);
+  }
+  static bool acceptsScript(bool verified, bool requireSignedScripts);
 #endif
 
 #ifdef TESTING
-    FileAssetLoader* testing_getAssetLoader() const
-    {
-        return m_assetLoader.get();
-    }
-    const std::vector<DataConverter*>& testing_dataConverters() const
-    {
-        return m_DataConverters;
-    }
+  FileAssetLoader* testing_getAssetLoader() const
+  {
+    return m_assetLoader.get();
+  }
+  const std::vector<DataConverter*>& testing_dataConverters() const
+  {
+    return m_DataConverters;
+  }
 #endif
 #ifdef WITH_RIVE_TOOLS
-    void setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar);
-    /// The registrar last handed to this file, so whoever installed it can
-    /// take it back and destroy it. Null once the file's destructor has run.
-    ViewModelInstanceRegistrar* viewModelInstanceRegistrar() const
-    {
-        return m_viewModelInstanceRegistrar;
-    }
-    void registerViewModelInstance(ViewModelInstance* ptr,
-                                   rcp<ViewModelInstance> ref) const;
-    bool containsViewModelInstance(ViewModelInstance* ptr) const;
-    void clearRuntimeViewModelInstances();
+  void setViewModelInstanceRegistrar(ViewModelInstanceRegistrar* registrar);
+  /// The registrar last handed to this file, so whoever installed it can
+  /// take it back and destroy it. Null once the file's destructor has run.
+  ViewModelInstanceRegistrar* viewModelInstanceRegistrar() const
+  {
+    return m_viewModelInstanceRegistrar;
+  }
+  void registerViewModelInstance(
+      ViewModelInstance* ptr,
+      rcp<ViewModelInstance> ref) const;
+  bool containsViewModelInstance(ViewModelInstance* ptr) const;
+  void clearRuntimeViewModelInstances();
 #endif
 
 private:
-    ImportResult read(BinaryReader&, const RuntimeHeader&);
-    ImportResult readObjects(BinaryReader&,
-                             const RuntimeHeader&,
-                             ImportStack&,
-                             Artboard** capturedArtboard);
-    std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
-    /// Gives instance a watermark pre-roll when this file's manifest carries
-    /// one and instance isn't itself the watermark. Only applied to the top
-    /// level instances vended by artboardDefault/artboardAt/artboardNamed.
-    void attachWatermark(ArtboardInstance* instance,
-                         const Artboard* source) const;
+  ImportResult read(BinaryReader&, const RuntimeHeader&);
+  ImportResult readObjects(
+      BinaryReader&,
+      const RuntimeHeader&,
+      ImportStack&,
+      Artboard** capturedArtboard);
+  std::unique_ptr<ArtboardInstance> instanceArtboard(Artboard* ab) const;
+  /// Gives instance a watermark pre-roll when this file's manifest carries
+  /// one and instance isn't itself the watermark. Only applied to the top
+  /// level instances vended by artboardDefault/artboardAt/artboardNamed.
+  void attachWatermark(ArtboardInstance* instance, const Artboard* source)
+      const;
 
-    /// The file's backboard. All Rive files have a single backboard
-    /// where the artboards live. Initialized to null so that a File which
-    /// is destroyed after a failed/partial import (before a Backboard object
-    /// has been read) does not `delete` an uninitialized pointer.
-    Backboard* m_backboard = nullptr;
-    std::vector<std::unique_ptr<SelectionStyle>> m_selectionStyles;
+  /// The file's backboard. All Rive files have a single backboard
+  /// where the artboards live. Initialized to null so that a File which
+  /// is destroyed after a failed/partial import (before a Backboard object
+  /// has been read) does not `delete` an uninitialized pointer.
+  Backboard* m_backboard = nullptr;
+  std::vector<std::unique_ptr<SelectionStyle>> m_selectionStyles;
 
-    /// We just keep these alive for the life of this File
-    std::vector<rcp<FileAsset>> m_fileAssets;
+  /// We just keep these alive for the life of this File
+  std::vector<rcp<FileAsset>> m_fileAssets;
 
-    std::vector<DataConverter*> m_DataConverters;
+  std::vector<DataConverter*> m_DataConverters;
 
-    std::vector<KeyFrameInterpolator*> m_keyframeInterpolators;
-    std::vector<ScriptedInterpolator*> m_scriptedInterpolators;
-    std::vector<ScrollPhysics*> m_scrollPhysics;
+  std::vector<KeyFrameInterpolator*> m_keyframeInterpolators;
+  std::vector<ScriptedInterpolator*> m_scriptedInterpolators;
+  std::vector<ScrollPhysics*> m_scrollPhysics;
 
-    /// List of artboards in the file. Each artboard encapsulates a set of
-    /// Rive components and animations.
-    std::vector<Artboard*> m_artboards;
+  /// List of artboards in the file. Each artboard encapsulates a set of
+  /// Rive components and animations.
+  std::vector<Artboard*> m_artboards;
 
 #ifdef WITH_RIVE_TOOLS
-    /// Artboards replaceArtboard() swapped out while instances of them were
-    /// still alive. Not in m_artboards, so nothing new resolves to them.
-    std::vector<Artboard*> m_retiredArtboards;
-    /// Deletes the retired artboards whose last instance is gone.
-    void deleteUnusedRetiredArtboards();
-    /// Parallel to m_artboards; see artboardByteRange().
-    std::vector<ArtboardByteRange> m_artboardByteRanges;
-    /// Retained from read() so a single artboard can be decoded later.
-    RuntimeHeader m_header;
+  /// Artboards replaceArtboard() swapped out while instances of them were
+  /// still alive. Not in m_artboards, so nothing new resolves to them.
+  std::vector<Artboard*> m_retiredArtboards;
+  /// Deletes the retired artboards whose last instance is gone.
+  void deleteUnusedRetiredArtboards();
+  /// Parallel to m_artboards; see artboardByteRange().
+  std::vector<ArtboardByteRange> m_artboardByteRanges;
+  /// Retained from read() so a single artboard can be decoded later.
+  RuntimeHeader m_header;
 #endif
 
-    /// List of view models in the file. They may outlive the file if viewmodel
-    /// instances are still needed after the file is destroyed
-    std::vector<ViewModel*> m_ViewModels;
+  /// List of view models in the file. They may outlive the file if viewmodel
+  /// instances are still needed after the file is destroyed
+  std::vector<ViewModel*> m_ViewModels;
 
-    /// List of view models instances in the file. We keep this list to keep
-    /// them alive during the lifetime of this file. This list does not hold a
-    /// reference to instances created by users.
-    std::vector<rcp<ViewModelInstance>> m_ViewModelInstances;
+  /// List of view models instances in the file. We keep this list to keep
+  /// them alive during the lifetime of this file. This list does not hold a
+  /// reference to instances created by users.
+  std::vector<rcp<ViewModelInstance>> m_ViewModelInstances;
 
-    mutable std::vector<rcp<ViewModelRuntime>> m_viewModelRuntimes;
-    std::vector<DataEnum*> m_Enums;
+  mutable std::vector<rcp<ViewModelRuntime>> m_viewModelRuntimes;
+  std::vector<DataEnum*> m_Enums;
 
-    Factory* m_factory;
+  Factory* m_factory;
 
-    /// The helper used to load assets when they're not provided in-band
-    /// with the file.
-    rcp<FileAssetLoader> m_assetLoader;
+  /// The helper used to load assets when they're not provided in-band
+  /// with the file.
+  rcp<FileAssetLoader> m_assetLoader;
 
 #ifdef WITH_RIVE_SCRIPTING
-    void registerScripts();
-    bool m_requireSignedScripts = false;
+  void registerScripts();
+  bool m_requireSignedScripts = false;
 #endif
 #ifdef WITH_RIVE_SCRIPTING
-    [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
+  [[maybe_unused]] ScriptingVMSlot m_scriptingVM = nullptr;
 #endif
 #ifdef WITH_RIVE_SCRIPTING_LUAU
-    void makeScriptingVM();
-    void cleanupScriptingVM();
-    void routeScriptingToImportFactory(ScriptingContext* context);
+  void makeScriptingVM();
+  void cleanupScriptingVM();
+  void routeScriptingToImportFactory(ScriptingContext* context);
 #endif
 #ifdef WITH_RIVE_SCRIPTING_WASM
 public:
-    // One VM per script module asset; mixed language files carry one per
-    // language and each ScriptAsset resolves through its own module's VM.
-    /// Editor preview lane: replace the file's wasm VMs with one built
-    /// outside import (requestWasmVM), rebinding every ScriptAsset to it.
-    /// Ownership transfers to the file, matching import-time VMs.
-    void adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm);
-    /// Apply a module registration ref from the editor lane to the
-    /// ScriptAsset carrying moduleName; returns false when none matches.
-    bool applyWasmRegistration(const std::string& moduleName, int ref);
-    /// Requires registryName on the adopted VM and binds the result to the
-    /// ScriptAsset carrying moduleName; the editor registers by workspace
-    /// id, which is not the asset's module name.
-    bool registerWasmScript(const std::string& moduleName,
-                            const std::string& registryName);
-    /// The ScriptAsset carrying moduleName, null when none does.
-    ScriptAsset* scriptAsset(const std::string& moduleName) const;
+  // One VM per script module asset; mixed language files carry one per
+  // language and each ScriptAsset resolves through its own module's VM.
+  /// Editor preview lane: replace the file's wasm VMs with one built
+  /// outside import (requestWasmVM), rebinding every ScriptAsset to it.
+  /// Ownership transfers to the file, matching import-time VMs.
+  void adoptWasmScriptingVM(std::unique_ptr<WasmScriptingVM> vm);
+  /// Apply a module registration ref from the editor lane to the
+  /// ScriptAsset carrying moduleName; returns false when none matches.
+  bool applyWasmRegistration(const std::string& moduleName, int ref);
+  /// Requires registryName on the adopted VM and binds the result to the
+  /// ScriptAsset carrying moduleName; the editor registers by workspace
+  /// id, which is not the asset's module name.
+  bool registerWasmScript(
+      const std::string& moduleName,
+      const std::string& registryName);
+  /// The ScriptAsset carrying moduleName, null when none does.
+  ScriptAsset* scriptAsset(const std::string& moduleName) const;
 
-    WasmScriptingVM* wasmScriptingVM()
-    {
-        return m_wasmVMs.empty() ? nullptr : m_wasmVMs.front().get();
-    }
-    const std::vector<std::unique_ptr<WasmScriptingVM>>& wasmVMs() const
-    {
-        return m_wasmVMs;
-    }
+  WasmScriptingVM* wasmScriptingVM()
+  {
+    return m_wasmVMs.empty() ? nullptr : m_wasmVMs.front().get();
+  }
+  const std::vector<std::unique_ptr<WasmScriptingVM>>& wasmVMs() const
+  {
+    return m_wasmVMs;
+  }
 
-    /// Per-frame service for every wasm VM: arena rewind, handle reap, and
-    /// leak warnings. Call once per frame, between frames; returns the
-    /// first warning to surface, if any.
-    const char* frameBoundary();
+  /// Per-frame service for every wasm VM: arena rewind, handle reap, and
+  /// leak warnings. Call once per frame, between frames; returns the
+  /// first warning to surface, if any.
+  const char* frameBoundary();
 
 #ifdef __EMSCRIPTEN__
-    /// On the web import leaves the script VMs registered with the page but
-    /// not running, so the host can instantiate their modules asynchronously.
-    /// Call once that is done and before making artboard instances.
-    void startScripts();
+  /// On the web import leaves the script VMs registered with the page but
+  /// not running, so the host can instantiate their modules asynchronously.
+  /// Call once that is done and before making artboard instances.
+  void startScripts();
 #endif
 
 private:
 #ifdef __EMSCRIPTEN__
-    struct DeferredScript
-    {
-        WasmScriptingVM* vm;
-        ScriptAsset* script;
-    };
-    std::vector<DeferredScript> m_deferredScripts;
+  struct DeferredScript
+  {
+    WasmScriptingVM* vm;
+    ScriptAsset* script;
+  };
+  std::vector<DeferredScript> m_deferredScripts;
 #endif
 #endif
 #ifdef WITH_RIVE_SCRIPTING
-    WasmVMsSlot m_wasmVMs;
+  WasmVMsSlot m_wasmVMs;
 #endif
 
-    rcp<ViewModelInstance> copyViewModelInstance(
-        ViewModelInstance* viewModelInstance,
-        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
-            instancesMap,
-        size_t depth = 1) const;
+  rcp<ViewModelInstance> copyViewModelInstance(
+      ViewModelInstance* viewModelInstance,
+      std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
+          instancesMap,
+      size_t depth = 1) const;
 
-    void completeViewModelProperties(
-        ViewModelInstance* viewModelInstance,
-        std::unordered_set<ViewModelInstance*>& visited,
-        size_t depth = 1);
+  void completeViewModelProperties(
+      ViewModelInstance* viewModelInstance,
+      std::unordered_set<ViewModelInstance*>& visited,
+      size_t depth = 1);
 
-    // `creating` holds the view models on the current path, so one that
-    // contains itself (directly or through others) ends the recursion.
-    // `budget` counts the instances the outermost call may still create.
-    rcp<ViewModelInstance> createViewModelInstance(
-        ViewModel* viewModel,
-        std::vector<const ViewModel*>& creating,
-        size_t& budget) const;
+  // `creating` holds the view models on the current path, so one that
+  // contains itself (directly or through others) ends the recursion.
+  // `budget` counts the instances the outermost call may still create.
+  rcp<ViewModelInstance> createViewModelInstance(
+      ViewModel* viewModel,
+      std::vector<const ViewModel*>& creating,
+      size_t& budget) const;
 
-    rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
+  rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 
-    uint32_t findViewModelId(ViewModel* search) const;
+  uint32_t findViewModelId(ViewModel* search) const;
 #ifdef WITH_RIVE_TOOLS
-    mutable ViewModelInstanceRegistrar* m_viewModelInstanceRegistrar = nullptr;
+  mutable ViewModelInstanceRegistrar* m_viewModelInstanceRegistrar = nullptr;
 #endif
 
-    rcp<FileAsset> m_manifest = nullptr;
+  rcp<FileAsset> m_manifest = nullptr;
 
-    bool m_hasAudio = false;
+  bool m_hasAudio = false;
 };
 } // namespace rive
 #endif

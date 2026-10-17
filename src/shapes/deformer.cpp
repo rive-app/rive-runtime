@@ -6,20 +6,20 @@ using namespace rive;
 
 RenderPathDeformer* RenderPathDeformer::from(Component* component)
 {
-    switch (component->coreType())
-    {
-        case NSlicedNode::typeKey:
-            return component->as<NSlicedNode>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case NSlicedNode::typeKey:
+      return component->as<NSlicedNode>();
+  }
+  return nullptr;
 }
 
 PointDeformer* PointDeformer::from(Component* component)
 {
-    switch (component->coreType())
-    {
-        case NSlicedNode::typeKey:
-            return component->as<NSlicedNode>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case NSlicedNode::typeKey:
+      return component->as<NSlicedNode>();
+  }
+  return nullptr;
 }

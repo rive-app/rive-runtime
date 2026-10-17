@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListFollowPathConstraintBase::clone() const
 {
-    auto cloned = new ListFollowPathConstraint();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListFollowPathConstraint();
+  cloned->copy(*this);
+  return cloned;
 }

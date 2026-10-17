@@ -13,29 +13,30 @@
 
 using namespace rive;
 
-TEST_CASE("recorded per verb geometry drops empty segments",
-          "[cmd][deferred][path]")
+TEST_CASE(
+    "recorded per verb geometry drops empty segments",
+    "[cmd][deferred][path]")
 {
-    cmd::DeferredSession session(rive::ore::ReplayCaps{});
-    auto paint = session.makeRenderPaint();
-    auto path = session.makeEmptyRenderPath();
+  cmd::DeferredSession session(rive::ore::ReplayCaps{});
+  auto paint = session.makeRenderPaint();
+  auto path = session.makeEmptyRenderPath();
 
-    // A closed contour of coincident points: what a zero sized shape hands us.
-    RawPath degenerate;
-    degenerate.move({304, 160});
-    degenerate.line({304, 160});
-    degenerate.line({304, 160});
-    degenerate.line({304, 160});
-    degenerate.close();
-    degenerate.addTo(path.get());
+  // A closed contour of coincident points: what a zero sized shape hands us.
+  RawPath degenerate;
+  degenerate.move({304, 160});
+  degenerate.line({304, 160});
+  degenerate.line({304, 160});
+  degenerate.line({304, 160});
+  degenerate.close();
+  degenerate.addTo(path.get());
 
-    // Draws flush the pending per verb geometry into the stream.
-    session.screenRenderer()->drawPath(path.get(), paint.get());
+  // Draws flush the pending per verb geometry into the stream.
+  session.screenRenderer()->drawPath(path.get(), paint.get());
 
-    // This path's verbs are the only blob the session recorded, and they lead
-    // it: move then close, with the three empty lines gone.
-    Span<const uint8_t> blobs = session.commandBuffer().blobBytes();
-    REQUIRE(blobs.size() >= 2);
-    CHECK(static_cast<PathVerb>(blobs[0]) == PathVerb::move);
-    CHECK(static_cast<PathVerb>(blobs[1]) == PathVerb::close);
+  // This path's verbs are the only blob the session recorded, and they lead
+  // it: move then close, with the three empty lines gone.
+  Span<const uint8_t> blobs = session.commandBuffer().blobBytes();
+  REQUIRE(blobs.size() >= 2);
+  CHECK(static_cast<PathVerb>(blobs[0]) == PathVerb::move);
+  CHECK(static_cast<PathVerb>(blobs[1]) == PathVerb::close);
 }

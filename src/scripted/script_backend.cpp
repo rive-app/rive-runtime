@@ -10,46 +10,47 @@ ScriptBackend::~ScriptBackend() { detachScriptedObjects(); }
 
 void ScriptBackend::displayScale(float scale)
 {
-    if (scale == m_displayScale)
+  if (scale == m_displayScale)
+  {
+    return;
+  }
+  m_displayScale = scale;
+  // The callback runs script code that can register or unregister objects
+  // on this backend; walk a snapshot and skip anything since removed.
+  std::vector<ScriptedObject*> objects(
+      m_scriptedObjects.begin(),
+      m_scriptedObjects.end());
+  for (ScriptedObject* object : objects)
+  {
+    if (m_scriptedObjects.count(object) != 0)
     {
-        return;
+      object->displayScaleChanged();
     }
-    m_displayScale = scale;
-    // The callback runs script code that can register or unregister objects
-    // on this backend; walk a snapshot and skip anything since removed.
-    std::vector<ScriptedObject*> objects(m_scriptedObjects.begin(),
-                                         m_scriptedObjects.end());
-    for (ScriptedObject* object : objects)
-    {
-        if (m_scriptedObjects.count(object) != 0)
-        {
-            object->displayScaleChanged();
-        }
-    }
+  }
 }
 
 void ScriptBackend::registerScriptedObject(ScriptedObject* object)
 {
-    if (object != nullptr)
-    {
-        m_scriptedObjects.insert(object);
-    }
+  if (object != nullptr)
+  {
+    m_scriptedObjects.insert(object);
+  }
 }
 
 void ScriptBackend::unregisterScriptedObject(ScriptedObject* object)
 {
-    if (object != nullptr)
-    {
-        m_scriptedObjects.erase(object);
-    }
+  if (object != nullptr)
+  {
+    m_scriptedObjects.erase(object);
+  }
 }
 
 void ScriptBackend::detachScriptedObjects()
 {
-    for (ScriptedObject* object : m_scriptedObjects)
-    {
-        object->m_vm = nullptr;
-    }
-    m_scriptedObjects.clear();
+  for (ScriptedObject* object : m_scriptedObjects)
+  {
+    object->m_vm = nullptr;
+  }
+  m_scriptedObjects.clear();
 }
 #endif

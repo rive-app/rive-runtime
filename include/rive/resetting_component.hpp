@@ -6,7 +6,7 @@ namespace rive
 class ResettingComponent
 {
 public:
-    virtual void reset() = 0;
+  virtual void reset() = 0;
 };
 } // namespace rive
 

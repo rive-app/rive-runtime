@@ -23,28 +23,28 @@ namespace
 class ModuleScriptingContext : public ScriptingContext
 {
 public:
-    ModuleScriptingContext() : ScriptingContext(wasmModuleFactory()) {}
+  ModuleScriptingContext() : ScriptingContext(wasmModuleFactory()) {}
 
-    void printError(lua_State* state) override
+  void printError(lua_State* state) override
+  {
+    const char* message = lua_tostring(state, -1);
+    fprintf(stderr, "script error: %s\n", message ? message : "?");
+  }
+  void printBeginLine(lua_State*) override {}
+  void print(Span<const char> data) override
+  {
+    fwrite(data.data(), 1, data.size(), stdout);
+  }
+  void printEndLine() override { fputc('\n', stdout); }
+  int pCall(lua_State* state, int nargs, int nresults) override
+  {
+    int status = lua_pcall(state, nargs, nresults, 0);
+    if (status != LUA_OK)
     {
-        const char* message = lua_tostring(state, -1);
-        fprintf(stderr, "script error: %s\n", message ? message : "?");
+      printError(state);
     }
-    void printBeginLine(lua_State*) override {}
-    void print(Span<const char> data) override
-    {
-        fwrite(data.data(), 1, data.size(), stdout);
-    }
-    void printEndLine() override { fputc('\n', stdout); }
-    int pCall(lua_State* state, int nargs, int nresults) override
-    {
-        int status = lua_pcall(state, nargs, nresults, 0);
-        if (status != LUA_OK)
-        {
-            printError(state);
-        }
-        return status;
-    }
+    return status;
+  }
 };
 } // namespace
 
@@ -52,8 +52,8 @@ namespace rive
 {
 ScriptingContext* wasmModuleContext()
 {
-    static ModuleScriptingContext context;
-    return &context;
+  static ModuleScriptingContext context;
+  return &context;
 }
 
 // Path caching keys on the artboard frame id, which lives host side. A
@@ -69,8 +69,8 @@ void ScriptingContext::shutdownAsync() {}
 // the ref pushed.
 int rive_lua_pushRef(lua_State* L, int ref)
 {
-    lua_getref(L, ref);
-    return 1;
+  lua_getref(L, ref);
+  return 1;
 }
 } // namespace rive
 
@@ -78,9 +78,9 @@ int rive_lua_pushRef(lua_State* L, int ref)
 // handle-backed proxies.
 int luaopen_rive_renderer_module(lua_State* L)
 {
-    return luaopen_rive_path(L) + luaopen_rive_gradient(L) +
-           luaopen_rive_paint(L) + luaopen_rive_renderer(L) +
-           luaopen_rive_image(L) + luaopen_rive_mesh(L) + luaopen_rive_blob(L);
+  return luaopen_rive_path(L) + luaopen_rive_gradient(L) +
+         luaopen_rive_paint(L) + luaopen_rive_renderer(L) +
+         luaopen_rive_image(L) + luaopen_rive_mesh(L) + luaopen_rive_blob(L);
 }
 
 #endif

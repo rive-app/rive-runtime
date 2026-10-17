@@ -8,22 +8,21 @@ using namespace rive;
 
 StatusCode FormulaToken::import(ImportStack& importStack)
 {
-    auto dataConverterFormulaImporter =
-        importStack.latest<DataConverterFormulaImporter>(
-            DataConverterFormulaBase::typeKey);
-    if (dataConverterFormulaImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    dataConverterFormulaImporter->formula()->addToken(this);
-    m_formula = dataConverterFormulaImporter->formula();
-    return Super::import(importStack);
+  auto dataConverterFormulaImporter = importStack.latest<
+      DataConverterFormulaImporter>(DataConverterFormulaBase::typeKey);
+  if (dataConverterFormulaImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  dataConverterFormulaImporter->formula()->addToken(this);
+  m_formula = dataConverterFormulaImporter->formula();
+  return Super::import(importStack);
 }
 
 void FormulaToken::addDataBind(DataBind* dataBind)
 {
-    if (m_formula)
-    {
-        m_formula->addDataBind(dataBind);
-    }
+  if (m_formula)
+  {
+    m_formula->addDataBind(dataBind);
+  }
 }

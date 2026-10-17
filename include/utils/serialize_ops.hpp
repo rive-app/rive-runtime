@@ -16,153 +16,153 @@ namespace rive
 // the two ends of the .sriv format cannot drift apart.
 enum class SerializeOp : uint32_t
 {
-    makeRenderBuffer = 0,
-    makeLinearGradient = 1,
-    makeRadialGradient = 2,
-    makeRenderPath = 3,
-    makeRenderPaint = 5,
-    decodeImage = 6,
-    save = 7,
-    restore = 8,
-    transform = 9,
-    drawPath = 10,
-    clipPath = 11,
-    drawImage = 12,
-    drawImageMesh = 13,
+  makeRenderBuffer = 0,
+  makeLinearGradient = 1,
+  makeRadialGradient = 2,
+  makeRenderPath = 3,
+  makeRenderPaint = 5,
+  decodeImage = 6,
+  save = 7,
+  restore = 8,
+  transform = 9,
+  drawPath = 10,
+  clipPath = 11,
+  drawImage = 12,
+  drawImageMesh = 13,
 
-    // RenderBuffer
-    setVertexBufferData = 14,
-    setIndexBufferData = 15,
+  // RenderBuffer
+  setVertexBufferData = 14,
+  setIndexBufferData = 15,
 
-    // RenderPath
-    addRawPath = 16,
-    rewind = 17,
-    fillRule = 18,
+  // RenderPath
+  addRawPath = 16,
+  rewind = 17,
+  fillRule = 18,
 
-    // RenderPaint
-    style = 20,
-    color = 21,
-    thickness = 22,
-    join = 23,
-    cap = 24,
-    feather = 25,
-    blendMode = 26,
-    shader = 27,
+  // RenderPaint
+  style = 20,
+  color = 21,
+  thickness = 22,
+  join = 23,
+  cap = 24,
+  feather = 25,
+  blendMode = 26,
+  shader = 27,
 
-    frame = 28,
-    frameSize = 29,
-    modulateOpacity = 30,
-    paintModulatedImage = 31,
+  frame = 28,
+  frameSize = 29,
+  modulateOpacity = 30,
+  paintModulatedImage = 31,
 
-    // Offscreen canvases (cache-as-bitmap). Content records inline between the
-    // begin and end brackets; the canvas id shares the image id space so a
-    // later drawImage of that id composites the canvas.
-    makeRenderCanvas = 32,   // id, width, height
-    canvasContentBegin = 33, // id, clearColor
-    canvasContentEnd = 34,   // id
-    modulateColor = 35,      // color, replace
+  // Offscreen canvases (cache-as-bitmap). Content records inline between the
+  // begin and end brackets; the canvas id shares the image id space so a
+  // later drawImage of that id composites the canvas.
+  makeRenderCanvas = 32,   // id, width, height
+  canvasContentBegin = 33, // id, clearColor
+  canvasContentEnd = 34,   // id
+  modulateColor = 35,      // color, replace
 
-    // RenderPaint::additiveness. Its own op rather than a field on an existing
-    // one so a stream with no additive content is byte for byte what it was
-    // before additiveness existed.
-    additiveness = 36, // paint id, value
+  // RenderPaint::additiveness. Its own op rather than a field on an existing
+  // one so a stream with no additive content is byte for byte what it was
+  // before additiveness existed.
+  additiveness = 36, // paint id, value
 
-    // drawImage / drawImageMesh carrying a non zero additiveness, which images
-    // take per draw instead of off a paint. Same payload as the plain op plus
-    // a trailing float, and only emitted when the value is non zero, so an
-    // ordinary image draw still records as drawImage.
-    drawImageAdditive = 37,
-    drawImageMeshAdditive = 38,
+  // drawImage / drawImageMesh carrying a non zero additiveness, which images
+  // take per draw instead of off a paint. Same payload as the plain op plus
+  // a trailing float, and only emitted when the value is non zero, so an
+  // ordinary image draw still records as drawImage.
+  drawImageAdditive = 37,
+  drawImageMeshAdditive = 38,
 
-    // Instanced image meshes
-    makeImageMeshInstances = 39,    // id, count
-    setImageMeshInstancesData = 40, // id, instances[count]
-    // image, positions, uvs, indices, instances
-    drawImageMeshInstanced = 41,
+  // Instanced image meshes
+  makeImageMeshInstances = 39,    // id, count
+  setImageMeshInstancesData = 40, // id, instances[count]
+  // image, positions, uvs, indices, instances
+  drawImageMeshInstanced = 41,
 
-    // Layer masking: multiply the current target by a factor derived from the
-    // named image. Recorded inside the masked layer's canvas bracket, as the
-    // last op before it closes.
-    applyLayerMask = 42, // imageId, mode
+  // Layer masking: multiply the current target by a factor derived from the
+  // named image. Recorded inside the masked layer's canvas bracket, as the
+  // last op before it closes.
+  applyLayerMask = 42, // imageId, mode
 
-    // RenderPaint::strokePosition. Its own op for the same reason as
-    // additiveness: only written once a paint leaves center, so a stream with
-    // no inside or outside strokes is byte for byte what it was before.
-    strokePosition = 43, // paint id, value
+  // RenderPaint::strokePosition. Its own op for the same reason as
+  // additiveness: only written once a paint leaves center, so a stream with
+  // no inside or outside strokes is byte for byte what it was before.
+  strokePosition = 43, // paint id, value
 
-    // Note: logically this should be placed next to `shader`, but existing
-    // .sriv files encode these values, so this list is append-only.
-    shaderTransform = 44,
+  // Note: logically this should be placed next to `shader`, but existing
+  // .sriv files encode these values, so this list is append-only.
+  shaderTransform = 44,
 
-    makeAngularGradient = 45,
+  makeAngularGradient = 45,
 };
 
 inline void serializeRawPath(BinaryWriter* writer, const RawPath& path)
 {
-    auto verbs = path.verbs();
-    auto points = path.points();
-    writer->writeVarUint((uint64_t)verbs.size());
-    for (auto verb : verbs)
-    {
-        writer->writeVarUint((uint64_t)verb);
-    }
-    writer->writeVarUint((uint64_t)points.size());
-    for (auto point : points)
-    {
-        writer->writeFloat(point.x);
-        writer->writeFloat(point.y);
-    }
+  auto verbs = path.verbs();
+  auto points = path.points();
+  writer->writeVarUint((uint64_t)verbs.size());
+  for (auto verb : verbs)
+  {
+    writer->writeVarUint((uint64_t)verb);
+  }
+  writer->writeVarUint((uint64_t)points.size());
+  for (auto point : points)
+  {
+    writer->writeFloat(point.x);
+    writer->writeFloat(point.y);
+  }
 }
 
 inline RawPath deserializeRawPath(BinaryReader& reader)
 {
-    RawPath path;
-    size_t verbCount = static_cast<size_t>(reader.readVarUint64());
-    std::vector<PathVerb> verbs(verbCount);
-    for (size_t i = 0; i < verbCount; ++i)
-        verbs[i] = static_cast<PathVerb>(reader.readVarUint64());
-    size_t pointCount = static_cast<size_t>(reader.readVarUint64());
-    std::vector<Vec2D> pts(pointCount);
-    for (size_t i = 0; i < pointCount; ++i)
+  RawPath path;
+  size_t verbCount = static_cast<size_t>(reader.readVarUint64());
+  std::vector<PathVerb> verbs(verbCount);
+  for (size_t i = 0; i < verbCount; ++i)
+    verbs[i] = static_cast<PathVerb>(reader.readVarUint64());
+  size_t pointCount = static_cast<size_t>(reader.readVarUint64());
+  std::vector<Vec2D> pts(pointCount);
+  for (size_t i = 0; i < pointCount; ++i)
+  {
+    pts[i].x = reader.readFloat32();
+    pts[i].y = reader.readFloat32();
+  }
+  size_t p = 0;
+  // A truncated stream can promise more points than it delivers.
+  auto have = [&](size_t n) { return p + n <= pts.size(); };
+  for (PathVerb v : verbs)
+  {
+    switch (v)
     {
-        pts[i].x = reader.readFloat32();
-        pts[i].y = reader.readFloat32();
+      case PathVerb::move:
+        if (!have(1))
+          return path;
+        path.move(pts[p++]);
+        break;
+      case PathVerb::line:
+        if (!have(1))
+          return path;
+        path.line(pts[p++]);
+        break;
+      case PathVerb::quad:
+        if (!have(2))
+          return path;
+        path.quad(pts[p], pts[p + 1]);
+        p += 2;
+        break;
+      case PathVerb::cubic:
+        if (!have(3))
+          return path;
+        path.cubic(pts[p], pts[p + 1], pts[p + 2]);
+        p += 3;
+        break;
+      case PathVerb::close:
+        path.close();
+        break;
     }
-    size_t p = 0;
-    // A truncated stream can promise more points than it delivers.
-    auto have = [&](size_t n) { return p + n <= pts.size(); };
-    for (PathVerb v : verbs)
-    {
-        switch (v)
-        {
-            case PathVerb::move:
-                if (!have(1))
-                    return path;
-                path.move(pts[p++]);
-                break;
-            case PathVerb::line:
-                if (!have(1))
-                    return path;
-                path.line(pts[p++]);
-                break;
-            case PathVerb::quad:
-                if (!have(2))
-                    return path;
-                path.quad(pts[p], pts[p + 1]);
-                p += 2;
-                break;
-            case PathVerb::cubic:
-                if (!have(3))
-                    return path;
-                path.cubic(pts[p], pts[p + 1], pts[p + 2]);
-                p += 3;
-                break;
-            case PathVerb::close:
-                path.close();
-                break;
-        }
-    }
-    return path;
+  }
+  return path;
 }
 } // namespace rive
 

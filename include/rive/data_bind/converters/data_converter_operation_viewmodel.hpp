@@ -10,23 +10,20 @@ class DataConverterOperationViewModel
     : public DataConverterOperationViewModelBase
 {
 private:
-    float resolveValue(DataBind* dataBind);
-    ViewModelInstanceNumber* m_source = nullptr;
+  float resolveValue(DataBind* dataBind);
+  ViewModelInstanceNumber* m_source = nullptr;
 
 protected:
-    std::vector<uint32_t> m_SourcePathIdsBuffer;
+  std::vector<uint32_t> m_SourcePathIdsBuffer;
 
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
-    void decodeSourcePathIds(Span<const uint8_t> value) override;
-    void copySourcePathIds(
-        const DataConverterOperationViewModelBase& object) override;
-    const std::vector<uint32_t>& sourcePathIds()
-    {
-        return m_SourcePathIdsBuffer;
-    }
-    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+  void decodeSourcePathIds(Span<const uint8_t> value) override;
+  void copySourcePathIds(
+      const DataConverterOperationViewModelBase& object) override;
+  const std::vector<uint32_t>& sourcePathIds() { return m_SourcePathIdsBuffer; }
+  void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
 };
 } // namespace rive
 

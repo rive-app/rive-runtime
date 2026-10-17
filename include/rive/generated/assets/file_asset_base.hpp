@@ -14,79 +14,79 @@ namespace rive
 class FileAssetBase : public Asset
 {
 protected:
-    typedef Asset Super;
+  typedef Asset Super;
 
 public:
-    static const uint16_t typeKey = 103;
+  static const uint16_t typeKey = 103;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t assetIdPropertyKey = 204;
-    static const uint16_t cdnUuidPropertyKey = 359;
-    static const uint16_t cdnBaseUrlPropertyKey = 362;
+  static const uint16_t assetIdPropertyKey = 204;
+  static const uint16_t cdnUuidPropertyKey = 359;
+  static const uint16_t cdnBaseUrlPropertyKey = 362;
 
 protected:
-    uint32_t m_AssetId = 0;
-    std::string m_CdnBaseUrl = "https://public.rive.app/cdn/uuid";
+  uint32_t m_AssetId = 0;
+  std::string m_CdnBaseUrl = "https://public.rive.app/cdn/uuid";
 
 public:
-    inline uint32_t assetId() const { return m_AssetId; }
-    void assetId(uint32_t value)
+  inline uint32_t assetId() const { return m_AssetId; }
+  void assetId(uint32_t value)
+  {
+    if (m_AssetId == value)
     {
-        if (m_AssetId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(assetIdPropertyKey, &m_AssetId, &value);
-        m_AssetId = value;
-        RIVE_EDITOR_CHANGED(assetIdChanged());
-        notifyPropertyChanged(assetIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(assetIdPropertyKey, &m_AssetId, &value);
+    m_AssetId = value;
+    RIVE_EDITOR_CHANGED(assetIdChanged());
+    notifyPropertyChanged(assetIdPropertyKey);
+  }
 
-    virtual void decodeCdnUuid(Span<const uint8_t> value) = 0;
-    virtual void copyCdnUuid(const FileAssetBase& object) = 0;
+  virtual void decodeCdnUuid(Span<const uint8_t> value) = 0;
+  virtual void copyCdnUuid(const FileAssetBase& object) = 0;
 
-    inline const std::string& cdnBaseUrl() const { return m_CdnBaseUrl; }
-    void cdnBaseUrl(std::string value)
+  inline const std::string& cdnBaseUrl() const { return m_CdnBaseUrl; }
+  void cdnBaseUrl(std::string value)
+  {
+    if (m_CdnBaseUrl == value)
     {
-        if (m_CdnBaseUrl == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(cdnBaseUrlPropertyKey, m_CdnBaseUrl, value);
-        m_CdnBaseUrl = value;
-        notifyPropertyChanged(cdnBaseUrlPropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(cdnBaseUrlPropertyKey, m_CdnBaseUrl, value);
+    m_CdnBaseUrl = value;
+    notifyPropertyChanged(cdnBaseUrlPropertyKey);
+  }
 
-    void copy(const FileAssetBase& object)
-    {
-        m_AssetId = object.m_AssetId;
-        copyCdnUuid(object);
-        m_CdnBaseUrl = object.m_CdnBaseUrl;
-        RIVE_EDITOR_COPY(object);
-        Asset::copy(object);
-    }
+  void copy(const FileAssetBase& object)
+  {
+    m_AssetId = object.m_AssetId;
+    copyCdnUuid(object);
+    m_CdnBaseUrl = object.m_CdnBaseUrl;
+    RIVE_EDITOR_COPY(object);
+    Asset::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case assetIdPropertyKey:
-                m_AssetId = CoreUintType::deserialize(reader);
-                return true;
-            case cdnUuidPropertyKey:
-                decodeCdnUuid(CoreBytesType::deserialize(reader));
-                return true;
-            case cdnBaseUrlPropertyKey:
-                m_CdnBaseUrl = CoreStringType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return Asset::deserialize(propertyKey, reader);
+      case assetIdPropertyKey:
+        m_AssetId = CoreUintType::deserialize(reader);
+        return true;
+      case cdnUuidPropertyKey:
+        decodeCdnUuid(CoreBytesType::deserialize(reader));
+        return true;
+      case cdnBaseUrlPropertyKey:
+        m_CdnBaseUrl = CoreStringType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return Asset::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void assetIdChanged() {}
+  virtual void assetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/file_asset_ext.inl"
 #endif

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* CustomPropertyColorBase::clone() const
 {
-    auto cloned = new CustomPropertyColor();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new CustomPropertyColor();
+  cloned->copy(*this);
+  return cloned;
 }

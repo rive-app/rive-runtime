@@ -12,36 +12,37 @@ namespace rive
 class TextLayoutView
 {
 public:
-    TextLayoutView(const SimpleArray<Paragraph>& paragraphs,
-                   const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines,
-                   const std::vector<OrderedLine>& orderedLines,
-                   const GlyphLookup& glyphLookup,
-                   uint32_t textLength) :
-        m_paragraphs(paragraphs),
-        m_paragraphLines(paragraphLines),
-        m_orderedLines(orderedLines),
-        m_glyphLookup(glyphLookup),
-        m_textLength(textLength)
-    {}
+  TextLayoutView(
+      const SimpleArray<Paragraph>& paragraphs,
+      const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines,
+      const std::vector<OrderedLine>& orderedLines,
+      const GlyphLookup& glyphLookup,
+      uint32_t textLength)
+      : m_paragraphs(paragraphs)
+      , m_paragraphLines(paragraphLines)
+      , m_orderedLines(orderedLines)
+      , m_glyphLookup(glyphLookup)
+      , m_textLength(textLength)
+  {}
 
-    const SimpleArray<Paragraph>& paragraphs() const { return m_paragraphs; }
-    const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines() const
-    {
-        return m_paragraphLines;
-    }
-    const std::vector<OrderedLine>& orderedLines() const
-    {
-        return m_orderedLines;
-    }
-    const GlyphLookup& glyphLookup() const { return m_glyphLookup; }
-    uint32_t textLength() const { return m_textLength; }
+  const SimpleArray<Paragraph>& paragraphs() const { return m_paragraphs; }
+  const SimpleArray<SimpleArray<GlyphLine>>& paragraphLines() const
+  {
+    return m_paragraphLines;
+  }
+  const std::vector<OrderedLine>& orderedLines() const
+  {
+    return m_orderedLines;
+  }
+  const GlyphLookup& glyphLookup() const { return m_glyphLookup; }
+  uint32_t textLength() const { return m_textLength; }
 
 private:
-    const SimpleArray<Paragraph>& m_paragraphs;
-    const SimpleArray<SimpleArray<GlyphLine>>& m_paragraphLines;
-    const std::vector<OrderedLine>& m_orderedLines;
-    const GlyphLookup& m_glyphLookup;
-    uint32_t m_textLength;
+  const SimpleArray<Paragraph>& m_paragraphs;
+  const SimpleArray<SimpleArray<GlyphLine>>& m_paragraphLines;
+  const std::vector<OrderedLine>& m_orderedLines;
+  const GlyphLookup& m_glyphLookup;
+  uint32_t m_textLength;
 };
 } // namespace rive
 #endif

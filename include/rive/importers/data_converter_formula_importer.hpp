@@ -10,12 +10,12 @@ class DataConverterFormula;
 class DataConverterFormulaImporter : public ImportStackObject
 {
 private:
-    DataConverterFormula* m_dataConverterFormula;
+  DataConverterFormula* m_dataConverterFormula;
 
 public:
-    DataConverterFormulaImporter(DataConverterFormula* formula);
-    DataConverterFormula* formula() { return m_dataConverterFormula; }
-    StatusCode resolve() override;
+  DataConverterFormulaImporter(DataConverterFormula* formula);
+  DataConverterFormula* formula() { return m_dataConverterFormula; }
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

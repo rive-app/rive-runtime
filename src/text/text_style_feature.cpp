@@ -6,15 +6,15 @@ using namespace rive;
 
 StatusCode TextStyleFeature::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code == StatusCode::Ok)
+  StatusCode code = Super::onAddedDirty(context);
+  if (code == StatusCode::Ok)
+  {
+    if (!parent()->is<TextStyle>())
     {
-        if (!parent()->is<TextStyle>())
-        {
-            return StatusCode::InvalidObject;
-        }
-        auto style = parent()->as<TextStyle>();
-        style->addFeature(this);
+      return StatusCode::InvalidObject;
     }
-    return code;
+    auto style = parent()->as<TextStyle>();
+    style->addFeature(this);
+  }
+  return code;
 }

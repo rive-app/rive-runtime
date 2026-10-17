@@ -21,30 +21,30 @@ namespace rive::ore::cmd
 // Orders the owned buffer before the recording base that writes into it.
 struct OwnedOreCommandBuffer
 {
-    OreCommandBuffer buffer;
+  OreCommandBuffer buffer;
 };
 
 class InlineDeferredRenderPass : private OwnedOreCommandBuffer,
                                  public RenderPassRecording
 {
 public:
-    InlineDeferredRenderPass(Context* context, const RenderPassDesc& desc) :
-        RenderPassRecording(context, &buffer, desc)
-    {}
+  InlineDeferredRenderPass(Context* context, const RenderPassDesc& desc)
+      : RenderPassRecording(context, &buffer, desc)
+  {}
 
-    // The base destructor can only reach its own finish, which drops the
-    // drain.
-    ~InlineDeferredRenderPass() override { finish(); }
+  // The base destructor can only reach its own finish, which drops the
+  // drain.
+  ~InlineDeferredRenderPass() override { finish(); }
 
-    void finish() override
+  void finish() override
+  {
+    if (m_finished)
     {
-        if (m_finished)
-        {
-            return;
-        }
-        RenderPassRecording::finish();
-        replayCommandBuffer(*m_context, buffer);
+      return;
     }
+    RenderPassRecording::finish();
+    replayCommandBuffer(*m_context, buffer);
+  }
 };
 
 // The one entry point for a script facing pass. It always records, so a pass
@@ -53,17 +53,18 @@ inline std::unique_ptr<RenderPass> beginRecordedRenderPass(
     Context& ctx,
     const RenderPassDesc& desc)
 {
-    if (ctx.isRecording())
-    {
-        return ctx.beginRenderPass(desc);
-    }
-    if (ctx.deferredRecording() && ctx.usesDeferredFrameReplay())
-    {
-        return std::make_unique<RenderPassRecording>(&ctx,
-                                                     &ctx.pendingFrame(),
-                                                     desc);
-    }
-    return std::make_unique<InlineDeferredRenderPass>(&ctx, desc);
+  if (ctx.isRecording())
+  {
+    return ctx.beginRenderPass(desc);
+  }
+  if (ctx.deferredRecording() && ctx.usesDeferredFrameReplay())
+  {
+    return std::make_unique<RenderPassRecording>(
+        &ctx,
+        &ctx.pendingFrame(),
+        desc);
+  }
+  return std::make_unique<InlineDeferredRenderPass>(&ctx, desc);
 }
 
 } // namespace rive::ore::cmd

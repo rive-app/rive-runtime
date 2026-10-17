@@ -7,19 +7,19 @@ namespace rive
 {
 enum class AdvanceFlags : unsigned short
 {
-    None = 0,
+  None = 0,
 
-    /// Whether NestedArtboards should advance
-    AdvanceNested = 1 << 0,
+  /// Whether NestedArtboards should advance
+  AdvanceNested = 1 << 0,
 
-    /// Whether the Component should animate when advancing
-    Animate = 1 << 1,
+  /// Whether the Component should animate when advancing
+  Animate = 1 << 1,
 
-    /// Whether this Component is on the root artboard
-    IsRoot = 1 << 2,
+  /// Whether this Component is on the root artboard
+  IsRoot = 1 << 2,
 
-    /// Whether we are advancing to a new frame
-    NewFrame = 1 << 3,
+  /// Whether we are advancing to a new frame
+  NewFrame = 1 << 3,
 };
 } // namespace rive
 #endif

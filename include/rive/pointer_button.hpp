@@ -4,9 +4,9 @@ namespace rive
 {
 enum class PointerButton : int
 {
-    primary = 0,
-    secondary = 1,
-    middle = 2,
+  primary = 0,
+  secondary = 1,
+  middle = 2,
 };
 }
 #endif

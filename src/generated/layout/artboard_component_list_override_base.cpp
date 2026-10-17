@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ArtboardComponentListOverrideBase::clone() const
 {
-    auto cloned = new ArtboardComponentListOverride();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ArtboardComponentListOverride();
+  cloned->copy(*this);
+  return cloned;
 }

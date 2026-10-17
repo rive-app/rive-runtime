@@ -3,6 +3,7 @@ typedef void (*ExitFunc)(void);
 
 namespace stacktrace
 {
-void replace_signal_handlers(SignalFunc signalFunc,
-                             ExitFunc atExitFunc) noexcept;
+void replace_signal_handlers(
+    SignalFunc signalFunc,
+    ExitFunc atExitFunc) noexcept;
 } // namespace stacktrace

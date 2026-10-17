@@ -9,26 +9,26 @@ namespace rive
 class GroupEffectBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 645;
+  static const uint16_t typeKey = 645;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const GroupEffectBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const GroupEffectBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ContainerComponent::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/group_effect_ext.inl"
 #endif

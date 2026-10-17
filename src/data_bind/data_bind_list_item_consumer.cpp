@@ -10,18 +10,18 @@ using namespace rive;
 
 DataBindListItemConsumer* DataBindListItemConsumer::from(Core* component)
 {
-    switch (component->coreType())
-    {
-        case ArtboardComponentList::typeKey:
-            return component->as<ArtboardComponentList>();
-        case ListPath::typeKey:
-            return component->as<ListPath>();
-        case Text::typeKey:
-            return component->as<Text>();
-        case ViewModelInstanceList::typeKey:
-            return component->as<ViewModelInstanceList>();
-        case ScriptedTransition::typeKey:
-            return component->as<ScriptedTransition>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case ArtboardComponentList::typeKey:
+      return component->as<ArtboardComponentList>();
+    case ListPath::typeKey:
+      return component->as<ListPath>();
+    case Text::typeKey:
+      return component->as<Text>();
+    case ViewModelInstanceList::typeKey:
+      return component->as<ViewModelInstanceList>();
+    case ScriptedTransition::typeKey:
+      return component->as<ScriptedTransition>();
+  }
+  return nullptr;
 }

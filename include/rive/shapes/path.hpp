@@ -25,115 +25,117 @@ class RenderPathDeformer;
 class FlattenedPath
 {
 private:
-    std::vector<PathVertex*> m_Vertices;
+  std::vector<PathVertex*> m_Vertices;
 
 public:
-    ~FlattenedPath();
+  ~FlattenedPath();
 
-    const std::vector<PathVertex*>& vertices() const { return m_Vertices; }
-    void addVertex(PathVertex* vertex, const Mat2D& transform);
+  const std::vector<PathVertex*>& vertices() const { return m_Vertices; }
+  void addVertex(PathVertex* vertex, const Mat2D& transform);
 };
 #endif
 
 class Path : public PathBase
 {
 protected:
-    Shape* m_Shape = nullptr;
-    std::vector<PathVertex*> m_Vertices;
-    bool m_deferredPathDirt = false;
-    bool m_shapeNotified = false;
-    void shapePathChanged();
-    PathFlags m_pathFlags = PathFlags::none;
-    RawPath m_rawPath;
-    // Bumped whenever m_rawPath is rebuilt, so a consumer can tell "this is the
-    // same geometry I saw last time" apart from "it was rebuilt".
-    uint32_t m_geometryVersion = 0;
-    RenderPathDeformer* deformer() const;
-    void isHoleChanged() override;
+  Shape* m_Shape = nullptr;
+  std::vector<PathVertex*> m_Vertices;
+  bool m_deferredPathDirt = false;
+  bool m_shapeNotified = false;
+  void shapePathChanged();
+  PathFlags m_pathFlags = PathFlags::none;
+  RawPath m_rawPath;
+  // Bumped whenever m_rawPath is rebuilt, so a consumer can tell "this is the
+  // same geometry I saw last time" apart from "it was rebuilt".
+  uint32_t m_geometryVersion = 0;
+  RenderPathDeformer* deformer() const;
+  void isHoleChanged() override;
 
 public:
-    static float computeIdealControlPointDistance(const Vec2D& toPrev,
-                                                  const Vec2D& toNext,
-                                                  float radius);
+  static float computeIdealControlPointDistance(
+      const Vec2D& toPrev,
+      const Vec2D& toNext,
+      float radius);
 
-    static void addRoundedRect(RawPath& rawPath,
-                               const AABB& bounds,
-                               float topLeft,
-                               float topRight,
-                               float bottomRight,
-                               float bottomLeft);
+  static void addRoundedRect(
+      RawPath& rawPath,
+      const AABB& bounds,
+      float topLeft,
+      float topRight,
+      float bottomRight,
+      float bottomLeft);
 
-    Shape* shape() const { return m_Shape; }
-    StatusCode onAddedClean(CoreContext* context) override;
-    void buildDependencies() override;
-    virtual const Mat2D& pathTransform() const;
-    bool collapse(bool value) override;
-    const RawPath& rawPath() const { return m_rawPath; }
-    uint32_t geometryVersion() const { return m_geometryVersion; }
-    // True while m_rawPath has yet to be rebuilt for pending changes: the Path
-    // dirt is still queued, or the build was deferred. Layout runs before
-    // Path::update in the update pass, so a measure can land here first and
-    // must build its own copy rather than read a stale/empty rawPath.
-    bool needsPathBuild() const
-    {
-        return hasDirt(ComponentDirt::Path) || m_deferredPathDirt;
-    }
-    // Bounds in this path's own space derived from its properties rather than
-    // its built geometry, for callers that run before update() has positioned
-    // vertices. A ParametricPath knows its box up front; anything vertex-driven
-    // returns false and must be measured from geometry.
-    virtual bool tryPropertyBounds(AABB& result) const { return false; }
-    void update(ComponentDirt value) override;
+  Shape* shape() const { return m_Shape; }
+  StatusCode onAddedClean(CoreContext* context) override;
+  void buildDependencies() override;
+  virtual const Mat2D& pathTransform() const;
+  bool collapse(bool value) override;
+  const RawPath& rawPath() const { return m_rawPath; }
+  uint32_t geometryVersion() const { return m_geometryVersion; }
+  // True while m_rawPath has yet to be rebuilt for pending changes: the Path
+  // dirt is still queued, or the build was deferred. Layout runs before
+  // Path::update in the update pass, so a measure can land here first and
+  // must build its own copy rather than read a stale/empty rawPath.
+  bool needsPathBuild() const
+  {
+    return hasDirt(ComponentDirt::Path) || m_deferredPathDirt;
+  }
+  // Bounds in this path's own space derived from its properties rather than
+  // its built geometry, for callers that run before update() has positioned
+  // vertices. A ParametricPath knows its box up front; anything vertex-driven
+  // returns false and must be measured from geometry.
+  virtual bool tryPropertyBounds(AABB& result) const { return false; }
+  void update(ComponentDirt value) override;
 
-    void addFlags(PathFlags flags);
-    bool isFlagged(PathFlags flags) const;
+  void addFlags(PathFlags flags);
+  bool isFlagged(PathFlags flags) const;
 
-    bool canDeferPathUpdate();
-    void addVertex(PathVertex* vertex);
-    void popVertex();
+  bool canDeferPathUpdate();
+  void addVertex(PathVertex* vertex);
+  void popVertex();
 
-    virtual void markPathDirty(bool sendToLayout = true);
-    virtual bool isPathClosed() const { return true; }
-    void onDirty(ComponentDirt dirt) override;
-    inline bool isHidden() const { return (pathFlags() & 0x1) == 0x1; }
+  virtual void markPathDirty(bool sendToLayout = true);
+  virtual bool isPathClosed() const { return true; }
+  void onDirty(ComponentDirt dirt) override;
+  inline bool isHidden() const { return (pathFlags() & 0x1) == 0x1; }
 #ifdef ENABLE_QUERY_FLAT_VERTICES
-    FlattenedPath* makeFlat(bool transformToParent);
+  FlattenedPath* makeFlat(bool transformToParent);
 #endif
 
 #ifdef TESTING
-    std::vector<PathVertex*>& vertices() { return m_Vertices; }
+  std::vector<PathVertex*>& vertices() { return m_Vertices; }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    /// Editor-only: sort `m_Vertices` by sibling FractionalIndex
-    /// (`Component::childOrder().compareTo(...)`). The runtime `.riv` import
-    /// path adds vertices in file declaration order — which the
-    /// exporter writes in the authored order, so the resulting
-    /// path geometry is correct without any sorting. Coop
-    /// delivers vertices in server-batch arrival order, which is
-    /// arbitrary; without this resort the rendered path zigzags
-    /// across the children, producing twisted / self-intersecting
-    /// shapes (the visible "broken pose" we see in the editor's
-    /// pump-driven render). Mirrors Dart's
-    /// `ContainerComponent.sortChildren` /
-    /// `Path._sortVertices` flow that runs as part of cleanDirt
-    /// (rive_file.dart:607-613).
-    void sortVerticesForEditor();
-    /// Idempotent add — no-op if `vertex` is already on
-    /// `m_Vertices`. Called by `PathVertex::editorParentChanged`
-    /// when its parent transitions to this Path (initial hydration
-    /// or re-parent target). The dedupe matters for cross-batch
-    /// retries and mixed-mode (`.riv`-imported + coop-edited) files.
-    void addVertexForEditor(PathVertex* vertex);
-    /// Remove `vertex` from `m_Vertices` if present. Called by
-    /// `PathVertex::editorParentChanged` when its parent transitions
-    /// AWAY from this Path (re-parent source, parent-of-parent
-    /// deletion, or child deletion).
-    void removeVertexForEditor(PathVertex* vertex);
+  /// Editor-only: sort `m_Vertices` by sibling FractionalIndex
+  /// (`Component::childOrder().compareTo(...)`). The runtime `.riv` import
+  /// path adds vertices in file declaration order — which the
+  /// exporter writes in the authored order, so the resulting
+  /// path geometry is correct without any sorting. Coop
+  /// delivers vertices in server-batch arrival order, which is
+  /// arbitrary; without this resort the rendered path zigzags
+  /// across the children, producing twisted / self-intersecting
+  /// shapes (the visible "broken pose" we see in the editor's
+  /// pump-driven render). Mirrors Dart's
+  /// `ContainerComponent.sortChildren` /
+  /// `Path._sortVertices` flow that runs as part of cleanDirt
+  /// (rive_file.dart:607-613).
+  void sortVerticesForEditor();
+  /// Idempotent add — no-op if `vertex` is already on
+  /// `m_Vertices`. Called by `PathVertex::editorParentChanged`
+  /// when its parent transitions to this Path (initial hydration
+  /// or re-parent target). The dedupe matters for cross-batch
+  /// retries and mixed-mode (`.riv`-imported + coop-edited) files.
+  void addVertexForEditor(PathVertex* vertex);
+  /// Remove `vertex` from `m_Vertices` if present. Called by
+  /// `PathVertex::editorParentChanged` when its parent transitions
+  /// AWAY from this Path (re-parent source, parent-of-parent
+  /// deletion, or child deletion).
+  void removeVertexForEditor(PathVertex* vertex);
 #endif
 
-    void buildPath(RawPath&) const;
-    AABB localBounds() const override;
+  void buildPath(RawPath&) const;
+  AABB localBounds() const override;
 };
 } // namespace rive
 

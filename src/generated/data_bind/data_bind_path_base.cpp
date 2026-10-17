@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* DataBindPathBase::clone() const
 {
-    auto cloned = new DataBindPath();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new DataBindPath();
+  cloned->copy(*this);
+  return cloned;
 }

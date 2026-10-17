@@ -5,12 +5,12 @@
 using namespace rive;
 ColorChannelsBase* ColorChannelsBase::from(Core* object)
 {
-    switch (object->coreType())
-    {
-        case SolidColorBase::typeKey:
-            return object->as<SolidColorBase>();
-        case GradientStopBase::typeKey:
-            return object->as<GradientStopBase>();
-    }
-    return nullptr;
+  switch (object->coreType())
+  {
+    case SolidColorBase::typeKey:
+      return object->as<SolidColorBase>();
+    case GradientStopBase::typeKey:
+      return object->as<GradientStopBase>();
+  }
+  return nullptr;
 }

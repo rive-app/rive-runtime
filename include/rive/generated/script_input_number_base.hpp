@@ -6,14 +6,14 @@ namespace rive
 class ScriptInputNumberBase : public CustomPropertyNumber
 {
 protected:
-    typedef CustomPropertyNumber Super;
+  typedef CustomPropertyNumber Super;
 
 public:
-    static const uint16_t typeKey = 611;
+  static const uint16_t typeKey = 611;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

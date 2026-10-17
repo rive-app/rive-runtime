@@ -7,53 +7,51 @@ namespace rive
 class DraggableConstraintBase : public Constraint
 {
 protected:
-    typedef Constraint Super;
+  typedef Constraint Super;
 
 public:
-    static const uint16_t typeKey = 520;
+  static const uint16_t typeKey = 520;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t directionValuePropertyKey = 722;
+  static const uint16_t directionValuePropertyKey = 722;
 
 protected:
-    uint32_t m_DirectionValue = 1;
+  uint32_t m_DirectionValue = 1;
 
 public:
-    inline uint32_t directionValue() const { return m_DirectionValue; }
-    void directionValue(uint32_t value)
+  inline uint32_t directionValue() const { return m_DirectionValue; }
+  void directionValue(uint32_t value)
+  {
+    if (m_DirectionValue == value)
     {
-        if (m_DirectionValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(directionValuePropertyKey,
-                             &m_DirectionValue,
-                             &value);
-        m_DirectionValue = value;
-        RIVE_EDITOR_CHANGED(directionValueChanged());
-        notifyPropertyChanged(directionValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(directionValuePropertyKey, &m_DirectionValue, &value);
+    m_DirectionValue = value;
+    RIVE_EDITOR_CHANGED(directionValueChanged());
+    notifyPropertyChanged(directionValuePropertyKey);
+  }
 
-    void copy(const DraggableConstraintBase& object)
-    {
-        m_DirectionValue = object.m_DirectionValue;
-        Constraint::copy(object);
-    }
+  void copy(const DraggableConstraintBase& object)
+  {
+    m_DirectionValue = object.m_DirectionValue;
+    Constraint::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case directionValuePropertyKey:
-                m_DirectionValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return Constraint::deserialize(propertyKey, reader);
+      case directionValuePropertyKey:
+        m_DirectionValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    return Constraint::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void directionValueChanged() {}
+  virtual void directionValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/draggable_constraint_ext.inl"
 #endif

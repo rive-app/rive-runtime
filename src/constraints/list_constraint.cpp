@@ -6,10 +6,10 @@ using namespace rive;
 
 ListConstraint* ListConstraint::from(Component* component)
 {
-    switch (component->coreType())
-    {
-        case ListFollowPathConstraintBase::typeKey:
-            return component->as<ListFollowPathConstraint>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case ListFollowPathConstraintBase::typeKey:
+      return component->as<ListFollowPathConstraint>();
+  }
+  return nullptr;
 }

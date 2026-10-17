@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerViewModelChangeBase::clone() const
 {
-    auto cloned = new ListenerViewModelChange();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerViewModelChange();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -11,34 +11,34 @@ using namespace rive;
 
 InterpolatorHost* InterpolatorHost::from(Core* component)
 {
-    switch (component->coreType())
-    {
-        case LayoutComponent::typeKey:
-            return component->as<LayoutComponent>();
-        default:
-            return nullptr;
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case LayoutComponent::typeKey:
+      return component->as<LayoutComponent>();
+    default:
+      return nullptr;
+  }
+  return nullptr;
 }
 
 StatusCode KeyFrameInterpolator::import(ImportStack& importStack)
 {
-    // Inside an artboard, File::readObjects already put this in the artboard's
-    // object list (see claimsArtboardSlot).
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
+  // Inside an artboard, File::readObjects already put this in the artboard's
+  // object list (see claimsArtboardSlot).
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    auto backboardImporter = importStack.latest<BackboardImporter>(
+        BackboardBase::typeKey);
+    if (backboardImporter != nullptr)
     {
-        auto backboardImporter =
-            importStack.latest<BackboardImporter>(BackboardBase::typeKey);
-        if (backboardImporter != nullptr)
-        {
-            backboardImporter->addInterpolator(this);
-        }
-        else
-        {
-            return StatusCode::MissingObject;
-        }
+      backboardImporter->addInterpolator(this);
     }
-    return Super::import(importStack);
+    else
+    {
+      return StatusCode::MissingObject;
+    }
+  }
+  return Super::import(importStack);
 }

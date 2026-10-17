@@ -8,28 +8,27 @@ using namespace rive;
 
 BlendState1DViewModel::~BlendState1DViewModel()
 {
-    if (m_bindableProperty != nullptr)
-    {
-        delete m_bindableProperty;
-        m_bindableProperty = nullptr;
-    }
+  if (m_bindableProperty != nullptr)
+  {
+    delete m_bindableProperty;
+    m_bindableProperty = nullptr;
+  }
 }
 
 StatusCode BlendState1DViewModel::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    auto bindablePropertyImporter =
-        importStack.latest<BindablePropertyImporter>(
-            BindablePropertyBase::typeKey);
-    if (bindablePropertyImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    m_bindableProperty = bindablePropertyImporter->bindableProperty();
-    return Super::import(importStack);
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachine::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  auto bindablePropertyImporter = importStack.latest<BindablePropertyImporter>(
+      BindablePropertyBase::typeKey);
+  if (bindablePropertyImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  m_bindableProperty = bindablePropertyImporter->bindableProperty();
+  return Super::import(importStack);
 }

@@ -22,1282 +22,1256 @@
 
 TEST_CASE("Component List Artboard Count", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // One advance lays the items out completely, so no style change is left
-    // to sync. It used to leave one: each item's text got a new variable font
-    // every update, so the text couldn't tell its layout had already measured
-    // it and marked the layout dirty again after shaping.
-    REQUIRE(list->syncStyleChanges() == false);
-    REQUIRE(list->artboardCount() == 8);
-    REQUIRE(list->layoutNode(9) == nullptr);
-    REQUIRE(list->artboardInstance(9) == nullptr);
-    REQUIRE(list->stateMachineInstance(9) == nullptr);
+  // One advance lays the items out completely, so no style change is left
+  // to sync. It used to leave one: each item's text got a new variable font
+  // every update, so the text couldn't tell its layout had already measured
+  // it and marked the layout dirty again after shaping.
+  REQUIRE(list->syncStyleChanges() == false);
+  REQUIRE(list->artboardCount() == 8);
+  REQUIRE(list->layoutNode(9) == nullptr);
+  REQUIRE(list->artboardInstance(9) == nullptr);
+  REQUIRE(list->stateMachineInstance(9) == nullptr);
 }
 
 TEST_CASE("Component List Artboards & State Machines", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        REQUIRE(artboard->name() == "Item");
-        auto sm = list->stateMachineInstance(i);
-        REQUIRE(sm != nullptr);
-        REQUIRE(sm->artboard() == artboard);
-    }
+    REQUIRE(artboard->name() == "Item");
+    auto sm = list->stateMachineInstance(i);
+    REQUIRE(sm != nullptr);
+    REQUIRE(sm->artboard() == artboard);
+  }
 }
 
 TEST_CASE("Component List Artboards Layout Nodes", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto node = list->layoutNode(i);
-        REQUIRE(node != nullptr);
-    }
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto node = list->layoutNode(i);
+    REQUIRE(node != nullptr);
+  }
 }
 
 TEST_CASE("Component List Artboards Layout Bounds", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        auto bounds = artboard->layoutBounds();
-        // Artboards are using Column layout
-        REQUIRE(bounds.top() == i * 60);
-    }
+    auto bounds = artboard->layoutBounds();
+    // Artboards are using Column layout
+    REQUIRE(bounds.top() == i * 60);
+  }
 }
 
 TEST_CASE("Component List Artboards Data Context", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  std::vector<std::string> labels =
+      {"ONE", "TWO", "THREE", "THREE", "THREE", "THREE", "TWO", "ONE"};
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    std::vector<std::string> labels =
-        {"ONE", "TWO", "THREE", "THREE", "THREE", "THREE", "TWO", "ONE"};
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        auto context = artboard->dataContext();
-        auto vmString =
-            context->mainViewModelInstance()->propertyValue("Label");
-        REQUIRE(vmString->is<rive::ViewModelInstanceString>());
-        REQUIRE(
-            vmString->as<rive::ViewModelInstanceString>()->propertyValue() ==
-            labels[i]);
-    }
+    auto context = artboard->dataContext();
+    auto vmString = context->mainViewModelInstance()->propertyValue("Label");
+    REQUIRE(vmString->is<rive::ViewModelInstanceString>());
+    REQUIRE(
+        vmString->as<rive::ViewModelInstanceString>()->propertyValue() ==
+        labels[i]);
+  }
 }
 
 TEST_CASE("Component List Artboards Labels", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  std::vector<std::string> labels =
+      {"ONE", "TWO", "THREE", "THREE", "THREE", "THREE", "TWO", "ONE"};
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    std::vector<std::string> labels =
-        {"ONE", "TWO", "THREE", "THREE", "THREE", "THREE", "TWO", "ONE"};
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        auto label = artboard->find("TextLabel");
-        REQUIRE(label->is<rive::Text>());
-        REQUIRE(label->as<rive::Text>()->runs()[0]->text() == labels[i]);
-    }
+    auto label = artboard->find("TextLabel");
+    REQUIRE(label->is<rive::Text>());
+    REQUIRE(label->as<rive::Text>()->runs()[0]->text() == labels[i]);
+  }
 }
 
 TEST_CASE("Component list state machine listener", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachine("State Machine 1");
-    REQUIRE(stateMachine != nullptr);
-    rive::StateMachineInstance* stateMachineInstance =
-        new rive::StateMachineInstance(stateMachine, artboard.get());
-    REQUIRE(stateMachineInstance != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachine("State Machine 1");
+  REQUIRE(stateMachine != nullptr);
+  rive::StateMachineInstance*
+      stateMachineInstance = new rive::StateMachineInstance(
+          stateMachine,
+          artboard.get());
+  REQUIRE(stateMachineInstance != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    auto stateMachineInstance1 = list->stateMachineInstance(0);
-    auto hoverInput1 = stateMachineInstance1->getBool("Hover");
-    REQUIRE(hoverInput1 != nullptr);
-    REQUIRE(hoverInput1->value() == false);
+  auto stateMachineInstance1 = list->stateMachineInstance(0);
+  auto hoverInput1 = stateMachineInstance1->getBool("Hover");
+  REQUIRE(hoverInput1 != nullptr);
+  REQUIRE(hoverInput1->value() == false);
 
-    REQUIRE(stateMachineInstance1->hitComponentsCount() == 1);
-    // Move over the first shape
-    stateMachineInstance->pointerMove(rive::Vec2D(100.0f, 30.0f));
-    artboard->advance(0.0f);
-    stateMachineInstance->advanceAndApply(0.0f);
-    {
-        REQUIRE(hoverInput1->value() == true);
-    }
+  REQUIRE(stateMachineInstance1->hitComponentsCount() == 1);
+  // Move over the first shape
+  stateMachineInstance->pointerMove(rive::Vec2D(100.0f, 30.0f));
+  artboard->advance(0.0f);
+  stateMachineInstance->advanceAndApply(0.0f);
+  {
+    REQUIRE(hoverInput1->value() == true);
+  }
 
-    auto stateMachineInstance3 = list->stateMachineInstance(2);
-    auto hoverInput3 = stateMachineInstance3->getBool("Hover");
-    REQUIRE(hoverInput3 != nullptr);
-    REQUIRE(hoverInput3->value() == false);
+  auto stateMachineInstance3 = list->stateMachineInstance(2);
+  auto hoverInput3 = stateMachineInstance3->getBool("Hover");
+  REQUIRE(hoverInput3 != nullptr);
+  REQUIRE(hoverInput3->value() == false);
 
-    REQUIRE(stateMachineInstance3->hitComponentsCount() == 1);
-    // Move over the first shape
-    stateMachineInstance->pointerMove(rive::Vec2D(100.0f, 150.0f));
-    artboard->advance(0.0f);
-    stateMachineInstance->advanceAndApply(0.0f);
-    {
-        REQUIRE(hoverInput3->value() == true);
-    }
-    delete stateMachineInstance;
+  REQUIRE(stateMachineInstance3->hitComponentsCount() == 1);
+  // Move over the first shape
+  stateMachineInstance->pointerMove(rive::Vec2D(100.0f, 150.0f));
+  artboard->advance(0.0f);
+  stateMachineInstance->advanceAndApply(0.0f);
+  {
+    REQUIRE(hoverInput3->value() == true);
+  }
+  delete stateMachineInstance;
 }
 
 TEST_CASE("Number To List Artboard Count", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_2.riv");
+  auto file = ReadRiveFile("assets/component_list_2.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    REQUIRE(list->syncStyleChanges() == true);
-    REQUIRE(list->artboardCount() == 12);
-    REQUIRE(list->layoutNode(13) == nullptr);
-    REQUIRE(list->artboardInstance(13) == nullptr);
-    REQUIRE(list->stateMachineInstance(13) == nullptr);
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        REQUIRE(list->listItem(i) != nullptr);
-    }
-    auto countProperty = viewModelInstance->propertyValue("ItemCount");
-    countProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(6);
+  REQUIRE(list->syncStyleChanges() == true);
+  REQUIRE(list->artboardCount() == 12);
+  REQUIRE(list->layoutNode(13) == nullptr);
+  REQUIRE(list->artboardInstance(13) == nullptr);
+  REQUIRE(list->stateMachineInstance(13) == nullptr);
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    REQUIRE(list->listItem(i) != nullptr);
+  }
+  auto countProperty = viewModelInstance->propertyValue("ItemCount");
+  countProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(6);
 
-    artboard->advance(0.0f);
-    REQUIRE(list->artboardCount() == 6);
+  artboard->advance(0.0f);
+  REQUIRE(list->artboardCount() == 6);
 }
 
 TEST_CASE("Number To List Artboards & State Machines", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_2.riv");
+  auto file = ReadRiveFile("assets/component_list_2.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        REQUIRE(artboard->name() == "Item");
-        auto sm = list->stateMachineInstance(i);
-        REQUIRE(sm != nullptr);
-        REQUIRE(sm->artboard() == artboard);
-    }
+    REQUIRE(artboard->name() == "Item");
+    auto sm = list->stateMachineInstance(i);
+    REQUIRE(sm != nullptr);
+    REQUIRE(sm->artboard() == artboard);
+  }
 }
 
 TEST_CASE("Number To List Artboards Layout Nodes", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_2.riv");
+  auto file = ReadRiveFile("assets/component_list_2.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto node = list->layoutNode(i);
-        REQUIRE(node != nullptr);
-    }
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto node = list->layoutNode(i);
+    REQUIRE(node != nullptr);
+  }
 }
 
 TEST_CASE("Number To List Artboards Data Context", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_2.riv");
+  auto file = ReadRiveFile("assets/component_list_2.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        auto item = list->listItem(i);
-        auto vmInstance = item->viewModelInstance();
-        auto symbol = vmInstance->propertyValue(rive::SymbolType::itemIndex);
-        REQUIRE(symbol != nullptr);
-        auto index = symbol->as<rive::ViewModelInstanceSymbolListIndex>()
-                         ->propertyValue();
-        REQUIRE(index == i);
-    }
+    auto item = list->listItem(i);
+    auto vmInstance = item->viewModelInstance();
+    auto symbol = vmInstance->propertyValue(rive::SymbolType::itemIndex);
+    REQUIRE(symbol != nullptr);
+    auto index = symbol->as<rive::ViewModelInstanceSymbolListIndex>()
+                     ->propertyValue();
+    REQUIRE(index == i);
+  }
 }
 
 TEST_CASE("Number to List Artboards Labels", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_2.riv");
+  auto file = ReadRiveFile("assets/component_list_2.riv");
 
-    auto artboard = file->artboard("Main")->instance();
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+  artboard->advance(0.0f);
+
+  std::vector<std::string> labels =
+      {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"};
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-
-    artboard->advance(0.0f);
-
-    std::vector<std::string> labels =
-        {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"};
-    for (int i = 0; i < list->artboardCount(); i++)
-    {
-        auto artboard = list->artboardInstance(i);
-        REQUIRE(artboard != nullptr);
-        auto label = artboard->find("ItemLabel");
-        REQUIRE(label->is<rive::Text>());
-        REQUIRE(label->as<rive::Text>()->runs()[0]->text() == labels[i]);
-    }
+    auto label = artboard->find("ItemLabel");
+    REQUIRE(label->is<rive::Text>());
+    REQUIRE(label->as<rive::Text>()->runs()[0]->text() == labels[i]);
+  }
 }
 
-TEST_CASE("Component List Virtualized Artboards & State Machines",
-          "[component_list]")
+TEST_CASE(
+    "Component List Virtualized Artboards & State Machines",
+    "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    artboard->advance(0.0f);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  artboard->advance(0.0f);
 
-    REQUIRE(list->artboardCount() == 20);
-    // Only the first 5 items should be created
-    for (int i = 0; i < list->artboardCount(); i++)
+  REQUIRE(list->artboardCount() == 20);
+  // Only the first 5 items should be created
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
+    if (i < 5)
     {
-        auto artboard = list->artboardInstance(i);
-        if (i < 5)
-        {
-            REQUIRE(artboard != nullptr);
-            REQUIRE(artboard->name() == "ItemArtboard");
-            auto sm = list->stateMachineInstance(i);
-            REQUIRE(sm != nullptr);
-            REQUIRE(sm->artboard() == artboard);
-        }
-        else
-        {
-            REQUIRE(artboard == nullptr);
-            auto sm = list->stateMachineInstance(i);
-            REQUIRE(sm == nullptr);
-        }
+      REQUIRE(artboard != nullptr);
+      REQUIRE(artboard->name() == "ItemArtboard");
+      auto sm = list->stateMachineInstance(i);
+      REQUIRE(sm != nullptr);
+      REQUIRE(sm->artboard() == artboard);
     }
+    else
+    {
+      REQUIRE(artboard == nullptr);
+      auto sm = list->stateMachineInstance(i);
+      REQUIRE(sm == nullptr);
+    }
+  }
 }
 
 TEST_CASE("Component List Virtualized Buffer", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    // This fixture is a carousel, so the leading buffer wraps to the tail
-    // rather than clamping at index 0.
-    REQUIRE(scroll->infinite() == true);
+  // This fixture is a carousel, so the leading buffer wraps to the tail
+  // rather than clamping at index 0.
+  REQUIRE(scroll->infinite() == true);
 
-    scroll->virtualizeBuffer(2);
-    artboard->advance(0.0f);
+  scroll->virtualizeBuffer(2);
+  artboard->advance(0.0f);
 
-    REQUIRE(list->artboardCount() == 20);
-    // Items 0-4 are visible, 5-6 are the trailing buffer, and the leading
-    // buffer wraps around to 19 and 18. Collected in index order.
-    std::string realized;
-    for (int i = 0; i < list->artboardCount(); i++)
+  REQUIRE(list->artboardCount() == 20);
+  // Items 0-4 are visible, 5-6 are the trailing buffer, and the leading
+  // buffer wraps around to 19 and 18. Collected in index order.
+  std::string realized;
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    if (list->artboardInstance(i) != nullptr)
     {
-        if (list->artboardInstance(i) != nullptr)
-        {
-            realized += std::to_string(i) + " ";
-        }
+      realized += std::to_string(i) + " ";
     }
-    INFO("realized indices: " << realized);
-    REQUIRE(realized == "0 1 2 3 4 5 6 18 19 ");
+  }
+  INFO("realized indices: " << realized);
+  REQUIRE(realized == "0 1 2 3 4 5 6 18 19 ");
 }
 
-TEST_CASE("Component List Virtualized Buffer Clamps When Not Infinite",
-          "[component_list]")
+TEST_CASE(
+    "Component List Virtualized Buffer Clamps When Not Infinite",
+    "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    // Without the carousel the leading buffer has nowhere to wrap to, so it
-    // clamps at index 0 instead.
-    scroll->infinite(false);
-    scroll->virtualizeBuffer(2);
-    artboard->advance(0.0f);
+  // Without the carousel the leading buffer has nowhere to wrap to, so it
+  // clamps at index 0 instead.
+  scroll->infinite(false);
+  scroll->virtualizeBuffer(2);
+  artboard->advance(0.0f);
 
-    std::string realized;
-    for (int i = 0; i < list->artboardCount(); i++)
+  std::string realized;
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    if (list->artboardInstance(i) != nullptr)
     {
-        if (list->artboardInstance(i) != nullptr)
-        {
-            realized += std::to_string(i) + " ";
-        }
+      realized += std::to_string(i) + " ";
     }
-    INFO("realized indices: " << realized);
-    REQUIRE(realized == "0 1 2 3 4 5 6 ");
+  }
+  INFO("realized indices: " << realized);
+  REQUIRE(realized == "0 1 2 3 4 5 6 ");
 }
 
 TEST_CASE("Component List Virtualized Buffer Both Sides", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    scroll->virtualizeBuffer(2);
-    artboard->advance(0.0f);
-    // Bring items 5..9 into view.
-    scroll->setScrollIndex(5);
-    artboard->advance(0.0f);
+  scroll->virtualizeBuffer(2);
+  artboard->advance(0.0f);
+  // Bring items 5..9 into view.
+  scroll->setScrollIndex(5);
+  artboard->advance(0.0f);
 
-    // 3..4 buffered before, 5..9 visible, 10..11 buffered after.
-    std::string realized;
-    for (int i = 0; i < list->artboardCount(); i++)
+  // 3..4 buffered before, 5..9 visible, 10..11 buffered after.
+  std::string realized;
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    if (list->artboardInstance(i) != nullptr)
     {
-        if (list->artboardInstance(i) != nullptr)
-        {
-            realized += std::to_string(i) + " ";
-        }
+      realized += std::to_string(i) + " ";
     }
-    INFO("realized indices: " << realized);
-    REQUIRE(realized == "3 4 5 6 7 8 9 10 11 ");
+  }
+  INFO("realized indices: " << realized);
+  REQUIRE(realized == "3 4 5 6 7 8 9 10 11 ");
 }
 
-TEST_CASE("Component List Virtualized Artboards Layout Bounds",
-          "[component_list]")
+TEST_CASE(
+    "Component List Virtualized Artboards Layout Bounds",
+    "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list->virtualizationEnabled() == true);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list->virtualizationEnabled() == true);
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    float gap = 10;
-    float artboardWidth = 100;
-    for (int i = 0; i < list->artboardCount(); i++)
+  float gap = 10;
+  float artboardWidth = 100;
+  for (int i = 0; i < list->artboardCount(); i++)
+  {
+    auto artboard = list->artboardInstance(i);
+    if (i < 5)
     {
-        auto artboard = list->artboardInstance(i);
-        if (i < 5)
-        {
-            REQUIRE(artboard != nullptr);
-            auto bounds = list->layoutBoundsForNode(i);
-            REQUIRE(bounds.left() == i * (artboardWidth + gap));
-        }
-        else
-        {
-            REQUIRE(artboard == nullptr);
-        }
+      REQUIRE(artboard != nullptr);
+      auto bounds = list->layoutBoundsForNode(i);
+      REQUIRE(bounds.left() == i * (artboardWidth + gap));
     }
+    else
+    {
+      REQUIRE(artboard == nullptr);
+    }
+  }
 }
 
 TEST_CASE("Component List Virtualized Scroll", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
 
-    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
-    REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+  REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    REQUIRE(scroll->offsetX() == 0);
+  REQUIRE(scroll->offsetX() == 0);
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // scrollIndex
-    scroll->setScrollIndex(2);
-    REQUIRE(scroll->infinite() == true);
-    REQUIRE(scroll->scrollItemCount() == 20);
-    REQUIRE(scroll->offsetX() == -220.0f);
-    REQUIRE(scroll->clampedOffsetX() == -220.0f);
-    REQUIRE(scroll->minOffsetX() == std::numeric_limits<float>::infinity());
-    REQUIRE(scroll->maxOffsetX() == -std::numeric_limits<float>::infinity());
-    REQUIRE(scroll->offsetY() == 0.0f);
-    REQUIRE(scroll->minOffsetY() == 0.0f);
-    REQUIRE(scroll->maxOffsetY() == 0.0f);
-    REQUIRE(scroll->clampedOffsetY() == 0.0f);
-    REQUIRE(scroll->scrollIndex() == 2);
-    REQUIRE(scroll->contentWidth() == 2200.0f);
-    REQUIRE(scroll->viewportWidth() == 500.0f);
+  // scrollIndex
+  scroll->setScrollIndex(2);
+  REQUIRE(scroll->infinite() == true);
+  REQUIRE(scroll->scrollItemCount() == 20);
+  REQUIRE(scroll->offsetX() == -220.0f);
+  REQUIRE(scroll->clampedOffsetX() == -220.0f);
+  REQUIRE(scroll->minOffsetX() == std::numeric_limits<float>::infinity());
+  REQUIRE(scroll->maxOffsetX() == -std::numeric_limits<float>::infinity());
+  REQUIRE(scroll->offsetY() == 0.0f);
+  REQUIRE(scroll->minOffsetY() == 0.0f);
+  REQUIRE(scroll->maxOffsetY() == 0.0f);
+  REQUIRE(scroll->clampedOffsetY() == 0.0f);
+  REQUIRE(scroll->scrollIndex() == 2);
+  REQUIRE(scroll->contentWidth() == 2200.0f);
+  REQUIRE(scroll->viewportWidth() == 500.0f);
 }
 
 TEST_CASE("Component List Virtualized Scroll manual", "[component_list]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    REQUIRE(vmi != nullptr);
-    REQUIRE(stateMachine != nullptr);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(vmi != nullptr);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
 
-    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
-    REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+  REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    REQUIRE(scroll->scrollPercentY() == 0.0f);
-    REQUIRE(scroll->offsetY() == 0.0f);
-    REQUIRE(scroll->scrollIndex() == Approx(0.0f));
-    REQUIRE(scroll->physics()->isRunning() == false);
+  REQUIRE(scroll->scrollPercentY() == 0.0f);
+  REQUIRE(scroll->offsetY() == 0.0f);
+  REQUIRE(scroll->scrollIndex() == Approx(0.0f));
+  REQUIRE(scroll->physics()->isRunning() == false);
 
-    silver.addFrame();
-    stateMachine->pointerMove(rive::Vec2D(250.0f, 50.0f));
-    // Start drag
-    stateMachine->pointerDown(rive::Vec2D(250.0f, 50.0f));
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    // Move left 200px in 0.1 seconds
-    stateMachine->pointerMove(rive::Vec2D(50.0f, 50.0f));
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->pointerMove(rive::Vec2D(250.0f, 50.0f));
+  // Start drag
+  stateMachine->pointerDown(rive::Vec2D(250.0f, 50.0f));
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  // Move left 200px in 0.1 seconds
+  stateMachine->pointerMove(rive::Vec2D(50.0f, 50.0f));
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    REQUIRE(scroll->offsetX() == -200.0f);
-    REQUIRE(scroll->scrollIndex() == Approx(1.818182f));
+  REQUIRE(scroll->offsetX() == -200.0f);
+  REQUIRE(scroll->scrollIndex() == Approx(1.818182f));
 
-    // End drag
-    stateMachine->pointerUp(rive::Vec2D(50.0f, 50.0f));
+  // End drag
+  stateMachine->pointerUp(rive::Vec2D(50.0f, 50.0f));
 
-    REQUIRE(scroll->physics()->isRunning() == true);
+  REQUIRE(scroll->physics()->isRunning() == true);
 
-    CHECK(silver.matches("component_list_virtualized_scroll_manual"));
+  CHECK(silver.matches("component_list_virtualized_scroll_manual"));
 }
 
 TEST_CASE("Artboard override with horizontal distribution", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/artboard_list_overrides.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/artboard_list_overrides.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
+  auto artboard = file->artboardNamed("Main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("artboard_list_overrides_horizontal"));
+  CHECK(silver.matches("artboard_list_overrides_horizontal"));
 }
 
 TEST_CASE("Artboard override with vertical distribution", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/artboard_list_overrides.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/artboard_list_overrides.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main-Vertical");
+  auto artboard = file->artboardNamed("Main-Vertical");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("artboard_list_overrides_vertical"));
+  CHECK(silver.matches("artboard_list_overrides_vertical"));
 }
 
 TEST_CASE("Number to Lists reset triggers correctly", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/reset_phase.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/reset_phase.riv", &silver);
 
-    auto artboard = file->artboardNamed("multi-main");
+  auto artboard = file->artboardNamed("multi-main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(3.0f / 0.16f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(3.0f / 0.16f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("reset_phase_multi_main"));
+  CHECK(silver.matches("reset_phase_multi_main"));
 }
 
 TEST_CASE("Non Layout List Artboard Position", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_grouped.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_list_grouped.riv", &silver);
 
-    auto artboard = file->artboardNamed("MainArtboard");
+  auto artboard = file->artboardNamed("MainArtboard");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.16f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.16f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-    }
+  auto item1 = list->listItem(0);
+  auto vmInstance1 = item1->viewModelInstance();
+  auto xProp1 = vmInstance1->propertyValue("x")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(xProp1 != nullptr);
+  auto xVal1 = xProp1->propertyValue();
+  REQUIRE(xVal1 == 0);
+  auto yProp1 = vmInstance1->propertyValue("y")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(yProp1 != nullptr);
+  auto yVal1 = yProp1->propertyValue();
+  REQUIRE(yVal1 == 0);
 
-    auto item1 = list->listItem(0);
-    auto vmInstance1 = item1->viewModelInstance();
-    auto xProp1 =
-        vmInstance1->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(xProp1 != nullptr);
-    auto xVal1 = xProp1->propertyValue();
-    REQUIRE(xVal1 == 0);
-    auto yProp1 =
-        vmInstance1->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(yProp1 != nullptr);
-    auto yVal1 = yProp1->propertyValue();
-    REQUIRE(yVal1 == 0);
+  auto item2 = list->listItem(1);
+  auto vmInstance2 = item2->viewModelInstance();
+  auto xProp2 = vmInstance2->propertyValue("x")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(xProp2 != nullptr);
+  auto xVal2 = xProp2->propertyValue();
+  REQUIRE(xVal2 == 50);
+  auto yProp2 = vmInstance2->propertyValue("y")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(yProp2 != nullptr);
+  auto yVal2 = yProp2->propertyValue();
+  REQUIRE(yVal2 == 0);
 
-    auto item2 = list->listItem(1);
-    auto vmInstance2 = item2->viewModelInstance();
-    auto xProp2 =
-        vmInstance2->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(xProp2 != nullptr);
-    auto xVal2 = xProp2->propertyValue();
-    REQUIRE(xVal2 == 50);
-    auto yProp2 =
-        vmInstance2->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(yProp2 != nullptr);
-    auto yVal2 = yProp2->propertyValue();
-    REQUIRE(yVal2 == 0);
+  auto item3 = list->listItem(2);
+  auto vmInstance3 = item3->viewModelInstance();
+  auto xProp3 = vmInstance3->propertyValue("x")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(xProp3 != nullptr);
+  auto xVal3 = xProp3->propertyValue();
+  REQUIRE(xVal3 == 100);
+  auto yProp3 = vmInstance3->propertyValue("y")
+                    ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(yProp3 != nullptr);
+  auto yVal3 = yProp3->propertyValue();
+  REQUIRE(yVal3 == 0);
 
-    auto item3 = list->listItem(2);
-    auto vmInstance3 = item3->viewModelInstance();
-    auto xProp3 =
-        vmInstance3->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(xProp3 != nullptr);
-    auto xVal3 = xProp3->propertyValue();
-    REQUIRE(xVal3 == 100);
-    auto yProp3 =
-        vmInstance3->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(yProp3 != nullptr);
-    auto yVal3 = yProp3->propertyValue();
-    REQUIRE(yVal3 == 0);
+  xProp1->propertyValue(-90);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
 
-    xProp1->propertyValue(-90);
-    stateMachine->advanceAndApply(0.1f);
+  xProp2->propertyValue(25);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+
+  xProp3->propertyValue(150);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+
+  yProp1->propertyValue(-50);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+
+  yProp2->propertyValue(100);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+
+  yProp3->propertyValue(-200);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+
+  // Hover list item 1
+  for (int i = 0; i < frames; i++)
+  {
+    stateMachine->pointerMove(rive::Vec2D(210.0f, 250.0f));
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
     silver.addFrame();
+  }
 
-    xProp2->propertyValue(25);
-    stateMachine->advanceAndApply(0.1f);
+  // Hover list item 2
+  for (int i = 0; i < frames; i++)
+  {
+    stateMachine->pointerMove(rive::Vec2D(325.0f, 400.0f));
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
     silver.addFrame();
+  }
 
-    xProp3->propertyValue(150);
-    stateMachine->advanceAndApply(0.1f);
+  // Hover list item 3
+  for (int i = 0; i < frames; i++)
+  {
+    stateMachine->pointerMove(rive::Vec2D(450.0f, 100.0f));
+    stateMachine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
     silver.addFrame();
+  }
 
-    yProp1->propertyValue(-50);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-
-    yProp2->propertyValue(100);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-
-    yProp3->propertyValue(-200);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-
-    // Hover list item 1
-    for (int i = 0; i < frames; i++)
-    {
-        stateMachine->pointerMove(rive::Vec2D(210.0f, 250.0f));
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-
-    // Hover list item 2
-    for (int i = 0; i < frames; i++)
-    {
-        stateMachine->pointerMove(rive::Vec2D(325.0f, 400.0f));
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-
-    // Hover list item 3
-    for (int i = 0; i < frames; i++)
-    {
-        stateMachine->pointerMove(rive::Vec2D(450.0f, 100.0f));
-        stateMachine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-
-    CHECK(silver.matches("component_list_grouped"));
+  CHECK(silver.matches("component_list_grouped"));
 }
 
 TEST_CASE("Artboard list with follow path constraint", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_follow_path.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_list_follow_path.riv", &silver);
 
-    auto artboard = file->artboardNamed("Main");
+  auto artboard = file->artboardNamed("Main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 30;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 30;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
+  auto itemCountProp = vmi->propertyValue("ItemCount")
+                           ->as<rive::ViewModelInstanceNumber>();
+  REQUIRE(itemCountProp != nullptr);
+  auto itemCountValue = itemCountProp->propertyValue();
+  REQUIRE(itemCountValue == 10);
+  // Change the list from 10 to 5 items
+  itemCountProp->propertyValue(5);
 
-    auto itemCountProp =
-        vmi->propertyValue("ItemCount")->as<rive::ViewModelInstanceNumber>();
-    REQUIRE(itemCountProp != nullptr);
-    auto itemCountValue = itemCountProp->propertyValue();
-    REQUIRE(itemCountValue == 10);
-    // Change the list from 10 to 5 items
-    itemCountProp->propertyValue(5);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+  }
 
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("component_list_follow_path"));
+  CHECK(silver.matches("component_list_follow_path"));
 }
 
 TEST_CASE("Artboard list with follow path constraint distance", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/component_list_follow_path_distance.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/component_list_follow_path_distance.riv",
+      &silver);
 
-    auto artboard = file->artboardNamed("Artboard");
+  auto artboard = file->artboardNamed("Artboard");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("component_list_follow_path_distance"));
+  CHECK(silver.matches("component_list_follow_path_distance"));
 }
 
 TEST_CASE("Component List Hit order", "[component_list]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_hit_order.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_list_hit_order.riv", &silver);
 
-    auto artboard = file->artboardNamed("MainArtboard");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto artboard = file->artboardNamed("MainArtboard");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    REQUIRE(vmi != nullptr);
-    REQUIRE(stateMachine != nullptr);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(vmi != nullptr);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("MainList") != nullptr);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("MainList") != nullptr);
 
-    silver.addFrame();
-    // Click second item where it overlaps with first item
-    stateMachine->pointerMove(rive::Vec2D(175.0f, 50.0f));
-    stateMachine->pointerDown(rive::Vec2D(175.0f, 50.0f));
-    stateMachine->pointerUp(rive::Vec2D(175.0f, 50.0f));
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Click second item where it overlaps with first item
+  stateMachine->pointerMove(rive::Vec2D(175.0f, 50.0f));
+  stateMachine->pointerDown(rive::Vec2D(175.0f, 50.0f));
+  stateMachine->pointerUp(rive::Vec2D(175.0f, 50.0f));
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Click third item where it overlaps with second item
-    stateMachine->pointerMove(rive::Vec2D(325.0f, 50.0f));
-    stateMachine->pointerDown(rive::Vec2D(325.0f, 50.0f));
-    stateMachine->pointerUp(rive::Vec2D(325.0f, 50.0f));
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Click third item where it overlaps with second item
+  stateMachine->pointerMove(rive::Vec2D(325.0f, 50.0f));
+  stateMachine->pointerDown(rive::Vec2D(325.0f, 50.0f));
+  stateMachine->pointerUp(rive::Vec2D(325.0f, 50.0f));
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Click first item
-    stateMachine->pointerMove(rive::Vec2D(100.0f, 50.0f));
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 50.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 50.0f));
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Click first item
+  stateMachine->pointerMove(rive::Vec2D(100.0f, 50.0f));
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 50.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 50.0f));
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("component_list_hit_order"));
+  CHECK(silver.matches("component_list_hit_order"));
 }
 
-TEST_CASE("Virtualized list with nested data bound artboards",
-          "[component_list]")
+TEST_CASE(
+    "Virtualized list with nested data bound artboards",
+    "[component_list]")
 {
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/virtualized_artboard_databound_children.riv",
-                     &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/virtualized_artboard_databound_children.riv",
+      &silver);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    REQUIRE(vmi != nullptr);
-    REQUIRE(stateMachine != nullptr);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(vmi != nullptr);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    float yPos = 200.0f;
+  float yPos = 200.0f;
 
+  stateMachine->pointerMove(rive::Vec2D(60.0f, yPos));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  // Start drag
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(60.0f, yPos));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  while (yPos > -500.0f)
+  {
+    silver.addFrame();
     stateMachine->pointerMove(rive::Vec2D(60.0f, yPos));
+    yPos -= 20;
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
-    // Start drag
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(60.0f, yPos));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  }
 
-    while (yPos > -500.0f)
-    {
-        silver.addFrame();
-        stateMachine->pointerMove(rive::Vec2D(60.0f, yPos));
-        yPos -= 20;
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
+  // End drag
+  silver.addFrame();
+  stateMachine->pointerUp(rive::Vec2D(60.0f, yPos));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // End drag
-    silver.addFrame();
-    stateMachine->pointerUp(rive::Vec2D(60.0f, yPos));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    CHECK(silver.matches("virtualized_artboard_databound_children"));
+  CHECK(silver.matches("virtualized_artboard_databound_children"));
 }
 
 TEST_CASE("Artboard list map rules", "[component_list]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/artboard_list_map_rules.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/artboard_list_map_rules.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("artboard_list_map_rules"));
+  CHECK(silver.matches("artboard_list_map_rules"));
 }
 
 TEST_CASE("Stateful Component", "[component_list]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_stateful.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_stateful.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("component_stateful"));
+  CHECK(silver.matches("component_stateful"));
 }
 
 TEST_CASE("Artboard lists with child artboard origin offset", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_child_origin.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/component_list_child_origin.riv", &silver);
 
-    auto artboard = file->artboardNamed("Artboard");
+  auto artboard = file->artboardNamed("Artboard");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("component_list_child_origin"));
+  CHECK(silver.matches("component_list_child_origin"));
 }
 
 TEST_CASE("Component list orderedListIndices default order", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    const int n = static_cast<int>(list->artboardCount());
-    REQUIRE(n > 0);
+  REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  const int n = static_cast<int>(list->artboardCount());
+  REQUIRE(n > 0);
 
-    const auto& paintOrder = list->orderedListIndices();
-    REQUIRE(static_cast<int>(paintOrder.size()) == n);
-    for (int i = 0; i < n; i++)
-    {
-        REQUIRE(paintOrder[static_cast<size_t>(i)] == i);
-    }
+  const auto& paintOrder = list->orderedListIndices();
+  REQUIRE(static_cast<int>(paintOrder.size()) == n);
+  for (int i = 0; i < n; i++)
+  {
+    REQUIRE(paintOrder[static_cast<size_t>(i)] == i);
+  }
 
-    int hitIndex = 0;
-    for (auto it = paintOrder.rbegin(); it != paintOrder.rend(); ++it)
-    {
-        REQUIRE(*it == n - 1 - hitIndex);
-        hitIndex++;
-    }
+  int hitIndex = 0;
+  for (auto it = paintOrder.rbegin(); it != paintOrder.rend(); ++it)
+  {
+    REQUIRE(*it == n - 1 - hitIndex);
+    hitIndex++;
+  }
 }
 
 TEST_CASE("Draw index overrides draw order", "[silver]")
 {
-    // There are 10 children with height 50 and a negative gap of -10
-    // Total height is 410 (= 500 - 10 * 9)
-    // List is virtualized and using a carousel
-    // Hierarchy List with draw index:
-    // -> Blue | 5
-    // -> Orange | 1
-    // -> Magenta | 5
-    // -> Cyan | 0
-    // -> Yellow | -1
-    // -> White | none
-    // -> Green | 0
-    // -> Gray | none
-    // -> Red | -1
-    // -> Black | none
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/draw_index_list.riv", &silver);
+  // There are 10 children with height 50 and a negative gap of -10
+  // Total height is 410 (= 500 - 10 * 9)
+  // List is virtualized and using a carousel
+  // Hierarchy List with draw index:
+  // -> Blue | 5
+  // -> Orange | 1
+  // -> Magenta | 5
+  // -> Cyan | 0
+  // -> Yellow | -1
+  // -> White | none
+  // -> Green | 0
+  // -> Gray | none
+  // -> Red | -1
+  // -> Black | none
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/draw_index_list.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    double posY = 90.0f;
+  double posY = 90.0f;
 
-    stateMachine->pointerDown(rive::Vec2D(30.0f, posY));
+  stateMachine->pointerDown(rive::Vec2D(30.0f, posY));
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    // Do a full loop to ensure positions are correct
-    int frames = 41;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-        stateMachine->pointerMove(rive::Vec2D(30.0f, posY));
-        posY -= 10;
-    }
+  // Do a full loop to ensure positions are correct
+  int frames = 41;
+  for (int i = 0; i < frames; i++)
+  {
     silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
-    stateMachine->pointerUp(rive::Vec2D(30.0f, posY));
+    stateMachine->pointerMove(rive::Vec2D(30.0f, posY));
+    posY -= 10;
+  }
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  stateMachine->pointerUp(rive::Vec2D(30.0f, posY));
 
-    // Click in overlap between Blue and Orange is taken by Orange
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in overlap between Blue and Orange is taken by Orange
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Click in Orange is taken by Orange
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 51.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 51.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in Orange is taken by Orange
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 51.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 51.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Click in overlap between Magenta and Orange is taken by Magenta
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 91.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 91.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in overlap between Magenta and Orange is taken by Magenta
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 91.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 91.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Scroll 80px up
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
-    stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
-    stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Scroll 80px up
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
+  stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
+  stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Click in overlap between Magenta and Cyan is taken by Magenta
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in overlap between Magenta and Cyan is taken by Magenta
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Click in overlap between Cyan and Yellow is taken by Cyan
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 85.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 85.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in overlap between Cyan and Yellow is taken by Cyan
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 85.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 85.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Scroll 80px up
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
-    stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
-    stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Scroll 80px up
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(30.0f, 90.0f));
+  stateMachine->pointerMove(rive::Vec2D(30.0f, 10.0f));
+  stateMachine->pointerUp(rive::Vec2D(30.0f, 10.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    // Click in overlap between Yellow and White is taken by White
-    silver.addFrame();
-    stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  // Click in overlap between Yellow and White is taken by White
+  silver.addFrame();
+  stateMachine->pointerDown(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->pointerUp(rive::Vec2D(100.0f, 45.0f));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("draw_index_list"));
+  CHECK(silver.matches("draw_index_list"));
 }
 namespace
 {
@@ -1306,373 +1280,376 @@ namespace
 class ClipProbePath : public rive::RenderPath
 {
 public:
-    rive::RawPath rawPath;
-    ClipProbePath() {}
-    ClipProbePath(rive::RawPath& path) : rawPath(path) {}
-    void rewind() override { rawPath.rewind(); }
-    void fillRule(rive::FillRule) override {}
-    void addPath(rive::CommandPath*, const rive::Mat2D&) override {}
-    void addRenderPath(const rive::RenderPath*, const rive::Mat2D&) override {}
-    void addRawPath(const rive::RawPath& path) override
-    {
-        rawPath.addPath(path, nullptr);
-    }
-    void moveTo(float, float) override {}
-    void lineTo(float, float) override {}
-    void cubicTo(float, float, float, float, float, float) override {}
-    void close() override {}
+  rive::RawPath rawPath;
+  ClipProbePath() {}
+  ClipProbePath(rive::RawPath& path) : rawPath(path) {}
+  void rewind() override { rawPath.rewind(); }
+  void fillRule(rive::FillRule) override {}
+  void addPath(rive::CommandPath*, const rive::Mat2D&) override {}
+  void addRenderPath(const rive::RenderPath*, const rive::Mat2D&) override {}
+  void addRawPath(const rive::RawPath& path) override
+  {
+    rawPath.addPath(path, nullptr);
+  }
+  void moveTo(float, float) override {}
+  void lineTo(float, float) override {}
+  void cubicTo(float, float, float, float, float, float) override {}
+  void close() override {}
 };
 
 class ClipProbeFactory : public rive::NoOpFactory
 {
-    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath,
-                                               rive::FillRule) override
-    {
-        return rive::make_rcp<ClipProbePath>(rawPath);
-    }
-    rive::rcp<rive::RenderPath> makeEmptyRenderPath() override
-    {
-        return rive::make_rcp<ClipProbePath>();
-    }
+  rive::rcp<rive::RenderPath> makeRenderPath(
+      rive::RawPath& rawPath,
+      rive::FillRule) override
+  {
+    return rive::make_rcp<ClipProbePath>(rawPath);
+  }
+  rive::rcp<rive::RenderPath> makeEmptyRenderPath() override
+  {
+    return rive::make_rcp<ClipProbePath>();
+  }
 };
 
 class ClipProbeRenderer : public rive::Renderer
 {
 public:
-    struct DrawEvent
-    {
-        rive::AABB bounds;
-        rive::AABB clip;
-        bool hasClip = false;
-    };
+  struct DrawEvent
+  {
+    rive::AABB bounds;
+    rive::AABB clip;
+    bool hasClip = false;
+  };
 
-    std::vector<DrawEvent> draws;
+  std::vector<DrawEvent> draws;
 
-    void save() override { m_stack.push_back(m_stack.back()); }
-    void restore() override { m_stack.pop_back(); }
-    void transform(const rive::Mat2D& m) override
+  void save() override { m_stack.push_back(m_stack.back()); }
+  void restore() override { m_stack.pop_back(); }
+  void transform(const rive::Mat2D& m) override
+  {
+    m_stack.back().transform = m_stack.back().transform * m;
+  }
+  void clipPath(rive::RenderPath* path) override
+  {
+    auto world = worldBounds(path);
+    auto& state = m_stack.back();
+    if (!state.hasClip)
     {
-        m_stack.back().transform = m_stack.back().transform * m;
+      state.clip = world;
+      state.hasClip = true;
     }
-    void clipPath(rive::RenderPath* path) override
+    else
     {
-        auto world = worldBounds(path);
-        auto& state = m_stack.back();
-        if (!state.hasClip)
-        {
-            state.clip = world;
-            state.hasClip = true;
-        }
-        else
-        {
-            state.clip = {std::max(state.clip.minX, world.minX),
-                          std::max(state.clip.minY, world.minY),
-                          std::min(state.clip.maxX, world.maxX),
-                          std::min(state.clip.maxY, world.maxY)};
-        }
+      state.clip = {
+          std::max(state.clip.minX, world.minX),
+          std::max(state.clip.minY, world.minY),
+          std::min(state.clip.maxX, world.maxX),
+          std::min(state.clip.maxY, world.maxY)};
     }
-    void drawPath(rive::RenderPath* path, rive::RenderPaint*) override
-    {
-        draws.push_back(
-            {worldBounds(path), m_stack.back().clip, m_stack.back().hasClip});
-    }
-    void modulateOpacity(float) override {}
-    void drawImage(const rive::RenderImage*,
-                   rive::ImageSampler,
-                   rive::BlendMode,
-                   float) override
-    {}
-    void drawImageMesh(const rive::RenderImage*,
-                       rive::ImageSampler,
-                       rive::rcp<rive::RenderBuffer>,
-                       rive::rcp<rive::RenderBuffer>,
-                       rive::rcp<rive::RenderBuffer>,
-                       uint32_t,
-                       uint32_t,
-                       rive::BlendMode,
-                       float) override
-    {}
+  }
+  void drawPath(rive::RenderPath* path, rive::RenderPaint*) override
+  {
+    draws.push_back(
+        {worldBounds(path), m_stack.back().clip, m_stack.back().hasClip});
+  }
+  void modulateOpacity(float) override {}
+  void drawImage(
+      const rive::RenderImage*,
+      rive::ImageSampler,
+      rive::BlendMode,
+      float) override
+  {}
+  void drawImageMesh(
+      const rive::RenderImage*,
+      rive::ImageSampler,
+      rive::rcp<rive::RenderBuffer>,
+      rive::rcp<rive::RenderBuffer>,
+      rive::rcp<rive::RenderBuffer>,
+      uint32_t,
+      uint32_t,
+      rive::BlendMode,
+      float) override
+  {}
 
 private:
-    struct State
-    {
-        rive::Mat2D transform;
-        rive::AABB clip;
-        bool hasClip = false;
-    };
-    std::vector<State> m_stack{State()};
+  struct State
+  {
+    rive::Mat2D transform;
+    rive::AABB clip;
+    bool hasClip = false;
+  };
+  std::vector<State> m_stack{State()};
 
-    rive::AABB worldBounds(rive::RenderPath* path)
-    {
-        auto probe = static_cast<ClipProbePath*>(path);
-        return m_stack.back().transform.mapBoundingBox(
-            probe->rawPath.points().data(),
-            probe->rawPath.points().size());
-    }
+  rive::AABB worldBounds(rive::RenderPath* path)
+  {
+    auto probe = static_cast<ClipProbePath*>(path);
+    return m_stack.back().transform.mapBoundingBox(
+        probe->rawPath.points().data(),
+        probe->rawPath.points().size());
+  }
 };
 
 int countMounted(rive::ArtboardComponentList* list)
 {
-    int mounted = 0;
-    for (int i = 0; i < (int)list->artboardCount(); i++)
+  int mounted = 0;
+  for (int i = 0; i < (int)list->artboardCount(); i++)
+  {
+    if (list->artboardInstance(i) != nullptr)
     {
-        if (list->artboardInstance(i) != nullptr)
-        {
-            mounted++;
-        }
+      mounted++;
     }
-    return mounted;
+  }
+  return mounted;
 }
 } // namespace
 
 // The list sits in a hug-height content layout inside a 200x200 clipping
 // viewport at (100, 100) in a 400x400 artboard, six 200x50 items with a 10
 // gap, plus an absolute overlay at the artboard bottom.
-TEST_CASE("Virtualized list items are clipped by an ancestor layout viewport",
-          "[component_list]")
+TEST_CASE(
+    "Virtualized list items are clipped by an ancestor layout viewport",
+    "[component_list]")
 {
-    const rive::AABB viewport(100.0f, 100.0f, 300.0f, 300.0f);
+  const rive::AABB viewport(100.0f, 100.0f, 300.0f, 300.0f);
 
-    ClipProbeFactory factory;
-    auto file =
-        ReadRiveFile("assets/component_list_clipped_viewport.riv", &factory);
+  ClipProbeFactory factory;
+  auto file = ReadRiveFile(
+      "assets/component_list_clipped_viewport.riv",
+      &factory);
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(list->artboardCount() == 6);
-    REQUIRE(list->virtualizationEnabled() == true);
-    // Only items intersecting the viewport are mounted.
-    REQUIRE(countMounted(list) == 4);
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 6);
+  REQUIRE(list->virtualizationEnabled() == true);
+  // Only items intersecting the viewport are mounted.
+  REQUIRE(countMounted(list) == 4);
 
-    ClipProbeRenderer renderer;
-    artboard->draw(&renderer);
+  ClipProbeRenderer renderer;
+  artboard->draw(&renderer);
 
-    // Artboard background, four item fills, overlay fill.
-    REQUIRE(renderer.draws.size() == 6);
+  // Artboard background, four item fills, overlay fill.
+  REQUIRE(renderer.draws.size() == 6);
 
-    // Every item fill draws with the viewport clip active.
-    for (int i = 1; i <= 4; i++)
-    {
-        auto& item = renderer.draws[i];
-        REQUIRE(item.hasClip);
-        REQUIRE(item.clip.minX == viewport.minX);
-        REQUIRE(item.clip.minY == viewport.minY);
-        REQUIRE(item.clip.maxX == viewport.maxX);
-        REQUIRE(item.clip.maxY == viewport.maxY);
-    }
-    // The last mounted item straddles the viewport bottom; without the clip
-    // it would paint outside the viewport.
-    REQUIRE(renderer.draws[4].bounds.maxY > viewport.maxY);
+  // Every item fill draws with the viewport clip active.
+  for (int i = 1; i <= 4; i++)
+  {
+    auto& item = renderer.draws[i];
+    REQUIRE(item.hasClip);
+    REQUIRE(item.clip.minX == viewport.minX);
+    REQUIRE(item.clip.minY == viewport.minY);
+    REQUIRE(item.clip.maxX == viewport.maxX);
+    REQUIRE(item.clip.maxY == viewport.maxY);
+  }
+  // The last mounted item straddles the viewport bottom; without the clip
+  // it would paint outside the viewport.
+  REQUIRE(renderer.draws[4].bounds.maxY > viewport.maxY);
 
-    // The overlay is outside the viewport subtree and must not inherit its
-    // clip; it draws after (above) the items.
-    auto& overlay = renderer.draws[5];
-    REQUIRE(overlay.bounds.minY == 360.0f);
-    if (overlay.hasClip)
-    {
-        // Any clip it does carry (the artboard's) is wider than the viewport.
-        REQUIRE(overlay.clip.maxY > viewport.maxY);
-    }
+  // The overlay is outside the viewport subtree and must not inherit its
+  // clip; it draws after (above) the items.
+  auto& overlay = renderer.draws[5];
+  REQUIRE(overlay.bounds.minY == 360.0f);
+  if (overlay.hasClip)
+  {
+    // Any clip it does carry (the artboard's) is wider than the viewport.
+    REQUIRE(overlay.clip.maxY > viewport.maxY);
+  }
 
-    // Scrolling moves the virtualization window and keeps items clipped.
-    auto scrolls = artboard->find<rive::ScrollConstraint>();
-    REQUIRE(scrolls.size() == 1);
-    auto scroll = scrolls[0];
-    scroll->setScrollIndex(2);
-    artboard->advance(0.0f);
+  // Scrolling moves the virtualization window and keeps items clipped.
+  auto scrolls = artboard->find<rive::ScrollConstraint>();
+  REQUIRE(scrolls.size() == 1);
+  auto scroll = scrolls[0];
+  scroll->setScrollIndex(2);
+  artboard->advance(0.0f);
 
-    REQUIRE(list->artboardInstance(0) == nullptr);
-    REQUIRE(list->artboardInstance(5) != nullptr);
+  REQUIRE(list->artboardInstance(0) == nullptr);
+  REQUIRE(list->artboardInstance(5) != nullptr);
 
-    ClipProbeRenderer scrolled;
-    artboard->draw(&scrolled);
-    REQUIRE(scrolled.draws.size() == 6);
-    for (int i = 1; i <= 4; i++)
-    {
-        REQUIRE(scrolled.draws[i].hasClip);
-        REQUIRE(scrolled.draws[i].clip.minY == viewport.minY);
-        REQUIRE(scrolled.draws[i].clip.maxY == viewport.maxY);
-    }
-    // First visible item is item 2, flush with the viewport top.
-    REQUIRE(scrolled.draws[1].bounds.minY == viewport.minY);
+  ClipProbeRenderer scrolled;
+  artboard->draw(&scrolled);
+  REQUIRE(scrolled.draws.size() == 6);
+  for (int i = 1; i <= 4; i++)
+  {
+    REQUIRE(scrolled.draws[i].hasClip);
+    REQUIRE(scrolled.draws[i].clip.minY == viewport.minY);
+    REQUIRE(scrolled.draws[i].clip.maxY == viewport.maxY);
+  }
+  // First visible item is item 2, flush with the viewport top.
+  REQUIRE(scrolled.draws[1].bounds.minY == viewport.minY);
 }
 
 TEST_CASE("Component List rows without an artboard", "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto file = ReadRiveFile("assets/component_list_1.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(list->virtualizationEnabled() == false);
-    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->virtualizationEnabled() == false);
+  REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    // Swap the rows for items whose view model no artboard is bound to, so
-    // the list keeps its rows but creates no artboard for any of them.
-    auto buttons = viewModelInstance->propertyValue("Buttons")
-                       ->as<rive::ViewModelInstanceList>();
-    while (!buttons->listItems().empty())
-    {
-        buttons->removeItem(0);
-    }
-    for (int i = 0; i < 3; i++)
-    {
-        auto orphan = rive::make_rcp<rive::ViewModelInstance>();
-        orphan->viewModelId(static_cast<uint32_t>(file->viewModelCount()));
-        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        item->viewModelInstance(orphan);
-        buttons->addItem(item);
-    }
-    artboard->advance(0.0f);
+  // Swap the rows for items whose view model no artboard is bound to, so
+  // the list keeps its rows but creates no artboard for any of them.
+  auto buttons = viewModelInstance->propertyValue("Buttons")
+                     ->as<rive::ViewModelInstanceList>();
+  while (!buttons->listItems().empty())
+  {
+    buttons->removeItem(0);
+  }
+  for (int i = 0; i < 3; i++)
+  {
+    auto orphan = rive::make_rcp<rive::ViewModelInstance>();
+    orphan->viewModelId(static_cast<uint32_t>(file->viewModelCount()));
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(orphan);
+    buttons->addItem(item);
+  }
+  artboard->advance(0.0f);
 
-    REQUIRE(list->numLayoutNodes() == 3);
-    REQUIRE(scroll->scrollItemCount() == 3);
-    for (int i = 0; i < 3; i++)
-    {
-        REQUIRE(list->artboardInstance(i) == nullptr);
-        auto bounds = list->layoutBoundsForNode(i);
-        REQUIRE(bounds.width() == 0);
-        REQUIRE(bounds.height() == 0);
-    }
+  REQUIRE(list->numLayoutNodes() == 3);
+  REQUIRE(scroll->scrollItemCount() == 3);
+  for (int i = 0; i < 3; i++)
+  {
+    REQUIRE(list->artboardInstance(i) == nullptr);
+    auto bounds = list->layoutBoundsForNode(i);
+    REQUIRE(bounds.width() == 0);
+    REQUIRE(bounds.height() == 0);
+  }
 
-    // Resolving a scroll index walks every row's layout bounds. No row is
-    // visible, so the intent stays pending and the offset doesn't move.
-    scroll->setScrollIndex(1);
-    artboard->advance(0.0f);
-    REQUIRE(scroll->offsetX() == 0);
-    REQUIRE(scroll->offsetY() == 0);
+  // Resolving a scroll index walks every row's layout bounds. No row is
+  // visible, so the intent stays pending and the offset doesn't move.
+  scroll->setScrollIndex(1);
+  artboard->advance(0.0f);
+  REQUIRE(scroll->offsetX() == 0);
+  REQUIRE(scroll->offsetY() == 0);
 }
 
 // A virtualized list reaches a row's instances by the row's index, but they
 // belong to the row's item: they follow the item when the list reorders, rows
 // showing the same item share them, and they leave every such row once the
 // item scrolls away.
-TEST_CASE("Component List Virtualized rows follow their items",
-          "[component_list]")
+TEST_CASE(
+    "Component List Virtualized rows follow their items",
+    "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(list->virtualizationEnabled() == true);
-    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
-    rive::ViewModelInstanceList* items = nullptr;
-    for (auto& value : viewModelInstance->propertyValues())
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->virtualizationEnabled() == true);
+  auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+  rive::ViewModelInstanceList* items = nullptr;
+  for (auto& value : viewModelInstance->propertyValues())
+  {
+    if (value->is<rive::ViewModelInstanceList>())
     {
-        if (value->is<rive::ViewModelInstanceList>())
-        {
-            items = value->as<rive::ViewModelInstanceList>();
-            break;
-        }
+      items = value->as<rive::ViewModelInstanceList>();
+      break;
     }
-    REQUIRE(items != nullptr);
+  }
+  REQUIRE(items != nullptr);
 
-    // Rows 0-4 are on screen.
-    artboard->advance(0.0f);
-    auto first = list->artboardInstance(0);
-    auto second = list->artboardInstance(1);
-    auto firstMachine = list->stateMachineInstance(0);
-    auto secondMachine = list->stateMachineInstance(1);
-    REQUIRE(first != nullptr);
-    REQUIRE(second != nullptr);
-    REQUIRE(first != second);
+  // Rows 0-4 are on screen.
+  artboard->advance(0.0f);
+  auto first = list->artboardInstance(0);
+  auto second = list->artboardInstance(1);
+  auto firstMachine = list->stateMachineInstance(0);
+  auto secondMachine = list->stateMachineInstance(1);
+  REQUIRE(first != nullptr);
+  REQUIRE(second != nullptr);
+  REQUIRE(first != second);
 
-    items->swap(0, 1);
-    artboard->advance(0.0f);
-    CHECK(list->artboardInstance(0) == second);
-    CHECK(list->artboardInstance(1) == first);
-    CHECK(list->stateMachineInstance(0) == secondMachine);
-    CHECK(list->stateMachineInstance(1) == firstMachine);
+  items->swap(0, 1);
+  artboard->advance(0.0f);
+  CHECK(list->artboardInstance(0) == second);
+  CHECK(list->artboardInstance(1) == first);
+  CHECK(list->stateMachineInstance(0) == secondMachine);
+  CHECK(list->stateMachineInstance(1) == firstMachine);
 
-    // Show row 3's item on row 2 too, which moves it to rows 2 and 4.
-    auto shared = list->artboardInstance(3);
-    REQUIRE(shared != nullptr);
-    items->addItemAt(items->listItems()[3], 2);
-    artboard->advance(0.0f);
-    CHECK(list->artboardInstance(2) == shared);
-    CHECK(list->artboardInstance(4) == shared);
-    CHECK(list->stateMachineInstance(2) != nullptr);
-    CHECK(list->stateMachineInstance(2) == list->stateMachineInstance(4));
+  // Show row 3's item on row 2 too, which moves it to rows 2 and 4.
+  auto shared = list->artboardInstance(3);
+  REQUIRE(shared != nullptr);
+  items->addItemAt(items->listItems()[3], 2);
+  artboard->advance(0.0f);
+  CHECK(list->artboardInstance(2) == shared);
+  CHECK(list->artboardInstance(4) == shared);
+  CHECK(list->stateMachineInstance(2) != nullptr);
+  CHECK(list->stateMachineInstance(2) == list->stateMachineInstance(4));
 
-    scroll->setScrollIndex(10);
-    artboard->advance(0.0f);
-    for (int i = 0; i < 5; i++)
-    {
-        CHECK(list->artboardInstance(i) == nullptr);
-        CHECK(list->stateMachineInstance(i) == nullptr);
-    }
+  scroll->setScrollIndex(10);
+  artboard->advance(0.0f);
+  for (int i = 0; i < 5; i++)
+  {
+    CHECK(list->artboardInstance(i) == nullptr);
+    CHECK(list->stateMachineInstance(i) == nullptr);
+  }
 }
 
 // Inserting items at the front of a virtualized list realizes the new rows
 // while the list updates. The list's focus scope must still end up with one
 // row node per item and nothing else.
-TEST_CASE("Component List Virtualized keeps one focus row per item",
-          "[component_list]")
+TEST_CASE(
+    "Component List Virtualized keeps one focus row per item",
+    "[component_list]")
 {
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+  auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
-    auto artboard = file->artboardNamed("Main");
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    auto stateMachine = artboard->stateMachineAt(0);
-    REQUIRE(stateMachine != nullptr);
-    stateMachine->bindViewModelInstance(viewModelInstance);
-    stateMachine->advanceAndApply(0.016f);
+  auto artboard = file->artboardNamed("Main");
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  auto stateMachine = artboard->stateMachineAt(0);
+  REQUIRE(stateMachine != nullptr);
+  stateMachine->bindViewModelInstance(viewModelInstance);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto list = artboard->find<rive::ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(list->virtualizationEnabled() == true);
-    auto scope = list->listScopeFocusNode();
-    REQUIRE(scope != nullptr);
-    CHECK(scope->children().size() == list->artboardCount());
+  auto list = artboard->find<rive::ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->virtualizationEnabled() == true);
+  auto scope = list->listScopeFocusNode();
+  REQUIRE(scope != nullptr);
+  CHECK(scope->children().size() == list->artboardCount());
 
-    rive::ViewModelInstanceList* items = nullptr;
-    for (auto& value : viewModelInstance->propertyValues())
+  rive::ViewModelInstanceList* items = nullptr;
+  for (auto& value : viewModelInstance->propertyValues())
+  {
+    if (value->is<rive::ViewModelInstanceList>())
     {
-        if (value->is<rive::ViewModelInstanceList>())
-        {
-            items = value->as<rive::ViewModelInstanceList>();
-            break;
-        }
+      items = value->as<rive::ViewModelInstanceList>();
+      break;
     }
-    REQUIRE(items != nullptr);
-    auto viewModel = items->listItems()[0]->viewModelInstance()->viewModel();
-    for (int i = 0; i < 3; i++)
-    {
-        auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        item->viewModelInstance(
-            file->createDefaultViewModelInstance(viewModel));
-        items->addItemAt(item, 0);
-    }
-    stateMachine->advanceAndApply(0.016f);
+  }
+  REQUIRE(items != nullptr);
+  auto viewModel = items->listItems()[0]->viewModelInstance()->viewModel();
+  for (int i = 0; i < 3; i++)
+  {
+    auto item = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    item->viewModelInstance(file->createDefaultViewModelInstance(viewModel));
+    items->addItemAt(item, 0);
+  }
+  stateMachine->advanceAndApply(0.016f);
 
-    REQUIRE(list->artboardCount() == 23);
-    CHECK(scope->children().size() == 23);
+  REQUIRE(list->artboardCount() == 23);
+  CHECK(scope->children().size() == 23);
 }

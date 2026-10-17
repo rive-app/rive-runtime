@@ -6,32 +6,33 @@ using namespace rive;
 
 static Vec2D get_point(const CubicMirroredVertex& v)
 {
-    return Vec2D(v.x(), v.y());
+  return Vec2D(v.x(), v.y());
 }
 
 static Vec2D get_vector(const CubicMirroredVertex& v)
 {
-    return Vec2D(std::cos(v.rotation()) * v.distance(),
-                 std::sin(v.rotation()) * v.distance());
+  return Vec2D(
+      std::cos(v.rotation()) * v.distance(),
+      std::sin(v.rotation()) * v.distance());
 }
 
 void CubicMirroredVertex::computeIn()
 {
-    m_InPoint = get_point(*this) - get_vector(*this);
+  m_InPoint = get_point(*this) - get_vector(*this);
 }
 
 void CubicMirroredVertex::computeOut()
 {
-    m_OutPoint = get_point(*this) + get_vector(*this);
+  m_OutPoint = get_point(*this) + get_vector(*this);
 }
 
 void CubicMirroredVertex::rotationChanged()
 {
-    m_InValid = m_OutValid = false;
-    markGeometryDirty();
+  m_InValid = m_OutValid = false;
+  markGeometryDirty();
 }
 void CubicMirroredVertex::distanceChanged()
 {
-    m_InValid = m_OutValid = false;
-    markGeometryDirty();
+  m_InValid = m_OutValid = false;
+  markGeometryDirty();
 }

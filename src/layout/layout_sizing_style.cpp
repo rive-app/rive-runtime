@@ -11,62 +11,69 @@ using namespace rive;
 #ifdef WITH_RIVE_LAYOUT
 YGDisplay LayoutSizingStyle::display()
 {
-    return YGDisplay(displayValue()) == YGDisplayNone ? YGDisplayNone
-                                                      : YGDisplayFlex;
+  return YGDisplay(displayValue()) == YGDisplayNone ? YGDisplayNone
+                                                    : YGDisplayFlex;
 }
 
 YGUnit LayoutSizingStyle::maxWidthUnits()
 {
-    return YGUnit(maxWidthUnitsValue());
+  return YGUnit(maxWidthUnitsValue());
 }
 
 YGUnit LayoutSizingStyle::maxHeightUnits()
 {
-    return YGUnit(maxHeightUnitsValue());
+  return YGUnit(maxHeightUnitsValue());
 }
 
 YGUnit LayoutSizingStyle::minWidthUnits()
 {
-    return YGUnit(minWidthUnitsValue());
+  return YGUnit(minWidthUnitsValue());
 }
 
 YGUnit LayoutSizingStyle::minHeightUnits()
 {
-    return YGUnit(minHeightUnitsValue());
+  return YGUnit(minHeightUnitsValue());
 }
 
-void LayoutSizingStyle::applyBaseStyle(YGStyle& style,
-                                       const LayoutSyncContext& context)
+void LayoutSizingStyle::applyBaseStyle(
+    YGStyle& style,
+    const LayoutSyncContext& context)
 {
-    style.display() = display();
+  style.display() = display();
 
-    style.minDimensions()[YGDimensionWidth] =
-        YGValue{minWidth(), minWidthUnits()};
-    style.minDimensions()[YGDimensionHeight] =
-        YGValue{minHeight(), minHeightUnits()};
-    style.maxDimensions()[YGDimensionWidth] =
-        YGValue{maxWidth(), maxWidthUnits()};
-    style.maxDimensions()[YGDimensionHeight] =
-        YGValue{maxHeight(), maxHeightUnits()};
+  style.minDimensions()[YGDimensionWidth] = YGValue{
+      minWidth(),
+      minWidthUnits()};
+  style.minDimensions()[YGDimensionHeight] = YGValue{
+      minHeight(),
+      minHeightUnits()};
+  style.maxDimensions()[YGDimensionWidth] = YGValue{
+      maxWidth(),
+      maxWidthUnits()};
+  style.maxDimensions()[YGDimensionHeight] = YGValue{
+      maxHeight(),
+      maxHeightUnits()};
 }
 
 // How this item sits in a grid or stack cell.
-void LayoutSizingStyle::applyItemStyle(YGStyle& style,
-                                       const LayoutSyncContext& context)
+void LayoutSizingStyle::applyItemStyle(
+    YGStyle& style,
+    const LayoutSyncContext& context)
 {
-    if (context.parentIsStack)
-    {
-        GridTrack::syncStackItemCell(style);
-    }
-    GridTrack::syncItemJustifySelf(style,
-                                   justifySelfValue(),
-                                   context.parentIsStack,
-                                   context.inlineHugs,
-                                   context.containerJustifyItems);
-    // Fill stretches the inline axis over the container's default justify.
-    if (context.parentIsGrid && context.widthFills)
-    {
-        style.setJustifySelf(YGJustifyStretch);
-    }
+  if (context.parentIsStack)
+  {
+    GridTrack::syncStackItemCell(style);
+  }
+  GridTrack::syncItemJustifySelf(
+      style,
+      justifySelfValue(),
+      context.parentIsStack,
+      context.inlineHugs,
+      context.containerJustifyItems);
+  // Fill stretches the inline axis over the container's default justify.
+  if (context.parentIsGrid && context.widthFills)
+  {
+    style.setJustifySelf(YGJustifyStretch);
+  }
 }
 #endif

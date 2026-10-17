@@ -7,19 +7,19 @@ namespace rive
 class NestedTriggerBase : public NestedInput
 {
 protected:
-    typedef NestedInput Super;
+  typedef NestedInput Super;
 
 public:
-    static const uint16_t typeKey = 122;
+  static const uint16_t typeKey = 122;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t firePropertyKey = 401;
+  static const uint16_t firePropertyKey = 401;
 
 public:
-    virtual void fire(const CallbackData& value) = 0;
+  virtual void fire(const CallbackData& value) = 0;
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

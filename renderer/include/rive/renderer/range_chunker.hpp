@@ -20,59 +20,56 @@ namespace rive::gpu
 class RangeChunker
 {
 public:
-    struct Chunk
+  struct Chunk
+  {
+    uint32_t count;
+    uint32_t first;
+  };
+
+  struct Iterator
+  {
+  public:
+    uint32_t currentChunkCount() const
     {
-        uint32_t count;
-        uint32_t first;
-    };
+      return std::min(end - current, maxPerDrawCommand);
+    }
 
-    struct Iterator
+    Chunk operator*() const { return {currentChunkCount(), current}; }
+
+    Iterator& operator++()
     {
-    public:
-        uint32_t currentChunkCount() const
-        {
-            return std::min(end - current, maxPerDrawCommand);
-        }
+      current += currentChunkCount();
+      return *this;
+    }
 
-        Chunk operator*() const { return {currentChunkCount(), current}; }
+    bool operator==(const Iterator& other) const
+    {
+      assert(end == other.end);
+      assert(maxPerDrawCommand == other.maxPerDrawCommand);
+      return current == other.current;
+    }
 
-        Iterator& operator++()
-        {
-            current += currentChunkCount();
-            return *this;
-        }
+    bool operator!=(const Iterator& other) const { return !(*this == other); }
 
-        bool operator==(const Iterator& other) const
-        {
-            assert(end == other.end);
-            assert(maxPerDrawCommand == other.maxPerDrawCommand);
-            return current == other.current;
-        }
+    const uint32_t end;
+    const uint32_t maxPerDrawCommand;
+    uint32_t current;
+  };
 
-        bool operator!=(const Iterator& other) const
-        {
-            return !(*this == other);
-        }
+  RangeChunker(uint32_t count, uint32_t first, uint32_t maxPerDrawCommand)
+      : m_first(first)
+      , m_end(first + count)
+      , m_maxPerDrawCommand(maxPerDrawCommand)
+  {}
 
-        const uint32_t end;
-        const uint32_t maxPerDrawCommand;
-        uint32_t current;
-    };
+  Iterator begin() const { return {m_end, m_maxPerDrawCommand, m_first}; }
 
-    RangeChunker(uint32_t count, uint32_t first, uint32_t maxPerDrawCommand) :
-        m_first(first),
-        m_end(first + count),
-        m_maxPerDrawCommand(maxPerDrawCommand)
-    {}
-
-    Iterator begin() const { return {m_end, m_maxPerDrawCommand, m_first}; }
-
-    Iterator end() const { return {m_end, m_maxPerDrawCommand, m_end}; }
+  Iterator end() const { return {m_end, m_maxPerDrawCommand, m_end}; }
 
 private:
-    const uint32_t m_first;
-    const uint32_t m_end;
-    const uint32_t m_maxPerDrawCommand;
+  const uint32_t m_first;
+  const uint32_t m_end;
+  const uint32_t m_maxPerDrawCommand;
 };
 
 // This class walks the low-level indexed-draw commands needed by a depthStencil
@@ -92,94 +89,92 @@ private:
 class DSIndexRangeChunker
 {
 public:
-    struct Draw
+  struct Draw
+  {
+    uint32_t indexCount;
+    int32_t baseVertex; // Also contains built-in vertex flags.
+  };
+
+  struct Iterator
+  {
+  public:
+    Draw operator*() const
     {
-        uint32_t indexCount;
-        int32_t baseVertex; // Also contains built-in vertex flags.
-    };
-
-    struct Iterator
-    {
-    public:
-        Draw operator*() const
-        {
-            return {
-                chunkPatchCount() * chunker->m_indexCountPerPatch,
-                (chunker->m_baseVertex | chunker->m_passFlags[pass]) +
-                    (static_cast<int32_t>(basePatch)
-                     << chunker->m_patchStrideLog2),
-            };
-        }
-
-        Iterator& operator++()
-        {
-            basePatch += chunkPatchCount();
-            if (basePatch == chunker->m_patchCount)
-            {
-                ++pass;
-                basePatch = 0;
-            }
-            return *this;
-        }
-
-        bool operator==(const Iterator& other) const
-        {
-            assert(chunker == other.chunker);
-            return pass == other.pass && basePatch == other.basePatch;
-        }
-
-        bool operator!=(const Iterator& other) const
-        {
-            return !(*this == other);
-        }
-
-        const DSIndexRangeChunker* chunker;
-        uint32_t pass;
-        uint32_t basePatch;
-
-    private:
-        uint32_t chunkPatchCount() const
-        {
-            return std::min(chunker->m_patchCount - basePatch,
-                            chunker->m_maxPatchesPerDraw);
-        }
-    };
-
-    DSIndexRangeChunker(const DrawBatch& batch, int32_t vertexFlags = 0) :
-        m_patchCount(batch.elementCount),
-        m_maxPatchesPerDraw(dsPatchMaxReps(batch.drawType)),
-        m_indexCountPerPatch(batch.indexCountPerInstance),
-        m_patchStrideLog2(dsPatchStrideLog2(batch.drawType)),
-        m_baseVertex(static_cast<int32_t>(batch.baseElement) | vertexFlags)
-    {
-        if (drawTypeIsDepthAAStroke(batch.drawType))
-        {
-            // depthAAstrokes (and hairlines) render in two passes: a depth-only
-            // pass followed by color. We select the pass by vertex flags rather
-            // than pipeline state.
-            m_passFlags.push_back(DSVertexFlag_StrokeDepthPass |
-                                  DSVertexFlag_DisableColorWrite);
-        }
-        m_passFlags.push_back(0);
-        // Make sure the vertex indices won't stomp on the flags.
-        assert((batch.baseElement & ((1 << DSVertexFlagsShift) - 1)) +
-                   (batch.elementCount << m_patchStrideLog2) <=
-               1 << DSVertexFlagsShift);
+      return {
+          chunkPatchCount() * chunker->m_indexCountPerPatch,
+          (chunker->m_baseVertex | chunker->m_passFlags[pass]) +
+              (static_cast<int32_t>(basePatch) << chunker->m_patchStrideLog2),
+      };
     }
 
-    Iterator begin() const
+    Iterator& operator++()
     {
-        return m_patchCount == 0 ? end() : Iterator{this, 0, 0};
+      basePatch += chunkPatchCount();
+      if (basePatch == chunker->m_patchCount)
+      {
+        ++pass;
+        basePatch = 0;
+      }
+      return *this;
     }
 
-    Iterator end() const { return {this, m_passFlags.size(), 0}; }
+    bool operator==(const Iterator& other) const
+    {
+      assert(chunker == other.chunker);
+      return pass == other.pass && basePatch == other.basePatch;
+    }
+
+    bool operator!=(const Iterator& other) const { return !(*this == other); }
+
+    const DSIndexRangeChunker* chunker;
+    uint32_t pass;
+    uint32_t basePatch;
+
+  private:
+    uint32_t chunkPatchCount() const
+    {
+      return std::min(
+          chunker->m_patchCount - basePatch,
+          chunker->m_maxPatchesPerDraw);
+    }
+  };
+
+  DSIndexRangeChunker(const DrawBatch& batch, int32_t vertexFlags = 0)
+      : m_patchCount(batch.elementCount)
+      , m_maxPatchesPerDraw(dsPatchMaxReps(batch.drawType))
+      , m_indexCountPerPatch(batch.indexCountPerInstance)
+      , m_patchStrideLog2(dsPatchStrideLog2(batch.drawType))
+      , m_baseVertex(static_cast<int32_t>(batch.baseElement) | vertexFlags)
+  {
+    if (drawTypeIsDepthAAStroke(batch.drawType))
+    {
+      // depthAAstrokes (and hairlines) render in two passes: a depth-only
+      // pass followed by color. We select the pass by vertex flags rather
+      // than pipeline state.
+      m_passFlags.push_back(
+          DSVertexFlag_StrokeDepthPass | DSVertexFlag_DisableColorWrite);
+    }
+    m_passFlags.push_back(0);
+    // Make sure the vertex indices won't stomp on the flags.
+    assert(
+        (batch.baseElement & ((1 << DSVertexFlagsShift) - 1)) +
+            (batch.elementCount << m_patchStrideLog2) <=
+        1 << DSVertexFlagsShift);
+  }
+
+  Iterator begin() const
+  {
+    return m_patchCount == 0 ? end() : Iterator{this, 0, 0};
+  }
+
+  Iterator end() const { return {this, m_passFlags.size(), 0}; }
 
 private:
-    const uint32_t m_patchCount;
-    const uint32_t m_maxPatchesPerDraw;
-    const uint32_t m_indexCountPerPatch;
-    const uint32_t m_patchStrideLog2;
-    const int32_t m_baseVertex;
-    StackVector<int32_t, 2> m_passFlags;
+  const uint32_t m_patchCount;
+  const uint32_t m_maxPatchesPerDraw;
+  const uint32_t m_indexCountPerPatch;
+  const uint32_t m_patchStrideLog2;
+  const int32_t m_baseVertex;
+  StackVector<int32_t, 2> m_passFlags;
 };
 } // namespace rive::gpu

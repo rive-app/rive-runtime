@@ -61,161 +61,166 @@ using namespace rive::ore;
 class OreLayoutReuseGM : public GM
 {
 public:
-    OreLayoutReuseGM() : GM(128, 128) {}
+  OreLayoutReuseGM() : GM(128, 128) {}
 
-    ColorInt clearColor() const override { return 0xff000000; }
+  ColorInt clearColor() const override { return 0xff000000; }
 
-    void onDraw(rive::Renderer* originalRenderer) override
-    {
-        auto renderContext = TestingWindow::Get()->renderContext();
-        if (!renderContext || !m_ore.ensureContext(renderContext))
-            return;
+  void onDraw(rive::Renderer* originalRenderer) override
+  {
+    auto renderContext = TestingWindow::Get()->renderContext();
+    if (!renderContext || !m_ore.ensureContext(renderContext))
+      return;
 
 #ifdef ORE_LAYOUT_REUSE_ACTIVE
-        auto& ctx = *renderContext->getOreContext();
+    auto& ctx = *renderContext->getOreContext();
 
-        struct Uniforms
-        {
-            float r, g, b, a;
-        };
-        static const Uniforms kLow = {0.3f, 0.0f, 0.0f, 0.0f};
-        static const Uniforms kHigh = {0.0f, 0.6f, 0.0f, 0.0f};
+    struct Uniforms
+    {
+      float r, g, b, a;
+    };
+    static const Uniforms kLow = {0.3f, 0.0f, 0.0f, 0.0f};
+    static const Uniforms kHigh = {0.0f, 0.6f, 0.0f, 0.0f};
 
-        BufferDesc lowDesc{};
-        lowDesc.usage = BufferUsage::uniform;
-        lowDesc.size = sizeof(Uniforms);
-        lowDesc.data = &kLow;
-        lowDesc.label = "reuse_ubo_low";
-        auto lowBuf = ctx.makeBuffer(lowDesc);
+    BufferDesc lowDesc{};
+    lowDesc.usage = BufferUsage::uniform;
+    lowDesc.size = sizeof(Uniforms);
+    lowDesc.data = &kLow;
+    lowDesc.label = "reuse_ubo_low";
+    auto lowBuf = ctx.makeBuffer(lowDesc);
 
-        BufferDesc highDesc{};
-        highDesc.usage = BufferUsage::uniform;
-        highDesc.size = sizeof(Uniforms);
-        highDesc.data = &kHigh;
-        highDesc.label = "reuse_ubo_high";
-        auto highBuf = ctx.makeBuffer(highDesc);
+    BufferDesc highDesc{};
+    highDesc.usage = BufferUsage::uniform;
+    highDesc.size = sizeof(Uniforms);
+    highDesc.data = &kHigh;
+    highDesc.label = "reuse_ubo_high";
+    auto highBuf = ctx.makeBuffer(highDesc);
 
-        auto shader = ore_gm::loadShader(ctx, ore_gm::kBindingWitness);
-        if (!shader.vsModule)
-            return;
+    auto shader = ore_gm::loadShader(ctx, ore_gm::kBindingWitness);
+    if (!shader.vsModule)
+      return;
 
-        // ── ONE layout, used by both pipelines. ──
-        auto sharedLayout =
-            ore_gm::makeLayoutFromShader(ctx, shader.vsModule.get(), 0);
-        if (!sharedLayout)
-            return;
-        BindGroupLayout* layouts[] = {sharedLayout.get()};
+    // ── ONE layout, used by both pipelines. ──
+    auto sharedLayout = ore_gm::makeLayoutFromShader(
+        ctx,
+        shader.vsModule.get(),
+        0);
+    if (!sharedLayout)
+      return;
+    BindGroupLayout* layouts[] = {sharedLayout.get()};
 
-        // Pipeline A — full RGBA write.
-        PipelineDesc pipeADesc{};
-        pipeADesc.vertexModule = shader.vsModule.get();
-        pipeADesc.fragmentModule = shader.psModule.get();
-        pipeADesc.vertexEntryPoint = shader.vsEntryPoint;
-        pipeADesc.fragmentEntryPoint = shader.fsEntryPoint;
-        pipeADesc.vertexBufferCount = 0;
-        pipeADesc.topology = PrimitiveTopology::triangleList;
-        pipeADesc.colorTargets[0].format = TextureFormat::rgba8unorm;
-        pipeADesc.colorTargets[0].writeMask = ColorWriteMask::all;
-        pipeADesc.colorCount = 1;
-        pipeADesc.depthStencil.depthCompare = CompareFunction::always;
-        pipeADesc.depthStencil.depthWriteEnabled = false;
-        pipeADesc.bindGroupLayouts = layouts;
-        pipeADesc.bindGroupLayoutCount = 1;
-        pipeADesc.label = "layout_reuse_pipeline_full";
-        auto pipeA = ctx.makePipeline(pipeADesc);
-        if (!pipeA)
-        {
-            fprintf(stderr,
-                    "[ore_layout_reuse] pipeA failed: %s\n",
-                    ctx.lastError().c_str());
-            return;
-        }
-
-        // Pipeline B — red-only write mask. Same layout, different state.
-        PipelineDesc pipeBDesc = pipeADesc;
-        pipeBDesc.colorTargets[0].writeMask = ColorWriteMask::red;
-        pipeBDesc.label = "layout_reuse_pipeline_red";
-        auto pipeB = ctx.makePipeline(pipeBDesc);
-        if (!pipeB)
-        {
-            fprintf(stderr,
-                    "[ore_layout_reuse] pipeB failed: %s\n",
-                    ctx.lastError().c_str());
-            return;
-        }
-
-        // ── ONE BindGroup, conformed to the shared layout. Used with both
-        // pipelines below. Pre-Phase-E this required two BindGroups (one
-        // per pipeline). Now: one suffices.
-        BindGroupDesc::UBOEntry uboEntries[2]{};
-        uboEntries[0].slot = 0;
-        uboEntries[0].buffer = lowBuf.get();
-        uboEntries[0].size = sizeof(Uniforms);
-        uboEntries[1].slot = 7;
-        uboEntries[1].buffer = highBuf.get();
-        uboEntries[1].size = sizeof(Uniforms);
-
-        BindGroupDesc bgDesc{};
-        bgDesc.layout = sharedLayout.get();
-        bgDesc.ubos = uboEntries;
-        bgDesc.uboCount = 2;
-        bgDesc.label = "layout_reuse_bg";
-        auto sharedBG = ctx.makeBindGroup(bgDesc);
-        if (!sharedBG)
-            return;
-
-        auto canvas = renderContext->makeRenderCanvas(128, 128);
-        if (!canvas)
-            return;
-        auto canvasTarget = ctx.wrapCanvasTexture(canvas.get());
-        if (!canvasTarget)
-            return;
-
-        m_ore.beginFrame(renderContext);
-
-        ColorAttachment ca{};
-        ca.view = canvasTarget.get();
-        ca.loadOp = LoadOp::clear;
-        ca.storeOp = StoreOp::store;
-        ca.clearColor = {0, 0, 0, 1};
-
-        RenderPassDesc rpDesc{};
-        rpDesc.colorAttachments[0] = ca;
-        rpDesc.colorCount = 1;
-        rpDesc.label = "ore_layout_reuse_pass";
-
-        auto pass = ctx.beginRenderPass(rpDesc);
-
-        // Left half: pipe A (full RGBA) — should produce olive (0.3, 0.6, 0,
-        // 1).
-        pass->setPipeline(pipeA.get());
-        pass->setBindGroup(0, sharedBG.get());
-        pass->setViewport(0, 0, 64, 128);
-        pass->draw(3);
-
-        // Right half: pipe B (red-only mask) — same shared bind group.
-        // Output: dark red (0.3, 0, 0, 1).
-        pass->setPipeline(pipeB.get());
-        pass->setBindGroup(0, sharedBG.get());
-        pass->setViewport(64, 0, 64, 128);
-        pass->draw(3);
-
-        pass->finish();
-
-        m_ore.endFrame(renderContext);
-        ore_gm::invalidateGLStateAfterOre(renderContext);
-
-        originalRenderer->save();
-        originalRenderer->drawImage(canvas->renderImage(),
-                                    {.filter = ImageFilter::nearest},
-                                    BlendMode::srcOver,
-                                    1);
-        originalRenderer->restore();
-#endif // ORE_LAYOUT_REUSE_ACTIVE
+    // Pipeline A — full RGBA write.
+    PipelineDesc pipeADesc{};
+    pipeADesc.vertexModule = shader.vsModule.get();
+    pipeADesc.fragmentModule = shader.psModule.get();
+    pipeADesc.vertexEntryPoint = shader.vsEntryPoint;
+    pipeADesc.fragmentEntryPoint = shader.fsEntryPoint;
+    pipeADesc.vertexBufferCount = 0;
+    pipeADesc.topology = PrimitiveTopology::triangleList;
+    pipeADesc.colorTargets[0].format = TextureFormat::rgba8unorm;
+    pipeADesc.colorTargets[0].writeMask = ColorWriteMask::all;
+    pipeADesc.colorCount = 1;
+    pipeADesc.depthStencil.depthCompare = CompareFunction::always;
+    pipeADesc.depthStencil.depthWriteEnabled = false;
+    pipeADesc.bindGroupLayouts = layouts;
+    pipeADesc.bindGroupLayoutCount = 1;
+    pipeADesc.label = "layout_reuse_pipeline_full";
+    auto pipeA = ctx.makePipeline(pipeADesc);
+    if (!pipeA)
+    {
+      fprintf(
+          stderr,
+          "[ore_layout_reuse] pipeA failed: %s\n",
+          ctx.lastError().c_str());
+      return;
     }
 
+    // Pipeline B — red-only write mask. Same layout, different state.
+    PipelineDesc pipeBDesc = pipeADesc;
+    pipeBDesc.colorTargets[0].writeMask = ColorWriteMask::red;
+    pipeBDesc.label = "layout_reuse_pipeline_red";
+    auto pipeB = ctx.makePipeline(pipeBDesc);
+    if (!pipeB)
+    {
+      fprintf(
+          stderr,
+          "[ore_layout_reuse] pipeB failed: %s\n",
+          ctx.lastError().c_str());
+      return;
+    }
+
+    // ── ONE BindGroup, conformed to the shared layout. Used with both
+    // pipelines below. Pre-Phase-E this required two BindGroups (one
+    // per pipeline). Now: one suffices.
+    BindGroupDesc::UBOEntry uboEntries[2]{};
+    uboEntries[0].slot = 0;
+    uboEntries[0].buffer = lowBuf.get();
+    uboEntries[0].size = sizeof(Uniforms);
+    uboEntries[1].slot = 7;
+    uboEntries[1].buffer = highBuf.get();
+    uboEntries[1].size = sizeof(Uniforms);
+
+    BindGroupDesc bgDesc{};
+    bgDesc.layout = sharedLayout.get();
+    bgDesc.ubos = uboEntries;
+    bgDesc.uboCount = 2;
+    bgDesc.label = "layout_reuse_bg";
+    auto sharedBG = ctx.makeBindGroup(bgDesc);
+    if (!sharedBG)
+      return;
+
+    auto canvas = renderContext->makeRenderCanvas(128, 128);
+    if (!canvas)
+      return;
+    auto canvasTarget = ctx.wrapCanvasTexture(canvas.get());
+    if (!canvasTarget)
+      return;
+
+    m_ore.beginFrame(renderContext);
+
+    ColorAttachment ca{};
+    ca.view = canvasTarget.get();
+    ca.loadOp = LoadOp::clear;
+    ca.storeOp = StoreOp::store;
+    ca.clearColor = {0, 0, 0, 1};
+
+    RenderPassDesc rpDesc{};
+    rpDesc.colorAttachments[0] = ca;
+    rpDesc.colorCount = 1;
+    rpDesc.label = "ore_layout_reuse_pass";
+
+    auto pass = ctx.beginRenderPass(rpDesc);
+
+    // Left half: pipe A (full RGBA) — should produce olive (0.3, 0.6, 0,
+    // 1).
+    pass->setPipeline(pipeA.get());
+    pass->setBindGroup(0, sharedBG.get());
+    pass->setViewport(0, 0, 64, 128);
+    pass->draw(3);
+
+    // Right half: pipe B (red-only mask) — same shared bind group.
+    // Output: dark red (0.3, 0, 0, 1).
+    pass->setPipeline(pipeB.get());
+    pass->setBindGroup(0, sharedBG.get());
+    pass->setViewport(64, 0, 64, 128);
+    pass->draw(3);
+
+    pass->finish();
+
+    m_ore.endFrame(renderContext);
+    ore_gm::invalidateGLStateAfterOre(renderContext);
+
+    originalRenderer->save();
+    originalRenderer->drawImage(
+        canvas->renderImage(),
+        {.filter = ImageFilter::nearest},
+        BlendMode::srcOver,
+        1);
+    originalRenderer->restore();
+#endif // ORE_LAYOUT_REUSE_ACTIVE
+  }
+
 private:
-    ore_gm::OreGMContext m_ore;
+  ore_gm::OreGMContext m_ore;
 };
 
 GMREGISTER(ore_layout_reuse, return new OreLayoutReuseGM)

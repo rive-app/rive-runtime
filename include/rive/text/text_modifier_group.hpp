@@ -18,132 +18,129 @@ class StyledText;
 
 struct TransformGlyphArg
 {
-    Vec2D position;
-    Vec2D originPosition;
-    Vec2D offset;
-    float centerX;
-    int lineIndexInParagraph;
-    const SimpleArray<GlyphLine>& paragraphLines;
+  Vec2D position;
+  Vec2D originPosition;
+  Vec2D offset;
+  float centerX;
+  int lineIndexInParagraph;
+  const SimpleArray<GlyphLine>& paragraphLines;
 
-    TransformGlyphArg(Vec2D position_,
-                      float centerX_,
-                      int lineIndexInParagraph_,
-                      const SimpleArray<GlyphLine>& lines) :
-        position(position_),
-        originPosition(Vec2D(position_.x + centerX_, position_.y)),
-        centerX(centerX_),
-        lineIndexInParagraph(lineIndexInParagraph_),
-        paragraphLines(lines)
-    {
-        offset = {0, 0};
-    }
+  TransformGlyphArg(
+      Vec2D position_,
+      float centerX_,
+      int lineIndexInParagraph_,
+      const SimpleArray<GlyphLine>& lines)
+      : position(position_)
+      , originPosition(Vec2D(position_.x + centerX_, position_.y))
+      , centerX(centerX_)
+      , lineIndexInParagraph(lineIndexInParagraph_)
+      , paragraphLines(lines)
+  {
+    offset = {0, 0};
+  }
 };
 
 class TextModifierGroup : public TextModifierGroupBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 #ifdef WITH_RIVE_EDITOR
-    void editorParentChanged(ContainerComponent* from,
-                             ContainerComponent* to) override;
-    void addModifierForEditor(TextModifier* modifier);
-    void removeModifierForEditor(TextModifier* modifier);
+  void editorParentChanged(ContainerComponent* from, ContainerComponent* to)
+      override;
+  void addModifierForEditor(TextModifier* modifier);
+  void removeModifierForEditor(TextModifier* modifier);
 #endif
 
-    void addModifierRange(TextModifierRange* range);
-    void addModifier(TextModifier* modifier);
-    void rangeChanged();
-    void rangeTypeChanged();
-    void shapeModifierChanged();
-    void clearRangeMaps();
-    void computeRangeMap(Span<const Unichar> text,
-                         const rive::SimpleArray<rive::Paragraph>& shape,
-                         const SimpleArray<SimpleArray<GlyphLine>>& lines,
-                         const GlyphLookup& glyphLookup);
-    void computeCoverage(uint32_t textSize);
-    Text* textComponent() const;
-    void resetTextFollowPath();
-    float glyphCoverage(uint32_t textIndex, uint32_t codePointCount);
-    float coverage(uint32_t textIndex)
-    {
-        assert(textIndex < m_coverage.size());
-        return m_coverage[textIndex];
-    }
-    void transform(float amount, Mat2D& ctm, TransformGlyphArg& arg);
-    TextRun modifyShape(const Text& text, TextRun run, float strength);
-    void applyShapeModifiers(const Text& text, StyledText& styledText);
+  void addModifierRange(TextModifierRange* range);
+  void addModifier(TextModifier* modifier);
+  void rangeChanged();
+  void rangeTypeChanged();
+  void shapeModifierChanged();
+  void clearRangeMaps();
+  void computeRangeMap(
+      Span<const Unichar> text,
+      const rive::SimpleArray<rive::Paragraph>& shape,
+      const SimpleArray<SimpleArray<GlyphLine>>& lines,
+      const GlyphLookup& glyphLookup);
+  void computeCoverage(uint32_t textSize);
+  Text* textComponent() const;
+  void resetTextFollowPath();
+  float glyphCoverage(uint32_t textIndex, uint32_t codePointCount);
+  float coverage(uint32_t textIndex)
+  {
+    assert(textIndex < m_coverage.size());
+    return m_coverage[textIndex];
+  }
+  void transform(float amount, Mat2D& ctm, TransformGlyphArg& arg);
+  TextRun modifyShape(const Text& text, TextRun run, float strength);
+  void applyShapeModifiers(const Text& text, StyledText& styledText);
 
-    bool modifiesTransform() const
-    {
-        return (modifierFlags() &
-                (uint32_t)(TextModifierFlags::modifyTranslation |
-                           TextModifierFlags::modifyRotation |
-                           TextModifierFlags::modifyScale |
-                           TextModifierFlags::modifyOrigin)) != 0;
-    }
+  bool modifiesTransform() const
+  {
+    return (modifierFlags() & (uint32_t)(TextModifierFlags::modifyTranslation |
+                                         TextModifierFlags::modifyRotation |
+                                         TextModifierFlags::modifyScale |
+                                         TextModifierFlags::modifyOrigin)) != 0;
+  }
 
-    bool modifiesOpacity() const
-    {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOpacity) !=
-               0;
-    }
+  bool modifiesOpacity() const
+  {
+    return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOpacity) != 0;
+  }
 
-    bool modifiesRotation() const
-    {
-        return (modifierFlags() &
-                (uint32_t)TextModifierFlags::modifyRotation) != 0;
-    }
+  bool modifiesRotation() const
+  {
+    return (modifierFlags() & (uint32_t)TextModifierFlags::modifyRotation) != 0;
+  }
 
-    bool modifiesTranslation() const
-    {
-        return (modifierFlags() &
-                (uint32_t)TextModifierFlags::modifyTranslation) != 0;
-    }
+  bool modifiesTranslation() const
+  {
+    return (modifierFlags() & (uint32_t)TextModifierFlags::modifyTranslation) !=
+           0;
+  }
 
-    bool modifiesScale() const
-    {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyScale) !=
-               0;
-    }
+  bool modifiesScale() const
+  {
+    return (modifierFlags() & (uint32_t)TextModifierFlags::modifyScale) != 0;
+  }
 
-    bool modifiesOrigin() const
-    {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOrigin) !=
-               0;
-    }
+  bool modifiesOrigin() const
+  {
+    return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOrigin) != 0;
+  }
 
-    float computeOpacity(float current, float t) const;
-    bool needsShape() const;
-    void onTextWorldTransformDirty();
+  float computeOpacity(float current, float t) const;
+  bool needsShape() const;
+  void onTextWorldTransformDirty();
 
 #ifdef TESTING
-    const std::vector<TextModifierRange*>& ranges() const { return m_ranges; }
-    const std::vector<TextModifier*>& modifiers() const { return m_modifiers; }
+  const std::vector<TextModifierRange*>& ranges() const { return m_ranges; }
+  const std::vector<TextModifier*>& modifiers() const { return m_modifiers; }
 #endif
 
 protected:
-    void modifierFlagsChanged() override;
-    void originXChanged() override;
-    void originYChanged() override;
-    void opacityChanged() override;
-    void xChanged() override;
-    void yChanged() override;
-    void rotationChanged() override;
-    void scaleXChanged() override;
-    void scaleYChanged() override;
+  void modifierFlagsChanged() override;
+  void originXChanged() override;
+  void originYChanged() override;
+  void opacityChanged() override;
+  void xChanged() override;
+  void yChanged() override;
+  void rotationChanged() override;
+  void scaleXChanged() override;
+  void scaleYChanged() override;
 
 private:
-    std::vector<TextModifierRange*> m_ranges;
-    std::vector<TextModifier*> m_modifiers;
-    std::vector<TextShapeModifier*> m_shapeModifiers;
-    std::vector<TextFollowPathModifier*> m_followPathModifiers;
-    std::vector<float> m_coverage;
-    rcp<Font> m_variableFont;
-    // The font m_variableFont was made from, held so a later pass can tell
-    // it is the same one (see modifyShape).
-    rcp<Font> m_variableFontBase;
-    std::vector<Font::Coord> m_variationCoords;
-    std::vector<TextRun> m_nextTextRuns;
+  std::vector<TextModifierRange*> m_ranges;
+  std::vector<TextModifier*> m_modifiers;
+  std::vector<TextShapeModifier*> m_shapeModifiers;
+  std::vector<TextFollowPathModifier*> m_followPathModifiers;
+  std::vector<float> m_coverage;
+  rcp<Font> m_variableFont;
+  // The font m_variableFont was made from, held so a later pass can tell
+  // it is the same one (see modifyShape).
+  rcp<Font> m_variableFontBase;
+  std::vector<Font::Coord> m_variationCoords;
+  std::vector<TextRun> m_nextTextRuns;
 };
 } // namespace rive
 

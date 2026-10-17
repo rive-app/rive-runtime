@@ -7,18 +7,19 @@ namespace rive
 class ClampedScrollPhysics : public ClampedScrollPhysicsBase
 {
 private:
-    Vec2D m_value;
+  Vec2D m_value;
 
 public:
-    Vec2D advance(float elapsedSeconds) override;
-    void shift(Vec2D delta) override { m_value += delta; }
-    void run(Vec2D rangeMin,
-             Vec2D rangeMax,
-             Vec2D value,
-             std::vector<Vec2D> snappingPoints,
-             Vec2D contentSize,
-             Vec2D viewportSize) override;
-    Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
+  Vec2D advance(float elapsedSeconds) override;
+  void shift(Vec2D delta) override { m_value += delta; }
+  void run(
+      Vec2D rangeMin,
+      Vec2D rangeMax,
+      Vec2D value,
+      std::vector<Vec2D> snappingPoints,
+      Vec2D contentSize,
+      Vec2D viewportSize) override;
+  Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
 };
 } // namespace rive
 

@@ -81,7 +81,7 @@
 
 #define RIVE_PROF_SCOPE_L(level) _RIVE_PROF_LVL(level, OPTICK_EVENT();)
 #define RIVE_PROF_SCOPENAME_L(level, name)                                     \
-    _RIVE_PROF_LVL(level, OPTICK_EVENT(name);)
+  _RIVE_PROF_LVL(level, OPTICK_EVENT(name);)
 #define RIVE_PROF_GPUNAME_L(level, name) _RIVE_PROF_LVL(level, /* unused */)
 
 #define RIVE_PROF_TAG(cat, tag) OPTICK_TAG(cat, tag)
@@ -101,26 +101,26 @@
 #define MICROPROFILE_GPU_TIMERS 1
 
 #define RIVE_PROF_INIT()                                                       \
-    MicroProfileSetEnableAllGroups(true);                                      \
-    MicroProfileSetForceEnable(true);                                          \
-    MicroProfileWebServerStart();                                              \
-    MicroProfileOnThreadCreate("MainThread");                                  \
-    MicroProfileInit();
+  MicroProfileSetEnableAllGroups(true);                                        \
+  MicroProfileSetForceEnable(true);                                            \
+  MicroProfileWebServerStart();                                                \
+  MicroProfileOnThreadCreate("MainThread");                                    \
+  MicroProfileInit();
 
 #define RIVE_PROF_FRAME()
 #define RIVE_PROF_SCOPE()                                                      \
-    MICROPROFILE_SCOPEI(__FILE__, __FUNCTION__, 0xffffffff);
+  MICROPROFILE_SCOPEI(__FILE__, __FUNCTION__, 0xffffffff);
 #define RIVE_PROF_SCOPENAME(name)                                              \
-    MICROPROFILE_SCOPEI("group", name, 0xffffffff);
+  MICROPROFILE_SCOPEI("group", name, 0xffffffff);
 #define RIVE_PROF_GPUNAME(name) MICROPROFILE_SCOPEGPUI(name, 0xffffffff);
 
 #define RIVE_PROF_SCOPE_L(level)                                               \
-    _RIVE_PROF_LVL(level,                                                      \
-                   MICROPROFILE_SCOPEI(__FILE__, __FUNCTION__, 0xffffffff);)
+  _RIVE_PROF_LVL(level,                                                        \
+                 MICROPROFILE_SCOPEI(__FILE__, __FUNCTION__, 0xffffffff);)
 #define RIVE_PROF_SCOPENAME_L(level, name)                                     \
-    _RIVE_PROF_LVL(level, MICROPROFILE_SCOPEI("group", name, 0xffffffff);)
+  _RIVE_PROF_LVL(level, MICROPROFILE_SCOPEI("group", name, 0xffffffff);)
 #define RIVE_PROF_GPUNAME_L(level, name)                                       \
-    _RIVE_PROF_LVL(level, MICROPROFILE_SCOPEGPUI(name, 0xffffffff);)
+  _RIVE_PROF_LVL(level, MICROPROFILE_SCOPEGPUI(name, 0xffffffff);)
 
 #define RIVE_PROF_TAG(cat, tag)
 #define RIVE_PROF_THREAD(name)

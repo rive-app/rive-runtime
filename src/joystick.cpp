@@ -12,151 +12,155 @@ Joystick::~Joystick() = default;
 
 StatusCode Joystick::onAddedDirty(CoreContext* context)
 {
-    StatusCode status = Super::onAddedDirty(context);
-    if (status != StatusCode::Ok)
+  StatusCode status = Super::onAddedDirty(context);
+  if (status != StatusCode::Ok)
+  {
+    return status;
+  }
+  if (handleSourceId() != Core::emptyId)
+  {
+    auto coreObject = context->resolve(handleSourceId());
+    if (coreObject == nullptr || !coreObject->is<TransformComponent>())
     {
-        return status;
+      return StatusCode::MissingObject;
     }
-    if (handleSourceId() != Core::emptyId)
-    {
-        auto coreObject = context->resolve(handleSourceId());
-        if (coreObject == nullptr || !coreObject->is<TransformComponent>())
-        {
-            return StatusCode::MissingObject;
-        }
-        m_handleSource = static_cast<TransformComponent*>(coreObject);
-    }
+    m_handleSource = static_cast<TransformComponent*>(coreObject);
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 StatusCode Joystick::onAddedClean(CoreContext* context)
 {
-    m_xAnimation = artboard()->animation(xId());
-    m_yAnimation = artboard()->animation(yId());
+  m_xAnimation = artboard()->animation(xId());
+  m_yAnimation = artboard()->animation(yId());
 
-    // On an artboard instance, create a playback context per animation so that
-    // data-bound keyframe values resolve when the joystick applies them (the
-    // shared LinearAnimation is applied directly, with no scene driving it).
-    // The source artboard is never played, so skip it (and it isn't an
-    // ArtboardInstance to construct the context against).
-    if (artboard()->isInstance())
+  // On an artboard instance, create a playback context per animation so that
+  // data-bound keyframe values resolve when the joystick applies them (the
+  // shared LinearAnimation is applied directly, with no scene driving it).
+  // The source artboard is never played, so skip it (and it isn't an
+  // ArtboardInstance to construct the context against).
+  if (artboard()->isInstance())
+  {
+    auto* instance = static_cast<ArtboardInstance*>(artboard());
+    if (m_xAnimation != nullptr)
     {
-        auto* instance = static_cast<ArtboardInstance*>(artboard());
-        if (m_xAnimation != nullptr)
-        {
-            m_xAnimationInstance =
-                std::make_unique<LinearAnimationInstance>(m_xAnimation,
-                                                          instance);
-        }
-        if (m_yAnimation != nullptr)
-        {
-            m_yAnimationInstance =
-                std::make_unique<LinearAnimationInstance>(m_yAnimation,
-                                                          instance);
-        }
+      m_xAnimationInstance = std::make_unique<LinearAnimationInstance>(
+          m_xAnimation,
+          instance);
     }
+    if (m_yAnimation != nullptr)
+    {
+      m_yAnimationInstance = std::make_unique<LinearAnimationInstance>(
+          m_yAnimation,
+          instance);
+    }
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void Joystick::buildDependencies()
 {
-    // We only need to update if we're in world space (and that is only required
-    // at runtime if we have a custom handle source).
-    if (m_handleSource != nullptr && parent() != nullptr)
-    {
-        parent()->addDependent(this);
-        m_handleSource->addDependent(this);
-    }
+  // We only need to update if we're in world space (and that is only required
+  // at runtime if we have a custom handle source).
+  if (m_handleSource != nullptr && parent() != nullptr)
+  {
+    parent()->addDependent(this);
+    m_handleSource->addDependent(this);
+  }
 }
 
 void Joystick::update(ComponentDirt value)
 {
-    if (m_handleSource == nullptr)
+  if (m_handleSource == nullptr)
+  {
+    return;
+  }
+  if (hasDirt(value, ComponentDirt::WorldTransform | ComponentDirt::Transform))
+  {
+    Mat2D world = Mat2D::fromTranslate(posX(), posY());
+    if (parent() != nullptr && parent()->is<WorldTransformComponent>())
     {
-        return;
+      world = parent()->as<WorldTransformComponent>()->worldTransform() * world;
     }
-    if (hasDirt(value,
-                ComponentDirt::WorldTransform | ComponentDirt::Transform))
+
+    if (m_worldTransform != world)
     {
-        Mat2D world = Mat2D::fromTranslate(posX(), posY());
-        if (parent() != nullptr && parent()->is<WorldTransformComponent>())
-        {
-            world = parent()->as<WorldTransformComponent>()->worldTransform() *
-                    world;
-        }
-
-        if (m_worldTransform != world)
-        {
-            m_worldTransform = world;
-            m_inverseWorldTransform = world.invertOrIdentity();
-        }
-
-        auto pos = m_inverseWorldTransform * m_handleSource->worldTranslation();
-
-        auto localBounds = AABB(-width() * originX(),
-                                -height() * originY(),
-                                -width() * originX() + width(),
-                                -height() * originY() + height());
-
-        auto local = localBounds.factorFrom(pos);
-        x(local.x);
-        y(local.y);
+      m_worldTransform = world;
+      m_inverseWorldTransform = world.invertOrIdentity();
     }
+
+    auto pos = m_inverseWorldTransform * m_handleSource->worldTranslation();
+
+    auto localBounds = AABB(
+        -width() * originX(),
+        -height() * originY(),
+        -width() * originX() + width(),
+        -height() * originY() + height());
+
+    auto local = localBounds.factorFrom(pos);
+    x(local.x);
+    y(local.y);
+  }
 }
 
 void Joystick::apply(Artboard* artboard) const
 {
-    if (m_xAnimation != nullptr)
-    {
-        m_xAnimation->apply(
-            artboard,
-            ((isJoystickFlagged(JoystickFlags::invertX) ? -x() : x()) + 1.0f) /
-                2.0f * m_xAnimation->durationSeconds(),
-            1.0f,
-            m_xAnimationInstance.get());
-    }
-    if (m_yAnimation != nullptr)
-    {
+  if (m_xAnimation != nullptr)
+  {
+    m_xAnimation->apply(
+        artboard,
+        ((isJoystickFlagged(JoystickFlags::invertX) ? -x() : x()) + 1.0f) /
+            2.0f * m_xAnimation->durationSeconds(),
+        1.0f,
+        m_xAnimationInstance.get());
+  }
+  if (m_yAnimation != nullptr)
+  {
 
-        m_yAnimation->apply(
-            artboard,
-            ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
-                2.0f * m_yAnimation->durationSeconds(),
-            1.0f,
-            m_yAnimationInstance.get());
-    }
-    for (const auto& nestedRemapAnimation : m_dependents)
-    {
-        nestedRemapAnimation->advance(0, false);
-    }
+    m_yAnimation->apply(
+        artboard,
+        ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
+            2.0f * m_yAnimation->durationSeconds(),
+        1.0f,
+        m_yAnimationInstance.get());
+  }
+  for (const auto& nestedRemapAnimation : m_dependents)
+  {
+    nestedRemapAnimation->advance(0, false);
+  }
 }
 
-Vec2D Joystick::measureLayout(float width,
-                              LayoutMeasureMode widthMode,
-                              float height,
-                              LayoutMeasureMode heightMode)
+Vec2D Joystick::measureLayout(
+    float width,
+    LayoutMeasureMode widthMode,
+    float height,
+    LayoutMeasureMode heightMode)
 {
-    return Vec2D(std::min((widthMode == LayoutMeasureMode::undefined
-                               ? std::numeric_limits<float>::max()
-                               : width),
-                          Joystick::width()),
-                 std::min((heightMode == LayoutMeasureMode::undefined
-                               ? std::numeric_limits<float>::max()
-                               : height),
-                          Joystick::height()));
+  return Vec2D(
+      std::min(
+          (widthMode == LayoutMeasureMode::undefined
+               ? std::numeric_limits<float>::max()
+               : width),
+          Joystick::width()),
+      std::min(
+          (heightMode == LayoutMeasureMode::undefined
+               ? std::numeric_limits<float>::max()
+               : height),
+          Joystick::height()));
 }
 
-void Joystick::controlSize(Vec2D size,
-                           LayoutScaleType widthScaleType,
-                           LayoutScaleType heightScaleType,
-                           LayoutDirection direction)
+void Joystick::controlSize(
+    Vec2D size,
+    LayoutScaleType widthScaleType,
+    LayoutScaleType heightScaleType,
+    LayoutDirection direction)
 {
-    width(size.x);
-    height(size.y);
-    posX(size.x * originX());
-    posY(size.y * originY());
+  width(size.x);
+  height(size.y);
+  posX(size.x * originX());
+  posY(size.y * originY());
 }
 
 void Joystick::xChanged() { artboard()->addDirt(ComponentDirt::Components); }
@@ -165,37 +169,38 @@ void Joystick::posXChanged() { artboard()->addDirt(ComponentDirt::Components); }
 void Joystick::posYChanged() { artboard()->addDirt(ComponentDirt::Components); }
 void Joystick::widthChanged()
 {
-    artboard()->addDirt(ComponentDirt::Components);
+  artboard()->addDirt(ComponentDirt::Components);
 }
 void Joystick::heightChanged()
 {
-    artboard()->addDirt(ComponentDirt::Components);
+  artboard()->addDirt(ComponentDirt::Components);
 }
 
-void Joystick::addAnimationDependents(Artboard* artboard,
-                                      LinearAnimation* animation)
+void Joystick::addAnimationDependents(
+    Artboard* artboard,
+    LinearAnimation* animation)
 {
 
-    auto totalObjects = animation->numKeyedObjects();
-    for (int i = 0; i < totalObjects; i++)
+  auto totalObjects = animation->numKeyedObjects();
+  for (int i = 0; i < totalObjects; i++)
+  {
+    auto object = animation->getObject(i);
+    auto coreObject = artboard->resolve(object->objectId());
+    if (coreObject != nullptr && coreObject->is<NestedRemapAnimation>())
     {
-        auto object = animation->getObject(i);
-        auto coreObject = artboard->resolve(object->objectId());
-        if (coreObject != nullptr && coreObject->is<NestedRemapAnimation>())
-        {
-            m_dependents.push_back(coreObject->as<NestedRemapAnimation>());
-        }
+      m_dependents.push_back(coreObject->as<NestedRemapAnimation>());
     }
+  }
 }
 
 void Joystick::addDependents(Artboard* artboard)
 {
-    if (m_yAnimation != nullptr)
-    {
-        addAnimationDependents(artboard, m_yAnimation);
-    }
-    if (m_xAnimation != nullptr)
-    {
-        addAnimationDependents(artboard, m_xAnimation);
-    }
+  if (m_yAnimation != nullptr)
+  {
+    addAnimationDependents(artboard, m_yAnimation);
+  }
+  if (m_xAnimation != nullptr)
+  {
+    addAnimationDependents(artboard, m_xAnimation);
+  }
 }

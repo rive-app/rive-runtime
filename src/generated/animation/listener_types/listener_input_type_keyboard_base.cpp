@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ListenerInputTypeKeyboardBase::clone() const
 {
-    auto cloned = new ListenerInputTypeKeyboard();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ListenerInputTypeKeyboard();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -4,12 +4,12 @@
 
 using namespace rive;
 
-StateTransitionImporter::StateTransitionImporter(StateTransition* transition) :
-    m_Transition(transition)
+StateTransitionImporter::StateTransitionImporter(StateTransition* transition)
+    : m_Transition(transition)
 {}
 void StateTransitionImporter::addCondition(TransitionCondition* condition)
 {
-    m_Transition->addCondition(condition);
+  m_Transition->addCondition(condition);
 }
 
 StatusCode StateTransitionImporter::resolve() { return StatusCode::Ok; }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ElasticInterpolatorBase::clone() const
 {
-    auto cloned = new ElasticInterpolator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ElasticInterpolator();
+  cloned->copy(*this);
+  return cloned;
 }

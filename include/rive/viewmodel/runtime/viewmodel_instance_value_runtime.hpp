@@ -14,25 +14,25 @@ class ViewModelInstanceValueRuntime : public ViewModelValueDependent
 {
 
 public:
-    ViewModelInstanceValueRuntime(ViewModelInstanceValue* instanceValue);
-    virtual ~ViewModelInstanceValueRuntime();
-    virtual const DataType dataType() = 0;
-    void addDirt(ComponentDirt dirt, bool recurse) override;
-    void clearChanges();
-    bool hasChanged() const { return m_hasChanged; }
-    bool flushChanges();
-    const std::string& name() const;
-    ViewModelInstanceValue* viewModelInstanceValue()
-    {
-        return m_viewModelInstanceValue;
-    }
-    void relinkDataBind() override;
+  ViewModelInstanceValueRuntime(ViewModelInstanceValue* instanceValue);
+  virtual ~ViewModelInstanceValueRuntime();
+  virtual const DataType dataType() = 0;
+  void addDirt(ComponentDirt dirt, bool recurse) override;
+  void clearChanges();
+  bool hasChanged() const { return m_hasChanged; }
+  bool flushChanges();
+  const std::string& name() const;
+  ViewModelInstanceValue* viewModelInstanceValue()
+  {
+    return m_viewModelInstanceValue;
+  }
+  void relinkDataBind() override;
 
 protected:
-    ViewModelInstanceValue* m_viewModelInstanceValue = nullptr;
+  ViewModelInstanceValue* m_viewModelInstanceValue = nullptr;
 
 private:
-    bool m_hasChanged = false;
+  bool m_hasChanged = false;
 };
 } // namespace rive
 #endif

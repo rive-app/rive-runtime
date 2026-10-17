@@ -4,22 +4,24 @@
 
 using namespace rive;
 
-DataValue* DataConverterBooleanNegate::convert(DataValue* input,
-                                               DataBind* dataBind)
+DataValue* DataConverterBooleanNegate::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    if (input->is<DataValueBoolean>())
-    {
-        m_output.value(!input->as<DataValueBoolean>()->value());
-    }
-    else
-    {
-        m_output.value(DataValueBoolean::defaultValue);
-    }
-    return &m_output;
+  if (input->is<DataValueBoolean>())
+  {
+    m_output.value(!input->as<DataValueBoolean>()->value());
+  }
+  else
+  {
+    m_output.value(DataValueBoolean::defaultValue);
+  }
+  return &m_output;
 }
 
-DataValue* DataConverterBooleanNegate::reverseConvert(DataValue* input,
-                                                      DataBind* dataBind)
+DataValue* DataConverterBooleanNegate::reverseConvert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    return convert(input, dataBind);
+  return convert(input, dataBind);
 }

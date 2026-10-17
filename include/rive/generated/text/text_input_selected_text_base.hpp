@@ -6,14 +6,14 @@ namespace rive
 class TextInputSelectedTextBase : public TextInputDrawable
 {
 protected:
-    typedef TextInputDrawable Super;
+  typedef TextInputDrawable Super;
 
 public:
-    static const uint16_t typeKey = 575;
+  static const uint16_t typeKey = 575;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

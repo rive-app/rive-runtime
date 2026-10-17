@@ -14,43 +14,45 @@ using namespace rive;
 
 LayoutNodeProvider* LayoutNodeProvider::from(Component* component)
 {
-    if (component == nullptr)
-    {
-        return nullptr;
-    }
-    switch (component->coreType())
-    {
-        case LayoutComponent::typeKey:
-            return component->as<LayoutComponent>();
-        case NestedArtboardLayout::typeKey:
-            return component->as<NestedArtboardLayout>();
-        case ArtboardComponentListBase::typeKey:
-            return component->as<ArtboardComponentList>();
-        case TextBase::typeKey:
-            // A migrated Text is no longer a provider itself; it
-            // provides via its optional LayoutParticipant child.
-            return component->as<Text>()->layoutParticipant();
-        case ImageBase::typeKey:
-            // A migrated Image is no longer a provider itself; it
-            // provides via its optional LayoutParticipant child.
-            return component->as<Image>()->layoutParticipant();
-        case ShapeBase::typeKey:
-            // A migrated Shape is no longer a provider itself; it
-            // provides via its optional LayoutParticipant child.
-            return component->as<Shape>()->layoutParticipant();
-    }
+  if (component == nullptr)
+  {
     return nullptr;
+  }
+  switch (component->coreType())
+  {
+    case LayoutComponent::typeKey:
+      return component->as<LayoutComponent>();
+    case NestedArtboardLayout::typeKey:
+      return component->as<NestedArtboardLayout>();
+    case ArtboardComponentListBase::typeKey:
+      return component->as<ArtboardComponentList>();
+    case TextBase::typeKey:
+      // A migrated Text is no longer a provider itself; it
+      // provides via its optional LayoutParticipant child.
+      return component->as<Text>()->layoutParticipant();
+    case ImageBase::typeKey:
+      // A migrated Image is no longer a provider itself; it
+      // provides via its optional LayoutParticipant child.
+      return component->as<Image>()->layoutParticipant();
+    case ShapeBase::typeKey:
+      // A migrated Shape is no longer a provider itself; it
+      // provides via its optional LayoutParticipant child.
+      return component->as<Shape>()->layoutParticipant();
+  }
+  return nullptr;
 }
 
 void LayoutNodeProvider::addLayoutConstraint(LayoutConstraint* constraint)
 {
-    if (m_layoutConstraints == nullptr)
-    {
-        m_layoutConstraints = new std::vector<LayoutConstraint*>();
-    }
-    assert(std::find(m_layoutConstraints->begin(),
-                     m_layoutConstraints->end(),
-                     constraint) == m_layoutConstraints->end());
-    m_layoutConstraints->push_back(constraint);
-    constraint->addLayoutChild(this);
+  if (m_layoutConstraints == nullptr)
+  {
+    m_layoutConstraints = new std::vector<LayoutConstraint*>();
+  }
+  assert(
+      std::find(
+          m_layoutConstraints->begin(),
+          m_layoutConstraints->end(),
+          constraint) == m_layoutConstraints->end());
+  m_layoutConstraints->push_back(constraint);
+  constraint->addLayoutChild(this);
 }

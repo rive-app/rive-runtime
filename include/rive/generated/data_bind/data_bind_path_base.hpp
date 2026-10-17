@@ -9,59 +9,59 @@ namespace rive
 class DataBindPathBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 643;
+  static const uint16_t typeKey = 643;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t pathPropertyKey = 920;
-    static const uint16_t isRelativePropertyKey = 921;
+  static const uint16_t pathPropertyKey = 920;
+  static const uint16_t isRelativePropertyKey = 921;
 
 protected:
-    bool m_IsRelative = false;
+  bool m_IsRelative = false;
 
 public:
-    virtual void decodePath(Span<const uint8_t> value) = 0;
-    virtual void copyPath(const DataBindPathBase& object) = 0;
+  virtual void decodePath(Span<const uint8_t> value) = 0;
+  virtual void copyPath(const DataBindPathBase& object) = 0;
 
-    inline bool isRelative() const { return m_IsRelative; }
-    void isRelative(bool value)
+  inline bool isRelative() const { return m_IsRelative; }
+  void isRelative(bool value)
+  {
+    if (m_IsRelative == value)
     {
-        if (m_IsRelative == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isRelativePropertyKey, &m_IsRelative, &value);
-        m_IsRelative = value;
-        notifyPropertyChanged(isRelativePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(isRelativePropertyKey, &m_IsRelative, &value);
+    m_IsRelative = value;
+    notifyPropertyChanged(isRelativePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataBindPathBase& object)
-    {
-        copyPath(object);
-        m_IsRelative = object.m_IsRelative;
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const DataBindPathBase& object)
+  {
+    copyPath(object);
+    m_IsRelative = object.m_IsRelative;
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case pathPropertyKey:
-                decodePath(CoreBytesType::deserialize(reader));
-                return true;
-            case isRelativePropertyKey:
-                m_IsRelative = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return false;
+      case pathPropertyKey:
+        decodePath(CoreBytesType::deserialize(reader));
+        return true;
+      case isRelativePropertyKey:
+        m_IsRelative = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return false;
+  }
 
 protected:
-    virtual void pathChanged() {}
+  virtual void pathChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/data_bind_path_ext.inl"
 #endif

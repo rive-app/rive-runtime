@@ -13,16 +13,16 @@ using namespace rive;
 
 StatusCode ViewModelInstanceAsset::import(ImportStack& importStack)
 {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    auto assets = backboardImporter->assets();
-    for (const auto& asset : *assets)
-    {
-        m_assets.push_back(asset);
-    }
-    return Super::import(importStack);
+  auto backboardImporter = importStack.latest<BackboardImporter>(
+      Backboard::typeKey);
+  if (backboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  auto assets = backboardImporter->assets();
+  for (const auto& asset : *assets)
+  {
+    m_assets.push_back(asset);
+  }
+  return Super::import(importStack);
 }

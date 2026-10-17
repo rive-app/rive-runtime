@@ -9,68 +9,66 @@ namespace rive
 class ListenerAlignTargetBase : public ListenerAction
 {
 protected:
-    typedef ListenerAction Super;
+  typedef ListenerAction Super;
 
 public:
-    static const uint16_t typeKey = 126;
+  static const uint16_t typeKey = 126;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t targetIdPropertyKey = 240;
-    static const uint16_t preserveOffsetPropertyKey = 541;
+  static const uint16_t targetIdPropertyKey = 240;
+  static const uint16_t preserveOffsetPropertyKey = 541;
 
 protected:
-    Id m_TargetId = kEmptyId;
-    bool m_PreserveOffset = false;
+  Id m_TargetId = kEmptyId;
+  bool m_PreserveOffset = false;
 
 public:
-    inline Id targetId() const { return m_TargetId; }
-    void targetId(Id value)
+  inline Id targetId() const { return m_TargetId; }
+  void targetId(Id value)
+  {
+    if (m_TargetId == value)
     {
-        if (m_TargetId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
-        m_TargetId = value;
-        notifyPropertyChanged(targetIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(targetIdPropertyKey, &m_TargetId, &value);
+    m_TargetId = value;
+    notifyPropertyChanged(targetIdPropertyKey);
+  }
 
-    inline bool preserveOffset() const { return m_PreserveOffset; }
-    void preserveOffset(bool value)
+  inline bool preserveOffset() const { return m_PreserveOffset; }
+  void preserveOffset(bool value)
+  {
+    if (m_PreserveOffset == value)
     {
-        if (m_PreserveOffset == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(preserveOffsetPropertyKey,
-                             &m_PreserveOffset,
-                             &value);
-        m_PreserveOffset = value;
-        notifyPropertyChanged(preserveOffsetPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(preserveOffsetPropertyKey, &m_PreserveOffset, &value);
+    m_PreserveOffset = value;
+    notifyPropertyChanged(preserveOffsetPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListenerAlignTargetBase& object)
-    {
-        m_TargetId = object.m_TargetId;
-        m_PreserveOffset = object.m_PreserveOffset;
-        ListenerAction::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListenerAlignTargetBase& object)
+  {
+    m_TargetId = object.m_TargetId;
+    m_PreserveOffset = object.m_PreserveOffset;
+    ListenerAction::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case targetIdPropertyKey:
-                m_TargetId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case preserveOffsetPropertyKey:
-                m_PreserveOffset = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return ListenerAction::deserialize(propertyKey, reader);
+      case targetIdPropertyKey:
+        m_TargetId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case preserveOffsetPropertyKey:
+        m_PreserveOffset = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return ListenerAction::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

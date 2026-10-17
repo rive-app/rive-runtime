@@ -11,107 +11,98 @@ using namespace rive;
 #ifdef WITH_RIVE_SCRIPTING
 static int viewmodel_new(lua_State* L)
 {
-    // Get the viewModel pointer from the upvalue
-    ViewModel* viewModel = (ViewModel*)lua_touserdata(L, lua_upvalueindex(1));
-    if (viewModel)
+  // Get the viewModel pointer from the upvalue
+  ViewModel* viewModel = (ViewModel*)lua_touserdata(L, lua_upvalueindex(1));
+  if (viewModel)
+  {
+    int nargs = lua_gettop(L);
+    if (nargs == 1)
     {
-        int nargs = lua_gettop(L);
-        if (nargs == 1)
+      // If the argument is nil, treat it as "no template instance"
+      if (lua_isnil(L, -1))
+      {
+        auto instance = viewModel->createInstance();
+        lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
+      }
+      // If the argument is a string, use it as the template instance name
+      else if (lua_isstring(L, -1))
+      {
+        const char* instanceName = lua_tostring(L, -1);
+        auto instance = viewModel->createFromInstance(instanceName);
+        if (instance)
         {
-            // If the argument is nil, treat it as "no template instance"
-            if (lua_isnil(L, -1))
-            {
-                auto instance = viewModel->createInstance();
-                lua_newrive<ScriptedViewModel>(L,
-                                               L,
-                                               ref_rcp(viewModel),
-                                               instance);
-            }
-            // If the argument is a string, use it as the template instance name
-            else if (lua_isstring(L, -1))
-            {
-                const char* instanceName = lua_tostring(L, -1);
-                auto instance = viewModel->createFromInstance(instanceName);
-                if (instance)
-                {
-                    lua_newrive<ScriptedViewModel>(L,
-                                                   L,
-                                                   ref_rcp(viewModel),
-                                                   instance);
-                }
-                else
-                {
-                    auto instance = viewModel->createInstance();
-                    lua_newrive<ScriptedViewModel>(L,
-                                                   L,
-                                                   ref_rcp(viewModel),
-                                                   instance);
-                }
-            }
-            else
-            {
-                lua_pushnil(L);
-            }
+          lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
         }
         else
         {
-            auto instance = viewModel->createInstance();
-            lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
+          auto instance = viewModel->createInstance();
+          lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
         }
-        return 1;
+      }
+      else
+      {
+        lua_pushnil(L);
+      }
     }
-    lua_pushnil(L);
+    else
+    {
+      auto instance = viewModel->createInstance();
+      lua_newrive<ScriptedViewModel>(L, L, ref_rcp(viewModel), instance);
+    }
     return 1;
+  }
+  lua_pushnil(L);
+  return 1;
 }
 
-void rive::initializeLuaData(lua_State* state,
-                             std::vector<ViewModel*>& viewModels)
+void rive::initializeLuaData(
+    lua_State* state,
+    std::vector<ViewModel*>& viewModels)
 {
-    if (state)
+  if (state)
+  {
+    // create metatable for global Data
+    luaL_newmetatable(state, "Data");
+
+    lua_pop(state, 1);
+    lua_getfield(state, luaRegistryIndex, "Data");
+    lua_setglobal(state, "Data");
+
+    // Get the Data metatable back on the stack
+    lua_getfield(state, luaRegistryIndex, "Data");
+
+    for (auto& viewModel : viewModels)
     {
-        // create metatable for global Data
-        luaL_newmetatable(state, "Data");
-
+      // The first view model carrying a name keeps it, like
+      // File::viewModel and the editor's Data, which the generated
+      // Data.* types are declared from.
+      if (lua_rawgetfield(state, -1, viewModel->name().c_str()) != LUA_TNIL)
+      {
         lua_pop(state, 1);
-        lua_getfield(state, luaRegistryIndex, "Data");
-        lua_setglobal(state, "Data");
+        continue;
+      }
+      lua_pop(state, 1);
 
-        // Get the Data metatable back on the stack
-        lua_getfield(state, luaRegistryIndex, "Data");
+      // Create a new table for this viewModel
+      lua_createtable(state, 0, 1);
 
-        for (auto& viewModel : viewModels)
-        {
-            // The first view model carrying a name keeps it, like
-            // File::viewModel and the editor's Data, which the generated
-            // Data.* types are declared from.
-            if (lua_rawgetfield(state, -1, viewModel->name().c_str()) !=
-                LUA_TNIL)
-            {
-                lua_pop(state, 1);
-                continue;
-            }
-            lua_pop(state, 1);
+      // Push the viewModel pointer as a light userdata (upvalue)
+      lua_pushlightuserdata(state, viewModel);
 
-            // Create a new table for this viewModel
-            lua_createtable(state, 0, 1);
+      // Create a closure with the viewModel as an upvalue
+      lua_pushcclosurek(state, viewmodel_new, "new", 1, nullptr);
 
-            // Push the viewModel pointer as a light userdata (upvalue)
-            lua_pushlightuserdata(state, viewModel);
+      // Set the function as "new" in the table
+      lua_setfield(state, -2, "new");
 
-            // Create a closure with the viewModel as an upvalue
-            lua_pushcclosurek(state, viewmodel_new, "new", 1, nullptr);
-
-            // Set the function as "new" in the table
-            lua_setfield(state, -2, "new");
-
-            // Set the table as a field in Data metatable using the viewModel
-            // name
-            lua_setfield(state, -2, viewModel->name().c_str());
-        }
-
-        // Pop the Data metatable from the stack
-        lua_pop(state, 1);
+      // Set the table as a field in Data metatable using the viewModel
+      // name
+      lua_setfield(state, -2, viewModel->name().c_str());
     }
+
+    // Pop the Data metatable from the stack
+    lua_pop(state, 1);
+  }
 }
 
 #endif

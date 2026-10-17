@@ -13,20 +13,21 @@ class GroupEffect : public GroupEffectBase,
                     public StrokeEffect
 {
 public:
-    void addTargetEffect(TargetEffect* effect);
-    void invalidateEffects(StrokeEffect* effect) override;
-    void invalidateEffects() override;
-    void updateEffect(PathProvider* pathProvider,
-                      const ShapePaintPath* source,
-                      const ShapePaint* shapePaint) override;
-    EffectsContainer* parentPaint() override;
-    void addPathProvider(PathProvider* component) override;
-    void addStrokeEffect(StrokeEffect* effect) override;
-    void invalidateEffect(PathProvider* effect) override;
-    void buildDependencies() override;
+  void addTargetEffect(TargetEffect* effect);
+  void invalidateEffects(StrokeEffect* effect) override;
+  void invalidateEffects() override;
+  void updateEffect(
+      PathProvider* pathProvider,
+      const ShapePaintPath* source,
+      const ShapePaint* shapePaint) override;
+  EffectsContainer* parentPaint() override;
+  void addPathProvider(PathProvider* component) override;
+  void addStrokeEffect(StrokeEffect* effect) override;
+  void invalidateEffect(PathProvider* effect) override;
+  void buildDependencies() override;
 
 private:
-    std::vector<TargetEffect*> m_targetEffects;
+  std::vector<TargetEffect*> m_targetEffects;
 };
 } // namespace rive
 

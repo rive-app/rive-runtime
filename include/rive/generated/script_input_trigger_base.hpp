@@ -6,14 +6,14 @@ namespace rive
 class ScriptInputTriggerBase : public CustomPropertyTrigger
 {
 protected:
-    typedef CustomPropertyTrigger Super;
+  typedef CustomPropertyTrigger Super;
 
 public:
-    static const uint16_t typeKey = 618;
+  static const uint16_t typeKey = 618;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

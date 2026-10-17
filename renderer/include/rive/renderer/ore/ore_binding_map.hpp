@@ -66,13 +66,13 @@ constexpr uint32_t kMetalMaxUserBufferSlot = kMetalReservedBufferSlot - 1;
 
 enum class ResourceKind : uint8_t
 {
-    UniformBuffer = 0,
-    StorageBufferRO = 1,
-    StorageBufferRW = 2,
-    SampledTexture = 3,
-    StorageTexture = 4,
-    Sampler = 5,
-    ComparisonSampler = 6,
+  UniformBuffer = 0,
+  StorageBufferRO = 1,
+  StorageBufferRW = 2,
+  SampledTexture = 3,
+  StorageTexture = 4,
+  Sampler = 5,
+  ComparisonSampler = 6,
 };
 
 // ----------------------------------------------------------------------------
@@ -94,23 +94,23 @@ enum class ResourceKind : uint8_t
 
 enum class TextureViewDim : uint8_t
 {
-    Undefined = 0,
-    D1 = 1,
-    D2 = 2,
-    D2Array = 3,
-    Cube = 4,
-    CubeArray = 5,
-    D3 = 6,
+  Undefined = 0,
+  D1 = 1,
+  D2 = 2,
+  D2Array = 3,
+  Cube = 4,
+  CubeArray = 5,
+  D3 = 6,
 };
 
 enum class TextureSampleType : uint8_t
 {
-    Undefined = 0,
-    Float = 1,
-    UnfilterableFloat = 2,
-    Depth = 3,
-    Sint = 4,
-    Uint = 5,
+  Undefined = 0,
+  Float = 1,
+  UnfilterableFloat = 2,
+  Depth = 3,
+  Sint = 4,
+  Uint = 5,
 };
 
 // ----------------------------------------------------------------------------
@@ -120,276 +120,271 @@ enum class TextureSampleType : uint8_t
 class BindingMap
 {
 public:
-    // Shader stage index for per-stage slot lookup. Order matches the
-    // fixed-width per-stage backend-slot fields in the on-disk RSTB row.
-    enum class Stage : uint8_t
+  // Shader stage index for per-stage slot lookup. Order matches the
+  // fixed-width per-stage backend-slot fields in the on-disk RSTB row.
+  enum class Stage : uint8_t
+  {
+    VS = 0,
+    FS = 1,
+    CS = 2,
+  };
+
+  // Stage bitmask bits, frozen RSTB schema.
+  static constexpr uint32_t kStageVertex = 1u << 0;
+  static constexpr uint32_t kStageFragment = 1u << 1;
+  static constexpr uint32_t kStageCompute = 1u << 2;
+
+  // Sentinel for a per-stage slot that the resource is not visible to.
+  // The 16-bit width fits every real slot on every backend
+  // (Metal: 31, D3D11: 128, GL: ~64).
+  static constexpr uint16_t kAbsent = UINT16_MAX;
+
+  // RSTB blob version byte. Bumped when the on-disk schema changes in a
+  // way that renders old blobs unreadable. A mismatch on load is a loud
+  // error, never a silent misbind.
+  //
+  // v3 added the group layout-id table. v2 is rejected, since every
+  // producer is in-tree and re-bakes.
+  static constexpr uint8_t kBlobVersion = 3;
+
+  // Allocator version currently supported. Pipelines load with this
+  // value; any blob stamped with a different version fails `fromBlob`
+  // with a clear error.
+  //
+  // WebGPU-aligned global-counter-per-kind allocation. v2 made SPIR-V
+  // numbering identity — a binding keeps its `@binding` — so two files
+  // compiled apart agree on a binding they share. Blobs baked at v1 are
+  // rejected rather than mixed with v2 ones.
+  static constexpr uint8_t kAllocatorVersion = 2;
+
+  // One row of the binding map. Layout matches the on-disk RSTB row
+  // but packed tighter (fewer bits where the semantics allow).
+  struct Entry
+  {
+    uint8_t group;
+    uint8_t binding;
+    ResourceKind kind;
+    uint8_t stageMask;    // Bitwise-OR of kStage* bits.
+    uint8_t backendSpace; // D3D12 register space / Vulkan set = group.
+    uint16_t backendSlot[3] = {kAbsent, kAbsent, kAbsent}; // [VS, FS, CS]
+    // Texture reflection — populated for SampledTexture /
+    // StorageTexture kinds; `Undefined` / `false` elsewhere. Consumed
+    // by the WebGPU backend's BGL builder to feed Dawn's frontend
+    // shader-vs-layout compatibility check. Ignored by VK / D3D /
+    // Metal which bind textures via dimension-agnostic descriptors.
+    TextureViewDim textureViewDim = TextureViewDim::Undefined;
+    TextureSampleType textureSampleType = TextureSampleType::Undefined;
+    bool textureMultisampled = false;
+    // UBO only: WGSL size of the block, the smallest range a bind
+    // group may bind here. 0 = no minimum.
+    uint32_t minBindingSize = 0;
+  };
+
+  // Equal ids share one `BindGroupLayout`. Backend scoped, since the id
+  // covers native slots.
+  struct GroupLayout
+  {
+    uint8_t group;
+    uint64_t layoutId;
+  };
+
+  // No baked identity, so the caller derives at runtime.
+  static constexpr uint64_t kNoLayoutId = 0;
+
+  BindingMap() = default;
+
+  // Parse a blob produced by `toBlob` (or by the RSTB-emit path in
+  // scripting_workspace). Returns a populated `BindingMap` + `true` on
+  // success; empty map + `false` on any size/version mismatch. The
+  // caller is expected to surface a clear error on failure — never
+  // fall back to a different layout silently.
+  //
+  // First two bytes of the blob are `kBlobVersion` and
+  // `kAllocatorVersion`; mismatch either and parse fails loudly.
+  // Serialization (`toBlob`) lives in the tooling-gated portion of the API.
+  static bool fromBlob(const uint8_t* data, size_t size, BindingMap* out);
+
+  // Take everything `stage` needs from `other`, dropping what this map
+  // held for it. Slots are allocated per module, so a pipeline whose
+  // stages compile from different modules can only bind correctly if each
+  // stage's rows come from the module that emitted its source.
+  //
+  // Clears the baked group layout ids, which described the map before the
+  // swap and would otherwise intern this as a layout it no longer is.
+  void replaceStage(const BindingMap& other, Stage stage);
+
+  // Per-stage backend-slot lookup. Returns kAbsent when the resource
+  // is not in the map, or not visible to the requested stage, or the
+  // map entry's kind doesn't match the caller's expected kind.
+  //
+  // `Sampler` and `ComparisonSampler` are treated as interchangeable
+  // — the runtime binding API (both Luau-facing `GPUSampler` and the
+  // C++ `BindGroupDesc::SampEntry`) is a single "sampler" category,
+  // so the caller can't distinguish them at bind time. The allocator
+  // stores whichever kind was declared in WGSL; this helper accepts
+  // either side's query.
+  //
+  // The single hot path the flatten-backend `makeBindGroup` calls at
+  // pipeline-binding time.
+  uint16_t lookup(
+      uint32_t group,
+      uint32_t binding,
+      ResourceKind kind,
+      Stage stage) const
+  {
+    const Entry* e = findEntry(group, binding);
+    if (e == nullptr)
+      return kAbsent;
+    const bool
+        kindMatches = e->kind == kind ||
+                      // Collapse sampler / comparison-sampler into one bind-API
+                      // category. See the docstring above for rationale.
+                      ((kind == ResourceKind::Sampler ||
+                        kind == ResourceKind::ComparisonSampler) &&
+                       (e->kind == ResourceKind::Sampler ||
+                        e->kind == ResourceKind::ComparisonSampler));
+    if (!kindMatches)
+      return kAbsent;
+    const uint32_t stageBit = 1u << static_cast<uint32_t>(stage);
+    if ((e->stageMask & stageBit) == 0)
+      return kAbsent;
+    return e->backendSlot[static_cast<size_t>(stage)];
+  }
+
+  size_t size() const { return m_entries.size(); }
+  bool empty() const { return m_entries.empty(); }
+
+  // Iteration accessor. Used by every flatten backend's layout
+  // builder at pipeline creation time (Vulkan DSL, D3D12 root sig,
+  // WebGPU BGL) to walk the map's entries and emit one layout
+  // entry per binding. Runtime-available because those builders
+  // ship in non-tooling runtimes (`rive_native` without
+  // `WITH_RIVE_TOOLS`).
+  const Entry& at(size_t i) const { return m_entries[i]; }
+
+  // Key the runtime's layout intern cache off this.
+  uint64_t layoutIdForGroup(uint32_t group) const
+  {
+    for (const GroupLayout& g : m_groupLayouts)
     {
-        VS = 0,
-        FS = 1,
-        CS = 2,
-    };
-
-    // Stage bitmask bits, frozen RSTB schema.
-    static constexpr uint32_t kStageVertex = 1u << 0;
-    static constexpr uint32_t kStageFragment = 1u << 1;
-    static constexpr uint32_t kStageCompute = 1u << 2;
-
-    // Sentinel for a per-stage slot that the resource is not visible to.
-    // The 16-bit width fits every real slot on every backend
-    // (Metal: 31, D3D11: 128, GL: ~64).
-    static constexpr uint16_t kAbsent = UINT16_MAX;
-
-    // RSTB blob version byte. Bumped when the on-disk schema changes in a
-    // way that renders old blobs unreadable. A mismatch on load is a loud
-    // error, never a silent misbind.
-    //
-    // v3 added the group layout-id table. v2 is rejected, since every
-    // producer is in-tree and re-bakes.
-    static constexpr uint8_t kBlobVersion = 3;
-
-    // Allocator version currently supported. Pipelines load with this
-    // value; any blob stamped with a different version fails `fromBlob`
-    // with a clear error.
-    //
-    // WebGPU-aligned global-counter-per-kind allocation. v2 made SPIR-V
-    // numbering identity — a binding keeps its `@binding` — so two files
-    // compiled apart agree on a binding they share. Blobs baked at v1 are
-    // rejected rather than mixed with v2 ones.
-    static constexpr uint8_t kAllocatorVersion = 2;
-
-    // One row of the binding map. Layout matches the on-disk RSTB row
-    // but packed tighter (fewer bits where the semantics allow).
-    struct Entry
-    {
-        uint8_t group;
-        uint8_t binding;
-        ResourceKind kind;
-        uint8_t stageMask;    // Bitwise-OR of kStage* bits.
-        uint8_t backendSpace; // D3D12 register space / Vulkan set = group.
-        uint16_t backendSlot[3] = {kAbsent, kAbsent, kAbsent}; // [VS, FS, CS]
-        // Texture reflection — populated for SampledTexture /
-        // StorageTexture kinds; `Undefined` / `false` elsewhere. Consumed
-        // by the WebGPU backend's BGL builder to feed Dawn's frontend
-        // shader-vs-layout compatibility check. Ignored by VK / D3D /
-        // Metal which bind textures via dimension-agnostic descriptors.
-        TextureViewDim textureViewDim = TextureViewDim::Undefined;
-        TextureSampleType textureSampleType = TextureSampleType::Undefined;
-        bool textureMultisampled = false;
-        // UBO only: WGSL size of the block, the smallest range a bind
-        // group may bind here. 0 = no minimum.
-        uint32_t minBindingSize = 0;
-    };
-
-    // Equal ids share one `BindGroupLayout`. Backend scoped, since the id
-    // covers native slots.
-    struct GroupLayout
-    {
-        uint8_t group;
-        uint64_t layoutId;
-    };
-
-    // No baked identity, so the caller derives at runtime.
-    static constexpr uint64_t kNoLayoutId = 0;
-
-    BindingMap() = default;
-
-    // Parse a blob produced by `toBlob` (or by the RSTB-emit path in
-    // scripting_workspace). Returns a populated `BindingMap` + `true` on
-    // success; empty map + `false` on any size/version mismatch. The
-    // caller is expected to surface a clear error on failure — never
-    // fall back to a different layout silently.
-    //
-    // First two bytes of the blob are `kBlobVersion` and
-    // `kAllocatorVersion`; mismatch either and parse fails loudly.
-    // Serialization (`toBlob`) lives in the tooling-gated portion of the API.
-    static bool fromBlob(const uint8_t* data, size_t size, BindingMap* out);
-
-    // Take everything `stage` needs from `other`, dropping what this map
-    // held for it. Slots are allocated per module, so a pipeline whose
-    // stages compile from different modules can only bind correctly if each
-    // stage's rows come from the module that emitted its source.
-    //
-    // Clears the baked group layout ids, which described the map before the
-    // swap and would otherwise intern this as a layout it no longer is.
-    void replaceStage(const BindingMap& other, Stage stage);
-
-    // Per-stage backend-slot lookup. Returns kAbsent when the resource
-    // is not in the map, or not visible to the requested stage, or the
-    // map entry's kind doesn't match the caller's expected kind.
-    //
-    // `Sampler` and `ComparisonSampler` are treated as interchangeable
-    // — the runtime binding API (both Luau-facing `GPUSampler` and the
-    // C++ `BindGroupDesc::SampEntry`) is a single "sampler" category,
-    // so the caller can't distinguish them at bind time. The allocator
-    // stores whichever kind was declared in WGSL; this helper accepts
-    // either side's query.
-    //
-    // The single hot path the flatten-backend `makeBindGroup` calls at
-    // pipeline-binding time.
-    uint16_t lookup(uint32_t group,
-                    uint32_t binding,
-                    ResourceKind kind,
-                    Stage stage) const
-    {
-        const Entry* e = findEntry(group, binding);
-        if (e == nullptr)
-            return kAbsent;
-        const bool kindMatches =
-            e->kind == kind ||
-            // Collapse sampler / comparison-sampler into one bind-API
-            // category. See the docstring above for rationale.
-            ((kind == ResourceKind::Sampler ||
-              kind == ResourceKind::ComparisonSampler) &&
-             (e->kind == ResourceKind::Sampler ||
-              e->kind == ResourceKind::ComparisonSampler));
-        if (!kindMatches)
-            return kAbsent;
-        const uint32_t stageBit = 1u << static_cast<uint32_t>(stage);
-        if ((e->stageMask & stageBit) == 0)
-            return kAbsent;
-        return e->backendSlot[static_cast<size_t>(stage)];
+      if (g.group == group)
+        return g.layoutId;
     }
+    return kNoLayoutId;
+  }
 
-    size_t size() const { return m_entries.size(); }
-    bool empty() const { return m_entries.empty(); }
-
-    // Iteration accessor. Used by every flatten backend's layout
-    // builder at pipeline creation time (Vulkan DSL, D3D12 root sig,
-    // WebGPU BGL) to walk the map's entries and emit one layout
-    // entry per binding. Runtime-available because those builders
-    // ship in non-tooling runtimes (`rive_native` without
-    // `WITH_RIVE_TOOLS`).
-    const Entry& at(size_t i) const { return m_entries[i]; }
-
-    // Key the runtime's layout intern cache off this.
-    uint64_t layoutIdForGroup(uint32_t group) const
+  // Drops the rows `keep` refuses. A group that lost rows salts its id with
+  // the rows left, so equal narrowings intern apart from the whole map.
+  template <typename Keep> void narrow(Keep&& keep)
+  {
+    std::vector<uint8_t> changed;
+    std::vector<Entry> kept;
+    kept.reserve(m_entries.size());
+    for (const Entry& e : m_entries)
     {
-        for (const GroupLayout& g : m_groupLayouts)
-        {
-            if (g.group == group)
-                return g.layoutId;
-        }
-        return kNoLayoutId;
+      if (keep(e))
+        kept.push_back(e);
+      else if (
+          std::find(changed.begin(), changed.end(), e.group) == changed.end())
+        changed.push_back(e.group);
     }
-
-    // Drops the rows `keep` refuses. A group that lost rows salts its id with
-    // the rows left, so equal narrowings intern apart from the whole map.
-    template <typename Keep> void narrow(Keep&& keep)
+    m_entries = std::move(kept);
+    std::vector<GroupLayout> groups;
+    for (GroupLayout g : m_groupLayouts)
     {
-        std::vector<uint8_t> changed;
-        std::vector<Entry> kept;
-        kept.reserve(m_entries.size());
-        for (const Entry& e : m_entries)
-        {
-            if (keep(e))
-                kept.push_back(e);
-            else if (std::find(changed.begin(), changed.end(), e.group) ==
-                     changed.end())
-                changed.push_back(e.group);
-        }
-        m_entries = std::move(kept);
-        std::vector<GroupLayout> groups;
-        for (GroupLayout g : m_groupLayouts)
-        {
-            const bool lost =
-                g.layoutId != kNoLayoutId &&
-                std::find(changed.begin(), changed.end(), g.group) !=
-                    changed.end();
-            bool hasRows = false;
-            for (const Entry& e : m_entries)
-            {
-                if (e.group != g.group)
-                    continue;
-                hasRows = true;
-                if (lost)
-                    g.layoutId =
-                        (g.layoutId ^ (0x100u | e.binding)) * 0x100000001b3ull;
-            }
-            if (!hasRows)
-                continue;
-            if (lost && g.layoutId == kNoLayoutId)
-                g.layoutId = 1;
-            groups.push_back(g);
-        }
-        m_groupLayouts = std::move(groups);
+      const bool lost = g.layoutId != kNoLayoutId &&
+                        std::find(changed.begin(), changed.end(), g.group) !=
+                            changed.end();
+      bool hasRows = false;
+      for (const Entry& e : m_entries)
+      {
+        if (e.group != g.group)
+          continue;
+        hasRows = true;
+        if (lost)
+          g.layoutId = (g.layoutId ^ (0x100u | e.binding)) * 0x100000001b3ull;
+      }
+      if (!hasRows)
+        continue;
+      if (lost && g.layoutId == kNoLayoutId)
+        g.layoutId = 1;
+      groups.push_back(g);
     }
+    m_groupLayouts = std::move(groups);
+  }
 
-    size_t groupLayoutCount() const { return m_groupLayouts.size(); }
-    const GroupLayout& groupLayoutAt(size_t i) const
-    {
-        return m_groupLayouts[i];
-    }
+  size_t groupLayoutCount() const { return m_groupLayouts.size(); }
+  const GroupLayout& groupLayoutAt(size_t i) const { return m_groupLayouts[i]; }
 
-    // ----------------------------------------------------------------
-    // Tooling-only API. Compiled only in builds that define
-    // WITH_RIVE_TOOLS (editor, scripting_workspace, unit_tests). The
-    // shipped runtime binary has none of this — no std::sort, no
-    // serialization, no state flag.
-    // ----------------------------------------------------------------
+  // ----------------------------------------------------------------
+  // Tooling-only API. Compiled only in builds that define
+  // WITH_RIVE_TOOLS (editor, scripting_workspace, unit_tests). The
+  // shipped runtime binary has none of this — no std::sort, no
+  // serialization, no state flag.
+  // ----------------------------------------------------------------
 #ifdef WITH_RIVE_TOOLS
-    // Serialize to the on-disk RSTB sidecar format. Consumed by the
-    // RSTB emit path in scripting_workspace; mirrored by fromBlob
-    // which is always available at runtime.
-    std::vector<uint8_t> toBlob() const;
+  // Serialize to the on-disk RSTB sidecar format. Consumed by the
+  // RSTB emit path in scripting_workspace; mirrored by fromBlob
+  // which is always available at runtime.
+  std::vector<uint8_t> toBlob() const;
 
-    // Test / tooling construction: push entries in any order, then
-    // finalize to sort into the canonical (group, binding) order.
-    void push(const Entry& e)
-    {
-        m_entries.push_back(e);
-        m_finalized = false;
-    }
+  // Test / tooling construction: push entries in any order, then
+  // finalize to sort into the canonical (group, binding) order.
+  void push(const Entry& e)
+  {
+    m_entries.push_back(e);
+    m_finalized = false;
+  }
 
-    void finalize();
+  void finalize();
 
-    // Requires `finalize()` first, since the id hashes entries in sorted
-    // order. Excludes hasDynamicOffset, which the toolchain cannot see.
-    void computeLayoutIds();
+  // Requires `finalize()` first, since the id hashes entries in sorted
+  // order. Excludes hasDynamicOffset, which the toolchain cannot see.
+  void computeLayoutIds();
 
-    bool isFinalized() const { return m_finalized; }
+  bool isFinalized() const { return m_finalized; }
 
-    // Iteration accessor returning the backing vector — tooling-only
-    // because raw vector access is used by RSTB emit / inspectors
-    // that may modify via const_cast patterns. Runtime code uses
-    // `at(i)` + `size()` above.
-    const std::vector<Entry>& entries() const { return m_entries; }
+  // Iteration accessor returning the backing vector — tooling-only
+  // because raw vector access is used by RSTB emit / inspectors
+  // that may modify via const_cast patterns. Runtime code uses
+  // `at(i)` + `size()` above.
+  const std::vector<Entry>& entries() const { return m_entries; }
 
 #endif
 
-    // Slot-unaware lookup for callers that want the full entry, e.g. the
-    // depth-only sampler pairing scan in the layout builder.
-    const Entry* lookupEntry(uint32_t group, uint32_t binding) const
-    {
-        return findEntry(group, binding);
-    }
+  // Slot-unaware lookup for callers that want the full entry, e.g. the
+  // depth-only sampler pairing scan in the layout builder.
+  const Entry* lookupEntry(uint32_t group, uint32_t binding) const
+  {
+    return findEntry(group, binding);
+  }
 
 private:
-    // Internal binary search — not tooling-gated because lookup() uses it
-    // on the hot runtime path.
-    const Entry* findEntry(uint32_t group, uint32_t binding) const
-    {
+  // Internal binary search — not tooling-gated because lookup() uses it
+  // on the hot runtime path.
+  const Entry* findEntry(uint32_t group, uint32_t binding) const
+  {
 #ifdef WITH_RIVE_TOOLS
-        assert(m_finalized && "BindingMap::lookup before finalize");
+    assert(m_finalized && "BindingMap::lookup before finalize");
 #endif
-        auto it = std::lower_bound(
-            m_entries.begin(),
-            m_entries.end(),
-            std::pair<uint32_t, uint32_t>{group, binding},
-            [](const Entry& e, const std::pair<uint32_t, uint32_t>& key) {
-                return std::pair<uint32_t, uint32_t>{e.group, e.binding} < key;
-            });
-        if (it == m_entries.end() || it->group != group ||
-            it->binding != binding)
-        {
-            return nullptr;
-        }
-        return &*it;
+    auto it = std::lower_bound(
+        m_entries.begin(),
+        m_entries.end(),
+        std::pair<uint32_t, uint32_t>{group, binding},
+        [](const Entry& e, const std::pair<uint32_t, uint32_t>& key) {
+          return std::pair<uint32_t, uint32_t>{e.group, e.binding} < key;
+        });
+    if (it == m_entries.end() || it->group != group || it->binding != binding)
+    {
+      return nullptr;
     }
+    return &*it;
+  }
 
-    std::vector<Entry> m_entries;
-    std::vector<GroupLayout> m_groupLayouts;
+  std::vector<Entry> m_entries;
+  std::vector<GroupLayout> m_groupLayouts;
 #ifdef WITH_RIVE_TOOLS
-    bool m_finalized = false;
+  bool m_finalized = false;
 #endif
 };
 
@@ -397,34 +392,35 @@ private:
 // Asserts on missing binding in debug builds; returns kAbsent in release
 // so the caller can recover / skip the invalid bind (matches how D3D12
 // handles "slot not set" via its slot-mask bitmap).
-inline uint16_t lookupBackendSlot(const BindingMap& map,
-                                  uint32_t group,
-                                  uint32_t binding,
-                                  ResourceKind kind,
-                                  BindingMap::Stage stage)
+inline uint16_t lookupBackendSlot(
+    const BindingMap& map,
+    uint32_t group,
+    uint32_t binding,
+    ResourceKind kind,
+    BindingMap::Stage stage)
 {
-    uint16_t slot = map.lookup(group, binding, kind, stage);
-    assert(slot != BindingMap::kAbsent &&
-           "BindingMap lookup failed for (group, binding, kind, stage)");
-    return slot;
+  uint16_t slot = map.lookup(group, binding, kind, stage);
+  assert(
+      slot != BindingMap::kAbsent &&
+      "BindingMap lookup failed for (group, binding, kind, stage)");
+  return slot;
 }
 
 // A texture the shader samples through a sampler, from the RSTB's
 // texture-sampler pair section.
 struct TextureSamplerPair
 {
-    uint8_t textureGroup;
-    uint8_t textureBinding;
-    uint8_t samplerGroup;
-    uint8_t samplerBinding;
+  uint8_t textureGroup;
+  uint8_t textureBinding;
+  uint8_t samplerGroup;
+  uint8_t samplerBinding;
 
-    bool operator==(const TextureSamplerPair& o) const
-    {
-        return textureGroup == o.textureGroup &&
-               textureBinding == o.textureBinding &&
-               samplerGroup == o.samplerGroup &&
-               samplerBinding == o.samplerBinding;
-    }
+  bool operator==(const TextureSamplerPair& o) const
+  {
+    return textureGroup == o.textureGroup &&
+           textureBinding == o.textureBinding &&
+           samplerGroup == o.samplerGroup && samplerBinding == o.samplerBinding;
+  }
 };
 
 // Samplers whose every pairing reads a depth texture, which WebGPU requires to

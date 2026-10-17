@@ -12,42 +12,42 @@ MeshHost* NSlicer::host() { return MeshHost::from(parent()); }
 
 StatusCode NSlicer::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    MeshHost* meshHost = host();
-    if (meshHost == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  MeshHost* meshHost = host();
+  if (meshHost == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
 #ifndef WITH_RIVE_EDITOR
-    // Runtime-only; editor build registers via editorParentChanged.
-    meshHost->setMesh(m_sliceMesh.get());
+  // Runtime-only; editor build registers via editorParentChanged.
+  meshHost->setMesh(m_sliceMesh.get());
 #endif
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void NSlicer::buildDependencies()
 {
-    Super::buildDependencies();
-    parent()->addDependent(this);
+  Super::buildDependencies();
+  parent()->addDependent(this);
 }
 
 void NSlicer::axisChanged() { addDirt(ComponentDirt::NSlicer); }
 
 void NSlicer::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::NSlicer) ||
-        hasDirt(value, ComponentDirt::WorldTransform))
+  if (hasDirt(value, ComponentDirt::NSlicer) ||
+      hasDirt(value, ComponentDirt::WorldTransform))
+  {
+    if (m_sliceMesh != nullptr)
     {
-        if (m_sliceMesh != nullptr)
-        {
-            m_sliceMesh->update();
-        }
+      m_sliceMesh->update();
     }
-    Super::update(value);
+  }
+  Super::update(value);
 }

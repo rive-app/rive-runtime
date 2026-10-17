@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedTransitionBase::clone() const
 {
-    auto cloned = new ScriptedTransition();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedTransition();
+  cloned->copy(*this);
+  return cloned;
 }

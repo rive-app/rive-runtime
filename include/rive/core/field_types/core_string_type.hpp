@@ -9,10 +9,10 @@ class BinaryReader;
 class CoreStringType
 {
 public:
-    static const int id = 1;
-    static std::string deserialize(BinaryReader& reader);
+  static const int id = 1;
+  static std::string deserialize(BinaryReader& reader);
 #ifdef WITH_RIVE_TOOLS
-    static std::string deserializeRev(BinaryReader& reader);
+  static std::string deserializeRev(BinaryReader& reader);
 #endif
 };
 } // namespace rive

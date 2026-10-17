@@ -16,127 +16,124 @@ using namespace rive;
 
 TEST_CASE("data bind lists reset triggers", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/viewmodel_list_trigger.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/viewmodel_list_trigger.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    auto list = vmi->propertyValue("lis")->as<ViewModelInstanceList>();
-    auto listItem = list->item(0);
-    auto instance = listItem->viewModelInstance();
-    auto trigger =
-        instance->propertyValue("tri")->as<ViewModelInstanceTrigger>();
+  auto list = vmi->propertyValue("lis")->as<ViewModelInstanceList>();
+  auto listItem = list->item(0);
+  auto instance = listItem->viewModelInstance();
+  auto trigger = instance->propertyValue("tri")->as<ViewModelInstanceTrigger>();
+  trigger->trigger();
+
+  for (int i = 0; i < 4; i++)
+  {
+    silver.addFrame();
     trigger->trigger();
+    stateMachine->advanceAndApply(0.064f);
+    artboard->draw(renderer.get());
+  }
 
-    for (int i = 0; i < 4; i++)
-    {
-        silver.addFrame();
-        trigger->trigger();
-        stateMachine->advanceAndApply(0.064f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("viewmodel_list_trigger"));
+  CHECK(silver.matches("viewmodel_list_trigger"));
 }
 
 TEST_CASE("data bind list with number to list and lists children", "[silver]")
 {
-    SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/number_to_list_nested_children.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/number_to_list_nested_children.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    // First frame
-    artboard->draw(renderer.get());
-    // Second frame
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Third frame: tapping on first nested child of first child should turn
-    // green only that instance
-    stateMachine->pointerDown(rive::Vec2D(20, 80));
-    stateMachine->pointerUp(rive::Vec2D(20, 80));
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    // Fourth frame: tapping on last nested child of last child should turn
-    // green only that instance
-    stateMachine->pointerDown(rive::Vec2D(460, 180));
-    stateMachine->pointerUp(rive::Vec2D(460, 180));
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  // First frame
+  artboard->draw(renderer.get());
+  // Second frame
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Third frame: tapping on first nested child of first child should turn
+  // green only that instance
+  stateMachine->pointerDown(rive::Vec2D(20, 80));
+  stateMachine->pointerUp(rive::Vec2D(20, 80));
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  // Fourth frame: tapping on last nested child of last child should turn
+  // green only that instance
+  stateMachine->pointerDown(rive::Vec2D(460, 180));
+  stateMachine->pointerUp(rive::Vec2D(460, 180));
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("number_to_list_nested_children"));
+  CHECK(silver.matches("number_to_list_nested_children"));
 }
 
 TEST_CASE("Test that adding and removing an item updates the list", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/list_items.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/list_items.riv", &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    auto lis1 = vmi->propertyValue("lis1")->as<ViewModelInstanceList>();
+  auto lis1 = vmi->propertyValue("lis1")->as<ViewModelInstanceList>();
 
-    auto vmChild = file->viewModel("child");
-    auto vmiChild1 = file->createViewModelInstance(vmChild);
-    vmiChild1->propertyValue("label")
-        ->as<ViewModelInstanceString>()
-        ->propertyValue("test");
-    auto vmiChildListItem = make_rcp<ViewModelInstanceListItem>();
-    vmiChildListItem->viewModelInstance(vmiChild1);
-    lis1->addItem(vmiChildListItem);
+  auto vmChild = file->viewModel("child");
+  auto vmiChild1 = file->createViewModelInstance(vmChild);
+  vmiChild1->propertyValue("label")
+      ->as<ViewModelInstanceString>()
+      ->propertyValue("test");
+  auto vmiChildListItem = make_rcp<ViewModelInstanceListItem>();
+  vmiChildListItem->viewModelInstance(vmiChild1);
+  lis1->addItem(vmiChildListItem);
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    lis1->removeItem(vmiChildListItem);
-    stateMachine->advanceAndApply(0.1f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  lis1->removeItem(vmiChildListItem);
+  stateMachine->advanceAndApply(0.1f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("list_items"));
+  CHECK(silver.matches("list_items"));
 }
 
 // The test asset carries Luau bytecode scripts, which only the Luau
@@ -144,27 +141,27 @@ TEST_CASE("Test that adding and removing an item updates the list", "[silver]")
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Clear view model list", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/clear_viewmodel_list.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/clear_viewmodel_list.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    stateMachine->advanceAndApply(0.016f);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto vmi = file->createViewModelInstance(artboard.get());
+  auto vmi = file->createViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(1.2f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    stateMachine->advanceAndApply(1.2f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(1.2f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(1.2f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("clear_viewmodel_list"));
+  CHECK(silver.matches("clear_viewmodel_list"));
 }
 #endif

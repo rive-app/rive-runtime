@@ -8,50 +8,48 @@ namespace rive
 class ScriptedDataConverterBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 629;
+  static const uint16_t typeKey = 629;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t scriptAssetIdPropertyKey = 892;
+  static const uint16_t scriptAssetIdPropertyKey = 892;
 
 protected:
-    Id m_ScriptAssetId = kEmptyId;
+  Id m_ScriptAssetId = kEmptyId;
 
 public:
-    inline Id scriptAssetId() const { return m_ScriptAssetId; }
-    void scriptAssetId(Id value)
+  inline Id scriptAssetId() const { return m_ScriptAssetId; }
+  void scriptAssetId(Id value)
+  {
+    if (m_ScriptAssetId == value)
     {
-        if (m_ScriptAssetId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(scriptAssetIdPropertyKey,
-                             &m_ScriptAssetId,
-                             &value);
-        m_ScriptAssetId = value;
-        notifyPropertyChanged(scriptAssetIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(scriptAssetIdPropertyKey, &m_ScriptAssetId, &value);
+    m_ScriptAssetId = value;
+    notifyPropertyChanged(scriptAssetIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ScriptedDataConverterBase& object)
-    {
-        m_ScriptAssetId = object.m_ScriptAssetId;
-        DataConverter::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ScriptedDataConverterBase& object)
+  {
+    m_ScriptAssetId = object.m_ScriptAssetId;
+    DataConverter::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case scriptAssetIdPropertyKey:
-                m_ScriptAssetId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return DataConverter::deserialize(propertyKey, reader);
+      case scriptAssetIdPropertyKey:
+        m_ScriptAssetId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return DataConverter::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

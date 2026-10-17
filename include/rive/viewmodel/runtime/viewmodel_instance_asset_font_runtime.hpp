@@ -13,15 +13,15 @@ class ViewModelInstanceAssetFontRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ViewModelInstanceAssetFontRuntime(
-        ViewModelInstanceAssetFont* viewModelInstance) :
-        ViewModelInstanceValueRuntime(viewModelInstance)
-    {}
-    void value(Font* font);
-    const DataType dataType() override { return DataType::assetFont; }
+  ViewModelInstanceAssetFontRuntime(
+      ViewModelInstanceAssetFont* viewModelInstance)
+      : ViewModelInstanceValueRuntime(viewModelInstance)
+  {}
+  void value(Font* font);
+  const DataType dataType() override { return DataType::assetFont; }
 
 #ifdef TESTING
-    Font* testing_value();
+  Font* testing_value();
 #endif
 };
 } // namespace rive

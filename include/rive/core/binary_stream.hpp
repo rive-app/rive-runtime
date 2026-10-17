@@ -11,9 +11,9 @@ namespace rive
 class BinaryStream
 {
 public:
-    virtual void write(const uint8_t* bytes, std::size_t length) = 0;
-    virtual void flush() = 0;
-    virtual void clear() = 0;
+  virtual void write(const uint8_t* bytes, std::size_t length) = 0;
+  virtual void flush() = 0;
+  virtual void clear() = 0;
 };
 } // namespace rive
 

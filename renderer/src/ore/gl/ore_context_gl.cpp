@@ -42,71 +42,71 @@ namespace rive::ore
 
 static GLenum oreFormatToGLInternal(TextureFormat fmt)
 {
-    switch (fmt)
-    {
-        case TextureFormat::r8unorm:
-            return GL_R8;
-        case TextureFormat::rg8unorm:
-            return GL_RG8;
-        case TextureFormat::rgba8unorm:
-            return GL_RGBA8;
-        case TextureFormat::rgba8snorm:
-            return GL_RGBA8_SNORM;
-        case TextureFormat::bgra8unorm:
-            return GL_RGBA8;
-        case TextureFormat::rgba16float:
-            return GL_RGBA16F;
-        case TextureFormat::rg16float:
-            return GL_RG16F;
-        case TextureFormat::r16float:
-            return GL_R16F;
-        case TextureFormat::rgba32float:
-            return GL_RGBA32F;
-        case TextureFormat::rg32float:
-            return GL_RG32F;
-        case TextureFormat::r32float:
-            return GL_R32F;
-        case TextureFormat::rgb10a2unorm:
-            return GL_RGB10_A2;
-        case TextureFormat::r11g11b10float:
-            return GL_R11F_G11F_B10F;
-        case TextureFormat::depth16unorm:
-            return GL_DEPTH_COMPONENT16;
-        case TextureFormat::depth24plusStencil8:
-            return GL_DEPTH24_STENCIL8;
-        case TextureFormat::depth32float:
-            return GL_DEPTH_COMPONENT32F;
-        case TextureFormat::depth32floatStencil8:
-            return GL_DEPTH32F_STENCIL8;
-        case TextureFormat::etc2rgb8:
-            return GL_COMPRESSED_RGB8_ETC2;
-        case TextureFormat::etc2rgba8:
-            return GL_COMPRESSED_RGBA8_ETC2_EAC;
+  switch (fmt)
+  {
+    case TextureFormat::r8unorm:
+      return GL_R8;
+    case TextureFormat::rg8unorm:
+      return GL_RG8;
+    case TextureFormat::rgba8unorm:
+      return GL_RGBA8;
+    case TextureFormat::rgba8snorm:
+      return GL_RGBA8_SNORM;
+    case TextureFormat::bgra8unorm:
+      return GL_RGBA8;
+    case TextureFormat::rgba16float:
+      return GL_RGBA16F;
+    case TextureFormat::rg16float:
+      return GL_RG16F;
+    case TextureFormat::r16float:
+      return GL_R16F;
+    case TextureFormat::rgba32float:
+      return GL_RGBA32F;
+    case TextureFormat::rg32float:
+      return GL_RG32F;
+    case TextureFormat::r32float:
+      return GL_R32F;
+    case TextureFormat::rgb10a2unorm:
+      return GL_RGB10_A2;
+    case TextureFormat::r11g11b10float:
+      return GL_R11F_G11F_B10F;
+    case TextureFormat::depth16unorm:
+      return GL_DEPTH_COMPONENT16;
+    case TextureFormat::depth24plusStencil8:
+      return GL_DEPTH24_STENCIL8;
+    case TextureFormat::depth32float:
+      return GL_DEPTH_COMPONENT32F;
+    case TextureFormat::depth32floatStencil8:
+      return GL_DEPTH32F_STENCIL8;
+    case TextureFormat::etc2rgb8:
+      return GL_COMPRESSED_RGB8_ETC2;
+    case TextureFormat::etc2rgba8:
+      return GL_COMPRESSED_RGBA8_ETC2_EAC;
 #ifdef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-        case TextureFormat::bc1unorm:
-            return GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-        case TextureFormat::bc3unorm:
-            return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    case TextureFormat::bc1unorm:
+      return GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+    case TextureFormat::bc3unorm:
+      return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
 #else
-        case TextureFormat::bc1unorm:
-        case TextureFormat::bc3unorm:
-            RIVE_UNREACHABLE();
+    case TextureFormat::bc1unorm:
+    case TextureFormat::bc3unorm:
+      RIVE_UNREACHABLE();
 #endif
 #ifdef GL_COMPRESSED_RGBA_BPTC_UNORM
-        case TextureFormat::bc7unorm:
-            return GL_COMPRESSED_RGBA_BPTC_UNORM;
+    case TextureFormat::bc7unorm:
+      return GL_COMPRESSED_RGBA_BPTC_UNORM;
 #else
-        case TextureFormat::bc7unorm:
-            RIVE_UNREACHABLE();
+    case TextureFormat::bc7unorm:
+      RIVE_UNREACHABLE();
 #endif
-        case TextureFormat::astc4x4:
-            return GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
-        case TextureFormat::astc6x6:
-            return GL_COMPRESSED_RGBA_ASTC_6x6_KHR;
-        case TextureFormat::astc8x8:
-            return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
-    }
-    RIVE_UNREACHABLE();
+    case TextureFormat::astc4x4:
+      return GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
+    case TextureFormat::astc6x6:
+      return GL_COMPRESSED_RGBA_ASTC_6x6_KHR;
+    case TextureFormat::astc8x8:
+      return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
+  }
+  RIVE_UNREACHABLE();
 }
 
 // static bool isDepthFormat(TextureFormat fmt)
@@ -119,73 +119,73 @@ static GLenum oreFormatToGLInternal(TextureFormat fmt)
 
 static GLenum oreTextureTypeToGLTarget(TextureType type)
 {
-    switch (type)
-    {
-        case TextureType::texture2D:
-            return GL_TEXTURE_2D;
-        case TextureType::cube:
-            return GL_TEXTURE_CUBE_MAP;
-        case TextureType::texture3D:
-            return GL_TEXTURE_3D;
-        case TextureType::array2D:
-            return GL_TEXTURE_2D_ARRAY;
-    }
-    RIVE_UNREACHABLE();
+  switch (type)
+  {
+    case TextureType::texture2D:
+      return GL_TEXTURE_2D;
+    case TextureType::cube:
+      return GL_TEXTURE_CUBE_MAP;
+    case TextureType::texture3D:
+      return GL_TEXTURE_3D;
+    case TextureType::array2D:
+      return GL_TEXTURE_2D_ARRAY;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreFilterToGL(Filter f)
 {
-    return (f == Filter::linear) ? GL_LINEAR : GL_NEAREST;
+  return (f == Filter::linear) ? GL_LINEAR : GL_NEAREST;
 }
 
 static GLenum oreMipmapFilterToGL(Filter min, Filter mip)
 {
-    if (min == Filter::linear)
-    {
-        return (mip == Filter::linear) ? GL_LINEAR_MIPMAP_LINEAR
-                                       : GL_LINEAR_MIPMAP_NEAREST;
-    }
-    return (mip == Filter::linear) ? GL_NEAREST_MIPMAP_LINEAR
-                                   : GL_NEAREST_MIPMAP_NEAREST;
+  if (min == Filter::linear)
+  {
+    return (mip == Filter::linear) ? GL_LINEAR_MIPMAP_LINEAR
+                                   : GL_LINEAR_MIPMAP_NEAREST;
+  }
+  return (mip == Filter::linear) ? GL_NEAREST_MIPMAP_LINEAR
+                                 : GL_NEAREST_MIPMAP_NEAREST;
 }
 
 static GLenum oreWrapToGL(WrapMode mode)
 {
-    switch (mode)
-    {
-        case WrapMode::repeat:
-            return GL_REPEAT;
-        case WrapMode::mirrorRepeat:
-            return GL_MIRRORED_REPEAT;
-        case WrapMode::clampToEdge:
-            return GL_CLAMP_TO_EDGE;
-    }
-    RIVE_UNREACHABLE();
+  switch (mode)
+  {
+    case WrapMode::repeat:
+      return GL_REPEAT;
+    case WrapMode::mirrorRepeat:
+      return GL_MIRRORED_REPEAT;
+    case WrapMode::clampToEdge:
+      return GL_CLAMP_TO_EDGE;
+  }
+  RIVE_UNREACHABLE();
 }
 
 static GLenum oreCompareFunctionToGL(CompareFunction fn)
 {
-    switch (fn)
-    {
-        case CompareFunction::none:
-        case CompareFunction::never:
-            return GL_NEVER;
-        case CompareFunction::less:
-            return GL_LESS;
-        case CompareFunction::equal:
-            return GL_EQUAL;
-        case CompareFunction::lessEqual:
-            return GL_LEQUAL;
-        case CompareFunction::greater:
-            return GL_GREATER;
-        case CompareFunction::notEqual:
-            return GL_NOTEQUAL;
-        case CompareFunction::greaterEqual:
-            return GL_GEQUAL;
-        case CompareFunction::always:
-            return GL_ALWAYS;
-    }
-    RIVE_UNREACHABLE();
+  switch (fn)
+  {
+    case CompareFunction::none:
+    case CompareFunction::never:
+      return GL_NEVER;
+    case CompareFunction::less:
+      return GL_LESS;
+    case CompareFunction::equal:
+      return GL_EQUAL;
+    case CompareFunction::lessEqual:
+      return GL_LEQUAL;
+    case CompareFunction::greater:
+      return GL_GREATER;
+    case CompareFunction::notEqual:
+      return GL_NOTEQUAL;
+    case CompareFunction::greaterEqual:
+      return GL_GEQUAL;
+    case CompareFunction::always:
+      return GL_ALWAYS;
+  }
+  RIVE_UNREACHABLE();
 }
 
 // ============================================================================
@@ -194,22 +194,22 @@ static GLenum oreCompareFunctionToGL(CompareFunction fn)
 
 ContextGL::~ContextGL()
 {
-    // Every pass this context handed a scratch object to is finished by now:
-    // a pass cannot outlive the context it validates against. The caller
-    // still owes us a current GL context here, same as every other ore GL
-    // object destructor.
-    if (m_scratchFBO != 0)
-    {
-        glDeleteFramebuffers(1, &m_scratchFBO);
-    }
-    if (m_scratchResolveFBO != 0)
-    {
-        glDeleteFramebuffers(1, &m_scratchResolveFBO);
-    }
-    if (m_scratchVAO != 0)
-    {
-        glDeleteVertexArrays(1, &m_scratchVAO);
-    }
+  // Every pass this context handed a scratch object to is finished by now:
+  // a pass cannot outlive the context it validates against. The caller
+  // still owes us a current GL context here, same as every other ore GL
+  // object destructor.
+  if (m_scratchFBO != 0)
+  {
+    glDeleteFramebuffers(1, &m_scratchFBO);
+  }
+  if (m_scratchResolveFBO != 0)
+  {
+    glDeleteFramebuffers(1, &m_scratchResolveFBO);
+  }
+  if (m_scratchVAO != 0)
+  {
+    glDeleteVertexArrays(1, &m_scratchVAO);
+  }
 }
 
 // ============================================================================
@@ -218,227 +218,231 @@ ContextGL::~ContextGL()
 
 GLuint ContextGL::acquireScratchFBO()
 {
-    if (m_scratchFBOLent)
-    {
-        // A pass is already holding it; the caller mints its own.
-        return 0;
-    }
-    m_scratchFBOLent = true;
-    if (m_scratchFBO == 0)
-    {
-        glGenFramebuffers(1, &m_scratchFBO);
-        return m_scratchFBO;
-    }
-    // Hand it over as empty as a fresh one: a pass with fewer attachments
-    // than the last would otherwise render into that one's leftovers, and a
-    // detached texture cannot dangle here once its owner is freed.
-    glBindFramebuffer(GL_FRAMEBUFFER, m_scratchFBO);
-    for (uint32_t i = 0; i < m_scratchFBOColorCount; ++i)
-    {
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               GL_COLOR_ATTACHMENT0 + i,
-                               GL_TEXTURE_2D,
-                               0,
-                               0);
-    }
-    if (m_scratchFBODepthAttachment != 0)
-    {
-        glFramebufferTexture2D(GL_FRAMEBUFFER,
-                               m_scratchFBODepthAttachment,
-                               GL_TEXTURE_2D,
-                               0,
-                               0);
-    }
-    // READ_BUFFER is per FBO state and finish()'s MSAA resolve moves it off
-    // the default, so restore what a freshly minted FBO would have.
-    glReadBuffer(GL_COLOR_ATTACHMENT0);
-    m_scratchFBOColorCount = 0;
-    m_scratchFBODepthAttachment = 0;
+  if (m_scratchFBOLent)
+  {
+    // A pass is already holding it; the caller mints its own.
+    return 0;
+  }
+  m_scratchFBOLent = true;
+  if (m_scratchFBO == 0)
+  {
+    glGenFramebuffers(1, &m_scratchFBO);
     return m_scratchFBO;
+  }
+  // Hand it over as empty as a fresh one: a pass with fewer attachments
+  // than the last would otherwise render into that one's leftovers, and a
+  // detached texture cannot dangle here once its owner is freed.
+  glBindFramebuffer(GL_FRAMEBUFFER, m_scratchFBO);
+  for (uint32_t i = 0; i < m_scratchFBOColorCount; ++i)
+  {
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER,
+        GL_COLOR_ATTACHMENT0 + i,
+        GL_TEXTURE_2D,
+        0,
+        0);
+  }
+  if (m_scratchFBODepthAttachment != 0)
+  {
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER,
+        m_scratchFBODepthAttachment,
+        GL_TEXTURE_2D,
+        0,
+        0);
+  }
+  // READ_BUFFER is per FBO state and finish()'s MSAA resolve moves it off
+  // the default, so restore what a freshly minted FBO would have.
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
+  m_scratchFBOColorCount = 0;
+  m_scratchFBODepthAttachment = 0;
+  return m_scratchFBO;
 }
 
 void ContextGL::invalidateScratchFramebuffers()
 {
-    // A borrower owns the attachments and expects finish() to restore its
-    // previous FBO. Deleting either scratch FBO while a pass is live would
-    // violate both assumptions.
-    assert(!m_scratchFBOLent);
+  // A borrower owns the attachments and expects finish() to restore its
+  // previous FBO. Deleting either scratch FBO while a pass is live would
+  // violate both assumptions.
+  assert(!m_scratchFBOLent);
 
-    if (m_scratchFBO != 0)
-    {
-        glDeleteFramebuffers(1, &m_scratchFBO);
-        m_scratchFBO = 0;
-    }
-    if (m_scratchResolveFBO != 0)
-    {
-        glDeleteFramebuffers(1, &m_scratchResolveFBO);
-        m_scratchResolveFBO = 0;
-    }
-    m_scratchFBOColorCount = 0;
-    m_scratchFBODepthAttachment = 0;
+  if (m_scratchFBO != 0)
+  {
+    glDeleteFramebuffers(1, &m_scratchFBO);
+    m_scratchFBO = 0;
+  }
+  if (m_scratchResolveFBO != 0)
+  {
+    glDeleteFramebuffers(1, &m_scratchResolveFBO);
+    m_scratchResolveFBO = 0;
+  }
+  m_scratchFBOColorCount = 0;
+  m_scratchFBODepthAttachment = 0;
 }
 
 void ContextGL::releaseScratchFBO(uint32_t colorCount, GLuint depthAttachment)
 {
-    m_scratchFBOColorCount = colorCount;
-    m_scratchFBODepthAttachment = depthAttachment;
-    m_scratchFBOLent = false;
+  m_scratchFBOColorCount = colorCount;
+  m_scratchFBODepthAttachment = depthAttachment;
+  m_scratchFBOLent = false;
 }
 
 GLuint ContextGL::acquireScratchVAO()
 {
-    if (m_scratchVAOLent)
-    {
-        return 0;
-    }
-    m_scratchVAOLent = true;
-    if (m_scratchVAO == 0)
-    {
-        glGenVertexArrays(1, &m_scratchVAO);
-    }
-    // Nothing to scrub: finish() disables every attrib array it enabled and
-    // drops the element buffer before it hands the VAO back.
-    return m_scratchVAO;
+  if (m_scratchVAOLent)
+  {
+    return 0;
+  }
+  m_scratchVAOLent = true;
+  if (m_scratchVAO == 0)
+  {
+    glGenVertexArrays(1, &m_scratchVAO);
+  }
+  // Nothing to scrub: finish() disables every attrib array it enabled and
+  // drops the element buffer before it hands the VAO back.
+  return m_scratchVAO;
 }
 
 void ContextGL::releaseScratchVAO() { m_scratchVAOLent = false; }
 
 GLuint ContextGL::scratchResolveFBO()
 {
-    // The resolve blit's destination is rebuilt attachment by attachment on
-    // every use, and it is never live across a pass boundary, so it needs no
-    // lending state.
-    if (m_scratchResolveFBO == 0)
-    {
-        glGenFramebuffers(1, &m_scratchResolveFBO);
-    }
-    return m_scratchResolveFBO;
+  // The resolve blit's destination is rebuilt attachment by attachment on
+  // every use, and it is never live across a pass boundary, so it needs no
+  // lending state.
+  if (m_scratchResolveFBO == 0)
+  {
+    glGenFramebuffers(1, &m_scratchResolveFBO);
+  }
+  return m_scratchResolveFBO;
 }
 
 std::unique_ptr<ContextGL> ContextGL::Make()
 {
-    auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
+  auto ctx = std::unique_ptr<ContextGL>(new ContextGL());
 
-    Features& f = ctx->m_features;
+  Features& f = ctx->m_features;
 
-    // GLES3 / WebGL2 baseline capabilities.
-    f.colorBufferFloat = false; // Requires EXT_color_buffer_float.
-    f.perTargetBlend = false;   // GLES3: global blend only.
-    f.perTargetWriteMask = false;
-    f.textureViewSampling = false; // No glTextureView on GLES3.
-    f.drawBaseInstance = false;
-    f.depthBiasClamp = false; // GLES3 glPolygonOffset has no clamp param.
-    f.anisotropicFiltering = false;
-    f.texture3D = true;
-    f.textureArrays = true;
-    f.computeShaders = false;
-    f.storageBuffers = false;
-    f.bc = false;
-    f.etc2 = true; // GLES3 mandates ETC2.
-    f.astc = false;
+  // GLES3 / WebGL2 baseline capabilities.
+  f.colorBufferFloat = false; // Requires EXT_color_buffer_float.
+  f.perTargetBlend = false;   // GLES3: global blend only.
+  f.perTargetWriteMask = false;
+  f.textureViewSampling = false; // No glTextureView on GLES3.
+  f.drawBaseInstance = false;
+  f.depthBiasClamp = false; // GLES3 glPolygonOffset has no clamp param.
+  f.anisotropicFiltering = false;
+  f.texture3D = true;
+  f.textureArrays = true;
+  f.computeShaders = false;
+  f.storageBuffers = false;
+  f.bc = false;
+  f.etc2 = true; // GLES3 mandates ETC2.
+  f.astc = false;
 
-    // Query limits.
-    GLint maxTexSize = 0, maxCubeSize = 0, max3DSize = 0, maxUBOSize = 0;
-    GLint maxDrawBuffers = 0, maxVertexAttribs = 0, maxTexUnits = 0;
-    GLint maxSamples = 0, uboOffsetAlignment = 0;
-    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexSize);
-    glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &maxCubeSize);
-    glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &max3DSize);
-    glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUBOSize);
-    glGetIntegerv(GL_MAX_DRAW_BUFFERS, &maxDrawBuffers);
-    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttribs);
-    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxTexUnits);
-    glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
-    glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboOffsetAlignment);
+  // Query limits.
+  GLint maxTexSize = 0, maxCubeSize = 0, max3DSize = 0, maxUBOSize = 0;
+  GLint maxDrawBuffers = 0, maxVertexAttribs = 0, maxTexUnits = 0;
+  GLint maxSamples = 0, uboOffsetAlignment = 0;
+  glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexSize);
+  glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &maxCubeSize);
+  glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &max3DSize);
+  glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUBOSize);
+  glGetIntegerv(GL_MAX_DRAW_BUFFERS, &maxDrawBuffers);
+  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxVertexAttribs);
+  glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxTexUnits);
+  glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);
+  glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &uboOffsetAlignment);
 
-    f.maxTextureSize2D = maxTexSize;
-    f.maxTextureSizeCube = maxCubeSize;
-    f.maxTextureSize3D = max3DSize;
-    f.maxUniformBufferSize = maxUBOSize;
-    f.maxColorAttachments = std::min(static_cast<uint32_t>(maxDrawBuffers), 4u);
-    f.maxVertexAttributes = maxVertexAttribs;
-    f.maxSamplers = maxTexUnits;
-    f.maxSamples = std::max(maxSamples, 1);
-    // Never below the default so scripts stay portable to D3D11.
-    f.minUniformBufferOffsetAlignment =
-        std::max(f.minUniformBufferOffsetAlignment,
-                 static_cast<uint32_t>(uboOffsetAlignment));
+  f.maxTextureSize2D = maxTexSize;
+  f.maxTextureSizeCube = maxCubeSize;
+  f.maxTextureSize3D = max3DSize;
+  f.maxUniformBufferSize = maxUBOSize;
+  f.maxColorAttachments = std::min(static_cast<uint32_t>(maxDrawBuffers), 4u);
+  f.maxVertexAttributes = maxVertexAttribs;
+  f.maxSamplers = maxTexUnits;
+  f.maxSamples = std::max(maxSamples, 1);
+  // Never below the default so scripts stay portable to D3D11.
+  f.minUniformBufferOffsetAlignment = std::max(
+      f.minUniformBufferOffsetAlignment,
+      static_cast<uint32_t>(uboOffsetAlignment));
 
-    // Check extensions.
-    GLint numExtensions = 0;
-    glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
-    for (GLint i = 0; i < numExtensions; ++i)
+  // Check extensions.
+  GLint numExtensions = 0;
+  glGetIntegerv(GL_NUM_EXTENSIONS, &numExtensions);
+  for (GLint i = 0; i < numExtensions; ++i)
+  {
+    const char* ext = reinterpret_cast<const char*>(
+        glGetStringi(GL_EXTENSIONS, i));
+    if (!ext)
+      continue;
+    if (strcmp(ext, "GL_EXT_color_buffer_float") == 0)
     {
-        const char* ext =
-            reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
-        if (!ext)
-            continue;
-        if (strcmp(ext, "GL_EXT_color_buffer_float") == 0)
-        {
-            // Full-float renderability implies half-float renderability.
-            f.colorBufferFloat = true;
-            f.colorBufferHalfFloat = true;
-        }
-        else if (strcmp(ext, "GL_EXT_texture_filter_anisotropic") == 0)
-            f.anisotropicFiltering = true;
-        else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
-            f.astc = true;
-#ifdef RIVE_DESKTOP_GL
-        else if (strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
-            f.bc = true;
-#endif
+      // Full-float renderability implies half-float renderability.
+      f.colorBufferFloat = true;
+      f.colorBufferHalfFloat = true;
     }
+    else if (strcmp(ext, "GL_EXT_texture_filter_anisotropic") == 0)
+      f.anisotropicFiltering = true;
+    else if (strcmp(ext, "GL_KHR_texture_compression_astc_ldr") == 0)
+      f.astc = true;
+#ifdef RIVE_DESKTOP_GL
+    else if (strcmp(ext, "GL_EXT_texture_compression_s3tc") == 0)
+      f.bc = true;
+#endif
+  }
 
-    // drawBaseInstance stays false: the GL render pass does not yet wire
-    // baseVertex/firstInstance through the base-vertex-base-instance draw
-    // call, so reporting it true would silently drop those args.
+  // drawBaseInstance stays false: the GL render pass does not yet wire
+  // baseVertex/firstInstance through the base-vertex-base-instance draw
+  // call, so reporting it true would silently drop those args.
 
 #ifdef RIVE_WEBGL
-    // On WebGL an extension must be enabled before its functionality (and
-    // sometimes its name in the extension list) is available, so the scan
-    // above misses it. Enable returns whether the browser supports it.
-    // The two extensions are independent: half-float gates 16-bit float
-    // targets, full-float gates 32-bit, and full-float implies half-float.
-    auto webglCtx = emscripten_webgl_get_current_context();
-    if (emscripten_webgl_enable_extension(webglCtx, "EXT_color_buffer_float"))
-    {
-        f.colorBufferFloat = true;
-        f.colorBufferHalfFloat = true;
-    }
-    if (emscripten_webgl_enable_extension(webglCtx,
-                                          "EXT_color_buffer_half_float"))
-        f.colorBufferHalfFloat = true;
-    if (emscripten_webgl_enable_extension(webglCtx,
-                                          "EXT_texture_filter_anisotropic"))
-        f.anisotropicFiltering = true;
+  // On WebGL an extension must be enabled before its functionality (and
+  // sometimes its name in the extension list) is available, so the scan
+  // above misses it. Enable returns whether the browser supports it.
+  // The two extensions are independent: half-float gates 16-bit float
+  // targets, full-float gates 32-bit, and full-float implies half-float.
+  auto webglCtx = emscripten_webgl_get_current_context();
+  if (emscripten_webgl_enable_extension(webglCtx, "EXT_color_buffer_float"))
+  {
+    f.colorBufferFloat = true;
+    f.colorBufferHalfFloat = true;
+  }
+  if (emscripten_webgl_enable_extension(
+          webglCtx,
+          "EXT_color_buffer_half_float"))
+    f.colorBufferHalfFloat = true;
+  if (emscripten_webgl_enable_extension(
+          webglCtx,
+          "EXT_texture_filter_anisotropic"))
+    f.anisotropicFiltering = true;
 #endif
 
-    return ctx;
+  return ctx;
 }
 
 void ContextGL::beginFrame(const FrameDescriptor&)
 {
-    // Save GL state that Ore will modify, so Rive's PLS renderer state is
-    // preserved across an Ore render pass.
-    glGetIntegerv(GL_CURRENT_PROGRAM, &m_savedState.program);
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &m_savedState.arrayBuffer);
-    glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &m_savedState.uniformBuffer);
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &m_savedState.framebuffer);
-    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &m_savedState.vertexArray);
-    // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT saved here because
-    // it is part of VAO state — restoring the VAO implicitly restores the
-    // element buffer that was associated with it.
+  // Save GL state that Ore will modify, so Rive's PLS renderer state is
+  // preserved across an Ore render pass.
+  glGetIntegerv(GL_CURRENT_PROGRAM, &m_savedState.program);
+  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &m_savedState.arrayBuffer);
+  glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, &m_savedState.uniformBuffer);
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &m_savedState.framebuffer);
+  glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &m_savedState.vertexArray);
+  // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT saved here because
+  // it is part of VAO state — restoring the VAO implicitly restores the
+  // element buffer that was associated with it.
 }
 
 // Emscripten binds a deleted name as null, and there each probe is a GPU sync.
 template <typename Probe> static bool savedNameAlive(Probe probe, int name)
 {
 #ifdef RIVE_WEBGL
-    (void)probe;
-    (void)name;
-    return true;
+  (void)probe;
+  (void)name;
+  return true;
 #else
-    return name == 0 || probe(static_cast<GLuint>(name)) == GL_TRUE;
+  return name == 0 || probe(static_cast<GLuint>(name)) == GL_TRUE;
 #endif
 }
 
@@ -446,51 +450,51 @@ void ContextGL::waitForGPU() {} // GL is synchronous after glFinish/flush.
 
 void ContextGL::endFrame()
 {
-    // GL uses per pass inline replay, so no whole frame buffer to drain here.
+  // GL uses per pass inline replay, so no whole frame buffer to drain here.
 
-    // Every pass hands its lend back in finish(), so with no pass open both
-    // flags are clear here. Clear them anyway: a lend stranded by some future
-    // early return between acquire and release would otherwise disable the
-    // scratch objects for the life of the context.
-    assert(!m_scratchFBOLent);
-    assert(!m_scratchVAOLent);
-    m_scratchFBOLent = false;
-    m_scratchVAOLent = false;
+  // Every pass hands its lend back in finish(), so with no pass open both
+  // flags are clear here. Clear them anyway: a lend stranded by some future
+  // early return between acquire and release would otherwise disable the
+  // scratch objects for the life of the context.
+  assert(!m_scratchFBOLent);
+  assert(!m_scratchVAOLent);
+  m_scratchFBOLent = false;
+  m_scratchVAOLent = false;
 
-    // Restore saved state. Each `RenderPass::finish()` already restores
-    // its own captured VAO in-place, so by the time we get here only the
-    // program / array-buffer / framebuffer bindings need restoring —
-    // and only if they still exist. Mac ANGLE (GL-ES-3 over Metal)
-    // strictly validates non-zero object IDs via GL_KHR_debug and will
-    // abort if the host renderer has deleted a program or buffer
-    // between our `beginFrame` save and this restore. Guard each bind
-    // with the matching `glIs*` probe; name == 0 always refers to the
-    // default object (no validation error).
-    if (savedNameAlive(glIsProgram, m_savedState.program))
-    {
-        glUseProgram(m_savedState.program);
-    }
-    if (savedNameAlive(glIsVertexArray, m_savedState.vertexArray))
-    {
-        glBindVertexArray(m_savedState.vertexArray);
-    }
-    if (savedNameAlive(glIsBuffer, m_savedState.arrayBuffer))
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, m_savedState.arrayBuffer);
-    }
-    if (savedNameAlive(glIsBuffer, m_savedState.uniformBuffer))
-    {
-        glBindBuffer(GL_UNIFORM_BUFFER, m_savedState.uniformBuffer);
-    }
-    // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT restored here.
-    // It is VAO state — binding the saved VAO above already restored the
-    // element buffer association. Explicitly binding it here would modify
-    // the active VAO's element buffer, which can corrupt the host
-    // renderer's VAO state if the saved value doesn't match.
-    if (savedNameAlive(glIsFramebuffer, m_savedState.framebuffer))
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, m_savedState.framebuffer);
-    }
+  // Restore saved state. Each `RenderPass::finish()` already restores
+  // its own captured VAO in-place, so by the time we get here only the
+  // program / array-buffer / framebuffer bindings need restoring —
+  // and only if they still exist. Mac ANGLE (GL-ES-3 over Metal)
+  // strictly validates non-zero object IDs via GL_KHR_debug and will
+  // abort if the host renderer has deleted a program or buffer
+  // between our `beginFrame` save and this restore. Guard each bind
+  // with the matching `glIs*` probe; name == 0 always refers to the
+  // default object (no validation error).
+  if (savedNameAlive(glIsProgram, m_savedState.program))
+  {
+    glUseProgram(m_savedState.program);
+  }
+  if (savedNameAlive(glIsVertexArray, m_savedState.vertexArray))
+  {
+    glBindVertexArray(m_savedState.vertexArray);
+  }
+  if (savedNameAlive(glIsBuffer, m_savedState.arrayBuffer))
+  {
+    glBindBuffer(GL_ARRAY_BUFFER, m_savedState.arrayBuffer);
+  }
+  if (savedNameAlive(glIsBuffer, m_savedState.uniformBuffer))
+  {
+    glBindBuffer(GL_UNIFORM_BUFFER, m_savedState.uniformBuffer);
+  }
+  // NOTE: GL_ELEMENT_ARRAY_BUFFER is intentionally NOT restored here.
+  // It is VAO state — binding the saved VAO above already restored the
+  // element buffer association. Explicitly binding it here would modify
+  // the active VAO's element buffer, which can corrupt the host
+  // renderer's VAO state if the saved value doesn't match.
+  if (savedNameAlive(glIsFramebuffer, m_savedState.framebuffer))
+  {
+    glBindFramebuffer(GL_FRAMEBUFFER, m_savedState.framebuffer);
+  }
 }
 
 // ============================================================================
@@ -499,56 +503,56 @@ void ContextGL::endFrame()
 
 rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 {
-    auto buffer = rcp<BufferGL>(new BufferGL(desc.size, desc.usage));
+  auto buffer = rcp<BufferGL>(new BufferGL(desc.size, desc.usage));
 
-    glGenBuffers(1, &buffer->m_glBuffer);
+  glGenBuffers(1, &buffer->m_glBuffer);
 
-    switch (desc.usage)
+  switch (desc.usage)
+  {
+    case BufferUsage::vertex:
+      buffer->m_glTarget = GL_ARRAY_BUFFER;
+      break;
+    case BufferUsage::index:
+      buffer->m_glTarget = GL_ELEMENT_ARRAY_BUFFER;
+      break;
+    case BufferUsage::uniform:
+      buffer->m_glTarget = GL_UNIFORM_BUFFER;
+      break;
+    case BufferUsage::upload:
+      RIVE_UNREACHABLE();
+      break;
+  }
+
+  // WebGL forbids binding a buffer to GL_ELEMENT_ARRAY_BUFFER if it was ever
+  // bound to a different target, so index buffers must use their native
+  // target. GL_ELEMENT_ARRAY_BUFFER is VAO state, so we save/restore the
+  // current binding to avoid clobbering the host renderer's VAO.
+  GLenum glUsage = (desc.data != nullptr) ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
+  if (desc.usage == BufferUsage::index)
+  {
+    GLint prevEBO;
+    glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &prevEBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->m_glBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc.size, desc.data, glUsage);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prevEBO);
+  }
+  else
+  {
+    // std140 rounds a block up to 16 bytes, past the WGSL struct size, and
+    // WebGL refuses to draw with a buffer shorter than the block.
+    uint32_t size = desc.usage == BufferUsage::uniform
+                        ? math::round_up_to_multiple_of<16>(desc.size)
+                        : desc.size;
+    glBindBuffer(GL_COPY_WRITE_BUFFER, buffer->m_glBuffer);
+    glBufferData(GL_COPY_WRITE_BUFFER, size, nullptr, glUsage);
+    if (desc.data != nullptr)
     {
-        case BufferUsage::vertex:
-            buffer->m_glTarget = GL_ARRAY_BUFFER;
-            break;
-        case BufferUsage::index:
-            buffer->m_glTarget = GL_ELEMENT_ARRAY_BUFFER;
-            break;
-        case BufferUsage::uniform:
-            buffer->m_glTarget = GL_UNIFORM_BUFFER;
-            break;
-        case BufferUsage::upload:
-            RIVE_UNREACHABLE();
-            break;
+      glBufferSubData(GL_COPY_WRITE_BUFFER, 0, desc.size, desc.data);
     }
+    glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+  }
 
-    // WebGL forbids binding a buffer to GL_ELEMENT_ARRAY_BUFFER if it was ever
-    // bound to a different target, so index buffers must use their native
-    // target. GL_ELEMENT_ARRAY_BUFFER is VAO state, so we save/restore the
-    // current binding to avoid clobbering the host renderer's VAO.
-    GLenum glUsage = (desc.data != nullptr) ? GL_STATIC_DRAW : GL_DYNAMIC_DRAW;
-    if (desc.usage == BufferUsage::index)
-    {
-        GLint prevEBO;
-        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &prevEBO);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffer->m_glBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc.size, desc.data, glUsage);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, prevEBO);
-    }
-    else
-    {
-        // std140 rounds a block up to 16 bytes, past the WGSL struct size, and
-        // WebGL refuses to draw with a buffer shorter than the block.
-        uint32_t size = desc.usage == BufferUsage::uniform
-                            ? math::round_up_to_multiple_of<16>(desc.size)
-                            : desc.size;
-        glBindBuffer(GL_COPY_WRITE_BUFFER, buffer->m_glBuffer);
-        glBufferData(GL_COPY_WRITE_BUFFER, size, nullptr, glUsage);
-        if (desc.data != nullptr)
-        {
-            glBufferSubData(GL_COPY_WRITE_BUFFER, 0, desc.size, desc.data);
-        }
-        glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
-    }
-
-    return buffer;
+  return buffer;
 }
 
 // ============================================================================
@@ -557,94 +561,95 @@ rcp<Buffer> ContextGL::makeBuffer(const BufferDesc& desc)
 
 rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
 {
-    auto texture = rcp<TextureGL>(new TextureGL(desc));
+  auto texture = rcp<TextureGL>(new TextureGL(desc));
 
-    glGenTextures(1, &texture->m_glTexture);
-    texture->m_glTarget = oreTextureTypeToGLTarget(desc.type);
+  glGenTextures(1, &texture->m_glTexture);
+  texture->m_glTarget = oreTextureTypeToGLTarget(desc.type);
 
-    GLenum internalFormat = oreFormatToGLInternal(desc.format);
+  GLenum internalFormat = oreFormatToGLInternal(desc.format);
 
-    // Force the active unit to GL_TEXTURE0 before a transient bind. The host
-    // renderer (Rive PLS) reserves units 8..14 for its own textures and
-    // assumes those bindings persist between flushes. If the caller entered
-    // with one of those units active (common after a flush), a naked
-    // glBindTexture() here would overwrite Rive's binding on that unit.
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(texture->m_glTarget, texture->m_glTexture);
+  // Force the active unit to GL_TEXTURE0 before a transient bind. The host
+  // renderer (Rive PLS) reserves units 8..14 for its own textures and
+  // assumes those bindings persist between flushes. If the caller entered
+  // with one of those units active (common after a flush), a naked
+  // glBindTexture() here would overwrite Rive's binding on that unit.
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(texture->m_glTarget, texture->m_glTexture);
 
-    switch (desc.type)
-    {
-        case TextureType::texture2D:
-            if (desc.sampleCount > 1)
-            {
-                // MSAA render targets use renderbuffers — they can't be
-                // sampled anyway, and renderbuffers work on all
-                // GL/GLES3/WebGL2 (unlike GL_TEXTURE_2D_MULTISAMPLE).
-                glDeleteTextures(1, &texture->m_glTexture);
-                texture->m_glTexture = 0;
-                texture->m_glTarget = 0;
+  switch (desc.type)
+  {
+    case TextureType::texture2D:
+      if (desc.sampleCount > 1)
+      {
+        // MSAA render targets use renderbuffers — they can't be
+        // sampled anyway, and renderbuffers work on all
+        // GL/GLES3/WebGL2 (unlike GL_TEXTURE_2D_MULTISAMPLE).
+        glDeleteTextures(1, &texture->m_glTexture);
+        texture->m_glTexture = 0;
+        texture->m_glTarget = 0;
 
-                glGenRenderbuffers(1, &texture->m_glRenderbuffer);
-                glBindRenderbuffer(GL_RENDERBUFFER, texture->m_glRenderbuffer);
-                glRenderbufferStorageMultisample(GL_RENDERBUFFER,
-                                                 desc.sampleCount,
-                                                 internalFormat,
-                                                 desc.width,
-                                                 desc.height);
-                glBindRenderbuffer(GL_RENDERBUFFER, 0);
-            }
-            else
-            {
-                glTexStorage2D(GL_TEXTURE_2D,
-                               desc.numMipmaps,
-                               internalFormat,
-                               desc.width,
-                               desc.height);
-            }
-            break;
+        glGenRenderbuffers(1, &texture->m_glRenderbuffer);
+        glBindRenderbuffer(GL_RENDERBUFFER, texture->m_glRenderbuffer);
+        glRenderbufferStorageMultisample(
+            GL_RENDERBUFFER,
+            desc.sampleCount,
+            internalFormat,
+            desc.width,
+            desc.height);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+      }
+      else
+      {
+        glTexStorage2D(
+            GL_TEXTURE_2D,
+            desc.numMipmaps,
+            internalFormat,
+            desc.width,
+            desc.height);
+      }
+      break;
 
-        case TextureType::cube:
-            glTexStorage2D(GL_TEXTURE_CUBE_MAP,
-                           desc.numMipmaps,
-                           internalFormat,
-                           desc.width,
-                           desc.height);
-            break;
+    case TextureType::cube:
+      glTexStorage2D(
+          GL_TEXTURE_CUBE_MAP,
+          desc.numMipmaps,
+          internalFormat,
+          desc.width,
+          desc.height);
+      break;
 
-        case TextureType::texture3D:
-            glTexStorage3D(GL_TEXTURE_3D,
-                           desc.numMipmaps,
-                           internalFormat,
-                           desc.width,
-                           desc.height,
-                           desc.depthOrArrayLayers);
-            break;
+    case TextureType::texture3D:
+      glTexStorage3D(
+          GL_TEXTURE_3D,
+          desc.numMipmaps,
+          internalFormat,
+          desc.width,
+          desc.height,
+          desc.depthOrArrayLayers);
+      break;
 
-        case TextureType::array2D:
-            glTexStorage3D(GL_TEXTURE_2D_ARRAY,
-                           desc.numMipmaps,
-                           internalFormat,
-                           desc.width,
-                           desc.height,
-                           desc.depthOrArrayLayers);
-            break;
-    }
+    case TextureType::array2D:
+      glTexStorage3D(
+          GL_TEXTURE_2D_ARRAY,
+          desc.numMipmaps,
+          internalFormat,
+          desc.width,
+          desc.height,
+          desc.depthOrArrayLayers);
+      break;
+  }
 
-    // Renderbuffer-backed MSAA textures don't have sampler parameters.
-    if (texture->m_glRenderbuffer == 0)
-    {
-        glTexParameteri(texture->m_glTarget, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(texture->m_glTarget, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glTexParameteri(texture->m_glTarget,
-                        GL_TEXTURE_WRAP_S,
-                        GL_CLAMP_TO_EDGE);
-        glTexParameteri(texture->m_glTarget,
-                        GL_TEXTURE_WRAP_T,
-                        GL_CLAMP_TO_EDGE);
-        glBindTexture(texture->m_glTarget, 0);
-    }
+  // Renderbuffer-backed MSAA textures don't have sampler parameters.
+  if (texture->m_glRenderbuffer == 0)
+  {
+    glTexParameteri(texture->m_glTarget, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(texture->m_glTarget, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(texture->m_glTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(texture->m_glTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(texture->m_glTarget, 0);
+  }
 
-    return texture;
+  return texture;
 }
 
 // ============================================================================
@@ -653,18 +658,18 @@ rcp<Texture> ContextGL::makeTexture(const TextureDesc& desc)
 
 rcp<TextureView> ContextGL::makeTextureViewImpl(const TextureViewDesc& desc)
 {
-    Texture* tex = desc.texture;
-    if (!tex)
-        return nullptr;
+  Texture* tex = desc.texture;
+  if (!tex)
+    return nullptr;
 
-    auto view = rcp<TextureViewGL>(new TextureViewGL(ref_rcp(tex), desc));
+  auto view = rcp<TextureViewGL>(new TextureViewGL(ref_rcp(tex), desc));
 
-    // GLES3 doesn't have glTextureView. We store m_glTextureView = 0
-    // and use the base texture at bind time. FBO attachment targeting
-    // specific mip/layer is done via glFramebufferTextureLayer.
-    view->m_glTextureView = 0;
+  // GLES3 doesn't have glTextureView. We store m_glTextureView = 0
+  // and use the base texture at bind time. FBO attachment targeting
+  // specific mip/layer is done via glFramebufferTextureLayer.
+  view->m_glTextureView = 0;
 
-    return view;
+  return view;
 }
 
 // ============================================================================
@@ -673,59 +678,57 @@ rcp<TextureView> ContextGL::makeTextureViewImpl(const TextureViewDesc& desc)
 
 rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 {
-    auto sampler = rcp<SamplerGL>(new SamplerGL());
+  auto sampler = rcp<SamplerGL>(new SamplerGL());
 
-    glGenSamplers(1, &sampler->m_glSampler);
-    GLuint s = sampler->m_glSampler;
+  glGenSamplers(1, &sampler->m_glSampler);
+  GLuint s = sampler->m_glSampler;
 
-    // Min filter includes mipmap mode.
-    if (desc.maxLod > 0.0f)
-    {
-        glSamplerParameteri(
-            s,
-            GL_TEXTURE_MIN_FILTER,
-            oreMipmapFilterToGL(desc.minFilter, desc.mipmapFilter));
-    }
-    else
-    {
-        glSamplerParameteri(s,
-                            GL_TEXTURE_MIN_FILTER,
-                            oreFilterToGL(desc.minFilter));
-    }
-    glSamplerParameteri(s,
-                        GL_TEXTURE_MAG_FILTER,
-                        oreFilterToGL(desc.magFilter));
+  // Min filter includes mipmap mode.
+  if (desc.maxLod > 0.0f)
+  {
+    glSamplerParameteri(
+        s,
+        GL_TEXTURE_MIN_FILTER,
+        oreMipmapFilterToGL(desc.minFilter, desc.mipmapFilter));
+  }
+  else
+  {
+    glSamplerParameteri(
+        s,
+        GL_TEXTURE_MIN_FILTER,
+        oreFilterToGL(desc.minFilter));
+  }
+  glSamplerParameteri(s, GL_TEXTURE_MAG_FILTER, oreFilterToGL(desc.magFilter));
 
-    glSamplerParameteri(s, GL_TEXTURE_WRAP_S, oreWrapToGL(desc.wrapU));
-    glSamplerParameteri(s, GL_TEXTURE_WRAP_T, oreWrapToGL(desc.wrapV));
-    glSamplerParameteri(s, GL_TEXTURE_WRAP_R, oreWrapToGL(desc.wrapW));
+  glSamplerParameteri(s, GL_TEXTURE_WRAP_S, oreWrapToGL(desc.wrapU));
+  glSamplerParameteri(s, GL_TEXTURE_WRAP_T, oreWrapToGL(desc.wrapV));
+  glSamplerParameteri(s, GL_TEXTURE_WRAP_R, oreWrapToGL(desc.wrapW));
 
-    glSamplerParameterf(s, GL_TEXTURE_MIN_LOD, desc.minLod);
-    glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, desc.maxLod);
+  glSamplerParameterf(s, GL_TEXTURE_MIN_LOD, desc.minLod);
+  glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, desc.maxLod);
 
-    // Every other backend honors maxAnisotropy.
-    if (m_features.anisotropicFiltering && desc.maxAnisotropy > 1)
-    {
-        GLfloat maxSupported = 1.f;
-        glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxSupported);
-        glSamplerParameterf(
-            s,
-            GL_TEXTURE_MAX_ANISOTROPY_EXT,
-            std::min(static_cast<GLfloat>(desc.maxAnisotropy), maxSupported));
-    }
+  // Every other backend honors maxAnisotropy.
+  if (m_features.anisotropicFiltering && desc.maxAnisotropy > 1)
+  {
+    GLfloat maxSupported = 1.f;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxSupported);
+    glSamplerParameterf(
+        s,
+        GL_TEXTURE_MAX_ANISOTROPY_EXT,
+        std::min(static_cast<GLfloat>(desc.maxAnisotropy), maxSupported));
+  }
 
-    if (desc.compare != CompareFunction::none)
-    {
-        glSamplerParameteri(s,
-                            GL_TEXTURE_COMPARE_MODE,
-                            GL_COMPARE_REF_TO_TEXTURE);
-        glSamplerParameteri(s,
-                            GL_TEXTURE_COMPARE_FUNC,
-                            oreCompareFunctionToGL(desc.compare));
-    }
-    sampler->recordDesc(desc);
+  if (desc.compare != CompareFunction::none)
+  {
+    glSamplerParameteri(s, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+    glSamplerParameteri(
+        s,
+        GL_TEXTURE_COMPARE_FUNC,
+        oreCompareFunctionToGL(desc.compare));
+  }
+  sampler->recordDesc(desc);
 
-    return sampler;
+  return sampler;
 }
 
 // ============================================================================
@@ -734,64 +737,65 @@ rcp<Sampler> ContextGL::makeSampler(const SamplerDesc& desc)
 
 rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
 {
-    auto module = rcp<ShaderModuleGL>(new ShaderModuleGL());
+  auto module = rcp<ShaderModuleGL>(new ShaderModuleGL());
 
-    const char* source = static_cast<const char*>(desc.code);
+  const char* source = static_cast<const char*>(desc.code);
 
-    bool isVertex;
-    if (desc.stage != ShaderStage::autoDetect)
+  bool isVertex;
+  if (desc.stage != ShaderStage::autoDetect)
+  {
+    isVertex = (desc.stage == ShaderStage::vertex);
+  }
+  else
+  {
+    // Legacy fallback: detect shader type from gl_Position presence.
+    // Use bounded search — RSTB blobs are NOT null-terminated.
+    const char* needle = "gl_Position";
+    const size_t needleLen = 11; // strlen("gl_Position")
+    isVertex = false;
+    if (desc.codeSize >= needleLen)
     {
-        isVertex = (desc.stage == ShaderStage::vertex);
-    }
-    else
-    {
-        // Legacy fallback: detect shader type from gl_Position presence.
-        // Use bounded search — RSTB blobs are NOT null-terminated.
-        const char* needle = "gl_Position";
-        const size_t needleLen = 11; // strlen("gl_Position")
-        isVertex = false;
-        if (desc.codeSize >= needleLen)
+      const char* end = source + desc.codeSize - needleLen + 1;
+      for (const char* p = source; p < end; ++p)
+      {
+        if (memcmp(p, needle, needleLen) == 0)
         {
-            const char* end = source + desc.codeSize - needleLen + 1;
-            for (const char* p = source; p < end; ++p)
-            {
-                if (memcmp(p, needle, needleLen) == 0)
-                {
-                    isVertex = true;
-                    break;
-                }
-            }
+          isVertex = true;
+          break;
         }
+      }
     }
-    module->m_glShaderType = isVertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+  }
+  module->m_glShaderType = isVertex ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
 
-    module->m_glShader = glCreateShader(module->m_glShaderType);
+  module->m_glShader = glCreateShader(module->m_glShaderType);
 
-    GLint length = static_cast<GLint>(desc.codeSize);
-    glShaderSource(module->m_glShader, 1, &source, &length);
-    glCompileShader(module->m_glShader);
+  GLint length = static_cast<GLint>(desc.codeSize);
+  glShaderSource(module->m_glShader, 1, &source, &length);
+  glCompileShader(module->m_glShader);
 
-    GLint status = 0;
-    glGetShaderiv(module->m_glShader, GL_COMPILE_STATUS, &status);
-    if (!status)
+  GLint status = 0;
+  glGetShaderiv(module->m_glShader, GL_COMPILE_STATUS, &status);
+  if (!status)
+  {
+    char log[1024] = {};
+    GLint logLen = 0;
+    glGetShaderiv(module->m_glShader, GL_INFO_LOG_LENGTH, &logLen);
+    if (logLen > 0)
     {
-        char log[1024] = {};
-        GLint logLen = 0;
-        glGetShaderiv(module->m_glShader, GL_INFO_LOG_LENGTH, &logLen);
-        if (logLen > 0)
-        {
-            glGetShaderInfoLog(module->m_glShader,
-                               std::min(logLen, (GLint)sizeof(log)),
-                               nullptr,
-                               log);
-        }
-        setLastError("Ore GL shader compile error: %s", log);
-        glDeleteShader(module->m_glShader);
-        return nullptr;
+      glGetShaderInfoLog(
+          module->m_glShader,
+          std::min(logLen, (GLint)sizeof(log)),
+          nullptr,
+          log);
     }
+    setLastError("Ore GL shader compile error: %s", log);
+    glDeleteShader(module->m_glShader);
+    return nullptr;
+  }
 
-    module->applyBindingMapFromDesc(desc);
-    return module;
+  module->applyBindingMapFromDesc(desc);
+  return module;
 }
 
 // ============================================================================
@@ -817,137 +821,142 @@ rcp<ShaderModule> ContextGL::makeShaderModule(const ShaderModuleDesc& desc)
 // stays alive via GL refcount until the program is destroyed.
 static void attachNoOpGLFragmentShader(GLuint program)
 {
-    static const char kSrc[] = "#version 300 es\nvoid main() {}\n";
-    GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    const char* src = kSrc;
-    GLint len = static_cast<GLint>(sizeof(kSrc) - 1);
-    glShaderSource(fs, 1, &src, &len);
-    glCompileShader(fs);
-    glAttachShader(program, fs);
-    glDeleteShader(fs);
+  static const char kSrc[] = "#version 300 es\nvoid main() {}\n";
+  GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+  const char* src = kSrc;
+  GLint len = static_cast<GLint>(sizeof(kSrc) - 1);
+  glShaderSource(fs, 1, &src, &len);
+  glCompileShader(fs);
+  glAttachShader(program, fs);
+  glDeleteShader(fs);
 }
 
-static void oreGLFixupProgramBindings(GLuint program,
-                                      const ShaderModule* vsModule,
-                                      const ShaderModule* fsModule)
+static void oreGLFixupProgramBindings(
+    GLuint program,
+    const ShaderModule* vsModule,
+    const ShaderModule* fsModule)
 {
-    glUseProgram(program);
+  glUseProgram(program);
 
-    auto applyEntry = [&](const ShaderModule::GLFixupEntry& e) {
-        if (e.kind == ShaderModule::GLFixupEntry::Kind::UBOBlock)
-        {
-            GLuint idx = glGetUniformBlockIndex(program, e.name.c_str());
-            if (idx != GL_INVALID_INDEX)
-                glUniformBlockBinding(program, idx, e.slot);
-        }
-        else // SamplerUniform
-        {
-            GLint loc = glGetUniformLocation(program, e.name.c_str());
-            if (loc >= 0)
-                glUniform1i(loc, e.slot);
-        }
-    };
-
-    if (vsModule != nullptr)
+  auto applyEntry = [&](const ShaderModule::GLFixupEntry& e) {
+    if (e.kind == ShaderModule::GLFixupEntry::Kind::UBOBlock)
     {
-        for (const auto& e : vsModule->m_glFixup)
-            applyEntry(e);
+      GLuint idx = glGetUniformBlockIndex(program, e.name.c_str());
+      if (idx != GL_INVALID_INDEX)
+        glUniformBlockBinding(program, idx, e.slot);
     }
-    if (fsModule != nullptr && fsModule != vsModule)
+    else // SamplerUniform
     {
-        for (const auto& e : fsModule->m_glFixup)
-            applyEntry(e);
+      GLint loc = glGetUniformLocation(program, e.name.c_str());
+      if (loc >= 0)
+        glUniform1i(loc, e.slot);
     }
+  };
 
-    glUseProgram(0);
+  if (vsModule != nullptr)
+  {
+    for (const auto& e : vsModule->m_glFixup)
+      applyEntry(e);
+  }
+  if (fsModule != nullptr && fsModule != vsModule)
+  {
+    for (const auto& e : fsModule->m_glFixup)
+      applyEntry(e);
+  }
+
+  glUseProgram(0);
 }
 
 // ============================================================================
 // makePipeline
 // ============================================================================
 
-rcp<Pipeline> ContextGL::makePipeline(const PipelineDesc& desc,
-                                      std::string* outError)
+rcp<Pipeline> ContextGL::makePipeline(
+    const PipelineDesc& desc,
+    std::string* outError)
 {
-    auto pipeline = rcp<PipelineGL>(new PipelineGL(desc));
+  auto pipeline = rcp<PipelineGL>(new PipelineGL(desc));
 
-    // --- Validate user-supplied layouts against shader binding map ---
+  // --- Validate user-supplied layouts against shader binding map ---
+  {
+    std::string err;
+    if (!validatePipelineDesc(
+            desc,
+            pipeline->m_bindingMap,
+            NativeSlotScope::perKind,
+            &err))
     {
-        std::string err;
-        if (!validatePipelineDesc(desc,
-                                  pipeline->m_bindingMap,
-                                  NativeSlotScope::perKind,
-                                  &err))
-        {
-            if (outError)
-                *outError = err;
-            else
-                setLastError("makePipeline: %s", err.c_str());
-            return nullptr;
-        }
+      if (outError)
+        *outError = err;
+      else
+        setLastError("makePipeline: %s", err.c_str());
+      return nullptr;
     }
+  }
 
-    pipeline->m_glProgram = glCreateProgram();
-    auto* vertMod = lite_rtti_cast<ShaderModuleGL*>(desc.vertexModule);
-    assert(vertMod);
-    glAttachShader(pipeline->m_glProgram, vertMod->m_glShader);
-    if (desc.fragmentModule != nullptr)
+  pipeline->m_glProgram = glCreateProgram();
+  auto* vertMod = lite_rtti_cast<ShaderModuleGL*>(desc.vertexModule);
+  assert(vertMod);
+  glAttachShader(pipeline->m_glProgram, vertMod->m_glShader);
+  if (desc.fragmentModule != nullptr)
+  {
+    auto* fragMod = lite_rtti_cast<ShaderModuleGL*>(desc.fragmentModule);
+    assert(fragMod);
+    glAttachShader(pipeline->m_glProgram, fragMod->m_glShader);
+  }
+  else
+  {
+    attachNoOpGLFragmentShader(pipeline->m_glProgram);
+  }
+
+  // Bind vertex attribute locations before linking (matches shaderSlot).
+  for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
+  {
+    const auto& layout = desc.vertexBuffers[bufIdx];
+    for (uint32_t attrIdx = 0; attrIdx < layout.attributeCount; ++attrIdx)
     {
-        auto* fragMod = lite_rtti_cast<ShaderModuleGL*>(desc.fragmentModule);
-        assert(fragMod);
-        glAttachShader(pipeline->m_glProgram, fragMod->m_glShader);
+      const auto& attr = layout.attributes[attrIdx];
+      char name[32];
+      snprintf(name, sizeof(name), "a_attr%u", attr.shaderSlot);
+      glBindAttribLocation(pipeline->m_glProgram, attr.shaderSlot, name);
     }
-    else
+  }
+
+  glLinkProgram(pipeline->m_glProgram);
+
+  GLint status = 0;
+  glGetProgramiv(pipeline->m_glProgram, GL_LINK_STATUS, &status);
+  if (!status)
+  {
+    std::string linkLog = "GL program link failed";
+    GLint logLen = 0;
+    glGetProgramiv(pipeline->m_glProgram, GL_INFO_LOG_LENGTH, &logLen);
+    if (logLen > 0)
     {
-        attachNoOpGLFragmentShader(pipeline->m_glProgram);
+      char log[1024];
+      glGetProgramInfoLog(
+          pipeline->m_glProgram,
+          std::min(logLen, (GLint)sizeof(log)),
+          nullptr,
+          log);
+      linkLog = log;
     }
+    setLastError("Ore GL program link error: %s", linkLog.c_str());
+    if (outError)
+      *outError = std::move(linkLog);
+    return nullptr;
+  }
 
-    // Bind vertex attribute locations before linking (matches shaderSlot).
-    for (uint32_t bufIdx = 0; bufIdx < desc.vertexBufferCount; ++bufIdx)
-    {
-        const auto& layout = desc.vertexBuffers[bufIdx];
-        for (uint32_t attrIdx = 0; attrIdx < layout.attributeCount; ++attrIdx)
-        {
-            const auto& attr = layout.attributes[attrIdx];
-            char name[32];
-            snprintf(name, sizeof(name), "a_attr%u", attr.shaderSlot);
-            glBindAttribLocation(pipeline->m_glProgram, attr.shaderSlot, name);
-        }
-    }
+  oreGLFixupProgramBindings(
+      pipeline->m_glProgram,
+      desc.vertexModule,
+      desc.fragmentModule);
 
-    glLinkProgram(pipeline->m_glProgram);
+  // (Removed: a `m_glState` cache that was populated here but never
+  // consulted by `setPipeline`. Re-add when an actual delta-tracking
+  // path lands.)
 
-    GLint status = 0;
-    glGetProgramiv(pipeline->m_glProgram, GL_LINK_STATUS, &status);
-    if (!status)
-    {
-        std::string linkLog = "GL program link failed";
-        GLint logLen = 0;
-        glGetProgramiv(pipeline->m_glProgram, GL_INFO_LOG_LENGTH, &logLen);
-        if (logLen > 0)
-        {
-            char log[1024];
-            glGetProgramInfoLog(pipeline->m_glProgram,
-                                std::min(logLen, (GLint)sizeof(log)),
-                                nullptr,
-                                log);
-            linkLog = log;
-        }
-        setLastError("Ore GL program link error: %s", linkLog.c_str());
-        if (outError)
-            *outError = std::move(linkLog);
-        return nullptr;
-    }
-
-    oreGLFixupProgramBindings(pipeline->m_glProgram,
-                              desc.vertexModule,
-                              desc.fragmentModule);
-
-    // (Removed: a `m_glState` cache that was populated here but never
-    // consulted by `setPipeline`. Re-add when an actual delta-tracking
-    // path lands.)
-
-    return pipeline;
+  return pipeline;
 }
 
 // ============================================================================
@@ -956,146 +965,147 @@ rcp<Pipeline> ContextGL::makePipeline(const PipelineDesc& desc,
 
 rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
 {
-    if (desc.layout == nullptr)
-    {
-        setLastError("makeBindGroup: BindGroupDesc::layout is null");
-        return nullptr;
-    }
-    if (std::string err; !validateBindGroupDesc(desc, &err))
-    {
-        setLastError("makeBindGroup: %s", err.c_str());
-        return nullptr;
-    }
-    BindGroupLayout* layout = desc.layout;
-    const uint32_t groupIndex = layout->groupIndex();
-    if (groupIndex >= kMaxBindGroups)
-    {
-        setLastError("makeBindGroup: layout->groupIndex %u out of range",
-                     groupIndex);
-        return nullptr;
-    }
-    auto bg = rcp<BindGroupGL>(new BindGroupGL());
-    bg->m_context = this;
-    bg->m_layoutRef = ref_rcp(layout);
-    bg->recordDynamicRanges(desc);
+  if (desc.layout == nullptr)
+  {
+    setLastError("makeBindGroup: BindGroupDesc::layout is null");
+    return nullptr;
+  }
+  if (std::string err; !validateBindGroupDesc(desc, &err))
+  {
+    setLastError("makeBindGroup: %s", err.c_str());
+    return nullptr;
+  }
+  BindGroupLayout* layout = desc.layout;
+  const uint32_t groupIndex = layout->groupIndex();
+  if (groupIndex >= kMaxBindGroups)
+  {
+    setLastError(
+        "makeBindGroup: layout->groupIndex %u out of range",
+        groupIndex);
+    return nullptr;
+  }
+  auto bg = rcp<BindGroupGL>(new BindGroupGL());
+  bg->m_context = this;
+  bg->m_layoutRef = ref_rcp(layout);
+  bg->recordDynamicRanges(desc);
 
-    // Native GL slot resolution: layout entries are pre-resolved by the
-    // GM/Lua helper (makeLayoutFromShader) using the shader's binding map.
-    // The v1 GLSL allocator's global-counter-per-kind ensures slots are
-    // unique across groups. Sampler entries carry the paired-texture's GL
-    // unit (combined-sampler fold-in), matching the GL link-side fixup.
-    auto nativeSlot =
-        [&](uint32_t binding, BindingKind expected, uint32_t* outSlot) -> bool {
-        const BindGroupLayoutEntry* le = layout->findEntry(binding);
-        if (le == nullptr)
-        {
-            setLastError("makeBindGroup: (group=%u, binding=%u) not declared "
-                         "in BindGroupLayout",
-                         groupIndex,
-                         binding);
-            return false;
-        }
-        const bool kindOK = le->kind == expected ||
-                            ((le->kind == BindingKind::sampler ||
-                              le->kind == BindingKind::comparisonSampler) &&
-                             (expected == BindingKind::sampler ||
-                              expected == BindingKind::comparisonSampler));
-        if (!kindOK)
-        {
-            setLastError("makeBindGroup: (group=%u, binding=%u) layout kind "
-                         "mismatch",
-                         groupIndex,
-                         binding);
-            return false;
-        }
-        uint32_t s =
-            (le->nativeSlotVS != BindGroupLayoutEntry::kNativeSlotAbsent)
-                ? le->nativeSlotVS
-                : le->nativeSlotFS;
-        if (s == BindGroupLayoutEntry::kNativeSlotAbsent)
-        {
-            setLastError("makeBindGroup: (group=%u, binding=%u) layout has "
-                         "no resolved native slot — call "
-                         "makeLayoutFromShader",
-                         groupIndex,
-                         binding);
-            return false;
-        }
-        *outSlot = s;
-        return true;
-    };
-
-    // UBO bindings.
-    uint32_t nBufs = std::min(desc.uboCount, 8u);
-    bg->m_glUBOs.reserve(nBufs);
-    for (uint32_t i = 0; i < nBufs; ++i)
+  // Native GL slot resolution: layout entries are pre-resolved by the
+  // GM/Lua helper (makeLayoutFromShader) using the shader's binding map.
+  // The v1 GLSL allocator's global-counter-per-kind ensures slots are
+  // unique across groups. Sampler entries carry the paired-texture's GL
+  // unit (combined-sampler fold-in), matching the GL link-side fixup.
+  auto nativeSlot =
+      [&](uint32_t binding, BindingKind expected, uint32_t* outSlot) -> bool {
+    const BindGroupLayoutEntry* le = layout->findEntry(binding);
+    if (le == nullptr)
     {
-        const auto& entry = desc.ubos[i];
-        BindGroupGL::GLUBOBinding binding{};
-        auto* buf = lite_rtti_cast<BufferGL*>(entry.buffer);
-        assert(buf);
-        binding.buffer = buf->m_glBuffer;
-        binding.offset = entry.offset;
-        uint32_t size =
-            entry.size != 0
-                ? entry.size
-                : static_cast<uint32_t>(entry.buffer->size() - entry.offset);
-        // GL aligns offsets to at least 16, so the rounded range stays inside
-        // the padded allocation from makeBuffer.
-        binding.size = math::round_up_to_multiple_of<16>(size);
-        binding.binding = entry.slot;
-        if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &binding.slot))
-            continue;
-        binding.hasDynamicOffset = layout->hasDynamicOffset(entry.slot);
-        if (binding.hasDynamicOffset)
-            bg->m_dynamicOffsetCount++;
-        bg->m_glUBOs.push_back(binding);
-        bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
+      setLastError(
+          "makeBindGroup: (group=%u, binding=%u) not declared "
+          "in BindGroupLayout",
+          groupIndex,
+          binding);
+      return false;
     }
-    std::sort(bg->m_glUBOs.begin(),
-              bg->m_glUBOs.end(),
-              [](const BindGroupGL::GLUBOBinding& a,
-                 const BindGroupGL::GLUBOBinding& b) {
-                  return a.binding < b.binding;
-              });
-
-    uint32_t nTexs = std::min(desc.textureCount, 8u);
-    bg->m_glTextures.reserve(nTexs);
-    for (uint32_t i = 0; i < nTexs; ++i)
+    const bool kindOK = le->kind == expected ||
+                        ((le->kind == BindingKind::sampler ||
+                          le->kind == BindingKind::comparisonSampler) &&
+                         (expected == BindingKind::sampler ||
+                          expected == BindingKind::comparisonSampler));
+    if (!kindOK)
     {
-        const auto& entry = desc.textures[i];
-        BindGroupGL::GLTexBinding binding{};
-        auto* viewGL = lite_rtti_cast<TextureViewGL*>(entry.view);
-        assert(viewGL);
-        auto* texGL = lite_rtti_cast<TextureGL*>(entry.view->texture());
-        assert(texGL);
-        binding.texture = viewGL->m_glTextureView != 0 ? viewGL->m_glTextureView
-                                                       : texGL->m_glTexture;
-        binding.target = texGL->m_glTarget;
-        binding.binding = entry.slot;
-        if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &binding.slot))
-            continue;
-        bg->m_glTextures.push_back(binding);
-        bg->m_retainedViews.push_back(ref_rcp(entry.view));
+      setLastError(
+          "makeBindGroup: (group=%u, binding=%u) layout kind "
+          "mismatch",
+          groupIndex,
+          binding);
+      return false;
     }
-
-    uint32_t nSamps = std::min(desc.samplerCount, 8u);
-    bg->m_glSamplers.reserve(nSamps);
-    for (uint32_t i = 0; i < nSamps; ++i)
+    uint32_t s = (le->nativeSlotVS != BindGroupLayoutEntry::kNativeSlotAbsent)
+                     ? le->nativeSlotVS
+                     : le->nativeSlotFS;
+    if (s == BindGroupLayoutEntry::kNativeSlotAbsent)
     {
-        const auto& entry = desc.samplers[i];
-        BindGroupGL::GLSamplerBinding binding{};
-        auto* samp = lite_rtti_cast<SamplerGL*>(entry.sampler);
-        assert(samp);
-        binding.sampler = samp->m_glSampler;
-        binding.binding = entry.slot;
-        if (!nativeSlot(entry.slot, BindingKind::sampler, &binding.slot))
-            continue;
-        bg->m_glSamplers.push_back(binding);
-        bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
+      setLastError(
+          "makeBindGroup: (group=%u, binding=%u) layout has "
+          "no resolved native slot — call "
+          "makeLayoutFromShader",
+          groupIndex,
+          binding);
+      return false;
     }
+    *outSlot = s;
+    return true;
+  };
 
-    return bg;
+  // UBO bindings.
+  uint32_t nBufs = std::min(desc.uboCount, 8u);
+  bg->m_glUBOs.reserve(nBufs);
+  for (uint32_t i = 0; i < nBufs; ++i)
+  {
+    const auto& entry = desc.ubos[i];
+    BindGroupGL::GLUBOBinding binding{};
+    auto* buf = lite_rtti_cast<BufferGL*>(entry.buffer);
+    assert(buf);
+    binding.buffer = buf->m_glBuffer;
+    binding.offset = entry.offset;
+    uint32_t size = entry.size != 0 ? entry.size
+                                    : static_cast<uint32_t>(
+                                          entry.buffer->size() - entry.offset);
+    // GL aligns offsets to at least 16, so the rounded range stays inside
+    // the padded allocation from makeBuffer.
+    binding.size = math::round_up_to_multiple_of<16>(size);
+    binding.binding = entry.slot;
+    if (!nativeSlot(entry.slot, BindingKind::uniformBuffer, &binding.slot))
+      continue;
+    binding.hasDynamicOffset = layout->hasDynamicOffset(entry.slot);
+    if (binding.hasDynamicOffset)
+      bg->m_dynamicOffsetCount++;
+    bg->m_glUBOs.push_back(binding);
+    bg->m_retainedBuffers.push_back(ref_rcp(entry.buffer));
+  }
+  std::sort(
+      bg->m_glUBOs.begin(),
+      bg->m_glUBOs.end(),
+      [](const BindGroupGL::GLUBOBinding& a,
+         const BindGroupGL::GLUBOBinding& b) { return a.binding < b.binding; });
+
+  uint32_t nTexs = std::min(desc.textureCount, 8u);
+  bg->m_glTextures.reserve(nTexs);
+  for (uint32_t i = 0; i < nTexs; ++i)
+  {
+    const auto& entry = desc.textures[i];
+    BindGroupGL::GLTexBinding binding{};
+    auto* viewGL = lite_rtti_cast<TextureViewGL*>(entry.view);
+    assert(viewGL);
+    auto* texGL = lite_rtti_cast<TextureGL*>(entry.view->texture());
+    assert(texGL);
+    binding.texture = viewGL->m_glTextureView != 0 ? viewGL->m_glTextureView
+                                                   : texGL->m_glTexture;
+    binding.target = texGL->m_glTarget;
+    binding.binding = entry.slot;
+    if (!nativeSlot(entry.slot, BindingKind::sampledTexture, &binding.slot))
+      continue;
+    bg->m_glTextures.push_back(binding);
+    bg->m_retainedViews.push_back(ref_rcp(entry.view));
+  }
+
+  uint32_t nSamps = std::min(desc.samplerCount, 8u);
+  bg->m_glSamplers.reserve(nSamps);
+  for (uint32_t i = 0; i < nSamps; ++i)
+  {
+    const auto& entry = desc.samplers[i];
+    BindGroupGL::GLSamplerBinding binding{};
+    auto* samp = lite_rtti_cast<SamplerGL*>(entry.sampler);
+    assert(samp);
+    binding.sampler = samp->m_glSampler;
+    binding.binding = entry.slot;
+    if (!nativeSlot(entry.slot, BindingKind::sampler, &binding.slot))
+      continue;
+    bg->m_glSamplers.push_back(binding);
+    bg->m_retainedSamplers.push_back(ref_rcp(entry.sampler));
+  }
+
+  return bg;
 }
 
 // ============================================================================
@@ -1105,21 +1115,22 @@ rcp<BindGroup> ContextGL::makeBindGroup(const BindGroupDesc& desc)
 rcp<BindGroupLayout> ContextGL::makeBindGroupLayout(
     const BindGroupLayoutDesc& desc)
 {
-    if (desc.groupIndex >= kMaxBindGroups)
-    {
-        setLastError("makeBindGroupLayout: groupIndex %u out of range [0, %u)",
-                     desc.groupIndex,
-                     kMaxBindGroups);
-        return nullptr;
-    }
-    auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
-    layout->m_context = this;
-    layout->m_groupIndex = desc.groupIndex;
-    layout->m_entries.reserve(desc.entryCount);
-    for (uint32_t i = 0; i < desc.entryCount; ++i)
-        layout->m_entries.push_back(desc.entries[i]);
-    // GL has no native layout object — entries-only suffices.
-    return layout;
+  if (desc.groupIndex >= kMaxBindGroups)
+  {
+    setLastError(
+        "makeBindGroupLayout: groupIndex %u out of range [0, %u)",
+        desc.groupIndex,
+        kMaxBindGroups);
+    return nullptr;
+  }
+  auto layout = rcp<BindGroupLayout>(new BindGroupLayout(nullptr));
+  layout->m_context = this;
+  layout->m_groupIndex = desc.groupIndex;
+  layout->m_entries.reserve(desc.entryCount);
+  for (uint32_t i = 0; i < desc.entryCount; ++i)
+    layout->m_entries.push_back(desc.entries[i]);
+  // GL has no native layout object — entries-only suffices.
+  return layout;
 }
 
 // ============================================================================
@@ -1130,266 +1141,271 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
     const RenderPassDesc& desc,
     std::string* outError)
 {
-    auto pass = std::make_unique<RenderPassGL>(this);
-    pass->populateAttachmentMetadata(desc);
+  auto pass = std::make_unique<RenderPassGL>(this);
+  pass->populateAttachmentMetadata(desc);
 
-    // Save the host renderer's VAO and FBO so we can restore them in finish().
-    GLint prevVAO = 0, prevFBO = 0;
-    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
-    pass->m_prevVAO = static_cast<unsigned int>(prevVAO);
-    pass->m_prevFBO = static_cast<unsigned int>(prevFBO);
+  // Save the host renderer's VAO and FBO so we can restore them in finish().
+  GLint prevVAO = 0, prevFBO = 0;
+  glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVAO);
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFBO);
+  pass->m_prevVAO = static_cast<unsigned int>(prevVAO);
+  pass->m_prevFBO = static_cast<unsigned int>(prevFBO);
 
-    // Borrow this context's scratch FBO; 0 means another pass is still
-    // holding it, so this one mints and owns its own.
-    pass->m_glFBO = acquireScratchFBO();
-    if (pass->m_glFBO == 0)
+  // Borrow this context's scratch FBO; 0 means another pass is still
+  // holding it, so this one mints and owns its own.
+  pass->m_glFBO = acquireScratchFBO();
+  if (pass->m_glFBO == 0)
+  {
+    glGenFramebuffers(1, &pass->m_glFBO);
+    pass->m_ownsFBO = true;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
+
+  // Hashes what decides completeness. A stale match only skips the report.
+  uint64_t attachmentKey = 14695981039346656037ull;
+  auto mixKey = [&attachmentKey](uint64_t v) {
+    attachmentKey = (attachmentKey ^ v) * 1099511628211ull;
+  };
+  auto mixAttachment =
+      [&mixKey](GLenum point, const TextureGL* tex, const TextureView& view) {
+        mixKey(point);
+        mixKey(tex->m_glTexture);
+        mixKey(tex->m_glRenderbuffer);
+        mixKey(static_cast<uint64_t>(tex->type()));
+        mixKey(static_cast<uint64_t>(tex->format()));
+        mixKey((uint64_t(tex->width()) << 32) | tex->height());
+        mixKey(tex->sampleCount());
+        mixKey((uint64_t(view.baseMipLevel()) << 32) | view.baseLayer());
+      };
+  mixKey(desc.colorCount);
+
+  // Attach color targets.
+  GLenum drawBuffers[4] = {};
+  for (uint32_t i = 0; i < desc.colorCount; ++i)
+  {
+    const auto& ca = desc.colorAttachments[i];
+    if (ca.view)
     {
-        glGenFramebuffers(1, &pass->m_glFBO);
-        pass->m_ownsFBO = true;
+      auto* texGL = lite_rtti_cast<TextureGL*>(ca.view->texture());
+      assert(texGL);
+      GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+      mixAttachment(attachment, texGL, *ca.view);
+
+      if (texGL->m_glRenderbuffer != 0)
+      {
+        glFramebufferRenderbuffer(
+            GL_FRAMEBUFFER,
+            attachment,
+            GL_RENDERBUFFER,
+            texGL->m_glRenderbuffer);
+      }
+      else if (texGL->type() == TextureType::cube)
+      {
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER,
+            attachment,
+            GL_TEXTURE_CUBE_MAP_POSITIVE_X + ca.view->baseLayer(),
+            texGL->m_glTexture,
+            ca.view->baseMipLevel());
+      }
+      else if (
+          texGL->type() == TextureType::array2D ||
+          texGL->type() == TextureType::texture3D)
+      {
+        glFramebufferTextureLayer(
+            GL_FRAMEBUFFER,
+            attachment,
+            texGL->m_glTexture,
+            ca.view->baseMipLevel(),
+            ca.view->baseLayer());
+      }
+      else
+      {
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER,
+            attachment,
+            GL_TEXTURE_2D,
+            texGL->m_glTexture,
+            ca.view->baseMipLevel());
+      }
+
+      // Record resolve target for MSAA blit in finish().
+      if (ca.resolveTarget)
+      {
+        auto* resolveTexGL = lite_rtti_cast<TextureGL*>(
+            ca.resolveTarget->texture());
+        assert(resolveTexGL);
+        auto& r = pass->m_glResolves[pass->m_glResolveCount++];
+        r.colorIndex = i;
+        r.resolveTex = resolveTexGL->m_glTexture;
+        r.resolveTarget = resolveTexGL->m_glTarget;
+        r.width = texGL->width();
+        r.height = texGL->height();
+      }
+
+      drawBuffers[i] = attachment;
     }
-    glBindFramebuffer(GL_FRAMEBUFFER, pass->m_glFBO);
+  }
 
-    // Hashes what decides completeness. A stale match only skips the report.
-    uint64_t attachmentKey = 14695981039346656037ull;
-    auto mixKey = [&attachmentKey](uint64_t v) {
-        attachmentKey = (attachmentKey ^ v) * 1099511628211ull;
-    };
-    auto mixAttachment =
-        [&mixKey](GLenum point, const TextureGL* tex, const TextureView& view) {
-            mixKey(point);
-            mixKey(tex->m_glTexture);
-            mixKey(tex->m_glRenderbuffer);
-            mixKey(static_cast<uint64_t>(tex->type()));
-            mixKey(static_cast<uint64_t>(tex->format()));
-            mixKey((uint64_t(tex->width()) << 32) | tex->height());
-            mixKey(tex->sampleCount());
-            mixKey((uint64_t(view.baseMipLevel()) << 32) | view.baseLayer());
-        };
-    mixKey(desc.colorCount);
+  if (desc.colorCount > 0)
+  {
+    glDrawBuffers(desc.colorCount, drawBuffers);
+  }
+  else
+  {
+    // A depth-only framebuffer has no color attachment to draw into.
+    // Draw and read buffers are FBO state and default to color attachment
+    // zero, so explicitly disable both for a depth-only pass.
+    GLenum noDrawBuffer = GL_NONE;
+    glDrawBuffers(1, &noDrawBuffer);
+    glReadBuffer(GL_NONE);
+  }
 
-    // Attach color targets.
-    GLenum drawBuffers[4] = {};
-    for (uint32_t i = 0; i < desc.colorCount; ++i)
+  // Attach depth/stencil.
+  GLenum depthAttachment = 0;
+  if (desc.depthStencil.view)
+  {
+    auto* depthTexGL = lite_rtti_cast<TextureGL*>(
+        desc.depthStencil.view->texture());
+    assert(depthTexGL);
+
+    TextureFormat depthFmt = depthTexGL->format();
+    bool hasStencil =
+        (depthFmt == TextureFormat::depth24plusStencil8 ||
+         depthFmt == TextureFormat::depth32floatStencil8);
+    depthAttachment = hasStencil ? GL_DEPTH_STENCIL_ATTACHMENT
+                                 : GL_DEPTH_ATTACHMENT;
+    mixAttachment(depthAttachment, depthTexGL, *desc.depthStencil.view);
+
+    if (depthTexGL->m_glRenderbuffer != 0)
     {
-        const auto& ca = desc.colorAttachments[i];
-        if (ca.view)
-        {
-            auto* texGL = lite_rtti_cast<TextureGL*>(ca.view->texture());
-            assert(texGL);
-            GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
-            mixAttachment(attachment, texGL, *ca.view);
-
-            if (texGL->m_glRenderbuffer != 0)
-            {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                          attachment,
-                                          GL_RENDERBUFFER,
-                                          texGL->m_glRenderbuffer);
-            }
-            else if (texGL->type() == TextureType::cube)
-            {
-                glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                       attachment,
-                                       GL_TEXTURE_CUBE_MAP_POSITIVE_X +
-                                           ca.view->baseLayer(),
-                                       texGL->m_glTexture,
-                                       ca.view->baseMipLevel());
-            }
-            else if (texGL->type() == TextureType::array2D ||
-                     texGL->type() == TextureType::texture3D)
-            {
-                glFramebufferTextureLayer(GL_FRAMEBUFFER,
-                                          attachment,
-                                          texGL->m_glTexture,
-                                          ca.view->baseMipLevel(),
-                                          ca.view->baseLayer());
-            }
-            else
-            {
-                glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                       attachment,
-                                       GL_TEXTURE_2D,
-                                       texGL->m_glTexture,
-                                       ca.view->baseMipLevel());
-            }
-
-            // Record resolve target for MSAA blit in finish().
-            if (ca.resolveTarget)
-            {
-                auto* resolveTexGL =
-                    lite_rtti_cast<TextureGL*>(ca.resolveTarget->texture());
-                assert(resolveTexGL);
-                auto& r = pass->m_glResolves[pass->m_glResolveCount++];
-                r.colorIndex = i;
-                r.resolveTex = resolveTexGL->m_glTexture;
-                r.resolveTarget = resolveTexGL->m_glTarget;
-                r.width = texGL->width();
-                r.height = texGL->height();
-            }
-
-            drawBuffers[i] = attachment;
-        }
-    }
-
-    if (desc.colorCount > 0)
-    {
-        glDrawBuffers(desc.colorCount, drawBuffers);
+      glFramebufferRenderbuffer(
+          GL_FRAMEBUFFER,
+          depthAttachment,
+          GL_RENDERBUFFER,
+          depthTexGL->m_glRenderbuffer);
     }
     else
     {
-        // A depth-only framebuffer has no color attachment to draw into.
-        // Draw and read buffers are FBO state and default to color attachment
-        // zero, so explicitly disable both for a depth-only pass.
-        GLenum noDrawBuffer = GL_NONE;
-        glDrawBuffers(1, &noDrawBuffer);
-        glReadBuffer(GL_NONE);
+      glFramebufferTexture2D(
+          GL_FRAMEBUFFER,
+          depthAttachment,
+          GL_TEXTURE_2D,
+          depthTexGL->m_glTexture,
+          desc.depthStencil.view->baseMipLevel());
     }
+  }
+  // What finish() has to hand back with the scratch FBO, so the next
+  // borrower can strip it. The color count is already on the pass.
+  pass->m_glDepthAttachment = depthAttachment;
 
-    // Attach depth/stencil.
-    GLenum depthAttachment = 0;
-    if (desc.depthStencil.view)
+  // An incomplete FBO drops every draw of the pass with no other signal
+  // (WebGL2, unlike Metal, also rejects attachments of differing sizes),
+  // so report it instead of silently rendering nothing.
+  bool knownComplete = m_completeAttachmentKeys.count(attachmentKey) != 0;
+  GLenum fboStatus = knownComplete ? GL_FRAMEBUFFER_COMPLETE
+                                   : glCheckFramebufferStatus(GL_FRAMEBUFFER);
+  if (fboStatus == GL_FRAMEBUFFER_COMPLETE && !knownComplete)
+  {
+    // Bounds the set when a script churns through transient targets.
+    if (m_completeAttachmentKeys.size() >= 256)
     {
-        auto* depthTexGL =
-            lite_rtti_cast<TextureGL*>(desc.depthStencil.view->texture());
-        assert(depthTexGL);
+      m_completeAttachmentKeys.clear();
+    }
+    m_completeAttachmentKeys.insert(attachmentKey);
+  }
+  else if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+  {
+    setLastError(
+        "beginRenderPass: GL framebuffer incomplete (0x%x); "
+        "color/depth attachments must share size and "
+        "sampleCount",
+        static_cast<unsigned>(fboStatus));
+    if (lastError() != m_lastReportedError)
+    {
+      m_lastReportedError = lastError();
+      fprintf(stderr, "rive ore: %s\n", lastError().c_str());
+    }
+  }
+  // Handle clear ops.
+  for (uint32_t i = 0; i < desc.colorCount; ++i)
+  {
+    const auto& ca = desc.colorAttachments[i];
+    if (ca.loadOp == LoadOp::clear)
+    {
+      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+      GLfloat clearColor[4] =
+          {ca.clearColor.r, ca.clearColor.g, ca.clearColor.b, ca.clearColor.a};
+      glClearBufferfv(GL_COLOR, i, clearColor);
+    }
+  }
 
-        TextureFormat depthFmt = depthTexGL->format();
-        bool hasStencil = (depthFmt == TextureFormat::depth24plusStencil8 ||
-                           depthFmt == TextureFormat::depth32floatStencil8);
-        depthAttachment =
-            hasStencil ? GL_DEPTH_STENCIL_ATTACHMENT : GL_DEPTH_ATTACHMENT;
-        mixAttachment(depthAttachment, depthTexGL, *desc.depthStencil.view);
+  if (desc.depthStencil.view)
+  {
+    TextureFormat depthFmt = desc.depthStencil.view->texture()->format();
+    bool hasStencil =
+        (depthFmt == TextureFormat::depth24plusStencil8 ||
+         depthFmt == TextureFormat::depth32floatStencil8);
 
-        if (depthTexGL->m_glRenderbuffer != 0)
-        {
-            glFramebufferRenderbuffer(GL_FRAMEBUFFER,
-                                      depthAttachment,
-                                      GL_RENDERBUFFER,
-                                      depthTexGL->m_glRenderbuffer);
-        }
-        else
-        {
-            glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                   depthAttachment,
-                                   GL_TEXTURE_2D,
-                                   depthTexGL->m_glTexture,
-                                   desc.depthStencil.view->baseMipLevel());
-        }
+    if (desc.depthStencil.depthLoadOp == LoadOp::clear && hasStencil &&
+        desc.depthStencil.stencilLoadOp == LoadOp::clear)
+    {
+      glDepthMask(GL_TRUE);
+      glStencilMask(0xFF);
+      GLfloat depth = desc.depthStencil.depthClearValue;
+      GLint stencil = static_cast<GLint>(desc.depthStencil.stencilClearValue);
+      glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
     }
-    // What finish() has to hand back with the scratch FBO, so the next
-    // borrower can strip it. The color count is already on the pass.
-    pass->m_glDepthAttachment = depthAttachment;
+    else
+    {
+      if (desc.depthStencil.depthLoadOp == LoadOp::clear)
+      {
+        glDepthMask(GL_TRUE);
+        GLfloat depth = desc.depthStencil.depthClearValue;
+        glClearBufferfv(GL_DEPTH, 0, &depth);
+      }
+      if (hasStencil && desc.depthStencil.stencilLoadOp == LoadOp::clear)
+      {
+        glStencilMask(0xFF);
+        GLint stencil = static_cast<GLint>(desc.depthStencil.stencilClearValue);
+        glClearBufferiv(GL_STENCIL, 0, &stencil);
+      }
+    }
+  }
 
-    // An incomplete FBO drops every draw of the pass with no other signal
-    // (WebGL2, unlike Metal, also rejects attachments of differing sizes),
-    // so report it instead of silently rendering nothing.
-    bool knownComplete = m_completeAttachmentKeys.count(attachmentKey) != 0;
-    GLenum fboStatus = knownComplete ? GL_FRAMEBUFFER_COMPLETE
-                                     : glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (fboStatus == GL_FRAMEBUFFER_COMPLETE && !knownComplete)
-    {
-        // Bounds the set when a script churns through transient targets.
-        if (m_completeAttachmentKeys.size() >= 256)
-        {
-            m_completeAttachmentKeys.clear();
-        }
-        m_completeAttachmentKeys.insert(attachmentKey);
-    }
-    else if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-    {
-        setLastError("beginRenderPass: GL framebuffer incomplete (0x%x); "
-                     "color/depth attachments must share size and "
-                     "sampleCount",
-                     static_cast<unsigned>(fboStatus));
-        if (lastError() != m_lastReportedError)
-        {
-            m_lastReportedError = lastError();
-            fprintf(stderr, "rive ore: %s\n", lastError().c_str());
-        }
-    }
-    // Handle clear ops.
-    for (uint32_t i = 0; i < desc.colorCount; ++i)
-    {
-        const auto& ca = desc.colorAttachments[i];
-        if (ca.loadOp == LoadOp::clear)
-        {
-            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-            GLfloat clearColor[4] = {ca.clearColor.r,
-                                     ca.clearColor.g,
-                                     ca.clearColor.b,
-                                     ca.clearColor.a};
-            glClearBufferfv(GL_COLOR, i, clearColor);
-        }
-    }
+  // Ore's vertex attrib state must not contaminate the host renderer's VAO
+  // (e.g., Rive's draw VAO), so a pass renders through a VAO of its own.
+  // Borrow this context's; 0 means another pass still holds it.
+  pass->m_glVAO = acquireScratchVAO();
+  if (pass->m_glVAO == 0)
+  {
+    glGenVertexArrays(1, &pass->m_glVAO);
+    pass->m_ownsVAO = true;
+  }
+  glBindVertexArray(pass->m_glVAO);
 
-    if (desc.depthStencil.view)
-    {
-        TextureFormat depthFmt = desc.depthStencil.view->texture()->format();
-        bool hasStencil = (depthFmt == TextureFormat::depth24plusStencil8 ||
-                           depthFmt == TextureFormat::depth32floatStencil8);
+  // Set a default viewport from the first color or depth attachment so
+  // scripts that omit setViewport() still render correctly. Metal infers
+  // this automatically; GL does not.
+  uint32_t defaultW = 0, defaultH = 0;
+  if (desc.colorCount > 0 && desc.colorAttachments[0].view)
+  {
+    defaultW = desc.colorAttachments[0].view->width();
+    defaultH = desc.colorAttachments[0].view->height();
+  }
+  else if (desc.depthStencil.view)
+  {
+    defaultW = desc.depthStencil.view->width();
+    defaultH = desc.depthStencil.view->height();
+  }
+  if (defaultW > 0 && defaultH > 0)
+  {
+    glViewport(0, 0, defaultW, defaultH);
+    pass->m_viewportWidth = defaultW;
+    pass->m_viewportHeight = defaultH;
+  }
 
-        if (desc.depthStencil.depthLoadOp == LoadOp::clear && hasStencil &&
-            desc.depthStencil.stencilLoadOp == LoadOp::clear)
-        {
-            glDepthMask(GL_TRUE);
-            glStencilMask(0xFF);
-            GLfloat depth = desc.depthStencil.depthClearValue;
-            GLint stencil =
-                static_cast<GLint>(desc.depthStencil.stencilClearValue);
-            glClearBufferfi(GL_DEPTH_STENCIL, 0, depth, stencil);
-        }
-        else
-        {
-            if (desc.depthStencil.depthLoadOp == LoadOp::clear)
-            {
-                glDepthMask(GL_TRUE);
-                GLfloat depth = desc.depthStencil.depthClearValue;
-                glClearBufferfv(GL_DEPTH, 0, &depth);
-            }
-            if (hasStencil && desc.depthStencil.stencilLoadOp == LoadOp::clear)
-            {
-                glStencilMask(0xFF);
-                GLint stencil =
-                    static_cast<GLint>(desc.depthStencil.stencilClearValue);
-                glClearBufferiv(GL_STENCIL, 0, &stencil);
-            }
-        }
-    }
-
-    // Ore's vertex attrib state must not contaminate the host renderer's VAO
-    // (e.g., Rive's draw VAO), so a pass renders through a VAO of its own.
-    // Borrow this context's; 0 means another pass still holds it.
-    pass->m_glVAO = acquireScratchVAO();
-    if (pass->m_glVAO == 0)
-    {
-        glGenVertexArrays(1, &pass->m_glVAO);
-        pass->m_ownsVAO = true;
-    }
-    glBindVertexArray(pass->m_glVAO);
-
-    // Set a default viewport from the first color or depth attachment so
-    // scripts that omit setViewport() still render correctly. Metal infers
-    // this automatically; GL does not.
-    uint32_t defaultW = 0, defaultH = 0;
-    if (desc.colorCount > 0 && desc.colorAttachments[0].view)
-    {
-        defaultW = desc.colorAttachments[0].view->width();
-        defaultH = desc.colorAttachments[0].view->height();
-    }
-    else if (desc.depthStencil.view)
-    {
-        defaultW = desc.depthStencil.view->width();
-        defaultH = desc.depthStencil.view->height();
-    }
-    if (defaultW > 0 && defaultH > 0)
-    {
-        glViewport(0, 0, defaultW, defaultH);
-        pass->m_viewportWidth = defaultW;
-        pass->m_viewportHeight = defaultH;
-    }
-
-    return pass;
+  return pass;
 }
 
 // ============================================================================
@@ -1398,88 +1414,89 @@ std::unique_ptr<RenderPass> ContextGL::beginRenderPass(
 
 rcp<TextureView> ContextGL::glWrapTarget(gpu::TextureRenderTargetGL* target)
 {
-    GLuint texID = target->externalTextureID();
-    if (texID == 0)
-    {
-        return nullptr;
-    }
-    TextureDesc texDesc{};
-    texDesc.width = target->width();
-    texDesc.height = target->height();
-    texDesc.format = TextureFormat::rgba8unorm;
-    texDesc.type = TextureType::texture2D;
-    texDesc.renderTarget = true;
-    texDesc.numMipmaps = 1;
-    texDesc.sampleCount = 1;
+  GLuint texID = target->externalTextureID();
+  if (texID == 0)
+  {
+    return nullptr;
+  }
+  TextureDesc texDesc{};
+  texDesc.width = target->width();
+  texDesc.height = target->height();
+  texDesc.format = TextureFormat::rgba8unorm;
+  texDesc.type = TextureType::texture2D;
+  texDesc.renderTarget = true;
+  texDesc.numMipmaps = 1;
+  texDesc.sampleCount = 1;
 
-    auto texture = rcp<TextureGL>(new TextureGL(texDesc));
-    texture->m_glTexture = texID; // Borrow — the host owns it.
-    texture->m_glTarget = GL_TEXTURE_2D;
-    texture->m_glOwnsTexture = false;
+  auto texture = rcp<TextureGL>(new TextureGL(texDesc));
+  texture->m_glTexture = texID; // Borrow — the host owns it.
+  texture->m_glTarget = GL_TEXTURE_2D;
+  texture->m_glOwnsTexture = false;
 
-    TextureViewDesc viewDesc{};
-    viewDesc.texture = texture.get();
-    viewDesc.dimension = TextureViewDimension::texture2D;
-    viewDesc.baseMipLevel = 0;
-    viewDesc.mipCount = 1;
-    viewDesc.baseLayer = 0;
-    viewDesc.layerCount = 1;
+  TextureViewDesc viewDesc{};
+  viewDesc.texture = texture.get();
+  viewDesc.dimension = TextureViewDimension::texture2D;
+  viewDesc.baseMipLevel = 0;
+  viewDesc.mipCount = 1;
+  viewDesc.baseLayer = 0;
+  viewDesc.layerCount = 1;
 
-    return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
+  return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
 }
 
 rcp<TextureView> ContextGL::wrapCanvasTexture(gpu::RenderCanvas* canvas)
 {
-    assert(canvas != nullptr);
-    return glWrapTarget(
-        static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget()));
+  assert(canvas != nullptr);
+  return glWrapTarget(
+      static_cast<gpu::TextureRenderTargetGL*>(canvas->renderTarget()));
 }
 
 rcp<TextureView> ContextGL::wrapRenderTarget(gpu::RenderTarget* target)
 {
-    // Our GLSL flips Y at bake time, so passes land upright only in top down
-    // textures. Framebuffers and bottom up textures wait for an offscreen copy.
-    auto* glTarget = lite_rtti_cast<gpu::TextureRenderTargetGL*>(
-        static_cast<gpu::RenderTargetGL*>(target));
-    return glTarget != nullptr && !glTarget->bottomUp() ? glWrapTarget(glTarget)
-                                                        : nullptr;
+  // Our GLSL flips Y at bake time, so passes land upright only in top down
+  // textures. Framebuffers and bottom up textures wait for an offscreen copy.
+  auto* glTarget = lite_rtti_cast<gpu::TextureRenderTargetGL*>(
+      static_cast<gpu::RenderTargetGL*>(target));
+  return glTarget != nullptr && !glTarget->bottomUp() ? glWrapTarget(glTarget)
+                                                      : nullptr;
 }
 
-rcp<TextureView> ContextGL::wrapRiveTexture(gpu::Texture* gpuTex,
-                                            uint32_t w,
-                                            uint32_t h)
+rcp<TextureView> ContextGL::wrapRiveTexture(
+    gpu::Texture* gpuTex,
+    uint32_t w,
+    uint32_t h)
 {
-    if (!gpuTex)
-        return nullptr;
+  if (!gpuTex)
+    return nullptr;
 
-    GLuint texID = static_cast<GLuint>(
-        reinterpret_cast<uintptr_t>(gpuTex->nativeHandle()));
-    if (texID == 0)
-        return nullptr;
+  GLuint texID = static_cast<GLuint>(
+      reinterpret_cast<uintptr_t>(gpuTex->nativeHandle()));
+  if (texID == 0)
+    return nullptr;
 
-    TextureDesc texDesc{};
-    texDesc.width = w;
-    texDesc.height = h;
-    texDesc.format = TextureFormat::rgba8unorm; // Images decode to RGBA8.
-    texDesc.type = TextureType::texture2D;
-    texDesc.renderTarget = false;
-    texDesc.numMipmaps = 1;
-    texDesc.sampleCount = 1;
+  TextureDesc texDesc{};
+  texDesc.width = w;
+  texDesc.height = h;
+  texDesc.format = TextureFormat::rgba8unorm; // Images decode to RGBA8.
+  texDesc.type = TextureType::texture2D;
+  texDesc.renderTarget = false;
+  texDesc.numMipmaps = 1;
+  texDesc.sampleCount = 1;
 
-    auto texture = rcp<TextureGL>(new TextureGL(texDesc));
-    texture->m_glTexture = texID; // Borrow — caller owns via RenderImage.
-    texture->m_glTarget = GL_TEXTURE_2D;
-    texture->m_glOwnsTexture = false;
+  auto texture = rcp<TextureGL>(new TextureGL(texDesc));
+  texture->m_glTexture = texID; // Borrow — caller owns via RenderImage.
+  texture->m_glTarget = GL_TEXTURE_2D;
+  texture->m_glOwnsTexture = false;
 
-    TextureViewDesc viewDesc{};
-    viewDesc.texture = texture.get();
-    viewDesc.dimension = TextureViewDimension::texture2D;
-    viewDesc.baseMipLevel = 0;
-    viewDesc.mipCount = 1;
-    viewDesc.baseLayer = 0;
-    viewDesc.layerCount = 1;
+  TextureViewDesc viewDesc{};
+  viewDesc.texture = texture.get();
+  viewDesc.dimension = TextureViewDimension::texture2D;
+  viewDesc.baseMipLevel = 0;
+  viewDesc.mipCount = 1;
+  viewDesc.baseLayer = 0;
+  viewDesc.layerCount = 1;
 
-    return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
+  return rcp<TextureViewGL>(new TextureViewGL(std::move(texture), viewDesc));
 }
 
 } // namespace rive::ore

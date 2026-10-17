@@ -25,60 +25,60 @@ enum class SemanticActionType : uint8_t;
 /// with `rive::Event` (file/timeline event objects).
 enum class ListenerInvocationKind : uint8_t
 {
-    pointer = 0,
-    keyboard = 1,
-    textInput = 2,
-    focus = 3,
-    reportedEvent = 4,
-    viewModelChange = 5,
-    none = 6,
-    gamepadConnected = 7,
-    gamepadEvent = 8,
-    gamepadDisconnected = 9,
-    semantic = 10,
+  pointer = 0,
+  keyboard = 1,
+  textInput = 2,
+  focus = 3,
+  reportedEvent = 4,
+  viewModelChange = 5,
+  none = 6,
+  gamepadConnected = 7,
+  gamepadEvent = 8,
+  gamepadDisconnected = 9,
+  semantic = 10,
 };
 
 struct PointerInvocation
 {
-    Vec2D position{};
-    Vec2D previousPosition{};
-    int pointerId = 0;
-    ListenerType hitEvent = ListenerType::move;
-    float timeStamp = 0.f;
-    PointerButton button = PointerButton::primary;
+  Vec2D position{};
+  Vec2D previousPosition{};
+  int pointerId = 0;
+  ListenerType hitEvent = ListenerType::move;
+  float timeStamp = 0.f;
+  PointerButton button = PointerButton::primary;
 };
 
 struct KeyboardInvocation
 {
-    Key key = Key::space;
-    KeyModifiers modifiers = KeyModifiers::none;
-    bool isPressed = false;
-    bool isRepeat = false;
+  Key key = Key::space;
+  KeyModifiers modifiers = KeyModifiers::none;
+  bool isPressed = false;
+  bool isRepeat = false;
 };
 
 /// IME / committed text. Owned so `ListenerInvocation` remains valid if
 /// retained (e.g. scripted `Invocation` wrappers).
 struct TextInputInvocation
 {
-    std::string text;
+  std::string text;
 };
 
 struct FocusInvocation
 {
-    FocusListenerGroup* group = nullptr;
-    bool isFocus = false;
+  FocusListenerGroup* group = nullptr;
+  bool isFocus = false;
 };
 
 /// A Rive file `Event` reported through the state machine (timeline, etc.).
 struct ReportedEventInvocation
 {
-    Event* reportedEvent = nullptr;
-    float delaySeconds = 0.f;
+  Event* reportedEvent = nullptr;
+  float delaySeconds = 0.f;
 };
 
 struct ViewModelChangeInvocation
 {
-    ListenerViewModel* source = nullptr;
+  ListenerViewModel* source = nullptr;
 };
 
 struct NoneInvocation
@@ -87,7 +87,7 @@ struct NoneInvocation
 /// Full snapshot when a gamepad is first seen in the embedder.
 struct GamepadConnectedInvocation
 {
-    GamepadSnapshot snapshot{};
+  GamepadSnapshot snapshot{};
 };
 
 /// One changed button or axis after all deltas in an `update` record are
@@ -95,204 +95,208 @@ struct GamepadConnectedInvocation
 /// and the W3C index is a known standard button or stick/trigger slot.
 struct GamepadEventInvocation
 {
-    /// State after this update record is fully applied.
-    GamepadSnapshot fullState{};
-    GamepadInputChange change{};
-    bool hasStandardButtonIntent = false;
-    StandardGamepadButton standardButton{};
-    bool hasStandardAxisIntent = false;
-    StandardGamepadAxis standardAxis{};
+  /// State after this update record is fully applied.
+  GamepadSnapshot fullState{};
+  GamepadInputChange change{};
+  bool hasStandardButtonIntent = false;
+  StandardGamepadButton standardButton{};
+  bool hasStandardAxisIntent = false;
+  StandardGamepadAxis standardAxis{};
 };
 
 struct GamepadDisconnectedInvocation
 {
-    int deviceId = 0;
+  int deviceId = 0;
 };
 
 struct SemanticInvocation
 {
-    SemanticListenerGroup* group = nullptr;
-    SemanticActionType actionType{};
+  SemanticListenerGroup* group = nullptr;
+  SemanticActionType actionType{};
 };
 
-using ListenerInvocationStorage = std::variant<PointerInvocation,
-                                               KeyboardInvocation,
-                                               TextInputInvocation,
-                                               FocusInvocation,
-                                               ReportedEventInvocation,
-                                               ViewModelChangeInvocation,
-                                               NoneInvocation,
-                                               GamepadConnectedInvocation,
-                                               GamepadEventInvocation,
-                                               GamepadDisconnectedInvocation,
-                                               SemanticInvocation>;
+using ListenerInvocationStorage = std::variant<
+    PointerInvocation,
+    KeyboardInvocation,
+    TextInputInvocation,
+    FocusInvocation,
+    ReportedEventInvocation,
+    ViewModelChangeInvocation,
+    NoneInvocation,
+    GamepadConnectedInvocation,
+    GamepadEventInvocation,
+    GamepadDisconnectedInvocation,
+    SemanticInvocation>;
 
 /// Payload for a single run of listener actions (pointer, keyboard, reported
 /// event, etc.).
 class ListenerInvocation
 {
 public:
-    static ListenerInvocation pointer(
-        Vec2D position,
-        Vec2D previousPosition,
-        int pointerId,
-        ListenerType hitEvent,
-        float timeStamp,
-        PointerButton button = PointerButton::primary);
-    static ListenerInvocation keyboard(Key key,
-                                       KeyModifiers modifiers,
-                                       bool isPressed,
-                                       bool isRepeat);
-    static ListenerInvocation textInput(std::string text);
-    static ListenerInvocation focus(FocusListenerGroup* group, bool isFocus);
-    static ListenerInvocation reportedEvent(Event* reportedEvent,
-                                            float delaySeconds);
-    static ListenerInvocation viewModelChange(ListenerViewModel* source);
-    static ListenerInvocation none();
-    static ListenerInvocation semantic(SemanticListenerGroup* group,
-                                       SemanticActionType actionType);
-    static ListenerInvocation gamepadConnected(const GamepadSnapshot& snapshot);
-    static ListenerInvocation gamepadEvent(GamepadEventInvocation value);
-    static ListenerInvocation gamepadDisconnected(int deviceId);
+  static ListenerInvocation pointer(
+      Vec2D position,
+      Vec2D previousPosition,
+      int pointerId,
+      ListenerType hitEvent,
+      float timeStamp,
+      PointerButton button = PointerButton::primary);
+  static ListenerInvocation keyboard(
+      Key key,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat);
+  static ListenerInvocation textInput(std::string text);
+  static ListenerInvocation focus(FocusListenerGroup* group, bool isFocus);
+  static ListenerInvocation reportedEvent(
+      Event* reportedEvent,
+      float delaySeconds);
+  static ListenerInvocation viewModelChange(ListenerViewModel* source);
+  static ListenerInvocation none();
+  static ListenerInvocation semantic(
+      SemanticListenerGroup* group,
+      SemanticActionType actionType);
+  static ListenerInvocation gamepadConnected(const GamepadSnapshot& snapshot);
+  static ListenerInvocation gamepadEvent(GamepadEventInvocation value);
+  static ListenerInvocation gamepadDisconnected(int deviceId);
 
-    ListenerInvocationKind kind() const;
+  ListenerInvocationKind kind() const;
 
-    const PointerInvocation* asPointer() const;
-    const KeyboardInvocation* asKeyboard() const;
-    const TextInputInvocation* asTextInput() const;
-    const FocusInvocation* asFocus() const;
-    const ReportedEventInvocation* asReportedEvent() const;
-    const ViewModelChangeInvocation* asViewModelChange() const;
-    const NoneInvocation* asNone() const;
-    const GamepadConnectedInvocation* asGamepadConnected() const;
-    const GamepadEventInvocation* asGamepadEvent() const;
-    const GamepadDisconnectedInvocation* asGamepadDisconnected() const;
-    const SemanticInvocation* asSemantic() const;
+  const PointerInvocation* asPointer() const;
+  const KeyboardInvocation* asKeyboard() const;
+  const TextInputInvocation* asTextInput() const;
+  const FocusInvocation* asFocus() const;
+  const ReportedEventInvocation* asReportedEvent() const;
+  const ViewModelChangeInvocation* asViewModelChange() const;
+  const NoneInvocation* asNone() const;
+  const GamepadConnectedInvocation* asGamepadConnected() const;
+  const GamepadEventInvocation* asGamepadEvent() const;
+  const GamepadDisconnectedInvocation* asGamepadDisconnected() const;
+  const SemanticInvocation* asSemantic() const;
 
-    const ListenerInvocationStorage& storage() const { return m_storage; }
+  const ListenerInvocationStorage& storage() const { return m_storage; }
 
 private:
-    explicit ListenerInvocation(ListenerInvocationStorage&& storage) :
-        m_storage(std::move(storage))
-    {}
+  explicit ListenerInvocation(ListenerInvocationStorage&& storage)
+      : m_storage(std::move(storage))
+  {}
 
-    ListenerInvocationStorage m_storage;
+  ListenerInvocationStorage m_storage;
 };
 
 inline ListenerInvocationKind ListenerInvocation::kind() const
 {
-    return std::visit(
-        [](const auto& alt) -> ListenerInvocationKind {
-            using T = std::decay_t<decltype(alt)>;
-            if constexpr (std::is_same_v<T, PointerInvocation>)
-            {
-                return ListenerInvocationKind::pointer;
-            }
-            else if constexpr (std::is_same_v<T, KeyboardInvocation>)
-            {
-                return ListenerInvocationKind::keyboard;
-            }
-            else if constexpr (std::is_same_v<T, TextInputInvocation>)
-            {
-                return ListenerInvocationKind::textInput;
-            }
-            else if constexpr (std::is_same_v<T, FocusInvocation>)
-            {
-                return ListenerInvocationKind::focus;
-            }
-            else if constexpr (std::is_same_v<T, ReportedEventInvocation>)
-            {
-                return ListenerInvocationKind::reportedEvent;
-            }
-            else if constexpr (std::is_same_v<T, ViewModelChangeInvocation>)
-            {
-                return ListenerInvocationKind::viewModelChange;
-            }
-            else if constexpr (std::is_same_v<T, NoneInvocation>)
-            {
-                return ListenerInvocationKind::none;
-            }
-            else if constexpr (std::is_same_v<T, GamepadConnectedInvocation>)
-            {
-                return ListenerInvocationKind::gamepadConnected;
-            }
-            else if constexpr (std::is_same_v<T, GamepadEventInvocation>)
-            {
-                return ListenerInvocationKind::gamepadEvent;
-            }
-            else if constexpr (std::is_same_v<T, GamepadDisconnectedInvocation>)
-            {
-                return ListenerInvocationKind::gamepadDisconnected;
-            }
-            else if constexpr (std::is_same_v<T, SemanticInvocation>)
-            {
-                return ListenerInvocationKind::semantic;
-            }
-            else
-            {
-                return ListenerInvocationKind::none;
-            }
-        },
-        m_storage);
+  return std::visit(
+      [](const auto& alt) -> ListenerInvocationKind {
+        using T = std::decay_t<decltype(alt)>;
+        if constexpr (std::is_same_v<T, PointerInvocation>)
+        {
+          return ListenerInvocationKind::pointer;
+        }
+        else if constexpr (std::is_same_v<T, KeyboardInvocation>)
+        {
+          return ListenerInvocationKind::keyboard;
+        }
+        else if constexpr (std::is_same_v<T, TextInputInvocation>)
+        {
+          return ListenerInvocationKind::textInput;
+        }
+        else if constexpr (std::is_same_v<T, FocusInvocation>)
+        {
+          return ListenerInvocationKind::focus;
+        }
+        else if constexpr (std::is_same_v<T, ReportedEventInvocation>)
+        {
+          return ListenerInvocationKind::reportedEvent;
+        }
+        else if constexpr (std::is_same_v<T, ViewModelChangeInvocation>)
+        {
+          return ListenerInvocationKind::viewModelChange;
+        }
+        else if constexpr (std::is_same_v<T, NoneInvocation>)
+        {
+          return ListenerInvocationKind::none;
+        }
+        else if constexpr (std::is_same_v<T, GamepadConnectedInvocation>)
+        {
+          return ListenerInvocationKind::gamepadConnected;
+        }
+        else if constexpr (std::is_same_v<T, GamepadEventInvocation>)
+        {
+          return ListenerInvocationKind::gamepadEvent;
+        }
+        else if constexpr (std::is_same_v<T, GamepadDisconnectedInvocation>)
+        {
+          return ListenerInvocationKind::gamepadDisconnected;
+        }
+        else if constexpr (std::is_same_v<T, SemanticInvocation>)
+        {
+          return ListenerInvocationKind::semantic;
+        }
+        else
+        {
+          return ListenerInvocationKind::none;
+        }
+      },
+      m_storage);
 }
 
 inline const PointerInvocation* ListenerInvocation::asPointer() const
 {
-    return std::get_if<PointerInvocation>(&m_storage);
+  return std::get_if<PointerInvocation>(&m_storage);
 }
 
 inline const KeyboardInvocation* ListenerInvocation::asKeyboard() const
 {
-    return std::get_if<KeyboardInvocation>(&m_storage);
+  return std::get_if<KeyboardInvocation>(&m_storage);
 }
 
 inline const TextInputInvocation* ListenerInvocation::asTextInput() const
 {
-    return std::get_if<TextInputInvocation>(&m_storage);
+  return std::get_if<TextInputInvocation>(&m_storage);
 }
 
 inline const FocusInvocation* ListenerInvocation::asFocus() const
 {
-    return std::get_if<FocusInvocation>(&m_storage);
+  return std::get_if<FocusInvocation>(&m_storage);
 }
 
 inline const ReportedEventInvocation* ListenerInvocation::asReportedEvent()
     const
 {
-    return std::get_if<ReportedEventInvocation>(&m_storage);
+  return std::get_if<ReportedEventInvocation>(&m_storage);
 }
 
 inline const ViewModelChangeInvocation* ListenerInvocation::asViewModelChange()
     const
 {
-    return std::get_if<ViewModelChangeInvocation>(&m_storage);
+  return std::get_if<ViewModelChangeInvocation>(&m_storage);
 }
 
 inline const NoneInvocation* ListenerInvocation::asNone() const
 {
-    return std::get_if<NoneInvocation>(&m_storage);
+  return std::get_if<NoneInvocation>(&m_storage);
 }
 
 inline const GamepadConnectedInvocation* ListenerInvocation::
     asGamepadConnected() const
 {
-    return std::get_if<GamepadConnectedInvocation>(&m_storage);
+  return std::get_if<GamepadConnectedInvocation>(&m_storage);
 }
 
 inline const GamepadEventInvocation* ListenerInvocation::asGamepadEvent() const
 {
-    return std::get_if<GamepadEventInvocation>(&m_storage);
+  return std::get_if<GamepadEventInvocation>(&m_storage);
 }
 
 inline const GamepadDisconnectedInvocation* ListenerInvocation::
     asGamepadDisconnected() const
 {
-    return std::get_if<GamepadDisconnectedInvocation>(&m_storage);
+  return std::get_if<GamepadDisconnectedInvocation>(&m_storage);
 }
 
 inline const SemanticInvocation* ListenerInvocation::asSemantic() const
 {
-    return std::get_if<SemanticInvocation>(&m_storage);
+  return std::get_if<SemanticInvocation>(&m_storage);
 }
 
 } // namespace rive

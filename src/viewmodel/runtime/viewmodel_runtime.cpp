@@ -22,175 +22,177 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
-ViewModelRuntime::ViewModelRuntime(ViewModel* viewModel, const File* file) :
-    m_viewModel(viewModel), m_file(file)
+ViewModelRuntime::ViewModelRuntime(ViewModel* viewModel, const File* file)
+    : m_viewModel(viewModel)
+    , m_file(file)
 {}
 
 size_t ViewModelRuntime::instanceCount() const
 {
-    return m_viewModel->instanceCount();
+  return m_viewModel->instanceCount();
 }
 
 size_t ViewModelRuntime::propertyCount() const
 {
-    return m_viewModel->properties().size();
+  return m_viewModel->properties().size();
 }
 
 const std::string& ViewModelRuntime::name() const
 {
-    return m_viewModel->name();
+  return m_viewModel->name();
 }
 
 std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
     std::vector<rive::ViewModelProperty*>& properties)
 {
-    std::vector<PropertyData> props;
-    for (auto property : properties)
+  std::vector<PropertyData> props;
+  for (auto property : properties)
+  {
+    DataType type = DataType::none;
+    std::string enumName;
+    switch (property->coreType())
     {
-        DataType type = DataType::none;
-        std::string enumName;
-        switch (property->coreType())
+      case ViewModelPropertyString::typeKey:
+        type = DataType::string;
+        break;
+      case ViewModelPropertyNumber::typeKey:
+        type = DataType::number;
+        break;
+      case ViewModelPropertyBoolean::typeKey:
+        type = DataType::boolean;
+        break;
+      case ViewModelPropertyColor::typeKey:
+        type = DataType::color;
+        break;
+      case ViewModelPropertyList::typeKey:
+        type = DataType::list;
+        break;
+      case ViewModelPropertyEnum::typeKey:
+      case ViewModelPropertyEnumCustomBase::typeKey:
+      case ViewModelPropertyEnumSystemBase::typeKey:
+      {
+        type = DataType::enumType;
+        auto* dataEnum = static_cast<ViewModelPropertyEnum*>(property)
+                             ->dataEnum();
+        if (dataEnum != nullptr)
         {
-            case ViewModelPropertyString::typeKey:
-                type = DataType::string;
-                break;
-            case ViewModelPropertyNumber::typeKey:
-                type = DataType::number;
-                break;
-            case ViewModelPropertyBoolean::typeKey:
-                type = DataType::boolean;
-                break;
-            case ViewModelPropertyColor::typeKey:
-                type = DataType::color;
-                break;
-            case ViewModelPropertyList::typeKey:
-                type = DataType::list;
-                break;
-            case ViewModelPropertyEnum::typeKey:
-            case ViewModelPropertyEnumCustomBase::typeKey:
-            case ViewModelPropertyEnumSystemBase::typeKey:
-            {
-                type = DataType::enumType;
-                auto* dataEnum =
-                    static_cast<ViewModelPropertyEnum*>(property)->dataEnum();
-                if (dataEnum != nullptr)
-                {
-                    enumName = dataEnum->enumName();
-                }
-                break;
-            }
-            case ViewModelPropertyTrigger::typeKey:
-                type = DataType::trigger;
-                break;
-            case ViewModelPropertyViewModelBase::typeKey:
-                type = DataType::viewModel;
-                break;
-            case ViewModelPropertySymbolListIndex::typeKey:
-                type = DataType::symbolListIndex;
-                break;
-            case ViewModelPropertyAssetImage::typeKey:
-                type = DataType::assetImage;
-                break;
-            case ViewModelPropertyAssetFont::typeKey:
-                type = DataType::assetFont;
-                break;
-            case ViewModelPropertyAssetBlob::typeKey:
-                type = DataType::assetBlob;
-                break;
-            case ViewModelPropertyArtboard::typeKey:
-                type = DataType::artboard;
-                break;
-            default:
-                break;
+          enumName = dataEnum->enumName();
         }
-        props.push_back({type, property->name(), enumName});
+        break;
+      }
+      case ViewModelPropertyTrigger::typeKey:
+        type = DataType::trigger;
+        break;
+      case ViewModelPropertyViewModelBase::typeKey:
+        type = DataType::viewModel;
+        break;
+      case ViewModelPropertySymbolListIndex::typeKey:
+        type = DataType::symbolListIndex;
+        break;
+      case ViewModelPropertyAssetImage::typeKey:
+        type = DataType::assetImage;
+        break;
+      case ViewModelPropertyAssetFont::typeKey:
+        type = DataType::assetFont;
+        break;
+      case ViewModelPropertyAssetBlob::typeKey:
+        type = DataType::assetBlob;
+        break;
+      case ViewModelPropertyArtboard::typeKey:
+        type = DataType::artboard;
+        break;
+      default:
+        break;
     }
-    return props;
+    props.push_back({type, property->name(), enumName});
+  }
+  return props;
 }
 
 std::vector<PropertyData> ViewModelRuntime::properties()
 {
-    auto props = m_viewModel->properties();
-    return buildPropertiesData(props);
+  auto props = m_viewModel->properties();
+  return buildPropertiesData(props);
 }
 
 std::vector<std::string> ViewModelRuntime::instanceNames() const
 {
-    auto instances = m_viewModel->instances();
-    std::vector<std::string> names;
-    for (auto instance : instances)
-    {
-        names.push_back(instance->name());
-    }
-    return names;
+  auto instances = m_viewModel->instances();
+  std::vector<std::string> names;
+  for (auto instance : instances)
+  {
+    names.push_back(instance->name());
+  }
+  return names;
 }
 
 rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromIndex(
     const size_t index) const
 {
-    auto viewModelInstance = m_viewModel->instance(index);
-    if (viewModelInstance != nullptr)
-    {
-        return createRuntimeInstance(
-            m_file->copyViewModelInstance(viewModelInstance));
-    }
-    else
-    {
-        fprintf(
-            stderr,
-            "Could not find View Model Instance. Index %zu is out of range.\n",
-            index);
-    }
-    return nullptr;
+  auto viewModelInstance = m_viewModel->instance(index);
+  if (viewModelInstance != nullptr)
+  {
+    return createRuntimeInstance(
+        m_file->copyViewModelInstance(viewModelInstance));
+  }
+  else
+  {
+    fprintf(
+        stderr,
+        "Could not find View Model Instance. Index %zu is out of range.\n",
+        index);
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromName(
     const std::string& name) const
 {
-    auto viewModelInstance = m_viewModel->instance(name);
-    if (viewModelInstance != nullptr)
-    {
-        return createRuntimeInstance(
-            m_file->copyViewModelInstance(viewModelInstance));
-    }
-    else
-    {
-        fprintf(stderr,
-                "Could not find View Model Instance named %s. Was it marked to "
-                "export "
-                "with the file?\n",
-                name.c_str());
-    }
-    return nullptr;
+  auto viewModelInstance = m_viewModel->instance(name);
+  if (viewModelInstance != nullptr)
+  {
+    return createRuntimeInstance(
+        m_file->copyViewModelInstance(viewModelInstance));
+  }
+  else
+  {
+    fprintf(
+        stderr,
+        "Could not find View Model Instance named %s. Was it marked to "
+        "export "
+        "with the file?\n",
+        name.c_str());
+  }
+  return nullptr;
 }
 
 rcp<ViewModelInstanceRuntime> ViewModelRuntime::createDefaultInstance() const
 {
-    auto viewModelInstance =
-        m_file->createDefaultViewModelInstance(m_viewModel);
-    if (viewModelInstance != nullptr)
-    {
-        return createRuntimeInstance(viewModelInstance);
-    }
-    fprintf(stderr,
-            "Default instance not found. Creating empty instance instead.\n");
-    return createInstance();
+  auto viewModelInstance = m_file->createDefaultViewModelInstance(m_viewModel);
+  if (viewModelInstance != nullptr)
+  {
+    return createRuntimeInstance(viewModelInstance);
+  }
+  fprintf(
+      stderr,
+      "Default instance not found. Creating empty instance instead.\n");
+  return createInstance();
 }
 
 rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstance() const
 {
-    auto instance = m_file->createViewModelInstance(m_viewModel);
-    return createRuntimeInstance(instance);
+  auto instance = m_file->createViewModelInstance(m_viewModel);
+  return createRuntimeInstance(instance);
 }
 
 rcp<ViewModelInstanceRuntime> ViewModelRuntime::createRuntimeInstance(
     rcp<ViewModelInstance> instance) const
 {
-    if (instance != nullptr)
-    {
-        auto viewModelInstanceRuntime = rcp<ViewModelInstanceRuntime>(
-            new ViewModelInstanceRuntime(instance));
-        return viewModelInstanceRuntime;
-    }
-    return nullptr;
+  if (instance != nullptr)
+  {
+    auto viewModelInstanceRuntime = rcp<ViewModelInstanceRuntime>(
+        new ViewModelInstanceRuntime(instance));
+    return viewModelInstanceRuntime;
+  }
+  return nullptr;
 }

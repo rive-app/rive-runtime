@@ -6,12 +6,12 @@ namespace rive
 class ViewModelPropertySymbolBase : public ViewModelProperty
 {
 protected:
-    typedef ViewModelProperty Super;
+  typedef ViewModelProperty Super;
 
 public:
-    static const uint16_t typeKey = 563;
+  static const uint16_t typeKey = 563;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 };
 } // namespace rive
 

@@ -11,5 +11,5 @@ using namespace rive;
 
 bool PointsCommonPath::isClockwise() const
 {
-    return (pathFlags() & (int)ShapePathFlags::isCounterClockwise) == 0;
+  return (pathFlags() & (int)ShapePathFlags::isCounterClockwise) == 0;
 }

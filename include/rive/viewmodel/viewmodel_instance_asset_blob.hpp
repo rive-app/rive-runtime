@@ -10,19 +10,19 @@ namespace rive
 class ViewModelInstanceAssetBlob : public ViewModelInstanceAssetBlobBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    ViewModelInstanceAssetBlob();
-    // Directly set the blob asset (e.g. from scripts). Marks propertyValue as a
-    // sentinel to indicate the bytes were supplied directly rather than by id.
-    void value(BlobAsset* blob);
-    rcp<BlobAsset> asset() { return m_blobAsset; }
-    Core* clone() const override;
-    void applyValue(DataValueInteger*);
+  ViewModelInstanceAssetBlob();
+  // Directly set the blob asset (e.g. from scripts). Marks propertyValue as a
+  // sentinel to indicate the bytes were supplied directly rather than by id.
+  void value(BlobAsset* blob);
+  rcp<BlobAsset> asset() { return m_blobAsset; }
+  Core* clone() const override;
+  void applyValue(DataValueInteger*);
 
 private:
-    rcp<BlobAsset> m_blobAsset = nullptr;
+  rcp<BlobAsset> m_blobAsset = nullptr;
 };
 } // namespace rive
 

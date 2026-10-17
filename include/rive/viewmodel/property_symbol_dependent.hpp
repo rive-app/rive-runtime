@@ -10,59 +10,62 @@ class CoreObjectListener;
 class PropertySymbolDependent : public ViewModelValueDependent
 {
 public:
-    PropertySymbolDependent(Core* coreObject,
-                            CoreObjectListener* coreObjectListener,
-                            ViewModelInstanceValue* instanceValue);
-    virtual ~PropertySymbolDependent();
+  PropertySymbolDependent(
+      Core* coreObject,
+      CoreObjectListener* coreObjectListener,
+      ViewModelInstanceValue* instanceValue);
+  virtual ~PropertySymbolDependent();
 
-    void addDirt(ComponentDirt value, bool recurse) override;
-    virtual void writeValue() = 0;
-    void relinkDataBind() override {}
+  void addDirt(ComponentDirt value, bool recurse) override;
+  virtual void writeValue() = 0;
+  void relinkDataBind() override {}
 
 protected:
-    Core* m_coreObject = nullptr;
-    CoreObjectListener* m_coreObjectListener = nullptr;
-    ViewModelInstanceValue* m_instanceValue = nullptr;
+  Core* m_coreObject = nullptr;
+  CoreObjectListener* m_coreObjectListener = nullptr;
+  ViewModelInstanceValue* m_instanceValue = nullptr;
 };
 
 class PropertySymbolDependentSingle : public PropertySymbolDependent
 {
 public:
-    PropertySymbolDependentSingle(Core* vertex,
-                                  CoreObjectListener* vertexListener,
-                                  ViewModelInstanceValue* instanceValue,
-                                  uint16_t propertyKey);
+  PropertySymbolDependentSingle(
+      Core* vertex,
+      CoreObjectListener* vertexListener,
+      ViewModelInstanceValue* instanceValue,
+      uint16_t propertyKey);
 
 protected:
-    uint16_t m_propertyKey = 0;
+  uint16_t m_propertyKey = 0;
 };
 
 class PropertySymbolDependentMulti : public PropertySymbolDependent
 {
 public:
-    PropertySymbolDependentMulti(Core* vertex,
-                                 CoreObjectListener* vertexListener,
-                                 ViewModelInstanceValue* instanceValue,
-                                 std::vector<uint16_t> propertyKeys);
+  PropertySymbolDependentMulti(
+      Core* vertex,
+      CoreObjectListener* vertexListener,
+      ViewModelInstanceValue* instanceValue,
+      std::vector<uint16_t> propertyKeys);
 
 protected:
-    std::vector<uint16_t> m_propertyKeys;
+  std::vector<uint16_t> m_propertyKeys;
 };
 
 class CoreObjectListener
 {
 public:
-    CoreObjectListener(Core* core, rcp<ViewModelInstance> instance);
-    virtual ~CoreObjectListener();
-    void remap(rcp<ViewModelInstance> instance);
-    virtual void markDirty() {}
+  CoreObjectListener(Core* core, rcp<ViewModelInstance> instance);
+  virtual ~CoreObjectListener();
+  void remap(rcp<ViewModelInstance> instance);
+  virtual void markDirty() {}
 
 protected:
-    Core* m_core = nullptr;
-    rcp<ViewModelInstance> m_instance = nullptr;
-    virtual void createProperties();
-    virtual void deleteProperties();
-    std::vector<PropertySymbolDependent*> m_properties;
+  Core* m_core = nullptr;
+  rcp<ViewModelInstance> m_instance = nullptr;
+  virtual void createProperties();
+  virtual void deleteProperties();
+  std::vector<PropertySymbolDependent*> m_properties;
 };
 } // namespace rive
 

@@ -7,17 +7,18 @@ namespace rive
 class KeyFrameId : public KeyFrameIdBase
 {
 public:
-    void apply(Core* object,
-               int propertyKey,
-               float mix,
-               const LinearAnimationInstance* context = nullptr) override;
-    void applyInterpolation(
-        Core* object,
-        int propertyKey,
-        float seconds,
-        const KeyFrame* nextFrame,
-        float mix,
-        const LinearAnimationInstance* context = nullptr) override;
+  void apply(
+      Core* object,
+      int propertyKey,
+      float mix,
+      const LinearAnimationInstance* context = nullptr) override;
+  void applyInterpolation(
+      Core* object,
+      int propertyKey,
+      float seconds,
+      const KeyFrame* nextFrame,
+      float mix,
+      const LinearAnimationInstance* context = nullptr) override;
 };
 } // namespace rive
 

@@ -11,17 +11,17 @@ class ListenerAction;
 class StateMachineListenerImporter : public ImportStackObject
 {
 private:
-    StateMachineListener* m_StateMachineListener;
+  StateMachineListener* m_StateMachineListener;
 
 public:
-    StateMachineListenerImporter(StateMachineListener* listener);
-    const StateMachineListener* stateMachineListener() const
-    {
-        return m_StateMachineListener;
-    }
-    void addAction(std::unique_ptr<ListenerAction>);
-    void addListenerInputType(std::unique_ptr<ListenerInputType>);
-    StatusCode resolve() override;
+  StateMachineListenerImporter(StateMachineListener* listener);
+  const StateMachineListener* stateMachineListener() const
+  {
+    return m_StateMachineListener;
+  }
+  void addAction(std::unique_ptr<ListenerAction>);
+  void addListenerInputType(std::unique_ptr<ListenerInputType>);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

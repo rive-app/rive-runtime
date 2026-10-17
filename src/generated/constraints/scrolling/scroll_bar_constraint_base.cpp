@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScrollBarConstraintBase::clone() const
 {
-    auto cloned = new ScrollBarConstraint();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScrollBarConstraint();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -11,54 +11,54 @@ namespace rive
 class DataEnumCustomBase : public DataEnum
 {
 protected:
-    typedef DataEnum Super;
+  typedef DataEnum Super;
 
 public:
-    static const uint16_t typeKey = 438;
+  static const uint16_t typeKey = 438;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t namePropertyKey = 572;
+  static const uint16_t namePropertyKey = 572;
 
 protected:
-    std::string m_Name = "";
+  std::string m_Name = "";
 
 public:
-    inline const std::string& name() const { return m_Name; }
-    void name(std::string value)
+  inline const std::string& name() const { return m_Name; }
+  void name(std::string value)
+  {
+    if (m_Name == value)
     {
-        if (m_Name == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(namePropertyKey, m_Name, value);
-        m_Name = value;
-        RIVE_EDITOR_CHANGED(nameChanged());
-        notifyPropertyChanged(namePropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(namePropertyKey, m_Name, value);
+    m_Name = value;
+    RIVE_EDITOR_CHANGED(nameChanged());
+    notifyPropertyChanged(namePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataEnumCustomBase& object)
-    {
-        m_Name = object.m_Name;
-        RIVE_EDITOR_COPY(object);
-        DataEnum::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataEnumCustomBase& object)
+  {
+    m_Name = object.m_Name;
+    RIVE_EDITOR_COPY(object);
+    DataEnum::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case namePropertyKey:
-                m_Name = CoreStringType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return DataEnum::deserialize(propertyKey, reader);
+      case namePropertyKey:
+        m_Name = CoreStringType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return DataEnum::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void nameChanged() {}
+  virtual void nameChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/viewmodel/data_enum_custom_ext.inl"
 #endif

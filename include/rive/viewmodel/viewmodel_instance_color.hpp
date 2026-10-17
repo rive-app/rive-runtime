@@ -12,15 +12,15 @@ typedef void (*ViewModelColorChanged)(ViewModelInstanceColor* vmi, int value);
 class ViewModelInstanceColor : public ViewModelInstanceColorBase
 {
 public:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelColorChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelColorChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelColorChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelColorChanged m_changedCallback = nullptr;
 #endif
-    void applyValue(DataValueColor*);
+  void applyValue(DataValueColor*);
 };
 } // namespace rive
 

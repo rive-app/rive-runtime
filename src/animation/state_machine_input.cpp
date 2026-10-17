@@ -7,23 +7,23 @@ using namespace rive;
 
 StatusCode StateMachineInput::onAddedDirty(CoreContext* context)
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 StatusCode StateMachineInput::onAddedClean(CoreContext* context)
 {
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 StatusCode StateMachineInput::import(ImportStack& importStack)
 {
-    auto stateMachineImporter =
-        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
-    if (stateMachineImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    // WOW -- we're handing off ownership of this!
-    stateMachineImporter->addInput(std::unique_ptr<StateMachineInput>(this));
-    return Super::import(importStack);
+  auto stateMachineImporter = importStack.latest<StateMachineImporter>(
+      StateMachineBase::typeKey);
+  if (stateMachineImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  // WOW -- we're handing off ownership of this!
+  stateMachineImporter->addInput(std::unique_ptr<StateMachineInput>(this));
+  return Super::import(importStack);
 }

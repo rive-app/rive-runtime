@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedDataConverterBase::clone() const
 {
-    auto cloned = new ScriptedDataConverter();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedDataConverter();
+  cloned->copy(*this);
+  return cloned;
 }

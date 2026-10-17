@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* FocusDataBase::clone() const
 {
-    auto cloned = new FocusData();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new FocusData();
+  cloned->copy(*this);
+  return cloned;
 }

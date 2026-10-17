@@ -8,37 +8,37 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceArtboard;
-typedef void (*ViewModelArtboardChanged)(ViewModelInstanceArtboard* vmi,
-                                         uint32_t value);
+typedef void (
+    *ViewModelArtboardChanged)(ViewModelInstanceArtboard* vmi, uint32_t value);
 #endif
 class ViewModelInstanceArtboard : public ViewModelInstanceArtboardBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
-    void asset(rcp<BindableArtboard> value);
-    void boundViewModelInstance(rcp<ViewModelInstance> value);
-    rcp<BindableArtboard> asset() { return m_bindableArtboard; }
-    void applyValue(DataValueInteger*);
-    rcp<ViewModelInstance> boundViewModelInstance()
-    {
-        return m_boundViewModelInstance;
-    }
+  void asset(rcp<BindableArtboard> value);
+  void boundViewModelInstance(rcp<ViewModelInstance> value);
+  rcp<BindableArtboard> asset() { return m_bindableArtboard; }
+  void applyValue(DataValueInteger*);
+  rcp<ViewModelInstance> boundViewModelInstance()
+  {
+    return m_boundViewModelInstance;
+  }
 
 private:
-    rcp<BindableArtboard> m_bindableArtboard = nullptr;
-    rcp<ViewModelInstance> m_boundViewModelInstance = nullptr;
-    // Set when the bound instance changes, so the next asset() notifies even
-    // with the same bindable.
-    bool m_boundViewModelInstanceChanged = false;
+  rcp<BindableArtboard> m_bindableArtboard = nullptr;
+  rcp<ViewModelInstance> m_boundViewModelInstance = nullptr;
+  // Set when the bound instance changes, so the next asset() notifies even
+  // with the same bindable.
+  bool m_boundViewModelInstanceChanged = false;
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onChanged(ViewModelArtboardChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelArtboardChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelArtboardChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelArtboardChanged m_changedCallback = nullptr;
 #endif
 };
 } // namespace rive

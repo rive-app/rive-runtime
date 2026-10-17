@@ -16,38 +16,40 @@
 
 // Control: one valid sibling makes the first cycle "change", so the orphan is
 // parked and the file loads.
-TEST_CASE("an orphan drawable next to a valid node is dropped",
-          "[file][malformed]")
+TEST_CASE(
+    "an orphan drawable next to a valid node is dropped",
+    "[file][malformed]")
 {
-    RivBytes riv;
-    writeArtboard(riv);
-    riv.object(rive::NodeBase::typeKey);
-    riv.propUint(rive::ComponentBase::parentIdPropertyKey, 0);
-    riv.end();
-    riv.object(rive::ShapeBase::typeKey);
-    riv.propUint(rive::ComponentBase::parentIdPropertyKey, 121);
-    riv.end();
+  RivBytes riv;
+  writeArtboard(riv);
+  riv.object(rive::NodeBase::typeKey);
+  riv.propUint(rive::ComponentBase::parentIdPropertyKey, 0);
+  riv.end();
+  riv.object(rive::ShapeBase::typeKey);
+  riv.propUint(rive::ComponentBase::parentIdPropertyKey, 121);
+  riv.end();
 
-    rive::ImportResult result;
-    auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+  rive::ImportResult result;
+  auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
+  REQUIRE(file->artboard() != nullptr);
 }
 
 // The crash: the orphan is the artboard's only object.
-TEST_CASE("an artboard holding only an orphan drawable loads",
-          "[file][malformed]")
+TEST_CASE(
+    "an artboard holding only an orphan drawable loads",
+    "[file][malformed]")
 {
-    RivBytes riv;
-    writeArtboard(riv);
-    riv.object(rive::ShapeBase::typeKey);
-    riv.propUint(rive::ComponentBase::parentIdPropertyKey, 121);
-    riv.end();
+  RivBytes riv;
+  writeArtboard(riv);
+  riv.object(rive::ShapeBase::typeKey);
+  riv.propUint(rive::ComponentBase::parentIdPropertyKey, 121);
+  riv.end();
 
-    rive::ImportResult result;
-    auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
+  rive::ImportResult result;
+  auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
+  REQUIRE(file->artboard() != nullptr);
 }

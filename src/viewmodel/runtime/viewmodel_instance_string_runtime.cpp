@@ -6,11 +6,11 @@ using namespace rive;
 
 const std::string& ViewModelInstanceStringRuntime::value() const
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceString>()
-        ->propertyValue();
+  return m_viewModelInstanceValue->as<ViewModelInstanceString>()
+      ->propertyValue();
 }
 
 void ViewModelInstanceStringRuntime::value(std::string val)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceString>()->propertyValue(val);
+  m_viewModelInstanceValue->as<ViewModelInstanceString>()->propertyValue(val);
 }

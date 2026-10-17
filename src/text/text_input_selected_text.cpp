@@ -8,22 +8,22 @@ Core* TextInputSelectedText::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
 StatusCode TextInputSelectedText::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 #ifdef WITH_RIVE_TEXT
-    textInput()->rawTextInput()->separateSelectionText(true);
+  textInput()->rawTextInput()->separateSelectionText(true);
 #endif
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 ShapePaintPath* TextInputSelectedText::localClockwisePath()
 {
 #ifdef WITH_RIVE_TEXT
-    return textInput()->rawTextInput()->selectedTextPath();
+  return textInput()->rawTextInput()->selectedTextPath();
 #else
-    return nullptr;
+  return nullptr;
 #endif
 }

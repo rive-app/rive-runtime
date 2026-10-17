@@ -18,41 +18,41 @@ namespace rive
 
 enum class TextSizing : uint8_t
 {
-    autoWidth,
-    autoHeight,
-    fixed
+  autoWidth,
+  autoHeight,
+  fixed
 };
 
 enum class TextOverflow : uint8_t
 {
-    visible,
-    hidden,
-    clipped,
-    ellipsis,
-    fit,
-    fitFontSize,
+  visible,
+  hidden,
+  clipped,
+  ellipsis,
+  fit,
+  fitFontSize,
 };
 
 enum class TextOrigin : uint8_t
 {
-    top,
-    baseline
+  top,
+  baseline
 };
 
 // Top edge the vertical bounding box is trimmed to.
 enum class TextTrimTop : uint8_t
 {
-    none = 0, // No trim: box top stays at the font ascent.
-    cap = 1,  // Box top at the cap-height line.
-    ex = 2,   // Box top at the x-height line.
+  none = 0, // No trim: box top stays at the font ascent.
+  cap = 1,  // Box top at the cap-height line.
+  ex = 2,   // Box top at the x-height line.
 };
 
 // Bottom edge the vertical bounding box is trimmed to.
 enum class TextTrimBottom : uint8_t
 {
-    none = 0,       // No trim: box bottom stays at the font descent.
-    alphabetic = 1, // Box bottom at the baseline.
-    text = 2,       // Box bottom at the text (natural descent) line.
+  none = 0,       // No trim: box bottom stays at the font descent.
+  alphabetic = 1, // Box bottom at the baseline.
+  text = 2,       // Box bottom at the text (natural descent) line.
 };
 
 // Text::verticalTrimValue packs an independent top and bottom trim edge so new
@@ -65,17 +65,16 @@ constexpr uint32_t textTrimFieldMask = 0xFF;
 
 inline TextTrimTop textTrimTop(uint32_t packed)
 {
-    return (TextTrimTop)((packed >> textTrimTopShift) & textTrimFieldMask);
+  return (TextTrimTop)((packed >> textTrimTopShift) & textTrimFieldMask);
 }
 inline TextTrimBottom textTrimBottom(uint32_t packed)
 {
-    return (TextTrimBottom)((packed >> textTrimBottomShift) &
-                            textTrimFieldMask);
+  return (TextTrimBottom)((packed >> textTrimBottomShift) & textTrimFieldMask);
 }
 inline uint32_t packTextVerticalTrim(TextTrimTop top, TextTrimBottom bottom)
 {
-    return ((uint32_t)top << textTrimTopShift) |
-           ((uint32_t)bottom << textTrimBottomShift);
+  return ((uint32_t)top << textTrimTopShift) |
+         ((uint32_t)bottom << textTrimBottomShift);
 }
 
 // Representation of a single unicode codepoint.
@@ -91,23 +90,23 @@ bool isWhiteSpace(Unichar c);
 // Direction a paragraph or run flows in.
 enum class TextDirection : uint8_t
 {
-    ltr = 0,
-    rtl = 1
+  ltr = 0,
+  rtl = 1
 };
 
 // The alignment of each word wrapped line in a paragraph.
 enum class TextAlign : uint8_t
 {
-    left = 0,
-    right = 1,
-    center = 2
+  left = 0,
+  right = 1,
+  center = 2
 };
 
 // The wrap mode.
 enum class TextWrap : uint8_t
 {
-    wrap = 0,
-    noWrap = 1
+  wrap = 0,
+  noWrap = 1
 };
 
 // How a word that doesn't fit the line may be split. Mirrors the useful half
@@ -116,76 +115,78 @@ enum class TextWrap : uint8_t
 // value falls back to the historical behavior.
 enum class TextWordBreak : uint8_t
 {
-    // overflow-wrap: break-word. Move the word to its own line and only cut
-    // it when it still doesn't fit there.
-    breakWord = 0,
-    // overflow-wrap: normal. Never cut a word; one that doesn't fit even on a
-    // line of its own overflows the box.
-    normal = 1,
-    // word-break: break-all. Cut at any cluster boundary so every line is
-    // packed to the edge.
-    breakAll = 2
+  // overflow-wrap: break-word. Move the word to its own line and only cut
+  // it when it still doesn't fit there.
+  breakWord = 0,
+  // overflow-wrap: normal. Never cut a word; one that doesn't fit even on a
+  // line of its own overflows the box.
+  normal = 1,
+  // word-break: break-all. Cut at any cluster boundary so every line is
+  // packed to the edge.
+  breakAll = 2
 };
 
 // The alignment of each word wrapped line in a paragraph.
 enum class VerticalTextAlign : uint8_t
 {
-    top = 0,
-    bottom = 1,
-    middle = 2
+  top = 0,
+  bottom = 1,
+  middle = 2
 };
 
 // A horizontal line of text within a paragraph, after line-breaking.
 struct GlyphLine
 {
-    uint32_t startRunIndex;
-    uint32_t startGlyphIndex;
-    uint32_t endRunIndex;
-    uint32_t endGlyphIndex;
-    float startX;
-    float top = 0, baseline = 0, bottom = 0;
+  uint32_t startRunIndex;
+  uint32_t startGlyphIndex;
+  uint32_t endRunIndex;
+  uint32_t endGlyphIndex;
+  float startX;
+  float top = 0, baseline = 0, bottom = 0;
 
-    bool operator==(const GlyphLine& o) const
-    {
-        return startRunIndex == o.startRunIndex &&
-               startGlyphIndex == o.startGlyphIndex &&
-               endRunIndex == o.endRunIndex && endGlyphIndex == o.endGlyphIndex;
-    }
+  bool operator==(const GlyphLine& o) const
+  {
+    return startRunIndex == o.startRunIndex &&
+           startGlyphIndex == o.startGlyphIndex &&
+           endRunIndex == o.endRunIndex && endGlyphIndex == o.endGlyphIndex;
+  }
 
-    GlyphLine() :
-        startRunIndex(0),
-        startGlyphIndex(0),
-        endRunIndex(0),
-        endGlyphIndex(0),
-        startX(0.0f)
-    {}
-    GlyphLine(uint32_t run, uint32_t index) :
-        startRunIndex(run),
-        startGlyphIndex(index),
-        endRunIndex(run),
-        endGlyphIndex(index),
-        startX(0.0f)
-    {}
+  GlyphLine()
+      : startRunIndex(0)
+      , startGlyphIndex(0)
+      , endRunIndex(0)
+      , endGlyphIndex(0)
+      , startX(0.0f)
+  {}
+  GlyphLine(uint32_t run, uint32_t index)
+      : startRunIndex(run)
+      , startGlyphIndex(index)
+      , endRunIndex(run)
+      , endGlyphIndex(index)
+      , startX(0.0f)
+  {}
 
-    bool empty() const
-    {
-        return startRunIndex == endRunIndex && startGlyphIndex == endGlyphIndex;
-    }
+  bool empty() const
+  {
+    return startRunIndex == endRunIndex && startGlyphIndex == endGlyphIndex;
+  }
 
-    static SimpleArray<GlyphLine> BreakLines(
-        Span<const GlyphRun> runs,
-        float width,
-        TextWordBreak wordBreak = TextWordBreak::breakWord);
+  static SimpleArray<GlyphLine> BreakLines(
+      Span<const GlyphRun> runs,
+      float width,
+      TextWordBreak wordBreak = TextWordBreak::breakWord);
 
-    // Compute values for top/baseline/bottom per line
-    static void ComputeLineSpacing(bool isFirstLine,
-                                   Span<GlyphLine>,
-                                   Span<const GlyphRun>,
-                                   float width,
-                                   TextAlign align);
+  // Compute values for top/baseline/bottom per line
+  static void ComputeLineSpacing(
+      bool isFirstLine,
+      Span<GlyphLine>,
+      Span<const GlyphRun>,
+      float width,
+      TextAlign align);
 
-    static float ComputeMaxWidth(Span<GlyphLine> lines,
-                                 Span<const GlyphRun> runs);
+  static float ComputeMaxWidth(
+      Span<GlyphLine> lines,
+      Span<const GlyphRun> runs);
 };
 
 // A paragraph represents of set of runs that flow in a specific direction. The
@@ -194,215 +195,220 @@ struct GlyphLine
 // user provided string and text styling is converted to shaped paragraphs.
 struct Paragraph
 {
-    SimpleArray<GlyphRun> runs;
-    uint8_t level;
-    TextDirection baseDirection() const
-    {
-        return level & 1 ? TextDirection::rtl : TextDirection::ltr;
-    }
+  SimpleArray<GlyphRun> runs;
+  uint8_t level;
+  TextDirection baseDirection() const
+  {
+    return level & 1 ? TextDirection::rtl : TextDirection::ltr;
+  }
 };
 
 // An abstraction for interfacing with an individual font.
 class Font : public RefCnt<Font>
 {
 public:
-    virtual ~Font() {}
+  virtual ~Font() {}
 
-    struct LineMetrics
-    {
-        float ascent, descent;
-        // Distances from the baseline to the top of capital / lowercase
-        // letters, stored negative (up is -Y) like ascent. Both fall back to
-        // ascent when the font does not provide the metric.
-        float capHeight = 0.0f;
-        float xHeight = 0.0f;
-    };
+  struct LineMetrics
+  {
+    float ascent, descent;
+    // Distances from the baseline to the top of capital / lowercase
+    // letters, stored negative (up is -Y) like ascent. Both fall back to
+    // ascent when the font does not provide the metric.
+    float capHeight = 0.0f;
+    float xHeight = 0.0f;
+  };
 
-    const LineMetrics& lineMetrics() const { return m_lineMetrics; }
+  const LineMetrics& lineMetrics() const { return m_lineMetrics; }
 
-    float ascent(float size) const { return m_lineMetrics.ascent * size; }
+  float ascent(float size) const { return m_lineMetrics.ascent * size; }
 
-    float descent(float size) const { return m_lineMetrics.descent * size; }
+  float descent(float size) const { return m_lineMetrics.descent * size; }
 
-    float capHeight(float size) const { return m_lineMetrics.capHeight * size; }
+  float capHeight(float size) const { return m_lineMetrics.capHeight * size; }
 
-    float xHeight(float size) const { return m_lineMetrics.xHeight * size; }
+  float xHeight(float size) const { return m_lineMetrics.xHeight * size; }
 
-    // Variable axis available for the font.
-    struct Axis
-    {
-        uint32_t tag;
-        float min;
-        float def; // default value
-        float max;
-    };
+  // Variable axis available for the font.
+  struct Axis
+  {
+    uint32_t tag;
+    float min;
+    float def; // default value
+    float max;
+  };
 
-    // Variable axis setting.
-    struct Coord
-    {
-        uint32_t axis;
-        float value;
-    };
+  // Variable axis setting.
+  struct Coord
+  {
+    uint32_t axis;
+    float value;
+  };
 
-    // Returns the count of variable axes available for this font.
-    virtual uint16_t getAxisCount() const = 0;
+  // Returns the count of variable axes available for this font.
+  virtual uint16_t getAxisCount() const = 0;
 
-    // Returns the definition of the Axis at the provided index.
-    virtual Axis getAxis(uint16_t index) const = 0;
+  // Returns the definition of the Axis at the provided index.
+  virtual Axis getAxis(uint16_t index) const = 0;
 
-    // Value for the axis, if a Coord has been provided the value from the Coord
-    // will be used. Otherwise the default value for the axis will be returned.
-    virtual float getAxisValue(uint32_t axisTag) const = 0;
+  // Value for the axis, if a Coord has been provided the value from the Coord
+  // will be used. Otherwise the default value for the axis will be returned.
+  virtual float getAxisValue(uint32_t axisTag) const = 0;
 
-    // Returns the current font value as a numeric value [1, 1000]
-    virtual uint16_t getWeight() const = 0;
+  // Returns the current font value as a numeric value [1, 1000]
+  virtual uint16_t getWeight() const = 0;
 
-    // Whether this font is italic or not.
-    virtual bool isItalic() const = 0;
+  // Whether this font is italic or not.
+  virtual bool isItalic() const = 0;
 
-    // Font feature.
-    struct Feature
-    {
-        uint32_t tag;
-        uint32_t value;
-    };
+  // Font feature.
+  struct Feature
+  {
+    uint32_t tag;
+    uint32_t value;
+  };
 
-    // Returns the features available for this font.
-    virtual SimpleArray<uint32_t> features() const = 0;
+  // Returns the features available for this font.
+  virtual SimpleArray<uint32_t> features() const = 0;
 
-    virtual bool hasGlyph(const rive::Unichar) const = 0;
+  virtual bool hasGlyph(const rive::Unichar) const = 0;
 
-    // Nominal Unicode scalar coverage in ascending order, without fallback.
-    virtual std::vector<Unichar> codepoints() const = 0;
+  // Nominal Unicode scalar coverage in ascending order, without fallback.
+  virtual std::vector<Unichar> codepoints() const = 0;
 
-    // Value for the feature, if no value has been provided a (uint32_t)-1 is
-    // returned to signal that the text engine will pick the best feature value
-    // for the content.
-    virtual uint32_t getFeatureValue(uint32_t featureTag) const = 0;
+  // Value for the feature, if no value has been provided a (uint32_t)-1 is
+  // returned to signal that the text engine will pick the best feature value
+  // for the content.
+  virtual uint32_t getFeatureValue(uint32_t featureTag) const = 0;
 
-    rcp<Font> makeAtCoords(Span<const Coord> coords) const
-    {
-        return withOptions(coords, Span<const Feature>(nullptr, 0));
-    }
+  rcp<Font> makeAtCoords(Span<const Coord> coords) const
+  {
+    return withOptions(coords, Span<const Feature>(nullptr, 0));
+  }
 
-    rcp<Font> makeAtCoord(Coord c)
-    {
-        return this->makeAtCoords(Span<const Coord>(&c, 1));
-    }
+  rcp<Font> makeAtCoord(Coord c)
+  {
+    return this->makeAtCoords(Span<const Coord>(&c, 1));
+  }
 
-    virtual rcp<Font> withOptions(Span<const Coord> variableAxes,
-                                  Span<const Feature> features) const = 0;
+  virtual rcp<Font> withOptions(
+      Span<const Coord> variableAxes,
+      Span<const Feature> features) const = 0;
 
-    // Returns a 1-point path for this glyph. It will be positioned
-    // relative to (0,0) with the typographic baseline at y = 0.
-    //
-    virtual RawPath getPath(GlyphID) const = 0;
+  // Returns a 1-point path for this glyph. It will be positioned
+  // relative to (0,0) with the typographic baseline at y = 0.
+  //
+  virtual RawPath getPath(GlyphID) const = 0;
 
-    // Color glyph (emoji) support via COLR/CPAL tables.
+  // Color glyph (emoji) support via COLR/CPAL tables.
 
-    // A single layer of a color glyph, with its own path and fill.
-    struct GradientStop
-    {
-        float offset;
-        ColorInt color;
-        bool isForeground = false;
-    };
+  // A single layer of a color glyph, with its own path and fill.
+  struct GradientStop
+  {
+    float offset;
+    ColorInt color;
+    bool isForeground = false;
+  };
 
-    enum class ColorGlyphPaintType : uint8_t
-    {
-        solid,
-        linearGradient,
-        radialGradient,
-        sweepGradient,
-        image,
-    };
+  enum class ColorGlyphPaintType : uint8_t
+  {
+    solid,
+    linearGradient,
+    radialGradient,
+    sweepGradient,
+    image,
+  };
 
-    struct ColorGlyphLayer
-    {
-        RawPath path;
-        ColorGlyphPaintType paintType = ColorGlyphPaintType::solid;
-        ColorInt color = 0xFF000000; // ARGB (for solid fills)
-        bool useForeground = false;  // true if color should use text color
+  struct ColorGlyphLayer
+  {
+    RawPath path;
+    ColorGlyphPaintType paintType = ColorGlyphPaintType::solid;
+    ColorInt color = 0xFF000000; // ARGB (for solid fills)
+    bool useForeground = false;  // true if color should use text color
 
-        // Gradient data (only valid when paintType != solid).
-        std::vector<GradientStop> stops;
-        // Linear gradient: (x0,y0) start, (x1,y1) end.
-        // Radial gradient: (x0,y0,r0) inner circle, (x1,y1,r1) outer circle.
-        // Sweep gradient: (x0,y0) center, startAngle, endAngle.
-        float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-        float r0 = 0, r1 = 0;               // radial
-        float startAngle = 0, endAngle = 0; // sweep
-        // Maps the unit circle onto the radial's outer circle in glyph space,
-        // keeping its ellipse under uneven or skewed font transforms.
-        Mat2D radialTransform;
+    // Gradient data (only valid when paintType != solid).
+    std::vector<GradientStop> stops;
+    // Linear gradient: (x0,y0) start, (x1,y1) end.
+    // Radial gradient: (x0,y0,r0) inner circle, (x1,y1,r1) outer circle.
+    // Sweep gradient: (x0,y0) center, startAngle, endAngle.
+    float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    float r0 = 0, r1 = 0;               // radial
+    float startAngle = 0, endAngle = 0; // sweep
+    // Maps the unit circle onto the radial's outer circle in glyph space,
+    // keeping its ellipse under uneven or skewed font transforms.
+    Mat2D radialTransform;
 
-        // Image data (only valid when paintType == image).
-        // Raw encoded image bytes (e.g. PNG from SBIX/CBDT).
-        std::vector<uint8_t> imageBytes;
-        unsigned int imageWidth = 0, imageHeight = 0;
-        // Glyph extents for positioning the image.
-        float imageBearingX = 0, imageBearingY = 0;
-        float imageExtentX = 0, imageExtentY = 0;
-    };
+    // Image data (only valid when paintType == image).
+    // Raw encoded image bytes (e.g. PNG from SBIX/CBDT).
+    std::vector<uint8_t> imageBytes;
+    unsigned int imageWidth = 0, imageHeight = 0;
+    // Glyph extents for positioning the image.
+    float imageBearingX = 0, imageBearingY = 0;
+    float imageExtentX = 0, imageExtentY = 0;
+  };
 
-    // Whether this font contains any COLR color glyphs.
-    virtual bool hasColorGlyphs() const { return false; }
+  // Whether this font contains any COLR color glyphs.
+  virtual bool hasColorGlyphs() const { return false; }
 
-    // Whether a specific glyph has color layers.
-    virtual bool isColorGlyph(GlyphID) const { return false; }
+  // Whether a specific glyph has color layers.
+  virtual bool isColorGlyph(GlyphID) const { return false; }
 
-    // Decompose a color glyph into its colored layers. Returns the number
-    // of layers written to `out`. If the glyph is not a color glyph,
-    // returns 0.
-    virtual size_t getColorLayers(GlyphID,
-                                  std::vector<ColorGlyphLayer>& out,
-                                  ColorInt foreground = 0xFF000000) const
-    {
-        (void)out;
-        (void)foreground;
-        return 0;
-    }
+  // Decompose a color glyph into its colored layers. Returns the number
+  // of layers written to `out`. If the glyph is not a color glyph,
+  // returns 0.
+  virtual size_t getColorLayers(
+      GlyphID,
+      std::vector<ColorGlyphLayer>& out,
+      ColorInt foreground = 0xFF000000) const
+  {
+    (void)out;
+    (void)foreground;
+    return 0;
+  }
 
-    SimpleArray<Paragraph> shapeText(Span<const Unichar> text,
-                                     Span<const TextRun> runs,
-                                     int textDirectionFlag = -1) const;
+  SimpleArray<Paragraph> shapeText(
+      Span<const Unichar> text,
+      Span<const TextRun> runs,
+      int textDirectionFlag = -1) const;
 
-    // If the platform can supply fallback font(s), set this function pointer.
-    // It will be called with a span of unichars, and the platform attempts to
-    // return a font that can draw (at least some of) them. If no font is
-    // available just return nullptr.
+  // If the platform can supply fallback font(s), set this function pointer.
+  // It will be called with a span of unichars, and the platform attempts to
+  // return a font that can draw (at least some of) them. If no font is
+  // available just return nullptr.
 
-    using FallbackProc = rive::rcp<rive::Font> (*)(const rive::Unichar missing,
-                                                   const uint32_t fallbackIndex,
-                                                   const rive::Font*);
-    static FallbackProc gFallbackProc;
-    static bool gFallbackProcEnabled;
-    static constexpr unsigned kRegularWeight = 400;
+  using FallbackProc = rive::rcp<rive::Font> (*)(
+      const rive::Unichar missing,
+      const uint32_t fallbackIndex,
+      const rive::Font*);
+  static FallbackProc gFallbackProc;
+  static bool gFallbackProcEnabled;
+  static constexpr unsigned kRegularWeight = 400;
 
 protected:
-    Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
+  Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
 
-    virtual SimpleArray<Paragraph> onShapeText(Span<const Unichar> text,
-                                               Span<const TextRun> runs,
-                                               int textDirectionFlag) const = 0;
+  virtual SimpleArray<Paragraph> onShapeText(
+      Span<const Unichar> text,
+      Span<const TextRun> runs,
+      int textDirectionFlag) const = 0;
 
 private:
-    /// The font specified line metrics (automatic line metrics).
-    const LineMetrics m_lineMetrics;
+  /// The font specified line metrics (automatic line metrics).
+  const LineMetrics m_lineMetrics;
 };
 
 // A user defined styling guide for a set of unicode codepoints within a larger
 // text string.
 struct TextRun
 {
-    rcp<Font> font;
-    float size;
-    float lineHeight;
-    float letterSpacing;
-    uint32_t unicharCount;
-    uint32_t script;
-    uint16_t styleId;
-    uint8_t level;
+  rcp<Font> font;
+  float size;
+  float lineHeight;
+  float letterSpacing;
+  uint32_t unicharCount;
+  uint32_t script;
+  uint16_t styleId;
+  uint8_t level;
 };
 
 // The corresponding system generated run for the user provided TextRuns.
@@ -410,75 +416,76 @@ struct TextRun
 // fallback fonts) or if codepoints get ligated/shaped to a single glyph.
 struct GlyphRun
 {
-    GlyphRun(size_t glyphCount = 0) :
-        glyphs(glyphCount),
-        textIndices(glyphCount),
-        advances(glyphCount),
-        xpos(glyphCount + 1),
-        offsets(glyphCount)
-    {}
+  GlyphRun(size_t glyphCount = 0)
+      : glyphs(glyphCount)
+      , textIndices(glyphCount)
+      , advances(glyphCount)
+      , xpos(glyphCount + 1)
+      , offsets(glyphCount)
+  {}
 
-    GlyphRun(SimpleArray<GlyphID> glyphIds,
-             SimpleArray<uint32_t> offsets,
-             SimpleArray<float> ws,
-             SimpleArray<float> xs,
-             SimpleArray<rive::Vec2D> offs) :
-        glyphs(glyphIds),
-        textIndices(offsets),
-        advances(ws),
-        xpos(xs),
-        offsets(offs)
-    {}
+  GlyphRun(
+      SimpleArray<GlyphID> glyphIds,
+      SimpleArray<uint32_t> offsets,
+      SimpleArray<float> ws,
+      SimpleArray<float> xs,
+      SimpleArray<rive::Vec2D> offs)
+      : glyphs(glyphIds)
+      , textIndices(offsets)
+      , advances(ws)
+      , xpos(xs)
+      , offsets(offs)
+  {}
 
-    rcp<Font> font;
-    float size;
-    float lineHeight;
-    float letterSpacing;
+  rcp<Font> font;
+  float size;
+  float lineHeight;
+  float letterSpacing;
 
-    // List of glyphs, represented by font specific glyph ids. Length is equal
-    // to number of glyphs in the run.
-    SimpleArray<GlyphID> glyphs;
+  // List of glyphs, represented by font specific glyph ids. Length is equal
+  // to number of glyphs in the run.
+  SimpleArray<GlyphID> glyphs;
 
-    // Index in the unicode text array representing the text displayed in this
-    // run. Because each glyph can be composed of multiple unicode values, this
-    // index points to the first index in the unicode text. Length is equal to
-    // number of glyphs in the run.
-    SimpleArray<uint32_t> textIndices;
+  // Index in the unicode text array representing the text displayed in this
+  // run. Because each glyph can be composed of multiple unicode values, this
+  // index points to the first index in the unicode text. Length is equal to
+  // number of glyphs in the run.
+  SimpleArray<uint32_t> textIndices;
 
-    // X position of each glyph in visual order (xpos is in logical/memory
-    // order).
-    SimpleArray<float> advances;
+  // X position of each glyph in visual order (xpos is in logical/memory
+  // order).
+  SimpleArray<float> advances;
 
-    // X position of each glyph, with an extra value at the end for the right
-    // most extent of the last glyph.
-    SimpleArray<float> xpos;
+  // X position of each glyph, with an extra value at the end for the right
+  // most extent of the last glyph.
+  SimpleArray<float> xpos;
 
-    // X and Y offset each glyphs draws at relative to its baseline and advance
-    // position.
-    SimpleArray<rive::Vec2D> offsets;
+  // X and Y offset each glyphs draws at relative to its baseline and advance
+  // position.
+  SimpleArray<rive::Vec2D> offsets;
 
-    // List of possible indices to line break at. Has a stride of 2 uint32_ts
-    // where each pair marks the start and end of a word, with the exception of
-    // a return character (forced linebreak) which is represented as a 0 length
-    // word (where start/end index is the same).
-    SimpleArray<uint32_t> breaks;
+  // List of possible indices to line break at. Has a stride of 2 uint32_ts
+  // where each pair marks the start and end of a word, with the exception of
+  // a return character (forced linebreak) which is represented as a 0 length
+  // word (where start/end index is the same).
+  SimpleArray<uint32_t> breaks;
 
-    // The unique identifier for the styling (fill/stroke colors, anything not
-    // determined by the font or font size) applied to this run.
-    uint16_t styleId;
+  // The unique identifier for the styling (fill/stroke colors, anything not
+  // determined by the font or font size) applied to this run.
+  uint16_t styleId;
 
-    // Bidi level (even is LTR, odd is RTL)
-    uint8_t level;
+  // Bidi level (even is LTR, odd is RTL)
+  uint8_t level;
 
-    // List of indices where words are joined by a word-joiner character.
-    // During text breaking, these joins should be honored and not split at
-    // those points
-    SimpleArray<uint32_t> joiners;
+  // List of indices where words are joined by a word-joiner character.
+  // During text breaking, these joins should be honored and not split at
+  // those points
+  SimpleArray<uint32_t> joiners;
 
-    TextDirection dir() const
-    {
-        return level & 1 ? TextDirection::rtl : TextDirection::ltr;
-    }
+  TextDirection dir() const
+  {
+    return level & 1 ? TextDirection::rtl : TextDirection::ltr;
+  }
 };
 
 class OrderedLine;
@@ -494,38 +501,41 @@ class OrderedLine;
 class GlyphItr
 {
 public:
-    GlyphItr() = default;
-    GlyphItr(const OrderedLine* line,
-             const rive::GlyphRun* const* run,
-             uint32_t glyphIndex) :
-        m_line(line), m_run(run), m_glyphIndex(glyphIndex)
-    {}
+  GlyphItr() = default;
+  GlyphItr(
+      const OrderedLine* line,
+      const rive::GlyphRun* const* run,
+      uint32_t glyphIndex)
+      : m_line(line)
+      , m_run(run)
+      , m_glyphIndex(glyphIndex)
+  {}
 
-    void tryAdvanceRun();
+  void tryAdvanceRun();
 
-    bool operator!=(const GlyphItr& that) const
-    {
-        return m_run != that.m_run || m_glyphIndex != that.m_glyphIndex;
-    }
-    bool operator==(const GlyphItr& that) const
-    {
-        return m_run == that.m_run && m_glyphIndex == that.m_glyphIndex;
-    }
+  bool operator!=(const GlyphItr& that) const
+  {
+    return m_run != that.m_run || m_glyphIndex != that.m_glyphIndex;
+  }
+  bool operator==(const GlyphItr& that) const
+  {
+    return m_run == that.m_run && m_glyphIndex == that.m_glyphIndex;
+  }
 
-    GlyphItr& operator++();
+  GlyphItr& operator++();
 
-    std::tuple<const GlyphRun*, uint32_t> operator*() const
-    {
-        return {*m_run, m_glyphIndex};
-    }
+  std::tuple<const GlyphRun*, uint32_t> operator*() const
+  {
+    return {*m_run, m_glyphIndex};
+  }
 
-    const rive::GlyphRun* run() const { return *m_run; }
-    uint32_t glyphIndex() const { return m_glyphIndex; }
+  const rive::GlyphRun* run() const { return *m_run; }
+  uint32_t glyphIndex() const { return m_glyphIndex; }
 
 private:
-    const OrderedLine* m_line;
-    const rive::GlyphRun* const* m_run;
-    uint32_t m_glyphIndex;
+  const OrderedLine* m_line;
+  const rive::GlyphRun* const* m_run;
+  uint32_t m_glyphIndex;
 };
 
 class GlyphLookup;
@@ -534,88 +544,90 @@ class GlyphLookup;
 class OrderedLine
 {
 public:
-    OrderedLine(const Paragraph& paragraph,
-                const GlyphLine& line,
-                float lineWidth, // for ellipsis
-                bool wantEllipsis,
-                bool isEllipsisLineLast,
-                GlyphRun* ellipsisRun,
-                float y);
+  OrderedLine(
+      const Paragraph& paragraph,
+      const GlyphLine& line,
+      float lineWidth, // for ellipsis
+      bool wantEllipsis,
+      bool isEllipsisLineLast,
+      GlyphRun* ellipsisRun,
+      float y);
 
-    bool buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
-                           const Paragraph& paragraph,
-                           const GlyphLine& line,
-                           float lineWidth,
-                           bool isEllipsisLineLast,
-                           GlyphRun* ellipsisRun);
-    const GlyphRun* startLogical() const { return m_startLogical; }
-    const GlyphRun* endLogical() const { return m_endLogical; }
-    const std::vector<const GlyphRun*>& runs() const { return m_runs; }
+  bool buildEllipsisRuns(
+      std::vector<const GlyphRun*>& logicalRuns,
+      const Paragraph& paragraph,
+      const GlyphLine& line,
+      float lineWidth,
+      bool isEllipsisLineLast,
+      GlyphRun* ellipsisRun);
+  const GlyphRun* startLogical() const { return m_startLogical; }
+  const GlyphRun* endLogical() const { return m_endLogical; }
+  const std::vector<const GlyphRun*>& runs() const { return m_runs; }
 
-    GlyphItr begin() const
-    {
-        auto runItr = m_runs.data();
-        auto itr = GlyphItr(this, runItr, startGlyphIndex(*runItr));
-        itr.tryAdvanceRun();
-        return itr;
-    }
+  GlyphItr begin() const
+  {
+    auto runItr = m_runs.data();
+    auto itr = GlyphItr(this, runItr, startGlyphIndex(*runItr));
+    itr.tryAdvanceRun();
+    return itr;
+  }
 
-    GlyphItr end() const
-    {
-        auto runItr =
-            m_runs.data() + (m_runs.size() == 0 ? 0 : m_runs.size() - 1);
-        return GlyphItr(this, runItr, endGlyphIndex(*runItr));
-    }
+  GlyphItr end() const
+  {
+    auto runItr = m_runs.data() + (m_runs.size() == 0 ? 0 : m_runs.size() - 1);
+    return GlyphItr(this, runItr, endGlyphIndex(*runItr));
+  }
 
-    const GlyphLine& glyphLine() const { return *m_glyphLine; }
-    float y() const { return m_y; }
-    float bottom() const;
+  const GlyphLine& glyphLine() const { return *m_glyphLine; }
+  float y() const { return m_y; }
+  float bottom() const;
 
-    uint32_t firstCodePointIndex(const GlyphLookup& glyphLookup) const;
-    uint32_t lastCodePointIndex(const GlyphLookup& glyphLookup) const;
-    bool containsCodePointIndex(const GlyphLookup& glyphLookup,
-                                uint32_t codePointIndex) const;
+  uint32_t firstCodePointIndex(const GlyphLookup& glyphLookup) const;
+  uint32_t lastCodePointIndex(const GlyphLookup& glyphLookup) const;
+  bool containsCodePointIndex(
+      const GlyphLookup& glyphLookup,
+      uint32_t codePointIndex) const;
 
 private:
-    const GlyphRun* m_startLogical = nullptr;
-    const GlyphRun* m_endLogical = nullptr;
-    uint32_t m_startGlyphIndex;
-    uint32_t m_endGlyphIndex;
-    std::vector<const GlyphRun*> m_runs;
-    const GlyphLine* m_glyphLine;
-    float m_y;
+  const GlyphRun* m_startLogical = nullptr;
+  const GlyphRun* m_endLogical = nullptr;
+  uint32_t m_startGlyphIndex;
+  uint32_t m_endGlyphIndex;
+  std::vector<const GlyphRun*> m_runs;
+  const GlyphLine* m_glyphLine;
+  float m_y;
 
 public:
-    const GlyphRun* lastRun() const { return m_runs.back(); }
-    uint32_t startGlyphIndex(const GlyphRun* run) const
+  const GlyphRun* lastRun() const { return m_runs.back(); }
+  uint32_t startGlyphIndex(const GlyphRun* run) const
+  {
+    TextDirection dir = run->level & 1 ? TextDirection::rtl
+                                       : TextDirection::ltr;
+    switch (dir)
     {
-        TextDirection dir =
-            run->level & 1 ? TextDirection::rtl : TextDirection::ltr;
-        switch (dir)
-        {
-            case TextDirection::ltr:
-                return m_startLogical == run ? m_startGlyphIndex : 0;
-            case TextDirection::rtl:
-                return (m_endLogical == run ? m_endGlyphIndex
-                                            : (uint32_t)run->glyphs.size()) -
-                       1;
-        }
-        RIVE_UNREACHABLE();
+      case TextDirection::ltr:
+        return m_startLogical == run ? m_startGlyphIndex : 0;
+      case TextDirection::rtl:
+        return (m_endLogical == run ? m_endGlyphIndex
+                                    : (uint32_t)run->glyphs.size()) -
+               1;
     }
-    uint32_t endGlyphIndex(const GlyphRun* run) const
+    RIVE_UNREACHABLE();
+  }
+  uint32_t endGlyphIndex(const GlyphRun* run) const
+  {
+    TextDirection dir = run->level & 1 ? TextDirection::rtl
+                                       : TextDirection::ltr;
+    switch (dir)
     {
-        TextDirection dir =
-            run->level & 1 ? TextDirection::rtl : TextDirection::ltr;
-        switch (dir)
-        {
-            case TextDirection::ltr:
-                return m_endLogical == run ? m_endGlyphIndex
-                                           : (uint32_t)run->glyphs.size();
-            case TextDirection::rtl:
-                return (m_startLogical == run ? m_startGlyphIndex : 0) - 1;
-        }
-        RIVE_UNREACHABLE();
+      case TextDirection::ltr:
+        return m_endLogical == run ? m_endGlyphIndex
+                                   : (uint32_t)run->glyphs.size();
+      case TextDirection::rtl:
+        return (m_startLogical == run ? m_startGlyphIndex : 0) - 1;
     }
+    RIVE_UNREACHABLE();
+  }
 };
 
 } // namespace rive

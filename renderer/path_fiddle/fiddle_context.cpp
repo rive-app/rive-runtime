@@ -8,10 +8,10 @@
 
 void FiddleContext::beginOreFrame(rive::ore::Context* oreContext)
 {
-    oreContext->beginFrame({.externalCommandBuffer = getCommandBuffer()});
+  oreContext->beginFrame({.externalCommandBuffer = getCommandBuffer()});
 }
 
 void FiddleContext::endOreFrame(rive::ore::Context* oreContext)
 {
-    oreContext->endFrame();
+  oreContext->endFrame();
 }

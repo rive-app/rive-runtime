@@ -10,12 +10,12 @@ class BindGroupLayoutWGPU
     : public LITE_RTTI_OVERRIDE(BindGroupLayout, BindGroupLayoutWGPU)
 {
 public:
-    BindGroupLayoutWGPU() = default;
-    ~BindGroupLayoutWGPU() override =
-        default; // wgpu::BindGroupLayout RAII destructor releases
+  BindGroupLayoutWGPU() = default;
+  ~BindGroupLayoutWGPU() override =
+      default; // wgpu::BindGroupLayout RAII destructor releases
 
 private:
-    friend class ContextWGPU;
-    wgpu::BindGroupLayout m_wgpuBGL;
+  friend class ContextWGPU;
+  wgpu::BindGroupLayout m_wgpuBGL;
 };
 } // namespace rive::ore

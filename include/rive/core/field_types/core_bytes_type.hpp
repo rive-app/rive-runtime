@@ -10,10 +10,10 @@ class BinaryReader;
 class CoreBytesType
 {
 public:
-    static const int id = 1;
-    static Span<const uint8_t> deserialize(BinaryReader& reader);
+  static const int id = 1;
+  static Span<const uint8_t> deserialize(BinaryReader& reader);
 #ifdef WITH_RIVE_TOOLS
-    static Span<const uint8_t> deserializeRev(BinaryReader& reader);
+  static Span<const uint8_t> deserializeRev(BinaryReader& reader);
 #endif
 };
 } // namespace rive

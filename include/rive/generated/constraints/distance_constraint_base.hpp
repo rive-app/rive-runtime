@@ -8,72 +8,72 @@ namespace rive
 class DistanceConstraintBase : public TargetedConstraint
 {
 protected:
-    typedef TargetedConstraint Super;
+  typedef TargetedConstraint Super;
 
 public:
-    static const uint16_t typeKey = 82;
+  static const uint16_t typeKey = 82;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t distancePropertyKey = 177;
-    static const uint16_t modeValuePropertyKey = 178;
+  static const uint16_t distancePropertyKey = 177;
+  static const uint16_t modeValuePropertyKey = 178;
 
 protected:
-    float m_Distance = 100.0f;
-    uint32_t m_ModeValue = 0;
+  float m_Distance = 100.0f;
+  uint32_t m_ModeValue = 0;
 
 public:
-    inline float distance() const { return m_Distance; }
-    void distance(float value)
+  inline float distance() const { return m_Distance; }
+  void distance(float value)
+  {
+    if (m_Distance == value)
     {
-        if (m_Distance == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(distancePropertyKey, &m_Distance, &value);
-        m_Distance = value;
-        RIVE_EDITOR_CHANGED(distanceChanged());
-        notifyPropertyChanged(distancePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(distancePropertyKey, &m_Distance, &value);
+    m_Distance = value;
+    RIVE_EDITOR_CHANGED(distanceChanged());
+    notifyPropertyChanged(distancePropertyKey);
+  }
 
-    inline uint32_t modeValue() const { return m_ModeValue; }
-    void modeValue(uint32_t value)
+  inline uint32_t modeValue() const { return m_ModeValue; }
+  void modeValue(uint32_t value)
+  {
+    if (m_ModeValue == value)
     {
-        if (m_ModeValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
-        m_ModeValue = value;
-        RIVE_EDITOR_CHANGED(modeValueChanged());
-        notifyPropertyChanged(modeValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(modeValuePropertyKey, &m_ModeValue, &value);
+    m_ModeValue = value;
+    RIVE_EDITOR_CHANGED(modeValueChanged());
+    notifyPropertyChanged(modeValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DistanceConstraintBase& object)
-    {
-        m_Distance = object.m_Distance;
-        m_ModeValue = object.m_ModeValue;
-        TargetedConstraint::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DistanceConstraintBase& object)
+  {
+    m_Distance = object.m_Distance;
+    m_ModeValue = object.m_ModeValue;
+    TargetedConstraint::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case distancePropertyKey:
-                m_Distance = CoreDoubleType::deserialize(reader);
-                return true;
-            case modeValuePropertyKey:
-                m_ModeValue = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return TargetedConstraint::deserialize(propertyKey, reader);
+      case distancePropertyKey:
+        m_Distance = CoreDoubleType::deserialize(reader);
+        return true;
+      case modeValuePropertyKey:
+        m_ModeValue = CoreUintType::deserialize(reader);
+        return true;
     }
+    return TargetedConstraint::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void distanceChanged() {}
-    virtual void modeValueChanged() {}
+  virtual void distanceChanged() {}
+  virtual void modeValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/distance_constraint_ext.inl"
 #endif

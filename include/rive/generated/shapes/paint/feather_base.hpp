@@ -12,130 +12,130 @@ namespace rive
 class FeatherBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 533;
+  static const uint16_t typeKey = 533;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t spaceValuePropertyKey = 748;
-    static const uint16_t strengthPropertyKey = 749;
-    static const uint16_t offsetXPropertyKey = 750;
-    static const uint16_t offsetYPropertyKey = 751;
-    static const uint16_t innerPropertyKey = 752;
+  static const uint16_t spaceValuePropertyKey = 748;
+  static const uint16_t strengthPropertyKey = 749;
+  static const uint16_t offsetXPropertyKey = 750;
+  static const uint16_t offsetYPropertyKey = 751;
+  static const uint16_t innerPropertyKey = 752;
 
 protected:
-    uint32_t m_SpaceValue = 0;
-    float m_Strength = 12.0f;
-    float m_OffsetX = 0.0f;
-    float m_OffsetY = 0.0f;
-    bool m_Inner = false;
+  uint32_t m_SpaceValue = 0;
+  float m_Strength = 12.0f;
+  float m_OffsetX = 0.0f;
+  float m_OffsetY = 0.0f;
+  bool m_Inner = false;
 
 public:
-    inline uint32_t spaceValue() const { return m_SpaceValue; }
-    void spaceValue(uint32_t value)
+  inline uint32_t spaceValue() const { return m_SpaceValue; }
+  void spaceValue(uint32_t value)
+  {
+    if (m_SpaceValue == value)
     {
-        if (m_SpaceValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(spaceValuePropertyKey, &m_SpaceValue, &value);
-        m_SpaceValue = value;
-        notifyPropertyChanged(spaceValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(spaceValuePropertyKey, &m_SpaceValue, &value);
+    m_SpaceValue = value;
+    notifyPropertyChanged(spaceValuePropertyKey);
+  }
 
-    inline float strength() const { return m_Strength; }
-    void strength(float value)
+  inline float strength() const { return m_Strength; }
+  void strength(float value)
+  {
+    if (m_Strength == value)
     {
-        if (m_Strength == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
-        m_Strength = value;
-        RIVE_EDITOR_CHANGED(strengthChanged());
-        notifyPropertyChanged(strengthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
+    m_Strength = value;
+    RIVE_EDITOR_CHANGED(strengthChanged());
+    notifyPropertyChanged(strengthPropertyKey);
+  }
 
-    inline float offsetX() const { return m_OffsetX; }
-    void offsetX(float value)
+  inline float offsetX() const { return m_OffsetX; }
+  void offsetX(float value)
+  {
+    if (m_OffsetX == value)
     {
-        if (m_OffsetX == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetXPropertyKey, &m_OffsetX, &value);
-        m_OffsetX = value;
-        RIVE_EDITOR_CHANGED(offsetXChanged());
-        notifyPropertyChanged(offsetXPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(offsetXPropertyKey, &m_OffsetX, &value);
+    m_OffsetX = value;
+    RIVE_EDITOR_CHANGED(offsetXChanged());
+    notifyPropertyChanged(offsetXPropertyKey);
+  }
 
-    inline float offsetY() const { return m_OffsetY; }
-    void offsetY(float value)
+  inline float offsetY() const { return m_OffsetY; }
+  void offsetY(float value)
+  {
+    if (m_OffsetY == value)
     {
-        if (m_OffsetY == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(offsetYPropertyKey, &m_OffsetY, &value);
-        m_OffsetY = value;
-        RIVE_EDITOR_CHANGED(offsetYChanged());
-        notifyPropertyChanged(offsetYPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(offsetYPropertyKey, &m_OffsetY, &value);
+    m_OffsetY = value;
+    RIVE_EDITOR_CHANGED(offsetYChanged());
+    notifyPropertyChanged(offsetYPropertyKey);
+  }
 
-    inline bool inner() const { return m_Inner; }
-    void inner(bool value)
+  inline bool inner() const { return m_Inner; }
+  void inner(bool value)
+  {
+    if (m_Inner == value)
     {
-        if (m_Inner == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(innerPropertyKey, &m_Inner, &value);
-        m_Inner = value;
-        notifyPropertyChanged(innerPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(innerPropertyKey, &m_Inner, &value);
+    m_Inner = value;
+    notifyPropertyChanged(innerPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const FeatherBase& object)
-    {
-        m_SpaceValue = object.m_SpaceValue;
-        m_Strength = object.m_Strength;
-        m_OffsetX = object.m_OffsetX;
-        m_OffsetY = object.m_OffsetY;
-        m_Inner = object.m_Inner;
-        RIVE_EDITOR_COPY(object);
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FeatherBase& object)
+  {
+    m_SpaceValue = object.m_SpaceValue;
+    m_Strength = object.m_Strength;
+    m_OffsetX = object.m_OffsetX;
+    m_OffsetY = object.m_OffsetY;
+    m_Inner = object.m_Inner;
+    RIVE_EDITOR_COPY(object);
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case spaceValuePropertyKey:
-                m_SpaceValue = CoreUintType::deserialize(reader);
-                return true;
-            case strengthPropertyKey:
-                m_Strength = CoreDoubleType::deserialize(reader);
-                return true;
-            case offsetXPropertyKey:
-                m_OffsetX = CoreDoubleType::deserialize(reader);
-                return true;
-            case offsetYPropertyKey:
-                m_OffsetY = CoreDoubleType::deserialize(reader);
-                return true;
-            case innerPropertyKey:
-                m_Inner = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case spaceValuePropertyKey:
+        m_SpaceValue = CoreUintType::deserialize(reader);
+        return true;
+      case strengthPropertyKey:
+        m_Strength = CoreDoubleType::deserialize(reader);
+        return true;
+      case offsetXPropertyKey:
+        m_OffsetX = CoreDoubleType::deserialize(reader);
+        return true;
+      case offsetYPropertyKey:
+        m_OffsetY = CoreDoubleType::deserialize(reader);
+        return true;
+      case innerPropertyKey:
+        m_Inner = CoreBoolType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void strengthChanged() {}
-    virtual void offsetXChanged() {}
-    virtual void offsetYChanged() {}
+  virtual void strengthChanged() {}
+  virtual void offsetXChanged() {}
+  virtual void offsetYChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/feather_ext.inl"
 #endif

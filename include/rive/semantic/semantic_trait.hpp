@@ -26,48 +26,48 @@ namespace rive
 /// and regenerating — the enum values will track automatically.
 enum class SemanticTrait : uint32_t
 {
-    None = 0,
+  None = 0,
 
-    /// Node can be expanded / collapsed (disclosure).
-    Expandable = SemanticDataBase::isExpandableBitmask,
+  /// Node can be expanded / collapsed (disclosure).
+  Expandable = SemanticDataBase::isExpandableBitmask,
 
-    /// Node can be selected / unselected.
-    Selectable = SemanticDataBase::isSelectableBitmask,
+  /// Node can be selected / unselected.
+  Selectable = SemanticDataBase::isSelectableBitmask,
 
-    /// Node can be checked / unchecked (checkbox, radio).
-    Checkable = SemanticDataBase::isCheckableBitmask,
+  /// Node can be checked / unchecked (checkbox, radio).
+  Checkable = SemanticDataBase::isCheckableBitmask,
 
-    /// Node can be toggled on / off (switch).
-    Toggleable = SemanticDataBase::isToggleableBitmask,
+  /// Node can be toggled on / off (switch).
+  Toggleable = SemanticDataBase::isToggleableBitmask,
 
-    /// Node can be marked as required / optional (form field).
-    Requirable = SemanticDataBase::isRequirableBitmask,
+  /// Node can be marked as required / optional (form field).
+  Requirable = SemanticDataBase::isRequirableBitmask,
 
-    /// Node has an enabled / disabled concept.
-    /// Without this trait, the Disabled state bit is ignored and the
-    /// platform sees the node as neither enabled nor disabled.
-    Enablable = SemanticDataBase::isEnablableBitmask,
+  /// Node has an enabled / disabled concept.
+  /// Without this trait, the Disabled state bit is ignored and the
+  /// platform sees the node as neither enabled nor disabled.
+  Enablable = SemanticDataBase::isEnablableBitmask,
 
-    /// Node can receive focus. Auto-set by the runtime when a sibling
-    /// FocusData exists.
-    Focusable = SemanticDataBase::isFocusableBitmask,
+  /// Node can receive focus. Auto-set by the runtime when a sibling
+  /// FocusData exists.
+  Focusable = SemanticDataBase::isFocusableBitmask,
 };
 
 constexpr SemanticTrait operator|(SemanticTrait a, SemanticTrait b)
 {
-    return static_cast<SemanticTrait>(static_cast<uint32_t>(a) |
-                                      static_cast<uint32_t>(b));
+  return static_cast<SemanticTrait>(
+      static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
 }
 
 constexpr SemanticTrait operator&(SemanticTrait a, SemanticTrait b)
 {
-    return static_cast<SemanticTrait>(static_cast<uint32_t>(a) &
-                                      static_cast<uint32_t>(b));
+  return static_cast<SemanticTrait>(
+      static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
 }
 
 constexpr bool hasSemanticTrait(uint32_t flags, SemanticTrait trait)
 {
-    return (flags & static_cast<uint32_t>(trait)) != 0;
+  return (flags & static_cast<uint32_t>(trait)) != 0;
 }
 } // namespace rive
 

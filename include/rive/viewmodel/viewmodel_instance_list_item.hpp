@@ -10,26 +10,26 @@ class ViewModelInstanceListItem : public ViewModelInstanceListItemBase,
                                   public RefCnt<ViewModelInstanceListItem>
 {
 private:
-    rcp<ViewModelInstance> m_viewModelInstance;
-    Artboard* m_artboard;
+  rcp<ViewModelInstance> m_viewModelInstance;
+  Artboard* m_artboard;
 
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
-    void editorRelease() override { unref(); }
+  void editorPrepareForDestruction() override;
+  void editorRelease() override { unref(); }
 #endif
-    void viewModelInstance(rcp<ViewModelInstance> value)
-    {
-        m_viewModelInstance = value;
-    };
-    rcp<ViewModelInstance>& viewModelInstance() { return m_viewModelInstance; }
-    void artboard(Artboard* value) { m_artboard = value; };
-    Artboard* artboard() { return m_artboard; }
-    // Sets this item's `index` symbol (SymbolType::itemIndex) to [index] when
-    // the item's ViewModel defines one. Used when a list populates children so
-    // scripts/bindings can read the item's position.
-    void assignListIndex(uint32_t index);
-    StatusCode import(ImportStack& importStack) override;
+  void viewModelInstance(rcp<ViewModelInstance> value)
+  {
+    m_viewModelInstance = value;
+  };
+  rcp<ViewModelInstance>& viewModelInstance() { return m_viewModelInstance; }
+  void artboard(Artboard* value) { m_artboard = value; };
+  Artboard* artboard() { return m_artboard; }
+  // Sets this item's `index` symbol (SymbolType::itemIndex) to [index] when
+  // the item's ViewModel defines one. Used when a list populates children so
+  // scripts/bindings can read the item's position.
+  void assignListIndex(uint32_t index);
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

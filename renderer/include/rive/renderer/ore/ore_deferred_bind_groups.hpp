@@ -20,48 +20,48 @@ namespace rive::ore
 class DeferredBindGroups
 {
 public:
-    void defer(uint32_t groupIndex,
-               BindGroup* group,
-               const uint32_t* offsets,
-               uint32_t offsetCount)
+  void defer(
+      uint32_t groupIndex,
+      BindGroup* group,
+      const uint32_t* offsets,
+      uint32_t offsetCount)
+  {
+    assert(groupIndex < kMaxBindGroups && offsetCount <= kMaxDynamicOffsets);
+    Entry& entry = m_entries[groupIndex];
+    entry.group = ref_rcp(group);
+    entry.offsetCount = offsetCount;
+    if (offsetCount != 0)
     {
-        assert(groupIndex < kMaxBindGroups &&
-               offsetCount <= kMaxDynamicOffsets);
-        Entry& entry = m_entries[groupIndex];
-        entry.group = ref_rcp(group);
-        entry.offsetCount = offsetCount;
-        if (offsetCount != 0)
-        {
-            memcpy(entry.offsets, offsets, offsetCount * sizeof(uint32_t));
-        }
+      memcpy(entry.offsets, offsets, offsetCount * sizeof(uint32_t));
     }
+  }
 
-    // Binds what waited, once the pass has a pipeline.
-    void flush(RenderPass* pass)
+  // Binds what waited, once the pass has a pipeline.
+  void flush(RenderPass* pass)
+  {
+    for (uint32_t i = 0; i < kMaxBindGroups; ++i)
     {
-        for (uint32_t i = 0; i < kMaxBindGroups; ++i)
-        {
-            Entry& entry = m_entries[i];
-            if (entry.group != nullptr)
-            {
-                pass->setBindGroup(i,
-                                   entry.group.get(),
-                                   entry.offsetCount != 0 ? entry.offsets
-                                                          : nullptr,
-                                   entry.offsetCount);
-                entry.group = nullptr;
-            }
-        }
+      Entry& entry = m_entries[i];
+      if (entry.group != nullptr)
+      {
+        pass->setBindGroup(
+            i,
+            entry.group.get(),
+            entry.offsetCount != 0 ? entry.offsets : nullptr,
+            entry.offsetCount);
+        entry.group = nullptr;
+      }
     }
+  }
 
 private:
-    struct Entry
-    {
-        rcp<BindGroup> group;
-        uint32_t offsets[kMaxDynamicOffsets] = {};
-        uint32_t offsetCount = 0;
-    };
-    Entry m_entries[kMaxBindGroups];
+  struct Entry
+  {
+    rcp<BindGroup> group;
+    uint32_t offsets[kMaxDynamicOffsets] = {};
+    uint32_t offsetCount = 0;
+  };
+  Entry m_entries[kMaxBindGroups];
 };
 
 } // namespace rive::ore

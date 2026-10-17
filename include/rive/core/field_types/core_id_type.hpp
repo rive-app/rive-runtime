@@ -20,28 +20,28 @@ class BinaryReader;
 class CoreIdType
 {
 public:
-    // TOC size class. Shares with `CoreUintType` (varuint-like). The
-    // size-class enum in the file-format table of contents is `uint`
-    // for both — only the wire interpretation differs.
-    static const int id = 0;
+  // TOC size class. Shares with `CoreUintType` (varuint-like). The
+  // size-class enum in the file-format table of contents is `uint`
+  // for both — only the wire interpretation differs.
+  static const int id = 0;
 
-    // Editor wire format: `(client, object)` as two varuints.
-    // Runtime compilation aliases `Id` to `uint32_t` so this reads
-    // a single varuint today; the two-varuint behavior lands in the
-    // editor-mode struct flip (Step 3 of the refactor).
-    static Id deserialize(BinaryReader& reader);
+  // Editor wire format: `(client, object)` as two varuints.
+  // Runtime compilation aliases `Id` to `uint32_t` so this reads
+  // a single varuint today; the two-varuint behavior lands in the
+  // editor-mode struct flip (Step 3 of the refactor).
+  static Id deserialize(BinaryReader& reader);
 
 #ifdef WITH_RIVE_TOOLS
-    // Same as `deserialize` but explicitly named for the `.rev` path —
-    // matches the `deserializeRev` pattern used by other field types.
-    static Id deserializeRev(BinaryReader& reader);
+  // Same as `deserialize` but explicitly named for the `.rev` path —
+  // matches the `deserializeRev` pattern used by other field types.
+  static Id deserializeRev(BinaryReader& reader);
 #endif
 
-    // Runtime wire format (`.riv` file): single varuint.
-    // In an editor build this synthesizes `Id{0, index}` so runtime-
-    // loaded objects can still be resolved through the editor-mode
-    // CoopId map. In a pure runtime build it's just the index.
-    static Id runtimeDeserialize(BinaryReader& reader);
+  // Runtime wire format (`.riv` file): single varuint.
+  // In an editor build this synthesizes `Id{0, index}` so runtime-
+  // loaded objects can still be resolved through the editor-mode
+  // CoopId map. In a pure runtime build it's just the index.
+  static Id runtimeDeserialize(BinaryReader& reader);
 };
 } // namespace rive
 

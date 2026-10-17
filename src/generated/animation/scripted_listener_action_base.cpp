@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedListenerActionBase::clone() const
 {
-    auto cloned = new ScriptedListenerAction();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedListenerAction();
+  cloned->copy(*this);
+  return cloned;
 }

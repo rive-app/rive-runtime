@@ -6,12 +6,12 @@ using namespace rive;
 
 void TextVariationHelper::buildDependencies()
 {
-    auto text = m_textStyle->parent();
-    text->artboard()->addDependent(this);
-    addDependent(text);
+  auto text = m_textStyle->parent();
+  text->artboard()->addDependent(this);
+  addDependent(text);
 }
 
 void TextVariationHelper::update(ComponentDirt value)
 {
-    m_textStyle->updateVariableFont();
+  m_textStyle->updateVariableFont();
 }

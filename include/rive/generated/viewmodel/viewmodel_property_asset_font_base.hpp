@@ -6,14 +6,14 @@ namespace rive
 class ViewModelPropertyAssetFontBase : public ViewModelPropertyAsset
 {
 protected:
-    typedef ViewModelPropertyAsset Super;
+  typedef ViewModelPropertyAsset Super;
 
 public:
-    static const uint16_t typeKey = 1034;
+  static const uint16_t typeKey = 1034;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

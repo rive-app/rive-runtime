@@ -22,61 +22,60 @@ namespace rive::gpu
 class BufferRing
 {
 public:
-    BufferRing(size_t capacityInBytes) : m_capacityInBytes(capacityInBytes) {}
-    virtual ~BufferRing() {}
+  BufferRing(size_t capacityInBytes) : m_capacityInBytes(capacityInBytes) {}
+  virtual ~BufferRing() {}
 
-    size_t capacityInBytes() const { return m_capacityInBytes; }
-    bool isMapped() const { return m_mapSizeInBytes != 0; }
-    size_t mapSizeInBytes() const { return m_mapSizeInBytes; }
+  size_t capacityInBytes() const { return m_capacityInBytes; }
+  bool isMapped() const { return m_mapSizeInBytes != 0; }
+  size_t mapSizeInBytes() const { return m_mapSizeInBytes; }
 
-    // Maps the next buffer in the ring.
-    void* mapBuffer(size_t mapSizeInBytes)
-    {
-        assert(!isMapped());
-        assert(mapSizeInBytes > 0);
-        assert(mapSizeInBytes <= m_capacityInBytes);
-        m_submittedBufferIdx = (m_submittedBufferIdx + 1) % kBufferRingSize;
-        m_mapSizeInBytes = mapSizeInBytes;
-        return onMapBuffer(m_submittedBufferIdx, m_mapSizeInBytes);
-    }
+  // Maps the next buffer in the ring.
+  void* mapBuffer(size_t mapSizeInBytes)
+  {
+    assert(!isMapped());
+    assert(mapSizeInBytes > 0);
+    assert(mapSizeInBytes <= m_capacityInBytes);
+    m_submittedBufferIdx = (m_submittedBufferIdx + 1) % kBufferRingSize;
+    m_mapSizeInBytes = mapSizeInBytes;
+    return onMapBuffer(m_submittedBufferIdx, m_mapSizeInBytes);
+  }
 
-    // Submits the currently-mapped buffer for GPU rendering, in whatever way
-    // that is meaningful for the RenderContext implementation.
-    void unmapAndSubmitBuffer()
-    {
-        assert(isMapped());
-        onUnmapAndSubmitBuffer(m_submittedBufferIdx, m_mapSizeInBytes);
-        m_mapSizeInBytes = 0;
-    }
+  // Submits the currently-mapped buffer for GPU rendering, in whatever way
+  // that is meaningful for the RenderContext implementation.
+  void unmapAndSubmitBuffer()
+  {
+    assert(isMapped());
+    onUnmapAndSubmitBuffer(m_submittedBufferIdx, m_mapSizeInBytes);
+    m_mapSizeInBytes = 0;
+  }
 
 protected:
-    int submittedBufferIdx() const
-    {
-        assert(!isMapped());
-        return m_submittedBufferIdx;
-    }
+  int submittedBufferIdx() const
+  {
+    assert(!isMapped());
+    return m_submittedBufferIdx;
+  }
 
-    virtual void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
-    virtual void onUnmapAndSubmitBuffer(int bufferIdx,
-                                        size_t mapSizeInBytes) = 0;
+  virtual void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
+  virtual void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
 
-    uint8_t* shadowBuffer() const
+  uint8_t* shadowBuffer() const
+  {
+    if (m_shadowBuffer == nullptr && m_capacityInBytes > 0)
     {
-        if (m_shadowBuffer == nullptr && m_capacityInBytes > 0)
-        {
-            m_shadowBuffer.reset(new uint8_t[m_capacityInBytes]);
-        }
-        return m_shadowBuffer.get();
+      m_shadowBuffer.reset(new uint8_t[m_capacityInBytes]);
     }
+    return m_shadowBuffer.get();
+  }
 
 private:
-    size_t m_capacityInBytes;
-    size_t m_mapSizeInBytes = 0;
-    int m_submittedBufferIdx = 0;
+  size_t m_capacityInBytes;
+  size_t m_mapSizeInBytes = 0;
+  int m_submittedBufferIdx = 0;
 
-    // Lazy-allocated CPU buffer for when buffer mapping isn't supported by the
-    // API.
-    mutable std::unique_ptr<uint8_t[]> m_shadowBuffer;
+  // Lazy-allocated CPU buffer for when buffer mapping isn't supported by the
+  // API.
+  mutable std::unique_ptr<uint8_t[]> m_shadowBuffer;
 };
 
 // BufferRing that resides solely in CPU memory, and therefore doesn't require a
@@ -84,16 +83,15 @@ private:
 class HeapBufferRing : public BufferRing
 {
 public:
-    HeapBufferRing(size_t capacityInBytes) : BufferRing(capacityInBytes) {}
+  HeapBufferRing(size_t capacityInBytes) : BufferRing(capacityInBytes) {}
 
-    uint8_t* contents() const { return shadowBuffer(); }
+  uint8_t* contents() const { return shadowBuffer(); }
 
 protected:
-    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
-    {
-        return shadowBuffer();
-    }
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
-    {}
+  void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+  {
+    return shadowBuffer();
+  }
+  void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override {}
 };
 } // namespace rive::gpu

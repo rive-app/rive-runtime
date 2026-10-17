@@ -10,50 +10,50 @@ namespace rive
 class KeyedPropertyBase : public Core
 {
 protected:
-    typedef Core Super;
+  typedef Core Super;
 
 public:
-    static const uint16_t typeKey = 26;
+  static const uint16_t typeKey = 26;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t propertyKeyPropertyKey = 53;
+  static const uint16_t propertyKeyPropertyKey = 53;
 
 protected:
-    uint32_t m_PropertyKey = Core::invalidPropertyKey;
+  uint32_t m_PropertyKey = Core::invalidPropertyKey;
 
 public:
-    inline uint32_t propertyKey() const { return m_PropertyKey; }
-    void propertyKey(uint32_t value)
+  inline uint32_t propertyKey() const { return m_PropertyKey; }
+  void propertyKey(uint32_t value)
+  {
+    if (m_PropertyKey == value)
     {
-        if (m_PropertyKey == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
-        m_PropertyKey = value;
-        notifyPropertyChanged(propertyKeyPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(propertyKeyPropertyKey, &m_PropertyKey, &value);
+    m_PropertyKey = value;
+    notifyPropertyChanged(propertyKeyPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyedPropertyBase& object)
-    {
-        m_PropertyKey = object.m_PropertyKey;
-        RIVE_EDITOR_COPY(object);
-        RIVE_EDITOR_COPY_VALIDATED(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyedPropertyBase& object)
+  {
+    m_PropertyKey = object.m_PropertyKey;
+    RIVE_EDITOR_COPY(object);
+    RIVE_EDITOR_COPY_VALIDATED(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case propertyKeyPropertyKey:
-                m_PropertyKey = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return false;
+      case propertyKeyPropertyKey:
+        m_PropertyKey = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return false;
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

@@ -10,12 +10,12 @@ class ShaderModuleWGPU
     : public LITE_RTTI_OVERRIDE(ShaderModule, ShaderModuleWGPU)
 {
 public:
-    ShaderModuleWGPU() = default;
-    ~ShaderModuleWGPU() override =
-        default; // wgpu::ShaderModule RAII destructor releases
+  ShaderModuleWGPU() = default;
+  ~ShaderModuleWGPU() override =
+      default; // wgpu::ShaderModule RAII destructor releases
 
 private:
-    friend class ContextWGPU;
-    wgpu::ShaderModule m_wgpuShaderModule;
+  friend class ContextWGPU;
+  wgpu::ShaderModule m_wgpuShaderModule;
 };
 } // namespace rive::ore

@@ -9,26 +9,26 @@ namespace rive
 class FormulaTokenArgumentSeparatorBase : public FormulaToken
 {
 protected:
-    typedef FormulaToken Super;
+  typedef FormulaToken Super;
 
 public:
-    static const uint16_t typeKey = 538;
+  static const uint16_t typeKey = 538;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const FormulaTokenArgumentSeparatorBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        FormulaToken::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FormulaTokenArgumentSeparatorBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    FormulaToken::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return FormulaToken::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return FormulaToken::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/formula/formula_token_argument_separator_ext.inl"
 #endif

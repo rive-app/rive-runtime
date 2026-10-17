@@ -7,52 +7,52 @@ namespace rive
 class KeyFrameIntBase : public InterpolatingKeyFrame
 {
 protected:
-    typedef InterpolatingKeyFrame Super;
+  typedef InterpolatingKeyFrame Super;
 
 public:
-    static const uint16_t typeKey = 1067;
+  static const uint16_t typeKey = 1067;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 1068;
+  static const uint16_t valuePropertyKey = 1068;
 
 protected:
-    int32_t m_Value = 0;
+  int32_t m_Value = 0;
 
 public:
-    inline int32_t value() const { return m_Value; }
-    void value(int32_t value)
+  inline int32_t value() const { return m_Value; }
+  void value(int32_t value)
+  {
+    if (m_Value == value)
     {
-        if (m_Value == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
-        m_Value = value;
-        RIVE_EDITOR_CHANGED(valueChanged());
-        notifyPropertyChanged(valuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(valuePropertyKey, &m_Value, &value);
+    m_Value = value;
+    RIVE_EDITOR_CHANGED(valueChanged());
+    notifyPropertyChanged(valuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const KeyFrameIntBase& object)
-    {
-        m_Value = object.m_Value;
-        InterpolatingKeyFrame::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const KeyFrameIntBase& object)
+  {
+    m_Value = object.m_Value;
+    InterpolatingKeyFrame::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case valuePropertyKey:
-                m_Value = CoreIntType::deserialize(reader);
-                return true;
-        }
-        return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+      case valuePropertyKey:
+        m_Value = CoreIntType::deserialize(reader);
+        return true;
     }
+    return InterpolatingKeyFrame::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void valueChanged() {}
+  virtual void valueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/keyframe_int_ext.inl"
 #endif

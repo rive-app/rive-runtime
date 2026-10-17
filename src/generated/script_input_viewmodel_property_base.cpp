@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptInputViewModelPropertyBase::clone() const
 {
-    auto cloned = new ScriptInputViewModelProperty();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptInputViewModelProperty();
+  cloned->copy(*this);
+  return cloned;
 }

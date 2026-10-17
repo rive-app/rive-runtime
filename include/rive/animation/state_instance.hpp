@@ -16,21 +16,22 @@ class ArtboardInstance;
 class StateInstance
 {
 private:
-    const LayerState* m_LayerState;
+  const LayerState* m_LayerState;
 
 public:
-    StateInstance(const LayerState* layerState);
-    virtual ~StateInstance();
-    virtual void advance(float seconds,
-                         StateMachineInstance* stateMachineInstance) = 0;
-    virtual void apply(ArtboardInstance* instance, float mix) = 0;
+  StateInstance(const LayerState* layerState);
+  virtual ~StateInstance();
+  virtual void advance(
+      float seconds,
+      StateMachineInstance* stateMachineInstance) = 0;
+  virtual void apply(ArtboardInstance* instance, float mix) = 0;
 
-    /// Returns true when the State Machine needs to keep advancing this
-    /// state.
-    virtual bool keepGoing() const = 0;
-    virtual void clearSpilledTime() {}
+  /// Returns true when the State Machine needs to keep advancing this
+  /// state.
+  virtual bool keepGoing() const = 0;
+  virtual void clearSpilledTime() {}
 
-    const LayerState* state() const;
+  const LayerState* state() const;
 };
 } // namespace rive
 #endif

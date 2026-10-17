@@ -8,131 +8,131 @@ using namespace rive;
 
 DataConverterRangeMapper::~DataConverterRangeMapper()
 {
-    delete m_scriptedInterpolator;
+  delete m_scriptedInterpolator;
 }
 
 KeyFrameInterpolator* DataConverterRangeMapper::activeInterpolator() const
 {
-    if (m_scriptedInterpolator != nullptr)
+  if (m_scriptedInterpolator != nullptr)
+  {
+    if (auto* clone = m_scriptedInterpolator->get())
     {
-        if (auto* clone = m_scriptedInterpolator->get())
-        {
-            return clone;
-        }
+      return clone;
     }
-    return m_interpolator;
+  }
+  return m_interpolator;
 }
 
-void DataConverterRangeMapper::bindFromContext(DataContext* dataContext,
-                                               DataBind* dataBind)
+void DataConverterRangeMapper::bindFromContext(
+    DataContext* dataContext,
+    DataBind* dataBind)
 {
-    Super::bindFromContext(dataContext, dataBind);
-    if (m_interpolator == nullptr ||
-        !m_interpolator->is<ScriptedInterpolator>())
-    {
-        return;
-    }
-    auto context = rcp<DataContext>(safe_ref(dataContext));
-    if (m_scriptedInterpolator == nullptr)
-    {
-        m_scriptedInterpolator = new StatefulScriptedInterpolator(
-            m_interpolator->as<ScriptedInterpolator>(),
-            context);
-    }
-    m_scriptedInterpolator->bindFromContext(context);
+  Super::bindFromContext(dataContext, dataBind);
+  if (m_interpolator == nullptr || !m_interpolator->is<ScriptedInterpolator>())
+  {
+    return;
+  }
+  auto context = rcp<DataContext>(safe_ref(dataContext));
+  if (m_scriptedInterpolator == nullptr)
+  {
+    m_scriptedInterpolator = new StatefulScriptedInterpolator(
+        m_interpolator->as<ScriptedInterpolator>(),
+        context);
+  }
+  m_scriptedInterpolator->bindFromContext(context);
 }
 
 void DataConverterRangeMapper::unbind()
 {
-    Super::unbind();
-    if (m_scriptedInterpolator != nullptr)
-    {
-        m_scriptedInterpolator->unbind();
-    }
+  Super::unbind();
+  if (m_scriptedInterpolator != nullptr)
+  {
+    m_scriptedInterpolator->unbind();
+  }
 }
 
 void DataConverterRangeMapper::update()
 {
-    Super::update();
-    if (m_scriptedInterpolator != nullptr)
-    {
-        m_scriptedInterpolator->updateDataBinds();
-    }
+  Super::update();
+  if (m_scriptedInterpolator != nullptr)
+  {
+    m_scriptedInterpolator->updateDataBinds();
+  }
 }
 
 void DataConverterRangeMapper::copy(const DataConverterRangeMapperBase& object)
 {
-    interpolator(object.as<DataConverterRangeMapper>()->interpolator());
-    DataConverterRangeMapperBase::copy(object);
+  interpolator(object.as<DataConverterRangeMapper>()->interpolator());
+  DataConverterRangeMapperBase::copy(object);
 }
 
-DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
-                                                          float minInput,
-                                                          float maxInput,
-                                                          float minOutput,
-                                                          float maxOutput)
+DataValueNumber* DataConverterRangeMapper::calculateRange(
+    DataValue* input,
+    float minInput,
+    float maxInput,
+    float minOutput,
+    float maxOutput)
 {
-    if (input->is<DataValueNumber>())
+  if (input->is<DataValueNumber>())
+  {
+    if (minOutput == maxOutput)
     {
-        if (minOutput == maxOutput)
-        {
-            m_output.value(minOutput);
-        }
-        else
-        {
-            auto flagsValue =
-                static_cast<DataConverterRangeMapperFlags>(flags());
-            float value = input->as<DataValueNumber>()->value();
-
-            // Clamp value to min input if flag is on
-            if (value < minInput &&
-                (flagsValue & DataConverterRangeMapperFlags::ClampLower) ==
-                    DataConverterRangeMapperFlags::ClampLower)
-            {
-                value = minInput;
-            }
-            // Clamp value to max input if flag is on
-            else if (value > maxInput &&
-                     (flagsValue & DataConverterRangeMapperFlags::ClampUpper) ==
-                         DataConverterRangeMapperFlags::ClampUpper)
-            {
-                value = maxInput;
-            }
-            if ((value < minInput || value > maxInput) &&
-                (flagsValue & DataConverterRangeMapperFlags::Modulo) ==
-                    DataConverterRangeMapperFlags::Modulo)
-            {
-                // apply modulo to value to wrap whithin the min - max input if
-                // it exceeds its range
-                value =
-                    std::abs(math::positive_mod(value, (maxInput - minInput)) +
-                             minInput);
-            }
-            float perc = (value - minInput) / (maxInput - minInput);
-            // If reverse flag is on, flip the values
-            if ((flagsValue & DataConverterRangeMapperFlags::Reverse) ==
-                DataConverterRangeMapperFlags::Reverse)
-            {
-                perc = 1 - perc;
-            }
-            // Apply interpolator if exists and value is within range
-            if (m_interpolator != nullptr && perc > 0 && perc < 1)
-            {
-                perc = activeInterpolator()->transform(perc);
-            }
-            // hold keyframe interpolation
-            else if (interpolationType() == 0)
-            {
-                perc = perc <= 0 ? 0 : 1;
-            }
-            m_output.value(perc * maxOutput + (1 - perc) * minOutput);
-        }
+      m_output.value(minOutput);
     }
     else
     {
-        m_output.value(DataValueNumber::defaultValue);
+      auto flagsValue = static_cast<DataConverterRangeMapperFlags>(flags());
+      float value = input->as<DataValueNumber>()->value();
+
+      // Clamp value to min input if flag is on
+      if (value < minInput &&
+          (flagsValue & DataConverterRangeMapperFlags::ClampLower) ==
+              DataConverterRangeMapperFlags::ClampLower)
+      {
+        value = minInput;
+      }
+      // Clamp value to max input if flag is on
+      else if (
+          value > maxInput &&
+          (flagsValue & DataConverterRangeMapperFlags::ClampUpper) ==
+              DataConverterRangeMapperFlags::ClampUpper)
+      {
+        value = maxInput;
+      }
+      if ((value < minInput || value > maxInput) &&
+          (flagsValue & DataConverterRangeMapperFlags::Modulo) ==
+              DataConverterRangeMapperFlags::Modulo)
+      {
+        // apply modulo to value to wrap whithin the min - max input if
+        // it exceeds its range
+        value = std::abs(
+            math::positive_mod(value, (maxInput - minInput)) + minInput);
+      }
+      float perc = (value - minInput) / (maxInput - minInput);
+      // If reverse flag is on, flip the values
+      if ((flagsValue & DataConverterRangeMapperFlags::Reverse) ==
+          DataConverterRangeMapperFlags::Reverse)
+      {
+        perc = 1 - perc;
+      }
+      // Apply interpolator if exists and value is within range
+      if (m_interpolator != nullptr && perc > 0 && perc < 1)
+      {
+        perc = activeInterpolator()->transform(perc);
+      }
+      // hold keyframe interpolation
+      else if (interpolationType() == 0)
+      {
+        perc = perc <= 0 ? 0 : 1;
+      }
+      m_output.value(perc * maxOutput + (1 - perc) * minOutput);
     }
-    return &m_output;
+  }
+  else
+  {
+    m_output.value(DataValueNumber::defaultValue);
+  }
+  return &m_output;
 }
 
 DataValueNumber* DataConverterRangeMapper::calculateReverseRange(
@@ -142,32 +142,36 @@ DataValueNumber* DataConverterRangeMapper::calculateReverseRange(
     float minOutput,
     float maxOutput)
 {
-    return calculateRange(input, minOutput, maxOutput, minInput, maxInput);
+  return calculateRange(input, minOutput, maxOutput, minInput, maxInput);
 }
 
 void DataConverterRangeMapper::interpolator(KeyFrameInterpolator* interpolator)
 {
-    m_interpolator = interpolator;
+  m_interpolator = interpolator;
 }
 
-DataValue* DataConverterRangeMapper::convert(DataValue* input,
-                                             DataBind* dataBind)
+DataValue* DataConverterRangeMapper::convert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    return calculateRange(input,
-                          minInput(),
-                          maxInput(),
-                          minOutput(),
-                          maxOutput());
+  return calculateRange(
+      input,
+      minInput(),
+      maxInput(),
+      minOutput(),
+      maxOutput());
 }
 
-DataValue* DataConverterRangeMapper::reverseConvert(DataValue* input,
-                                                    DataBind* dataBind)
+DataValue* DataConverterRangeMapper::reverseConvert(
+    DataValue* input,
+    DataBind* dataBind)
 {
-    return calculateReverseRange(input,
-                                 minInput(),
-                                 maxInput(),
-                                 minOutput(),
-                                 maxOutput());
+  return calculateReverseRange(
+      input,
+      minInput(),
+      maxInput(),
+      minOutput(),
+      maxOutput());
 }
 
 void DataConverterRangeMapper::minInputChanged() { markConverterDirty(); }

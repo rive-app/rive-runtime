@@ -15,47 +15,46 @@ Artboard* ArtboardReferencer::findArtboard(
     Artboard* parentArtboard,
     File* file)
 {
-    if (viewModelInstanceArtboard == nullptr)
+  if (viewModelInstanceArtboard == nullptr)
+  {
+    return nullptr;
+  }
+  if (viewModelInstanceArtboard->asset() != nullptr)
+  {
+    if (!parentArtboard || !parentArtboard->isAncestor(
+                               viewModelInstanceArtboard->asset()->artboard()))
     {
-        return nullptr;
-    }
-    if (viewModelInstanceArtboard->asset() != nullptr)
-    {
-        if (!parentArtboard ||
-            !parentArtboard->isAncestor(
-                viewModelInstanceArtboard->asset()->artboard()))
-        {
-            return viewModelInstanceArtboard->asset()->artboard();
-        }
-        return nullptr;
-    }
-    else if (file != nullptr)
-    {
-        auto asset = file->artboard(viewModelInstanceArtboard->propertyValue());
-        if (asset != nullptr)
-        {
-            auto artboardAsset = asset->as<Artboard>();
-            if (!parentArtboard || !parentArtboard->isAncestor(artboardAsset))
-            {
-                return artboardAsset;
-            }
-        }
+      return viewModelInstanceArtboard->asset()->artboard();
     }
     return nullptr;
+  }
+  else if (file != nullptr)
+  {
+    auto asset = file->artboard(viewModelInstanceArtboard->propertyValue());
+    if (asset != nullptr)
+    {
+      auto artboardAsset = asset->as<Artboard>();
+      if (!parentArtboard || !parentArtboard->isAncestor(artboardAsset))
+      {
+        return artboardAsset;
+      }
+    }
+  }
+  return nullptr;
 }
 
 ArtboardReferencer* ArtboardReferencer::from(Core* component)
 {
-    switch (component->coreType())
-    {
-        case NestedArtboardBase::typeKey:
-        case NestedArtboardLeafBase::typeKey:
-        case NestedArtboardLayoutBase::typeKey:
-            return component->as<NestedArtboard>();
-        case ScriptInputArtboardBase::typeKey:
-            return component->as<ScriptInputArtboard>();
-        case PaintImageBase::typeKey:
-            return component->as<PaintImage>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case NestedArtboardBase::typeKey:
+    case NestedArtboardLeafBase::typeKey:
+    case NestedArtboardLayoutBase::typeKey:
+      return component->as<NestedArtboard>();
+    case ScriptInputArtboardBase::typeKey:
+      return component->as<ScriptInputArtboard>();
+    case PaintImageBase::typeKey:
+      return component->as<PaintImage>();
+  }
+  return nullptr;
 }

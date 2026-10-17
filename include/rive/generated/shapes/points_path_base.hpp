@@ -9,26 +9,26 @@ namespace rive
 class PointsPathBase : public PointsCommonPath
 {
 protected:
-    typedef PointsCommonPath Super;
+  typedef PointsCommonPath Super;
 
 public:
-    static const uint16_t typeKey = 16;
+  static const uint16_t typeKey = 16;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const PointsPathBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        PointsCommonPath::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const PointsPathBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    PointsCommonPath::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return PointsCommonPath::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return PointsCommonPath::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/points_path_ext.inl"
 #endif

@@ -5,96 +5,96 @@
 
 using namespace rive;
 
-DataBindContextValueAny::DataBindContextValueAny(DataBind* dataBind) :
-    DataBindContextValue(dataBind)
+DataBindContextValueAny::DataBindContextValueAny(DataBind* dataBind)
+    : DataBindContextValue(dataBind)
 {}
 
-void DataBindContextValueAny::apply(Core* target,
-                                    uint32_t propertyKey,
-                                    bool isMainDirection,
-                                    DataBind* dataBind)
+void DataBindContextValueAny::apply(
+    Core* target,
+    uint32_t propertyKey,
+    bool isMainDirection,
+    DataBind* dataBind)
 {
-    syncSourceValue(dataBind);
-    auto dataValue =
-        calculateUntypedDataValue(m_dataValue, isMainDirection, dataBind);
-    switch (CoreRegistry::propertyFieldId(propertyKey))
-    {
-        case CoreDoubleType::id:
-            if (dataValue->is<DataValueNumber>())
-            {
-                CoreRegistry::setDouble(
-                    target,
-                    propertyKey,
-                    dataValue->as<DataValueNumber>()->value());
-            }
-            break;
-        case CoreUintType::id:
-            if (dataValue->is<DataValueNumber>())
-            {
-                auto value = dataValue->as<DataValueNumber>()->value();
-                if (target && target->is<Solo>())
-                {
-                    target->as<Solo>()->updateByIndex(
-                        (size_t)std::round(value));
-                }
-                else if (target && target->is<ScriptedTransition>())
-                {
-                    target->as<ScriptedTransition>()->updateByIndex(
-                        (size_t)std::round(value));
-                }
-                else if (CoreRegistry::isSignedInt(propertyKey))
-                {
-                    // No clamp: a negative grid line is end-relative.
-                    CoreRegistry::setInt(target,
-                                         propertyKey,
-                                         (int32_t)std::round(value));
-                }
-                else
-                {
-                    int rounded = value < 0 ? 0 : std::round(value);
-                    CoreRegistry::setUint(target, propertyKey, rounded);
-                }
-            }
-            else if (dataValue->is<DataValueString>())
-            {
-                if (target && target->is<Solo>())
-                {
-                    target->as<Solo>()->updateByName(
-                        dataValue->as<DataValueString>()->value());
-                }
-                else if (target && target->is<ScriptedTransition>())
-                {
-                    target->as<ScriptedTransition>()->updateByName(
-                        dataValue->as<DataValueString>()->value());
-                }
-            }
-            break;
-        case CoreStringType::id:
-            if (dataValue->is<DataValueString>())
-            {
-                CoreRegistry::setString(
-                    target,
-                    propertyKey,
-                    dataValue->as<DataValueString>()->value());
-            }
-            break;
-        case CoreBoolType::id:
-            if (dataValue->is<DataValueBoolean>())
-            {
-                CoreRegistry::setBool(
-                    target,
-                    propertyKey,
-                    dataValue->as<DataValueBoolean>()->value());
-            }
-            break;
-        case CoreColorType::id:
-            if (dataValue->is<DataValueColor>())
-            {
-                CoreRegistry::setColor(
-                    target,
-                    propertyKey,
-                    dataValue->as<DataValueColor>()->value());
-            }
-            break;
-    }
+  syncSourceValue(dataBind);
+  auto dataValue = calculateUntypedDataValue(
+      m_dataValue,
+      isMainDirection,
+      dataBind);
+  switch (CoreRegistry::propertyFieldId(propertyKey))
+  {
+    case CoreDoubleType::id:
+      if (dataValue->is<DataValueNumber>())
+      {
+        CoreRegistry::setDouble(
+            target,
+            propertyKey,
+            dataValue->as<DataValueNumber>()->value());
+      }
+      break;
+    case CoreUintType::id:
+      if (dataValue->is<DataValueNumber>())
+      {
+        auto value = dataValue->as<DataValueNumber>()->value();
+        if (target && target->is<Solo>())
+        {
+          target->as<Solo>()->updateByIndex((size_t)std::round(value));
+        }
+        else if (target && target->is<ScriptedTransition>())
+        {
+          target->as<ScriptedTransition>()->updateByIndex(
+              (size_t)std::round(value));
+        }
+        else if (CoreRegistry::isSignedInt(propertyKey))
+        {
+          // No clamp: a negative grid line is end-relative.
+          CoreRegistry::setInt(target, propertyKey, (int32_t)std::round(value));
+        }
+        else
+        {
+          int rounded = value < 0 ? 0 : std::round(value);
+          CoreRegistry::setUint(target, propertyKey, rounded);
+        }
+      }
+      else if (dataValue->is<DataValueString>())
+      {
+        if (target && target->is<Solo>())
+        {
+          target->as<Solo>()->updateByName(
+              dataValue->as<DataValueString>()->value());
+        }
+        else if (target && target->is<ScriptedTransition>())
+        {
+          target->as<ScriptedTransition>()->updateByName(
+              dataValue->as<DataValueString>()->value());
+        }
+      }
+      break;
+    case CoreStringType::id:
+      if (dataValue->is<DataValueString>())
+      {
+        CoreRegistry::setString(
+            target,
+            propertyKey,
+            dataValue->as<DataValueString>()->value());
+      }
+      break;
+    case CoreBoolType::id:
+      if (dataValue->is<DataValueBoolean>())
+      {
+        CoreRegistry::setBool(
+            target,
+            propertyKey,
+            dataValue->as<DataValueBoolean>()->value());
+      }
+      break;
+    case CoreColorType::id:
+      if (dataValue->is<DataValueColor>())
+      {
+        CoreRegistry::setColor(
+            target,
+            propertyKey,
+            dataValue->as<DataValueColor>()->value());
+      }
+      break;
+  }
 }

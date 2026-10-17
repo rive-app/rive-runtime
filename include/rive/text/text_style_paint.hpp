@@ -12,32 +12,32 @@ class TextStyleBackground;
 class TextStylePaint : public TextStylePaintBase, public ShapePaintContainer
 {
 public:
-    TextStylePaint();
-    bool addPath(const RawPath& rawPath, float opacity);
-    void rewindPath();
-    void draw(Renderer* renderer, const Mat2D& worldTransform);
+  TextStylePaint();
+  bool addPath(const RawPath& rawPath, float opacity);
+  void rewindPath();
+  void draw(Renderer* renderer, const Mat2D& worldTransform);
 
-    void background(TextStyleBackground* value) { m_background = value; }
-    TextStyleBackground* background() const { return m_background; }
+  void background(TextStyleBackground* value) { m_background = value; }
+  TextStyleBackground* background() const { return m_background; }
 
-    /// Returns the foreground color from the first solid fill, or black if
-    /// none.
-    ColorInt foregroundColor() const;
+  /// Returns the foreground color from the first solid fill, or black if
+  /// none.
+  ColorInt foregroundColor() const;
 
-    // Implemented for ShapePaintContainer.
-    const Mat2D& shapeWorldTransform() const override;
-    Component* pathBuilder() override;
-    ShapePaintPath* localPath() override { return &m_path; }
-    ShapePaintPath* localClockwisePath() override { return &m_path; }
-    Core* clone() const override;
+  // Implemented for ShapePaintContainer.
+  const Mat2D& shapeWorldTransform() const override;
+  Component* pathBuilder() override;
+  ShapePaintPath* localPath() override { return &m_path; }
+  ShapePaintPath* localClockwisePath() override { return &m_path; }
+  Core* clone() const override;
 
 private:
-    Artboard* getArtboard() override { return artboard(); }
-    std::map<float, ShapePaintPath> m_opacityPaths;
-    std::vector<rcp<RenderPaint>> m_paintPool;
-    ShapePaintPath m_path;
-    bool m_hasContents = false;
-    TextStyleBackground* m_background = nullptr;
+  Artboard* getArtboard() override { return artboard(); }
+  std::map<float, ShapePaintPath> m_opacityPaths;
+  std::vector<rcp<RenderPaint>> m_paintPool;
+  ShapePaintPath m_path;
+  bool m_hasContents = false;
+  TextStyleBackground* m_background = nullptr;
 };
 } // namespace rive
 

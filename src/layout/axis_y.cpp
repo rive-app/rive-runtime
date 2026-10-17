@@ -6,12 +6,12 @@ using namespace rive;
 
 StatusCode AxisY::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    NSlicerDetails::from(parent())->addAxisY(this);
-    return StatusCode::Ok;
+  NSlicerDetails::from(parent())->addAxisY(this);
+  return StatusCode::Ok;
 }

@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ScriptedDrawableBase::clone() const
 {
-    auto cloned = new ScriptedDrawable();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ScriptedDrawable();
+  cloned->copy(*this);
+  return cloned;
 }

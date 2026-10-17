@@ -7,15 +7,15 @@ namespace rive
 class Dash : public DashBase
 {
 public:
-    Dash();
-    Dash(float value, bool percentage);
+  Dash();
+  Dash(float value, bool percentage);
 
-    float normalizedLength(float length, bool wraps) const;
+  float normalizedLength(float length, bool wraps) const;
 
-    StatusCode onAddedClean(CoreContext* context) override;
+  StatusCode onAddedClean(CoreContext* context) override;
 
-    void lengthChanged() override;
-    void lengthIsPercentageChanged() override;
+  void lengthChanged() override;
+  void lengthIsPercentageChanged() override;
 };
 } // namespace rive
 

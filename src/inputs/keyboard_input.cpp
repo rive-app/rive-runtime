@@ -9,21 +9,21 @@ using namespace rive;
 
 StatusCode KeyboardInput::import(ImportStack& importStack)
 {
-    auto* litImporter = importStack.latest<ListenerInputTypeKeyboardImporter>(
-        ListenerInputTypeKeyboardBase::typeKey);
-    if (litImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    litImporter->listenerInputTypeKeyboard()->addKeyboardInput(this);
+  auto* litImporter = importStack.latest<ListenerInputTypeKeyboardImporter>(
+      ListenerInputTypeKeyboardBase::typeKey);
+  if (litImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  litImporter->listenerInputTypeKeyboard()->addKeyboardInput(this);
 
-    // File::readObjects already put this in the artboard's object list (see
-    // UserInput::claimsArtboardSlot), which owns it.
-    auto artboardImporter =
-        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
-    if (artboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    return Super::import(importStack);
+  // File::readObjects already put this in the artboard's object list (see
+  // UserInput::claimsArtboardSlot), which owns it.
+  auto artboardImporter = importStack.latest<ArtboardImporter>(
+      ArtboardBase::typeKey);
+  if (artboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  return Super::import(importStack);
 }

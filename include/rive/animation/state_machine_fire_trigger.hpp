@@ -9,11 +9,10 @@ class StateMachineFireTrigger : public StateMachineFireTriggerBase,
                                 public DataBindPathReferencer
 {
 public:
-    void perform(StateMachineInstance* stateMachineInstance) const override;
-    void decodeViewModelPathIds(Span<const uint8_t> value) override;
-    void copyViewModelPathIds(
-        const StateMachineFireTriggerBase& object) override;
-    StatusCode import(ImportStack& importStack) override;
+  void perform(StateMachineInstance* stateMachineInstance) const override;
+  void decodeViewModelPathIds(Span<const uint8_t> value) override;
+  void copyViewModelPathIds(const StateMachineFireTriggerBase& object) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 

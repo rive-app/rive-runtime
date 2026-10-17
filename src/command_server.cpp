@@ -36,122 +36,121 @@ template <typename TResourceHandle, typename TFileAsset>
 class TypedGlobalAssetRegistry
 {
 public:
-    /** Adds a matching file asset after its file imports successfully. */
-    void addFileAsset(FileHandle fileHandle, TFileAsset* asset)
+  /** Adds a matching file asset after its file imports successfully. */
+  void addFileAsset(FileHandle fileHandle, TFileAsset* asset)
+  {
+    m_entries[asset->uniqueName()].assetsByFileHandle[fileHandle] = ref_rcp(
+        asset);
+  }
+
+  /** Removes a file asset when its containing file is deleted. */
+  void removeFileAsset(FileHandle fileHandle, const std::string& name)
+  {
+    auto itr = m_entries.find(name);
+    if (itr == m_entries.end())
     {
-        m_entries[asset->uniqueName()].assetsByFileHandle[fileHandle] =
-            ref_rcp(asset);
+      return;
+    }
+    itr->second.assetsByFileHandle.erase(fileHandle);
+    eraseIfUnused(itr);
+  }
+
+  /** Returns the resource registered for a name, or the null handle. */
+  TResourceHandle getResourceHandle(const std::string& name) const
+  {
+    auto itr = m_entries.find(name);
+    return itr == m_entries.end() ? RIVE_NULL_HANDLE
+                                  : itr->second.resourceHandle;
+  }
+
+  /** Sets the resource for a name without applying it to file assets. */
+  void setResource(const std::string& name, TResourceHandle handle)
+  {
+    m_entries[name].resourceHandle = handle;
+  }
+
+  /** Unregisters the resource for a name without clearing file assets. */
+  void unregisterResourceByName(const std::string& name)
+  {
+    auto itr = m_entries.find(name);
+    if (itr == m_entries.end())
+    {
+      return;
+    }
+    itr->second.resourceHandle = RIVE_NULL_HANDLE;
+    eraseIfUnused(itr);
+  }
+
+  /**
+   * Unregisters every name backed by a resource handle.
+   *
+   * Returns the names that still have loaded file assets and therefore need
+   * to have the null resource applied separately.
+   */
+  std::vector<std::string> unregisterResourceByHandle(TResourceHandle handle)
+  {
+    std::vector<std::string> names;
+    for (auto itr = m_entries.begin(); itr != m_entries.end();)
+    {
+      if (itr->second.resourceHandle != handle)
+      {
+        ++itr;
+        continue;
+      }
+
+      itr->second.resourceHandle = RIVE_NULL_HANDLE;
+      if (itr->second.empty())
+      {
+        itr = m_entries.erase(itr);
+      }
+      else
+      {
+        names.push_back(itr->first);
+        ++itr;
+      }
+    }
+    return names;
+  }
+
+  /** Applies an operation to every loaded file asset matching a name. */
+  template <typename Apply>
+  void applyToFileAssets(const std::string& name, Apply&& apply) const
+  {
+    auto itr = m_entries.find(name);
+    if (itr == m_entries.end())
+    {
+      return;
     }
 
-    /** Removes a file asset when its containing file is deleted. */
-    void removeFileAsset(FileHandle fileHandle, const std::string& name)
+    for (const auto& fileAsset : itr->second.assetsByFileHandle)
     {
-        auto itr = m_entries.find(name);
-        if (itr == m_entries.end())
-        {
-            return;
-        }
-        itr->second.assetsByFileHandle.erase(fileHandle);
-        eraseIfUnused(itr);
+      apply(*fileAsset.second);
     }
-
-    /** Returns the resource registered for a name, or the null handle. */
-    TResourceHandle getResourceHandle(const std::string& name) const
-    {
-        auto itr = m_entries.find(name);
-        return itr == m_entries.end() ? RIVE_NULL_HANDLE
-                                      : itr->second.resourceHandle;
-    }
-
-    /** Sets the resource for a name without applying it to file assets. */
-    void setResource(const std::string& name, TResourceHandle handle)
-    {
-        m_entries[name].resourceHandle = handle;
-    }
-
-    /** Unregisters the resource for a name without clearing file assets. */
-    void unregisterResourceByName(const std::string& name)
-    {
-        auto itr = m_entries.find(name);
-        if (itr == m_entries.end())
-        {
-            return;
-        }
-        itr->second.resourceHandle = RIVE_NULL_HANDLE;
-        eraseIfUnused(itr);
-    }
-
-    /**
-     * Unregisters every name backed by a resource handle.
-     *
-     * Returns the names that still have loaded file assets and therefore need
-     * to have the null resource applied separately.
-     */
-    std::vector<std::string> unregisterResourceByHandle(TResourceHandle handle)
-    {
-        std::vector<std::string> names;
-        for (auto itr = m_entries.begin(); itr != m_entries.end();)
-        {
-            if (itr->second.resourceHandle != handle)
-            {
-                ++itr;
-                continue;
-            }
-
-            itr->second.resourceHandle = RIVE_NULL_HANDLE;
-            if (itr->second.empty())
-            {
-                itr = m_entries.erase(itr);
-            }
-            else
-            {
-                names.push_back(itr->first);
-                ++itr;
-            }
-        }
-        return names;
-    }
-
-    /** Applies an operation to every loaded file asset matching a name. */
-    template <typename Apply>
-    void applyToFileAssets(const std::string& name, Apply&& apply) const
-    {
-        auto itr = m_entries.find(name);
-        if (itr == m_entries.end())
-        {
-            return;
-        }
-
-        for (const auto& fileAsset : itr->second.assetsByFileHandle)
-        {
-            apply(*fileAsset.second);
-        }
-    }
+  }
 
 private:
-    struct Entry
+  struct Entry
+  {
+    TResourceHandle resourceHandle = RIVE_NULL_HANDLE;
+    std::unordered_map<FileHandle, rcp<TFileAsset>> assetsByFileHandle;
+
+    bool empty() const
     {
-        TResourceHandle resourceHandle = RIVE_NULL_HANDLE;
-        std::unordered_map<FileHandle, rcp<TFileAsset>> assetsByFileHandle;
-
-        bool empty() const
-        {
-            return resourceHandle == RIVE_NULL_HANDLE &&
-                   assetsByFileHandle.empty();
-        }
-    };
-
-    using Entries = std::unordered_map<std::string, Entry>;
-
-    void eraseIfUnused(typename Entries::iterator itr)
-    {
-        if (itr->second.empty())
-        {
-            m_entries.erase(itr);
-        }
+      return resourceHandle == RIVE_NULL_HANDLE && assetsByFileHandle.empty();
     }
+  };
 
-    Entries m_entries;
+  using Entries = std::unordered_map<std::string, Entry>;
+
+  void eraseIfUnused(typename Entries::iterator itr)
+  {
+    if (itr->second.empty())
+    {
+      m_entries.erase(itr);
+    }
+  }
+
+  Entries m_entries;
 };
 
 /**
@@ -171,214 +170,211 @@ private:
 class GlobalAssetRegistry : public RefCnt<GlobalAssetRegistry>
 {
 public:
-    GlobalAssetRegistry(
-        const std::unordered_map<RenderImageHandle, rcp<RenderImage>>& images,
-        const std::unordered_map<AudioSourceHandle, rcp<AudioSource>>&
-            audioSources,
-        const std::unordered_map<FontHandle, rcp<Font>>& fonts) :
-        m_images(images), m_audioSources(audioSources), m_fonts(fonts)
-    {}
+  GlobalAssetRegistry(
+      const std::unordered_map<RenderImageHandle, rcp<RenderImage>>& images,
+      const std::unordered_map<AudioSourceHandle, rcp<AudioSource>>&
+          audioSources,
+      const std::unordered_map<FontHandle, rcp<Font>>& fonts)
+      : m_images(images)
+      , m_audioSources(audioSources)
+      , m_fonts(fonts)
+  {}
 
-    /** Adds successfully imported out-of-band file assets to the registry. */
-    void addFileAssets(FileHandle fileHandle, Span<const rcp<FileAsset>> assets)
+  /** Adds successfully imported out-of-band file assets to the registry. */
+  void addFileAssets(FileHandle fileHandle, Span<const rcp<FileAsset>> assets)
+  {
+    for (const auto& asset : assets)
     {
-        for (const auto& asset : assets)
-        {
-            if (asset->is<ImageAsset>())
-            {
-                m_imageRegistry.addFileAsset(fileHandle,
-                                             asset->as<ImageAsset>());
-            }
-            else if (asset->is<AudioAsset>())
-            {
-                m_audioRegistry.addFileAsset(fileHandle,
-                                             asset->as<AudioAsset>());
-            }
-            else if (asset->is<FontAsset>())
-            {
-                m_fontRegistry.addFileAsset(fileHandle, asset->as<FontAsset>());
-            }
-        }
+      if (asset->is<ImageAsset>())
+      {
+        m_imageRegistry.addFileAsset(fileHandle, asset->as<ImageAsset>());
+      }
+      else if (asset->is<AudioAsset>())
+      {
+        m_audioRegistry.addFileAsset(fileHandle, asset->as<AudioAsset>());
+      }
+      else if (asset->is<FontAsset>())
+      {
+        m_fontRegistry.addFileAsset(fileHandle, asset->as<FontAsset>());
+      }
     }
+  }
 
-    /** Applies registered resources to newly imported file assets. */
-    void applyResourcesToFileAssets(Span<const rcp<FileAsset>> fileAssets) const
+  /** Applies registered resources to newly imported file assets. */
+  void applyResourcesToFileAssets(Span<const rcp<FileAsset>> fileAssets) const
+  {
+    for (const auto& asset : fileAssets)
     {
-        for (const auto& asset : fileAssets)
-        {
-            if (asset->is<ImageAsset>())
-            {
-                auto handle = renderImageHandle(asset->uniqueName());
-                asset->as<ImageAsset>()->renderImage(
-                    getResource(m_images, handle));
-            }
-            else if (asset->is<AudioAsset>())
-            {
-                auto handle = audioSourceHandle(asset->uniqueName());
-                asset->as<AudioAsset>()->audioSource(
-                    getResource(m_audioSources, handle));
-            }
-            else if (asset->is<FontAsset>())
-            {
-                auto handle = fontHandle(asset->uniqueName());
-                asset->as<FontAsset>()->font(getResource(m_fonts, handle));
-            }
-        }
+      if (asset->is<ImageAsset>())
+      {
+        auto handle = renderImageHandle(asset->uniqueName());
+        asset->as<ImageAsset>()->renderImage(getResource(m_images, handle));
+      }
+      else if (asset->is<AudioAsset>())
+      {
+        auto handle = audioSourceHandle(asset->uniqueName());
+        asset->as<AudioAsset>()->audioSource(
+            getResource(m_audioSources, handle));
+      }
+      else if (asset->is<FontAsset>())
+      {
+        auto handle = fontHandle(asset->uniqueName());
+        asset->as<FontAsset>()->font(getResource(m_fonts, handle));
+      }
     }
+  }
 
-    RenderImageHandle renderImageHandle(const std::string& name) const
-    {
-        return m_imageRegistry.getResourceHandle(name);
-    }
+  RenderImageHandle renderImageHandle(const std::string& name) const
+  {
+    return m_imageRegistry.getResourceHandle(name);
+  }
 
-    AudioSourceHandle audioSourceHandle(const std::string& name) const
-    {
-        return m_audioRegistry.getResourceHandle(name);
-    }
+  AudioSourceHandle audioSourceHandle(const std::string& name) const
+  {
+    return m_audioRegistry.getResourceHandle(name);
+  }
 
-    FontHandle fontHandle(const std::string& name) const
-    {
-        return m_fontRegistry.getResourceHandle(name);
-    }
+  FontHandle fontHandle(const std::string& name) const
+  {
+    return m_fontRegistry.getResourceHandle(name);
+  }
 
-    /** Sets the resource for a name. The caller applies it separately. */
-    void setRenderImage(const std::string& name, RenderImageHandle handle)
-    {
-        m_imageRegistry.setResource(name, handle);
-    }
+  /** Sets the resource for a name. The caller applies it separately. */
+  void setRenderImage(const std::string& name, RenderImageHandle handle)
+  {
+    m_imageRegistry.setResource(name, handle);
+  }
 
-    void setAudioSource(const std::string& name, AudioSourceHandle handle)
-    {
-        m_audioRegistry.setResource(name, handle);
-    }
+  void setAudioSource(const std::string& name, AudioSourceHandle handle)
+  {
+    m_audioRegistry.setResource(name, handle);
+  }
 
-    void setFont(const std::string& name, FontHandle handle)
-    {
-        m_fontRegistry.setResource(name, handle);
-    }
+  void setFont(const std::string& name, FontHandle handle)
+  {
+    m_fontRegistry.setResource(name, handle);
+  }
 
-    /**
-     * Unregisters the resource for a name. The caller applies the null resource
-     * separately.
-     */
-    void removeRenderImage(const std::string& name)
-    {
-        m_imageRegistry.unregisterResourceByName(name);
-    }
+  /**
+   * Unregisters the resource for a name. The caller applies the null resource
+   * separately.
+   */
+  void removeRenderImage(const std::string& name)
+  {
+    m_imageRegistry.unregisterResourceByName(name);
+  }
 
-    void removeAudioSource(const std::string& name)
-    {
-        m_audioRegistry.unregisterResourceByName(name);
-    }
+  void removeAudioSource(const std::string& name)
+  {
+    m_audioRegistry.unregisterResourceByName(name);
+  }
 
-    void removeFont(const std::string& name)
-    {
-        m_fontRegistry.unregisterResourceByName(name);
-    }
+  void removeFont(const std::string& name)
+  {
+    m_fontRegistry.unregisterResourceByName(name);
+  }
 
-    void applyRenderImage(const std::string& name,
-                          const rcp<RenderImage>& image) const
-    {
-        m_imageRegistry.applyToFileAssets(name, [&image](ImageAsset& asset) {
-            asset.renderImage(image);
-        });
-    }
+  void applyRenderImage(const std::string& name, const rcp<RenderImage>& image)
+      const
+  {
+    m_imageRegistry.applyToFileAssets(name, [&image](ImageAsset& asset) {
+      asset.renderImage(image);
+    });
+  }
 
-    void applyAudioSource(const std::string& name,
-                          const rcp<AudioSource>& audioSource) const
-    {
-        m_audioRegistry.applyToFileAssets(name,
-                                          [&audioSource](AudioAsset& asset) {
-                                              asset.audioSource(audioSource);
-                                          });
-    }
+  void applyAudioSource(
+      const std::string& name,
+      const rcp<AudioSource>& audioSource) const
+  {
+    m_audioRegistry.applyToFileAssets(name, [&audioSource](AudioAsset& asset) {
+      asset.audioSource(audioSource);
+    });
+  }
 
-    void applyFont(const std::string& name, const rcp<Font>& font) const
-    {
-        m_fontRegistry.applyToFileAssets(name, [&font](FontAsset& asset) {
-            asset.font(font);
-        });
-    }
+  void applyFont(const std::string& name, const rcp<Font>& font) const
+  {
+    m_fontRegistry.applyToFileAssets(name, [&font](FontAsset& asset) {
+      asset.font(font);
+    });
+  }
 
-    /**
-     * Unregisters every name backed by a deleted resource handle. The caller
-     * applies each returned name separately.
-     */
-    std::vector<std::string> removeRenderImage(RenderImageHandle handle)
-    {
-        return m_imageRegistry.unregisterResourceByHandle(handle);
-    }
+  /**
+   * Unregisters every name backed by a deleted resource handle. The caller
+   * applies each returned name separately.
+   */
+  std::vector<std::string> removeRenderImage(RenderImageHandle handle)
+  {
+    return m_imageRegistry.unregisterResourceByHandle(handle);
+  }
 
-    std::vector<std::string> removeAudioSource(AudioSourceHandle handle)
-    {
-        return m_audioRegistry.unregisterResourceByHandle(handle);
-    }
+  std::vector<std::string> removeAudioSource(AudioSourceHandle handle)
+  {
+    return m_audioRegistry.unregisterResourceByHandle(handle);
+  }
 
-    std::vector<std::string> removeFont(FontHandle handle)
-    {
-        return m_fontRegistry.unregisterResourceByHandle(handle);
-    }
+  std::vector<std::string> removeFont(FontHandle handle)
+  {
+    return m_fontRegistry.unregisterResourceByHandle(handle);
+  }
 
-    /**
-     * Removes a deleted file from each registry entry named by an asset in that
-     * loaded Rive file. No file-to-assets reverse registry is needed.
-     */
-    void removeFileAssets(FileHandle fileHandle,
-                          Span<const rcp<FileAsset>> assets)
+  /**
+   * Removes a deleted file from each registry entry named by an asset in that
+   * loaded Rive file. No file-to-assets reverse registry is needed.
+   */
+  void removeFileAssets(
+      FileHandle fileHandle,
+      Span<const rcp<FileAsset>> assets)
+  {
+    for (const auto& asset : assets)
     {
-        for (const auto& asset : assets)
-        {
-            if (asset->is<ImageAsset>())
-            {
-                m_imageRegistry.removeFileAsset(fileHandle,
-                                                asset->uniqueName());
-            }
-            else if (asset->is<AudioAsset>())
-            {
-                m_audioRegistry.removeFileAsset(fileHandle,
-                                                asset->uniqueName());
-            }
-            else if (asset->is<FontAsset>())
-            {
-                m_fontRegistry.removeFileAsset(fileHandle, asset->uniqueName());
-            }
-        }
+      if (asset->is<ImageAsset>())
+      {
+        m_imageRegistry.removeFileAsset(fileHandle, asset->uniqueName());
+      }
+      else if (asset->is<AudioAsset>())
+      {
+        m_audioRegistry.removeFileAsset(fileHandle, asset->uniqueName());
+      }
+      else if (asset->is<FontAsset>())
+      {
+        m_fontRegistry.removeFileAsset(fileHandle, asset->uniqueName());
+      }
     }
+  }
 
 #ifdef TESTING
-    RenderImageHandle testing_imageNamed(const std::string& name)
-    {
-        return renderImageHandle(name);
-    }
+  RenderImageHandle testing_imageNamed(const std::string& name)
+  {
+    return renderImageHandle(name);
+  }
 
-    AudioSourceHandle testing_audioNamed(const std::string& name)
-    {
-        return audioSourceHandle(name);
-    }
+  AudioSourceHandle testing_audioNamed(const std::string& name)
+  {
+    return audioSourceHandle(name);
+  }
 
-    FontHandle testing_fontNamed(const std::string& name)
-    {
-        return fontHandle(name);
-    }
+  FontHandle testing_fontNamed(const std::string& name)
+  {
+    return fontHandle(name);
+  }
 #endif
 
 private:
-    template <typename TResourceHandle, typename TResource>
-    static rcp<TResource> getResource(
-        const std::unordered_map<TResourceHandle, rcp<TResource>>& resources,
-        TResourceHandle handle)
-    {
-        auto itr = resources.find(handle);
-        return itr == resources.end() ? nullptr : itr->second;
-    }
+  template <typename TResourceHandle, typename TResource>
+  static rcp<TResource> getResource(
+      const std::unordered_map<TResourceHandle, rcp<TResource>>& resources,
+      TResourceHandle handle)
+  {
+    auto itr = resources.find(handle);
+    return itr == resources.end() ? nullptr : itr->second;
+  }
 
-    const std::unordered_map<RenderImageHandle, rcp<RenderImage>>& m_images;
-    const std::unordered_map<AudioSourceHandle, rcp<AudioSource>>&
-        m_audioSources;
-    const std::unordered_map<FontHandle, rcp<Font>>& m_fonts;
-    TypedGlobalAssetRegistry<RenderImageHandle, ImageAsset> m_imageRegistry;
-    TypedGlobalAssetRegistry<AudioSourceHandle, AudioAsset> m_audioRegistry;
-    TypedGlobalAssetRegistry<FontHandle, FontAsset> m_fontRegistry;
+  const std::unordered_map<RenderImageHandle, rcp<RenderImage>>& m_images;
+  const std::unordered_map<AudioSourceHandle, rcp<AudioSource>>& m_audioSources;
+  const std::unordered_map<FontHandle, rcp<Font>>& m_fonts;
+  TypedGlobalAssetRegistry<RenderImageHandle, ImageAsset> m_imageRegistry;
+  TypedGlobalAssetRegistry<AudioSourceHandle, AudioAsset> m_audioRegistry;
+  TypedGlobalAssetRegistry<FontHandle, FontAsset> m_fontRegistry;
 };
 
 /**
@@ -393,137 +389,139 @@ private:
 class CommandServer::CommandFileAssetLoader : public FileAssetLoader
 {
 public:
-    CommandFileAssetLoader(rcp<FileAssetLoader> internalLoader) :
-        m_internalLoader(std::move(internalLoader))
-    {}
+  CommandFileAssetLoader(rcp<FileAssetLoader> internalLoader)
+      : m_internalLoader(std::move(internalLoader))
+  {}
 
-    bool loadContents(FileAsset& asset,
-                      Span<const uint8_t> inBandBytes,
-                      Factory* factory) override
+  bool loadContents(
+      FileAsset& asset,
+      Span<const uint8_t> inBandBytes,
+      Factory* factory) override
+  {
+    if (m_internalLoader &&
+        m_internalLoader->loadContents(asset, inBandBytes, factory))
     {
-        if (m_internalLoader &&
-            m_internalLoader->loadContents(asset, inBandBytes, factory))
-        {
-            return true;
-        }
-        if (!inBandBytes.empty())
-        {
-            return false;
-        }
-        if (asset.is<ImageAsset>() || asset.is<AudioAsset>() ||
-            asset.is<FontAsset>())
-        {
-            m_fileAssets.push_back(ref_rcp(&asset));
-            return false;
-        }
-        if (asset.is<TextAsset>() || asset.is<ScriptModuleAsset>() ||
-            asset.is<BlobAsset>() || asset.is<ManifestAsset>())
-        {
-            // These assets cannot be registered externally with the command
-            // server. Returning false lets the importer decode their in-band
-            // contents. TextAsset includes ScriptAsset and ShaderAsset.
-            return false;
-        }
-        fprintf(stderr,
-                "ERROR: CommandFileAssetLoader::loadContents - Unsupported"
-                " asset type for asset: '%s'\n",
-                asset.uniqueFilename().c_str());
-        return false;
+      return true;
     }
+    if (!inBandBytes.empty())
+    {
+      return false;
+    }
+    if (asset.is<ImageAsset>() || asset.is<AudioAsset>() ||
+        asset.is<FontAsset>())
+    {
+      m_fileAssets.push_back(ref_rcp(&asset));
+      return false;
+    }
+    if (asset.is<TextAsset>() || asset.is<ScriptModuleAsset>() ||
+        asset.is<BlobAsset>() || asset.is<ManifestAsset>())
+    {
+      // These assets cannot be registered externally with the command
+      // server. Returning false lets the importer decode their in-band
+      // contents. TextAsset includes ScriptAsset and ShaderAsset.
+      return false;
+    }
+    fprintf(
+        stderr,
+        "ERROR: CommandFileAssetLoader::loadContents - Unsupported"
+        " asset type for asset: '%s'\n",
+        asset.uniqueFilename().c_str());
+    return false;
+  }
 
-    Span<const rcp<FileAsset>> fileAssets() const
-    {
-        return {m_fileAssets.data(), m_fileAssets.size()};
-    }
+  Span<const rcp<FileAsset>> fileAssets() const
+  {
+    return {m_fileAssets.data(), m_fileAssets.size()};
+  }
 
 private:
-    rcp<FileAssetLoader> m_internalLoader;
-    std::vector<rcp<FileAsset>> m_fileAssets;
+  rcp<FileAssetLoader> m_internalLoader;
+  std::vector<rcp<FileAsset>> m_fileAssets;
 };
 
 std::ostream& operator<<(std::ostream& os, DataType t)
 {
-    switch (t)
-    {
-        case DataType::none:
-            os << "None";
-            break;
-        case DataType::string:
-            os << "String";
-            break;
-        case DataType::number:
-            os << "Number";
-            break;
-        case DataType::boolean:
-            os << "Boolean";
-            break;
-        case DataType::color:
-            os << "Color";
-            break;
-        case DataType::list:
-            os << "List";
-            break;
-        case DataType::enumType:
-            os << "Enum";
-            break;
-        case DataType::trigger:
-            os << "Trigger";
-            break;
-        case DataType::viewModel:
-            os << "View Model";
-            break;
-        case DataType::integer:
-            os << "Integer";
-            break;
-        case DataType::symbolListIndex:
-            os << "Symbol List Index";
-            break;
-        case DataType::assetImage:
-            os << "Asset Image";
-            break;
-        case DataType::assetFont:
-            os << "Asset Font";
-            break;
-        case DataType::assetBlob:
-            os << "Asset Blob";
-            break;
-        default:
-            os << "Unknown DataType";
-            break;
-    }
-    return os;
+  switch (t)
+  {
+    case DataType::none:
+      os << "None";
+      break;
+    case DataType::string:
+      os << "String";
+      break;
+    case DataType::number:
+      os << "Number";
+      break;
+    case DataType::boolean:
+      os << "Boolean";
+      break;
+    case DataType::color:
+      os << "Color";
+      break;
+    case DataType::list:
+      os << "List";
+      break;
+    case DataType::enumType:
+      os << "Enum";
+      break;
+    case DataType::trigger:
+      os << "Trigger";
+      break;
+    case DataType::viewModel:
+      os << "View Model";
+      break;
+    case DataType::integer:
+      os << "Integer";
+      break;
+    case DataType::symbolListIndex:
+      os << "Symbol List Index";
+      break;
+    case DataType::assetImage:
+      os << "Asset Image";
+      break;
+    case DataType::assetFont:
+      os << "Asset Font";
+      break;
+    case DataType::assetBlob:
+      os << "Asset Blob";
+      break;
+    default:
+      os << "Unknown DataType";
+      break;
+  }
+  return os;
 }
 
 #ifdef TESTING
 
 RenderImageHandle CommandServer::testing_globalImageNamed(std::string name)
 {
-    return m_globalAssetRegistry->testing_imageNamed(name);
+  return m_globalAssetRegistry->testing_imageNamed(name);
 }
 
 AudioSourceHandle CommandServer::testing_globalAudioNamed(std::string name)
 {
-    return m_globalAssetRegistry->testing_audioNamed(name);
+  return m_globalAssetRegistry->testing_audioNamed(name);
 }
 
 FontHandle CommandServer::testing_globalFontNamed(std::string name)
 {
-    return m_globalAssetRegistry->testing_fontNamed(name);
+  return m_globalAssetRegistry->testing_fontNamed(name);
 }
 
 bool CommandServer::testing_globalImageContains(std::string name)
 {
-    return m_globalAssetRegistry->testing_imageNamed(name) != nullptr;
+  return m_globalAssetRegistry->testing_imageNamed(name) != nullptr;
 }
 
 bool CommandServer::testing_globalAudioContains(std::string name)
 {
-    return m_globalAssetRegistry->testing_audioNamed(name) != nullptr;
+  return m_globalAssetRegistry->testing_audioNamed(name) != nullptr;
 }
 
 bool CommandServer::testing_globalFontContains(std::string name)
 {
-    return m_globalAssetRegistry->testing_fontNamed(name) != nullptr;
+  return m_globalAssetRegistry->testing_fontNamed(name) != nullptr;
 }
 
 #endif
@@ -531,246 +529,255 @@ bool CommandServer::testing_globalFontContains(std::string name)
 CommandServer::CommandServer(
     rcp<CommandQueue> commandBuffer,
     Factory* factory,
-    rcp<rive::FileAssetLoader> internalFileAssetLoader) :
-    m_commandQueue(std::move(commandBuffer)),
-    m_factory(factory),
+    rcp<rive::FileAssetLoader> internalFileAssetLoader)
+    : m_commandQueue(std::move(commandBuffer))
+    , m_factory(factory)
+    ,
 #ifndef NDEBUG
-    m_threadID(std::this_thread::get_id()),
+    m_threadID(std::this_thread::get_id())
+    ,
 #endif
     m_globalAssetRegistry(
-        make_rcp<GlobalAssetRegistry>(m_images, m_audioSources, m_fonts)),
-    m_internalFileAssetLoader(std::move(internalFileAssetLoader))
+        make_rcp<GlobalAssetRegistry>(m_images, m_audioSources, m_fonts))
+    , m_internalFileAssetLoader(std::move(internalFileAssetLoader))
 {}
 
 CommandServer::~CommandServer() {}
 
-void CommandServer::postRuntimeMessage(uint32_t tag,
-                                       std::vector<uint8_t> payload)
+void CommandServer::postRuntimeMessage(
+    uint32_t tag,
+    std::vector<uint8_t> payload)
 {
-    std::unique_lock<std::mutex> lock(m_commandQueue->m_messageMutex);
-    m_commandQueue->m_messageStream << CommandQueue::Message::runtimeMessage;
-    m_commandQueue->m_messageStream << tag;
-    m_commandQueue->m_messageByteVectors << std::move(payload);
+  std::unique_lock<std::mutex> lock(m_commandQueue->m_messageMutex);
+  m_commandQueue->m_messageStream << CommandQueue::Message::runtimeMessage;
+  m_commandQueue->m_messageStream << tag;
+  m_commandQueue->m_messageByteVectors << std::move(payload);
 }
 
 rive::HitResult CommandServer::pointerDownSynchronized(
     StateMachineHandle handle,
     const CommandQueue::PointerEvent& pointerEvent)
 {
-    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it != m_stateMachines.end())
+  std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it != m_stateMachines.end())
+  {
+    auto stateMachine = it->second;
+    accesLock.unlock();
+    auto pos = cursorPosForPointerEvent(
+        stateMachine->instance.get(),
+        pointerEvent);
     {
-        auto stateMachine = it->second;
-        accesLock.unlock();
-        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
-                                            pointerEvent);
-        {
-            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            auto hitResult =
-                stateMachine->instance->pointerDown(pos,
-                                                    pointerEvent.pointerId,
-                                                    pointerEvent.button);
-            // Process down-driven state changes before a following pointer up.
-            if (hitResult != HitResult::none)
-            {
-                stateMachine->instance->advanceAndApply(0.0f);
-            }
-            return hitResult;
-        }
+      std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+      auto hitResult = stateMachine->instance->pointerDown(
+          pos,
+          pointerEvent.pointerId,
+          pointerEvent.button);
+      // Process down-driven state changes before a following pointer up.
+      if (hitResult != HitResult::none)
+      {
+        stateMachine->instance->advanceAndApply(0.0f);
+      }
+      return hitResult;
     }
+  }
 
-    return rive::HitResult::none;
+  return rive::HitResult::none;
 }
 
 rive::HitResult CommandServer::pointerMoveSynchronized(
     StateMachineHandle handle,
     const CommandQueue::PointerEvent& pointerEvent)
 {
-    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it != m_stateMachines.end())
+  std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it != m_stateMachines.end())
+  {
+    auto stateMachine = it->second;
+    accesLock.unlock();
+    auto pos = cursorPosForPointerEvent(
+        stateMachine->instance.get(),
+        pointerEvent);
     {
-        auto stateMachine = it->second;
-        accesLock.unlock();
-        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
-                                            pointerEvent);
-        {
-            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->pointerMove(pos,
-                                                       0,
-                                                       pointerEvent.pointerId);
-        }
+      std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+      return stateMachine->instance->pointerMove(
+          pos,
+          0,
+          pointerEvent.pointerId);
     }
+  }
 
-    return rive::HitResult::none;
+  return rive::HitResult::none;
 }
 
 rive::HitResult CommandServer::pointerUpSynchronized(
     StateMachineHandle handle,
     const CommandQueue::PointerEvent& pointerEvent)
 {
-    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it != m_stateMachines.end())
+  std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it != m_stateMachines.end())
+  {
+    auto stateMachine = it->second;
+    accesLock.unlock();
+    auto pos = cursorPosForPointerEvent(
+        stateMachine->instance.get(),
+        pointerEvent);
     {
-        auto stateMachine = it->second;
-        accesLock.unlock();
-        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
-                                            pointerEvent);
-        {
-            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            auto hitResult =
-                stateMachine->instance->pointerUp(pos,
-                                                  pointerEvent.pointerId,
-                                                  pointerEvent.button);
-            // Process up-driven state changes before any following pointer
-            // exit.
-            if (hitResult != HitResult::none)
-            {
-                stateMachine->instance->advanceAndApply(0.0f);
-            }
-            return hitResult;
-        }
+      std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+      auto hitResult = stateMachine->instance->pointerUp(
+          pos,
+          pointerEvent.pointerId,
+          pointerEvent.button);
+      // Process up-driven state changes before any following pointer
+      // exit.
+      if (hitResult != HitResult::none)
+      {
+        stateMachine->instance->advanceAndApply(0.0f);
+      }
+      return hitResult;
     }
+  }
 
-    return rive::HitResult::none;
+  return rive::HitResult::none;
 }
 
 bool CommandServer::listensToButtonAtSynchronized(
     StateMachineHandle handle,
     const CommandQueue::PointerEvent& pointerEvent)
 {
-    std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it != m_stateMachines.end())
+  std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it != m_stateMachines.end())
+  {
+    auto stateMachine = it->second;
+    accesLock.unlock();
+    auto pos = cursorPosForPointerEvent(
+        stateMachine->instance.get(),
+        pointerEvent);
     {
-        auto stateMachine = it->second;
-        accesLock.unlock();
-        auto pos = cursorPosForPointerEvent(stateMachine->instance.get(),
-                                            pointerEvent);
-        {
-            std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-            return stateMachine->instance->listensToButtonAt(
-                pos,
-                pointerEvent.button);
-        }
+      std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+      return stateMachine->instance->listensToButtonAt(
+          pos,
+          pointerEvent.button);
     }
+  }
 
-    return false;
+  return false;
 }
 
 File* CommandServer::getFile(FileHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_files.find(handle);
-    return it != m_files.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_files.find(handle);
+  return it != m_files.end() ? it->second.get() : nullptr;
 }
 
 RenderImage* CommandServer::getImage(RenderImageHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_images.find(handle);
-    return it != m_images.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_images.find(handle);
+  return it != m_images.end() ? it->second.get() : nullptr;
 }
 
 AudioSource* CommandServer::getAudioSource(AudioSourceHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_audioSources.find(handle);
-    return it != m_audioSources.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_audioSources.find(handle);
+  return it != m_audioSources.end() ? it->second.get() : nullptr;
 }
 
 Font* CommandServer::getFont(FontHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_fonts.find(handle);
-    return it != m_fonts.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_fonts.find(handle);
+  return it != m_fonts.end() ? it->second.get() : nullptr;
 }
 
 BlobAsset* CommandServer::getBlob(BlobAssetHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_blobs.find(handle);
-    return it != m_blobs.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_blobs.find(handle);
+  return it != m_blobs.end() ? it->second.get() : nullptr;
 }
 
 ArtboardInstance* CommandServer::getArtboardInstance(
     ArtboardHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_artboards.find(handle);
-    return it != m_artboards.end() ? it->second.get()->artboard() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_artboards.find(handle);
+  return it != m_artboards.end() ? it->second.get()->artboard() : nullptr;
 }
 
 rcp<BindableArtboard> CommandServer::getBindableArtboard(
     ArtboardHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_artboards.find(handle);
-    return it != m_artboards.end() ? it->second : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_artboards.find(handle);
+  return it != m_artboards.end() ? it->second : nullptr;
 }
 
 rcp<CommandServer::SynchronizedStateMachine> CommandServer::
     getStateMachineWrapper(StateMachineHandle handle)
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_stateMachines.find(handle);
-    return it != m_stateMachines.end() ? it->second : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_stateMachines.find(handle);
+  return it != m_stateMachines.end() ? it->second : nullptr;
 }
 
 StateMachineInstance* CommandServer::getStateMachineInstance(
     StateMachineHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_stateMachines.find(handle);
-    return it != m_stateMachines.end() ? it->second->instance.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_stateMachines.find(handle);
+  return it != m_stateMachines.end() ? it->second->instance.get() : nullptr;
 }
 
 ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
     ViewModelInstanceHandle handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    auto it = m_viewModels.find(handle);
-    return it != m_viewModels.end() ? it->second.get() : nullptr;
+  assert(std::this_thread::get_id() == m_threadID);
+  auto it = m_viewModels.find(handle);
+  return it != m_viewModels.end() ? it->second.get() : nullptr;
 }
 
 ViewModelInstanceHandle CommandServer::getHandleForInstance(
     ViewModelInstanceRuntime* handle) const
 {
-    assert(std::this_thread::get_id() == m_threadID);
-    for (auto& itr : m_viewModels)
+  assert(std::this_thread::get_id() == m_threadID);
+  for (auto& itr : m_viewModels)
+  {
+    if (itr.second.get() == handle)
     {
-        if (itr.second.get() == handle)
-        {
-            return itr.first;
-        }
+      return itr.first;
     }
-    return RIVE_NULL_HANDLE;
+  }
+  return RIVE_NULL_HANDLE;
 }
 
 Vec2D CommandServer::cursorPosForPointerEvent(
     StateMachineInstance* instance,
     const CommandQueue::PointerEvent& pointerEvent)
 {
-    AABB artboardBounds = instance->artboard()->bounds();
-    AABB surfaceBounds = AABB(Vec2D{0.0f, 0.0f}, pointerEvent.screenBounds);
+  AABB artboardBounds = instance->artboard()->bounds();
+  AABB surfaceBounds = AABB(Vec2D{0.0f, 0.0f}, pointerEvent.screenBounds);
 
-    if (surfaceBounds == artboardBounds || surfaceBounds.width() == 0.0f ||
-        surfaceBounds.height() == 0.0f)
-    {
-        return pointerEvent.position;
-    }
+  if (surfaceBounds == artboardBounds || surfaceBounds.width() == 0.0f ||
+      surfaceBounds.height() == 0.0f)
+  {
+    return pointerEvent.position;
+  }
 
-    Mat2D forward = rive::computeAlignment(pointerEvent.fit,
-                                           pointerEvent.alignment,
-                                           surfaceBounds,
-                                           artboardBounds,
-                                           pointerEvent.scaleFactor);
+  Mat2D forward = rive::computeAlignment(
+      pointerEvent.fit,
+      pointerEvent.alignment,
+      surfaceBounds,
+      artboardBounds,
+      pointerEvent.scaleFactor);
 
-    Mat2D inverse = forward.invertOrIdentity();
+  Mat2D inverse = forward.invertOrIdentity();
 
-    return inverse * pointerEvent.position;
+  return inverse * pointerEvent.position;
 }
 
 // Maps a semantics bounds payload from artboard space to view space.
@@ -779,4118 +786,4033 @@ Vec2D CommandServer::cursorPosForPointerEvent(
 template <typename T>
 static void mapSemanticsBounds(T& value, const Mat2D& transform)
 {
-    value.setBounds(transform.mapBoundingBox(value.bounds()));
+  value.setBounds(transform.mapBoundingBox(value.bounds()));
 }
 
 // Applies artboard->view bounds mapping to all geometry-bearing collections
 // in a semantic diff before it is delivered to listeners.
-static void mapSemanticsDiffToViewSpace(SemanticsDiff& diff,
-                                        const Mat2D& transform)
+static void mapSemanticsDiffToViewSpace(
+    SemanticsDiff& diff,
+    const Mat2D& transform)
 {
-    for (auto& node : diff.added)
-    {
-        mapSemanticsBounds(node, transform);
-    }
-    for (auto& node : diff.moved)
-    {
-        mapSemanticsBounds(node, transform);
-    }
-    for (auto& node : diff.updatedSemantic)
-    {
-        mapSemanticsBounds(node, transform);
-    }
-    for (auto& bounds : diff.updatedGeometry)
-    {
-        mapSemanticsBounds(bounds, transform);
-    }
+  for (auto& node : diff.added)
+  {
+    mapSemanticsBounds(node, transform);
+  }
+  for (auto& node : diff.moved)
+  {
+    mapSemanticsBounds(node, transform);
+  }
+  for (auto& node : diff.updatedSemantic)
+  {
+    mapSemanticsBounds(node, transform);
+  }
+  for (auto& bounds : diff.updatedGeometry)
+  {
+    mapSemanticsBounds(bounds, transform);
+  }
 }
 
 void CommandServer::checkPropertySubscriptions()
 {
-    for (auto& subscription : m_propertySubscriptions)
+  for (auto& subscription : m_propertySubscriptions)
+  {
+    uint64_t requestId = subscription.requestId;
+    ViewModelInstanceHandle handle = subscription.rootViewModel;
+    CommandQueue::ViewModelInstanceData data;
+    data.metaData = subscription.data;
+
+    if (auto viewModel = getViewModelInstance(handle))
     {
-        uint64_t requestId = subscription.requestId;
-        ViewModelInstanceHandle handle = subscription.rootViewModel;
-        CommandQueue::ViewModelInstanceData data;
-        data.metaData = subscription.data;
-
-        if (auto viewModel = getViewModelInstance(handle))
+      if (auto property = viewModel->property(data.metaData.name))
+      {
+        if (property->hasChanged())
         {
-            if (auto property = viewModel->property(data.metaData.name))
-            {
-                if (property->hasChanged())
-                {
-                    property->clearChanges();
-                    switch (data.metaData.type)
-                    {
-                        // These don't have values but are still valid
-                        // subscriptions.
-                        case DataType::assetImage:
-                        case DataType::assetFont:
-                        case DataType::assetBlob:
-                        case DataType::trigger:
-                        case DataType::list:
-                            break;
-                        case DataType::boolean:
-                            if (auto value = static_cast<
-                                    ViewModelInstanceBooleanRuntime*>(property))
-                            {
-                                data.boolValue = value->value();
-                            }
-                            break;
+          property->clearChanges();
+          switch (data.metaData.type)
+          {
+            // These don't have values but are still valid
+            // subscriptions.
+            case DataType::assetImage:
+            case DataType::assetFont:
+            case DataType::assetBlob:
+            case DataType::trigger:
+            case DataType::list:
+              break;
+            case DataType::boolean:
+              if (auto value = static_cast<ViewModelInstanceBooleanRuntime*>(
+                      property))
+              {
+                data.boolValue = value->value();
+              }
+              break;
 
-                        case DataType::color:
-                            if (auto value =
-                                    static_cast<ViewModelInstanceColorRuntime*>(
-                                        property))
-                            {
-                                data.colorValue = value->value();
-                            }
-                            break;
+            case DataType::color:
+              if (auto value = static_cast<ViewModelInstanceColorRuntime*>(
+                      property))
+              {
+                data.colorValue = value->value();
+              }
+              break;
 
-                        case DataType::number:
-                            if (auto value = static_cast<
-                                    ViewModelInstanceNumberRuntime*>(property))
-                            {
-                                data.numberValue = value->value();
-                            }
-                            break;
+            case DataType::number:
+              if (auto value = static_cast<ViewModelInstanceNumberRuntime*>(
+                      property))
+              {
+                data.numberValue = value->value();
+              }
+              break;
 
-                        case DataType::enumType:
-                            if (auto value =
-                                    static_cast<ViewModelInstanceEnumRuntime*>(
-                                        property))
-                            {
-                                data.stringValue = value->value();
-                            }
-                            break;
+            case DataType::enumType:
+              if (auto value = static_cast<ViewModelInstanceEnumRuntime*>(
+                      property))
+              {
+                data.stringValue = value->value();
+              }
+              break;
 
-                        case DataType::string:
-                            if (auto value = static_cast<
-                                    ViewModelInstanceStringRuntime*>(property))
-                            {
-                                data.stringValue = value->value();
-                            }
-                            break;
-                        default:
-                            ErrorReporter<ViewModelInstanceHandle>(
-                                this,
-                                handle,
-                                requestId,
-                                CommandQueue::Message::viewModelError)
-                                << "ERROR : Invalid data type {"
-                                << data.metaData.type << "} when checking"
-                                << "subscriptions";
-                            continue;
-                    }
+            case DataType::string:
+              if (auto value = static_cast<ViewModelInstanceStringRuntime*>(
+                      property))
+              {
+                data.stringValue = value->value();
+              }
+              break;
+            default:
+              ErrorReporter<ViewModelInstanceHandle>(
+                  this,
+                  handle,
+                  requestId,
+                  CommandQueue::Message::viewModelError)
+                  << "ERROR : Invalid data type {" << data.metaData.type
+                  << "} when checking"
+                  << "subscriptions";
+              continue;
+          }
 
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    m_commandQueue->m_messageStream << CommandQueue::Message::
-                            viewModelPropertyValueReceived;
-                    m_commandQueue->m_messageStream << handle;
-                    m_commandQueue->m_messageStream << data.metaData.type;
-                    m_commandQueue->m_messageNames << data.metaData.name;
-                    m_commandQueue->m_messageStream << requestId;
-                    switch (data.metaData.type)
-                    {
-                        case DataType::assetImage:
-                        case DataType::assetFont:
-                        case DataType::assetBlob:
-                        case DataType::trigger:
-                        case DataType::list:
-                            break;
-                        case DataType::boolean:
-                            m_commandQueue->m_messageStream << data.boolValue;
-                            break;
-                        case DataType::number:
-                            m_commandQueue->m_messageStream << data.numberValue;
-                            break;
-                        case DataType::color:
-                            m_commandQueue->m_messageStream << data.colorValue;
-                            break;
-                        case DataType::enumType:
-                        case DataType::string:
-                            m_commandQueue->m_messageNames << data.stringValue;
-                            break;
-                        default:
-                            RIVE_UNREACHABLE();
-                    }
-                }
-            }
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          m_commandQueue->m_messageStream
+              << CommandQueue::Message::viewModelPropertyValueReceived;
+          m_commandQueue->m_messageStream << handle;
+          m_commandQueue->m_messageStream << data.metaData.type;
+          m_commandQueue->m_messageNames << data.metaData.name;
+          m_commandQueue->m_messageStream << requestId;
+          switch (data.metaData.type)
+          {
+            case DataType::assetImage:
+            case DataType::assetFont:
+            case DataType::assetBlob:
+            case DataType::trigger:
+            case DataType::list:
+              break;
+            case DataType::boolean:
+              m_commandQueue->m_messageStream << data.boolValue;
+              break;
+            case DataType::number:
+              m_commandQueue->m_messageStream << data.numberValue;
+              break;
+            case DataType::color:
+              m_commandQueue->m_messageStream << data.colorValue;
+              break;
+            case DataType::enumType:
+            case DataType::string:
+              m_commandQueue->m_messageNames << data.stringValue;
+              break;
+            default:
+              RIVE_UNREACHABLE();
+          }
         }
+      }
     }
+  }
 }
 
 void CommandServer::serveUntilDisconnect()
 {
-    while (waitCommands())
-    {
-    }
+  while (waitCommands())
+  {
+  }
 }
 
 bool CommandServer::waitCommands()
 {
-    PODStream& commandStream = m_commandQueue->m_commandStream;
-    if (commandStream.empty())
+  PODStream& commandStream = m_commandQueue->m_commandStream;
+  if (commandStream.empty())
+  {
+    std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
+    while (commandStream.empty())
     {
-        std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
-        while (commandStream.empty())
-        {
-            assert(m_commandQueue->m_callbacks.empty());
-            assert(m_commandQueue->m_byteVectors.empty());
-            assert(m_commandQueue->m_names.empty());
-            m_commandQueue->m_commandConditionVariable.wait(lock);
-        }
+      assert(m_commandQueue->m_callbacks.empty());
+      assert(m_commandQueue->m_byteVectors.empty());
+      assert(m_commandQueue->m_names.empty());
+      m_commandQueue->m_commandConditionVariable.wait(lock);
     }
+  }
 
-    return processCommands();
+  return processCommands();
 }
 
 bool CommandServer::processCommands()
 {
-    assert(m_wasDisconnectReceived == false);
-    assert(std::this_thread::get_id() == m_threadID);
+  assert(m_wasDisconnectReceived == false);
+  assert(std::this_thread::get_id() == m_threadID);
 
-    PODStream& commandStream = m_commandQueue->m_commandStream;
-    PODStream& messageStream = m_commandQueue->m_messageStream;
-    std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
+  PODStream& commandStream = m_commandQueue->m_commandStream;
+  PODStream& messageStream = m_commandQueue->m_messageStream;
+  std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
 
-    // Early out if we don't have anything to process.
-    if (commandStream.empty())
-        return !m_wasDisconnectReceived;
+  // Early out if we don't have anything to process.
+  if (commandStream.empty())
+    return !m_wasDisconnectReceived;
 
-    // Ensure we stop processing messages and get to the draw loop.
-    // This avoids a race condition where we never stop processing messages and
-    // therefore never draw anything.
-    commandStream << CommandQueue::Command::commandLoopBreak;
+  // Ensure we stop processing messages and get to the draw loop.
+  // This avoids a race condition where we never stop processing messages and
+  // therefore never draw anything.
+  commandStream << CommandQueue::Command::commandLoopBreak;
 
-    // The map should be empty at this point.
-    assert(m_uniqueDraws.empty());
+  // The map should be empty at this point.
+  assert(m_uniqueDraws.empty());
 
-    bool shouldProcessCommands = true;
-    do
+  bool shouldProcessCommands = true;
+  do
+  {
+    CommandQueue::Command command;
+    commandStream >> command;
+
+    switch (command)
     {
-        CommandQueue::Command command;
-        commandStream >> command;
-
-        switch (command)
-        {
-            case CommandQueue::Command::loadFile:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                std::vector<uint8_t> rivBytes;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_byteVectors >> rivBytes;
+      case CommandQueue::Command::loadFile:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        std::vector<uint8_t> rivBytes;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_byteVectors >> rivBytes;
 #ifdef WITH_RIVE_SCRIPTING
-                ScriptingContextFactory scriptingContextFactory;
-                m_commandQueue->m_scriptingContextFactories >>
-                    scriptingContextFactory;
+        ScriptingContextFactory scriptingContextFactory;
+        m_commandQueue->m_scriptingContextFactories >> scriptingContextFactory;
 #endif
-                lock.unlock();
-                auto fileAssetLoader =
-                    make_rcp<CommandFileAssetLoader>(m_internalFileAssetLoader);
+        lock.unlock();
+        auto fileAssetLoader = make_rcp<CommandFileAssetLoader>(
+            m_internalFileAssetLoader);
 
 #if defined(WITH_RIVE_SCRIPTING) && defined(WITH_RIVE_SCRIPTING_LUAU)
-                std::cout << "Rive: Command Server Scripting Enabled.\n";
-                // Use the host-provided scripting context when supplied (e.g.
-                // Unreal routes console/error output to UE_LOG); otherwise fall
-                // back to the default CPP runtime context.
-                std::unique_ptr<ScriptingContext> scriptingContext =
-                    scriptingContextFactory ? scriptingContextFactory(m_factory)
-                                            : nullptr;
-                if (scriptingContext == nullptr)
-                {
-                    scriptingContext =
-                        std::make_unique<CPPRuntimeScriptingContext>(m_factory);
-                }
-                auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
-                rcp<rive::File> file = rive::File::import(rivBytes,
-                                                          m_factory,
-                                                          nullptr,
-                                                          fileAssetLoader,
-                                                          vm.get());
+        std::cout << "Rive: Command Server Scripting Enabled.\n";
+        // Use the host-provided scripting context when supplied (e.g.
+        // Unreal routes console/error output to UE_LOG); otherwise fall
+        // back to the default CPP runtime context.
+        std::unique_ptr<ScriptingContext>
+            scriptingContext = scriptingContextFactory
+                                   ? scriptingContextFactory(m_factory)
+                                   : nullptr;
+        if (scriptingContext == nullptr)
+        {
+          scriptingContext = std::make_unique<CPPRuntimeScriptingContext>(
+              m_factory);
+        }
+        auto vm = make_rcp<ScriptingVM>(std::move(scriptingContext));
+        rcp<rive::File> file = rive::File::import(
+            rivBytes,
+            m_factory,
+            nullptr,
+            fileAssetLoader,
+            vm.get());
 
 #else
 #ifdef WITH_RIVE_SCRIPTING
-                // Wasm script modules need no host-created VM; the factory
-                // only serves the Luau backend.
-                (void)scriptingContextFactory;
+        // Wasm script modules need no host-created VM; the factory
+        // only serves the Luau backend.
+        (void)scriptingContextFactory;
 #endif
-                rcp<rive::File> file = rive::File::import(rivBytes,
-                                                          m_factory,
-                                                          nullptr,
-                                                          fileAssetLoader);
+        rcp<rive::File> file = rive::File::import(
+            rivBytes,
+            m_factory,
+            nullptr,
+            fileAssetLoader);
 #endif
 
-                if (file != nullptr)
-                {
+        if (file != nullptr)
+        {
 #if defined(__EMSCRIPTEN__) && defined(WITH_RIVE_SCRIPTING_WASM)
-                    // No host awaits a prepare step for a file the command
-                    // server loads, so its modules instantiate inline here.
-                    file->startScripts();
+          // No host awaits a prepare step for a file the command
+          // server loads, so its modules instantiate inline here.
+          file->startScripts();
 #endif
-                    auto fileAssets = fileAssetLoader->fileAssets();
-                    m_globalAssetRegistry->addFileAssets(handle, fileAssets);
-                    m_globalAssetRegistry->applyResourcesToFileAssets(
-                        fileAssets);
-                    m_fileDependencies[handle] = {};
-                    m_files[handle] = file;
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::fileLoaded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "failed to load Rive file.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::deleteFile:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto fileItr = m_files.find(handle);
-                if (fileItr != m_files.end())
-                {
-                    m_globalAssetRegistry->removeFileAssets(
-                        handle,
-                        fileItr->second->assets());
-                    m_files.erase(fileItr);
-                }
-                auto itr = m_fileDependencies.find(handle);
-                if (itr != m_fileDependencies.end())
-                {
-                    auto& artboardVector = itr->second;
-                    for (auto artboardHandle : artboardVector)
-                    {
-                        cleanupArtboard(artboardHandle, requestId);
-                    }
-
-                    m_fileDependencies.erase(itr);
-                }
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::fileDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-
-            case CommandQueue::Command::decodeImage:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                std::vector<uint8_t> bytes;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_byteVectors >> bytes;
-                lock.unlock();
-
-                auto image = factory()->decodeImage(bytes);
-                if (image)
-                {
-                    m_images[handle] = std::move(image);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::imageDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<RenderImageHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::imageError)
-                        << "Command Server failed to decode image";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::externalImage:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                rcp<RenderImage> image;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_externalImages >> image;
-                lock.unlock();
-
-                if (image)
-                {
-                    m_images[handle] = std::move(image);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::imageDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<RenderImageHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::imageError)
-                        << "External image was empty";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::deleteImage:
-            {
-                RenderImageHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                m_images.erase(handle);
-                for (const auto& name :
-                     m_globalAssetRegistry->removeRenderImage(handle))
-                {
-                    m_globalAssetRegistry->applyRenderImage(name, nullptr);
-                }
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::imageDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-
-            case CommandQueue::Command::decodeBlob:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                std::vector<uint8_t> bytes;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_byteVectors >> bytes;
-                lock.unlock();
-
-                auto blob = make_rcp<BlobAsset>();
-                SimpleArray<uint8_t> blobBytes(bytes.data(), bytes.size());
-                if (blob->decode(blobBytes, m_factory))
-                {
-                    m_blobs[handle] = std::move(blob);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::blobDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<BlobAssetHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::blobError)
-                        << "Command Server failed to decode blob";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::externalBlob:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                rcp<BlobAsset> blob;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_externalBlobs >> blob;
-                lock.unlock();
-
-                if (blob)
-                {
-                    m_blobs[handle] = std::move(blob);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::blobDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<BlobAssetHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::blobError)
-                        << "External blob was empty";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::deleteBlob:
-            {
-                BlobAssetHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                m_blobs.erase(handle);
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::blobDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-
-            case CommandQueue::Command::decodeAudio:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                std::vector<uint8_t> bytes;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_byteVectors >> bytes;
-                lock.unlock();
-
-                auto audio = factory()->decodeAudio(bytes);
-                if (audio)
-                {
-                    m_audioSources[handle] = std::move(audio);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::audioDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<AudioSourceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::audioError)
-                        << "Command Server failed to decode audio";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::externalAudio:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                rcp<AudioSource> audio;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_externalAudioSources >> audio;
-                lock.unlock();
-
-                if (audio)
-                {
-                    m_audioSources[handle] = std::move(audio);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::audioDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<AudioSourceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::audioError)
-                        << "External audio source was invalid";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::deleteAudio:
-            {
-                AudioSourceHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                m_audioSources.erase(handle);
-                for (const auto& name :
-                     m_globalAssetRegistry->removeAudioSource(handle))
-                {
-                    m_globalAssetRegistry->applyAudioSource(name, nullptr);
-                }
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::audioDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-
-            case CommandQueue::Command::decodeFont:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                std::vector<uint8_t> bytes;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_byteVectors >> bytes;
-                lock.unlock();
-
-                auto font = factory()->decodeFont(std::move(bytes));
-                if (font)
-                {
-                    m_fonts[handle] = std::move(font);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::fontDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<FontHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fontError)
-                        << "Command Server failed to decode font";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::externalFont:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                rcp<Font> font;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_externalFonts >> font;
-                lock.unlock();
-
-                if (font)
-                {
-                    m_fonts[handle] = std::move(font);
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::fontDecoded;
-                    messageStream << handle;
-                    messageStream << requestId;
-                }
-                else
-                {
-                    ErrorReporter<FontHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fontError)
-                        << "Command Server failed to decode font";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::deleteFont:
-            {
-                FontHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                m_fonts.erase(handle);
-                for (const auto& name :
-                     m_globalAssetRegistry->removeFont(handle))
-                {
-                    m_globalAssetRegistry->applyFont(name, nullptr);
-                }
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::fontDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-
-            case CommandQueue::Command::instantiateArtboard:
-            {
-                ArtboardHandle handle;
-                FileHandle fileHandle;
-                uint64_t requestId;
-                std::string name;
-                commandStream >> handle;
-                commandStream >> fileHandle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                if (rive::File* file = getFile(fileHandle))
-                {
-                    if (auto artboard = name.empty()
-                                            ? file->bindableArtboardDefault()
-                                            : file->bindableArtboardNamed(name))
-                    {
-                        m_artboardDependencies[handle] = {};
-                        m_artboards[handle] = std::move(artboard);
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::artboardInstantiated;
-                        messageStream << fileHandle;
-                        messageStream << handle;
-                        messageStream << requestId;
-                    }
-                    else
-                    {
-                        ErrorReporter<FileHandle>(
-                            this,
-                            fileHandle,
-                            requestId,
-                            CommandQueue::Message::fileError)
-                            << "artboard \"" << name << "\" not found.";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              fileHandle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "file " << fileHandle
-                        << " not found when trying to create artboard";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::setArtboardSize:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                float width, height;
-                commandStream >> handle;
-                commandStream >> width;
-                commandStream >> height;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto artboardInstance = getArtboardInstance(handle))
-                {
-                    artboardInstance->width(width);
-                    artboardInstance->height(height);
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "artboard " << handle
-                        << " not found when trying to set artboard size";
-                }
-            }
-            break;
-
-            case CommandQueue::Command::resetArtboardSize:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto artboardInstance = getArtboardInstance(handle))
-                {
-                    artboardInstance->resetSize();
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "artboard " << handle
-                        << " not found when trying to reset artboard size";
-                }
-            }
-            break;
-
-            case CommandQueue::Command::setArtboardVolume:
-            {
-                ArtboardHandle handle;
-                float volume;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> volume;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto artboardInstance = getArtboardInstance(handle))
-                {
-                    artboardInstance->volume(volume);
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "artboard " << handle
-                        << " not found when trying to set artboard volume";
-                }
-            }
-            break;
-
-            case CommandQueue::Command::getArtboardVolume:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto artboard = getArtboardInstance(handle);
-                if (artboard)
-                {
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::artboardVolumeReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << artboard->volume();
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "Invalid artboard handle " << handle
-                        << " when getting artboard volume";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::deleteArtboard:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                cleanupArtboard(handle, requestId);
-                // We don't remove from the file dependencies here because
-                // calling erase on a non existent key is fine.
-                break;
-            }
-
-            case CommandQueue::Command::instantiateViewModel:
-            case CommandQueue::Command::instantiateBlankViewModel:
-            case CommandQueue::Command::instantiateViewModelForArtboard:
-            case CommandQueue::Command::instantiateBlankViewModelForArtboard:
-            {
-                bool usesInstanceName =
-                    command == CommandQueue::Command::instantiateViewModel ||
-                    command ==
-                        CommandQueue::Command::instantiateViewModelForArtboard;
-                bool usesArtboard =
-                    command == CommandQueue::Command::
-                                   instantiateBlankViewModelForArtboard ||
-                    command ==
-                        CommandQueue::Command::instantiateViewModelForArtboard;
-
-                FileHandle fileHandle;
-                ArtboardHandle artboardHandle;
-                ViewModelInstanceHandle viewHandle;
-                uint64_t requestId;
-                std::string viewModelName;
-                std::string viewModelInstanceName;
-                commandStream >> fileHandle;
-                if (usesArtboard)
-                {
-                    commandStream >> artboardHandle;
-                }
-                commandStream >> viewHandle;
-                commandStream >> requestId;
-                if (!usesArtboard)
-                {
-                    m_commandQueue->m_names >> viewModelName;
-                }
-                if (usesInstanceName)
-                {
-                    m_commandQueue->m_names >> viewModelInstanceName;
-                }
-                lock.unlock();
-                if (auto file = getFile(fileHandle))
-                {
-                    ViewModelRuntime* viewModel = nullptr;
-
-                    if (usesArtboard)
-                    {
-                        if (auto artboardInstance =
-                                getArtboardInstance(artboardHandle))
-                        {
-                            viewModel = file->defaultArtboardViewModel(
-                                artboardInstance);
-                            if (viewModel == nullptr)
-                            {
-                                ErrorReporter<FileHandle>(
-                                    this,
-                                    fileHandle,
-                                    requestId,
-                                    CommandQueue::Message::fileError)
-                                    << "No view model found for artboard "
-                                    << artboardHandle;
-                            }
-                        }
-                        else
-                        {
-                            if (usesInstanceName)
-                            {
-                                if (viewModelInstanceName.empty())
-                                {
-                                    ErrorReporter<FileHandle>(
-                                        this,
-                                        fileHandle,
-                                        requestId,
-                                        CommandQueue::Message::fileError)
-                                        << "ArtboardInstance " << artboardHandle
-                                        << " Not found when trying to create"
-                                        << " default view model with default "
-                                           "view "
-                                        << "model instance";
-                                }
-                                else
-                                {
-                                    ErrorReporter<FileHandle>(
-                                        this,
-                                        fileHandle,
-                                        requestId,
-                                        CommandQueue::Message::fileError)
-                                        << "ArtboardInstance " << artboardHandle
-                                        << " Not found when trying to create "
-                                        << "default view model with "
-                                        << "view model instance name "
-                                        << viewModelInstanceName;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<FileHandle>(
-                                    this,
-                                    fileHandle,
-                                    requestId,
-                                    CommandQueue::Message::fileError)
-                                    << "ArtboardInstance " << artboardHandle
-                                    << " Not found when trying to create "
-                                    << "default view model with blank view "
-                                    << "model instance";
-                            }
-                        }
-                    }
-                    else
-                    {
-                        viewModel = file->viewModelByName(viewModelName);
-                        if (viewModel == nullptr)
-                        {
-                            ErrorReporter<FileHandle>(
-                                this,
-                                fileHandle,
-                                requestId,
-                                CommandQueue::Message::fileError)
-                                << "View model " << viewModelName
-                                << " not found";
-                        }
-                    }
-
-                    if (viewModel)
-                    {
-                        rcp<ViewModelInstanceRuntime> instance;
-
-                        if (usesInstanceName)
-                        {
-                            if (viewModelInstanceName.empty())
-                            {
-                                instance = viewModel->createDefaultInstance();
-                                if (instance == nullptr)
-                                {
-                                    ErrorReporter<FileHandle>(
-                                        this,
-                                        fileHandle,
-                                        requestId,
-                                        CommandQueue::Message::fileError)
-                                        << "Could not create "
-                                        << "default view model instance "
-                                        << "from view model " << viewModelName;
-                                }
-                            }
-                            else
-                            {
-                                instance = viewModel->createInstanceFromName(
-                                    viewModelInstanceName);
-                                if (instance == nullptr)
-                                {
-                                    ErrorReporter<FileHandle>(
-                                        this,
-                                        fileHandle,
-                                        requestId,
-                                        CommandQueue::Message::fileError)
-                                        << "Could not create "
-                                           "view model instance named "
-                                        << viewModelInstanceName
-                                        << "from view model " << viewModelName;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            instance = viewModel->createInstance();
-                            if (instance == nullptr)
-                            {
-                                ErrorReporter<FileHandle>(
-                                    this,
-                                    fileHandle,
-                                    requestId,
-                                    CommandQueue::Message::fileError)
-                                    << "Could not create "
-                                    << "blank view model instance "
-                                    << "from view model " << viewModelName;
-                            }
-                        }
-
-                        if (instance)
-                        {
-                            m_viewModels[viewHandle] = std::move(instance);
-
-                            std::unique_lock<std::mutex> messageLock(
-                                m_commandQueue->m_messageMutex);
-                            messageStream << CommandQueue::Message::
-                                    viewModelInstanceInstantiated;
-                            messageStream << fileHandle;
-                            messageStream << viewHandle;
-                            messageStream << requestId;
-                        }
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              fileHandle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "File " << fileHandle
-                        << " not found when creating view model instance ";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::addViewModelListValue:
-            {
-                ViewModelInstanceHandle rootHandle;
-                ViewModelInstanceHandle viewHandle;
-                uint64_t requestId;
-                std::string path;
-                int index;
-                commandStream >> rootHandle;
-                commandStream >> viewHandle;
-                commandStream >> index;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto root = getViewModelInstance(rootHandle))
-                {
-                    if (auto viewModel = getViewModelInstance(viewHandle))
-                    {
-                        if (auto property = root->propertyList(path))
-                        {
-                            if (index >= 0)
-                                property->addInstanceAt(viewModel, index);
-                            else
-                                property->addInstance(viewModel);
-                        }
-                        else
-                        {
-                            ErrorReporter<ViewModelInstanceHandle>(
-                                this,
-                                rootHandle,
-                                requestId,
-                                CommandQueue::Message::viewModelError)
-                                << "failed to find list at path " << path
-                                << " when trying to add to a list";
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            rootHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "failed to find value view model " << viewHandle
-                            << "isntance for add list";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        rootHandle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "failed to find root view model isntance "
-                        << rootHandle << "for add list";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::removeViewModelListValue:
-            {
-                ViewModelInstanceHandle rootHandle;
-                ViewModelInstanceHandle viewHandle;
-                uint64_t requestId;
-                std::string path;
-                int index;
-                commandStream >> rootHandle;
-                commandStream >> viewHandle;
-                commandStream >> index;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto root = getViewModelInstance(rootHandle))
-                {
-                    if (auto property = root->propertyList(path))
-                    {
-                        if (index >= 0)
-                        {
-                            property->removeInstanceAt(index);
-                        }
-                        else if (auto viewModel =
-                                     getViewModelInstance(viewHandle))
-                        {
-                            property->removeInstance(viewModel);
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            rootHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "failed to find list on view model "
-                               "isntance for "
-                               "remove at path "
-                            << path;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        rootHandle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "failed to find view model instance " << rootHandle
-                        << " for remove list";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::swapViewModelListValue:
-            {
-                ViewModelInstanceHandle rootHandle;
-                uint64_t requestId;
-                std::string path;
-                int indexa, indexb;
-                commandStream >> rootHandle;
-                commandStream >> indexa;
-                commandStream >> indexb;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-                if (auto viewModel = getViewModelInstance(rootHandle))
-                {
-                    if (auto list = viewModel->propertyList(path))
-                    {
-                        list->swap(indexa, indexb);
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            rootHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "failed to find list on view model "
-                               "isntance for "
-                               "swap at path "
-                            << path;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        rootHandle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "failed to find view model instance " << rootHandle
-                        << " for swap";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::subscribeViewModelProperty:
-            case CommandQueue::Command::unsubscribeViewModelProperty:
-            {
-                ViewModelInstanceHandle rootHandle;
-                PropertyData data;
-                uint64_t requestId;
-                commandStream >> rootHandle;
-                commandStream >> data.type;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> data.name;
-                lock.unlock();
-
-                if (command ==
-                    CommandQueue::Command::subscribeViewModelProperty)
-                {
-                    // Validate that this is a valid thing to subscribe to.
-
-                    if (auto view = getViewModelInstance(rootHandle))
-                    {
-                        if (data.type != DataType::viewModel &&
-                            data.type != DataType::integer &&
-                            data.type != DataType::none &&
-                            data.type != DataType::symbolListIndex)
-                        {
-                            if (view->property(data.name) != nullptr)
-                            {
-                                m_propertySubscriptions.push_back(
-                                    {requestId, data, rootHandle});
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    rootHandle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Property " << data.name
-                                    << " not found when subscribing";
-                            }
-                        }
-                        else
-                        {
-                            ErrorReporter<ViewModelInstanceHandle>(
-                                this,
-                                rootHandle,
-                                requestId,
-                                CommandQueue::Message::viewModelError)
-                                << "Property type " << data.type
-                                << " is not valid when subscribing";
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            rootHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "Root view model " << rootHandle
-                            << " not found when subscribing "
-                               "to property "
-                            << data.name;
-                    }
-                }
-                else
-                {
-                    auto itr = std::remove_if(
-                        m_propertySubscriptions.begin(),
-                        m_propertySubscriptions.end(),
-                        [data, rootHandle](const Subscription& val) {
-                            return val.data.name == data.name &&
-                                   val.data.type == data.type &&
-                                   val.rootViewModel == rootHandle;
-                        });
-
-                    m_propertySubscriptions.erase(
-                        itr,
-                        m_propertySubscriptions.end());
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::refNestedViewModel:
-            {
-                ViewModelInstanceHandle rootViewHandle;
-                ViewModelInstanceHandle nestedViewHandle;
-                uint64_t requestId;
-                std::string path;
-                commandStream >> rootViewHandle;
-                commandStream >> nestedViewHandle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto rootViewInstance =
-                        getViewModelInstance(rootViewHandle))
-                {
-                    if (auto nestedViewModel =
-                            rootViewInstance->propertyViewModel(path))
-                    {
-                        m_viewModels[nestedViewHandle] = nestedViewModel;
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        FileHandle fileHandle = RIVE_NULL_HANDLE;
-                        messageStream << CommandQueue::Message::
-                                viewModelInstanceInstantiated;
-                        messageStream << fileHandle;
-                        messageStream << nestedViewHandle;
-                        messageStream << requestId;
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            nestedViewHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "Nested view not found at path" << path
-                            << " when refing nested "
-                               "view model";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        nestedViewHandle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Root view model " << rootViewHandle
-                        << " not found when refing nested "
-                           "view model at path "
-                        << path;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::refListViewModel:
-            {
-                ViewModelInstanceHandle rootViewHandle;
-                ViewModelInstanceHandle listViewHandle;
-                int index;
-                uint64_t requestId;
-                std::string path;
-                commandStream >> rootViewHandle;
-                commandStream >> index;
-                commandStream >> listViewHandle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto rootViewInstance =
-                        getViewModelInstance(rootViewHandle))
-                {
-                    if (auto list = rootViewInstance->propertyList(path))
-                    {
-                        auto viewModelInstance = list->instanceAt(index);
-                        if (viewModelInstance)
-                        {
-                            m_viewModels[listViewHandle] = viewModelInstance;
-
-                            std::unique_lock<std::mutex> messageLock(
-                                m_commandQueue->m_messageMutex);
-                            FileHandle fileHandle = RIVE_NULL_HANDLE;
-                            messageStream << CommandQueue::Message::
-                                    viewModelInstanceInstantiated;
-                            messageStream << fileHandle;
-                            messageStream << listViewHandle;
-                            messageStream << requestId;
-                        }
-                        else
-                        {
-                            ErrorReporter<ViewModelInstanceHandle>(
-                                this,
-                                rootViewHandle,
-                                requestId,
-                                CommandQueue::Message::viewModelError)
-                                << "View model not found on list " << path
-                                << " at index " << index;
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            rootViewHandle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "List not found at path " << path
-                            << " when refing  view model at index " << index;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        rootViewHandle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Root view model" << rootViewHandle
-                        << " not found when refing nested "
-                           "view model at path "
-                        << path;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::deleteViewModel:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                m_viewModels.erase(handle);
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::viewModelDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                break;
-            }
-            case CommandQueue::Command::instantiateStateMachine:
-            {
-                StateMachineHandle handle;
-                ArtboardHandle artboardHandle;
-                uint64_t requestId;
-                std::string name;
-                commandStream >> handle;
-                commandStream >> artboardHandle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                if (rive::ArtboardInstance* artboard =
-                        getArtboardInstance(artboardHandle))
-                {
-                    if (auto stateMachine =
-                            name.empty() ? artboard->defaultStateMachine()
-                                         : artboard->stateMachineNamed(name))
-                    {
-                        std::unique_lock<std::mutex> accesLock(
-                            m_stateMachineAccessMutex);
-                        m_stateMachines[handle] =
-                            make_rcp<SynchronizedStateMachine>(
-                                std::move(stateMachine));
-                        accesLock.unlock();
-                        assert(m_artboardDependencies.find(artboardHandle) !=
-                               m_artboardDependencies.end());
-                        m_artboardDependencies[artboardHandle].push_back(
-                            handle);
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::stateMachineInstantiated;
-                        messageStream << artboardHandle;
-                        messageStream << handle;
-                        messageStream << requestId;
-                    }
-                    else
-                    {
-                        ErrorReporter<ArtboardHandle>(
-                            this,
-                            artboardHandle,
-                            requestId,
-                            CommandQueue::Message::artboardError)
-                            << "Could not create state "
-                               "machine with name \""
-                            << name << "\" because it was not found.";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        artboardHandle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "Could not create state "
-                           "machine with name \""
-                        << name << "\" because the owning artboard "
-                        << artboardHandle << " was not found.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::bindViewModelInstance:
-            {
-                StateMachineHandle handle;
-                ViewModelInstanceHandle viewModel;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> viewModel;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    if (auto viewModelInstance =
-                            getViewModelInstance(viewModel))
-                    {
-                        std::unique_lock<std::mutex> accesLock(
-                            stateMachineWrapper->m_mutex);
-                        stateMachineWrapper->instance->bindViewModelInstance(
-                            viewModelInstance->instance());
-                    }
-                    else
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "View model instance " << viewModel
-                            << " not found for when trying to bind "
-                               "to a state machine";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for binding view model.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::setViewModelInstance:
-            {
-                StateMachineHandle handle;
-                ViewModelInstanceHandle viewModel;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> viewModel;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    if (auto viewModelInstance =
-                            getViewModelInstance(viewModel))
-                    {
-                        std::unique_lock<std::mutex> accesLock(
-                            stateMachineWrapper->m_mutex);
-                        stateMachineWrapper->instance->setViewModelInstance(
-                            viewModelInstance->instance());
-                    }
-                    else
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "View model instance " << viewModel
-                            << " not found when trying to set the main view "
-                               "model instance on a state machine";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for setting view model instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::clearViewModelInstance:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> accessLock(
-                        stateMachineWrapper->m_mutex);
-                    if (auto dataContext =
-                            stateMachineWrapper->instance->dataContext())
-                    {
-                        dataContext->setMainViewModelInstance(nullptr);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for clearing view model instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::setGlobalViewModelInstance:
-            {
-                StateMachineHandle handle;
-                ViewModelInstanceHandle viewModel;
-                uint64_t requestId;
-                std::string name;
-                commandStream >> handle;
-                commandStream >> viewModel;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    if (auto viewModelInstance =
-                            getViewModelInstance(viewModel))
-                    {
-                        std::unique_lock<std::mutex> accesLock(
-                            stateMachineWrapper->m_mutex);
-                        if (!stateMachineWrapper->instance
-                                 ->setGlobalViewModelInstance(
-                                     name,
-                                     viewModelInstance->instance()))
-                        {
-                            ErrorReporter<StateMachineHandle>(
-                                this,
-                                handle,
-                                requestId,
-                                CommandQueue::Message::stateMachineError)
-                                << "Could not set global view model instance "
-                                << viewModel << " under name " << name
-                                << " on a state machine";
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "View model instance " << viewModel
-                            << " not found when trying to set a global view "
-                               "model instance on a state machine";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for setting global view model instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::clearGlobalViewModelInstance:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                std::string name;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> accessLock(
-                        stateMachineWrapper->m_mutex);
-                    if (!stateMachineWrapper->instance
-                             ->setGlobalViewModelInstance(name, nullptr))
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "Could not clear global view model instance "
-                            << "under name " << name << " on a state machine";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for clearing global view model "
-                           "instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getGlobalViewModelInstance:
-            {
-                StateMachineHandle handle;
-                ViewModelInstanceHandle viewHandle;
-                uint64_t requestId;
-                std::string name;
-                commandStream >> handle;
-                commandStream >> viewHandle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    rcp<ViewModelInstance> viewModelInstance;
-                    {
-                        std::unique_lock<std::mutex> accesLock(
-                            stateMachineWrapper->m_mutex);
-                        viewModelInstance = stateMachineWrapper->instance
-                                                ->globalViewModelInstance(name);
-                    }
-                    if (viewModelInstance != nullptr)
-                    {
-                        m_viewModels[viewHandle] =
-                            make_rcp<ViewModelInstanceRuntime>(
-                                viewModelInstance);
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream << CommandQueue::Message::
-                                stateMachineViewModelInstanceReceived;
-                        messageStream << handle;
-                        messageStream << viewHandle;
-                        messageStream << requestId;
-                    }
-                    else
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "No global view model instance named " << name
-                            << " bound to state machine " << handle;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for getting global view model instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getMainViewModelInstance:
-            {
-                StateMachineHandle handle;
-                ViewModelInstanceHandle viewHandle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> viewHandle;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    rcp<ViewModelInstance> viewModelInstance;
-                    {
-                        std::unique_lock<std::mutex> accessLock(
-                            stateMachineWrapper->m_mutex);
-                        if (auto dataContext =
-                                stateMachineWrapper->instance->dataContext())
-                        {
-                            viewModelInstance =
-                                dataContext->mainViewModelInstance();
-                        }
-                    }
-                    if (viewModelInstance != nullptr)
-                    {
-                        m_viewModels[viewHandle] =
-                            make_rcp<ViewModelInstanceRuntime>(
-                                viewModelInstance);
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream << CommandQueue::Message::
-                                stateMachineViewModelInstanceReceived;
-                        messageStream << handle;
-                        messageStream << viewHandle;
-                        messageStream << requestId;
-                    }
-                    else
-                    {
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "No main view model instance bound to state "
-                               "machine "
-                            << handle;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for getting main view model instance.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::bind:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> accesLock(
-                        stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->bind();
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for binding data context.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::advanceStateMachine:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                float timeToAdvance;
-                commandStream >> handle;
-                commandStream >> requestId;
-                commandStream >> timeToAdvance;
-                lock.unlock();
-
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> advanceLock(wrapper->m_mutex);
-                    if (!wrapper->instance->advanceAndApply(timeToAdvance))
-                    {
-                        advanceLock.unlock();
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::stateMachineSettled;
-                        messageStream << handle;
-                        messageStream << requestId;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for "
-                           "advance.";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::deleteStateMachine:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto it = m_stateMachines.find(handle);
-                if (it != m_stateMachines.end())
-                {
-                    std::unique_lock<std::mutex> accesLock(
-                        m_stateMachineAccessMutex);
-                    m_stateMachines.erase(it);
-                    accesLock.unlock();
-                }
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::stateMachineDeleted;
-                messageStream << handle;
-                messageStream << requestId;
-                // We don't remove from the artboard dependencies here because
-                // calling erase on a non existent key is fine.
-                break;
-            }
-
-            case CommandQueue::Command::enableSemantics:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    wrapper->instance->enableSemantics();
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for enableSemantics.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::drainSemanticsDiff:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                Fit fit;
-                float alignmentX;
-                float alignmentY;
-                float scaleFactor;
-                Vec2D viewBounds;
-                commandStream >> handle;
-                commandStream >> requestId;
-                commandStream >> fit;
-                commandStream >> alignmentX;
-                commandStream >> alignmentY;
-                commandStream >> scaleFactor;
-                commandStream >> viewBounds;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    auto* manager = wrapper->instance->semanticManager();
-                    if (manager == nullptr)
-                    {
-                        stateMachineLock.unlock();
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "Semantics not enabled on state machine "
-                            << handle
-                            << "; call enableSemantics before "
-                               "drainSemanticsDiff.";
-                    }
-                    else
-                    {
-                        SemanticsDiff diff = manager->drainDiff();
-                        // Compute the transform while locked because it reads
-                        // the artboard bounds.
-                        Mat2D transform;
-                        if (auto* artboard = wrapper->instance->artboard())
-                        {
-                            AABB artboardBounds = artboard->bounds();
-                            AABB surfaceBounds =
-                                AABB(Vec2D{0.0f, 0.0f}, viewBounds);
-                            if (surfaceBounds.width() != 0.0f &&
-                                surfaceBounds.height() != 0.0f)
-                            {
-                                Alignment alignment(alignmentX, alignmentY);
-                                transform =
-                                    rive::computeAlignment(fit,
-                                                           alignment,
-                                                           surfaceBounds,
-                                                           artboardBounds,
-                                                           scaleFactor);
-                            }
-                        }
-
-                        const bool transformChanged =
-                            wrapper->m_hasLastSemanticsTransform &&
-                            wrapper->m_lastSemanticsTransform != transform;
-                        wrapper->m_lastSemanticsTransform = transform;
-                        wrapper->m_hasLastSemanticsTransform = true;
-                        if (transformChanged)
-                        {
-                            // Viewport-only diffs bypass SemanticManager's
-                            // normal metadata population.
-                            diff.frameNumber = Artboard::frameId();
-                            diff.updatedGeometry = manager->boundsSnapshot();
-                            diff.treeVersion = manager->version();
-                            diff.rootId = manager->rootId();
-                        }
-
-                        if (!diff.empty())
-                        {
-                            // Map the owned diff outside the lock.
-                            stateMachineLock.unlock();
-                            if (transform != Mat2D())
-                            {
-                                mapSemanticsDiffToViewSpace(diff, transform);
-                            }
-
-                            std::unique_lock<std::mutex> messageLock(
-                                m_commandQueue->m_messageMutex);
-                            messageStream
-                                << CommandQueue::Message::semanticsDiffReceived;
-                            messageStream << handle;
-                            messageStream << requestId;
-                            m_commandQueue->m_messageSemanticsDiffs
-                                << std::move(diff);
-                        }
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for drainSemanticsDiff.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::fireSemanticAction:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                uint32_t semanticNodeId;
-                SemanticActionType actionType;
-                commandStream >> handle;
-                commandStream >> requestId;
-                commandStream >> semanticNodeId;
-                commandStream >> actionType;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    if (wrapper->instance->semanticManager() == nullptr)
-                    {
-                        stateMachineLock.unlock();
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "Semantics not enabled on state machine "
-                            << handle
-                            << "; call enableSemantics before "
-                               "fireSemanticAction.";
-                    }
-                    else
-                    {
-                        wrapper->instance->fireSemanticAction(semanticNodeId,
-                                                              actionType);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for fireSemanticAction.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::requestSemanticFocus:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                uint32_t semanticNodeId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                commandStream >> semanticNodeId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    auto* manager = wrapper->instance->semanticManager();
-                    if (manager == nullptr)
-                    {
-                        stateMachineLock.unlock();
-                        ErrorReporter<StateMachineHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::stateMachineError)
-                            << "Semantics not enabled on state machine "
-                            << handle
-                            << "; call enableSemantics before "
-                               "requestSemanticFocus.";
-                    }
-                    else
-                    {
-                        // A missing/non-focusable node is a silent no-op.
-                        manager->requestFocus(semanticNodeId);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for requestSemanticFocus.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::clearSemanticFocus:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    if (auto* focusManager = wrapper->instance->focusManager())
-                    {
-                        focusManager->clearFocus();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for clearSemanticFocus.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::runOnce:
-            {
-                CommandServerCallback callback;
-                m_commandQueue->m_callbacks >> callback;
-                lock.unlock();
-                callback(this);
-                break;
-            }
-
-            case CommandQueue::Command::draw:
-            {
-                DrawKey drawKey;
-                CommandServerDrawCallback drawCallback;
-                commandStream >> drawKey;
-                m_commandQueue->m_drawCallbacks >> drawCallback;
-                lock.unlock();
-                m_uniqueDraws[drawKey] = std::move(drawCallback);
-                break;
-            }
-
-            case CommandQueue::Command::cancelDraw:
-            {
-                DrawKey drawKey;
-                commandStream >> drawKey;
-                lock.unlock();
-                m_uniqueDraws.erase(drawKey);
-                break;
-            }
-
-            case CommandQueue::Command::commandLoopBreak:
-            {
-                lock.unlock();
-                shouldProcessCommands = false;
-                break;
-            }
-
-            case CommandQueue::Command::listArtboards:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto artboards = file->artboards();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::artboardsListed;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << artboards.size();
-                    for (auto artboard : artboards)
-                    {
-                        m_commandQueue->m_messageNames << artboard->name();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of artboards";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::listFileAssets:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto fileAssets = file->assets();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::fileAssetsListed;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << fileAssets.size();
-                    for (const auto& asset : fileAssets)
-                    {
-                        messageStream << asset->assetId();
-                        messageStream << asset->coreType();
-                        m_commandQueue->m_messageNames << asset->name();
-                        m_commandQueue->m_messageNames << asset->uniqueName();
-                        m_commandQueue->m_messageNames << asset->cdnUuidStr();
-                        m_commandQueue->m_messageNames << asset->cdnBaseUrl();
-                        m_commandQueue->m_messageNames
-                            << asset->fileExtension();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of file assets";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::getViewModelInstanceViewModelName:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto viewModelInstance = getViewModelInstance(handle);
-                if (viewModelInstance)
-                {
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::
-                            viewModelInstanceViewModelNameReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    m_commandQueue->m_messageNames
-                        << viewModelInstance->viewModelName();
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Invalid view model instance handle " << handle;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getViewModelInstanceName:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto viewModelInstance = getViewModelInstance(handle);
-                if (viewModelInstance)
-                {
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::viewModelInstanceNameReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    m_commandQueue->m_messageNames << viewModelInstance->name();
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Invalid view model instance handle " << handle;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listViewModelEnums:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto enums = file->enums();
-                    std::vector<ViewModelEnum> enumDatas;
-
-                    for (auto tenum : enums)
-                    {
-                        ViewModelEnum data;
-                        data.name = tenum->enumName();
-                        auto values = tenum->values();
-                        for (auto value : values)
-                        {
-                            data.enumerants.push_back(value->key());
-                        }
-
-                        enumDatas.push_back(data);
-                    }
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::viewModelEnumsListed;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << enumDatas.size();
-                    for (auto& enumData : enumDatas)
-                    {
-                        m_commandQueue->m_messageNames << enumData.name;
-                        messageStream << enumData.enumerants.size();
-                        for (auto& enumValueName : enumData.enumerants)
-                            m_commandQueue->m_messageNames << enumValueName;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of enums";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listStateMachines:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto artboard = getArtboardInstance(handle);
-                if (artboard)
-                {
-                    auto numStateMachines = artboard->stateMachineCount();
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::stateMachinesListed;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << numStateMachines;
-                    for (int i = 0; i < numStateMachines; ++i)
-                    {
-                        m_commandQueue->m_messageNames
-                            << artboard->stateMachineNameAt(i);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "Invalid artboard handle " << handle
-                        << " when getting list of state machines";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getArtboardSize:
-            {
-                ArtboardHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto artboard = getArtboardInstance(handle);
-                if (artboard)
-                {
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::artboardSizeReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << artboard->width();
-                    messageStream << artboard->height();
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "Invalid artboard handle " << handle
-                        << " when getting artboard size";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getDefaultViewModel:
-            {
-                FileHandle fileHandle;
-                ArtboardHandle artboardHandle;
-                uint64_t requestId;
-                commandStream >> fileHandle;
-                commandStream >> artboardHandle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto artboard = getArtboardInstance(artboardHandle);
-                if (artboard)
-                {
-                    auto file = getFile(fileHandle);
-                    if (file)
-                    {
-                        auto defaultViewModel =
-                            file->defaultArtboardViewModel(artboard);
-
-                        if (defaultViewModel)
-                        {
-                            auto defaultInstance =
-                                defaultViewModel->createDefaultInstance();
-                            if (defaultInstance)
-                            {
-                                std::unique_lock<std::mutex> messageLock(
-                                    m_commandQueue->m_messageMutex);
-                                messageStream << CommandQueue::Message::
-                                        defaultViewModelReceived;
-                                messageStream << artboardHandle;
-                                messageStream << requestId;
-                                m_commandQueue->m_messageNames
-                                    << defaultViewModel->name();
-                                m_commandQueue->m_messageNames
-                                    << defaultInstance->name();
-                            }
-                            else
-                            {
-                                ErrorReporter<ArtboardHandle>(
-                                    this,
-                                    artboardHandle,
-                                    requestId,
-                                    CommandQueue::Message::artboardError)
-                                    << "Could not find default view model "
-                                       "instance for "
-                                       "artboard"
-                                    << " when getting default view model info";
-                            }
-                        }
-                        else
-                        {
-                            ErrorReporter<ArtboardHandle>(
-                                this,
-                                artboardHandle,
-                                requestId,
-                                CommandQueue::Message::artboardError)
-                                << "Could not find default view model for "
-                                   "artboard"
-                                << " when getting default view model info";
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<ArtboardHandle>(
-                            this,
-                            artboardHandle,
-                            requestId,
-                            CommandQueue::Message::artboardError)
-                            << "Invalid file handle " << fileHandle
-                            << " when getting default view model info";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ArtboardHandle>(
-                        this,
-                        artboardHandle,
-                        requestId,
-                        CommandQueue::Message::artboardError)
-                        << "Invalid artboard handle " << artboardHandle
-                        << " when getting default view model info";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listViewModels:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto numViewModels = file->viewModelCount();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::viewModelsListend;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << numViewModels;
-                    for (int i = 0; i < numViewModels; ++i)
-                    {
-                        m_commandQueue->m_messageNames
-                            << file->viewModelByIndex(i)->name();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of view models";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listGlobalViewModelNames:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto names = file->globalViewModelNames();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::globalViewModelNamesListed;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << names.size();
-                    for (auto& name : names)
-                    {
-                        m_commandQueue->m_messageNames << name;
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of global view models";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listViewModelInstanceNames:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                std::string viewModelName;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> viewModelName;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto model = file->viewModelByName(viewModelName);
-                    if (model)
-                    {
-                        auto names = model->instanceNames();
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream << CommandQueue::Message::
-                                viewModelInstanceNamesListed;
-                        messageStream << handle;
-                        messageStream << requestId;
-                        messageStream << names.size();
-                        m_commandQueue->m_messageNames << viewModelName;
-                        for (auto& name : names)
-                        {
-                            m_commandQueue->m_messageNames << name;
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<FileHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "Invalid view model name " << viewModelName
-                            << " when getting list of view model instance "
-                               "names";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of view model instance names";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listViewModelProperties:
-            {
-                FileHandle handle;
-                uint64_t requestId;
-                std::string viewModelName;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> viewModelName;
-                lock.unlock();
-                auto file = getFile(handle);
-                if (file)
-                {
-                    auto model = file->viewModelByName(viewModelName);
-                    if (model)
-                    {
-                        // Used to get meta data about enums.
-                        auto modelInstance = model->createDefaultInstance();
-                        auto properties = model->properties();
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::viewModelPropertiesListed;
-                        messageStream << handle;
-                        messageStream << requestId;
-                        messageStream << properties.size();
-                        m_commandQueue->m_messageNames << viewModelName;
-                        for (auto& property : properties)
-                        {
-                            messageStream << property.type;
-                            m_commandQueue->m_messageNames << property.name;
-                            if (property.type == DataType::enumType)
-                            {
-                                auto enumProperty =
-                                    modelInstance->propertyEnum(property.name);
-                                m_commandQueue->m_messageNames
-                                    << enumProperty->enumType();
-                            }
-                            if (property.type == DataType::viewModel)
-                            {
-                                // Get the type of the view model property
-                                auto viewModelTmp =
-                                    modelInstance->propertyViewModel(
-                                        property.name);
-                                if (viewModelTmp)
-                                {
-                                    m_commandQueue->m_messageNames
-                                        << viewModelTmp->instance()
-                                               ->viewModel()
-                                               ->name();
-                                }
-                                else
-                                {
-                                    // If we can't determine the name we still
-                                    // need to send something because the
-                                    // command queue is expecting a name.
-                                    m_commandQueue->m_messageNames << "Unkown";
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        ErrorReporter<FileHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::fileError)
-                            << "Invalid view model name " << viewModelName
-                            << " when getting list of view model properties";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<FileHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fileError)
-                        << "Invalid file handle " << handle
-                        << " when getting list of view model properties";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::setViewModelInstanceValue:
-            {
-                ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
-                ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
-                RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
-                FontHandle fontHandle = RIVE_NULL_HANDLE;
-                BlobAssetHandle blobHandle = RIVE_NULL_HANDLE;
-                ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
-                uint64_t requestId;
-                CommandQueue::ViewModelInstanceData value;
-
-                commandStream >> handle;
-                commandStream >> value.metaData.type;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> value.metaData.name;
-
-                switch (value.metaData.type)
-                {
-                    // Triggers are valid but have no data.
-                    case DataType::trigger:
-                        break;
-                    case DataType::boolean:
-                        commandStream >> value.boolValue;
-                        break;
-                    case DataType::number:
-                        commandStream >> value.numberValue;
-                        break;
-                    case DataType::color:
-                        commandStream >> value.colorValue;
-                        break;
-                    case DataType::string:
-                    case DataType::enumType:
-                        m_commandQueue->m_names >> value.stringValue;
-                        break;
-                    case DataType::viewModel:
-                        commandStream >> nestedHandle;
-                        break;
-                    case DataType::assetImage:
-                        commandStream >> imageHandle;
-                        break;
-                    case DataType::assetFont:
-                        commandStream >> fontHandle;
-                        break;
-                    case DataType::assetBlob:
-                        commandStream >> blobHandle;
-                        break;
-                    case DataType::artboard:
-                        commandStream >> artboardHandle;
-                        break;
-                    default:
-                        RIVE_UNREACHABLE();
-                }
-                lock.unlock();
-
-                if (auto viewModelInstance = getViewModelInstance(handle))
-                {
-                    switch (value.metaData.type)
-                    {
-                        case DataType::trigger:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyTrigger(
-                                        value.metaData.name))
-                            {
-                                property->trigger();
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::boolean:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyBoolean(
-                                        value.metaData.name))
-                            {
-                                property->value(value.boolValue);
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::number:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyNumber(
-                                        value.metaData.name))
-                            {
-                                property->value(value.numberValue);
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::color:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyColor(
-                                        value.metaData.name))
-                            {
-                                property->value(value.colorValue);
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::string:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyString(
-                                        value.metaData.name))
-                            {
-                                property->value(value.stringValue);
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::enumType:
-                        {
-                            if (auto property = viewModelInstance->propertyEnum(
-                                    value.metaData.name))
-                            {
-                                // As far as I can tell, there is no built in
-                                // way to do this from the core runtime. So we
-                                // just verify manually ourselves.
-                                auto values = property->values();
-                                if (std::find(values.begin(),
-                                              values.end(),
-                                              value.stringValue) !=
-                                    values.end())
-                                {
-                                    property->value(value.stringValue);
-                                }
-                                else
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Invalid enum value for "
-                                           "property "
-                                        << value.metaData.name
-                                        << " when trying to set enum to "
-                                        << value.stringValue
-                                        << " possible values " << values;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when setting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::viewModel:
-                        {
-                            if (auto nestedViewModel =
-                                    getViewModelInstance(nestedHandle))
-                            {
-                                if (!viewModelInstance->replaceViewModel(
-                                        value.metaData.name,
-                                        nestedViewModel))
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Could not replace "
-                                           "view model at path "
-                                        << value.metaData.name;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find nested view "
-                                       "model "
-                                       "with handle "
-                                    << nestedHandle
-                                    << " to set for view model instance when "
-                                       "setting property with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::assetImage:
-                        {
-                            if (auto imageProperty =
-                                    viewModelInstance->propertyImage(
-                                        value.metaData.name))
-                            {
-                                if (imageHandle == RIVE_NULL_HANDLE)
-                                {
-                                    imageProperty->value(nullptr);
-                                }
-                                else if (auto image = getImage(imageHandle))
-                                {
-                                    imageProperty->value(image);
-                                }
-                                else
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Could not find image "
-                                        << imageHandle
-                                        << " to set for view model instance "
-                                           "when setting property with path "
-                                        << value.metaData.name;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find "
-                                       "image property at path "
-                                    << value.metaData.name
-                                    << " for view model instance " << handle;
-                            }
-                            break;
-                        }
-                        case DataType::assetFont:
-                        {
-                            if (auto fontProperty =
-                                    viewModelInstance->propertyFont(
-                                        value.metaData.name))
-                            {
-                                if (fontHandle == RIVE_NULL_HANDLE)
-                                {
-                                    fontProperty->value(nullptr);
-                                }
-                                else if (auto font = getFont(fontHandle))
-                                {
-                                    fontProperty->value(font);
-                                }
-                                else
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Could not find font " << fontHandle
-                                        << " to set for view model instance "
-                                           "when setting property with path "
-                                        << value.metaData.name;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find "
-                                       "font property at path "
-                                    << value.metaData.name
-                                    << " for view model instance " << handle;
-                            }
-                            break;
-                        }
-                        case DataType::assetBlob:
-                        {
-                            if (auto blobProperty =
-                                    viewModelInstance->propertyBlob(
-                                        value.metaData.name))
-                            {
-                                if (blobHandle == RIVE_NULL_HANDLE)
-                                {
-                                    blobProperty->value(nullptr);
-                                }
-                                else if (auto blob = getBlob(blobHandle))
-                                {
-                                    blobProperty->value(blob);
-                                }
-                                else
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Could not find blob " << blobHandle
-                                        << " to set for view model instance "
-                                           "when setting property with path "
-                                        << value.metaData.name;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find "
-                                       "blob property at path "
-                                    << value.metaData.name
-                                    << " for view model instance " << handle;
-                            }
-                            break;
-                        }
-                        case DataType::artboard:
-                        {
-                            if (auto artboardProperty =
-                                    viewModelInstance->propertyArtboard(
-                                        value.metaData.name))
-                            {
-                                if (artboardHandle == RIVE_NULL_HANDLE)
-                                {
-                                    artboardProperty->value(nullptr);
-                                }
-                                else if (auto bindableArtboard =
-                                             getBindableArtboard(
-                                                 artboardHandle))
-                                {
-                                    artboardProperty->value(bindableArtboard);
-                                }
-                                else
-                                {
-                                    ErrorReporter<ViewModelInstanceHandle>(
-                                        this,
-                                        handle,
-                                        requestId,
-                                        CommandQueue::Message::viewModelError)
-                                        << "Could not find artboard "
-                                        << artboardHandle
-                                        << " to set for view model instance "
-                                           "when setting property with path "
-                                        << value.metaData.name;
-                                }
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find "
-                                       "artboard property at path "
-                                    << value.metaData.name
-                                    << " for view model instance " << handle;
-                            }
-                            break;
-                        }
-                        default:
-                            RIVE_UNREACHABLE();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Could not find view model instance when "
-                           "setting property type "
-                        << value.metaData.type << " with path "
-                        << value.metaData.name;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::listViewModelPropertyValue:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                CommandQueue::ViewModelInstanceData value{};
-                commandStream >> value.metaData.type;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> value.metaData.name;
-                lock.unlock();
-
-                if (auto viewModelInstance = getViewModelInstance(handle))
-                {
-                    bool found = false;
-                    switch (value.metaData.type)
-                    {
-                        case DataType::boolean:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyBoolean(
-                                        value.metaData.name))
-                            {
-                                value.boolValue = property->value();
-                                found = true;
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when getting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::number:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyNumber(
-                                        value.metaData.name))
-                            {
-                                value.numberValue = property->value();
-                                found = true;
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when getting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::color:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyColor(
-                                        value.metaData.name))
-                            {
-                                value.colorValue = property->value();
-                                found = true;
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when getting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::string:
-                        {
-                            if (auto property =
-                                    viewModelInstance->propertyString(
-                                        value.metaData.name))
-                            {
-                                value.stringValue = property->value();
-                                found = true;
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when getting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        case DataType::enumType:
-                        {
-                            if (auto property = viewModelInstance->propertyEnum(
-                                    value.metaData.name))
-                            {
-                                value.stringValue = property->value();
-                                found = true;
-                            }
-                            else
-                            {
-                                ErrorReporter<ViewModelInstanceHandle>(
-                                    this,
-                                    handle,
-                                    requestId,
-                                    CommandQueue::Message::viewModelError)
-                                    << "Could not find view model "
-                                       "property "
-                                       "instance when getting property type "
-                                    << value.metaData.type << " with path "
-                                    << value.metaData.name;
-                            }
-                            break;
-                        }
-                        default:
-                            RIVE_UNREACHABLE();
-                    }
-
-                    if (!found)
-                    {
-                        // Exit this command, preserving the batch/draw
-                        // epilogue. Failed reads must not emit a second,
-                        // invalid value response.
-                        break;
-                    }
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::
-                            viewModelPropertyValueReceived;
-                    messageStream << handle;
-                    messageStream << value.metaData.type;
-                    m_commandQueue->m_messageNames << value.metaData.name;
-                    messageStream << requestId;
-                    switch (value.metaData.type)
-                    {
-                        case DataType::boolean:
-                            messageStream << value.boolValue;
-                            break;
-                        case DataType::number:
-                            messageStream << value.numberValue;
-                            break;
-                        case DataType::color:
-                            messageStream << value.colorValue;
-                            break;
-                        case DataType::enumType:
-                        case DataType::string:
-                            m_commandQueue->m_messageNames << value.stringValue;
-                            break;
-                        default:
-                            RIVE_UNREACHABLE();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "Could not find view model instance when "
-                           "getting property type "
-                        << value.metaData.type << " with path "
-                        << value.metaData.name;
-                }
-                break;
-            }
-
-            case CommandQueue::Command::getViewModelListSize:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                std::string path;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto viewModel = getViewModelInstance(handle))
-                {
-                    if (auto property = viewModel->propertyList(path))
-                    {
-                        auto size = property->size();
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::viewModelListSizeReceived;
-                        messageStream << handle;
-                        messageStream << size;
-                        messageStream << requestId;
-                        m_commandQueue->m_messageNames << path;
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "failed to get list at path " << path
-                            << " when getting list size";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "failed to get view model " << handle
-                        << " when getting list size";
-                }
-
-                break;
-            }
-
-            case CommandQueue::Command::clearViewModelList:
-            {
-                ViewModelInstanceHandle handle;
-                uint64_t requestId;
-                std::string path;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> path;
-                lock.unlock();
-
-                if (auto viewModel = getViewModelInstance(handle))
-                {
-                    if (auto property = viewModel->propertyList(path))
-                    {
-                        property->removeAllInstances();
-
-                        std::unique_lock<std::mutex> messageLock(
-                            m_commandQueue->m_messageMutex);
-                        messageStream
-                            << CommandQueue::Message::viewModelListCleared;
-                        messageStream << handle;
-                        messageStream << requestId;
-                        m_commandQueue->m_messageNames << path;
-                        messageLock.unlock();
-                    }
-                    else
-                    {
-                        ErrorReporter<ViewModelInstanceHandle>(
-                            this,
-                            handle,
-                            requestId,
-                            CommandQueue::Message::viewModelError)
-                            << "failed to get list at path " << path
-                            << " when clearing list";
-                    }
-                }
-                else
-                {
-                    ErrorReporter<ViewModelInstanceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::viewModelError)
-                        << "failed to get view model " << handle
-                        << " when clearing list";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::pointerMove:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_pointerEvents >> pointerEvent;
-                lock.unlock();
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    Vec2D position = cursorPosForPointerEvent(
-                        stateMachineWrapper->instance.get(),
-                        pointerEvent);
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerMove(
-                        position,
-                        0.0f,
-                        pointerEvent.pointerId);
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine \"" << handle
-                        << "\" not found for pointerMove.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::pointerDown:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_pointerEvents >> pointerEvent;
-                lock.unlock();
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    Vec2D position = cursorPosForPointerEvent(
-                        stateMachineWrapper->instance.get(),
-                        pointerEvent);
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        stateMachineWrapper->m_mutex);
-                    auto hitResult = stateMachineWrapper->instance->pointerDown(
-                        position,
-                        pointerEvent.pointerId,
-                        pointerEvent.button);
-                    // Process down-driven state changes before a following
-                    // pointer up.
-                    if (hitResult != HitResult::none)
-                    {
-                        stateMachineWrapper->instance->advanceAndApply(0.0f);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine \"" << handle
-                        << "\" not found for pointerDown.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::pointerUp:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_pointerEvents >> pointerEvent;
-                lock.unlock();
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    Vec2D position = cursorPosForPointerEvent(
-                        stateMachineWrapper->instance.get(),
-                        pointerEvent);
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        stateMachineWrapper->m_mutex);
-                    auto hitResult = stateMachineWrapper->instance->pointerUp(
-                        position,
-                        pointerEvent.pointerId,
-                        pointerEvent.button);
-                    // Process up-driven state changes before any following
-                    // pointer exit.
-                    if (hitResult != HitResult::none)
-                    {
-                        stateMachineWrapper->instance->advanceAndApply(0.0f);
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine \"" << handle
-                        << "\" not found for pointerUp.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::pointerExit:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_pointerEvents >> pointerEvent;
-                lock.unlock();
-                if (auto stateMachineWrapper = getStateMachineWrapper(handle))
-                {
-                    Vec2D position = cursorPosForPointerEvent(
-                        stateMachineWrapper->instance.get(),
-                        pointerEvent);
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        stateMachineWrapper->m_mutex);
-                    stateMachineWrapper->instance->pointerExit(
-                        position,
-                        pointerEvent.pointerId);
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine \"" << handle
-                        << "\" not found for pointerExit.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::keyInput:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                Key key;
-                KeyModifiers modifiers;
-                bool isPressed;
-                bool isRepeat;
-                commandStream >> key;
-                commandStream >> modifiers;
-                commandStream >> isPressed;
-                commandStream >> isRepeat;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    const bool handled = wrapper->instance->keyInput(key,
-                                                                     modifiers,
-                                                                     isPressed,
-                                                                     isRepeat);
-                    stateMachineLock.unlock();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::keyInputHandled;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << handled;
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for keyInput.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::textInput:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                std::string text;
-                m_commandQueue->m_names >> text;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    const bool handled = wrapper->instance->textInput(text);
-                    stateMachineLock.unlock();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::textInputHandled;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << handled;
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for textInput.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::addImageFileAsset:
-            {
-                RenderImageHandle handle;
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                auto image = ref_rcp(getImage(handle));
-                if (image != nullptr)
-                {
-                    m_globalAssetRegistry->setRenderImage(name, handle);
-                    m_globalAssetRegistry->applyRenderImage(name, image);
-                }
-                else
-                {
-                    ErrorReporter<RenderImageHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::imageError)
-                        << "Invalid image handle when adding global image "
-                           "asset \""
-                        << name << "\"";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::removeImageFileAsset:
-            {
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                m_globalAssetRegistry->removeRenderImage(name);
-                m_globalAssetRegistry->applyRenderImage(name, nullptr);
-                break;
-            }
-
-            case CommandQueue::Command::addAudioFileAsset:
-            {
-                AudioSourceHandle handle;
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                auto audioSource = ref_rcp(getAudioSource(handle));
-                if (audioSource != nullptr)
-                {
-                    m_globalAssetRegistry->setAudioSource(name, handle);
-                    m_globalAssetRegistry->applyAudioSource(name, audioSource);
-                }
-                else
-                {
-                    ErrorReporter<AudioSourceHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::audioError)
-                        << "Invalid audio handle when adding global audio "
-                           "asset \""
-                        << name << "\"";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::removeAudioFileAsset:
-            {
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                m_globalAssetRegistry->removeAudioSource(name);
-                m_globalAssetRegistry->applyAudioSource(name, nullptr);
-                break;
-            }
-
-            case CommandQueue::Command::addFontFileAsset:
-            {
-                FontHandle handle;
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> handle;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                auto font = ref_rcp(getFont(handle));
-                if (font != nullptr)
-                {
-                    m_globalAssetRegistry->setFont(name, handle);
-                    m_globalAssetRegistry->applyFont(name, font);
-                }
-                else
-                {
-                    ErrorReporter<FontHandle>(this,
-                                              handle,
-                                              requestId,
-                                              CommandQueue::Message::fontError)
-                        << "Invalid font handle when adding global font asset "
-                           "\""
-                        << name << "\"";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::removeFontFileAsset:
-            {
-                std::string name;
-                uint64_t requestId;
-                CommandQueue::PointerEvent pointerEvent;
-                commandStream >> requestId;
-                m_commandQueue->m_names >> name;
-                lock.unlock();
-                m_globalAssetRegistry->removeFont(name);
-                m_globalAssetRegistry->applyFont(name, nullptr);
-                break;
-            }
-
-            case CommandQueue::Command::disconnect:
-            {
-                lock.unlock();
-                m_wasDisconnectReceived = true;
-                return false;
-            }
-
-            case CommandQueue::Command::focusNext:
-            case CommandQueue::Command::focusPrevious:
-            {
-                const bool moveNext =
-                    command == CommandQueue::Command::focusNext;
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    if (moveNext)
-                    {
-                        wrapper->instance->focusNext();
-                    }
-                    else
-                    {
-                        wrapper->instance->focusPrevious();
-                    }
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle << " not found for "
-                        << (moveNext ? "focusNext" : "focusPrevious") << ".";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::requestHasFocusNodes:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    const bool hasFocusNodes =
-                        wrapper->instance->hasFocusNodes();
-                    stateMachineLock.unlock();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream
-                        << CommandQueue::Message::hasFocusNodesReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << hasFocusNodes;
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for requestHasFocusNodes.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::clearFocus:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    wrapper->instance->clearFocus();
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for clearFocus.";
-                }
-                break;
-            }
-
-            case CommandQueue::Command::requestFocusState:
-            {
-                StateMachineHandle handle;
-                uint64_t requestId;
-                commandStream >> handle;
-                commandStream >> requestId;
-                lock.unlock();
-                if (auto wrapper = getStateMachineWrapper(handle))
-                {
-                    std::unique_lock<std::mutex> stateMachineLock(
-                        wrapper->m_mutex);
-                    const auto focusState = wrapper->instance->focusState();
-                    stateMachineLock.unlock();
-
-                    std::unique_lock<std::mutex> messageLock(
-                        m_commandQueue->m_messageMutex);
-                    messageStream << CommandQueue::Message::focusStateReceived;
-                    messageStream << handle;
-                    messageStream << requestId;
-                    messageStream << focusState.hasFocus;
-                    messageStream << focusState.expectsKeyboardInput;
-                }
-                else
-                {
-                    ErrorReporter<StateMachineHandle>(
-                        this,
-                        handle,
-                        requestId,
-                        CommandQueue::Message::stateMachineError)
-                        << "State machine " << handle
-                        << " not found for requestFocusState.";
-                }
-                break;
-            }
+          auto fileAssets = fileAssetLoader->fileAssets();
+          m_globalAssetRegistry->addFileAssets(handle, fileAssets);
+          m_globalAssetRegistry->applyResourcesToFileAssets(fileAssets);
+          m_fileDependencies[handle] = {};
+          m_files[handle] = file;
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::fileLoaded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "failed to load Rive file.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::deleteFile:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto fileItr = m_files.find(handle);
+        if (fileItr != m_files.end())
+        {
+          m_globalAssetRegistry->removeFileAssets(
+              handle,
+              fileItr->second->assets());
+          m_files.erase(fileItr);
+        }
+        auto itr = m_fileDependencies.find(handle);
+        if (itr != m_fileDependencies.end())
+        {
+          auto& artboardVector = itr->second;
+          for (auto artboardHandle : artboardVector)
+          {
+            cleanupArtboard(artboardHandle, requestId);
+          }
+
+          m_fileDependencies.erase(itr);
+        }
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::fileDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+
+      case CommandQueue::Command::decodeImage:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        std::vector<uint8_t> bytes;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_byteVectors >> bytes;
+        lock.unlock();
+
+        auto image = factory()->decodeImage(bytes);
+        if (image)
+        {
+          m_images[handle] = std::move(image);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::imageDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<RenderImageHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::imageError)
+              << "Command Server failed to decode image";
         }
 
-        // Should have unlocked by now.
-        assert(!lock.owns_lock());
-        lock.lock();
-    } while (!commandStream.empty() && shouldProcessCommands);
+        break;
+      }
 
-    // Since we always retake the lock at the end of the do while we need to
-    // unlock here.
-    lock.unlock();
+      case CommandQueue::Command::externalImage:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        rcp<RenderImage> image;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_externalImages >> image;
+        lock.unlock();
 
-    for (const auto& drawPair : m_uniqueDraws)
-    {
-        drawPair.second(drawPair.first, this);
+        if (image)
+        {
+          m_images[handle] = std::move(image);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::imageDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<RenderImageHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::imageError)
+              << "External image was empty";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::deleteImage:
+      {
+        RenderImageHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        m_images.erase(handle);
+        for (const auto& name :
+             m_globalAssetRegistry->removeRenderImage(handle))
+        {
+          m_globalAssetRegistry->applyRenderImage(name, nullptr);
+        }
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::imageDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+
+      case CommandQueue::Command::decodeBlob:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        std::vector<uint8_t> bytes;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_byteVectors >> bytes;
+        lock.unlock();
+
+        auto blob = make_rcp<BlobAsset>();
+        SimpleArray<uint8_t> blobBytes(bytes.data(), bytes.size());
+        if (blob->decode(blobBytes, m_factory))
+        {
+          m_blobs[handle] = std::move(blob);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::blobDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<BlobAssetHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::blobError)
+              << "Command Server failed to decode blob";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::externalBlob:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        rcp<BlobAsset> blob;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_externalBlobs >> blob;
+        lock.unlock();
+
+        if (blob)
+        {
+          m_blobs[handle] = std::move(blob);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::blobDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<BlobAssetHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::blobError)
+              << "External blob was empty";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::deleteBlob:
+      {
+        BlobAssetHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        m_blobs.erase(handle);
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::blobDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+
+      case CommandQueue::Command::decodeAudio:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        std::vector<uint8_t> bytes;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_byteVectors >> bytes;
+        lock.unlock();
+
+        auto audio = factory()->decodeAudio(bytes);
+        if (audio)
+        {
+          m_audioSources[handle] = std::move(audio);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::audioDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<AudioSourceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::audioError)
+              << "Command Server failed to decode audio";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::externalAudio:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        rcp<AudioSource> audio;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_externalAudioSources >> audio;
+        lock.unlock();
+
+        if (audio)
+        {
+          m_audioSources[handle] = std::move(audio);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::audioDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<AudioSourceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::audioError)
+              << "External audio source was invalid";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::deleteAudio:
+      {
+        AudioSourceHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        m_audioSources.erase(handle);
+        for (const auto& name :
+             m_globalAssetRegistry->removeAudioSource(handle))
+        {
+          m_globalAssetRegistry->applyAudioSource(name, nullptr);
+        }
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::audioDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+
+      case CommandQueue::Command::decodeFont:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        std::vector<uint8_t> bytes;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_byteVectors >> bytes;
+        lock.unlock();
+
+        auto font = factory()->decodeFont(std::move(bytes));
+        if (font)
+        {
+          m_fonts[handle] = std::move(font);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::fontDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<FontHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fontError)
+              << "Command Server failed to decode font";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::externalFont:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        rcp<Font> font;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_externalFonts >> font;
+        lock.unlock();
+
+        if (font)
+        {
+          m_fonts[handle] = std::move(font);
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::fontDecoded;
+          messageStream << handle;
+          messageStream << requestId;
+        }
+        else
+        {
+          ErrorReporter<FontHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fontError)
+              << "Command Server failed to decode font";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::deleteFont:
+      {
+        FontHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        m_fonts.erase(handle);
+        for (const auto& name : m_globalAssetRegistry->removeFont(handle))
+        {
+          m_globalAssetRegistry->applyFont(name, nullptr);
+        }
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::fontDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+
+      case CommandQueue::Command::instantiateArtboard:
+      {
+        ArtboardHandle handle;
+        FileHandle fileHandle;
+        uint64_t requestId;
+        std::string name;
+        commandStream >> handle;
+        commandStream >> fileHandle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        if (rive::File* file = getFile(fileHandle))
+        {
+          if (auto artboard = name.empty() ? file->bindableArtboardDefault()
+                                           : file->bindableArtboardNamed(name))
+          {
+            m_artboardDependencies[handle] = {};
+            m_artboards[handle] = std::move(artboard);
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::artboardInstantiated;
+            messageStream << fileHandle;
+            messageStream << handle;
+            messageStream << requestId;
+          }
+          else
+          {
+            ErrorReporter<FileHandle>(
+                this,
+                fileHandle,
+                requestId,
+                CommandQueue::Message::fileError)
+                << "artboard \"" << name << "\" not found.";
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              fileHandle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "file " << fileHandle
+              << " not found when trying to create artboard";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::setArtboardSize:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        float width, height;
+        commandStream >> handle;
+        commandStream >> width;
+        commandStream >> height;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto artboardInstance = getArtboardInstance(handle))
+        {
+          artboardInstance->width(width);
+          artboardInstance->height(height);
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "artboard " << handle
+              << " not found when trying to set artboard size";
+        }
+      }
+      break;
+
+      case CommandQueue::Command::resetArtboardSize:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto artboardInstance = getArtboardInstance(handle))
+        {
+          artboardInstance->resetSize();
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "artboard " << handle
+              << " not found when trying to reset artboard size";
+        }
+      }
+      break;
+
+      case CommandQueue::Command::setArtboardVolume:
+      {
+        ArtboardHandle handle;
+        float volume;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> volume;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto artboardInstance = getArtboardInstance(handle))
+        {
+          artboardInstance->volume(volume);
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "artboard " << handle
+              << " not found when trying to set artboard volume";
+        }
+      }
+      break;
+
+      case CommandQueue::Command::getArtboardVolume:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto artboard = getArtboardInstance(handle);
+        if (artboard)
+        {
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::artboardVolumeReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << artboard->volume();
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "Invalid artboard handle " << handle
+              << " when getting artboard volume";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::deleteArtboard:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        cleanupArtboard(handle, requestId);
+        // We don't remove from the file dependencies here because
+        // calling erase on a non existent key is fine.
+        break;
+      }
+
+      case CommandQueue::Command::instantiateViewModel:
+      case CommandQueue::Command::instantiateBlankViewModel:
+      case CommandQueue::Command::instantiateViewModelForArtboard:
+      case CommandQueue::Command::instantiateBlankViewModelForArtboard:
+      {
+        bool usesInstanceName = command == CommandQueue::Command::
+                                               instantiateViewModel ||
+                                command == CommandQueue::Command::
+                                               instantiateViewModelForArtboard;
+        bool usesArtboard = command ==
+                                CommandQueue::Command::
+                                    instantiateBlankViewModelForArtboard ||
+                            command == CommandQueue::Command::
+                                           instantiateViewModelForArtboard;
+
+        FileHandle fileHandle;
+        ArtboardHandle artboardHandle;
+        ViewModelInstanceHandle viewHandle;
+        uint64_t requestId;
+        std::string viewModelName;
+        std::string viewModelInstanceName;
+        commandStream >> fileHandle;
+        if (usesArtboard)
+        {
+          commandStream >> artboardHandle;
+        }
+        commandStream >> viewHandle;
+        commandStream >> requestId;
+        if (!usesArtboard)
+        {
+          m_commandQueue->m_names >> viewModelName;
+        }
+        if (usesInstanceName)
+        {
+          m_commandQueue->m_names >> viewModelInstanceName;
+        }
+        lock.unlock();
+        if (auto file = getFile(fileHandle))
+        {
+          ViewModelRuntime* viewModel = nullptr;
+
+          if (usesArtboard)
+          {
+            if (auto artboardInstance = getArtboardInstance(artboardHandle))
+            {
+              viewModel = file->defaultArtboardViewModel(artboardInstance);
+              if (viewModel == nullptr)
+              {
+                ErrorReporter<FileHandle>(
+                    this,
+                    fileHandle,
+                    requestId,
+                    CommandQueue::Message::fileError)
+                    << "No view model found for artboard " << artboardHandle;
+              }
+            }
+            else
+            {
+              if (usesInstanceName)
+              {
+                if (viewModelInstanceName.empty())
+                {
+                  ErrorReporter<FileHandle>(
+                      this,
+                      fileHandle,
+                      requestId,
+                      CommandQueue::Message::fileError)
+                      << "ArtboardInstance " << artboardHandle
+                      << " Not found when trying to create"
+                      << " default view model with default "
+                         "view "
+                      << "model instance";
+                }
+                else
+                {
+                  ErrorReporter<FileHandle>(
+                      this,
+                      fileHandle,
+                      requestId,
+                      CommandQueue::Message::fileError)
+                      << "ArtboardInstance " << artboardHandle
+                      << " Not found when trying to create "
+                      << "default view model with "
+                      << "view model instance name " << viewModelInstanceName;
+                }
+              }
+              else
+              {
+                ErrorReporter<FileHandle>(
+                    this,
+                    fileHandle,
+                    requestId,
+                    CommandQueue::Message::fileError)
+                    << "ArtboardInstance " << artboardHandle
+                    << " Not found when trying to create "
+                    << "default view model with blank view "
+                    << "model instance";
+              }
+            }
+          }
+          else
+          {
+            viewModel = file->viewModelByName(viewModelName);
+            if (viewModel == nullptr)
+            {
+              ErrorReporter<FileHandle>(
+                  this,
+                  fileHandle,
+                  requestId,
+                  CommandQueue::Message::fileError)
+                  << "View model " << viewModelName << " not found";
+            }
+          }
+
+          if (viewModel)
+          {
+            rcp<ViewModelInstanceRuntime> instance;
+
+            if (usesInstanceName)
+            {
+              if (viewModelInstanceName.empty())
+              {
+                instance = viewModel->createDefaultInstance();
+                if (instance == nullptr)
+                {
+                  ErrorReporter<FileHandle>(
+                      this,
+                      fileHandle,
+                      requestId,
+                      CommandQueue::Message::fileError)
+                      << "Could not create "
+                      << "default view model instance "
+                      << "from view model " << viewModelName;
+                }
+              }
+              else
+              {
+                instance = viewModel->createInstanceFromName(
+                    viewModelInstanceName);
+                if (instance == nullptr)
+                {
+                  ErrorReporter<FileHandle>(
+                      this,
+                      fileHandle,
+                      requestId,
+                      CommandQueue::Message::fileError)
+                      << "Could not create "
+                         "view model instance named "
+                      << viewModelInstanceName << "from view model "
+                      << viewModelName;
+                }
+              }
+            }
+            else
+            {
+              instance = viewModel->createInstance();
+              if (instance == nullptr)
+              {
+                ErrorReporter<FileHandle>(
+                    this,
+                    fileHandle,
+                    requestId,
+                    CommandQueue::Message::fileError)
+                    << "Could not create "
+                    << "blank view model instance "
+                    << "from view model " << viewModelName;
+              }
+            }
+
+            if (instance)
+            {
+              m_viewModels[viewHandle] = std::move(instance);
+
+              std::unique_lock<std::mutex> messageLock(
+                  m_commandQueue->m_messageMutex);
+              messageStream
+                  << CommandQueue::Message::viewModelInstanceInstantiated;
+              messageStream << fileHandle;
+              messageStream << viewHandle;
+              messageStream << requestId;
+            }
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              fileHandle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "File " << fileHandle
+              << " not found when creating view model instance ";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::addViewModelListValue:
+      {
+        ViewModelInstanceHandle rootHandle;
+        ViewModelInstanceHandle viewHandle;
+        uint64_t requestId;
+        std::string path;
+        int index;
+        commandStream >> rootHandle;
+        commandStream >> viewHandle;
+        commandStream >> index;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto root = getViewModelInstance(rootHandle))
+        {
+          if (auto viewModel = getViewModelInstance(viewHandle))
+          {
+            if (auto property = root->propertyList(path))
+            {
+              if (index >= 0)
+                property->addInstanceAt(viewModel, index);
+              else
+                property->addInstance(viewModel);
+            }
+            else
+            {
+              ErrorReporter<ViewModelInstanceHandle>(
+                  this,
+                  rootHandle,
+                  requestId,
+                  CommandQueue::Message::viewModelError)
+                  << "failed to find list at path " << path
+                  << " when trying to add to a list";
+            }
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                rootHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "failed to find value view model " << viewHandle
+                << "isntance for add list";
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              rootHandle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "failed to find root view model isntance " << rootHandle
+              << "for add list";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::removeViewModelListValue:
+      {
+        ViewModelInstanceHandle rootHandle;
+        ViewModelInstanceHandle viewHandle;
+        uint64_t requestId;
+        std::string path;
+        int index;
+        commandStream >> rootHandle;
+        commandStream >> viewHandle;
+        commandStream >> index;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto root = getViewModelInstance(rootHandle))
+        {
+          if (auto property = root->propertyList(path))
+          {
+            if (index >= 0)
+            {
+              property->removeInstanceAt(index);
+            }
+            else if (auto viewModel = getViewModelInstance(viewHandle))
+            {
+              property->removeInstance(viewModel);
+            }
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                rootHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "failed to find list on view model "
+                   "isntance for "
+                   "remove at path "
+                << path;
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              rootHandle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "failed to find view model instance " << rootHandle
+              << " for remove list";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::swapViewModelListValue:
+      {
+        ViewModelInstanceHandle rootHandle;
+        uint64_t requestId;
+        std::string path;
+        int indexa, indexb;
+        commandStream >> rootHandle;
+        commandStream >> indexa;
+        commandStream >> indexb;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+        if (auto viewModel = getViewModelInstance(rootHandle))
+        {
+          if (auto list = viewModel->propertyList(path))
+          {
+            list->swap(indexa, indexb);
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                rootHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "failed to find list on view model "
+                   "isntance for "
+                   "swap at path "
+                << path;
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              rootHandle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "failed to find view model instance " << rootHandle
+              << " for swap";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::subscribeViewModelProperty:
+      case CommandQueue::Command::unsubscribeViewModelProperty:
+      {
+        ViewModelInstanceHandle rootHandle;
+        PropertyData data;
+        uint64_t requestId;
+        commandStream >> rootHandle;
+        commandStream >> data.type;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> data.name;
+        lock.unlock();
+
+        if (command == CommandQueue::Command::subscribeViewModelProperty)
+        {
+          // Validate that this is a valid thing to subscribe to.
+
+          if (auto view = getViewModelInstance(rootHandle))
+          {
+            if (data.type != DataType::viewModel &&
+                data.type != DataType::integer && data.type != DataType::none &&
+                data.type != DataType::symbolListIndex)
+            {
+              if (view->property(data.name) != nullptr)
+              {
+                m_propertySubscriptions.push_back(
+                    {requestId, data, rootHandle});
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    rootHandle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Property " << data.name
+                    << " not found when subscribing";
+              }
+            }
+            else
+            {
+              ErrorReporter<ViewModelInstanceHandle>(
+                  this,
+                  rootHandle,
+                  requestId,
+                  CommandQueue::Message::viewModelError)
+                  << "Property type " << data.type
+                  << " is not valid when subscribing";
+            }
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                rootHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "Root view model " << rootHandle
+                << " not found when subscribing "
+                   "to property "
+                << data.name;
+          }
+        }
+        else
+        {
+          auto itr = std::remove_if(
+              m_propertySubscriptions.begin(),
+              m_propertySubscriptions.end(),
+              [data, rootHandle](const Subscription& val) {
+                return val.data.name == data.name &&
+                       val.data.type == data.type &&
+                       val.rootViewModel == rootHandle;
+              });
+
+          m_propertySubscriptions.erase(itr, m_propertySubscriptions.end());
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::refNestedViewModel:
+      {
+        ViewModelInstanceHandle rootViewHandle;
+        ViewModelInstanceHandle nestedViewHandle;
+        uint64_t requestId;
+        std::string path;
+        commandStream >> rootViewHandle;
+        commandStream >> nestedViewHandle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto rootViewInstance = getViewModelInstance(rootViewHandle))
+        {
+          if (auto nestedViewModel = rootViewInstance->propertyViewModel(path))
+          {
+            m_viewModels[nestedViewHandle] = nestedViewModel;
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            FileHandle fileHandle = RIVE_NULL_HANDLE;
+            messageStream
+                << CommandQueue::Message::viewModelInstanceInstantiated;
+            messageStream << fileHandle;
+            messageStream << nestedViewHandle;
+            messageStream << requestId;
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                nestedViewHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "Nested view not found at path" << path
+                << " when refing nested "
+                   "view model";
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              nestedViewHandle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Root view model " << rootViewHandle
+              << " not found when refing nested "
+                 "view model at path "
+              << path;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::refListViewModel:
+      {
+        ViewModelInstanceHandle rootViewHandle;
+        ViewModelInstanceHandle listViewHandle;
+        int index;
+        uint64_t requestId;
+        std::string path;
+        commandStream >> rootViewHandle;
+        commandStream >> index;
+        commandStream >> listViewHandle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto rootViewInstance = getViewModelInstance(rootViewHandle))
+        {
+          if (auto list = rootViewInstance->propertyList(path))
+          {
+            auto viewModelInstance = list->instanceAt(index);
+            if (viewModelInstance)
+            {
+              m_viewModels[listViewHandle] = viewModelInstance;
+
+              std::unique_lock<std::mutex> messageLock(
+                  m_commandQueue->m_messageMutex);
+              FileHandle fileHandle = RIVE_NULL_HANDLE;
+              messageStream
+                  << CommandQueue::Message::viewModelInstanceInstantiated;
+              messageStream << fileHandle;
+              messageStream << listViewHandle;
+              messageStream << requestId;
+            }
+            else
+            {
+              ErrorReporter<ViewModelInstanceHandle>(
+                  this,
+                  rootViewHandle,
+                  requestId,
+                  CommandQueue::Message::viewModelError)
+                  << "View model not found on list " << path << " at index "
+                  << index;
+            }
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                rootViewHandle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "List not found at path " << path
+                << " when refing  view model at index " << index;
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              rootViewHandle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Root view model" << rootViewHandle
+              << " not found when refing nested "
+                 "view model at path "
+              << path;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::deleteViewModel:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        m_viewModels.erase(handle);
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::viewModelDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        break;
+      }
+      case CommandQueue::Command::instantiateStateMachine:
+      {
+        StateMachineHandle handle;
+        ArtboardHandle artboardHandle;
+        uint64_t requestId;
+        std::string name;
+        commandStream >> handle;
+        commandStream >> artboardHandle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        if (rive::ArtboardInstance* artboard = getArtboardInstance(
+                artboardHandle))
+        {
+          if (auto stateMachine = name.empty()
+                                      ? artboard->defaultStateMachine()
+                                      : artboard->stateMachineNamed(name))
+          {
+            std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+            m_stateMachines[handle] = make_rcp<SynchronizedStateMachine>(
+                std::move(stateMachine));
+            accesLock.unlock();
+            assert(
+                m_artboardDependencies.find(artboardHandle) !=
+                m_artboardDependencies.end());
+            m_artboardDependencies[artboardHandle].push_back(handle);
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::stateMachineInstantiated;
+            messageStream << artboardHandle;
+            messageStream << handle;
+            messageStream << requestId;
+          }
+          else
+          {
+            ErrorReporter<ArtboardHandle>(
+                this,
+                artboardHandle,
+                requestId,
+                CommandQueue::Message::artboardError)
+                << "Could not create state "
+                   "machine with name \""
+                << name << "\" because it was not found.";
+          }
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              artboardHandle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "Could not create state "
+                 "machine with name \""
+              << name << "\" because the owning artboard " << artboardHandle
+              << " was not found.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::bindViewModelInstance:
+      {
+        StateMachineHandle handle;
+        ViewModelInstanceHandle viewModel;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> viewModel;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          if (auto viewModelInstance = getViewModelInstance(viewModel))
+          {
+            std::unique_lock<std::mutex> accesLock(
+                stateMachineWrapper->m_mutex);
+            stateMachineWrapper->instance->bindViewModelInstance(
+                viewModelInstance->instance());
+          }
+          else
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "View model instance " << viewModel
+                << " not found for when trying to bind "
+                   "to a state machine";
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for binding view model.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::setViewModelInstance:
+      {
+        StateMachineHandle handle;
+        ViewModelInstanceHandle viewModel;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> viewModel;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          if (auto viewModelInstance = getViewModelInstance(viewModel))
+          {
+            std::unique_lock<std::mutex> accesLock(
+                stateMachineWrapper->m_mutex);
+            stateMachineWrapper->instance->setViewModelInstance(
+                viewModelInstance->instance());
+          }
+          else
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "View model instance " << viewModel
+                << " not found when trying to set the main view "
+                   "model instance on a state machine";
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for setting view model instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::clearViewModelInstance:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> accessLock(stateMachineWrapper->m_mutex);
+          if (auto dataContext = stateMachineWrapper->instance->dataContext())
+          {
+            dataContext->setMainViewModelInstance(nullptr);
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for clearing view model instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::setGlobalViewModelInstance:
+      {
+        StateMachineHandle handle;
+        ViewModelInstanceHandle viewModel;
+        uint64_t requestId;
+        std::string name;
+        commandStream >> handle;
+        commandStream >> viewModel;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          if (auto viewModelInstance = getViewModelInstance(viewModel))
+          {
+            std::unique_lock<std::mutex> accesLock(
+                stateMachineWrapper->m_mutex);
+            if (!stateMachineWrapper->instance->setGlobalViewModelInstance(
+                    name,
+                    viewModelInstance->instance()))
+            {
+              ErrorReporter<StateMachineHandle>(
+                  this,
+                  handle,
+                  requestId,
+                  CommandQueue::Message::stateMachineError)
+                  << "Could not set global view model instance " << viewModel
+                  << " under name " << name << " on a state machine";
+            }
+          }
+          else
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "View model instance " << viewModel
+                << " not found when trying to set a global view "
+                   "model instance on a state machine";
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for setting global view model instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::clearGlobalViewModelInstance:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        std::string name;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> accessLock(stateMachineWrapper->m_mutex);
+          if (!stateMachineWrapper->instance->setGlobalViewModelInstance(
+                  name,
+                  nullptr))
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "Could not clear global view model instance "
+                << "under name " << name << " on a state machine";
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for clearing global view model "
+                 "instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getGlobalViewModelInstance:
+      {
+        StateMachineHandle handle;
+        ViewModelInstanceHandle viewHandle;
+        uint64_t requestId;
+        std::string name;
+        commandStream >> handle;
+        commandStream >> viewHandle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          rcp<ViewModelInstance> viewModelInstance;
+          {
+            std::unique_lock<std::mutex> accesLock(
+                stateMachineWrapper->m_mutex);
+            viewModelInstance = stateMachineWrapper->instance
+                                    ->globalViewModelInstance(name);
+          }
+          if (viewModelInstance != nullptr)
+          {
+            m_viewModels[viewHandle] = make_rcp<ViewModelInstanceRuntime>(
+                viewModelInstance);
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream
+                << CommandQueue::Message::stateMachineViewModelInstanceReceived;
+            messageStream << handle;
+            messageStream << viewHandle;
+            messageStream << requestId;
+          }
+          else
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "No global view model instance named " << name
+                << " bound to state machine " << handle;
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for getting global view model instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getMainViewModelInstance:
+      {
+        StateMachineHandle handle;
+        ViewModelInstanceHandle viewHandle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> viewHandle;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          rcp<ViewModelInstance> viewModelInstance;
+          {
+            std::unique_lock<std::mutex> accessLock(
+                stateMachineWrapper->m_mutex);
+            if (auto dataContext = stateMachineWrapper->instance->dataContext())
+            {
+              viewModelInstance = dataContext->mainViewModelInstance();
+            }
+          }
+          if (viewModelInstance != nullptr)
+          {
+            m_viewModels[viewHandle] = make_rcp<ViewModelInstanceRuntime>(
+                viewModelInstance);
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream
+                << CommandQueue::Message::stateMachineViewModelInstanceReceived;
+            messageStream << handle;
+            messageStream << viewHandle;
+            messageStream << requestId;
+          }
+          else
+          {
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "No main view model instance bound to state "
+                   "machine "
+                << handle;
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for getting main view model instance.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::bind:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> accesLock(stateMachineWrapper->m_mutex);
+          stateMachineWrapper->instance->bind();
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for binding data context.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::advanceStateMachine:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        float timeToAdvance;
+        commandStream >> handle;
+        commandStream >> requestId;
+        commandStream >> timeToAdvance;
+        lock.unlock();
+
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> advanceLock(wrapper->m_mutex);
+          if (!wrapper->instance->advanceAndApply(timeToAdvance))
+          {
+            advanceLock.unlock();
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::stateMachineSettled;
+            messageStream << handle;
+            messageStream << requestId;
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for "
+                 "advance.";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::deleteStateMachine:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto it = m_stateMachines.find(handle);
+        if (it != m_stateMachines.end())
+        {
+          std::unique_lock<std::mutex> accesLock(m_stateMachineAccessMutex);
+          m_stateMachines.erase(it);
+          accesLock.unlock();
+        }
+        std::unique_lock<std::mutex> messageLock(
+            m_commandQueue->m_messageMutex);
+        messageStream << CommandQueue::Message::stateMachineDeleted;
+        messageStream << handle;
+        messageStream << requestId;
+        // We don't remove from the artboard dependencies here because
+        // calling erase on a non existent key is fine.
+        break;
+      }
+
+      case CommandQueue::Command::enableSemantics:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          wrapper->instance->enableSemantics();
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for enableSemantics.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::drainSemanticsDiff:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        Fit fit;
+        float alignmentX;
+        float alignmentY;
+        float scaleFactor;
+        Vec2D viewBounds;
+        commandStream >> handle;
+        commandStream >> requestId;
+        commandStream >> fit;
+        commandStream >> alignmentX;
+        commandStream >> alignmentY;
+        commandStream >> scaleFactor;
+        commandStream >> viewBounds;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          auto* manager = wrapper->instance->semanticManager();
+          if (manager == nullptr)
+          {
+            stateMachineLock.unlock();
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "Semantics not enabled on state machine " << handle
+                << "; call enableSemantics before "
+                   "drainSemanticsDiff.";
+          }
+          else
+          {
+            SemanticsDiff diff = manager->drainDiff();
+            // Compute the transform while locked because it reads
+            // the artboard bounds.
+            Mat2D transform;
+            if (auto* artboard = wrapper->instance->artboard())
+            {
+              AABB artboardBounds = artboard->bounds();
+              AABB surfaceBounds = AABB(Vec2D{0.0f, 0.0f}, viewBounds);
+              if (surfaceBounds.width() != 0.0f &&
+                  surfaceBounds.height() != 0.0f)
+              {
+                Alignment alignment(alignmentX, alignmentY);
+                transform = rive::computeAlignment(
+                    fit,
+                    alignment,
+                    surfaceBounds,
+                    artboardBounds,
+                    scaleFactor);
+              }
+            }
+
+            const bool transformChanged = wrapper
+                                              ->m_hasLastSemanticsTransform &&
+                                          wrapper->m_lastSemanticsTransform !=
+                                              transform;
+            wrapper->m_lastSemanticsTransform = transform;
+            wrapper->m_hasLastSemanticsTransform = true;
+            if (transformChanged)
+            {
+              // Viewport-only diffs bypass SemanticManager's
+              // normal metadata population.
+              diff.frameNumber = Artboard::frameId();
+              diff.updatedGeometry = manager->boundsSnapshot();
+              diff.treeVersion = manager->version();
+              diff.rootId = manager->rootId();
+            }
+
+            if (!diff.empty())
+            {
+              // Map the owned diff outside the lock.
+              stateMachineLock.unlock();
+              if (transform != Mat2D())
+              {
+                mapSemanticsDiffToViewSpace(diff, transform);
+              }
+
+              std::unique_lock<std::mutex> messageLock(
+                  m_commandQueue->m_messageMutex);
+              messageStream << CommandQueue::Message::semanticsDiffReceived;
+              messageStream << handle;
+              messageStream << requestId;
+              m_commandQueue->m_messageSemanticsDiffs << std::move(diff);
+            }
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for drainSemanticsDiff.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::fireSemanticAction:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        uint32_t semanticNodeId;
+        SemanticActionType actionType;
+        commandStream >> handle;
+        commandStream >> requestId;
+        commandStream >> semanticNodeId;
+        commandStream >> actionType;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          if (wrapper->instance->semanticManager() == nullptr)
+          {
+            stateMachineLock.unlock();
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "Semantics not enabled on state machine " << handle
+                << "; call enableSemantics before "
+                   "fireSemanticAction.";
+          }
+          else
+          {
+            wrapper->instance->fireSemanticAction(semanticNodeId, actionType);
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for fireSemanticAction.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::requestSemanticFocus:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        uint32_t semanticNodeId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        commandStream >> semanticNodeId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          auto* manager = wrapper->instance->semanticManager();
+          if (manager == nullptr)
+          {
+            stateMachineLock.unlock();
+            ErrorReporter<StateMachineHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::stateMachineError)
+                << "Semantics not enabled on state machine " << handle
+                << "; call enableSemantics before "
+                   "requestSemanticFocus.";
+          }
+          else
+          {
+            // A missing/non-focusable node is a silent no-op.
+            manager->requestFocus(semanticNodeId);
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for requestSemanticFocus.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::clearSemanticFocus:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          if (auto* focusManager = wrapper->instance->focusManager())
+          {
+            focusManager->clearFocus();
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for clearSemanticFocus.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::runOnce:
+      {
+        CommandServerCallback callback;
+        m_commandQueue->m_callbacks >> callback;
+        lock.unlock();
+        callback(this);
+        break;
+      }
+
+      case CommandQueue::Command::draw:
+      {
+        DrawKey drawKey;
+        CommandServerDrawCallback drawCallback;
+        commandStream >> drawKey;
+        m_commandQueue->m_drawCallbacks >> drawCallback;
+        lock.unlock();
+        m_uniqueDraws[drawKey] = std::move(drawCallback);
+        break;
+      }
+
+      case CommandQueue::Command::cancelDraw:
+      {
+        DrawKey drawKey;
+        commandStream >> drawKey;
+        lock.unlock();
+        m_uniqueDraws.erase(drawKey);
+        break;
+      }
+
+      case CommandQueue::Command::commandLoopBreak:
+      {
+        lock.unlock();
+        shouldProcessCommands = false;
+        break;
+      }
+
+      case CommandQueue::Command::listArtboards:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto artboards = file->artboards();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::artboardsListed;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << artboards.size();
+          for (auto artboard : artboards)
+          {
+            m_commandQueue->m_messageNames << artboard->name();
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of artboards";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::listFileAssets:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto fileAssets = file->assets();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::fileAssetsListed;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << fileAssets.size();
+          for (const auto& asset : fileAssets)
+          {
+            messageStream << asset->assetId();
+            messageStream << asset->coreType();
+            m_commandQueue->m_messageNames << asset->name();
+            m_commandQueue->m_messageNames << asset->uniqueName();
+            m_commandQueue->m_messageNames << asset->cdnUuidStr();
+            m_commandQueue->m_messageNames << asset->cdnBaseUrl();
+            m_commandQueue->m_messageNames << asset->fileExtension();
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of file assets";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::getViewModelInstanceViewModelName:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto viewModelInstance = getViewModelInstance(handle);
+        if (viewModelInstance)
+        {
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream
+              << CommandQueue::Message::viewModelInstanceViewModelNameReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          m_commandQueue->m_messageNames << viewModelInstance->viewModelName();
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Invalid view model instance handle " << handle;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getViewModelInstanceName:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto viewModelInstance = getViewModelInstance(handle);
+        if (viewModelInstance)
+        {
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::viewModelInstanceNameReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          m_commandQueue->m_messageNames << viewModelInstance->name();
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Invalid view model instance handle " << handle;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listViewModelEnums:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto enums = file->enums();
+          std::vector<ViewModelEnum> enumDatas;
+
+          for (auto tenum : enums)
+          {
+            ViewModelEnum data;
+            data.name = tenum->enumName();
+            auto values = tenum->values();
+            for (auto value : values)
+            {
+              data.enumerants.push_back(value->key());
+            }
+
+            enumDatas.push_back(data);
+          }
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::viewModelEnumsListed;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << enumDatas.size();
+          for (auto& enumData : enumDatas)
+          {
+            m_commandQueue->m_messageNames << enumData.name;
+            messageStream << enumData.enumerants.size();
+            for (auto& enumValueName : enumData.enumerants)
+              m_commandQueue->m_messageNames << enumValueName;
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of enums";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listStateMachines:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto artboard = getArtboardInstance(handle);
+        if (artboard)
+        {
+          auto numStateMachines = artboard->stateMachineCount();
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::stateMachinesListed;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << numStateMachines;
+          for (int i = 0; i < numStateMachines; ++i)
+          {
+            m_commandQueue->m_messageNames << artboard->stateMachineNameAt(i);
+          }
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "Invalid artboard handle " << handle
+              << " when getting list of state machines";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getArtboardSize:
+      {
+        ArtboardHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto artboard = getArtboardInstance(handle);
+        if (artboard)
+        {
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::artboardSizeReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << artboard->width();
+          messageStream << artboard->height();
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "Invalid artboard handle " << handle
+              << " when getting artboard size";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getDefaultViewModel:
+      {
+        FileHandle fileHandle;
+        ArtboardHandle artboardHandle;
+        uint64_t requestId;
+        commandStream >> fileHandle;
+        commandStream >> artboardHandle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto artboard = getArtboardInstance(artboardHandle);
+        if (artboard)
+        {
+          auto file = getFile(fileHandle);
+          if (file)
+          {
+            auto defaultViewModel = file->defaultArtboardViewModel(artboard);
+
+            if (defaultViewModel)
+            {
+              auto defaultInstance = defaultViewModel->createDefaultInstance();
+              if (defaultInstance)
+              {
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                messageStream
+                    << CommandQueue::Message::defaultViewModelReceived;
+                messageStream << artboardHandle;
+                messageStream << requestId;
+                m_commandQueue->m_messageNames << defaultViewModel->name();
+                m_commandQueue->m_messageNames << defaultInstance->name();
+              }
+              else
+              {
+                ErrorReporter<ArtboardHandle>(
+                    this,
+                    artboardHandle,
+                    requestId,
+                    CommandQueue::Message::artboardError)
+                    << "Could not find default view model "
+                       "instance for "
+                       "artboard"
+                    << " when getting default view model info";
+              }
+            }
+            else
+            {
+              ErrorReporter<ArtboardHandle>(
+                  this,
+                  artboardHandle,
+                  requestId,
+                  CommandQueue::Message::artboardError)
+                  << "Could not find default view model for "
+                     "artboard"
+                  << " when getting default view model info";
+            }
+          }
+          else
+          {
+            ErrorReporter<ArtboardHandle>(
+                this,
+                artboardHandle,
+                requestId,
+                CommandQueue::Message::artboardError)
+                << "Invalid file handle " << fileHandle
+                << " when getting default view model info";
+          }
+        }
+        else
+        {
+          ErrorReporter<ArtboardHandle>(
+              this,
+              artboardHandle,
+              requestId,
+              CommandQueue::Message::artboardError)
+              << "Invalid artboard handle " << artboardHandle
+              << " when getting default view model info";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listViewModels:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto numViewModels = file->viewModelCount();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::viewModelsListend;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << numViewModels;
+          for (int i = 0; i < numViewModels; ++i)
+          {
+            m_commandQueue->m_messageNames << file->viewModelByIndex(i)->name();
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of view models";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listGlobalViewModelNames:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto names = file->globalViewModelNames();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::globalViewModelNamesListed;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << names.size();
+          for (auto& name : names)
+          {
+            m_commandQueue->m_messageNames << name;
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of global view models";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listViewModelInstanceNames:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        std::string viewModelName;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> viewModelName;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto model = file->viewModelByName(viewModelName);
+          if (model)
+          {
+            auto names = model->instanceNames();
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream
+                << CommandQueue::Message::viewModelInstanceNamesListed;
+            messageStream << handle;
+            messageStream << requestId;
+            messageStream << names.size();
+            m_commandQueue->m_messageNames << viewModelName;
+            for (auto& name : names)
+            {
+              m_commandQueue->m_messageNames << name;
+            }
+          }
+          else
+          {
+            ErrorReporter<FileHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "Invalid view model name " << viewModelName
+                << " when getting list of view model instance "
+                   "names";
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Invalid file handle " << handle
+              << " when getting list of view model instance names";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listViewModelProperties:
+      {
+        FileHandle handle;
+        uint64_t requestId;
+        std::string viewModelName;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> viewModelName;
+        lock.unlock();
+        auto file = getFile(handle);
+        if (file)
+        {
+          auto model = file->viewModelByName(viewModelName);
+          if (model)
+          {
+            // Used to get meta data about enums.
+            auto modelInstance = model->createDefaultInstance();
+            auto properties = model->properties();
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::viewModelPropertiesListed;
+            messageStream << handle;
+            messageStream << requestId;
+            messageStream << properties.size();
+            m_commandQueue->m_messageNames << viewModelName;
+            for (auto& property : properties)
+            {
+              messageStream << property.type;
+              m_commandQueue->m_messageNames << property.name;
+              if (property.type == DataType::enumType)
+              {
+                auto enumProperty = modelInstance->propertyEnum(property.name);
+                m_commandQueue->m_messageNames << enumProperty->enumType();
+              }
+              if (property.type == DataType::viewModel)
+              {
+                // Get the type of the view model property
+                auto viewModelTmp = modelInstance->propertyViewModel(
+                    property.name);
+                if (viewModelTmp)
+                {
+                  m_commandQueue->m_messageNames
+                      << viewModelTmp->instance()->viewModel()->name();
+                }
+                else
+                {
+                  // If we can't determine the name we still
+                  // need to send something because the
+                  // command queue is expecting a name.
+                  m_commandQueue->m_messageNames << "Unkown";
+                }
+              }
+            }
+          }
+          else
+          {
+            ErrorReporter<FileHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::fileError)
+                << "Invalid view model name " << viewModelName
+                << " when getting list of view model properties";
+          }
+        }
+        else
+        {
+          ErrorReporter<FileHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fileError)
+              << "Invalid file handle " << handle
+              << " when getting list of view model properties";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::setViewModelInstanceValue:
+      {
+        ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
+        ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
+        RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
+        FontHandle fontHandle = RIVE_NULL_HANDLE;
+        BlobAssetHandle blobHandle = RIVE_NULL_HANDLE;
+        ArtboardHandle artboardHandle = RIVE_NULL_HANDLE;
+        uint64_t requestId;
+        CommandQueue::ViewModelInstanceData value;
+
+        commandStream >> handle;
+        commandStream >> value.metaData.type;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> value.metaData.name;
+
+        switch (value.metaData.type)
+        {
+          // Triggers are valid but have no data.
+          case DataType::trigger:
+            break;
+          case DataType::boolean:
+            commandStream >> value.boolValue;
+            break;
+          case DataType::number:
+            commandStream >> value.numberValue;
+            break;
+          case DataType::color:
+            commandStream >> value.colorValue;
+            break;
+          case DataType::string:
+          case DataType::enumType:
+            m_commandQueue->m_names >> value.stringValue;
+            break;
+          case DataType::viewModel:
+            commandStream >> nestedHandle;
+            break;
+          case DataType::assetImage:
+            commandStream >> imageHandle;
+            break;
+          case DataType::assetFont:
+            commandStream >> fontHandle;
+            break;
+          case DataType::assetBlob:
+            commandStream >> blobHandle;
+            break;
+          case DataType::artboard:
+            commandStream >> artboardHandle;
+            break;
+          default:
+            RIVE_UNREACHABLE();
+        }
+        lock.unlock();
+
+        if (auto viewModelInstance = getViewModelInstance(handle))
+        {
+          switch (value.metaData.type)
+          {
+            case DataType::trigger:
+            {
+              if (auto property = viewModelInstance->propertyTrigger(
+                      value.metaData.name))
+              {
+                property->trigger();
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::boolean:
+            {
+              if (auto property = viewModelInstance->propertyBoolean(
+                      value.metaData.name))
+              {
+                property->value(value.boolValue);
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::number:
+            {
+              if (auto property = viewModelInstance->propertyNumber(
+                      value.metaData.name))
+              {
+                property->value(value.numberValue);
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::color:
+            {
+              if (auto property = viewModelInstance->propertyColor(
+                      value.metaData.name))
+              {
+                property->value(value.colorValue);
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::string:
+            {
+              if (auto property = viewModelInstance->propertyString(
+                      value.metaData.name))
+              {
+                property->value(value.stringValue);
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::enumType:
+            {
+              if (auto property = viewModelInstance->propertyEnum(
+                      value.metaData.name))
+              {
+                // As far as I can tell, there is no built in
+                // way to do this from the core runtime. So we
+                // just verify manually ourselves.
+                auto values = property->values();
+                if (std::find(
+                        values.begin(),
+                        values.end(),
+                        value.stringValue) != values.end())
+                {
+                  property->value(value.stringValue);
+                }
+                else
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Invalid enum value for "
+                         "property "
+                      << value.metaData.name << " when trying to set enum to "
+                      << value.stringValue << " possible values " << values;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when setting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::viewModel:
+            {
+              if (auto nestedViewModel = getViewModelInstance(nestedHandle))
+              {
+                if (!viewModelInstance->replaceViewModel(
+                        value.metaData.name,
+                        nestedViewModel))
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Could not replace "
+                         "view model at path "
+                      << value.metaData.name;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find nested view "
+                       "model "
+                       "with handle "
+                    << nestedHandle
+                    << " to set for view model instance when "
+                       "setting property with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::assetImage:
+            {
+              if (auto imageProperty = viewModelInstance->propertyImage(
+                      value.metaData.name))
+              {
+                if (imageHandle == RIVE_NULL_HANDLE)
+                {
+                  imageProperty->value(nullptr);
+                }
+                else if (auto image = getImage(imageHandle))
+                {
+                  imageProperty->value(image);
+                }
+                else
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Could not find image " << imageHandle
+                      << " to set for view model instance "
+                         "when setting property with path "
+                      << value.metaData.name;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find "
+                       "image property at path "
+                    << value.metaData.name << " for view model instance "
+                    << handle;
+              }
+              break;
+            }
+            case DataType::assetFont:
+            {
+              if (auto fontProperty = viewModelInstance->propertyFont(
+                      value.metaData.name))
+              {
+                if (fontHandle == RIVE_NULL_HANDLE)
+                {
+                  fontProperty->value(nullptr);
+                }
+                else if (auto font = getFont(fontHandle))
+                {
+                  fontProperty->value(font);
+                }
+                else
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Could not find font " << fontHandle
+                      << " to set for view model instance "
+                         "when setting property with path "
+                      << value.metaData.name;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find "
+                       "font property at path "
+                    << value.metaData.name << " for view model instance "
+                    << handle;
+              }
+              break;
+            }
+            case DataType::assetBlob:
+            {
+              if (auto blobProperty = viewModelInstance->propertyBlob(
+                      value.metaData.name))
+              {
+                if (blobHandle == RIVE_NULL_HANDLE)
+                {
+                  blobProperty->value(nullptr);
+                }
+                else if (auto blob = getBlob(blobHandle))
+                {
+                  blobProperty->value(blob);
+                }
+                else
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Could not find blob " << blobHandle
+                      << " to set for view model instance "
+                         "when setting property with path "
+                      << value.metaData.name;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find "
+                       "blob property at path "
+                    << value.metaData.name << " for view model instance "
+                    << handle;
+              }
+              break;
+            }
+            case DataType::artboard:
+            {
+              if (auto artboardProperty = viewModelInstance->propertyArtboard(
+                      value.metaData.name))
+              {
+                if (artboardHandle == RIVE_NULL_HANDLE)
+                {
+                  artboardProperty->value(nullptr);
+                }
+                else if (
+                    auto bindableArtboard = getBindableArtboard(artboardHandle))
+                {
+                  artboardProperty->value(bindableArtboard);
+                }
+                else
+                {
+                  ErrorReporter<ViewModelInstanceHandle>(
+                      this,
+                      handle,
+                      requestId,
+                      CommandQueue::Message::viewModelError)
+                      << "Could not find artboard " << artboardHandle
+                      << " to set for view model instance "
+                         "when setting property with path "
+                      << value.metaData.name;
+                }
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find "
+                       "artboard property at path "
+                    << value.metaData.name << " for view model instance "
+                    << handle;
+              }
+              break;
+            }
+            default:
+              RIVE_UNREACHABLE();
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Could not find view model instance when "
+                 "setting property type "
+              << value.metaData.type << " with path " << value.metaData.name;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::listViewModelPropertyValue:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        CommandQueue::ViewModelInstanceData value{};
+        commandStream >> value.metaData.type;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> value.metaData.name;
+        lock.unlock();
+
+        if (auto viewModelInstance = getViewModelInstance(handle))
+        {
+          bool found = false;
+          switch (value.metaData.type)
+          {
+            case DataType::boolean:
+            {
+              if (auto property = viewModelInstance->propertyBoolean(
+                      value.metaData.name))
+              {
+                value.boolValue = property->value();
+                found = true;
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when getting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::number:
+            {
+              if (auto property = viewModelInstance->propertyNumber(
+                      value.metaData.name))
+              {
+                value.numberValue = property->value();
+                found = true;
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when getting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::color:
+            {
+              if (auto property = viewModelInstance->propertyColor(
+                      value.metaData.name))
+              {
+                value.colorValue = property->value();
+                found = true;
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when getting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::string:
+            {
+              if (auto property = viewModelInstance->propertyString(
+                      value.metaData.name))
+              {
+                value.stringValue = property->value();
+                found = true;
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when getting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            case DataType::enumType:
+            {
+              if (auto property = viewModelInstance->propertyEnum(
+                      value.metaData.name))
+              {
+                value.stringValue = property->value();
+                found = true;
+              }
+              else
+              {
+                ErrorReporter<ViewModelInstanceHandle>(
+                    this,
+                    handle,
+                    requestId,
+                    CommandQueue::Message::viewModelError)
+                    << "Could not find view model "
+                       "property "
+                       "instance when getting property type "
+                    << value.metaData.type << " with path "
+                    << value.metaData.name;
+              }
+              break;
+            }
+            default:
+              RIVE_UNREACHABLE();
+          }
+
+          if (!found)
+          {
+            // Exit this command, preserving the batch/draw
+            // epilogue. Failed reads must not emit a second,
+            // invalid value response.
+            break;
+          }
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream
+              << CommandQueue::Message::viewModelPropertyValueReceived;
+          messageStream << handle;
+          messageStream << value.metaData.type;
+          m_commandQueue->m_messageNames << value.metaData.name;
+          messageStream << requestId;
+          switch (value.metaData.type)
+          {
+            case DataType::boolean:
+              messageStream << value.boolValue;
+              break;
+            case DataType::number:
+              messageStream << value.numberValue;
+              break;
+            case DataType::color:
+              messageStream << value.colorValue;
+              break;
+            case DataType::enumType:
+            case DataType::string:
+              m_commandQueue->m_messageNames << value.stringValue;
+              break;
+            default:
+              RIVE_UNREACHABLE();
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "Could not find view model instance when "
+                 "getting property type "
+              << value.metaData.type << " with path " << value.metaData.name;
+        }
+        break;
+      }
+
+      case CommandQueue::Command::getViewModelListSize:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        std::string path;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto viewModel = getViewModelInstance(handle))
+        {
+          if (auto property = viewModel->propertyList(path))
+          {
+            auto size = property->size();
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::viewModelListSizeReceived;
+            messageStream << handle;
+            messageStream << size;
+            messageStream << requestId;
+            m_commandQueue->m_messageNames << path;
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "failed to get list at path " << path
+                << " when getting list size";
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "failed to get view model " << handle
+              << " when getting list size";
+        }
+
+        break;
+      }
+
+      case CommandQueue::Command::clearViewModelList:
+      {
+        ViewModelInstanceHandle handle;
+        uint64_t requestId;
+        std::string path;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> path;
+        lock.unlock();
+
+        if (auto viewModel = getViewModelInstance(handle))
+        {
+          if (auto property = viewModel->propertyList(path))
+          {
+            property->removeAllInstances();
+
+            std::unique_lock<std::mutex> messageLock(
+                m_commandQueue->m_messageMutex);
+            messageStream << CommandQueue::Message::viewModelListCleared;
+            messageStream << handle;
+            messageStream << requestId;
+            m_commandQueue->m_messageNames << path;
+            messageLock.unlock();
+          }
+          else
+          {
+            ErrorReporter<ViewModelInstanceHandle>(
+                this,
+                handle,
+                requestId,
+                CommandQueue::Message::viewModelError)
+                << "failed to get list at path " << path
+                << " when clearing list";
+          }
+        }
+        else
+        {
+          ErrorReporter<ViewModelInstanceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::viewModelError)
+              << "failed to get view model " << handle << " when clearing list";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::pointerMove:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_pointerEvents >> pointerEvent;
+        lock.unlock();
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          Vec2D position = cursorPosForPointerEvent(
+              stateMachineWrapper->instance.get(),
+              pointerEvent);
+          std::unique_lock<std::mutex> stateMachineLock(
+              stateMachineWrapper->m_mutex);
+          stateMachineWrapper->instance->pointerMove(
+              position,
+              0.0f,
+              pointerEvent.pointerId);
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine \"" << handle
+              << "\" not found for pointerMove.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::pointerDown:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_pointerEvents >> pointerEvent;
+        lock.unlock();
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          Vec2D position = cursorPosForPointerEvent(
+              stateMachineWrapper->instance.get(),
+              pointerEvent);
+          std::unique_lock<std::mutex> stateMachineLock(
+              stateMachineWrapper->m_mutex);
+          auto hitResult = stateMachineWrapper->instance->pointerDown(
+              position,
+              pointerEvent.pointerId,
+              pointerEvent.button);
+          // Process down-driven state changes before a following
+          // pointer up.
+          if (hitResult != HitResult::none)
+          {
+            stateMachineWrapper->instance->advanceAndApply(0.0f);
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine \"" << handle
+              << "\" not found for pointerDown.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::pointerUp:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_pointerEvents >> pointerEvent;
+        lock.unlock();
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          Vec2D position = cursorPosForPointerEvent(
+              stateMachineWrapper->instance.get(),
+              pointerEvent);
+          std::unique_lock<std::mutex> stateMachineLock(
+              stateMachineWrapper->m_mutex);
+          auto hitResult = stateMachineWrapper->instance->pointerUp(
+              position,
+              pointerEvent.pointerId,
+              pointerEvent.button);
+          // Process up-driven state changes before any following
+          // pointer exit.
+          if (hitResult != HitResult::none)
+          {
+            stateMachineWrapper->instance->advanceAndApply(0.0f);
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine \"" << handle << "\" not found for pointerUp.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::pointerExit:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_pointerEvents >> pointerEvent;
+        lock.unlock();
+        if (auto stateMachineWrapper = getStateMachineWrapper(handle))
+        {
+          Vec2D position = cursorPosForPointerEvent(
+              stateMachineWrapper->instance.get(),
+              pointerEvent);
+          std::unique_lock<std::mutex> stateMachineLock(
+              stateMachineWrapper->m_mutex);
+          stateMachineWrapper->instance->pointerExit(
+              position,
+              pointerEvent.pointerId);
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine \"" << handle
+              << "\" not found for pointerExit.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::keyInput:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        Key key;
+        KeyModifiers modifiers;
+        bool isPressed;
+        bool isRepeat;
+        commandStream >> key;
+        commandStream >> modifiers;
+        commandStream >> isPressed;
+        commandStream >> isRepeat;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          const bool handled = wrapper->instance->keyInput(
+              key,
+              modifiers,
+              isPressed,
+              isRepeat);
+          stateMachineLock.unlock();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::keyInputHandled;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << handled;
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle << " not found for keyInput.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::textInput:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        std::string text;
+        m_commandQueue->m_names >> text;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          const bool handled = wrapper->instance->textInput(text);
+          stateMachineLock.unlock();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::textInputHandled;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << handled;
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle << " not found for textInput.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::addImageFileAsset:
+      {
+        RenderImageHandle handle;
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        auto image = ref_rcp(getImage(handle));
+        if (image != nullptr)
+        {
+          m_globalAssetRegistry->setRenderImage(name, handle);
+          m_globalAssetRegistry->applyRenderImage(name, image);
+        }
+        else
+        {
+          ErrorReporter<RenderImageHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::imageError)
+              << "Invalid image handle when adding global image "
+                 "asset \""
+              << name << "\"";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::removeImageFileAsset:
+      {
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        m_globalAssetRegistry->removeRenderImage(name);
+        m_globalAssetRegistry->applyRenderImage(name, nullptr);
+        break;
+      }
+
+      case CommandQueue::Command::addAudioFileAsset:
+      {
+        AudioSourceHandle handle;
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        auto audioSource = ref_rcp(getAudioSource(handle));
+        if (audioSource != nullptr)
+        {
+          m_globalAssetRegistry->setAudioSource(name, handle);
+          m_globalAssetRegistry->applyAudioSource(name, audioSource);
+        }
+        else
+        {
+          ErrorReporter<AudioSourceHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::audioError)
+              << "Invalid audio handle when adding global audio "
+                 "asset \""
+              << name << "\"";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::removeAudioFileAsset:
+      {
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        m_globalAssetRegistry->removeAudioSource(name);
+        m_globalAssetRegistry->applyAudioSource(name, nullptr);
+        break;
+      }
+
+      case CommandQueue::Command::addFontFileAsset:
+      {
+        FontHandle handle;
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> handle;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        auto font = ref_rcp(getFont(handle));
+        if (font != nullptr)
+        {
+          m_globalAssetRegistry->setFont(name, handle);
+          m_globalAssetRegistry->applyFont(name, font);
+        }
+        else
+        {
+          ErrorReporter<FontHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::fontError)
+              << "Invalid font handle when adding global font asset "
+                 "\""
+              << name << "\"";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::removeFontFileAsset:
+      {
+        std::string name;
+        uint64_t requestId;
+        CommandQueue::PointerEvent pointerEvent;
+        commandStream >> requestId;
+        m_commandQueue->m_names >> name;
+        lock.unlock();
+        m_globalAssetRegistry->removeFont(name);
+        m_globalAssetRegistry->applyFont(name, nullptr);
+        break;
+      }
+
+      case CommandQueue::Command::disconnect:
+      {
+        lock.unlock();
+        m_wasDisconnectReceived = true;
+        return false;
+      }
+
+      case CommandQueue::Command::focusNext:
+      case CommandQueue::Command::focusPrevious:
+      {
+        const bool moveNext = command == CommandQueue::Command::focusNext;
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          if (moveNext)
+          {
+            wrapper->instance->focusNext();
+          }
+          else
+          {
+            wrapper->instance->focusPrevious();
+          }
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle << " not found for "
+              << (moveNext ? "focusNext" : "focusPrevious") << ".";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::requestHasFocusNodes:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          const bool hasFocusNodes = wrapper->instance->hasFocusNodes();
+          stateMachineLock.unlock();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::hasFocusNodesReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << hasFocusNodes;
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for requestHasFocusNodes.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::clearFocus:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          wrapper->instance->clearFocus();
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle << " not found for clearFocus.";
+        }
+        break;
+      }
+
+      case CommandQueue::Command::requestFocusState:
+      {
+        StateMachineHandle handle;
+        uint64_t requestId;
+        commandStream >> handle;
+        commandStream >> requestId;
+        lock.unlock();
+        if (auto wrapper = getStateMachineWrapper(handle))
+        {
+          std::unique_lock<std::mutex> stateMachineLock(wrapper->m_mutex);
+          const auto focusState = wrapper->instance->focusState();
+          stateMachineLock.unlock();
+
+          std::unique_lock<std::mutex> messageLock(
+              m_commandQueue->m_messageMutex);
+          messageStream << CommandQueue::Message::focusStateReceived;
+          messageStream << handle;
+          messageStream << requestId;
+          messageStream << focusState.hasFocus;
+          messageStream << focusState.expectsKeyboardInput;
+        }
+        else
+        {
+          ErrorReporter<StateMachineHandle>(
+              this,
+              handle,
+              requestId,
+              CommandQueue::Message::stateMachineError)
+              << "State machine " << handle
+              << " not found for requestFocusState.";
+        }
+        break;
+      }
     }
 
-    m_uniqueDraws.clear();
+    // Should have unlocked by now.
+    assert(!lock.owns_lock());
+    lock.lock();
+  } while (!commandStream.empty() && shouldProcessCommands);
 
-    checkPropertySubscriptions();
+  // Since we always retake the lock at the end of the do while we need to
+  // unlock here.
+  lock.unlock();
 
-    return !m_wasDisconnectReceived;
+  for (const auto& drawPair : m_uniqueDraws)
+  {
+    drawPair.second(drawPair.first, this);
+  }
+
+  m_uniqueDraws.clear();
+
+  checkPropertySubscriptions();
+
+  return !m_wasDisconnectReceived;
 }
 CommandServer::SynchronizedStateMachine::~SynchronizedStateMachine()
 {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    if (instance != nullptr)
-    {
-        instance->dispose();
-    }
+  std::unique_lock<std::mutex> lock(m_mutex);
+  if (instance != nullptr)
+  {
+    instance->dispose();
+  }
 }
 
 CommandServer::SynchronizedStateMachine& CommandServer::
     SynchronizedStateMachine::operator=(SynchronizedStateMachine&& other)
 {
-    instance = std::move(other.instance);
-    m_lastSemanticsTransform = other.m_lastSemanticsTransform;
-    m_hasLastSemanticsTransform = other.m_hasLastSemanticsTransform;
-    return *this;
+  instance = std::move(other.instance);
+  m_lastSemanticsTransform = other.m_lastSemanticsTransform;
+  m_hasLastSemanticsTransform = other.m_hasLastSemanticsTransform;
+  return *this;
 }
 
 CommandServer::SynchronizedStateMachine::SynchronizedStateMachine(
-    std::unique_ptr<StateMachineInstance> instance) :
-    instance(std::move(instance))
+    std::unique_ptr<StateMachineInstance> instance)
+    : instance(std::move(instance))
 {}
 
 bool CommandServer::focusNextSynchronized(StateMachineHandle handle)
 {
-    return focusNextWithResultSynchronized(handle).moved;
+  return focusNextWithResultSynchronized(handle).moved;
 }
 
 bool CommandServer::focusPreviousSynchronized(StateMachineHandle handle)
 {
-    return focusPreviousWithResultSynchronized(handle).moved;
+  return focusPreviousWithResultSynchronized(handle).moved;
 }
 
 CommandQueue::FocusTraversalResult CommandServer::
     focusNextWithResultSynchronized(StateMachineHandle handle)
 {
-    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it == m_stateMachines.end())
-    {
-        return {};
-    }
+  std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it == m_stateMachines.end())
+  {
+    return {};
+  }
 
-    auto stateMachine = it->second;
-    accessLock.unlock();
-    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-    const bool moved = stateMachine->instance->focusNext();
-    const auto state = stateMachine->instance->focusState();
-    return {moved, {state.hasFocus, state.expectsKeyboardInput}};
+  auto stateMachine = it->second;
+  accessLock.unlock();
+  std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+  const bool moved = stateMachine->instance->focusNext();
+  const auto state = stateMachine->instance->focusState();
+  return {moved, {state.hasFocus, state.expectsKeyboardInput}};
 }
 
 CommandQueue::FocusTraversalResult CommandServer::
     focusPreviousWithResultSynchronized(StateMachineHandle handle)
 {
-    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it == m_stateMachines.end())
-    {
-        return {};
-    }
+  std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it == m_stateMachines.end())
+  {
+    return {};
+  }
 
-    auto stateMachine = it->second;
-    accessLock.unlock();
-    std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
-    const bool moved = stateMachine->instance->focusPrevious();
-    const auto state = stateMachine->instance->focusState();
-    return {moved, {state.hasFocus, state.expectsKeyboardInput}};
+  auto stateMachine = it->second;
+  accessLock.unlock();
+  std::unique_lock<std::mutex> lock(stateMachine->m_mutex);
+  const bool moved = stateMachine->instance->focusPrevious();
+  const auto state = stateMachine->instance->focusState();
+  return {moved, {state.hasFocus, state.expectsKeyboardInput}};
 }
 
-bool CommandServer::keyInputSynchronized(StateMachineHandle handle,
-                                         Key key,
-                                         KeyModifiers modifiers,
-                                         bool isPressed,
-                                         bool isRepeat)
+bool CommandServer::keyInputSynchronized(
+    StateMachineHandle handle,
+    Key key,
+    KeyModifiers modifiers,
+    bool isPressed,
+    bool isRepeat)
 {
-    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it == m_stateMachines.end())
-    {
-        return false;
-    }
-    auto wrapper = it->second;
-    accessLock.unlock();
-    std::unique_lock<std::mutex> lock(wrapper->m_mutex);
-    return wrapper->instance->keyInput(key, modifiers, isPressed, isRepeat);
-}
-
-bool CommandServer::focusInDirectionSynchronized(StateMachineHandle handle,
-                                                 Direction direction)
-{
-    std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
-    auto it = m_stateMachines.find(handle);
-    if (it == m_stateMachines.end())
-    {
-        return false;
-    }
-    auto wrapper = it->second;
-    accessLock.unlock();
-    std::unique_lock<std::mutex> lock(wrapper->m_mutex);
-    auto* manager = wrapper->instance->focusManager();
-    if (!manager)
-    {
-        return false;
-    }
-    switch (direction)
-    {
-        case Direction::left:
-            return manager->focusLeft();
-        case Direction::right:
-            return manager->focusRight();
-        case Direction::up:
-            return manager->focusUp();
-        case Direction::down:
-            return manager->focusDown();
-    }
+  std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it == m_stateMachines.end())
+  {
     return false;
+  }
+  auto wrapper = it->second;
+  accessLock.unlock();
+  std::unique_lock<std::mutex> lock(wrapper->m_mutex);
+  return wrapper->instance->keyInput(key, modifiers, isPressed, isRepeat);
+}
+
+bool CommandServer::focusInDirectionSynchronized(
+    StateMachineHandle handle,
+    Direction direction)
+{
+  std::unique_lock<std::mutex> accessLock(m_stateMachineAccessMutex);
+  auto it = m_stateMachines.find(handle);
+  if (it == m_stateMachines.end())
+  {
+    return false;
+  }
+  auto wrapper = it->second;
+  accessLock.unlock();
+  std::unique_lock<std::mutex> lock(wrapper->m_mutex);
+  auto* manager = wrapper->instance->focusManager();
+  if (!manager)
+  {
+    return false;
+  }
+  switch (direction)
+  {
+    case Direction::left:
+      return manager->focusLeft();
+    case Direction::right:
+      return manager->focusRight();
+    case Direction::up:
+      return manager->focusUp();
+    case Direction::down:
+      return manager->focusDown();
+  }
+  return false;
 }
 }; // namespace rive

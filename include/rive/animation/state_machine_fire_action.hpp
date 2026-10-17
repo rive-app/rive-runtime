@@ -7,18 +7,18 @@ namespace rive
 class StateMachineInstance;
 enum class StateMachineFireOccurance : uint8_t
 {
-    atStart = 0,
-    atEnd = 1
+  atStart = 0,
+  atEnd = 1
 };
 class StateMachineFireAction : public StateMachineFireActionBase
 {
 public:
-    StateMachineFireOccurance occurs() const
-    {
-        return (StateMachineFireOccurance)occursValue();
-    }
-    StatusCode import(ImportStack& importStack) override;
-    virtual void perform(StateMachineInstance* stateMachineInstance) const = 0;
+  StateMachineFireOccurance occurs() const
+  {
+    return (StateMachineFireOccurance)occursValue();
+  }
+  StatusCode import(ImportStack& importStack) override;
+  virtual void perform(StateMachineInstance* stateMachineInstance) const = 0;
 };
 } // namespace rive
 

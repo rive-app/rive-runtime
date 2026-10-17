@@ -7,11 +7,12 @@ namespace rive
 class TransitionNumberCondition : public TransitionNumberConditionBase
 {
 protected:
-    bool validateInputType(const StateMachineInput* input) const override;
+  bool validateInputType(const StateMachineInput* input) const override;
 
 public:
-    bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  StateMachineLayerInstance* layerInstance) const override;
+  bool evaluate(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
 };
 } // namespace rive
 

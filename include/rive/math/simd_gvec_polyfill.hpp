@@ -25,61 +25,64 @@ namespace rive
 namespace simd
 {
 using Swizzle = uint32_t;
-constexpr static Swizzle PackSwizzle2(uint32_t sourceVectorLength,
-                                      uint32_t i0,
-                                      uint32_t i1)
+constexpr static Swizzle PackSwizzle2(
+    uint32_t sourceVectorLength,
+    uint32_t i0,
+    uint32_t i1)
 {
-    return (i1 << 5) | (i0 << 3) | sourceVectorLength;
+  return (i1 << 5) | (i0 << 3) | sourceVectorLength;
 }
 
-constexpr static Swizzle PackSwizzle3(uint32_t sourceVectorLength,
-                                      uint32_t i0,
-                                      uint32_t i1,
-                                      uint32_t i2)
+constexpr static Swizzle PackSwizzle3(
+    uint32_t sourceVectorLength,
+    uint32_t i0,
+    uint32_t i1,
+    uint32_t i2)
 {
-    return (i2 << 7) | PackSwizzle2(sourceVectorLength, i0, i1);
+  return (i2 << 7) | PackSwizzle2(sourceVectorLength, i0, i1);
 }
 
-constexpr static Swizzle PackSwizzle4(uint32_t sourceVectorLength,
-                                      uint32_t i0,
-                                      uint32_t i1,
-                                      uint32_t i2,
-                                      uint32_t i3)
+constexpr static Swizzle PackSwizzle4(
+    uint32_t sourceVectorLength,
+    uint32_t i0,
+    uint32_t i1,
+    uint32_t i2,
+    uint32_t i3)
 {
-    return (i3 << 9) | PackSwizzle3(sourceVectorLength, i0, i1, i2);
+  return (i3 << 9) | PackSwizzle3(sourceVectorLength, i0, i1, i2);
 }
 constexpr static uint32_t UnpackSwizzleSourceVectorLength(Swizzle swizzle)
 {
-    return swizzle & 7;
+  return swizzle & 7;
 }
 constexpr static uint32_t UnpackSwizzleIdx(Swizzle swizzle, uint32_t i)
 {
-    return (swizzle >> (i * 2 + 3)) & 3;
+  return (swizzle >> (i * 2 + 3)) & 3;
 }
 
 template <typename T, int N, Swizzle Z = 0> struct gvec
 {
-    T operator[](size_t i) const { return data[UnpackSwizzleIdx(Z, i)]; }
-    T& operator[](size_t i) { return data[UnpackSwizzleIdx(Z, i)]; }
-    operator gvec<T, N>() const
+  T operator[](size_t i) const { return data[UnpackSwizzleIdx(Z, i)]; }
+  T& operator[](size_t i) { return data[UnpackSwizzleIdx(Z, i)]; }
+  operator gvec<T, N>() const
+  {
+    gvec<T, N> ret;
+    for (int i = 0; i < N; ++i)
+      ret[i] = (*this)[i];
+    return ret;
+  }
+
+  gvec& operator=(gvec<T, N> b)
+  {
+    for (int i = 0; i < N; i++)
     {
-        gvec<T, N> ret;
-        for (int i = 0; i < N; ++i)
-            ret[i] = (*this)[i];
-        return ret;
+      (*this)[i] = b[i];
     }
 
-    gvec& operator=(gvec<T, N> b)
-    {
-        for (int i = 0; i < N; i++)
-        {
-            (*this)[i] = b[i];
-        }
+    return *this;
+  }
 
-        return *this;
-    }
-
-    T data[UnpackSwizzleSourceVectorLength(Z)];
+  T data[UnpackSwizzleSourceVectorLength(Z)];
 };
 
 // To keep gvec as POD (or, more specifically, trivially copyable) some swizzles
@@ -88,143 +91,147 @@ template <typename T, int N, Swizzle Z = 0> struct gvec
 // component multiple times.
 template <typename T, int N, Swizzle Z> struct ReadOnlyGvecSwizzle
 {
-    T operator[](size_t i) const { return data[UnpackSwizzleIdx(Z, i)]; }
+  T operator[](size_t i) const { return data[UnpackSwizzleIdx(Z, i)]; }
 
-    operator gvec<T, N>() const
-    {
-        gvec<T, N> ret;
-        for (int i = 0; i < N; ++i)
-            ret[i] = (*this)[i];
-        return ret;
-    }
+  operator gvec<T, N>() const
+  {
+    gvec<T, N> ret;
+    for (int i = 0; i < N; ++i)
+      ret[i] = (*this)[i];
+    return ret;
+  }
 
 private:
-    T data[UnpackSwizzleSourceVectorLength(Z)];
+  T data[UnpackSwizzleSourceVectorLength(Z)];
 };
 
 template <typename T, int N> struct gvec_data
 {
-    T data[N];
+  T data[N];
 };
 
 template <typename T> struct gvec_data<T, 1>
 {
-    union
-    {
-        T data[1];
-        T x;
-        T r;
-    };
+  union
+  {
+    T data[1];
+    T x;
+    T r;
+  };
 };
 
 template <typename T> struct gvec_data<T, 2>
 {
-    union
+  union
+  {
+    T data[2];
+    struct
     {
-        T data[2];
-        struct
-        {
-            T x, y;
-        };
-        struct
-        {
-            T r, g;
-        };
-        gvec<T, 2, PackSwizzle2(2, 1, 0)> yx;
-        gvec<T, 4, PackSwizzle4(2, 0, 1, 0, 1)> xyxy;
-        gvec<T, 4, PackSwizzle4(2, 1, 0, 1, 0)> yxyx;
-        gvec<T, 4, PackSwizzle4(2, 0, 0, 1, 1)> xxyy;
-        gvec<T, 4, PackSwizzle4(2, 1, 1, 0, 0)> yyxx;
+      T x, y;
     };
+    struct
+    {
+      T r, g;
+    };
+    gvec<T, 2, PackSwizzle2(2, 1, 0)> yx;
+    gvec<T, 4, PackSwizzle4(2, 0, 1, 0, 1)> xyxy;
+    gvec<T, 4, PackSwizzle4(2, 1, 0, 1, 0)> yxyx;
+    gvec<T, 4, PackSwizzle4(2, 0, 0, 1, 1)> xxyy;
+    gvec<T, 4, PackSwizzle4(2, 1, 1, 0, 0)> yyxx;
+  };
 };
 
 template <typename T> struct gvec_data<T, 3>
 {
-    union
+  union
+  {
+    T data[3];
+    struct
     {
-        T data[3];
-        struct
-        {
-            T x, y, z;
-        };
-        struct
-        {
-            T r, g, b;
-        };
-        gvec<T, 2> xy;
-        gvec<T, 3, PackSwizzle3(3, 0, 1, 2)> xyz;
+      T x, y, z;
     };
+    struct
+    {
+      T r, g, b;
+    };
+    gvec<T, 2> xy;
+    gvec<T, 3, PackSwizzle3(3, 0, 1, 2)> xyz;
+  };
 };
 
 template <typename T> struct gvec_data<T, 4>
 {
-    union
+  union
+  {
+    T data[4];
+    gvec<T, 3> xyz;
+    gvec<T, 3> rgb;
+    struct
     {
-        T data[4];
-        gvec<T, 3> xyz;
-        gvec<T, 3> rgb;
-        struct
-        {
-            gvec<T, 2> xy, zw;
-        };
-        struct
-        {
-            T r, g, b, a;
-        };
-        struct
-        {
-            T x;
-            union
-            {
-                gvec<T, 3> yzw;
-                gvec<T, 2> yz;
-                struct
-                {
-                    T y, z, w;
-                };
-            };
-        };
-        // **WARNING**!! Only add swizzles that include ALL components of the
-        // vector. Since these types are POD, it's not possible to overwrite
-        // their default operator=, and their default operator= is just a
-        // memcpy. So: "float.xz = float4.xz" would also assign y and w.
-        gvec<T, 4, PackSwizzle4(4, 1, 0, 3, 2)> yxwz;
-        gvec<T, 4, PackSwizzle4(4, 2, 3, 0, 1)> zwxy;
-        gvec<T, 4, PackSwizzle4(4, 2, 1, 0, 3)> zyxw;
-        gvec<T, 4, PackSwizzle4(4, 0, 3, 2, 1)> xwzy;
-        gvec<T, 4, PackSwizzle4(4, 0, 2, 1, 3)> xzyw;
-
-        // However, for swizzles that are used as a source only, they can be
-        // added as ReadOnlyGvecSwizzle entries.
-        ReadOnlyGvecSwizzle<T, 3, PackSwizzle3(4, 3, 3, 3)> www;
+      gvec<T, 2> xy, zw;
     };
+    struct
+    {
+      T r, g, b, a;
+    };
+    struct
+    {
+      T x;
+      union
+      {
+        gvec<T, 3> yzw;
+        gvec<T, 2> yz;
+        struct
+        {
+          T y, z, w;
+        };
+      };
+    };
+    // **WARNING**!! Only add swizzles that include ALL components of the
+    // vector. Since these types are POD, it's not possible to overwrite
+    // their default operator=, and their default operator= is just a
+    // memcpy. So: "float.xz = float4.xz" would also assign y and w.
+    gvec<T, 4, PackSwizzle4(4, 1, 0, 3, 2)> yxwz;
+    gvec<T, 4, PackSwizzle4(4, 2, 3, 0, 1)> zwxy;
+    gvec<T, 4, PackSwizzle4(4, 2, 1, 0, 3)> zyxw;
+    gvec<T, 4, PackSwizzle4(4, 0, 3, 2, 1)> xwzy;
+    gvec<T, 4, PackSwizzle4(4, 0, 2, 1, 3)> xzyw;
+
+    // However, for swizzles that are used as a source only, they can be
+    // added as ReadOnlyGvecSwizzle entries.
+    ReadOnlyGvecSwizzle<T, 3, PackSwizzle3(4, 3, 3, 3)> www;
+  };
 };
 
 template <typename T, int N> struct gvec<T, N, 0> : public gvec_data<T, N>
 {
-    gvec() = default;
-    gvec(T val)
-    {
-        for (int i = 0; i < N; ++i)
-            gvec_data<T, N>::data[i] = val;
-    }
-    gvec(std::initializer_list<T> vals)
-    {
-        memset(gvec_data<T, N>::data, 0, sizeof(gvec_data<T, N>::data));
-        std::copy(vals.begin(),
-                  vals.begin() + std::min<size_t>(vals.size(), N),
-                  gvec_data<T, N>::data);
-    }
-    T operator[](size_t i) const { return gvec_data<T, N>::data[i]; }
-    T& operator[](size_t i) { return gvec_data<T, N>::data[i]; }
+  gvec() = default;
+  gvec(T val)
+  {
+    for (int i = 0; i < N; ++i)
+      gvec_data<T, N>::data[i] = val;
+  }
+  gvec(std::initializer_list<T> vals)
+  {
+    memset(gvec_data<T, N>::data, 0, sizeof(gvec_data<T, N>::data));
+    std::copy(
+        vals.begin(),
+        vals.begin() + std::min<size_t>(vals.size(), N),
+        gvec_data<T, N>::data);
+  }
+  T operator[](size_t i) const { return gvec_data<T, N>::data[i]; }
+  T& operator[](size_t i) { return gvec_data<T, N>::data[i]; }
 };
 
-static_assert(sizeof(gvec<float, 1>) == 4,
-              "gvec<1> is expected to be tightly packed");
-static_assert(sizeof(gvec<float, 2>) == 8,
-              "gvec<2> is expected to be tightly packed");
-static_assert(sizeof(gvec<float, 4>) == 16,
-              "gvec<4> is expected to be tightly packed");
+static_assert(
+    sizeof(gvec<float, 1>) == 4,
+    "gvec<1> is expected to be tightly packed");
+static_assert(
+    sizeof(gvec<float, 2>) == 8,
+    "gvec<2> is expected to be tightly packed");
+static_assert(
+    sizeof(gvec<float, 4>) == 16,
+    "gvec<4> is expected to be tightly packed");
 
 // Vector booleans are masks of integer type, where true is -1 and false is 0.
 // Vector booleans masks are generated using the builtin boolean operators: ==,
@@ -232,34 +239,34 @@ static_assert(sizeof(gvec<float, 4>) == 16,
 template <size_t> struct boolean_mask_type_by_size;
 template <> struct boolean_mask_type_by_size<1>
 {
-    using type = int8_t;
+  using type = int8_t;
 };
 template <> struct boolean_mask_type_by_size<2>
 {
-    using type = int16_t;
+  using type = int16_t;
 };
 template <> struct boolean_mask_type_by_size<4>
 {
-    using type = int32_t;
+  using type = int32_t;
 };
 template <> struct boolean_mask_type_by_size<8>
 {
-    using type = int64_t;
+  using type = int64_t;
 };
 template <typename T> struct boolean_mask_type
 {
-    using type = typename boolean_mask_type_by_size<sizeof(T)>::type;
+  using type = typename boolean_mask_type_by_size<sizeof(T)>::type;
 };
 
 #define DECL_UNARY_OP(_OP_)                                                    \
-    template <typename T, int N, Swizzle Z>                                    \
-    gvec<T, N> operator _OP_(gvec<T, N, Z> x)                                  \
-    {                                                                          \
-        gvec<T, N> ret;                                                        \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = _OP_ x[i];                                                \
-        return ret;                                                            \
-    }
+  template <typename T, int N, Swizzle Z>                                      \
+  gvec<T, N> operator _OP_(gvec<T, N, Z> x)                                    \
+  {                                                                            \
+    gvec<T, N> ret;                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = _OP_ x[i];                                                      \
+    return ret;                                                                \
+  }
 
 DECL_UNARY_OP(+)
 DECL_UNARY_OP(-)
@@ -268,78 +275,78 @@ DECL_UNARY_OP(~)
 #undef DECL_UNARY_OP
 
 #define DECL_ARITHMETIC_OP(_OP_)                                               \
-    template <typename T,                                                      \
-              typename U,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B>                    \
-    typename std::enable_if<std::is_convertible<U, T>::value,                  \
-                            gvec<T, N, Z0>>::type&                             \
-    operator _OP_##=(A<T, N, Z0>& a, B<U, N, Z1> b)                            \
-    {                                                                          \
-        for (int i = 0; i < N; ++i)                                            \
-            a[i] _OP_## = b[i];                                                \
-        return a;                                                              \
-    }                                                                          \
-    template <typename T,                                                      \
-              typename U,                                                      \
-              int N,                                                           \
-              Swizzle Z,                                                       \
-              template <typename, int, Swizzle> typename A>                    \
-    typename std::enable_if<std::is_convertible<U, T>::value,                  \
-                            gvec<T, N, Z>>::type&                              \
-    operator _OP_##=(A<T, N, Z>& a, U b)                                       \
-    {                                                                          \
-        for (int i = 0; i < N; ++i)                                            \
-            a[i] _OP_## = b;                                                   \
-        return a;                                                              \
-    }                                                                          \
-    template <typename T,                                                      \
-              typename U,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B>                    \
-    typename std::enable_if<std::is_convertible<U, T>::value,                  \
-                            gvec<T, N>>::type                                  \
-    operator _OP_(A<T, N, Z0> a, B<U, N, Z1> b)                                \
-    {                                                                          \
-        gvec<T, N> ret;                                                        \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a[i] _OP_ b[i];                                           \
-        return ret;                                                            \
-    }                                                                          \
-    template <typename T,                                                      \
-              typename U,                                                      \
-              int N,                                                           \
-              Swizzle Z,                                                       \
-              template <typename, int, Swizzle> typename A>                    \
-    typename std::enable_if<std::is_convertible<U, T>::value,                  \
-                            gvec<T, N>>::type                                  \
-    operator _OP_(A<T, N, Z> a, U b)                                           \
-    {                                                                          \
-        gvec<T, N> ret;                                                        \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a[i] _OP_ b;                                              \
-        return ret;                                                            \
-    }                                                                          \
-    template <typename T,                                                      \
-              typename U,                                                      \
-              int N,                                                           \
-              Swizzle Z,                                                       \
-              template <typename, int, Swizzle> typename B>                    \
-    typename std::enable_if<std::is_convertible<T, U>::value,                  \
-                            gvec<U, N>>::type                                  \
-    operator _OP_(T a, B<U, N, Z> b)                                           \
-    {                                                                          \
-        gvec<U, N> ret;                                                        \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a _OP_ b[i];                                              \
-        return ret;                                                            \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      typename U,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B>                            \
+  typename std::enable_if<std::is_convertible<U, T>::value, gvec<T, N, Z0>>::  \
+      type& operator _OP_##=(A<T, N, Z0>& a, B<U, N, Z1> b)                    \
+  {                                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      a[i] _OP_## = b[i];                                                      \
+    return a;                                                                  \
+  }                                                                            \
+  template <                                                                   \
+      typename T,                                                              \
+      typename U,                                                              \
+      int N,                                                                   \
+      Swizzle Z,                                                               \
+      template <typename, int, Swizzle> typename A>                            \
+  typename std::enable_if<std::is_convertible<U, T>::value, gvec<T, N, Z>>::   \
+      type& operator _OP_##=(A<T, N, Z>& a, U b)                               \
+  {                                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      a[i] _OP_## = b;                                                         \
+    return a;                                                                  \
+  }                                                                            \
+  template <                                                                   \
+      typename T,                                                              \
+      typename U,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B>                            \
+  typename std::enable_if<std::is_convertible<U, T>::value, gvec<T, N>>::type  \
+  operator _OP_(A<T, N, Z0> a, B<U, N, Z1> b)                                  \
+  {                                                                            \
+    gvec<T, N> ret;                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a[i] _OP_ b[i];                                                 \
+    return ret;                                                                \
+  }                                                                            \
+  template <                                                                   \
+      typename T,                                                              \
+      typename U,                                                              \
+      int N,                                                                   \
+      Swizzle Z,                                                               \
+      template <typename, int, Swizzle> typename A>                            \
+  typename std::enable_if<std::is_convertible<U, T>::value, gvec<T, N>>::type  \
+  operator _OP_(A<T, N, Z> a, U b)                                             \
+  {                                                                            \
+    gvec<T, N> ret;                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a[i] _OP_ b;                                                    \
+    return ret;                                                                \
+  }                                                                            \
+  template <                                                                   \
+      typename T,                                                              \
+      typename U,                                                              \
+      int N,                                                                   \
+      Swizzle Z,                                                               \
+      template <typename, int, Swizzle> typename B>                            \
+  typename std::enable_if<std::is_convertible<T, U>::value, gvec<U, N>>::type  \
+  operator _OP_(T a, B<U, N, Z> b)                                             \
+  {                                                                            \
+    gvec<U, N> ret;                                                            \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a _OP_ b[i];                                                    \
+    return ret;                                                                \
+  }
 
 DECL_ARITHMETIC_OP(+);
 DECL_ARITHMETIC_OP(-);
@@ -355,38 +362,38 @@ DECL_ARITHMETIC_OP(>>);
 #undef DECL_ARITHMETIC_OP
 
 #define DECL_BOOLEAN_OP(_OP_)                                                  \
-    template <typename T, int N, Swizzle Z0, Swizzle Z1>                       \
-    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(                \
-        gvec<T, N, Z0> a,                                                      \
-        gvec<T, N, Z1> b)                                                      \
-    {                                                                          \
-        gvec<typename boolean_mask_type<T>::type, N> ret;                      \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a[i] _OP_ b[i] ? ~0 : 0;                                  \
-        return ret;                                                            \
-    }                                                                          \
-    template <typename T, typename U, int N, Swizzle Z>                        \
-    typename std::enable_if<                                                   \
-        std::is_convertible<U, T>::value,                                      \
-        gvec<typename boolean_mask_type<T>::type, N>>::type                    \
-    operator _OP_(gvec<T, N, Z> a, U b)                                        \
-    {                                                                          \
-        gvec<typename boolean_mask_type<T>::type, N> ret;                      \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a[i] _OP_ b ? ~0 : 0;                                     \
-        return ret;                                                            \
-    }                                                                          \
-    template <typename T, typename U, int N, Swizzle Z>                        \
-    typename std::enable_if<                                                   \
-        std::is_convertible<U, T>::value,                                      \
-        gvec<typename boolean_mask_type<T>::type, N>>::type                    \
-    operator _OP_(U a, gvec<T, N, Z> b)                                        \
-    {                                                                          \
-        gvec<typename boolean_mask_type<T>::type, N> ret;                      \
-        for (int i = 0; i < N; ++i)                                            \
-            ret[i] = a _OP_ b[i] ? ~0 : 0;                                     \
-        return ret;                                                            \
-    }
+  template <typename T, int N, Swizzle Z0, Swizzle Z1>                         \
+  gvec<typename boolean_mask_type<T>::type, N> operator _OP_(                  \
+      gvec<T, N, Z0> a,                                                        \
+      gvec<T, N, Z1> b)                                                        \
+  {                                                                            \
+    gvec<typename boolean_mask_type<T>::type, N> ret;                          \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a[i] _OP_ b[i] ? ~0 : 0;                                        \
+    return ret;                                                                \
+  }                                                                            \
+  template <typename T, typename U, int N, Swizzle Z>                          \
+  typename std::enable_if<                                                     \
+      std::is_convertible<U, T>::value,                                        \
+      gvec<typename boolean_mask_type<T>::type, N>>::type                      \
+  operator _OP_(gvec<T, N, Z> a, U b)                                          \
+  {                                                                            \
+    gvec<typename boolean_mask_type<T>::type, N> ret;                          \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a[i] _OP_ b ? ~0 : 0;                                           \
+    return ret;                                                                \
+  }                                                                            \
+  template <typename T, typename U, int N, Swizzle Z>                          \
+  typename std::enable_if<                                                     \
+      std::is_convertible<U, T>::value,                                        \
+      gvec<typename boolean_mask_type<T>::type, N>>::type                      \
+  operator _OP_(U a, gvec<T, N, Z> b)                                          \
+  {                                                                            \
+    gvec<typename boolean_mask_type<T>::type, N> ret;                          \
+    for (int i = 0; i < N; ++i)                                                \
+      ret[i] = a _OP_ b[i] ? ~0 : 0;                                           \
+    return ret;                                                                \
+  }
 
 DECL_BOOLEAN_OP(==)
 DECL_BOOLEAN_OP(!=)
@@ -400,99 +407,108 @@ DECL_BOOLEAN_OP(||)
 #undef DECL_BOOLEAN_OP
 
 #define ENABLE_SWIZZLE1(F)                                                     \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              template <typename, int, Swizzle> typename X>                    \
-    gvec<T, N> F(X<T, N, Z0> x)                                                \
-    {                                                                          \
-        return F((gvec<T, N>)x);                                               \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      template <typename, int, Swizzle> typename X>                            \
+  gvec<T, N> F(X<T, N, Z0> x)                                                  \
+  {                                                                            \
+    return F((gvec<T, N>)x);                                                   \
+  }
 #define ENABLE_SWIZZLE_REDUCE(F)                                               \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              template <typename, int, Swizzle> typename X>                    \
-    T F(X<T, N, Z0> x)                                                         \
-    {                                                                          \
-        return F((gvec<T, N>)x);                                               \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      template <typename, int, Swizzle> typename X>                            \
+  T F(X<T, N, Z0> x)                                                           \
+  {                                                                            \
+    return F((gvec<T, N>)x);                                                   \
+  }
 #define ENABLE_SWIZZLE1F(F)                                                    \
-    template <int N, Swizzle Z0, template <typename, int, Swizzle> typename X> \
-    gvec<float, N> F(X<float, N, Z0> x)                                        \
-    {                                                                          \
-        return F((gvec<float, N>)x);                                           \
-    }
+  template <int N, Swizzle Z0, template <typename, int, Swizzle> typename X>   \
+  gvec<float, N> F(X<float, N, Z0> x)                                          \
+  {                                                                            \
+    return F((gvec<float, N>)x);                                               \
+  }
 #define ENABLE_SWIZZLE1B(F)                                                    \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              template <typename, int, Swizzle> typename X>                    \
-    bool F(X<T, N, Z0> x)                                                      \
-    {                                                                          \
-        return F((gvec<T, N>)x);                                               \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      template <typename, int, Swizzle> typename X>                            \
+  bool F(X<T, N, Z0> x)                                                        \
+  {                                                                            \
+    return F((gvec<T, N>)x);                                                   \
+  }
 #define ENABLE_SWIZZLEUT(F)                                                    \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              template <typename, int, Swizzle> typename X>                    \
-    gvec<T, N> F(X<T, N, Z0> x)                                                \
-    {                                                                          \
-        return F((gvec<T, N>)x);                                               \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      template <typename, int, Swizzle> typename X>                            \
+  gvec<T, N> F(X<T, N, Z0> x)                                                  \
+  {                                                                            \
+    return F((gvec<T, N>)x);                                                   \
+  }
 #define ENABLE_SWIZZLE2(F)                                                     \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B>                    \
-    gvec<T, N> F(A<T, N, Z0> a, B<T, N, Z1> b)                                 \
-    {                                                                          \
-        return F((gvec<T, N>)a, (gvec<T, N>)b);                                \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B>                            \
+  gvec<T, N> F(A<T, N, Z0> a, B<T, N, Z1> b)                                   \
+  {                                                                            \
+    return F((gvec<T, N>)a, (gvec<T, N>)b);                                    \
+  }
 
 #define ENABLE_SWIZZLE3(F)                                                     \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              Swizzle Z2,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B,                    \
-              template <typename, int, Swizzle> typename C>                    \
-    gvec<T, N> F(A<T, N, Z0> a, B<T, N, Z1> b, C<T, N, Z2> c)                  \
-    {                                                                          \
-        return F((gvec<T, N>)a, (gvec<T, N>)b, (gvec<T, N>)c);                 \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      Swizzle Z2,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B,                            \
+      template <typename, int, Swizzle> typename C>                            \
+  gvec<T, N> F(A<T, N, Z0> a, B<T, N, Z1> b, C<T, N, Z2> c)                    \
+  {                                                                            \
+    return F((gvec<T, N>)a, (gvec<T, N>)b, (gvec<T, N>)c);                     \
+  }
 #define ENABLE_SWIZZLE3F(F)                                                    \
-    template <int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              Swizzle Z2,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B,                    \
-              template <typename, int, Swizzle> typename C>                    \
-    gvec<float, N> F(A<float, N, Z0> a, B<float, N, Z1> b, C<float, N, Z2> c)  \
-    {                                                                          \
-        return F((gvec<float, N>)a, (gvec<float, N>)b, (gvec<float, N>)c);     \
-    }
+  template <                                                                   \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      Swizzle Z2,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B,                            \
+      template <typename, int, Swizzle> typename C>                            \
+  gvec<float, N> F(A<float, N, Z0> a, B<float, N, Z1> b, C<float, N, Z2> c)    \
+  {                                                                            \
+    return F((gvec<float, N>)a, (gvec<float, N>)b, (gvec<float, N>)c);         \
+  }
 #define ENABLE_SWIZZLE3IT(F)                                                   \
-    template <typename T,                                                      \
-              int N,                                                           \
-              Swizzle Z0,                                                      \
-              Swizzle Z1,                                                      \
-              Swizzle Z2,                                                      \
-              template <typename, int, Swizzle> typename A,                    \
-              template <typename, int, Swizzle> typename B,                    \
-              template <typename, int, Swizzle> typename C>                    \
-    gvec<T, N> F(A<typename boolean_mask_type<T>::type, N, Z0> a,              \
-                 B<T, N, Z1> b,                                                \
-                 C<T, N, Z2> c)                                                \
-    {                                                                          \
-        return F((gvec<int32_t, N>)a, (gvec<T, N>)b, (gvec<T, N>)c);           \
-    }
+  template <                                                                   \
+      typename T,                                                              \
+      int N,                                                                   \
+      Swizzle Z0,                                                              \
+      Swizzle Z1,                                                              \
+      Swizzle Z2,                                                              \
+      template <typename, int, Swizzle> typename A,                            \
+      template <typename, int, Swizzle> typename B,                            \
+      template <typename, int, Swizzle> typename C>                            \
+  gvec<T, N> F(                                                                \
+      A<typename boolean_mask_type<T>::type, N, Z0> a,                         \
+      B<T, N, Z1> b,                                                           \
+      C<T, N, Z2> c)                                                           \
+  {                                                                            \
+    return F((gvec<int32_t, N>)a, (gvec<T, N>)b, (gvec<T, N>)c);               \
+  }
 
 ENABLE_SWIZZLE1(abs)
 ENABLE_SWIZZLE_REDUCE(reduce_add)
@@ -514,22 +530,26 @@ ENABLE_SWIZZLE3F(precise_mix)
 ENABLE_SWIZZLE3IT(if_then_else)
 template <typename T, int N, Swizzle Z> void store(void* dst, gvec<T, N, Z> vec)
 {
-    store(dst, (gvec<T, N>)vec);
+  store(dst, (gvec<T, N>)vec);
 }
 template <typename U, typename T, int N, Swizzle Z>
 gvec<U, N> cast(gvec<T, N, Z> x)
 {
-    return cast<U>((gvec<T, N>)x);
+  return cast<U>((gvec<T, N>)x);
 }
 
-static_assert(std::is_trivial<gvec<float, 1>>() &&
-              std::is_standard_layout<gvec<float, 1>>());
-static_assert(std::is_trivial<gvec<float, 2>>() &&
-              std::is_standard_layout<gvec<float, 2>>());
-static_assert(std::is_trivial<gvec<float, 3>>() &&
-              std::is_standard_layout<gvec<float, 3>>());
-static_assert(std::is_trivial<gvec<float, 4>>() &&
-              std::is_standard_layout<gvec<float, 4>>());
+static_assert(
+    std::is_trivial<gvec<float, 1>>() &&
+    std::is_standard_layout<gvec<float, 1>>());
+static_assert(
+    std::is_trivial<gvec<float, 2>>() &&
+    std::is_standard_layout<gvec<float, 2>>());
+static_assert(
+    std::is_trivial<gvec<float, 3>>() &&
+    std::is_standard_layout<gvec<float, 3>>());
+static_assert(
+    std::is_trivial<gvec<float, 4>>() &&
+    std::is_standard_layout<gvec<float, 4>>());
 
 #undef ENABLE_SWIZZLE1
 #undef ENABLE_SWIZZLE_REDUCE

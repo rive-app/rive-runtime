@@ -7,9 +7,9 @@ namespace rive
 class DistanceConstraint : public DistanceConstraintBase
 {
 public:
-    void constrain(TransformComponent* component) override;
-    void distanceChanged() override;
-    void modeValueChanged() override;
+  void constrain(TransformComponent* component) override;
+  void distanceChanged() override;
+  void modeValueChanged() override;
 };
 } // namespace rive
 

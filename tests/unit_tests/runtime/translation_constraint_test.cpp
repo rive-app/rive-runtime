@@ -10,21 +10,21 @@
 
 TEST_CASE("translation constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("assets/translation_constraint.riv");
+  auto file = ReadRiveFile("assets/translation_constraint.riv");
 
-    auto artboard = file->artboard();
+  auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::TransformComponent>("target") != nullptr);
-    auto target = artboard->find<rive::TransformComponent>("target");
+  REQUIRE(artboard->find<rive::TransformComponent>("target") != nullptr);
+  auto target = artboard->find<rive::TransformComponent>("target");
 
-    REQUIRE(artboard->find<rive::TransformComponent>("rect") != nullptr);
-    auto rectangle = artboard->find<rive::TransformComponent>("rect");
+  REQUIRE(artboard->find<rive::TransformComponent>("rect") != nullptr);
+  auto rectangle = artboard->find<rive::TransformComponent>("rect");
 
-    artboard->advance(0.0f);
+  artboard->advance(0.0f);
 
-    auto targetComponents = target->worldTransform().decompose();
-    auto rectComponents = rectangle->worldTransform().decompose();
+  auto targetComponents = target->worldTransform().decompose();
+  auto rectComponents = rectangle->worldTransform().decompose();
 
-    REQUIRE(targetComponents.x() == rectComponents.x());
-    REQUIRE(targetComponents.y() == rectComponents.y());
+  REQUIRE(targetComponents.x() == rectComponents.x());
+  REQUIRE(targetComponents.y() == rectComponents.y());
 }

@@ -27,69 +27,69 @@ using namespace rive;
  */
 static void draw_labyrinth(Renderer* renderer, StrokeCap cap)
 {
-    constexpr static bool kRows[11][12] = {
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-        {0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1},
-        {0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1},
-        {1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0},
-        {0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1},
-        {1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0},
-        {0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-        {1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
-        {0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1},
-        {0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0},
-        {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    };
+  constexpr static bool kRows[11][12] = {
+      {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+      {0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1},
+      {0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1},
+      {1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0},
+      {0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1},
+      {1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0},
+      {0, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
+      {1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1},
+      {0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1},
+      {0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0},
+      {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+  };
 
-    constexpr static bool kCols[13][10] = {
-        {1, 1, 1, 1, 0, 1, 1, 1, 1, 1},
-        {0, 0, 1, 0, 0, 0, 1, 1, 1, 0},
-        {0, 1, 1, 0, 1, 1, 1, 0, 0, 1},
-        {1, 1, 0, 0, 0, 0, 1, 0, 1, 0},
-        {0, 0, 1, 0, 1, 0, 0, 0, 0, 1},
-        {0, 0, 1, 1, 1, 0, 0, 0, 1, 0},
-        {0, 1, 0, 1, 1, 1, 0, 0, 0, 0},
-        {1, 1, 1, 0, 1, 1, 1, 0, 1, 0},
-        {1, 1, 0, 1, 1, 0, 0, 0, 1, 0},
-        {0, 0, 1, 0, 0, 0, 0, 0, 0, 1},
-        {0, 0, 1, 1, 0, 0, 0, 0, 1, 0},
-        {0, 0, 0, 0, 0, 0, 1, 0, 0, 1},
-        {1, 1, 1, 1, 1, 1, 0, 1, 1, 1},
-    };
+  constexpr static bool kCols[13][10] = {
+      {1, 1, 1, 1, 0, 1, 1, 1, 1, 1},
+      {0, 0, 1, 0, 0, 0, 1, 1, 1, 0},
+      {0, 1, 1, 0, 1, 1, 1, 0, 0, 1},
+      {1, 1, 0, 0, 0, 0, 1, 0, 1, 0},
+      {0, 0, 1, 0, 1, 0, 0, 0, 0, 1},
+      {0, 0, 1, 1, 1, 0, 0, 0, 1, 0},
+      {0, 1, 0, 1, 1, 1, 0, 0, 0, 0},
+      {1, 1, 1, 0, 1, 1, 1, 0, 1, 0},
+      {1, 1, 0, 1, 1, 0, 0, 0, 1, 0},
+      {0, 0, 1, 0, 0, 0, 0, 0, 0, 1},
+      {0, 0, 1, 1, 0, 0, 0, 0, 1, 0},
+      {0, 0, 0, 0, 0, 0, 1, 0, 0, 1},
+      {1, 1, 1, 1, 1, 1, 0, 1, 1, 1},
+  };
 
-    Path maze;
-    for (size_t y = 0; y < std::size(kRows); ++y)
+  Path maze;
+  for (size_t y = 0; y < std::size(kRows); ++y)
+  {
+    for (size_t x = 0; x < std::size(kRows[0]); ++x)
     {
-        for (size_t x = 0; x < std::size(kRows[0]); ++x)
-        {
-            if (kRows[y][x])
-            {
-                maze->moveTo(x, y);
-                maze->lineTo(x + 1, y);
-            }
-        }
+      if (kRows[y][x])
+      {
+        maze->moveTo(x, y);
+        maze->lineTo(x + 1, y);
+      }
     }
-    for (size_t x = 0; x < std::size(kCols); ++x)
+  }
+  for (size_t x = 0; x < std::size(kCols); ++x)
+  {
+    for (size_t y = 0; y < std::size(kCols[0]); ++y)
     {
-        for (size_t y = 0; y < std::size(kCols[0]); ++y)
-        {
-            if (kCols[x][y])
-            {
-                maze->moveTo(x, y);
-                maze->lineTo(x, y + 1);
-            }
-        }
+      if (kCols[x][y])
+      {
+        maze->moveTo(x, y);
+        maze->lineTo(x, y + 1);
+      }
     }
+  }
 
-    Paint paint;
-    paint->style(RenderPaintStyle::stroke);
-    paint->thickness(.1f);
-    paint->color(0xff406060);
-    paint->cap(cap);
+  Paint paint;
+  paint->style(RenderPaintStyle::stroke);
+  paint->thickness(.1f);
+  paint->color(0xff406060);
+  paint->cap(cap);
 
-    renderer->translate(10.5, 10.5);
-    renderer->scale(40, 40);
-    renderer->drawPath(maze, paint);
+  renderer->translate(10.5, 10.5);
+  renderer->scale(40, 40);
+  renderer->drawPath(maze, paint);
 }
 
 constexpr static int kWidth = 500;
@@ -97,15 +97,15 @@ constexpr static int kHeight = 420;
 
 DEF_SIMPLE_GM(labyrinth_square, kWidth, kHeight, renderer)
 {
-    draw_labyrinth(renderer, StrokeCap::square);
+  draw_labyrinth(renderer, StrokeCap::square);
 }
 
 DEF_SIMPLE_GM(labyrinth_round, kWidth, kHeight, renderer)
 {
-    draw_labyrinth(renderer, StrokeCap::round);
+  draw_labyrinth(renderer, StrokeCap::round);
 }
 
 DEF_SIMPLE_GM(labyrinth_butt, kWidth, kHeight, renderer)
 {
-    draw_labyrinth(renderer, StrokeCap::butt);
+  draw_labyrinth(renderer, StrokeCap::butt);
 }

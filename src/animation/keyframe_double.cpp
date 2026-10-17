@@ -13,89 +13,86 @@ using namespace rive;
 
 static void applyDouble(Core* object, int propertyKey, float mix, float value)
 {
-    // Single setter — mirrors the Dart editor where the call site
-    // doesn't choose between animation-mode and design-mode paths.
-    // Generated `<name>(value)` setters internally consult
-    // `Core::isAnimationContextActive()`: when EditorFile has the
-    // animation context active they route the write to the
-    // per-property override overlay; otherwise to the persistent
-    // static field. Runtime builds compile out the overlay branch
-    // entirely.
-    if (mix == 1.0f)
-    {
-        CoreRegistry::setDouble(object, propertyKey, value);
-    }
-    else
-    {
-        float mixi = 1.0f - mix;
-        CoreRegistry::setDouble(
-            object,
-            propertyKey,
-            CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
-    }
+  // Single setter — mirrors the Dart editor where the call site
+  // doesn't choose between animation-mode and design-mode paths.
+  // Generated `<name>(value)` setters internally consult
+  // `Core::isAnimationContextActive()`: when EditorFile has the
+  // animation context active they route the write to the
+  // per-property override overlay; otherwise to the persistent
+  // static field. Runtime builds compile out the overlay branch
+  // entirely.
+  if (mix == 1.0f)
+  {
+    CoreRegistry::setDouble(object, propertyKey, value);
+  }
+  else
+  {
+    float mixi = 1.0f - mix;
+    CoreRegistry::setDouble(
+        object,
+        propertyKey,
+        CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
+  }
 }
 
 float KeyFrameDouble::effectiveValue(
     const LinearAnimationInstance* context) const
 {
-    if (context != nullptr)
+  if (context != nullptr)
+  {
+    if (auto* holder = context->keyFrameValueHolder(this))
     {
-        if (auto* holder = context->keyFrameValueHolder(this))
-        {
-            return holder->as<BindablePropertyNumber>()->propertyValue();
-        }
+      return holder->as<BindablePropertyNumber>()->propertyValue();
     }
-    return value();
+  }
+  return value();
 }
 
-void KeyFrameDouble::apply(Core* object,
-                           int propertyKey,
-                           float mix,
-                           const LinearAnimationInstance* context)
+void KeyFrameDouble::apply(
+    Core* object,
+    int propertyKey,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    if (context != nullptr && context->blendAccumulator() != nullptr)
-    {
-        context->blendAccumulator()->applyDouble(object,
-                                                 propertyKey,
-                                                 mix,
-                                                 effectiveValue(context));
-        return;
-    }
-    applyDouble(object, propertyKey, mix, effectiveValue(context));
+  if (context != nullptr && context->blendAccumulator() != nullptr)
+  {
+    context->blendAccumulator()
+        ->applyDouble(object, propertyKey, mix, effectiveValue(context));
+    return;
+  }
+  applyDouble(object, propertyKey, mix, effectiveValue(context));
 }
 
-void KeyFrameDouble::applyInterpolation(Core* object,
-                                        int propertyKey,
-                                        float currentTime,
-                                        const KeyFrame* nextFrame,
-                                        float mix,
-                                        const LinearAnimationInstance* context)
+void KeyFrameDouble::applyInterpolation(
+    Core* object,
+    int propertyKey,
+    float currentTime,
+    const KeyFrame* nextFrame,
+    float mix,
+    const LinearAnimationInstance* context)
 {
-    auto kfd = nextFrame->as<KeyFrameDouble>();
-    const KeyFrameDouble& nextDouble = *kfd;
-    float fromValue = effectiveValue(context);
-    float toValue = nextDouble.effectiveValue(context);
-    float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
+  auto kfd = nextFrame->as<KeyFrameDouble>();
+  const KeyFrameDouble& nextDouble = *kfd;
+  float fromValue = effectiveValue(context);
+  float toValue = nextDouble.effectiveValue(context);
+  float f = (currentTime - seconds()) / (nextDouble.seconds() - seconds());
 
-    float frameValue;
-    if (KeyFrameInterpolator* keyframeInterpolator =
-            effectiveInterpolator(context))
-    {
-        frameValue =
-            keyframeInterpolator->transformValue(fromValue, toValue, f);
-    }
-    else
-    {
-        frameValue = fromValue + (toValue - fromValue) * f;
-    }
+  float frameValue;
+  if (KeyFrameInterpolator* keyframeInterpolator = effectiveInterpolator(
+          context))
+  {
+    frameValue = keyframeInterpolator->transformValue(fromValue, toValue, f);
+  }
+  else
+  {
+    frameValue = fromValue + (toValue - fromValue) * f;
+  }
 
-    if (context != nullptr && context->blendAccumulator() != nullptr)
-    {
-        context->blendAccumulator()->applyDouble(object,
-                                                 propertyKey,
-                                                 mix,
-                                                 frameValue);
-        return;
-    }
-    applyDouble(object, propertyKey, mix, frameValue);
+  if (context != nullptr && context->blendAccumulator() != nullptr)
+  {
+    context->blendAccumulator()
+        ->applyDouble(object, propertyKey, mix, frameValue);
+    return;
+  }
+  applyDouble(object, propertyKey, mix, frameValue);
 }

@@ -15,21 +15,21 @@ class ScriptedDrawable;
 // Adding or renumbering them requires updating that property's description.
 enum class KeyModifiers : uint8_t
 {
-    none = 0,
-    shift = 1 << 0,
-    ctrl = 1 << 1,
-    alt = 1 << 2,
-    meta = 1 << 3
+  none = 0,
+  shift = 1 << 0,
+  ctrl = 1 << 1,
+  alt = 1 << 2,
+  meta = 1 << 3
 
 };
 
 inline KeyModifiers operator|(const KeyModifiers& a, const KeyModifiers& b)
 {
-    return (KeyModifiers)((uint8_t)a | (uint8_t)b);
+  return (KeyModifiers)((uint8_t)a | (uint8_t)b);
 }
 inline KeyModifiers operator&(const KeyModifiers& a, const KeyModifiers& b)
 {
-    return (KeyModifiers)((uint8_t)a & (uint8_t)b);
+  return (KeyModifiers)((uint8_t)a & (uint8_t)b);
 }
 
 // Mirrored as keyType's enumValues in dev/defs/inputs/keyboard_input.json,
@@ -37,126 +37,126 @@ inline KeyModifiers operator&(const KeyModifiers& a, const KeyModifiers& b)
 // that too; nothing checks the two against each other.
 enum class Key : uint16_t
 {
-    space = 32,
-    apostrophe = 39, // '
-    comma = 44,      // ,
-    minus = 45,      // -
-    period = 46,     // .
-    slash = 47,      // /
-    key0 = 48,
-    key1 = 49,
-    key2 = 50,
-    key3 = 51,
-    key4 = 52,
-    key5 = 53,
-    key6 = 54,
-    key7 = 55,
-    key8 = 56,
-    key9 = 57,
-    semicolon = 59, // ;
-    equal = 61,     // =
-    a = 65,
-    b = 66,
-    c = 67,
-    d = 68,
-    e = 69,
-    f = 70,
-    g = 71,
-    h = 72,
-    i = 73,
-    j = 74,
-    k = 75,
-    l = 76,
-    m = 77,
-    n = 78,
-    o = 79,
-    p = 80,
-    q = 81,
-    r = 82,
-    s = 83,
-    t = 84,
-    u = 85,
-    v = 86,
-    w = 87,
-    x = 88,
-    y = 89,
-    z = 90,
-    leftBracket = 91,  // [
-    backslash = 92,    // "\"
-    rightBracket = 93, // ]
-    graveAccent = 96,  // `
-    world1 = 161,      // non-US #1
-    world2 = 162,      // non-US #2
-    escape = 256,
-    enter = 257,
-    tab = 258,
-    backspace = 259,
-    insert = 260,
-    deleteKey = 261,
-    right = 262,
-    left = 263,
-    down = 264,
-    up = 265,
-    pageUp = 266,
-    pageDown = 267,
-    home = 268,
-    end = 269,
-    capsLock = 280,
-    scrollLock = 281,
-    numLock = 282,
-    printScreen = 283,
-    pause = 284,
-    f1 = 290,
-    f2 = 291,
-    f3 = 292,
-    f4 = 293,
-    f5 = 294,
-    f6 = 295,
-    f7 = 296,
-    f8 = 297,
-    f9 = 298,
-    f10 = 299,
-    f11 = 300,
-    f12 = 301,
-    f13 = 302,
-    f14 = 303,
-    f15 = 304,
-    f16 = 305,
-    f17 = 306,
-    f18 = 307,
-    f19 = 308,
-    f20 = 309,
-    f21 = 310,
-    f22 = 311,
-    f23 = 312,
-    f24 = 313,
-    f25 = 314,
-    kp0 = 320,
-    kp1 = 321,
-    kp2 = 322,
-    kp3 = 323,
-    kp4 = 324,
-    kp5 = 325,
-    kp6 = 326,
-    kp7 = 327,
-    kp8 = 328,
-    kp9 = 329,
-    kpDecimal = 330,
-    kpDivide = 331,
-    kpMultiply = 332,
-    kpSubtract = 333,
-    kpAdd = 334,
-    kpEnter = 335,
-    kpEqual = 336,
-    leftShift = 340,
-    leftControl = 341,
-    leftAlt = 342,
-    leftSuper = 343,
-    rightShift = 344,
-    rightControl = 345,
-    rightAlt = 346,
-    rightSuper = 347,
-    menu = 348,
+  space = 32,
+  apostrophe = 39, // '
+  comma = 44,      // ,
+  minus = 45,      // -
+  period = 46,     // .
+  slash = 47,      // /
+  key0 = 48,
+  key1 = 49,
+  key2 = 50,
+  key3 = 51,
+  key4 = 52,
+  key5 = 53,
+  key6 = 54,
+  key7 = 55,
+  key8 = 56,
+  key9 = 57,
+  semicolon = 59, // ;
+  equal = 61,     // =
+  a = 65,
+  b = 66,
+  c = 67,
+  d = 68,
+  e = 69,
+  f = 70,
+  g = 71,
+  h = 72,
+  i = 73,
+  j = 74,
+  k = 75,
+  l = 76,
+  m = 77,
+  n = 78,
+  o = 79,
+  p = 80,
+  q = 81,
+  r = 82,
+  s = 83,
+  t = 84,
+  u = 85,
+  v = 86,
+  w = 87,
+  x = 88,
+  y = 89,
+  z = 90,
+  leftBracket = 91,  // [
+  backslash = 92,    // "\"
+  rightBracket = 93, // ]
+  graveAccent = 96,  // `
+  world1 = 161,      // non-US #1
+  world2 = 162,      // non-US #2
+  escape = 256,
+  enter = 257,
+  tab = 258,
+  backspace = 259,
+  insert = 260,
+  deleteKey = 261,
+  right = 262,
+  left = 263,
+  down = 264,
+  up = 265,
+  pageUp = 266,
+  pageDown = 267,
+  home = 268,
+  end = 269,
+  capsLock = 280,
+  scrollLock = 281,
+  numLock = 282,
+  printScreen = 283,
+  pause = 284,
+  f1 = 290,
+  f2 = 291,
+  f3 = 292,
+  f4 = 293,
+  f5 = 294,
+  f6 = 295,
+  f7 = 296,
+  f8 = 297,
+  f9 = 298,
+  f10 = 299,
+  f11 = 300,
+  f12 = 301,
+  f13 = 302,
+  f14 = 303,
+  f15 = 304,
+  f16 = 305,
+  f17 = 306,
+  f18 = 307,
+  f19 = 308,
+  f20 = 309,
+  f21 = 310,
+  f22 = 311,
+  f23 = 312,
+  f24 = 313,
+  f25 = 314,
+  kp0 = 320,
+  kp1 = 321,
+  kp2 = 322,
+  kp3 = 323,
+  kp4 = 324,
+  kp5 = 325,
+  kp6 = 326,
+  kp7 = 327,
+  kp8 = 328,
+  kp9 = 329,
+  kpDecimal = 330,
+  kpDivide = 331,
+  kpMultiply = 332,
+  kpSubtract = 333,
+  kpAdd = 334,
+  kpEnter = 335,
+  kpEqual = 336,
+  leftShift = 340,
+  leftControl = 341,
+  leftAlt = 342,
+  leftSuper = 343,
+  rightShift = 344,
+  rightControl = 345,
+  rightAlt = 346,
+  rightSuper = 347,
+  menu = 348,
 };
 
 class Artboard;
@@ -165,75 +165,76 @@ class Core;
 class Focusable
 {
 public:
-    virtual ~Focusable() = default;
+  virtual ~Focusable() = default;
 
-    /// Try to get a Focusable from a Core object.
-    /// Returns nullptr if the object doesn't implement Focusable.
-    static Focusable* from(Core* object);
+  /// Try to get a Focusable from a Core object.
+  /// Returns nullptr if the object doesn't implement Focusable.
+  static Focusable* from(Core* object);
 
-    /// Get the artboard this focusable belongs to.
-    /// Returns nullptr if not associated with an artboard.
-    virtual Artboard* focusableArtboard() const { return nullptr; }
+  /// Get the artboard this focusable belongs to.
+  /// Returns nullptr if not associated with an artboard.
+  virtual Artboard* focusableArtboard() const { return nullptr; }
 
-    virtual bool keyInput(Key value,
-                          KeyModifiers modifiers,
-                          bool isPressed,
-                          bool isRepeat) = 0;
-    virtual bool textInput(const std::string& text) = 0;
+  virtual bool keyInput(
+      Key value,
+      KeyModifiers modifiers,
+      bool isPressed,
+      bool isRepeat) = 0;
+  virtual bool textInput(const std::string& text) = 0;
 
-    /// Fills outText with the currently selected text within this focusable.
-    /// Returns true when this focusable handled the request and the focus
-    /// lookup stops here, even with outText left empty (how an obscured
-    /// input keeps its selection off the clipboard). Lets hosts implement
-    /// clipboard copy/cut, which the runtime can't do itself (no system
-    /// clipboard access).
-    virtual bool selectedText(std::string& outText) const { return false; }
+  /// Fills outText with the currently selected text within this focusable.
+  /// Returns true when this focusable handled the request and the focus
+  /// lookup stops here, even with outText left empty (how an obscured
+  /// input keeps its selection off the clipboard). Lets hosts implement
+  /// clipboard copy/cut, which the runtime can't do itself (no system
+  /// clipboard access).
+  virtual bool selectedText(std::string& outText) const { return false; }
 
-    /// Whether this focusable consumes typed text (a text input). Lets hosts
-    /// decide to start routing the keyboard to the runtime when one takes
-    /// focus. Default: no.
-    virtual bool acceptsTextInput() const { return false; }
+  /// Whether this focusable consumes typed text (a text input). Lets hosts
+  /// decide to start routing the keyboard to the runtime when one takes
+  /// focus. Default: no.
+  virtual bool acceptsTextInput() const { return false; }
 
-    /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
-    /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
-    /// `ScriptedDrawable` that ended up receiving the event so callers can
-    /// avoid re-dispatching to it during a broadcast pass.
-    virtual bool gamepadDispatch(
-        const ListenerInvocation& invocation,
-        ScriptedDrawable** outDispatchedScriptedDrawable = nullptr);
+  /// Gamepad `ListenerInvocation` from the focus bubble. Default: ignore.
+  /// `outDispatchedScriptedDrawable` (when non-null) is filled with the
+  /// `ScriptedDrawable` that ended up receiving the event so callers can
+  /// avoid re-dispatching to it during a broadcast pass.
+  virtual bool gamepadDispatch(
+      const ListenerInvocation& invocation,
+      ScriptedDrawable** outDispatchedScriptedDrawable = nullptr);
 
-    virtual void focused() = 0;
-    virtual void blurred() = 0;
+  virtual void focused() = 0;
+  virtual void blurred() = 0;
 
-    /// Get the world position of this focusable in root artboard space.
-    /// Used for directional focus navigation.
-    /// Returns false if position cannot be determined.
-    virtual bool worldPosition(Vec2D& outPosition) { return false; }
+  /// Get the world position of this focusable in root artboard space.
+  /// Used for directional focus navigation.
+  /// Returns false if position cannot be determined.
+  virtual bool worldPosition(Vec2D& outPosition) { return false; }
 
-    /// Get the world bounds of this focusable in root artboard space.
-    /// Used for directional focus navigation with overlap/alignment.
-    /// Returns false if bounds cannot be determined (falls back to position).
-    virtual bool worldBounds(AABB& outBounds) { return false; }
+  /// Get the world bounds of this focusable in root artboard space.
+  /// Used for directional focus navigation with overlap/alignment.
+  /// Returns false if bounds cannot be determined (falls back to position).
+  virtual bool worldBounds(AABB& outBounds) { return false; }
 
-    /// Returns whether the Focusable is currently eligible for focus traversal
-    virtual bool isEligibleForFocusTraversal() const { return true; }
+  /// Returns whether the Focusable is currently eligible for focus traversal
+  virtual bool isEligibleForFocusTraversal() const { return true; }
 
-    /// Returns true if this focusable consumes keyboard input — either
-    /// intrinsically (e.g. a text-editable input) or by having registered
-    /// key/text listeners. Hosts use this to decide whether to surface a
-    /// soft keyboard / IME when this element holds focus.
-    virtual bool acceptsKeyboardInput() const { return false; }
+  /// Returns true if this focusable consumes keyboard input — either
+  /// intrinsically (e.g. a text-editable input) or by having registered
+  /// key/text listeners. Hosts use this to decide whether to surface a
+  /// soft keyboard / IME when this element holds focus.
+  virtual bool acceptsKeyboardInput() const { return false; }
 
-    /// Whether a primary press landing outside this focusable takes focus
-    /// away from it, as a platform text field blurs on an outside click.
-    virtual bool blursOnOutsidePress() const { return false; }
+  /// Whether a primary press landing outside this focusable takes focus
+  /// away from it, as a platform text field blurs on an outside click.
+  virtual bool blursOnOutsidePress() const { return false; }
 
-    /// Whether a point in root artboard space lands on this focusable.
-    virtual bool hitTestFocusable(const Vec2D& rootPosition)
-    {
-        AABB bounds;
-        return worldBounds(bounds) && bounds.contains(rootPosition);
-    }
+  /// Whether a point in root artboard space lands on this focusable.
+  virtual bool hitTestFocusable(const Vec2D& rootPosition)
+  {
+    AABB bounds;
+    return worldBounds(bounds) && bounds.contains(rootPosition);
+  }
 };
 } // namespace rive
 #endif

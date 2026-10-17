@@ -31,34 +31,36 @@ namespace rive::ore::cmd
 class CreationObserver
 {
 public:
-    virtual ~CreationObserver() = default;
-    // Each time modules are built from an asset, with the entry names its
-    // variant for the device's target carries.
-    virtual void onShaderAsset(const ShaderAsset&,
-                               const std::vector<RstbEntryView>&)
-    {}
-    virtual void onShaderModule(const ShaderModule*, const ShaderModuleDesc&) {}
-    virtual void onBindGroupLayout(const BindGroupLayout*,
-                                   const BindGroupLayoutDesc&)
-    {}
-    virtual void onPipeline(const Pipeline*, const PipelineDesc&) {}
-    virtual void onBindGroup(const BindGroup*, const BindGroupDesc&) {}
+  virtual ~CreationObserver() = default;
+  // Each time modules are built from an asset, with the entry names its
+  // variant for the device's target carries.
+  virtual void onShaderAsset(
+      const ShaderAsset&,
+      const std::vector<RstbEntryView>&)
+  {}
+  virtual void onShaderModule(const ShaderModule*, const ShaderModuleDesc&) {}
+  virtual void onBindGroupLayout(
+      const BindGroupLayout*,
+      const BindGroupLayoutDesc&)
+  {}
+  virtual void onPipeline(const Pipeline*, const PipelineDesc&) {}
+  virtual void onBindGroup(const BindGroup*, const BindGroupDesc&) {}
 };
 
 inline std::atomic<CreationObserver*>& creationObserverSlot()
 {
-    static std::atomic<CreationObserver*> slot{nullptr};
-    return slot;
+  static std::atomic<CreationObserver*> slot{nullptr};
+  return slot;
 }
 
 inline CreationObserver* creationObserver()
 {
-    return creationObserverSlot().load(std::memory_order_acquire);
+  return creationObserverSlot().load(std::memory_order_acquire);
 }
 
 inline void setCreationObserver(CreationObserver* observer)
 {
-    creationObserverSlot().store(observer, std::memory_order_release);
+  creationObserverSlot().store(observer, std::memory_order_release);
 }
 
 } // namespace rive::ore::cmd

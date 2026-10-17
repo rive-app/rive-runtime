@@ -7,101 +7,101 @@ namespace rive
 class CubicInterpolatorBase : public KeyFrameInterpolator
 {
 protected:
-    typedef KeyFrameInterpolator Super;
+  typedef KeyFrameInterpolator Super;
 
 public:
-    static const uint16_t typeKey = 139;
+  static const uint16_t typeKey = 139;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t x1PropertyKey = 63;
-    static const uint16_t y1PropertyKey = 64;
-    static const uint16_t x2PropertyKey = 65;
-    static const uint16_t y2PropertyKey = 66;
+  static const uint16_t x1PropertyKey = 63;
+  static const uint16_t y1PropertyKey = 64;
+  static const uint16_t x2PropertyKey = 65;
+  static const uint16_t y2PropertyKey = 66;
 
 protected:
-    float m_X1 = 0.42f;
-    float m_Y1 = 0.0f;
-    float m_X2 = 0.58f;
-    float m_Y2 = 1.0f;
+  float m_X1 = 0.42f;
+  float m_Y1 = 0.0f;
+  float m_X2 = 0.58f;
+  float m_Y2 = 1.0f;
 
 public:
-    inline float x1() const { return m_X1; }
-    void x1(float value)
+  inline float x1() const { return m_X1; }
+  void x1(float value)
+  {
+    if (m_X1 == value)
     {
-        if (m_X1 == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(x1PropertyKey, &m_X1, &value);
-        m_X1 = value;
-        notifyPropertyChanged(x1PropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(x1PropertyKey, &m_X1, &value);
+    m_X1 = value;
+    notifyPropertyChanged(x1PropertyKey);
+  }
 
-    inline float y1() const { return m_Y1; }
-    void y1(float value)
+  inline float y1() const { return m_Y1; }
+  void y1(float value)
+  {
+    if (m_Y1 == value)
     {
-        if (m_Y1 == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(y1PropertyKey, &m_Y1, &value);
-        m_Y1 = value;
-        notifyPropertyChanged(y1PropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(y1PropertyKey, &m_Y1, &value);
+    m_Y1 = value;
+    notifyPropertyChanged(y1PropertyKey);
+  }
 
-    inline float x2() const { return m_X2; }
-    void x2(float value)
+  inline float x2() const { return m_X2; }
+  void x2(float value)
+  {
+    if (m_X2 == value)
     {
-        if (m_X2 == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(x2PropertyKey, &m_X2, &value);
-        m_X2 = value;
-        notifyPropertyChanged(x2PropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(x2PropertyKey, &m_X2, &value);
+    m_X2 = value;
+    notifyPropertyChanged(x2PropertyKey);
+  }
 
-    inline float y2() const { return m_Y2; }
-    void y2(float value)
+  inline float y2() const { return m_Y2; }
+  void y2(float value)
+  {
+    if (m_Y2 == value)
     {
-        if (m_Y2 == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(y2PropertyKey, &m_Y2, &value);
-        m_Y2 = value;
-        notifyPropertyChanged(y2PropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(y2PropertyKey, &m_Y2, &value);
+    m_Y2 = value;
+    notifyPropertyChanged(y2PropertyKey);
+  }
 
-    void copy(const CubicInterpolatorBase& object)
-    {
-        m_X1 = object.m_X1;
-        m_Y1 = object.m_Y1;
-        m_X2 = object.m_X2;
-        m_Y2 = object.m_Y2;
-        KeyFrameInterpolator::copy(object);
-    }
+  void copy(const CubicInterpolatorBase& object)
+  {
+    m_X1 = object.m_X1;
+    m_Y1 = object.m_Y1;
+    m_X2 = object.m_X2;
+    m_Y2 = object.m_Y2;
+    KeyFrameInterpolator::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case x1PropertyKey:
-                m_X1 = CoreDoubleType::deserialize(reader);
-                return true;
-            case y1PropertyKey:
-                m_Y1 = CoreDoubleType::deserialize(reader);
-                return true;
-            case x2PropertyKey:
-                m_X2 = CoreDoubleType::deserialize(reader);
-                return true;
-            case y2PropertyKey:
-                m_Y2 = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return KeyFrameInterpolator::deserialize(propertyKey, reader);
+      case x1PropertyKey:
+        m_X1 = CoreDoubleType::deserialize(reader);
+        return true;
+      case y1PropertyKey:
+        m_Y1 = CoreDoubleType::deserialize(reader);
+        return true;
+      case x2PropertyKey:
+        m_X2 = CoreDoubleType::deserialize(reader);
+        return true;
+      case y2PropertyKey:
+        m_Y2 = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return KeyFrameInterpolator::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

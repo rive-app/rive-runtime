@@ -53,84 +53,87 @@ const ore_gm::TriVertex kVertices[12] = {
 class OrePipelineSwitchGM : public GM
 {
 public:
-    OrePipelineSwitchGM() : GM(256, 256) {}
+  OrePipelineSwitchGM() : GM(256, 256) {}
 
-    ColorInt clearColor() const override { return 0xff000000; }
+  ColorInt clearColor() const override { return 0xff000000; }
 
-    void onDraw(rive::Renderer* originalRenderer) override
-    {
-        auto renderContext = TestingWindow::Get()->renderContext();
-        if (!renderContext || !m_ore.ensureContext(renderContext))
-            return;
+  void onDraw(rive::Renderer* originalRenderer) override
+  {
+    auto renderContext = TestingWindow::Get()->renderContext();
+    if (!renderContext || !m_ore.ensureContext(renderContext))
+      return;
 
 #if ORE_GM_HAS_BACKEND
-        auto& ctx = *renderContext->getOreContext();
-        auto canvas = renderContext->makeRenderCanvas(256, 256);
-        if (!canvas)
-            return;
-        auto colorTarget = ctx.wrapCanvasTexture(canvas.get());
-        if (!colorTarget)
-            return;
+    auto& ctx = *renderContext->getOreContext();
+    auto canvas = renderContext->makeRenderCanvas(256, 256);
+    if (!canvas)
+      return;
+    auto colorTarget = ctx.wrapCanvasTexture(canvas.get());
+    if (!colorTarget)
+      return;
 
-        auto shader = ore_gm::loadShader(ctx, ore_gm::kTriangle);
-        if (!shader.vsModule)
-            return;
+    auto shader = ore_gm::loadShader(ctx, ore_gm::kTriangle);
+    if (!shader.vsModule)
+      return;
 
-        BufferDesc vboDesc{};
-        vboDesc.usage = BufferUsage::vertex;
-        vboDesc.size = sizeof(kVertices);
-        vboDesc.data = kVertices;
-        vboDesc.label = "ore_pipeline_switch_vbo";
-        auto vbo = ctx.makeBuffer(vboDesc);
+    BufferDesc vboDesc{};
+    vboDesc.usage = BufferUsage::vertex;
+    vboDesc.size = sizeof(kVertices);
+    vboDesc.data = kVertices;
+    vboDesc.label = "ore_pipeline_switch_vbo";
+    auto vbo = ctx.makeBuffer(vboDesc);
 
-        ore_gm::TrianglePipeline singleDesc(shader,
-                                            TextureFormat::rgba8unorm,
-                                            "ore_pipeline_switch_1x");
-        ore_gm::TrianglePipeline twiceDesc(shader,
-                                           TextureFormat::rgba8unorm,
-                                           "ore_pipeline_switch_2x",
-                                           2 * sizeof(ore_gm::TriVertex));
-        auto single = ctx.makePipeline(singleDesc.desc);
-        auto twice = ctx.makePipeline(twiceDesc.desc);
-        if (!single || !twice)
-            return;
+    ore_gm::TrianglePipeline singleDesc(
+        shader,
+        TextureFormat::rgba8unorm,
+        "ore_pipeline_switch_1x");
+    ore_gm::TrianglePipeline twiceDesc(
+        shader,
+        TextureFormat::rgba8unorm,
+        "ore_pipeline_switch_2x",
+        2 * sizeof(ore_gm::TriVertex));
+    auto single = ctx.makePipeline(singleDesc.desc);
+    auto twice = ctx.makePipeline(twiceDesc.desc);
+    if (!single || !twice)
+      return;
 
-        m_ore.beginFrame(renderContext);
+    m_ore.beginFrame(renderContext);
 
-        ColorAttachment ca{};
-        ca.view = colorTarget.get();
-        ca.loadOp = LoadOp::clear;
-        ca.storeOp = StoreOp::store;
-        ca.clearColor = {0.1f, 0.1f, 0.1f, 1.0f};
+    ColorAttachment ca{};
+    ca.view = colorTarget.get();
+    ca.loadOp = LoadOp::clear;
+    ca.storeOp = StoreOp::store;
+    ca.clearColor = {0.1f, 0.1f, 0.1f, 1.0f};
 
-        RenderPassDesc rpDesc{};
-        rpDesc.colorAttachments[0] = ca;
-        rpDesc.colorCount = 1;
-        rpDesc.label = "ore_pipeline_switch_pass";
+    RenderPassDesc rpDesc{};
+    rpDesc.colorAttachments[0] = ca;
+    rpDesc.colorCount = 1;
+    rpDesc.label = "ore_pipeline_switch_pass";
 
-        auto pass = ctx.beginRenderPass(rpDesc);
-        pass->setViewport(0, 0, 256, 256);
-        pass->setPipeline(single.get());
-        pass->setVertexBuffer(0, vbo.get());
-        pass->draw(3);
-        pass->setPipeline(twice.get());
-        pass->draw(3, 1, 3);
-        pass->finish();
+    auto pass = ctx.beginRenderPass(rpDesc);
+    pass->setViewport(0, 0, 256, 256);
+    pass->setPipeline(single.get());
+    pass->setVertexBuffer(0, vbo.get());
+    pass->draw(3);
+    pass->setPipeline(twice.get());
+    pass->draw(3, 1, 3);
+    pass->finish();
 
-        m_ore.endFrame(renderContext);
-        ore_gm::invalidateGLStateAfterOre(renderContext);
+    m_ore.endFrame(renderContext);
+    ore_gm::invalidateGLStateAfterOre(renderContext);
 
-        originalRenderer->save();
-        originalRenderer->drawImage(canvas->renderImage(),
-                                    {.filter = ImageFilter::nearest},
-                                    BlendMode::srcOver,
-                                    1);
-        originalRenderer->restore();
+    originalRenderer->save();
+    originalRenderer->drawImage(
+        canvas->renderImage(),
+        {.filter = ImageFilter::nearest},
+        BlendMode::srcOver,
+        1);
+    originalRenderer->restore();
 #endif
-    }
+  }
 
 private:
-    ore_gm::OreGMContext m_ore;
+  ore_gm::OreGMContext m_ore;
 };
 
 GMREGISTER(ore_pipeline_switch, return new OrePipelineSwitchGM())

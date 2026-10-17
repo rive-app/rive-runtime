@@ -37,222 +37,224 @@ namespace
 {
 struct EnumerationCall
 {
-    std::string command;
-    bool queriedCount; // pProperties was null.
+  std::string command;
+  bool queriedCount; // pProperties was null.
 };
 
 struct
 {
-    // Index into `calls` of the enumeration that fails, or -1 for none.
-    int failingCall = -1;
-    VkResult failure = VK_ERROR_INITIALIZATION_FAILED;
-    std::vector<EnumerationCall> calls;
-    bool createdInstance = false;
-    bool createdDevice = false;
-    std::vector<std::string> enabledDeviceExtensions;
+  // Index into `calls` of the enumeration that fails, or -1 for none.
+  int failingCall = -1;
+  VkResult failure = VK_ERROR_INITIALIZATION_FAILED;
+  std::vector<EnumerationCall> calls;
+  bool createdInstance = false;
+  bool createdDevice = false;
+  std::vector<std::string> enabledDeviceExtensions;
 } g_loader;
 
 template <typename Properties>
-VkResult enumerate(const char* command,
-                   const std::vector<Properties>& available,
-                   uint32_t* pPropertyCount,
-                   Properties* pProperties)
+VkResult enumerate(
+    const char* command,
+    const std::vector<Properties>& available,
+    uint32_t* pPropertyCount,
+    Properties* pProperties)
 {
-    const bool fail = int(g_loader.calls.size()) == g_loader.failingCall;
-    g_loader.calls.push_back({command, pProperties == nullptr});
-    // VK_INCOMPLETE is a partial success: the loader still fills the array.
-    if (fail && g_loader.failure != VK_INCOMPLETE)
-    {
-        return g_loader.failure;
-    }
-    if (pProperties == nullptr)
-    {
-        *pPropertyCount = uint32_t(available.size());
-        return VK_SUCCESS;
-    }
-    const uint32_t copied =
-        std::min(*pPropertyCount, uint32_t(available.size()));
-    std::copy(available.begin(), available.begin() + copied, pProperties);
-    *pPropertyCount = copied;
-    // A failing VK_INCOMPLETE stands in for the list growing between calls.
-    return fail || copied < available.size() ? VK_INCOMPLETE : VK_SUCCESS;
+  const bool fail = int(g_loader.calls.size()) == g_loader.failingCall;
+  g_loader.calls.push_back({command, pProperties == nullptr});
+  // VK_INCOMPLETE is a partial success: the loader still fills the array.
+  if (fail && g_loader.failure != VK_INCOMPLETE)
+  {
+    return g_loader.failure;
+  }
+  if (pProperties == nullptr)
+  {
+    *pPropertyCount = uint32_t(available.size());
+    return VK_SUCCESS;
+  }
+  const uint32_t copied = std::min(*pPropertyCount, uint32_t(available.size()));
+  std::copy(available.begin(), available.begin() + copied, pProperties);
+  *pPropertyCount = copied;
+  // A failing VK_INCOMPLETE stands in for the list growing between calls.
+  return fail || copied < available.size() ? VK_INCOMPLETE : VK_SUCCESS;
 }
 
 std::vector<VkExtensionProperties> extensions(
     std::initializer_list<const char*> names)
 {
-    std::vector<VkExtensionProperties> props;
-    for (auto* name : names)
-    {
-        VkExtensionProperties prop{};
-        strncpy(prop.extensionName, name, sizeof(prop.extensionName));
-        props.push_back(prop);
-    }
-    return props;
+  std::vector<VkExtensionProperties> props;
+  for (auto* name : names)
+  {
+    VkExtensionProperties prop{};
+    strncpy(prop.extensionName, name, sizeof(prop.extensionName));
+    props.push_back(prop);
+  }
+  return props;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkEnumerateInstanceExtensionProperties(const char*,
-                                            uint32_t* pPropertyCount,
-                                            VkExtensionProperties* pProperties)
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkEnumerateInstanceExtensionProperties(
+    const char*,
+    uint32_t* pPropertyCount,
+    VkExtensionProperties* pProperties)
 {
-    return enumerate("vkEnumerateInstanceExtensionProperties",
-                     extensions({VK_KHR_SURFACE_EXTENSION_NAME}),
-                     pPropertyCount,
-                     pProperties);
+  return enumerate(
+      "vkEnumerateInstanceExtensionProperties",
+      extensions({VK_KHR_SURFACE_EXTENSION_NAME}),
+      pPropertyCount,
+      pProperties);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
-                                        VkLayerProperties* pProperties)
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkEnumerateInstanceLayerProperties(
+    uint32_t* pPropertyCount,
+    VkLayerProperties* pProperties)
 {
-    // Non-empty, so the properties call gets a non-null array.
-    VkLayerProperties layer{};
-    strncpy(layer.layerName, "VK_LAYER_rive_fake", sizeof(layer.layerName));
-    return enumerate("vkEnumerateInstanceLayerProperties",
-                     std::vector<VkLayerProperties>{layer},
-                     pPropertyCount,
-                     pProperties);
+  // Non-empty, so the properties call gets a non-null array.
+  VkLayerProperties layer{};
+  strncpy(layer.layerName, "VK_LAYER_rive_fake", sizeof(layer.layerName));
+  return enumerate(
+      "vkEnumerateInstanceLayerProperties",
+      std::vector<VkLayerProperties>{layer},
+      pPropertyCount,
+      pProperties);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkEnumerateDeviceExtensionProperties(VkPhysicalDevice,
-                                          const char*,
-                                          uint32_t* pPropertyCount,
-                                          VkExtensionProperties* pProperties)
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkEnumerateDeviceExtensionProperties(
+    VkPhysicalDevice,
+    const char*,
+    uint32_t* pPropertyCount,
+    VkExtensionProperties* pProperties)
 {
-    return enumerate("vkEnumerateDeviceExtensionProperties",
-                     extensions({VK_KHR_SWAPCHAIN_EXTENSION_NAME}),
-                     pPropertyCount,
-                     pProperties);
+  return enumerate(
+      "vkEnumerateDeviceExtensionProperties",
+      extensions({VK_KHR_SWAPCHAIN_EXTENSION_NAME}),
+      pPropertyCount,
+      pProperties);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL fake_vkEnumerateInstanceVersion(uint32_t* v)
 {
-    *v = VK_API_VERSION_1_1;
-    return VK_SUCCESS;
+  *v = VK_API_VERSION_1_1;
+  return VK_SUCCESS;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkCreateInstance(const VkInstanceCreateInfo*,
-                      const VkAllocationCallbacks*,
-                      VkInstance* instance)
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkCreateInstance(
+    const VkInstanceCreateInfo*,
+    const VkAllocationCallbacks*,
+    VkInstance* instance)
 {
-    g_loader.createdInstance = true;
-    *instance = reinterpret_cast<VkInstance>(uintptr_t(0x1000));
-    return VK_SUCCESS;
+  g_loader.createdInstance = true;
+  *instance = reinterpret_cast<VkInstance>(uintptr_t(0x1000));
+  return VK_SUCCESS;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkEnumeratePhysicalDevices(VkInstance,
-                                uint32_t* count,
-                                VkPhysicalDevice* devices)
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkEnumeratePhysicalDevices(
+    VkInstance,
+    uint32_t* count,
+    VkPhysicalDevice* devices)
 {
-    if (devices != nullptr)
-    {
-        devices[0] = reinterpret_cast<VkPhysicalDevice>(uintptr_t(0x2000));
-    }
-    *count = 1;
-    return VK_SUCCESS;
+  if (devices != nullptr)
+  {
+    devices[0] = reinterpret_cast<VkPhysicalDevice>(uintptr_t(0x2000));
+  }
+  *count = 1;
+  return VK_SUCCESS;
+}
+
+VKAPI_ATTR void VKAPI_CALL fake_vkGetPhysicalDeviceProperties(
+    VkPhysicalDevice,
+    VkPhysicalDeviceProperties* props)
+{
+  memset(props, 0, sizeof(*props));
+  props->apiVersion = VK_API_VERSION_1_1;
+  props->deviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+  strncpy(props->deviceName, "Rive fake driver", sizeof(props->deviceName));
+}
+
+VKAPI_ATTR void VKAPI_CALL fake_vkGetPhysicalDeviceFeatures(
+    VkPhysicalDevice,
+    VkPhysicalDeviceFeatures* features)
+{
+  memset(features, 0, sizeof(*features));
+}
+
+VKAPI_ATTR void VKAPI_CALL fake_vkGetPhysicalDeviceQueueFamilyProperties(
+    VkPhysicalDevice,
+    uint32_t* count,
+    VkQueueFamilyProperties* props)
+{
+  if (props != nullptr)
+  {
+    props[0] = {.queueFlags = VK_QUEUE_GRAPHICS_BIT, .queueCount = 1};
+  }
+  *count = 1;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL fake_vkCreateDevice(
+    VkPhysicalDevice,
+    const VkDeviceCreateInfo* createInfo,
+    const VkAllocationCallbacks*,
+    VkDevice*)
+{
+  g_loader.enabledDeviceExtensions.assign(
+      createInfo->ppEnabledExtensionNames,
+      createInfo->ppEnabledExtensionNames + createInfo->enabledExtensionCount);
+  // Nothing here needs a device to exist, only to know it was asked for.
+  g_loader.createdDevice = true;
+  return VK_ERROR_INITIALIZATION_FAILED;
 }
 
 VKAPI_ATTR void VKAPI_CALL
-fake_vkGetPhysicalDeviceProperties(VkPhysicalDevice,
-                                   VkPhysicalDeviceProperties* props)
-{
-    memset(props, 0, sizeof(*props));
-    props->apiVersion = VK_API_VERSION_1_1;
-    props->deviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
-    strncpy(props->deviceName, "Rive fake driver", sizeof(props->deviceName));
-}
-
-VKAPI_ATTR void VKAPI_CALL
-fake_vkGetPhysicalDeviceFeatures(VkPhysicalDevice,
-                                 VkPhysicalDeviceFeatures* features)
-{
-    memset(features, 0, sizeof(*features));
-}
-
-VKAPI_ATTR void VKAPI_CALL
-fake_vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice,
-                                              uint32_t* count,
-                                              VkQueueFamilyProperties* props)
-{
-    if (props != nullptr)
-    {
-        props[0] = {.queueFlags = VK_QUEUE_GRAPHICS_BIT, .queueCount = 1};
-    }
-    *count = 1;
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-fake_vkCreateDevice(VkPhysicalDevice,
-                    const VkDeviceCreateInfo* createInfo,
-                    const VkAllocationCallbacks*,
-                    VkDevice*)
-{
-    g_loader.enabledDeviceExtensions.assign(
-        createInfo->ppEnabledExtensionNames,
-        createInfo->ppEnabledExtensionNames +
-            createInfo->enabledExtensionCount);
-    // Nothing here needs a device to exist, only to know it was asked for.
-    g_loader.createdDevice = true;
-    return VK_ERROR_INITIALIZATION_FAILED;
-}
-
-VKAPI_ATTR void VKAPI_CALL fake_vkDestroyInstance(VkInstance,
-                                                  const VkAllocationCallbacks*)
+fake_vkDestroyInstance(VkInstance, const VkAllocationCallbacks*)
 {}
 
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 fake_vkGetInstanceProcAddr(VkInstance, const char* name)
 {
 #define ENTRY(fn)                                                              \
-    if (strcmp(name, #fn) == 0)                                                \
-    {                                                                          \
-        return reinterpret_cast<PFN_vkVoidFunction>(fake_##fn);                \
-    }
+  if (strcmp(name, #fn) == 0)                                                  \
+  {                                                                            \
+    return reinterpret_cast<PFN_vkVoidFunction>(fake_##fn);                    \
+  }
 
-    ENTRY(vkEnumerateInstanceExtensionProperties)
-    ENTRY(vkEnumerateInstanceLayerProperties)
-    ENTRY(vkEnumerateDeviceExtensionProperties)
-    ENTRY(vkEnumerateInstanceVersion)
-    ENTRY(vkCreateInstance)
-    ENTRY(vkEnumeratePhysicalDevices)
-    ENTRY(vkGetPhysicalDeviceProperties)
-    ENTRY(vkGetPhysicalDeviceFeatures)
-    ENTRY(vkGetPhysicalDeviceQueueFamilyProperties)
-    ENTRY(vkCreateDevice)
-    ENTRY(vkDestroyInstance)
+  ENTRY(vkEnumerateInstanceExtensionProperties)
+  ENTRY(vkEnumerateInstanceLayerProperties)
+  ENTRY(vkEnumerateDeviceExtensionProperties)
+  ENTRY(vkEnumerateInstanceVersion)
+  ENTRY(vkCreateInstance)
+  ENTRY(vkEnumeratePhysicalDevices)
+  ENTRY(vkGetPhysicalDeviceProperties)
+  ENTRY(vkGetPhysicalDeviceFeatures)
+  ENTRY(vkGetPhysicalDeviceQueueFamilyProperties)
+  ENTRY(vkCreateDevice)
+  ENTRY(vkDestroyInstance)
 #undef ENTRY
-    return nullptr;
+  return nullptr;
 }
 
 // Installs the stand-in loader for the duration of a test.
 struct FakeLoader
 {
-    FakeLoader()
-    {
-        g_loader = {};
-        g_testingVkGetInstanceProcAddr = fake_vkGetInstanceProcAddr;
-    }
-    ~FakeLoader() { g_testingVkGetInstanceProcAddr = nullptr; }
+  FakeLoader()
+  {
+    g_loader = {};
+    g_testingVkGetInstanceProcAddr = fake_vkGetInstanceProcAddr;
+  }
+  ~FakeLoader() { g_testingVkGetInstanceProcAddr = nullptr; }
 };
 
 void setRiveGpu(const char* value)
 {
 #ifdef _WIN32
-    // An empty value removes the variable.
-    _putenv_s("RIVE_GPU", value != nullptr ? value : "");
+  // An empty value removes the variable.
+  _putenv_s("RIVE_GPU", value != nullptr ? value : "");
 #else
-    if (value != nullptr)
-    {
-        setenv("RIVE_GPU", value, 1);
-    }
-    else
-    {
-        unsetenv("RIVE_GPU");
-    }
+  if (value != nullptr)
+  {
+    setenv("RIVE_GPU", value, 1);
+  }
+  else
+  {
+    unsetenv("RIVE_GPU");
+  }
 #endif
 }
 
@@ -261,24 +263,24 @@ void setRiveGpu(const char* value)
 class ScopedUnsetRiveGpu
 {
 public:
-    ScopedUnsetRiveGpu()
+  ScopedUnsetRiveGpu()
+  {
+    if (const char* value = getenv("RIVE_GPU"))
     {
-        if (const char* value = getenv("RIVE_GPU"))
-        {
-            m_saved = value;
-        }
-        setRiveGpu(nullptr);
+      m_saved = value;
     }
-    ~ScopedUnsetRiveGpu()
+    setRiveGpu(nullptr);
+  }
+  ~ScopedUnsetRiveGpu()
+  {
+    if (m_saved.has_value())
     {
-        if (m_saved.has_value())
-        {
-            setRiveGpu(m_saved->c_str());
-        }
+      setRiveGpu(m_saved->c_str());
     }
+  }
 
 private:
-    std::optional<std::string> m_saved;
+  std::optional<std::string> m_saved;
 };
 
 const char* g_requiredExtensions[] = {VK_KHR_SURFACE_EXTENSION_NAME};
@@ -295,110 +297,114 @@ const VulkanInstance::Options kInstanceOptions = {
 // keeps a regression here a failed assertion instead of a terabyte allocation.
 VKB_NEVER_INLINE void poisonStack()
 {
-    volatile uint32_t scratch[4 * 1024];
-    for (auto& word : scratch)
-    {
-        word = 64;
-    }
+  volatile uint32_t scratch[4 * 1024];
+  for (auto& word : scratch)
+  {
+    word = 64;
+  }
 }
 
 std::unique_ptr<VulkanInstance> createInstance()
 {
-    poisonStack();
-    return VulkanInstance::Create(kInstanceOptions);
+  poisonStack();
+  return VulkanInstance::Create(kInstanceOptions);
 }
 } // namespace
 
-TEST_CASE("VulkanInstance is created when enumeration succeeds",
-          "[vulkan_bootstrap]")
+TEST_CASE(
+    "VulkanInstance is created when enumeration succeeds",
+    "[vulkan_bootstrap]")
 {
-    FakeLoader loader;
+  FakeLoader loader;
 
-    CHECK(createInstance() != nullptr);
-    CHECK(g_loader.createdInstance);
+  CHECK(createInstance() != nullptr);
+  CHECK(g_loader.createdInstance);
 }
 
-TEST_CASE("VulkanInstance creation stops at a failed enumeration",
-          "[vulkan_bootstrap]")
+TEST_CASE(
+    "VulkanInstance creation stops at a failed enumeration",
+    "[vulkan_bootstrap]")
 {
-    FakeLoader loader;
-    // 0, 1: extension count and properties. 2, 3: layer count and properties.
-    // VK_INCOMPLETE only comes back from a properties call.
-    std::tie(g_loader.failingCall, g_loader.failure) =
-        GENERATE(table<int, VkResult>({
-            {0, VK_ERROR_INITIALIZATION_FAILED},
-            {0, VK_ERROR_OUT_OF_HOST_MEMORY},
-            {1, VK_ERROR_INITIALIZATION_FAILED},
-            {1, VK_ERROR_OUT_OF_HOST_MEMORY},
-            {1, VK_INCOMPLETE},
-            {2, VK_ERROR_INITIALIZATION_FAILED},
-            {2, VK_ERROR_OUT_OF_HOST_MEMORY},
-            {3, VK_ERROR_INITIALIZATION_FAILED},
-            {3, VK_ERROR_OUT_OF_HOST_MEMORY},
-            {3, VK_INCOMPLETE},
-        }));
+  FakeLoader loader;
+  // 0, 1: extension count and properties. 2, 3: layer count and properties.
+  // VK_INCOMPLETE only comes back from a properties call.
+  std::tie(g_loader.failingCall, g_loader.failure) = GENERATE(
+      table<int, VkResult>({
+          {0, VK_ERROR_INITIALIZATION_FAILED},
+          {0, VK_ERROR_OUT_OF_HOST_MEMORY},
+          {1, VK_ERROR_INITIALIZATION_FAILED},
+          {1, VK_ERROR_OUT_OF_HOST_MEMORY},
+          {1, VK_INCOMPLETE},
+          {2, VK_ERROR_INITIALIZATION_FAILED},
+          {2, VK_ERROR_OUT_OF_HOST_MEMORY},
+          {3, VK_ERROR_INITIALIZATION_FAILED},
+          {3, VK_ERROR_OUT_OF_HOST_MEMORY},
+          {3, VK_INCOMPLETE},
+      }));
 
-    // Returning null is what lets the Android runtime fall back to OpenGL.
-    CHECK(createInstance() == nullptr);
-    CHECK_FALSE(g_loader.createdInstance);
-    // Nothing may act on the count a failed call left undefined.
-    CHECK(g_loader.calls.size() == size_t(g_loader.failingCall) + 1);
+  // Returning null is what lets the Android runtime fall back to OpenGL.
+  CHECK(createInstance() == nullptr);
+  CHECK_FALSE(g_loader.createdInstance);
+  // Nothing may act on the count a failed call left undefined.
+  CHECK(g_loader.calls.size() == size_t(g_loader.failingCall) + 1);
 }
 
 TEST_CASE("VulkanDevice enables the extensions it needs", "[vulkan_bootstrap]")
 {
-    FakeLoader loader;
-    ScopedUnsetRiveGpu unsetRiveGpu;
-    auto instance = createInstance();
-    REQUIRE(instance != nullptr);
+  FakeLoader loader;
+  ScopedUnsetRiveGpu unsetRiveGpu;
+  auto instance = createInstance();
+  REQUIRE(instance != nullptr);
 
-    VulkanDevice::Create(*instance, {});
+  VulkanDevice::Create(*instance, {});
 
-    CHECK(g_loader.createdDevice);
-    CHECK(g_loader.enabledDeviceExtensions ==
-          std::vector<std::string>{VK_KHR_SWAPCHAIN_EXTENSION_NAME});
+  CHECK(g_loader.createdDevice);
+  CHECK(
+      g_loader.enabledDeviceExtensions ==
+      std::vector<std::string>{VK_KHR_SWAPCHAIN_EXTENSION_NAME});
 }
 
-TEST_CASE("VulkanDevice carries on without extensions when enumeration fails",
-          "[vulkan_bootstrap]")
+TEST_CASE(
+    "VulkanDevice carries on without extensions when enumeration fails",
+    "[vulkan_bootstrap]")
 {
-    FakeLoader loader;
-    ScopedUnsetRiveGpu unsetRiveGpu;
-    auto instance = createInstance();
-    REQUIRE(instance != nullptr);
+  FakeLoader loader;
+  ScopedUnsetRiveGpu unsetRiveGpu;
+  auto instance = createInstance();
+  REQUIRE(instance != nullptr);
 
-    // 0: extension count. 1: extension properties.
-    const auto [failingOffset, failure] = GENERATE(table<int, VkResult>({
-        {0, VK_ERROR_INITIALIZATION_FAILED},
-        {0, VK_ERROR_OUT_OF_HOST_MEMORY},
-        {1, VK_ERROR_INITIALIZATION_FAILED},
-        {1, VK_ERROR_OUT_OF_HOST_MEMORY},
-        {1, VK_INCOMPLETE},
-    }));
-    g_loader.failingCall = int(g_loader.calls.size()) + failingOffset;
-    g_loader.failure = failure;
+  // 0: extension count. 1: extension properties.
+  const auto [failingOffset, failure] = GENERATE(table<int, VkResult>({
+      {0, VK_ERROR_INITIALIZATION_FAILED},
+      {0, VK_ERROR_OUT_OF_HOST_MEMORY},
+      {1, VK_ERROR_INITIALIZATION_FAILED},
+      {1, VK_ERROR_OUT_OF_HOST_MEMORY},
+      {1, VK_INCOMPLETE},
+  }));
+  g_loader.failingCall = int(g_loader.calls.size()) + failingOffset;
+  g_loader.failure = failure;
 
-    SECTION("headless, which needs no extensions")
-    {
-        poisonStack();
-        VulkanDevice::Create(*instance, {.headless = true});
-        CHECK(g_loader.createdDevice);
-        CHECK(g_loader.enabledDeviceExtensions.empty());
-    }
+  SECTION("headless, which needs no extensions")
+  {
+    poisonStack();
+    VulkanDevice::Create(*instance, {.headless = true});
+    CHECK(g_loader.createdDevice);
+    CHECK(g_loader.enabledDeviceExtensions.empty());
+  }
 
-    SECTION("presenting, which needs a swapchain")
-    {
-        poisonStack();
-        // Null is what lets the Android runtime fall back to OpenGL.
-        CHECK(VulkanDevice::Create(*instance, {}) == nullptr);
-        CHECK_FALSE(g_loader.createdDevice);
-    }
+  SECTION("presenting, which needs a swapchain")
+  {
+    poisonStack();
+    // Null is what lets the Android runtime fall back to OpenGL.
+    CHECK(VulkanDevice::Create(*instance, {}) == nullptr);
+    CHECK_FALSE(g_loader.createdDevice);
+  }
 
-    // Nothing may act on the count a failed call left undefined.
-    REQUIRE(g_loader.calls.size() == size_t(g_loader.failingCall) + 1);
-    CHECK(g_loader.calls.back().command ==
-          "vkEnumerateDeviceExtensionProperties");
-    CHECK(g_loader.calls.back().queriedCount == (failingOffset == 0));
+  // Nothing may act on the count a failed call left undefined.
+  REQUIRE(g_loader.calls.size() == size_t(g_loader.failingCall) + 1);
+  CHECK(
+      g_loader.calls.back().command == "vkEnumerateDeviceExtensionProperties");
+  CHECK(g_loader.calls.back().queriedCount == (failingOffset == 0));
 }
 } // namespace rive_vkb
 

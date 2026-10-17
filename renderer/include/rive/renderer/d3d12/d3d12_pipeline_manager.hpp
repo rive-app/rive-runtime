@@ -15,127 +15,128 @@ namespace rive::gpu
 // part of the pipeline key. Extend the standard props with a wireframe bit.
 struct D3D12PipelineProps
 {
-    DrawType drawType;
-    ShaderFeatures shaderFeatures;
-    InterlockMode interlockMode;
-    ShaderMiscFlags shaderMiscFlags;
-    DrawContents drawContents;
-    bool fixedFunctionColorOutput;
-    BlendMode blendMode;
-    bool wireframe;
+  DrawType drawType;
+  ShaderFeatures shaderFeatures;
+  InterlockMode interlockMode;
+  ShaderMiscFlags shaderMiscFlags;
+  DrawContents drawContents;
+  bool fixedFunctionColorOutput;
+  BlendMode blendMode;
+  bool wireframe;
 #ifdef WITH_RIVE_TOOLS
-    SynthesizedFailureType synthesizedFailureType =
-        SynthesizedFailureType::none;
+  SynthesizedFailureType synthesizedFailureType = SynthesizedFailureType::none;
 #endif
 
-    // depthStencil bakes depth/stencil/cull/color-write state into the PSO,
-    // so the key has to separate variants that share a shader.
-    uint64_t createKey(const PlatformFeatures& platformFeatures) const
-    {
-        uint64_t key = gpu::getPipelineUniqueKey(drawType,
-                                                 shaderFeatures,
-                                                 interlockMode,
-                                                 shaderMiscFlags,
-                                                 drawContents,
-                                                 fixedFunctionColorOutput,
-                                                 blendMode,
-                                                 platformFeatures);
-        return math::add_bits_to_key(key, uint64_t(wireframe), 1);
-    }
+  // depthStencil bakes depth/stencil/cull/color-write state into the PSO,
+  // so the key has to separate variants that share a shader.
+  uint64_t createKey(const PlatformFeatures& platformFeatures) const
+  {
+    uint64_t key = gpu::getPipelineUniqueKey(
+        drawType,
+        shaderFeatures,
+        interlockMode,
+        shaderMiscFlags,
+        drawContents,
+        fixedFunctionColorOutput,
+        blendMode,
+        platformFeatures);
+    return math::add_bits_to_key(key, uint64_t(wireframe), 1);
+  }
 };
 
 // holds all shader stuff including inputlayouts, source blobs and pipeline
 // states
 struct D3D12DrawVertexShader
 {
-    StackVector<D3D12_INPUT_ELEMENT_DESC, gpu::MaxVertexAttributeCount>
-        m_layoutDesc;
-    ComPtr<ID3DBlob> m_shader;
+  StackVector<D3D12_INPUT_ELEMENT_DESC, gpu::MaxVertexAttributeCount>
+      m_layoutDesc;
+  ComPtr<ID3DBlob> m_shader;
 };
 
 struct D3D12DrawPixelShader
 {
-    ComPtr<ID3DBlob> m_shader;
+  ComPtr<ID3DBlob> m_shader;
 };
 
 struct D3D12Pipeline
 {
-    using VertexShaderType = D3D12DrawVertexShader;
-    using FragmentShaderType = D3D12DrawPixelShader;
-    using PipelineProps = D3D12PipelineProps;
+  using VertexShaderType = D3D12DrawVertexShader;
+  using FragmentShaderType = D3D12DrawPixelShader;
+  using PipelineProps = D3D12PipelineProps;
 
-    ComPtr<ID3D12PipelineState> m_d3dPipelineState;
+  ComPtr<ID3D12PipelineState> m_d3dPipelineState;
 
-    bool succeeded() const { return m_d3dPipelineState != nullptr; }
+  bool succeeded() const { return m_d3dPipelineState != nullptr; }
 };
 
 class D3D12PipelineManager
     : public D3DPipelineManager<D3D12Pipeline, ID3D12Device>
 {
-    using Super = D3DPipelineManager<D3D12Pipeline, ID3D12Device>;
+  using Super = D3DPipelineManager<D3D12Pipeline, ID3D12Device>;
 
 public:
-    D3D12PipelineManager(ComPtr<ID3D12Device>,
-                         const D3DCapabilities&,
-                         ShaderCompilationMode);
+  D3D12PipelineManager(
+      ComPtr<ID3D12Device>,
+      const D3DCapabilities&,
+      ShaderCompilationMode);
 
-    ~D3D12PipelineManager() { shutdownBackgroundThread(); }
+  ~D3D12PipelineManager() { shutdownBackgroundThread(); }
 
-    void compileTesselationPipeline();
-    void compileGradientPipeline();
-    void compileFeatherAtlasPipeline();
+  void compileTesselationPipeline();
+  void compileGradientPipeline();
+  void compileFeatherAtlasPipeline();
 
-    void setRootSig(ID3D12GraphicsCommandList* cmdList) const
-    {
-        assert(m_rootSignature);
-        cmdList->SetGraphicsRootSignature(m_rootSignature.Get());
-    }
+  void setRootSig(ID3D12GraphicsCommandList* cmdList) const
+  {
+    assert(m_rootSignature);
+    cmdList->SetGraphicsRootSignature(m_rootSignature.Get());
+  }
 
-    void setTesselationPipeline(ID3D12GraphicsCommandList* cmdList) const
-    {
-        assert(m_tesselationPipeline);
-        cmdList->SetPipelineState(m_tesselationPipeline.Get());
-    }
+  void setTesselationPipeline(ID3D12GraphicsCommandList* cmdList) const
+  {
+    assert(m_tesselationPipeline);
+    cmdList->SetPipelineState(m_tesselationPipeline.Get());
+  }
 
-    void setFeatherAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
-    {
-        assert(m_featherAtlasFillPipeline);
-        cmdList->SetPipelineState(m_featherAtlasFillPipeline.Get());
-    }
+  void setFeatherAtlasFillPipeline(ID3D12GraphicsCommandList* cmdList) const
+  {
+    assert(m_featherAtlasFillPipeline);
+    cmdList->SetPipelineState(m_featherAtlasFillPipeline.Get());
+  }
 
-    void setFeatherAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
-    {
-        assert(m_featherAtlasStrokePipeline);
-        cmdList->SetPipelineState(m_featherAtlasStrokePipeline.Get());
-    }
+  void setFeatherAtlasStrokePipeline(ID3D12GraphicsCommandList* cmdList) const
+  {
+    assert(m_featherAtlasStrokePipeline);
+    cmdList->SetPipelineState(m_featherAtlasStrokePipeline.Get());
+  }
 
-    void setGradientPipeline(ID3D12GraphicsCommandList* cmdList) const
-    {
-        assert(m_gradientPipeline);
-        cmdList->SetPipelineState(m_gradientPipeline.Get());
-    }
+  void setGradientPipeline(ID3D12GraphicsCommandList* cmdList) const
+  {
+    assert(m_gradientPipeline);
+    cmdList->SetPipelineState(m_gradientPipeline.Get());
+  }
 
 protected:
-    virtual std::unique_ptr<D3D12DrawVertexShader>
-        compileVertexShaderBlobToFinalType(DrawType, ComPtr<ID3DBlob>) override;
+  virtual std::unique_ptr<D3D12DrawVertexShader>
+      compileVertexShaderBlobToFinalType(DrawType, ComPtr<ID3DBlob>) override;
 
-    virtual std::unique_ptr<D3D12DrawPixelShader>
-    compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob) override;
+  virtual std::unique_ptr<D3D12DrawPixelShader>
+  compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob) override;
 
-    virtual std::unique_ptr<D3D12Pipeline> linkPipeline(
-        const PipelineProps&,
-        const D3D12DrawVertexShader&,
-        const D3D12DrawPixelShader&,
-        const PlatformFeatures&) override;
+  virtual std::unique_ptr<D3D12Pipeline> linkPipeline(
+      const PipelineProps&,
+      const D3D12DrawVertexShader&,
+      const D3D12DrawPixelShader&,
+      const PlatformFeatures&) override;
 
 private:
-    // maybe these could be moved to D3DPipelineState but to do so
-    // required a lot of extra complexity that didnt seem worth it
-    ComPtr<ID3D12PipelineState> m_tesselationPipeline;
-    ComPtr<ID3D12PipelineState> m_featherAtlasStrokePipeline;
-    ComPtr<ID3D12PipelineState> m_featherAtlasFillPipeline;
-    ComPtr<ID3D12PipelineState> m_gradientPipeline;
+  // maybe these could be moved to D3DPipelineState but to do so
+  // required a lot of extra complexity that didnt seem worth it
+  ComPtr<ID3D12PipelineState> m_tesselationPipeline;
+  ComPtr<ID3D12PipelineState> m_featherAtlasStrokePipeline;
+  ComPtr<ID3D12PipelineState> m_featherAtlasFillPipeline;
+  ComPtr<ID3D12PipelineState> m_gradientPipeline;
 
-    ComPtr<ID3D12RootSignature> m_rootSignature;
+  ComPtr<ID3D12RootSignature> m_rootSignature;
 };
 } // namespace rive::gpu

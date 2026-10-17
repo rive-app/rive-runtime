@@ -11,62 +11,63 @@ DataConverter::~DataConverter() { deleteDataBinds(); }
 
 StatusCode DataConverter::import(ImportStack& importStack)
 {
-    auto backboardImporter =
-        importStack.latest<BackboardImporter>(Backboard::typeKey);
-    if (backboardImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    backboardImporter->addDataConverter(this);
+  auto backboardImporter = importStack.latest<BackboardImporter>(
+      Backboard::typeKey);
+  if (backboardImporter == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  backboardImporter->addDataConverter(this);
 
-    return Super::import(importStack);
+  return Super::import(importStack);
 }
 
-void DataConverter::bindFromContext(DataContext* dataContext,
-                                    DataBind* dataBind)
+void DataConverter::bindFromContext(
+    DataContext* dataContext,
+    DataBind* dataBind)
 {
-    m_parentDataBind = dataBind;
-    bindDataBindsFromContext(rcp<DataContext>(safe_ref(dataContext)));
+  m_parentDataBind = dataBind;
+  bindDataBindsFromContext(rcp<DataContext>(safe_ref(dataContext)));
 }
 
 void DataConverter::unbind() { unbindDataBinds(); }
 
 void DataConverter::markConverterDirty()
 {
-    if (m_parentDataBind != nullptr)
-    {
-        // Re-assert the direction of the change currently in flight rather than
-        // hardcoding source→target: a target-originated interpolation must keep
-        // flowing target→source across the frames it advances. Dependents keeps
-        // the context value invalidated so the apply re-runs (and steps the
-        // interpolator) every frame.
-        m_parentDataBind->addDirt(ComponentDirt::Dependents |
-                                      (m_parentDataBind->targetOrigin()
-                                           ? ComponentDirt::BindingsTarget
-                                           : ComponentDirt::Bindings),
-                                  false);
-    }
+  if (m_parentDataBind != nullptr)
+  {
+    // Re-assert the direction of the change currently in flight rather than
+    // hardcoding source→target: a target-originated interpolation must keep
+    // flowing target→source across the frames it advances. Dependents keeps
+    // the context value invalidated so the apply re-runs (and steps the
+    // interpolator) every frame.
+    m_parentDataBind->addDirt(
+        ComponentDirt::Dependents |
+            (m_parentDataBind->targetOrigin() ? ComponentDirt::BindingsTarget
+                                              : ComponentDirt::Bindings),
+        false);
+  }
 }
 
 void DataConverter::addDirtyDataBind(DataBind* dataBind)
 {
-    markConverterDirty();
-    DataBindContainer::addDirtyDataBind(dataBind);
+  markConverterDirty();
+  DataBindContainer::addDirtyDataBind(dataBind);
 }
 
 void DataConverter::update() { updateDataBinds(false); }
 
 void DataConverter::copy(const DataConverter& object)
 {
-    auto dataBinds = object.dataBinds();
-    for (auto dataBind : dataBinds)
-    {
-        auto dataBindClone = dataBind->clone()->as<DataBind>();
-        dataBindClone->target(this);
-        dataBindClone->file(dataBind->file());
-        addDataBind(dataBindClone);
-    }
-    DataConverterBase::copy(object);
+  auto dataBinds = object.dataBinds();
+  for (auto dataBind : dataBinds)
+  {
+    auto dataBindClone = dataBind->clone()->as<DataBind>();
+    dataBindClone->target(this);
+    dataBindClone->file(dataBind->file());
+    addDataBind(dataBindClone);
+  }
+  DataConverterBase::copy(object);
 }
 
 bool DataConverter::advance(float elapsedTime) { return false; }
@@ -74,18 +75,18 @@ bool DataConverter::advance(float elapsedTime) { return false; }
 #ifdef WITH_RIVE_EDITOR
 void DataConverter::editorPrepareForDestruction()
 {
-    unbind();
-    // Owned binds can themselves own converters with arena-backed children.
-    // Prepare them while all those children still exist. Preparation removes
-    // each bind from this container, so iterate a snapshot and delete only
-    // the non-arena binds whose ownership belongs to us.
-    for (auto* bind : std::vector<DataBind*>(dataBinds()))
-    {
-        const bool owned = bind->editorArena() == nullptr;
-        bind->editorPrepareForDestruction();
-        if (owned)
-            delete bind;
-    }
-    m_parentDataBind = nullptr;
+  unbind();
+  // Owned binds can themselves own converters with arena-backed children.
+  // Prepare them while all those children still exist. Preparation removes
+  // each bind from this container, so iterate a snapshot and delete only
+  // the non-arena binds whose ownership belongs to us.
+  for (auto* bind : std::vector<DataBind*>(dataBinds()))
+  {
+    const bool owned = bind->editorArena() == nullptr;
+    bind->editorPrepareForDestruction();
+    if (owned)
+      delete bind;
+  }
+  m_parentDataBind = nullptr;
 }
 #endif

@@ -11,12 +11,12 @@ class ViewModelProperty;
 class ViewModelImporter : public ImportStackObject
 {
 private:
-    ViewModel* m_ViewModel;
+  ViewModel* m_ViewModel;
 
 public:
-    ViewModelImporter(ViewModel* viewModel);
-    void addProperty(ViewModelProperty* property);
-    StatusCode resolve() override;
+  ViewModelImporter(ViewModel* viewModel);
+  void addProperty(ViewModelProperty* property);
+  StatusCode resolve() override;
 };
 } // namespace rive
 #endif

@@ -7,52 +7,52 @@ namespace rive
 class DataConverterStringTrimBase : public DataConverter
 {
 protected:
-    typedef DataConverter Super;
+  typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 532;
+  static const uint16_t typeKey = 532;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t trimTypePropertyKey = 746;
+  static const uint16_t trimTypePropertyKey = 746;
 
 protected:
-    uint32_t m_TrimType = 1;
+  uint32_t m_TrimType = 1;
 
 public:
-    inline uint32_t trimType() const { return m_TrimType; }
-    void trimType(uint32_t value)
+  inline uint32_t trimType() const { return m_TrimType; }
+  void trimType(uint32_t value)
+  {
+    if (m_TrimType == value)
     {
-        if (m_TrimType == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(trimTypePropertyKey, &m_TrimType, &value);
-        m_TrimType = value;
-        RIVE_EDITOR_CHANGED(trimTypeChanged());
-        notifyPropertyChanged(trimTypePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(trimTypePropertyKey, &m_TrimType, &value);
+    m_TrimType = value;
+    RIVE_EDITOR_CHANGED(trimTypeChanged());
+    notifyPropertyChanged(trimTypePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DataConverterStringTrimBase& object)
-    {
-        m_TrimType = object.m_TrimType;
-        DataConverter::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DataConverterStringTrimBase& object)
+  {
+    m_TrimType = object.m_TrimType;
+    DataConverter::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case trimTypePropertyKey:
-                m_TrimType = CoreUintType::deserialize(reader);
-                return true;
-        }
-        return DataConverter::deserialize(propertyKey, reader);
+      case trimTypePropertyKey:
+        m_TrimType = CoreUintType::deserialize(reader);
+        return true;
     }
+    return DataConverter::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void trimTypeChanged() {}
+  virtual void trimTypeChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/data_converter_string_trim_ext.inl"
 #endif

@@ -22,120 +22,120 @@ class ScriptedDrawable : public ScriptedDrawableBase,
 {
 public:
 #ifdef WITH_RIVE_SCRIPTING
-    void didHydrateScriptInputs() override;
-    void didReinit() override;
+  void didHydrateScriptInputs() override;
+  void didReinit() override;
 #endif
-    void draw(Renderer* renderer) override;
-    void update(ComponentDirt value) override;
-    Core* hitTest(HitInfo*, const Mat2D&) override;
-    uint32_t assetId() override { return scriptAssetId(); }
-    StatusCode onAddedDirty(CoreContext* context) override;
-    bool advanceComponent(float elapsedSeconds,
-                          AdvanceFlags flags = AdvanceFlags::Animate |
-                                               AdvanceFlags::NewFrame) override;
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
-    const std::vector<Component*>& containerChildren() const override
+  void draw(Renderer* renderer) override;
+  void update(ComponentDirt value) override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
+  uint32_t assetId() override { return scriptAssetId(); }
+  StatusCode onAddedDirty(CoreContext* context) override;
+  bool advanceComponent(
+      float elapsedSeconds,
+      AdvanceFlags flags = AdvanceFlags::Animate |
+                           AdvanceFlags::NewFrame) override;
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
+  const std::vector<Component*>& containerChildren() const override
+  {
+    return children();
+  }
+  void addProperty(CustomProperty* prop) override;
+  bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
+  rcp<DataContext> dataContext() override
+  {
+    if (artboard() != nullptr)
     {
-        return children();
+      return artboard()->dataContext();
     }
-    void addProperty(CustomProperty* prop) override;
-    bool addScriptedDirt(ComponentDirt value, bool recurse = false) override;
-    rcp<DataContext> dataContext() override
-    {
-        if (artboard() != nullptr)
-        {
-            return artboard()->dataContext();
-        }
-        return nullptr;
-    }
-    ScriptProtocol scriptProtocol() override { return ScriptProtocol::node; }
-    std::vector<ListenerGroupWithTargets*> listenerGroups() override
-    {
-        return {};
-    }
-    std::vector<HitComponent*> hitComponents(StateMachineInstance* sm) override;
-    bool worldToLocal(Vec2D world, Vec2D* local);
-    void markNeedsUpdate() override;
-    bool willDraw() override;
+    return nullptr;
+  }
+  ScriptProtocol scriptProtocol() override { return ScriptProtocol::node; }
+  std::vector<ListenerGroupWithTargets*> listenerGroups() override
+  {
+    return {};
+  }
+  std::vector<HitComponent*> hitComponents(StateMachineInstance* sm) override;
+  bool worldToLocal(Vec2D world, Vec2D* local);
+  void markNeedsUpdate() override;
+  bool willDraw() override;
 #ifdef WITH_RIVE_SCRIPTING
-    bool gamepadDispatch(const ListenerInvocation& invocation);
+  bool gamepadDispatch(const ListenerInvocation& invocation);
 #endif
-    // Whether the running script can take pointer events.
-    bool hasPointerHandler();
-    Component* component() override { return this; }
-    bool keyInput(Key key,
-                  KeyModifiers modifiers,
-                  bool isPressed,
-                  bool isRepeat);
-    bool textInput(const std::string& text);
-    // Re-arm the advance loop after an input event is dispatched to the
-    // script; the handler may have changed state (e.g. fired a trigger on a
-    // scripted artboard) that only the next scriptAdvance can consume.
-    void wakeAdvance();
-    /// Whether a scroll gesture this script claimed is still in flight.
-    bool scrollLatched() const { return m_scrollLatched; }
-    void scrollLatched(bool value)
-    {
-        m_scrollLatched = value;
-        m_scrollIdleSeconds = 0;
-    }
+  // Whether the running script can take pointer events.
+  bool hasPointerHandler();
+  Component* component() override { return this; }
+  bool keyInput(Key key, KeyModifiers modifiers, bool isPressed, bool isRepeat);
+  bool textInput(const std::string& text);
+  // Re-arm the advance loop after an input event is dispatched to the
+  // script; the handler may have changed state (e.g. fired a trigger on a
+  // scripted artboard) that only the next scriptAdvance can consume.
+  void wakeAdvance();
+  /// Whether a scroll gesture this script claimed is still in flight.
+  bool scrollLatched() const { return m_scrollLatched; }
+  void scrollLatched(bool value)
+  {
+    m_scrollLatched = value;
+    m_scrollIdleSeconds = 0;
+  }
 
 private:
-    bool m_isAdvanceActive = true;
-    bool m_scrollLatched = false;
-    float m_scrollIdleSeconds = 0;
-    // One zero step after a reinit so advance driven content, like gpu
-    // canvas fills, re-records while paused.
-    bool m_forceAdvance = false;
+  bool m_isAdvanceActive = true;
+  bool m_scrollLatched = false;
+  float m_scrollIdleSeconds = 0;
+  // One zero step after a reinit so advance driven content, like gpu
+  // canvas fills, re-records while paused.
+  bool m_forceAdvance = false;
 };
 
 class HitScriptedDrawable : public HitComponent
 {
 private:
-    ScriptedDrawable* m_drawable;
-    bool handlesEvent(bool canHit, ListenerType hitEvent);
-    std::string methodName(bool canHit, ListenerType hitEvent);
+  ScriptedDrawable* m_drawable;
+  bool handlesEvent(bool canHit, ListenerType hitEvent);
+  std::string methodName(bool canHit, ListenerType hitEvent);
 
 public:
-    HitScriptedDrawable(ScriptedDrawable* drawable,
-                        StateMachineInstance* stateMachineInstance) :
-        HitComponent(drawable, stateMachineInstance)
-    {
-        this->m_drawable = drawable;
-    }
+  HitScriptedDrawable(
+      ScriptedDrawable* drawable,
+      StateMachineInstance* stateMachineInstance)
+      : HitComponent(drawable, stateMachineInstance)
+  {
+    this->m_drawable = drawable;
+  }
 
-    bool hitTest(Vec2D position) const override
-    {
-        return m_drawable->hasPointerHandler();
-    }
-    bool hitTestBounded(Vec2D position) const override;
-    bool withinBounds(Vec2D position) const;
-    void prepareEvent(Vec2D position,
-                      ListenerType hitType,
-                      int pointerId) override
-    {}
+  bool hitTest(Vec2D position) const override
+  {
+    return m_drawable->hasPointerHandler();
+  }
+  bool hitTestBounded(Vec2D position) const override;
+  bool withinBounds(Vec2D position) const;
+  void prepareEvent(Vec2D position, ListenerType hitType, int pointerId)
+      override
+  {}
 
-    HitResult processEvent(Vec2D position,
-                           ListenerType hitType,
-                           bool canHit,
-                           float timeStamp,
-                           int pointerId,
-                           PointerButton button) override;
-    HitResult processGamepadInvocation(
-        const ListenerInvocation& invocation,
-        ScriptedDrawable* alreadyDispatched) override;
-    bool hasScrollTarget(Vec2D position) override;
-    bool wantsScroll(Vec2D position, const ScrollEvent& event) override
-    {
-        return hasScrollTarget(position);
-    }
-    bool scrollGestureActive() override;
-    void cancelScroll() override { m_drawable->scrollLatched(false); }
-    HitResult processScroll(Vec2D position,
-                            const ScrollEvent& event,
-                            float timeStamp,
-                            int pointerId) override;
+  HitResult processEvent(
+      Vec2D position,
+      ListenerType hitType,
+      bool canHit,
+      float timeStamp,
+      int pointerId,
+      PointerButton button) override;
+  HitResult processGamepadInvocation(
+      const ListenerInvocation& invocation,
+      ScriptedDrawable* alreadyDispatched) override;
+  bool hasScrollTarget(Vec2D position) override;
+  bool wantsScroll(Vec2D position, const ScrollEvent& event) override
+  {
+    return hasScrollTarget(position);
+  }
+  bool scrollGestureActive() override;
+  void cancelScroll() override { m_drawable->scrollLatched(false); }
+  HitResult processScroll(
+      Vec2D position,
+      const ScrollEvent& event,
+      float timeStamp,
+      int pointerId) override;
 };
 } // namespace rive
 

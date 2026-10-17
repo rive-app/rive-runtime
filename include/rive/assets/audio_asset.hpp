@@ -9,21 +9,21 @@ namespace rive
 class AudioAsset : public AudioAssetBase
 {
 public:
-    AudioAsset();
-    ~AudioAsset() override;
-    bool decode(SimpleArray<uint8_t>&, Factory*) override;
-    std::string fileExtension() const override;
+  AudioAsset();
+  ~AudioAsset() override;
+  bool decode(SimpleArray<uint8_t>&, Factory*) override;
+  std::string fileExtension() const override;
 
 #ifdef TESTING
-    bool hasAudioSource() { return m_audioSource != nullptr; }
+  bool hasAudioSource() { return m_audioSource != nullptr; }
 #endif
 
-    rcp<AudioSource> audioSource() { return m_audioSource; }
-    void audioSource(rcp<AudioSource> source) { m_audioSource = source; }
-    void stop(rcp<AudioEngine> engine);
+  rcp<AudioSource> audioSource() { return m_audioSource; }
+  void audioSource(rcp<AudioSource> source) { m_audioSource = source; }
+  void stop(rcp<AudioEngine> engine);
 
 private:
-    rcp<AudioSource> m_audioSource;
+  rcp<AudioSource> m_audioSource;
 };
 } // namespace rive
 

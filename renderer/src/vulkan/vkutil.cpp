@@ -11,619 +11,642 @@
 namespace rive::gpu::vkutil
 {
 #define STR_CASE(result)                                                       \
-    case VK_##result:                                                          \
-        return #result
+  case VK_##result:                                                            \
+    return #result
 
 const char* string_from_vk_result(VkResult result)
 {
-    switch (result)
-    {
-        STR_CASE(SUCCESS);
-        STR_CASE(NOT_READY);
-        STR_CASE(TIMEOUT);
-        STR_CASE(EVENT_SET);
-        STR_CASE(EVENT_RESET);
-        STR_CASE(INCOMPLETE);
-        STR_CASE(ERROR_OUT_OF_HOST_MEMORY);
-        STR_CASE(ERROR_OUT_OF_DEVICE_MEMORY);
-        STR_CASE(ERROR_INITIALIZATION_FAILED);
-        STR_CASE(ERROR_DEVICE_LOST);
-        STR_CASE(ERROR_MEMORY_MAP_FAILED);
-        STR_CASE(ERROR_LAYER_NOT_PRESENT);
-        STR_CASE(ERROR_EXTENSION_NOT_PRESENT);
-        STR_CASE(ERROR_FEATURE_NOT_PRESENT);
-        STR_CASE(ERROR_INCOMPATIBLE_DRIVER);
-        STR_CASE(ERROR_TOO_MANY_OBJECTS);
-        STR_CASE(ERROR_FORMAT_NOT_SUPPORTED);
-        STR_CASE(ERROR_SURFACE_LOST_KHR);
-        STR_CASE(SUBOPTIMAL_KHR);
-        STR_CASE(ERROR_OUT_OF_DATE_KHR);
-        STR_CASE(ERROR_INCOMPATIBLE_DISPLAY_KHR);
-        STR_CASE(ERROR_NATIVE_WINDOW_IN_USE_KHR);
-        STR_CASE(ERROR_VALIDATION_FAILED_EXT);
-        STR_CASE(ERROR_OUT_OF_POOL_MEMORY);
-        default:
-            return "<unknown>";
-    }
+  switch (result)
+  {
+    STR_CASE(SUCCESS);
+    STR_CASE(NOT_READY);
+    STR_CASE(TIMEOUT);
+    STR_CASE(EVENT_SET);
+    STR_CASE(EVENT_RESET);
+    STR_CASE(INCOMPLETE);
+    STR_CASE(ERROR_OUT_OF_HOST_MEMORY);
+    STR_CASE(ERROR_OUT_OF_DEVICE_MEMORY);
+    STR_CASE(ERROR_INITIALIZATION_FAILED);
+    STR_CASE(ERROR_DEVICE_LOST);
+    STR_CASE(ERROR_MEMORY_MAP_FAILED);
+    STR_CASE(ERROR_LAYER_NOT_PRESENT);
+    STR_CASE(ERROR_EXTENSION_NOT_PRESENT);
+    STR_CASE(ERROR_FEATURE_NOT_PRESENT);
+    STR_CASE(ERROR_INCOMPATIBLE_DRIVER);
+    STR_CASE(ERROR_TOO_MANY_OBJECTS);
+    STR_CASE(ERROR_FORMAT_NOT_SUPPORTED);
+    STR_CASE(ERROR_SURFACE_LOST_KHR);
+    STR_CASE(SUBOPTIMAL_KHR);
+    STR_CASE(ERROR_OUT_OF_DATE_KHR);
+    STR_CASE(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+    STR_CASE(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+    STR_CASE(ERROR_VALIDATION_FAILED_EXT);
+    STR_CASE(ERROR_OUT_OF_POOL_MEMORY);
+    default:
+      return "<unknown>";
+  }
 }
 Resource::Resource(rcp<VulkanContext> vk) : GPUResource(std::move(vk)) {}
 
 VulkanContext* Resource::vk() const
 {
-    return static_cast<VulkanContext*>(m_manager.get());
+  return static_cast<VulkanContext*>(m_manager.get());
 }
 
-Buffer::Buffer(rcp<VulkanContext> vk,
-               const VkBufferCreateInfo& info,
-               Mappability mappability) :
-    Resource(std::move(vk)), m_mappability(mappability), m_info(info)
+Buffer::Buffer(
+    rcp<VulkanContext> vk,
+    const VkBufferCreateInfo& info,
+    Mappability mappability)
+    : Resource(std::move(vk))
+    , m_mappability(mappability)
+    , m_info(info)
 {
-    m_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    init();
+  m_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  init();
 }
 
 Buffer::~Buffer() { resizeImmediately(0); }
 
 void Buffer::resizeImmediately(VkDeviceSize sizeInBytes)
 {
-    if (m_info.size != sizeInBytes)
+  if (m_info.size != sizeInBytes)
+  {
+    if (m_vmaAllocation != VK_NULL_HANDLE)
     {
-        if (m_vmaAllocation != VK_NULL_HANDLE)
-        {
-            if (m_mappability != Mappability::none)
-            {
-                vmaUnmapMemory(vk()->allocator(), m_vmaAllocation);
-            }
-            vmaDestroyBuffer(vk()->allocator(), m_vkBuffer, m_vmaAllocation);
-        }
-        m_info.size = sizeInBytes;
-        init();
+      if (m_mappability != Mappability::none)
+      {
+        vmaUnmapMemory(vk()->allocator(), m_vmaAllocation);
+      }
+      vmaDestroyBuffer(vk()->allocator(), m_vkBuffer, m_vmaAllocation);
     }
+    m_info.size = sizeInBytes;
+    init();
+  }
 }
 
 VmaAllocationCreateFlags vma_flags_for_mappability(Mappability mappability)
 {
-    switch (mappability)
-    {
-        case Mappability::none:
-            return 0;
-        case Mappability::writeOnly:
-            return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-        case Mappability::readWrite:
-            return VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    }
-    RIVE_UNREACHABLE();
+  switch (mappability)
+  {
+    case Mappability::none:
+      return 0;
+    case Mappability::writeOnly:
+      return VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    case Mappability::readWrite:
+      return VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+  }
+  RIVE_UNREACHABLE();
 }
 
 void Buffer::init()
 {
-    // Cleared up front so a failed allocation leaves nothing for ~Buffer() to
-    // free; vmaCreateBuffer() doesn't define its outputs when it fails.
-    m_vkBuffer = VK_NULL_HANDLE;
-    m_vmaAllocation = VK_NULL_HANDLE;
-    m_contents = nullptr;
+  // Cleared up front so a failed allocation leaves nothing for ~Buffer() to
+  // free; vmaCreateBuffer() doesn't define its outputs when it fails.
+  m_vkBuffer = VK_NULL_HANDLE;
+  m_vmaAllocation = VK_NULL_HANDLE;
+  m_contents = nullptr;
 
-    if (m_info.size > 0)
+  if (m_info.size > 0)
+  {
+    VmaAllocationCreateInfo allocInfo = {
+        .flags = vma_flags_for_mappability(m_mappability),
+        .usage = VMA_MEMORY_USAGE_AUTO,
+    };
+
+    VkBuffer buffer;
+    VmaAllocation allocation;
+    if (!VK_SUCCEEDED(
+            vmaCreateBuffer(
+                vk()->allocator(),
+                &m_info,
+                &allocInfo,
+                &buffer,
+                &allocation,
+                nullptr),
+            "a buffer"))
     {
-        VmaAllocationCreateInfo allocInfo = {
-            .flags = vma_flags_for_mappability(m_mappability),
-            .usage = VMA_MEMORY_USAGE_AUTO,
-        };
-
-        VkBuffer buffer;
-        VmaAllocation allocation;
-        if (!VK_SUCCEEDED(vmaCreateBuffer(vk()->allocator(),
-                                          &m_info,
-                                          &allocInfo,
-                                          &buffer,
-                                          &allocation,
-                                          nullptr),
-                          "a buffer"))
-        {
-            vk()->reportAllocationFailure();
-            return;
-        }
-        m_vkBuffer = buffer;
-        m_vmaAllocation = allocation;
-
-        if (m_mappability != Mappability::none)
-        {
-            // Leave the buffer constantly mapped and let the OS/drivers handle
-            // the rest.
-            void* contents;
-            if (!VK_SUCCEEDED(
-                    vmaMapMemory(vk()->allocator(), m_vmaAllocation, &contents),
-                    "a buffer mapping"))
-            {
-                // Throw the buffer away too. A mappable buffer we can't map is
-                // useless, and callers test the handle to decide whether we
-                // allocated anything at all.
-                vmaDestroyBuffer(vk()->allocator(),
-                                 m_vkBuffer,
-                                 m_vmaAllocation);
-                m_vkBuffer = VK_NULL_HANDLE;
-                m_vmaAllocation = VK_NULL_HANDLE;
-                vk()->reportAllocationFailure();
-                return;
-            }
-            m_contents = contents;
-        }
+      vk()->reportAllocationFailure();
+      return;
     }
+    m_vkBuffer = buffer;
+    m_vmaAllocation = allocation;
+
+    if (m_mappability != Mappability::none)
+    {
+      // Leave the buffer constantly mapped and let the OS/drivers handle
+      // the rest.
+      void* contents;
+      if (!VK_SUCCEEDED(
+              vmaMapMemory(vk()->allocator(), m_vmaAllocation, &contents),
+              "a buffer mapping"))
+      {
+        // Throw the buffer away too. A mappable buffer we can't map is
+        // useless, and callers test the handle to decide whether we
+        // allocated anything at all.
+        vmaDestroyBuffer(vk()->allocator(), m_vkBuffer, m_vmaAllocation);
+        m_vkBuffer = VK_NULL_HANDLE;
+        m_vmaAllocation = VK_NULL_HANDLE;
+        vk()->reportAllocationFailure();
+        return;
+      }
+      m_contents = contents;
+    }
+  }
 }
 
 void Buffer::flushContents(VkDeviceSize updatedSizeInBytes)
 {
-    vmaFlushAllocation(vk()->allocator(),
-                       m_vmaAllocation,
-                       0,
-                       updatedSizeInBytes);
+  vmaFlushAllocation(vk()->allocator(), m_vmaAllocation, 0, updatedSizeInBytes);
 }
 
 void Buffer::invalidateContents(VkDeviceSize updatedSizeInBytes)
 {
-    vmaInvalidateAllocation(vk()->allocator(),
-                            m_vmaAllocation,
-                            0,
-                            updatedSizeInBytes);
+  vmaInvalidateAllocation(
+      vk()->allocator(),
+      m_vmaAllocation,
+      0,
+      updatedSizeInBytes);
 }
 
-BufferPool::BufferPool(rcp<VulkanContext> vk,
-                       VkBufferUsageFlags usageFlags,
-                       VkDeviceSize size) :
-    GPUResourcePool(std::move(vk), MAX_POOL_SIZE),
-    m_usageFlags(usageFlags),
-    m_targetSize(size)
+BufferPool::BufferPool(
+    rcp<VulkanContext> vk,
+    VkBufferUsageFlags usageFlags,
+    VkDeviceSize size)
+    : GPUResourcePool(std::move(vk), MAX_POOL_SIZE)
+    , m_usageFlags(usageFlags)
+    , m_targetSize(size)
 {}
 
 inline VulkanContext* BufferPool::vk() const
 {
-    return static_cast<VulkanContext*>(m_manager.get());
+  return static_cast<VulkanContext*>(m_manager.get());
 }
 
 void BufferPool::setTargetSize(VkDeviceSize size)
 {
-    // Buffers always get bound, even if unused, so make sure they aren't empty
-    // and we get a valid Vulkan handle.
-    size = std::max<VkDeviceSize>(size, 1);
+  // Buffers always get bound, even if unused, so make sure they aren't empty
+  // and we get a valid Vulkan handle.
+  size = std::max<VkDeviceSize>(size, 1);
 
-    if (m_usageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-    {
-        // Uniform blocks must be multiples of 256 bytes in size.
-        size = std::max<VkDeviceSize>(size, 256);
-        assert(size % 256 == 0);
-    }
+  if (m_usageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+  {
+    // Uniform blocks must be multiples of 256 bytes in size.
+    size = std::max<VkDeviceSize>(size, 256);
+    assert(size % 256 == 0);
+  }
 
-    m_targetSize = size;
+  m_targetSize = size;
 }
 
 rcp<vkutil::Buffer> BufferPool::acquire()
 {
-    auto buffer = static_rcp_cast<vkutil::Buffer>(GPUResourcePool::acquire());
-    if (buffer == nullptr)
-    {
-        buffer = vk()->makeBuffer(
-            {
-                .size = m_targetSize,
-                .usage = m_usageFlags,
-            },
-            Mappability::writeOnly);
-    }
-    else if (buffer->info().size != m_targetSize)
-    {
-        buffer->resizeImmediately(m_targetSize);
-    }
-    return buffer;
+  auto buffer = static_rcp_cast<vkutil::Buffer>(GPUResourcePool::acquire());
+  if (buffer == nullptr)
+  {
+    buffer = vk()->makeBuffer(
+        {
+            .size = m_targetSize,
+            .usage = m_usageFlags,
+        },
+        Mappability::writeOnly);
+  }
+  else if (buffer->info().size != m_targetSize)
+  {
+    buffer->resizeImmediately(m_targetSize);
+  }
+  return buffer;
 }
 
-Image::Image(rcp<VulkanContext> vulkanContext,
-             const VkImageCreateInfo& info,
-             const char* name) :
-    Resource(std::move(vulkanContext)), m_info(info)
+Image::Image(
+    rcp<VulkanContext> vulkanContext,
+    const VkImageCreateInfo& info,
+    const char* name)
+    : Resource(std::move(vulkanContext))
+    , m_info(info)
 {
-    m_info = info;
-    m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  m_info = info;
+  m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 
-    if (m_info.mipLevels == 0)
-    {
-        m_info.mipLevels = 1;
-    }
-    else if (m_info.mipLevels > 1)
-    {
-        // We generate mipmaps internally with image blits.
-        m_info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    }
+  if (m_info.mipLevels == 0)
+  {
+    m_info.mipLevels = 1;
+  }
+  else if (m_info.mipLevels > 1)
+  {
+    // We generate mipmaps internally with image blits.
+    m_info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+  }
 
-    if (m_info.arrayLayers == 0)
-    {
-        m_info.arrayLayers = 1;
-    }
+  if (m_info.arrayLayers == 0)
+  {
+    m_info.arrayLayers = 1;
+  }
 
-    if (m_info.samples == 0)
-    {
-        m_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    }
+  if (m_info.samples == 0)
+  {
+    m_info.samples = VK_SAMPLE_COUNT_1_BIT;
+  }
 
-    if (m_info.usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT)
-    {
-        // Attempt to create transient attachments with lazily-allocated memory.
-        // This should succeed on mobile. Otherwise, use normal memory.
-        VmaAllocationCreateInfo allocInfo = {
-            .usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED,
-        };
-
-        if (vmaCreateImage(vk()->allocator(),
-                           &m_info,
-                           &allocInfo,
-                           &m_vkImage,
-                           &m_vmaAllocation,
-                           nullptr) == VK_SUCCESS)
-        {
-            vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
-                                        VK_OBJECT_TYPE_IMAGE,
-                                        name);
-            return;
-        }
-    }
-
+  if (m_info.usage & VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT)
+  {
+    // Attempt to create transient attachments with lazily-allocated memory.
+    // This should succeed on mobile. Otherwise, use normal memory.
     VmaAllocationCreateInfo allocInfo = {
-        .usage = VMA_MEMORY_USAGE_AUTO,
+        .usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED,
     };
 
-    VkImage image;
-    VmaAllocation allocation;
-    if (!VK_SUCCEEDED(vmaCreateImage(vk()->allocator(),
-                                     &m_info,
-                                     &allocInfo,
-                                     &image,
-                                     &allocation,
-                                     nullptr),
-                      name))
+    if (vmaCreateImage(
+            vk()->allocator(),
+            &m_info,
+            &allocInfo,
+            &m_vkImage,
+            &m_vmaAllocation,
+            nullptr) == VK_SUCCESS)
     {
-        vk()->reportAllocationFailure();
-        return;
+      vk()->setDebugNameIfEnabled(
+          uint64_t(m_vkImage),
+          VK_OBJECT_TYPE_IMAGE,
+          name);
+      return;
     }
-    m_vkImage = image;
-    m_vmaAllocation = allocation;
-    vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
-                                VK_OBJECT_TYPE_IMAGE,
-                                name);
+  }
+
+  VmaAllocationCreateInfo allocInfo = {
+      .usage = VMA_MEMORY_USAGE_AUTO,
+  };
+
+  VkImage image;
+  VmaAllocation allocation;
+  if (!VK_SUCCEEDED(
+          vmaCreateImage(
+              vk()->allocator(),
+              &m_info,
+              &allocInfo,
+              &image,
+              &allocation,
+              nullptr),
+          name))
+  {
+    vk()->reportAllocationFailure();
+    return;
+  }
+  m_vkImage = image;
+  m_vmaAllocation = allocation;
+  vk()->setDebugNameIfEnabled(uint64_t(m_vkImage), VK_OBJECT_TYPE_IMAGE, name);
 }
 
-Image::Image(rcp<VulkanContext> vulkanContext,
-             VkImage externalImage,
-             const VkImageCreateInfo& info,
-             const char* name) :
-    Resource(std::move(vulkanContext)), m_info(info)
+Image::Image(
+    rcp<VulkanContext> vulkanContext,
+    VkImage externalImage,
+    const VkImageCreateInfo& info,
+    const char* name)
+    : Resource(std::move(vulkanContext))
+    , m_info(info)
 {
-    m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    m_vkImage = externalImage;
-    vk()->setDebugNameIfEnabled(uint64_t(m_vkImage),
-                                VK_OBJECT_TYPE_IMAGE,
-                                name);
+  m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  m_vkImage = externalImage;
+  vk()->setDebugNameIfEnabled(uint64_t(m_vkImage), VK_OBJECT_TYPE_IMAGE, name);
 }
 
 Image::~Image()
 {
-    if (m_vmaAllocation != VK_NULL_HANDLE)
-    {
-        vmaDestroyImage(vk()->allocator(), m_vkImage, m_vmaAllocation);
-    }
+  if (m_vmaAllocation != VK_NULL_HANDLE)
+  {
+    vmaDestroyImage(vk()->allocator(), m_vkImage, m_vmaAllocation);
+  }
 }
 
-ImageView::ImageView(rcp<VulkanContext> vulkanContext,
-                     rcp<Image> textureRef,
-                     const VkImageViewCreateInfo& info,
-                     const char* name) :
-    Resource(std::move(vulkanContext)),
-    m_textureRefOrNull(std::move(textureRef)),
-    m_info(info)
+ImageView::ImageView(
+    rcp<VulkanContext> vulkanContext,
+    rcp<Image> textureRef,
+    const VkImageViewCreateInfo& info,
+    const char* name)
+    : Resource(std::move(vulkanContext))
+    , m_textureRefOrNull(std::move(textureRef))
+    , m_info(info)
 {
-    if (m_info.image == VK_NULL_HANDLE)
-    {
-        assert(m_textureRefOrNull != nullptr);
-        m_info.image = *m_textureRefOrNull;
-    }
-    else
-    {
-        assert(m_textureRefOrNull == nullptr ||
-               m_info.image == *m_textureRefOrNull);
-    }
-    if (m_info.image == VK_NULL_HANDLE)
-    {
-        // The image we're viewing failed to allocate. Stay null as well.
-        return;
-    }
+  if (m_info.image == VK_NULL_HANDLE)
+  {
+    assert(m_textureRefOrNull != nullptr);
+    m_info.image = *m_textureRefOrNull;
+  }
+  else
+  {
+    assert(
+        m_textureRefOrNull == nullptr || m_info.image == *m_textureRefOrNull);
+  }
+  if (m_info.image == VK_NULL_HANDLE)
+  {
+    // The image we're viewing failed to allocate. Stay null as well.
+    return;
+  }
 
-    m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    m_vkImageView = VK_CREATE_HANDLE(vk(), CreateImageView, &m_info);
-    vk()->setDebugNameIfEnabled(uint64_t(m_vkImageView),
-                                VK_OBJECT_TYPE_IMAGE_VIEW,
-                                name);
+  m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  m_vkImageView = VK_CREATE_HANDLE(vk(), CreateImageView, &m_info);
+  vk()->setDebugNameIfEnabled(
+      uint64_t(m_vkImageView),
+      VK_OBJECT_TYPE_IMAGE_VIEW,
+      name);
 }
 
 ImageView::~ImageView()
 {
-    vk()->DestroyImageView(vk()->device, m_vkImageView, nullptr);
+  vk()->DestroyImageView(vk()->device, m_vkImageView, nullptr);
 }
 
-Texture2D::Texture2D(rcp<VulkanContext> vk,
-                     VkImageCreateInfo info,
-                     const char* name) :
-    rive::gpu::Texture(info.extent.width, info.extent.height),
-    m_lastAccess({
-        .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        .accessMask = VK_ACCESS_NONE,
-        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
-    })
+Texture2D::Texture2D(
+    rcp<VulkanContext> vk,
+    VkImageCreateInfo info,
+    const char* name)
+    : rive::gpu::Texture(info.extent.width, info.extent.height)
+    , m_lastAccess({
+          .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .accessMask = VK_ACCESS_NONE,
+          .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+      })
 {
-    assert(info.imageType == 0 || info.imageType == VK_IMAGE_TYPE_2D);
-    if (info.imageType == 0)
-    {
-        info.imageType = VK_IMAGE_TYPE_2D;
-    }
-    if (info.extent.depth == 0)
-    {
-        info.extent.depth = 1;
-    }
-    if (info.usage == 0)
-    {
-        info.usage =
-            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    }
-    m_image = vk->makeImage(info, name);
-    m_imageView = vk->makeImageView(m_image, name);
+  assert(info.imageType == 0 || info.imageType == VK_IMAGE_TYPE_2D);
+  if (info.imageType == 0)
+  {
+    info.imageType = VK_IMAGE_TYPE_2D;
+  }
+  if (info.extent.depth == 0)
+  {
+    info.extent.depth = 1;
+  }
+  if (info.usage == 0)
+  {
+    info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+  }
+  m_image = vk->makeImage(info, name);
+  m_imageView = vk->makeImageView(m_image, name);
 }
 
-Texture2D::Texture2D(rcp<VulkanContext> vk,
-                     rcp<Image> existingImage,
-                     const char* name) :
-    rive::gpu::Texture(existingImage->info().extent.width,
-                       existingImage->info().extent.height),
-    m_image(std::move(existingImage)),
-    m_lastAccess({
-        .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        .accessMask = VK_ACCESS_NONE,
-        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
-    })
+Texture2D::Texture2D(
+    rcp<VulkanContext> vk,
+    rcp<Image> existingImage,
+    const char* name)
+    : rive::gpu::Texture(
+          existingImage->info().extent.width,
+          existingImage->info().extent.height)
+    , m_image(std::move(existingImage))
+    , m_lastAccess({
+          .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .accessMask = VK_ACCESS_NONE,
+          .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+      })
 {
-    m_imageView = vk->makeImageView(m_image, name);
+  m_imageView = vk->makeImageView(m_image, name);
 }
 
-void Texture2D::scheduleUpload(const void* imageDataRGBAPremul,
-                               size_t imageDataSizeInBytes)
+void Texture2D::scheduleUpload(
+    const void* imageDataRGBAPremul,
+    size_t imageDataSizeInBytes)
 {
-    rcp<vkutil::Buffer> imageBufferRGBAPremul = m_image->vk()->makeBuffer(
-        {
-            .size = imageDataSizeInBytes,
-            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        },
-        vkutil::Mappability::writeOnly);
-    if (!imageBufferRGBAPremul->hasContents())
-    {
-        // Nothing to upload into; the init path that owns us will bail shortly.
-        return;
-    }
-    memcpy(imageBufferRGBAPremul->contents(),
-           imageDataRGBAPremul,
-           imageDataSizeInBytes);
-    imageBufferRGBAPremul->flushContents();
-    scheduleUpload(std::move(imageBufferRGBAPremul));
+  rcp<vkutil::Buffer> imageBufferRGBAPremul = m_image->vk()->makeBuffer(
+      {
+          .size = imageDataSizeInBytes,
+          .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      },
+      vkutil::Mappability::writeOnly);
+  if (!imageBufferRGBAPremul->hasContents())
+  {
+    // Nothing to upload into; the init path that owns us will bail shortly.
+    return;
+  }
+  memcpy(
+      imageBufferRGBAPremul->contents(),
+      imageDataRGBAPremul,
+      imageDataSizeInBytes);
+  imageBufferRGBAPremul->flushContents();
+  scheduleUpload(std::move(imageBufferRGBAPremul));
 }
 
 void Texture2D::scheduleUpload(rcp<vkutil::Buffer> imageBufferRGBAPremul)
 {
-    m_imageUploadBuffer = std::move(imageBufferRGBAPremul);
-    m_imageUploadRegions.clear();
+  m_imageUploadBuffer = std::move(imageBufferRGBAPremul);
+  m_imageUploadRegions.clear();
 }
 
-void Texture2D::scheduleUpload(rcp<vkutil::Buffer> stagingBuffer,
-                               std::vector<VkBufferImageCopy> regions)
+void Texture2D::scheduleUpload(
+    rcp<vkutil::Buffer> stagingBuffer,
+    std::vector<VkBufferImageCopy> regions)
 {
-    m_imageUploadBuffer = std::move(stagingBuffer);
-    m_imageUploadRegions = std::move(regions);
+  m_imageUploadBuffer = std::move(stagingBuffer);
+  m_imageUploadRegions = std::move(regions);
 }
 
 void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
 {
-    assert(m_imageUploadBuffer != nullptr);
+  assert(m_imageUploadBuffer != nullptr);
 
-    barrier(commandBuffer,
+  barrier(
+      commandBuffer,
+      {
+          .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+          .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      },
+      vkutil::ImageAccessAction::invalidateContents);
+
+  if (!m_imageUploadRegions.empty())
+  {
+    // Caller-supplied per-level regions. No automatic mip generation —
+    // every level present in the texture must have a region.
+    m_image->vk()->CmdCopyBufferToImage(
+        commandBuffer,
+        *m_imageUploadBuffer,
+        *m_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        static_cast<uint32_t>(m_imageUploadRegions.size()),
+        m_imageUploadRegions.data());
+    // All mips already written — transition straight to shader-read.
+    barrier(
+        commandBuffer,
+        {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        });
+    m_imageUploadRegions.clear();
+  }
+  else
+  {
+    // Single-region upload (mip 0 full extent). Caller relies on
+    // generateMipmaps to fill remaining levels.
+    VkBufferImageCopy bufferImageCopy = {
+        .imageSubresource =
             {
-                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
             },
-            vkutil::ImageAccessAction::invalidateContents);
+        .imageExtent = {width(), height(), 1},
+    };
+    m_image->vk()->CmdCopyBufferToImage(
+        commandBuffer,
+        *m_imageUploadBuffer,
+        *m_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &bufferImageCopy);
+    generateMipmaps(
+        commandBuffer,
+        {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        });
+  }
 
-    if (!m_imageUploadRegions.empty())
-    {
-        // Caller-supplied per-level regions. No automatic mip generation —
-        // every level present in the texture must have a region.
-        m_image->vk()->CmdCopyBufferToImage(
-            commandBuffer,
-            *m_imageUploadBuffer,
-            *m_image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            static_cast<uint32_t>(m_imageUploadRegions.size()),
-            m_imageUploadRegions.data());
-        // All mips already written — transition straight to shader-read.
-        barrier(commandBuffer,
-                {
-                    .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    .accessMask = VK_ACCESS_SHADER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                });
-        m_imageUploadRegions.clear();
-    }
-    else
-    {
-        // Single-region upload (mip 0 full extent). Caller relies on
-        // generateMipmaps to fill remaining levels.
-        VkBufferImageCopy bufferImageCopy = {
-            .imageSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .layerCount = 1,
-                },
-            .imageExtent = {width(), height(), 1},
-        };
-        m_image->vk()->CmdCopyBufferToImage(
-            commandBuffer,
-            *m_imageUploadBuffer,
-            *m_image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &bufferImageCopy);
-        generateMipmaps(
-            commandBuffer,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                .accessMask = VK_ACCESS_SHADER_READ_BIT,
-                .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            });
-    }
-
-    m_imageUploadBuffer = nullptr;
+  m_imageUploadBuffer = nullptr;
 }
 
-void Texture2D::barrier(VkCommandBuffer commandBuffer,
-                        const vkutil::ImageAccess& dstAccess,
-                        vkutil::ImageAccessAction imageAccessAction,
-                        VkDependencyFlags dependencyFlags)
+void Texture2D::barrier(
+    VkCommandBuffer commandBuffer,
+    const vkutil::ImageAccess& dstAccess,
+    vkutil::ImageAccessAction imageAccessAction,
+    VkDependencyFlags dependencyFlags)
 {
-    // Always perform the barrier, even if m_lastAccess == dstAccess, because
-    // a pipeline barrier may still be needed even if we aren't transitioning
-    // the image or interacting with other stages.
-    m_lastAccess = m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
-                                                           m_lastAccess,
-                                                           dstAccess,
-                                                           *m_image,
-                                                           imageAccessAction,
-                                                           dependencyFlags);
+  // Always perform the barrier, even if m_lastAccess == dstAccess, because
+  // a pipeline barrier may still be needed even if we aren't transitioning
+  // the image or interacting with other stages.
+  m_lastAccess = m_image->vk()->simpleImageMemoryBarrier(
+      commandBuffer,
+      m_lastAccess,
+      dstAccess,
+      *m_image,
+      imageAccessAction,
+      dependencyFlags);
 }
 
-void Texture2D::generateMipmaps(VkCommandBuffer commandBuffer,
-                                const ImageAccess& dstAccess)
+void Texture2D::generateMipmaps(
+    VkCommandBuffer commandBuffer,
+    const ImageAccess& dstAccess)
 {
-    VulkanContext* vk = m_image->vk();
-    uint32_t mipLevels = m_image->info().mipLevels;
-    if (mipLevels <= 1)
-    {
-        barrier(commandBuffer, dstAccess);
-        return;
-    }
+  VulkanContext* vk = m_image->vk();
+  uint32_t mipLevels = m_image->info().mipLevels;
+  if (mipLevels <= 1)
+  {
+    barrier(commandBuffer, dstAccess);
+    return;
+  }
 
-    barrier(commandBuffer,
+  barrier(
+      commandBuffer,
+      {
+          .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+          .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+      });
+
+  int2 dstSize,
+      srcSize = {static_cast<int32_t>(width()), static_cast<int32_t>(height())};
+  for (uint32_t level = 1; level < mipLevels; ++level, srcSize = dstSize)
+  {
+    dstSize = simd::max(srcSize >> 1, int2(1));
+
+    VkImageBlit imageBlit = {
+        .srcSubresource =
             {
-                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            });
-
-    int2 dstSize, srcSize = {static_cast<int32_t>(width()),
-                             static_cast<int32_t>(height())};
-    for (uint32_t level = 1; level < mipLevels; ++level, srcSize = dstSize)
-    {
-        dstSize = simd::max(srcSize >> 1, int2(1));
-
-        VkImageBlit imageBlit = {
-            .srcSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel = level - 1,
-                    .layerCount = 1,
-                },
-            .dstSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel = level,
-                    .layerCount = 1,
-                },
-        };
-
-        imageBlit.srcOffsets[0] = {0, 0, 0};
-        imageBlit.srcOffsets[1] = {srcSize.x, srcSize.y, 1};
-
-        imageBlit.dstOffsets[0] = {0, 0, 0};
-        imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
-
-        vk->imageMemoryBarrier(
-            commandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = level - 1,
+                .layerCount = 1,
+            },
+        .dstSubresource =
             {
-                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .image = *m_image,
-                .subresourceRange =
-                    {
-                        .baseMipLevel = level - 1,
-                        .levelCount = 1,
-                    },
-            });
-
-        vk->CmdBlitImage(commandBuffer,
-                         *m_image,
-                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         *m_image,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         1,
-                         &imageBlit,
-                         VK_FILTER_LINEAR);
-    }
-
-    VkImageMemoryBarrier barriers[] = {
-        {
-            // The first N - 1 layers are in TRANSFER_READ.
-            .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .dstAccessMask = dstAccess.accessMask,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .newLayout = dstAccess.layout,
-            .image = *m_image,
-            .subresourceRange =
-                {
-                    .baseMipLevel = 0,
-                    .levelCount = mipLevels - 1,
-                },
-        },
-        {
-            // The final layer is still in TRANSFER_WRITE.
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = dstAccess.accessMask,
-            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .newLayout = dstAccess.layout,
-            .image = *m_image,
-            .subresourceRange =
-                {
-                    .baseMipLevel = mipLevels - 1,
-                    .levelCount = 1,
-                },
-        },
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = level,
+                .layerCount = 1,
+            },
     };
 
-    vk->imageMemoryBarriers(commandBuffer,
-                            VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            dstAccess.pipelineStages,
-                            0,
-                            std::size(barriers),
-                            barriers);
+    imageBlit.srcOffsets[0] = {0, 0, 0};
+    imageBlit.srcOffsets[1] = {srcSize.x, srcSize.y, 1};
 
-    m_lastAccess = dstAccess;
+    imageBlit.dstOffsets[0] = {0, 0, 0};
+    imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
+
+    vk->imageMemoryBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0,
+        {
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .image = *m_image,
+            .subresourceRange =
+                {
+                    .baseMipLevel = level - 1,
+                    .levelCount = 1,
+                },
+        });
+
+    vk->CmdBlitImage(
+        commandBuffer,
+        *m_image,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        *m_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &imageBlit,
+        VK_FILTER_LINEAR);
+  }
+
+  VkImageMemoryBarrier barriers[] = {
+      {
+          // The first N - 1 layers are in TRANSFER_READ.
+          .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+          .dstAccessMask = dstAccess.accessMask,
+          .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+          .newLayout = dstAccess.layout,
+          .image = *m_image,
+          .subresourceRange =
+              {
+                  .baseMipLevel = 0,
+                  .levelCount = mipLevels - 1,
+              },
+      },
+      {
+          // The final layer is still in TRANSFER_WRITE.
+          .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+          .dstAccessMask = dstAccess.accessMask,
+          .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+          .newLayout = dstAccess.layout,
+          .image = *m_image,
+          .subresourceRange =
+              {
+                  .baseMipLevel = mipLevels - 1,
+                  .levelCount = 1,
+              },
+      },
+  };
+
+  vk->imageMemoryBarriers(
+      commandBuffer,
+      VK_PIPELINE_STAGE_TRANSFER_BIT,
+      dstAccess.pipelineStages,
+      0,
+      std::size(barriers),
+      barriers);
+
+  m_lastAccess = dstAccess;
 }
 
-Framebuffer::Framebuffer(rcp<VulkanContext> vulkanContext,
-                         const VkFramebufferCreateInfo& info) :
-    Resource(std::move(vulkanContext)), m_info(info)
+Framebuffer::Framebuffer(
+    rcp<VulkanContext> vulkanContext,
+    const VkFramebufferCreateInfo& info)
+    : Resource(std::move(vulkanContext))
+    , m_info(info)
 {
-    m_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    m_vkFramebuffer = VK_CREATE_HANDLE(vk(), CreateFramebuffer, &m_info);
+  m_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  m_vkFramebuffer = VK_CREATE_HANDLE(vk(), CreateFramebuffer, &m_info);
 }
 
 Framebuffer::~Framebuffer()
 {
-    vk()->DestroyFramebuffer(vk()->device, m_vkFramebuffer, nullptr);
+  vk()->DestroyFramebuffer(vk()->device, m_vkFramebuffer, nullptr);
 }
 } // namespace rive::gpu::vkutil

@@ -8,54 +8,55 @@ namespace rive
 class SoloBase : public Node
 {
 protected:
-    typedef Node Super;
+  typedef Node Super;
 
 public:
-    static const uint16_t typeKey = 147;
+  static const uint16_t typeKey = 147;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t activeComponentIdPropertyKey = 296;
+  static const uint16_t activeComponentIdPropertyKey = 296;
 
 protected:
-    Id m_ActiveComponentId = 0;
+  Id m_ActiveComponentId = 0;
 
 public:
-    inline Id activeComponentId() const { return m_ActiveComponentId; }
-    void activeComponentId(Id value)
+  inline Id activeComponentId() const { return m_ActiveComponentId; }
+  void activeComponentId(Id value)
+  {
+    if (m_ActiveComponentId == value)
     {
-        if (m_ActiveComponentId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(activeComponentIdPropertyKey,
-                             &m_ActiveComponentId,
-                             &value);
-        m_ActiveComponentId = value;
-        RIVE_EDITOR_CHANGED(activeComponentIdChanged());
-        notifyPropertyChanged(activeComponentIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        activeComponentIdPropertyKey,
+        &m_ActiveComponentId,
+        &value);
+    m_ActiveComponentId = value;
+    RIVE_EDITOR_CHANGED(activeComponentIdChanged());
+    notifyPropertyChanged(activeComponentIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const SoloBase& object)
-    {
-        m_ActiveComponentId = object.m_ActiveComponentId;
-        Node::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const SoloBase& object)
+  {
+    m_ActiveComponentId = object.m_ActiveComponentId;
+    Node::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case activeComponentIdPropertyKey:
-                m_ActiveComponentId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return Node::deserialize(propertyKey, reader);
+      case activeComponentIdPropertyKey:
+        m_ActiveComponentId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return Node::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void activeComponentIdChanged() {}
+  virtual void activeComponentIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/solo_ext.inl"
 #endif

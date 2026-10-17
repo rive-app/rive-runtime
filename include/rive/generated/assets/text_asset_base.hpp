@@ -11,49 +11,49 @@ namespace rive
 class TextAssetBase : public FileAsset
 {
 protected:
-    typedef FileAsset Super;
+  typedef FileAsset Super;
 
 public:
-    static const uint16_t typeKey = 971;
+  static const uint16_t typeKey = 971;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t folderPathPropertyKey = 926;
+  static const uint16_t folderPathPropertyKey = 926;
 
 protected:
-    std::string m_FolderPath = "";
+  std::string m_FolderPath = "";
 
 public:
-    inline const std::string& folderPath() const { return m_FolderPath; }
-    void folderPath(std::string value)
+  inline const std::string& folderPath() const { return m_FolderPath; }
+  void folderPath(std::string value)
+  {
+    if (m_FolderPath == value)
     {
-        if (m_FolderPath == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_STRING_CHANGING(folderPathPropertyKey, m_FolderPath, value);
-        m_FolderPath = value;
-        notifyPropertyChanged(folderPathPropertyKey);
+      return;
     }
+    RIVE_EDITOR_STRING_CHANGING(folderPathPropertyKey, m_FolderPath, value);
+    m_FolderPath = value;
+    notifyPropertyChanged(folderPathPropertyKey);
+  }
 
-    void copy(const TextAssetBase& object)
-    {
-        m_FolderPath = object.m_FolderPath;
-        RIVE_EDITOR_COPY(object);
-        FileAsset::copy(object);
-    }
+  void copy(const TextAssetBase& object)
+  {
+    m_FolderPath = object.m_FolderPath;
+    RIVE_EDITOR_COPY(object);
+    FileAsset::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case folderPathPropertyKey:
-                m_FolderPath = CoreStringType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return FileAsset::deserialize(propertyKey, reader);
+      case folderPathPropertyKey:
+        m_FolderPath = CoreStringType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return FileAsset::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

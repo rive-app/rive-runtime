@@ -5,9 +5,9 @@ namespace rive
 {
 enum class ArtboardProperty : int
 {
-    width = 0,
-    height = 1,
-    ratio = 2,
+  width = 0,
+  height = 1,
+  ratio = 2,
 };
 } // namespace rive
 

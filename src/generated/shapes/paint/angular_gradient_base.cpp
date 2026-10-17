@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* AngularGradientBase::clone() const
 {
-    auto cloned = new AngularGradient();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new AngularGradient();
+  cloned->copy(*this);
+  return cloned;
 }

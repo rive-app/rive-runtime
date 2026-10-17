@@ -6,14 +6,14 @@ namespace rive
 class ViewModelInstanceAssetImageBase : public ViewModelInstanceAsset
 {
 protected:
-    typedef ViewModelInstanceAsset Super;
+  typedef ViewModelInstanceAsset Super;
 
 public:
-    static const uint16_t typeKey = 587;
+  static const uint16_t typeKey = 587;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

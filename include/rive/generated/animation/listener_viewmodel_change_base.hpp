@@ -10,70 +10,71 @@ namespace rive
 class ListenerViewModelChangeBase : public ListenerAction
 {
 protected:
-    typedef ListenerAction Super;
+  typedef ListenerAction Super;
 
 public:
-    static const uint16_t typeKey = 487;
+  static const uint16_t typeKey = 487;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t inputValuePropertyKey = 453;
-    static const uint16_t inputValueIndexPropertyKey = 454;
+  static const uint16_t inputValuePropertyKey = 453;
+  static const uint16_t inputValueIndexPropertyKey = 454;
 
 protected:
-    uint8_t m_InputValue = 0;
-    uint8_t m_InputValueIndex = 0;
+  uint8_t m_InputValue = 0;
+  uint8_t m_InputValueIndex = 0;
 
 public:
-    inline uint8_t inputValue() const { return m_InputValue; }
-    void inputValue(uint8_t value)
+  inline uint8_t inputValue() const { return m_InputValue; }
+  void inputValue(uint8_t value)
+  {
+    if (m_InputValue == value)
     {
-        if (m_InputValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inputValuePropertyKey, &m_InputValue, &value);
-        m_InputValue = value;
-        notifyPropertyChanged(inputValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inputValuePropertyKey, &m_InputValue, &value);
+    m_InputValue = value;
+    notifyPropertyChanged(inputValuePropertyKey);
+  }
 
-    inline uint8_t inputValueIndex() const { return m_InputValueIndex; }
-    void inputValueIndex(uint8_t value)
+  inline uint8_t inputValueIndex() const { return m_InputValueIndex; }
+  void inputValueIndex(uint8_t value)
+  {
+    if (m_InputValueIndex == value)
     {
-        if (m_InputValueIndex == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inputValueIndexPropertyKey,
-                             &m_InputValueIndex,
-                             &value);
-        m_InputValueIndex = value;
-        notifyPropertyChanged(inputValueIndexPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        inputValueIndexPropertyKey,
+        &m_InputValueIndex,
+        &value);
+    m_InputValueIndex = value;
+    notifyPropertyChanged(inputValueIndexPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListenerViewModelChangeBase& object)
-    {
-        m_InputValue = object.m_InputValue;
-        m_InputValueIndex = object.m_InputValueIndex;
-        RIVE_EDITOR_COPY(object);
-        ListenerAction::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListenerViewModelChangeBase& object)
+  {
+    m_InputValue = object.m_InputValue;
+    m_InputValueIndex = object.m_InputValueIndex;
+    RIVE_EDITOR_COPY(object);
+    ListenerAction::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case inputValuePropertyKey:
-                m_InputValue = CoreUintType::deserialize(reader);
-                return true;
-            case inputValueIndexPropertyKey:
-                m_InputValueIndex = CoreUintType::deserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ListenerAction::deserialize(propertyKey, reader);
+      case inputValuePropertyKey:
+        m_InputValue = CoreUintType::deserialize(reader);
+        return true;
+      case inputValueIndexPropertyKey:
+        m_InputValueIndex = CoreUintType::deserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ListenerAction::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

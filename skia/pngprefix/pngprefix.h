@@ -38,7 +38,7 @@
 #define png_colorspace_set_endpoints sk_png_colorspace_set_endpoints
 #define png_colorspace_set_gamma sk_png_colorspace_set_gamma
 #define png_colorspace_set_rgb_coefficients                                    \
-    sk_png_colorspace_set_rgb_coefficients
+  sk_png_colorspace_set_rgb_coefficients
 #define png_colorspace_set_sRGB sk_png_colorspace_set_sRGB
 #define png_colorspace_sync sk_png_colorspace_sync
 #define png_colorspace_sync_info sk_png_colorspace_sync_info
@@ -406,7 +406,7 @@
 #define png_set_text_compression_method sk_png_set_text_compression_method
 #define png_set_text_compression_strategy sk_png_set_text_compression_strategy
 #define png_set_text_compression_window_bits                                   \
-    sk_png_set_text_compression_window_bits
+  sk_png_set_text_compression_window_bits
 #define png_set_unknown_chunk_location sk_png_set_unknown_chunk_location
 #define png_set_unknown_chunks sk_png_set_unknown_chunks
 #define png_set_user_limits sk_png_set_user_limits

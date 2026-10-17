@@ -9,13 +9,13 @@ class DataValueSymbolListIndex : public DataValueInteger
 {
 
 public:
-    DataValueSymbolListIndex(uint32_t value) : DataValueInteger(value) {};
-    DataValueSymbolListIndex() {};
-    static const DataType typeKey = DataType::symbolListIndex;
-    bool isTypeOf(DataType typeKey) const override
-    {
-        return typeKey == DataType::symbolListIndex;
-    }
+  DataValueSymbolListIndex(uint32_t value) : DataValueInteger(value) {};
+  DataValueSymbolListIndex() {};
+  static const DataType typeKey = DataType::symbolListIndex;
+  bool isTypeOf(DataType typeKey) const override
+  {
+    return typeKey == DataType::symbolListIndex;
+  }
 };
 } // namespace rive
 

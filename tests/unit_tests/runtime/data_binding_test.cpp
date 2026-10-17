@@ -38,416 +38,429 @@ using namespace rive;
 
 TEST_CASE("artboard with bound properties", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-1")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
-    REQUIRE(artboard->find<rive::Rectangle>("bound_rect") != nullptr);
-    auto rectMapped = artboard->find<rive::Rectangle>("bound_rect");
-    REQUIRE(rectMapped->width() == 100.0f);
-    REQUIRE(artboard->find<rive::Shape>("bound_rect_shape") != nullptr);
-    auto shapeMapped = artboard->find<rive::Shape>("bound_rect_shape");
-    // Rotation has a system converter applied to it
-    REQUIRE(shapeMapped->rotation() == Approx(1.5708f));
+  auto artboard = file->artboard("artboard-1")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
+  REQUIRE(artboard->find<rive::Rectangle>("bound_rect") != nullptr);
+  auto rectMapped = artboard->find<rive::Rectangle>("bound_rect");
+  REQUIRE(rectMapped->width() == 100.0f);
+  REQUIRE(artboard->find<rive::Shape>("bound_rect_shape") != nullptr);
+  auto shapeMapped = artboard->find<rive::Shape>("bound_rect_shape");
+  // Rotation has a system converter applied to it
+  REQUIRE(shapeMapped->rotation() == Approx(1.5708f));
 
-    REQUIRE(shapeMapped->children()[1]->is<rive::Fill>());
-    rive::Fill* rectMappadFill = shapeMapped->children()[1]->as<rive::Fill>();
-    REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 255, 0, 0));
+  REQUIRE(shapeMapped->children()[1]->is<rive::Fill>());
+  rive::Fill* rectMappadFill = shapeMapped->children()[1]->as<rive::Fill>();
+  REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 255, 0, 0));
 
-    REQUIRE(artboard->find<rive::TextValueRun>("bound_text_run") != nullptr);
-    auto textRunMapped = artboard->find<rive::TextValueRun>("bound_text_run");
-    REQUIRE(textRunMapped->text() == "bound text");
+  REQUIRE(artboard->find<rive::TextValueRun>("bound_text_run") != nullptr);
+  auto textRunMapped = artboard->find<rive::TextValueRun>("bound_text_run");
+  REQUIRE(textRunMapped->text() == "bound text");
 
-    REQUIRE(artboard->find<rive::FollowPathConstraint>("") != nullptr);
-    auto followPathConstraint = artboard->find<rive::FollowPathConstraint>("");
-    REQUIRE(followPathConstraint->orient() == false);
+  REQUIRE(artboard->find<rive::FollowPathConstraint>("") != nullptr);
+  auto followPathConstraint = artboard->find<rive::FollowPathConstraint>("");
+  REQUIRE(followPathConstraint->orient() == false);
 
-    // View model properties
-    // Number
-    auto widthProperty = viewModelInstance->propertyValue("width");
-    REQUIRE(widthProperty != nullptr);
-    REQUIRE(widthProperty->is<rive::ViewModelInstanceNumber>());
-    // Number with comverter
-    auto rotationProperty = viewModelInstance->propertyValue("rotation");
-    REQUIRE(rotationProperty != nullptr);
-    REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
-    // Color
-    auto colorProperty = viewModelInstance->propertyValue("color");
-    REQUIRE(colorProperty != nullptr);
-    REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
-    // String
-    auto textProperty = viewModelInstance->propertyValue("text");
-    REQUIRE(textProperty != nullptr);
-    REQUIRE(textProperty->is<rive::ViewModelInstanceString>());
-    // Boolean
-    auto orientProperty = viewModelInstance->propertyValue("orient");
-    REQUIRE(orientProperty != nullptr);
-    REQUIRE(orientProperty->is<rive::ViewModelInstanceBoolean>());
-    // Update view model values
-    widthProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200.0f);
-    rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(
-        180.0f);
-    colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
-        rive::colorARGB(255, 0, 255, 0));
-    textProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "New text");
-    orientProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
-    // Advance artboard so data binds apply
-    artboard->advance(0.0f);
-    // Validate new properties
-    REQUIRE(rectMapped->width() == 200.0f);
-    REQUIRE(shapeMapped->rotation() == Approx(3.14159f));
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 0, 255, 0));
-    REQUIRE(textRunMapped->text() == "New text");
-    REQUIRE(followPathConstraint->orient() == true);
+  // View model properties
+  // Number
+  auto widthProperty = viewModelInstance->propertyValue("width");
+  REQUIRE(widthProperty != nullptr);
+  REQUIRE(widthProperty->is<rive::ViewModelInstanceNumber>());
+  // Number with comverter
+  auto rotationProperty = viewModelInstance->propertyValue("rotation");
+  REQUIRE(rotationProperty != nullptr);
+  REQUIRE(rotationProperty->is<rive::ViewModelInstanceNumber>());
+  // Color
+  auto colorProperty = viewModelInstance->propertyValue("color");
+  REQUIRE(colorProperty != nullptr);
+  REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
+  // String
+  auto textProperty = viewModelInstance->propertyValue("text");
+  REQUIRE(textProperty != nullptr);
+  REQUIRE(textProperty->is<rive::ViewModelInstanceString>());
+  // Boolean
+  auto orientProperty = viewModelInstance->propertyValue("orient");
+  REQUIRE(orientProperty != nullptr);
+  REQUIRE(orientProperty->is<rive::ViewModelInstanceBoolean>());
+  // Update view model values
+  widthProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(200.0f);
+  rotationProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(180.0f);
+  colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
+      rive::colorARGB(255, 0, 255, 0));
+  textProperty->as<rive::ViewModelInstanceString>()->propertyValue("New text");
+  orientProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
+  // Advance artboard so data binds apply
+  artboard->advance(0.0f);
+  // Validate new properties
+  REQUIRE(rectMapped->width() == 200.0f);
+  REQUIRE(shapeMapped->rotation() == Approx(3.14159f));
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 0, 255, 0));
+  REQUIRE(textRunMapped->text() == "New text");
+  REQUIRE(followPathConstraint->orient() == true);
 }
 
 TEST_CASE("state machine led by enums and triggers", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    //
+  auto artboard = file->artboard("artboard-2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  //
 
-    REQUIRE(artboard->find<rive::Shape>("color_rectangle") != nullptr);
-    auto shapeMapped = artboard->find<rive::Shape>("color_rectangle");
+  REQUIRE(artboard->find<rive::Shape>("color_rectangle") != nullptr);
+  auto shapeMapped = artboard->find<rive::Shape>("color_rectangle");
 
-    REQUIRE(shapeMapped->children()[1]->is<rive::Fill>());
-    REQUIRE(shapeMapped->x() == 250);
-    REQUIRE(shapeMapped->y() == 250);
-    rive::Fill* rectMappadFill = shapeMapped->children()[1]->as<rive::Fill>();
-    REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 116, 116, 116));
+  REQUIRE(shapeMapped->children()[1]->is<rive::Fill>());
+  REQUIRE(shapeMapped->x() == 250);
+  REQUIRE(shapeMapped->y() == 250);
+  rive::Fill* rectMappadFill = shapeMapped->children()[1]->as<rive::Fill>();
+  REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 116, 116, 116));
 
-    // View model properties
-    // Enum
-    auto stateProperty = viewModelInstance->propertyValue("state");
-    REQUIRE(stateProperty != nullptr);
-    REQUIRE(stateProperty->is<rive::ViewModelInstanceEnum>());
-    // Trigger
-    auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
-    REQUIRE(triggerProperty != nullptr);
-    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 255, 0, 0));
-    // Update view model properties
-    // Update enum by index
-    stateProperty->as<rive::ViewModelInstanceEnum>()->value(1);
+  // View model properties
+  // Enum
+  auto stateProperty = viewModelInstance->propertyValue("state");
+  REQUIRE(stateProperty != nullptr);
+  REQUIRE(stateProperty->is<rive::ViewModelInstanceEnum>());
+  // Trigger
+  auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
+  REQUIRE(triggerProperty != nullptr);
+  REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 255, 0, 0));
+  // Update view model properties
+  // Update enum by index
+  stateProperty->as<rive::ViewModelInstanceEnum>()->value(1);
 
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    // Validate values have updated
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 0, 255, 0));
-    REQUIRE(shapeMapped->x() == 150);
-    REQUIRE(shapeMapped->y() == 250);
-    // Update view model properties
-    // Update enum by name
-    stateProperty->as<rive::ViewModelInstanceEnum>()->value("state-blue");
-    // Fire trigger (monotonic counter: increment rather than set to a fixed
-    // value, which after the first fire would be a no-op change).
-    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  // Validate values have updated
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 0, 255, 0));
+  REQUIRE(shapeMapped->x() == 150);
+  REQUIRE(shapeMapped->y() == 250);
+  // Update view model properties
+  // Update enum by name
+  stateProperty->as<rive::ViewModelInstanceEnum>()->value("state-blue");
+  // Fire trigger (monotonic counter: increment rather than set to a fixed
+  // value, which after the first fire would be a no-op change).
+  triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
 
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    // Validate values have updated
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 0, 0, 255));
-    REQUIRE(shapeMapped->x() == 350);
-    REQUIRE(shapeMapped->y() == 250);
-    // Fire trigger again
-    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  // Validate values have updated
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 0, 0, 255));
+  REQUIRE(shapeMapped->x() == 350);
+  REQUIRE(shapeMapped->y() == 250);
+  // Fire trigger again
+  triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
 
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(shapeMapped->x() == 350);
-    REQUIRE(shapeMapped->y() == 350);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(shapeMapped->x() == 350);
+  REQUIRE(shapeMapped->y() == 350);
 }
 
 // The monotonic trigger counter is never reset by advanceAndApply, regardless
 // of the advanceViewModels flag: transitions see fires through change
 // sequences, so nothing zeroes it.
-TEST_CASE("advanceAndApply does not reset the view model trigger counter",
-          "[data binding]")
+TEST_CASE(
+    "advanceAndApply does not reset the view model trigger counter",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    REQUIRE(machine != nullptr);
-    machine->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("artboard-2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  REQUIRE(machine != nullptr);
+  machine->bindViewModelInstance(viewModelInstance);
 
-    auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
-    REQUIRE(triggerProperty != nullptr);
-    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
-    auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
+  auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
+  REQUIRE(triggerProperty != nullptr);
+  REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+  auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
 
-    // Settle initial state.
-    machine->advanceAndApply(0.0f);
+  // Settle initial state.
+  machine->advanceAndApply(0.0f);
 
-    trigger->trigger();
-    CHECK(trigger->propertyValue() == 1);
-    machine->advanceAndApply(0.0f, false); // advanceViewModels = false
-    CHECK(trigger->propertyValue() == 1);  // not reset
-    machine->advanceAndApply(0.0f, true);  // advanceViewModels = true
-    CHECK(trigger->propertyValue() == 1);  // still not reset
+  trigger->trigger();
+  CHECK(trigger->propertyValue() == 1);
+  machine->advanceAndApply(0.0f, false); // advanceViewModels = false
+  CHECK(trigger->propertyValue() == 1);  // not reset
+  machine->advanceAndApply(0.0f, true);  // advanceViewModels = true
+  CHECK(trigger->propertyValue() == 1);  // still not reset
 }
 
 // The trigger value is a monotonically-increasing counter: each fire increments
 // it and it is never reset. This is the core of the durable-trigger model.
-TEST_CASE("view model trigger counter is monotonic across advances",
-          "[data binding]")
+TEST_CASE(
+    "view model trigger counter is monotonic across advances",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    REQUIRE(machine != nullptr);
-    machine->bindViewModelInstance(viewModelInstance);
+  auto artboard = file->artboard("artboard-2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  REQUIRE(machine != nullptr);
+  machine->bindViewModelInstance(viewModelInstance);
 
-    auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
-    REQUIRE(triggerProperty != nullptr);
-    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
-    auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
+  auto triggerProperty = viewModelInstance->propertyValue("trigger-prop");
+  REQUIRE(triggerProperty != nullptr);
+  REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+  auto trigger = triggerProperty->as<rive::ViewModelInstanceTrigger>();
 
-    machine->advanceAndApply(0.0f); // settle; never fired yet
-    REQUIRE(trigger->propertyValue() == 0);
+  machine->advanceAndApply(0.0f); // settle; never fired yet
+  REQUIRE(trigger->propertyValue() == 0);
 
-    for (uint32_t i = 1; i <= 5; i++)
-    {
-        trigger->trigger();
-        CHECK(trigger->propertyValue() == i); // incremented
-        machine->advanceAndApply(0.016f);
-        CHECK(trigger->propertyValue() == i); // never reset
-    }
-
-    // Two fires within a single frame advance the counter by two.
+  for (uint32_t i = 1; i <= 5; i++)
+  {
     trigger->trigger();
-    trigger->trigger();
-    CHECK(trigger->propertyValue() == 7);
+    CHECK(trigger->propertyValue() == i); // incremented
     machine->advanceAndApply(0.016f);
-    CHECK(trigger->propertyValue() == 7);
+    CHECK(trigger->propertyValue() == i); // never reset
+  }
+
+  // Two fires within a single frame advance the counter by two.
+  trigger->trigger();
+  trigger->trigger();
+  CHECK(trigger->propertyValue() == 7);
+  machine->advanceAndApply(0.016f);
+  CHECK(trigger->propertyValue() == 7);
 }
 
 TEST_CASE("calculate and to string converters with numbers", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-3")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Bound property with Calculate Converter (multiply by 2)
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("num_prop") != nullptr);
-    auto customPropertyNumber =
-        artboard->find<rive::CustomPropertyNumber>("num_prop");
-    REQUIRE(customPropertyNumber->propertyValue() == 0.0f);
-    // Bound property with Group Converter with:
-    // - Calculate (divide by 3)
-    // - Convert to string (round decimals and remove trailing zeros)
-    REQUIRE(artboard->find<rive::TextValueRun>("text_run_bound") != nullptr);
-    auto textRunBound = artboard->find<rive::TextValueRun>("text_run_bound");
-    // View model properties
-    // Number with initial value set to 17
-    auto numProperty = viewModelInstance->propertyValue("num1");
-    REQUIRE(numProperty != nullptr);
-    REQUIRE(numProperty->is<rive::ViewModelInstanceNumber>());
+  auto artboard = file->artboard("artboard-3")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Bound property with Calculate Converter (multiply by 2)
+  REQUIRE(artboard->find<rive::CustomPropertyNumber>("num_prop") != nullptr);
+  auto customPropertyNumber = artboard->find<rive::CustomPropertyNumber>(
+      "num_prop");
+  REQUIRE(customPropertyNumber->propertyValue() == 0.0f);
+  // Bound property with Group Converter with:
+  // - Calculate (divide by 3)
+  // - Convert to string (round decimals and remove trailing zeros)
+  REQUIRE(artboard->find<rive::TextValueRun>("text_run_bound") != nullptr);
+  auto textRunBound = artboard->find<rive::TextValueRun>("text_run_bound");
+  // View model properties
+  // Number with initial value set to 17
+  auto numProperty = viewModelInstance->propertyValue("num1");
+  REQUIRE(numProperty != nullptr);
+  REQUIRE(numProperty->is<rive::ViewModelInstanceNumber>());
 
-    REQUIRE(textRunBound->text() == "text");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    // Test Calculate Converter (multiply by 2)
-    REQUIRE(customPropertyNumber->propertyValue() == 34.0f);
-    REQUIRE(textRunBound->text() == "6");
+  REQUIRE(textRunBound->text() == "text");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  // Test Calculate Converter (multiply by 2)
+  REQUIRE(customPropertyNumber->propertyValue() == 34.0f);
+  REQUIRE(textRunBound->text() == "6");
 
-    // Update value to -10.0f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(-10.0f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    // Test Calculate Converter (multiply by 2)
-    REQUIRE(customPropertyNumber->propertyValue() == -20.0f);
-    REQUIRE(textRunBound->text() == "-3");
+  // Update value to -10.0f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(-10.0f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  // Test Calculate Converter (multiply by 2)
+  REQUIRE(customPropertyNumber->propertyValue() == -20.0f);
+  REQUIRE(textRunBound->text() == "-3");
 }
 
 TEST_CASE("trim string converter", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-3")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
+  auto artboard = file->artboard("artboard-3")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
 
-    REQUIRE(artboard->find<rive::TextValueRun>("second_text_run_trim_both") !=
-            nullptr);
-    auto trimmedBothTextRunBound =
-        artboard->find<rive::TextValueRun>("second_text_run_trim_both");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("second_text_run_trim_both") !=
+      nullptr);
+  auto trimmedBothTextRunBound = artboard->find<rive::TextValueRun>(
+      "second_text_run_trim_both");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("second_text_run_trim_start") !=
-            nullptr);
-    auto trimmedStartTextRunBound =
-        artboard->find<rive::TextValueRun>("second_text_run_trim_start");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("second_text_run_trim_start") !=
+      nullptr);
+  auto trimmedStartTextRunBound = artboard->find<rive::TextValueRun>(
+      "second_text_run_trim_start");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("second_text_run_trim_end") !=
-            nullptr);
-    auto trimmedEndTextRunBound =
-        artboard->find<rive::TextValueRun>("second_text_run_trim_end");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("second_text_run_trim_end") !=
+      nullptr);
+  auto trimmedEndTextRunBound = artboard->find<rive::TextValueRun>(
+      "second_text_run_trim_end");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("second_text_run_no_trim") !=
-            nullptr);
-    auto notTrimmedTextRunBound =
-        artboard->find<rive::TextValueRun>("second_text_run_no_trim");
-    // View model properties
-    // String with initial value "     abc    "
-    auto stringProperty = viewModelInstance->propertyValue("text");
-    REQUIRE(stringProperty != nullptr);
-    REQUIRE(stringProperty->is<rive::ViewModelInstanceString>());
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("second_text_run_no_trim") != nullptr);
+  auto notTrimmedTextRunBound = artboard->find<rive::TextValueRun>(
+      "second_text_run_no_trim");
+  // View model properties
+  // String with initial value "     abc    "
+  auto stringProperty = viewModelInstance->propertyValue("text");
+  REQUIRE(stringProperty != nullptr);
+  REQUIRE(stringProperty->is<rive::ViewModelInstanceString>());
 
-    REQUIRE(notTrimmedTextRunBound->text() == "text");
-    REQUIRE(trimmedBothTextRunBound->text() == "text");
-    REQUIRE(trimmedStartTextRunBound->text() == "text");
-    REQUIRE(trimmedEndTextRunBound->text() == "text");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(trimmedBothTextRunBound->text() == "abc");
-    REQUIRE(notTrimmedTextRunBound->text() == "     abc    ");
-    REQUIRE(trimmedStartTextRunBound->text() == "abc    ");
-    REQUIRE(trimmedEndTextRunBound->text() == "     abc");
+  REQUIRE(notTrimmedTextRunBound->text() == "text");
+  REQUIRE(trimmedBothTextRunBound->text() == "text");
+  REQUIRE(trimmedStartTextRunBound->text() == "text");
+  REQUIRE(trimmedEndTextRunBound->text() == "text");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(trimmedBothTextRunBound->text() == "abc");
+  REQUIRE(notTrimmedTextRunBound->text() == "     abc    ");
+  REQUIRE(trimmedStartTextRunBound->text() == "abc    ");
+  REQUIRE(trimmedEndTextRunBound->text() == "     abc");
 
-    // Update value to "a b c "
-    stringProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "a b c ");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(notTrimmedTextRunBound->text() == "a b c ");
-    REQUIRE(trimmedBothTextRunBound->text() == "a b c");
-    REQUIRE(trimmedStartTextRunBound->text() == "a b c ");
-    REQUIRE(trimmedEndTextRunBound->text() == "a b c");
+  // Update value to "a b c "
+  stringProperty->as<rive::ViewModelInstanceString>()->propertyValue("a b c ");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(notTrimmedTextRunBound->text() == "a b c ");
+  REQUIRE(trimmedBothTextRunBound->text() == "a b c");
+  REQUIRE(trimmedStartTextRunBound->text() == "a b c ");
+  REQUIRE(trimmedEndTextRunBound->text() == "a b c");
 }
 
 TEST_CASE("To string converter with color formatters", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test.riv");
+  auto file = ReadRiveFile("assets/data_binding_test.riv");
 
-    auto artboard = file->artboard("artboard-4")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
+  auto artboard = file->artboard("artboard-4")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
 
-    REQUIRE(artboard->find<rive::TextValueRun>("RGBA_formatted_color_run") !=
-            nullptr);
-    auto RGBATextRunBound =
-        artboard->find<rive::TextValueRun>("RGBA_formatted_color_run");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("RGBA_formatted_color_run") !=
+      nullptr);
+  auto RGBATextRunBound = artboard->find<rive::TextValueRun>(
+      "RGBA_formatted_color_run");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("rgba_formatted_color_run") !=
-            nullptr);
-    auto rgbaTextRunBound =
-        artboard->find<rive::TextValueRun>("rgba_formatted_color_run");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("rgba_formatted_color_run") !=
+      nullptr);
+  auto rgbaTextRunBound = artboard->find<rive::TextValueRun>(
+      "rgba_formatted_color_run");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("hls_formatted_color_run") !=
-            nullptr);
-    auto hlsTextRunBound =
-        artboard->find<rive::TextValueRun>("hls_formatted_color_run");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("hls_formatted_color_run") != nullptr);
+  auto hlsTextRunBound = artboard->find<rive::TextValueRun>(
+      "hls_formatted_color_run");
 
-    REQUIRE(artboard->find<rive::TextValueRun>("escaped_characters_run") !=
-            nullptr);
-    auto escapedTextRunBound =
-        artboard->find<rive::TextValueRun>("escaped_characters_run");
+  REQUIRE(
+      artboard->find<rive::TextValueRun>("escaped_characters_run") != nullptr);
+  auto escapedTextRunBound = artboard->find<rive::TextValueRun>(
+      "escaped_characters_run");
 
-    // View model properties
-    // color with initial value "red 30, green 90, blue 200, alpha 255"
-    auto colorProperty = viewModelInstance->propertyValue("col");
-    REQUIRE(colorProperty != nullptr);
-    REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
+  // View model properties
+  // color with initial value "red 30, green 90, blue 200, alpha 255"
+  auto colorProperty = viewModelInstance->propertyValue("col");
+  REQUIRE(colorProperty != nullptr);
+  REQUIRE(colorProperty->is<rive::ViewModelInstanceColor>());
 
-    REQUIRE(RGBATextRunBound->text() == "text");
-    REQUIRE(rgbaTextRunBound->text() == "text");
-    REQUIRE(hlsTextRunBound->text() == "text");
-    REQUIRE(escapedTextRunBound->text() == "text");
-    // // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(RGBATextRunBound->text() ==
-            "color: {red: 1E, green: 5A, blue: C8, alpha: FF}");
-    REQUIRE(rgbaTextRunBound->text() ==
-            "color: {red: 30, green: 90, blue: 200, alpha: 255}");
-    REQUIRE(hlsTextRunBound->text() ==
-            "color: {hue: 219, luminance: 45, saturation: 74}");
-    REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
+  REQUIRE(RGBATextRunBound->text() == "text");
+  REQUIRE(rgbaTextRunBound->text() == "text");
+  REQUIRE(hlsTextRunBound->text() == "text");
+  REQUIRE(escapedTextRunBound->text() == "text");
+  // // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(
+      RGBATextRunBound->text() ==
+      "color: {red: 1E, green: 5A, blue: C8, alpha: FF}");
+  REQUIRE(
+      rgbaTextRunBound->text() ==
+      "color: {red: 30, green: 90, blue: 200, alpha: 255}");
+  REQUIRE(
+      hlsTextRunBound->text() ==
+      "color: {hue: 219, luminance: 45, saturation: 74}");
+  REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
 
-    // // Update value to "red 200, green 100, blue 50, alpha 100"
-    colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
-        rive::colorARGB(100, 200, 100, 50));
-    // // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(RGBATextRunBound->text() ==
-            "color: {red: C8, green: 64, blue: 32, alpha: 64}");
-    REQUIRE(rgbaTextRunBound->text() ==
-            "color: {red: 200, green: 100, blue: 50, alpha: 100}");
-    REQUIRE(hlsTextRunBound->text() ==
-            "color: {hue: 20, luminance: 49, saturation: 60}");
-    REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
+  // // Update value to "red 200, green 100, blue 50, alpha 100"
+  colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
+      rive::colorARGB(100, 200, 100, 50));
+  // // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(
+      RGBATextRunBound->text() ==
+      "color: {red: C8, green: 64, blue: 32, alpha: 64}");
+  REQUIRE(
+      rgbaTextRunBound->text() ==
+      "color: {red: 200, green: 100, blue: 50, alpha: 100}");
+  REQUIRE(
+      hlsTextRunBound->text() ==
+      "color: {hue: 20, luminance: 49, saturation: 60}");
+  REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
 
-    // // Update value to "red 0, green 10, blue 16, alpha 100"
-    colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
-        rive::colorARGB(100, 0, 10, 15));
-    // // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(RGBATextRunBound->text() ==
-            "color: {red: 00, green: 0A, blue: 0F, alpha: 64}");
-    REQUIRE(rgbaTextRunBound->text() ==
-            "color: {red: 0, green: 10, blue: 15, alpha: 100}");
-    REQUIRE(hlsTextRunBound->text() ==
-            "color: {hue: 200, luminance: 3, saturation: 100}");
-    REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
+  // // Update value to "red 0, green 10, blue 16, alpha 100"
+  colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
+      rive::colorARGB(100, 0, 10, 15));
+  // // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(
+      RGBATextRunBound->text() ==
+      "color: {red: 00, green: 0A, blue: 0F, alpha: 64}");
+  REQUIRE(
+      rgbaTextRunBound->text() ==
+      "color: {red: 0, green: 10, blue: 15, alpha: 100}");
+  REQUIRE(
+      hlsTextRunBound->text() ==
+      "color: {hue: 200, luminance: 3, saturation: 100}");
+  REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
 }
 
 struct FormulaResult
 {
-    std::string runName;
-    std::string result;
+  std::string runName;
+  std::string result;
 
-    // Constructor
-    FormulaResult(const std::string& name, const std::string& res) :
-        runName(name), result(res)
-    {}
+  // Constructor
+  FormulaResult(const std::string& name, const std::string& res)
+      : runName(name)
+      , result(res)
+  {}
 };
 
 // TEST_CASE("Formula converter", "[data binding]")
@@ -557,1488 +570,1466 @@ struct FormulaResult
 
 TEST_CASE("Range Mapper", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test_2.riv");
+  auto file = ReadRiveFile("assets/data_binding_test_2.riv");
 
-    auto artboard = file->artboard("artboard-2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("artboard-2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // Range mapper [2 - 3]
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("mapped-range-1") !=
-            nullptr);
-    auto customPropertyNumber1 =
-        artboard->find<rive::CustomPropertyNumber>("mapped-range-1");
-    REQUIRE(customPropertyNumber1->propertyValue() == 6.0f);
+  // Range mapper [2 - 3]
+  REQUIRE(
+      artboard->find<rive::CustomPropertyNumber>("mapped-range-1") != nullptr);
+  auto customPropertyNumber1 = artboard->find<rive::CustomPropertyNumber>(
+      "mapped-range-1");
+  REQUIRE(customPropertyNumber1->propertyValue() == 6.0f);
 
-    // Range mapper [2 - 3] - lower clamp - upper clamp
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("mapped-range-2") !=
-            nullptr);
-    auto customPropertyNumber2 =
-        artboard->find<rive::CustomPropertyNumber>("mapped-range-2");
-    REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
+  // Range mapper [2 - 3] - lower clamp - upper clamp
+  REQUIRE(
+      artboard->find<rive::CustomPropertyNumber>("mapped-range-2") != nullptr);
+  auto customPropertyNumber2 = artboard->find<rive::CustomPropertyNumber>(
+      "mapped-range-2");
+  REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
 
-    // Range mapper [2 - 3] - modulo
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("mapped-range-3") !=
-            nullptr);
-    auto customPropertyNumber3 =
-        artboard->find<rive::CustomPropertyNumber>("mapped-range-3");
-    REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
+  // Range mapper [2 - 3] - modulo
+  REQUIRE(
+      artboard->find<rive::CustomPropertyNumber>("mapped-range-3") != nullptr);
+  auto customPropertyNumber3 = artboard->find<rive::CustomPropertyNumber>(
+      "mapped-range-3");
+  REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
 
-    // Range mapper [2 - 3] - lower clamp - upper clamp - reversed
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("mapped-range-4") !=
-            nullptr);
-    auto customPropertyNumber4 =
-        artboard->find<rive::CustomPropertyNumber>("mapped-range-4");
-    REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
+  // Range mapper [2 - 3] - lower clamp - upper clamp - reversed
+  REQUIRE(
+      artboard->find<rive::CustomPropertyNumber>("mapped-range-4") != nullptr);
+  auto customPropertyNumber4 = artboard->find<rive::CustomPropertyNumber>(
+      "mapped-range-4");
+  REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
 
-    // Range mapper [2 - 2]
-    REQUIRE(artboard->find<rive::CustomPropertyNumber>("mapped-range-5") !=
-            nullptr);
-    auto customPropertyNumber5 =
-        artboard->find<rive::CustomPropertyNumber>("mapped-range-5");
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Range mapper [2 - 2]
+  REQUIRE(
+      artboard->find<rive::CustomPropertyNumber>("mapped-range-5") != nullptr);
+  auto customPropertyNumber5 = artboard->find<rive::CustomPropertyNumber>(
+      "mapped-range-5");
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 
-    // View model properties
-    // Number starts at 4.0f
-    auto numProperty = viewModelInstance->propertyValue("map-range-num");
-    REQUIRE(numProperty != nullptr);
-    REQUIRE(numProperty->is<rive::ViewModelInstanceNumber>());
-    REQUIRE(numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue() ==
-            4.0f);
+  // View model properties
+  // Number starts at 4.0f
+  auto numProperty = viewModelInstance->propertyValue("map-range-num");
+  REQUIRE(numProperty != nullptr);
+  REQUIRE(numProperty->is<rive::ViewModelInstanceNumber>());
+  REQUIRE(
+      numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue() ==
+      4.0f);
 
-    // Change value to -1.0f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(-1.0f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyNumber1->propertyValue() == 1.0f);
-    REQUIRE(customPropertyNumber2->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber4->propertyValue() == 3.0f);
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Change value to -1.0f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(-1.0f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyNumber1->propertyValue() == 1.0f);
+  REQUIRE(customPropertyNumber2->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber4->propertyValue() == 3.0f);
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 
-    // Change value to 0.0f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(0.0f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyNumber1->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber2->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber4->propertyValue() == 3.0f);
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Change value to 0.0f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(0.0f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyNumber1->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber2->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber4->propertyValue() == 3.0f);
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 
-    // Change value to 0.25f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(0.25f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyNumber1->propertyValue() == Approx(2.12916f));
-    REQUIRE(customPropertyNumber2->propertyValue() == Approx(2.12916f));
-    REQUIRE(customPropertyNumber3->propertyValue() == Approx(2.12916f));
-    REQUIRE(customPropertyNumber4->propertyValue() == Approx(2.87084f));
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Change value to 0.25f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(0.25f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyNumber1->propertyValue() == Approx(2.12916f));
+  REQUIRE(customPropertyNumber2->propertyValue() == Approx(2.12916f));
+  REQUIRE(customPropertyNumber3->propertyValue() == Approx(2.12916f));
+  REQUIRE(customPropertyNumber4->propertyValue() == Approx(2.87084f));
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 
-    // Change value to 2.0f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(2.0f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyNumber1->propertyValue() == 4.0f);
-    REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
-    REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Change value to 2.0f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(2.0f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyNumber1->propertyValue() == 4.0f);
+  REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
+  REQUIRE(customPropertyNumber3->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 
-    // Change value to 2.25f
-    numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(2.25f);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyNumber1->propertyValue() == 4.25f);
-    REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
-    REQUIRE(customPropertyNumber3->propertyValue() == Approx(2.12916f));
-    REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
-    REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
+  // Change value to 2.25f
+  numProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(2.25f);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyNumber1->propertyValue() == 4.25f);
+  REQUIRE(customPropertyNumber2->propertyValue() == 3.0f);
+  REQUIRE(customPropertyNumber3->propertyValue() == Approx(2.12916f));
+  REQUIRE(customPropertyNumber4->propertyValue() == 2.0f);
+  REQUIRE(customPropertyNumber5->propertyValue() == 2.0f);
 }
 
 TEST_CASE("Pad String", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test_2.riv");
+  auto file = ReadRiveFile("assets/data_binding_test_2.riv");
 
-    auto artboard = file->artboard("artboard-3")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("artboard-3")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // Pad string "abc" - length: 11 - Start
-    REQUIRE(artboard->find<rive::CustomPropertyString>("pad-string-1") !=
-            nullptr);
-    auto customPropertyString1 =
-        artboard->find<rive::CustomPropertyString>("pad-string-1");
-    REQUIRE(customPropertyString1->propertyValue() == "abcabcatext");
+  // Pad string "abc" - length: 11 - Start
+  REQUIRE(
+      artboard->find<rive::CustomPropertyString>("pad-string-1") != nullptr);
+  auto customPropertyString1 = artboard->find<rive::CustomPropertyString>(
+      "pad-string-1");
+  REQUIRE(customPropertyString1->propertyValue() == "abcabcatext");
 
-    // Pad string "abc" - length: 12 - End
-    REQUIRE(artboard->find<rive::CustomPropertyString>("pad-string-2") !=
-            nullptr);
-    auto customPropertyString2 =
-        artboard->find<rive::CustomPropertyString>("pad-string-2");
-    REQUIRE(customPropertyString2->propertyValue() == "textabcabcab");
+  // Pad string "abc" - length: 12 - End
+  REQUIRE(
+      artboard->find<rive::CustomPropertyString>("pad-string-2") != nullptr);
+  auto customPropertyString2 = artboard->find<rive::CustomPropertyString>(
+      "pad-string-2");
+  REQUIRE(customPropertyString2->propertyValue() == "textabcabcab");
 
-    // Pad string "abc" - length: 12 - End - Worng type of input
-    REQUIRE(artboard->find<rive::CustomPropertyString>("pad-string-3") !=
-            nullptr);
-    auto customPropertyString3 =
-        artboard->find<rive::CustomPropertyString>("pad-string-3");
-    REQUIRE(customPropertyString3->propertyValue() == "");
+  // Pad string "abc" - length: 12 - End - Worng type of input
+  REQUIRE(
+      artboard->find<rive::CustomPropertyString>("pad-string-3") != nullptr);
+  auto customPropertyString3 = artboard->find<rive::CustomPropertyString>(
+      "pad-string-3");
+  REQUIRE(customPropertyString3->propertyValue() == "");
 
-    // View model properties
-    // String starts with "text"
-    auto stringProperty = viewModelInstance->propertyValue("pad-string");
-    REQUIRE(stringProperty != nullptr);
-    REQUIRE(stringProperty->is<rive::ViewModelInstanceString>());
-    REQUIRE(
-        stringProperty->as<rive::ViewModelInstanceString>()->propertyValue() ==
-        "text");
+  // View model properties
+  // String starts with "text"
+  auto stringProperty = viewModelInstance->propertyValue("pad-string");
+  REQUIRE(stringProperty != nullptr);
+  REQUIRE(stringProperty->is<rive::ViewModelInstanceString>());
+  REQUIRE(
+      stringProperty->as<rive::ViewModelInstanceString>()->propertyValue() ==
+      "text");
 
-    // Change value to "text-text-text", longer than length
-    stringProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "text-text-text");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyString1->propertyValue() == "text-text-text");
-    REQUIRE(customPropertyString2->propertyValue() == "text-text-text");
-    REQUIRE(customPropertyString3->propertyValue() == "");
+  // Change value to "text-text-text", longer than length
+  stringProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+      "text-text-text");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyString1->propertyValue() == "text-text-text");
+  REQUIRE(customPropertyString2->propertyValue() == "text-text-text");
+  REQUIRE(customPropertyString3->propertyValue() == "");
 
-    // Change value to "", empty string
-    stringProperty->as<rive::ViewModelInstanceString>()->propertyValue("");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyString1->propertyValue() == "abcabcabcab");
-    REQUIRE(customPropertyString2->propertyValue() == "abcabcabcabc");
-    REQUIRE(customPropertyString3->propertyValue() == "");
+  // Change value to "", empty string
+  stringProperty->as<rive::ViewModelInstanceString>()->propertyValue("");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyString1->propertyValue() == "abcabcabcab");
+  REQUIRE(customPropertyString2->propertyValue() == "abcabcabcabc");
+  REQUIRE(customPropertyString3->propertyValue() == "");
 }
 
 TEST_CASE("Boolean Toggle", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test_2.riv");
+  auto file = ReadRiveFile("assets/data_binding_test_2.riv");
 
-    auto artboard = file->artboard("artboard-3")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("artboard-3")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // Boolean property
-    REQUIRE(artboard->find<rive::CustomPropertyBoolean>("negate-bool-1") !=
-            nullptr);
-    auto customPropertyBoolean1 =
-        artboard->find<rive::CustomPropertyBoolean>("negate-bool-1");
-    REQUIRE(customPropertyBoolean1->propertyValue() == true);
+  // Boolean property
+  REQUIRE(
+      artboard->find<rive::CustomPropertyBoolean>("negate-bool-1") != nullptr);
+  auto customPropertyBoolean1 = artboard->find<rive::CustomPropertyBoolean>(
+      "negate-bool-1");
+  REQUIRE(customPropertyBoolean1->propertyValue() == true);
 
-    // View model properties
-    // bool property starts as false
-    auto boolProperty = viewModelInstance->propertyValue("bool-prop");
-    REQUIRE(boolProperty != nullptr);
-    REQUIRE(boolProperty->is<rive::ViewModelInstanceBoolean>());
-    REQUIRE(
-        boolProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue() ==
-        false);
+  // View model properties
+  // bool property starts as false
+  auto boolProperty = viewModelInstance->propertyValue("bool-prop");
+  REQUIRE(boolProperty != nullptr);
+  REQUIRE(boolProperty->is<rive::ViewModelInstanceBoolean>());
+  REQUIRE(
+      boolProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue() ==
+      false);
 
-    // Change value to true
-    boolProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(customPropertyBoolean1->propertyValue() == false);
+  // Change value to true
+  boolProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(customPropertyBoolean1->propertyValue() == false);
 }
 
-TEST_CASE("Instance is shared when the same one is attached to two properties",
-          "[data binding]")
+TEST_CASE(
+    "Instance is shared when the same one is attached to two properties",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+  auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
 
-    auto artboard = file->artboard("main")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("main")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // View model properties
-    auto childInstanceViewModel1 = viewModelInstance->propertyValue("child1");
-    REQUIRE(childInstanceViewModel1 != nullptr);
-    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
-    auto referencedViewModel =
-        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
-            ->referenceViewModelInstance();
-    REQUIRE(referencedViewModel != nullptr);
-    auto labelProperty = referencedViewModel->propertyValue("label");
-    REQUIRE(labelProperty != nullptr);
-    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+  // View model properties
+  auto childInstanceViewModel1 = viewModelInstance->propertyValue("child1");
+  REQUIRE(childInstanceViewModel1 != nullptr);
+  REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+  auto referencedViewModel = childInstanceViewModel1
+                                 ->as<rive::ViewModelInstanceViewModel>()
+                                 ->referenceViewModelInstance();
+  REQUIRE(referencedViewModel != nullptr);
+  auto labelProperty = referencedViewModel->propertyValue("label");
+  REQUIRE(labelProperty != nullptr);
+  REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
 
-    // Elements bound to different view model properties that share same view
-    // model instance
-    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
-    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+  // Elements bound to different view model properties that share same view
+  // model instance
+  REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+  auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
 
-    auto nestedArtboardArtboardChild1 =
-        nestedArtboardChild1->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
-    auto textRunChild1 =
-        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild1 != nullptr);
-    REQUIRE(textRunChild1->text() == "label-vmi-1");
+  auto nestedArtboardArtboardChild1 = nestedArtboardChild1->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+  auto textRunChild1 = nestedArtboardArtboardChild1->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild1 != nullptr);
+  REQUIRE(textRunChild1->text() == "label-vmi-1");
 
-    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
-    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+  REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+  auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
 
-    auto nestedArtboardArtboardChild2 =
-        nestedArtboardChild2->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
-    auto textRunChild2 =
-        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild2 != nullptr);
-    REQUIRE(textRunChild2->text() == "label-vmi-1");
+  auto nestedArtboardArtboardChild2 = nestedArtboardChild2->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+  auto textRunChild2 = nestedArtboardArtboardChild2->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild2 != nullptr);
+  REQUIRE(textRunChild2->text() == "label-vmi-1");
 
-    // Changing the value on a single instance should affect both text although
-    // they are linked to different view model properties
-    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "label-update");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(textRunChild1->text() == "label-update");
-    REQUIRE(textRunChild2->text() == "label-update");
+  // Changing the value on a single instance should affect both text although
+  // they are linked to different view model properties
+  labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+      "label-update");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(textRunChild1->text() == "label-update");
+  REQUIRE(textRunChild2->text() == "label-update");
 }
 
-TEST_CASE("Instance is not shared when the different ones are attached to two "
-          "properties",
-          "[data binding]")
+TEST_CASE(
+    "Instance is not shared when the different ones are attached to two "
+    "properties",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+  auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
 
-    auto artboard = file->artboard("main_2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("main_2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // View model properties
-    auto childInstanceViewModel1 =
-        viewModelInstance->propertyValue("vm_2_child1");
-    REQUIRE(childInstanceViewModel1 != nullptr);
-    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
-    auto referencedViewModel =
-        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
-            ->referenceViewModelInstance();
-    REQUIRE(referencedViewModel != nullptr);
-    auto labelProperty = referencedViewModel->propertyValue("label");
-    REQUIRE(labelProperty != nullptr);
-    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+  // View model properties
+  auto childInstanceViewModel1 = viewModelInstance->propertyValue(
+      "vm_2_child1");
+  REQUIRE(childInstanceViewModel1 != nullptr);
+  REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+  auto referencedViewModel = childInstanceViewModel1
+                                 ->as<rive::ViewModelInstanceViewModel>()
+                                 ->referenceViewModelInstance();
+  REQUIRE(referencedViewModel != nullptr);
+  auto labelProperty = referencedViewModel->propertyValue("label");
+  REQUIRE(labelProperty != nullptr);
+  REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
 
-    // Elements bound to different view model properties that do not share same
-    // view model instance
-    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
-    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+  // Elements bound to different view model properties that do not share same
+  // view model instance
+  REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+  auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
 
-    auto nestedArtboardArtboardChild1 =
-        nestedArtboardChild1->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
-    auto textRunChild1 =
-        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild1 != nullptr);
-    REQUIRE(textRunChild1->text() == "label-vmi-1");
+  auto nestedArtboardArtboardChild1 = nestedArtboardChild1->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+  auto textRunChild1 = nestedArtboardArtboardChild1->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild1 != nullptr);
+  REQUIRE(textRunChild1->text() == "label-vmi-1");
 
-    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
-    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+  REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+  auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
 
-    auto nestedArtboardArtboardChild2 =
-        nestedArtboardChild2->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
-    auto textRunChild2 =
-        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild2 != nullptr);
-    REQUIRE(textRunChild2->text() == "label-vmi-2");
+  auto nestedArtboardArtboardChild2 = nestedArtboardChild2->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+  auto textRunChild2 = nestedArtboardArtboardChild2->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild2 != nullptr);
+  REQUIRE(textRunChild2->text() == "label-vmi-2");
 
-    // Changing the value on a single instance should not affect the other
-    // instance because they are not pointing to the same instance
-    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "label-update");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(textRunChild1->text() == "label-update");
-    REQUIRE(textRunChild2->text() == "label-vmi-2");
+  // Changing the value on a single instance should not affect the other
+  // instance because they are not pointing to the same instance
+  labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+      "label-update");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(textRunChild1->text() == "label-update");
+  REQUIRE(textRunChild2->text() == "label-vmi-2");
 }
 
-TEST_CASE("Instances are not shared when a new view model instance is created",
-          "[data binding]")
+TEST_CASE(
+    "Instances are not shared when a new view model instance is created",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+  auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
 
-    auto artboard = file->artboard("main_2")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance = file->createViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("main_2")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    // View model properties
-    auto childInstanceViewModel1 =
-        viewModelInstance->propertyValue("vm_2_child1");
-    REQUIRE(childInstanceViewModel1 != nullptr);
-    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
-    auto referencedViewModel =
-        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
-            ->referenceViewModelInstance();
-    REQUIRE(referencedViewModel != nullptr);
-    auto labelProperty = referencedViewModel->propertyValue("label");
-    REQUIRE(labelProperty != nullptr);
-    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+  // View model properties
+  auto childInstanceViewModel1 = viewModelInstance->propertyValue(
+      "vm_2_child1");
+  REQUIRE(childInstanceViewModel1 != nullptr);
+  REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+  auto referencedViewModel = childInstanceViewModel1
+                                 ->as<rive::ViewModelInstanceViewModel>()
+                                 ->referenceViewModelInstance();
+  REQUIRE(referencedViewModel != nullptr);
+  auto labelProperty = referencedViewModel->propertyValue("label");
+  REQUIRE(labelProperty != nullptr);
+  REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
 
-    // Elements bound to different view model properties that do not share same
-    // view model instance
-    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
-    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+  // Elements bound to different view model properties that do not share same
+  // view model instance
+  REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+  auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
 
-    auto nestedArtboardArtboardChild1 =
-        nestedArtboardChild1->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
-    auto textRunChild1 =
-        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild1 != nullptr);
-    REQUIRE(textRunChild1->text() == "");
+  auto nestedArtboardArtboardChild1 = nestedArtboardChild1->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+  auto textRunChild1 = nestedArtboardArtboardChild1->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild1 != nullptr);
+  REQUIRE(textRunChild1->text() == "");
 
-    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
-    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+  REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+  auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
 
-    auto nestedArtboardArtboardChild2 =
-        nestedArtboardChild2->artboardInstance();
-    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
-    auto textRunChild2 =
-        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
-    REQUIRE(textRunChild2 != nullptr);
-    REQUIRE(textRunChild2->text() == "");
+  auto nestedArtboardArtboardChild2 = nestedArtboardChild2->artboardInstance();
+  REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+  auto textRunChild2 = nestedArtboardArtboardChild2->find<rive::TextValueRun>(
+      "text_run");
+  REQUIRE(textRunChild2 != nullptr);
+  REQUIRE(textRunChild2->text() == "");
 
-    // Changing the value on a single instance should not affect the other
-    // instance because they are not pointing to the same instance
-    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
-        "label-update");
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
-    REQUIRE(textRunChild1->text() == "label-update");
-    REQUIRE(textRunChild2->text() == "");
+  // Changing the value on a single instance should not affect the other
+  // instance because they are not pointing to the same instance
+  labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+      "label-update");
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
+  REQUIRE(textRunChild1->text() == "label-update");
+  REQUIRE(textRunChild2->text() == "");
 }
 
 TEST_CASE("Triggers updated by events correctly update state", "[data binding]")
 {
-    auto file = ReadRiveFile("assets/data_binding_test_triggers.riv");
+  auto file = ReadRiveFile("assets/data_binding_test_triggers.riv");
 
-    auto artboard = file->artboard("root")->instance();
-    REQUIRE(artboard != nullptr);
-    auto viewModelInstance = file->createViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto artboard = file->artboard("root")->instance();
+  REQUIRE(artboard != nullptr);
+  auto viewModelInstance = file->createViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    REQUIRE(artboard->find<rive::Shape>("main_rect") != nullptr);
-    auto rect = artboard->find<rive::Shape>("main_rect");
+  REQUIRE(artboard->find<rive::Shape>("main_rect") != nullptr);
+  auto rect = artboard->find<rive::Shape>("main_rect");
 
-    REQUIRE(rect->children()[1]->is<rive::Fill>());
-    rive::Fill* rectMappadFill = rect->children()[1]->as<rive::Fill>();
-    REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 255, 0, 0));
+  REQUIRE(rect->children()[1]->is<rive::Fill>());
+  rive::Fill* rectMappadFill = rect->children()[1]->as<rive::Fill>();
+  REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 255, 0, 0));
 
-    // Advance state machine so the child reports the event
-    machine->advanceAndApply(0.7f);
-    // Advance state machine so the parent consumes the event
-    machine->advanceAndApply(0.1f);
-    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
-            rive::colorARGB(255, 0, 255, 0));
+  // Advance state machine so the child reports the event
+  machine->advanceAndApply(0.7f);
+  // Advance state machine so the parent consumes the event
+  machine->advanceAndApply(0.1f);
+  REQUIRE(
+      rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+      rive::colorARGB(255, 0, 255, 0));
 }
 
 TEST_CASE("Transition self conditions", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/transition_self_comparator_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile(
+      "assets/transition_self_comparator_test.riv",
+      &silver);
 
-    auto artboard = file->artboardDefault();
+  auto artboard = file->artboardDefault();
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    auto numProp =
-        vmi->propertyValue("num")->as<rive::ViewModelInstanceNumber>();
-    auto triggerProp =
-        vmi->propertyValue("tri")->as<rive::ViewModelInstanceTrigger>();
-    auto colorProp =
-        vmi->propertyValue("col")->as<rive::ViewModelInstanceColor>();
-    auto bolProp =
-        vmi->propertyValue("bol")->as<rive::ViewModelInstanceBoolean>();
-    auto stringProp =
-        vmi->propertyValue("str")->as<rive::ViewModelInstanceString>();
-    auto lisProp = vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  auto numProp = vmi->propertyValue("num")->as<rive::ViewModelInstanceNumber>();
+  auto triggerProp = vmi->propertyValue("tri")
+                         ->as<rive::ViewModelInstanceTrigger>();
+  auto colorProp = vmi->propertyValue("col")
+                       ->as<rive::ViewModelInstanceColor>();
+  auto bolProp = vmi->propertyValue("bol")
+                     ->as<rive::ViewModelInstanceBoolean>();
+  auto stringProp = vmi->propertyValue("str")
+                        ->as<rive::ViewModelInstanceString>();
+  auto lisProp = vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
 
-    // Number value changes once triggering a state transition
+  // Number value changes once triggering a state transition
+  silver.addFrame();
+  numProp->propertyValue(20);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Setting number property to same value doesn't trigger state transition
+  silver.addFrame();
+  numProp->propertyValue(20);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating number property twice triggers single state transition
+  silver.addFrame();
+  numProp->propertyValue(10);
+  numProp->propertyValue(20);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating two properties triggers transition in different layers
+  silver.addFrame();
+  numProp->propertyValue(10);
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating color property twice triggers state transition
+  silver.addFrame();
+  colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
+  colorProp->propertyValue(rive::colorARGB(101, 0, 10, 15));
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating color property once more triggers state transition
+  silver.addFrame();
+  colorProp->propertyValue(rive::colorARGB(102, 0, 10, 15));
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating boolean property twice triggers state transition
+  silver.addFrame();
+  bolProp->propertyValue(true);
+  bolProp->propertyValue(false);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating boolean property once more triggers state transition
+  silver.addFrame();
+  bolProp->propertyValue(true);
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating string property twice triggers state transition
+  silver.addFrame();
+  stringProp->propertyValue("a");
+  stringProp->propertyValue("b");
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating string property once more triggers state transition
+  silver.addFrame();
+  stringProp->propertyValue("c");
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+
+  // Updating list property by adding two items to the list triggers a single
+  // state transition
+  {
     silver.addFrame();
-    numProp->propertyValue(20);
+    auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    lisProp->addItem(itemList);
+    auto itemList2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    lisProp->addItem(itemList2);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Setting number property to same value doesn't trigger state transition
+  // Updating list property by adding one item to the list triggers a single
+  // state transition
+  {
     silver.addFrame();
-    numProp->propertyValue(20);
+    auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    lisProp->addItem(itemList);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating number property twice triggers single state transition
+  // Updating list property by adding one item at a specific position triggers
+  // a state transition
+  {
     silver.addFrame();
-    numProp->propertyValue(10);
-    numProp->propertyValue(20);
+    auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    lisProp->addItemAt(itemList, 0);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating two properties triggers transition in different layers
+  // Updating list property by adding one item at a at an invalid position
+  // does not trigger a state transition
+  {
     silver.addFrame();
-    numProp->propertyValue(10);
-    triggerProp->trigger();
+    auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
+    lisProp->addItemAt(itemList, 10);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating color property twice triggers state transition
+  // Updating list property swapping items triggers a state transition
+  {
     silver.addFrame();
-    colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
-    colorProp->propertyValue(rive::colorARGB(101, 0, 10, 15));
+    lisProp->swap(0, 1);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating color property once more triggers state transition
+  // Removing item from list by index triggers a state transition
+  {
     silver.addFrame();
-    colorProp->propertyValue(rive::colorARGB(102, 0, 10, 15));
+    lisProp->removeItem(0);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating boolean property twice triggers state transition
+  // Removing item from list by index outside of range doesn't trigger a state
+  // transition
+  {
     silver.addFrame();
-    bolProp->propertyValue(true);
-    bolProp->propertyValue(false);
+    lisProp->removeItem(10);
     stateMachine->advanceAndApply(0.0f);
     artboard->draw(renderer.get());
+  }
 
-    // Updating boolean property once more triggers state transition
-    silver.addFrame();
-    bolProp->propertyValue(true);
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-
-    // Updating string property twice triggers state transition
-    silver.addFrame();
-    stringProp->propertyValue("a");
-    stringProp->propertyValue("b");
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-
-    // Updating string property once more triggers state transition
-    silver.addFrame();
-    stringProp->propertyValue("c");
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-
-    // Updating list property by adding two items to the list triggers a single
-    // state transition
-    {
-        silver.addFrame();
-        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        lisProp->addItem(itemList);
-        auto itemList2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        lisProp->addItem(itemList2);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Updating list property by adding one item to the list triggers a single
-    // state transition
-    {
-        silver.addFrame();
-        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        lisProp->addItem(itemList);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Updating list property by adding one item at a specific position triggers
-    // a state transition
-    {
-        silver.addFrame();
-        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        lisProp->addItemAt(itemList, 0);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Updating list property by adding one item at a at an invalid position
-    // does not trigger a state transition
-    {
-        silver.addFrame();
-        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
-        lisProp->addItemAt(itemList, 10);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Updating list property swapping items triggers a state transition
-    {
-        silver.addFrame();
-        lisProp->swap(0, 1);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Removing item from list by index triggers a state transition
-    {
-        silver.addFrame();
-        lisProp->removeItem(0);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    // Removing item from list by index outside of range doesn't trigger a state
-    // transition
-    {
-        silver.addFrame();
-        lisProp->removeItem(10);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("transition_self_comparator_test"));
+  CHECK(silver.matches("transition_self_comparator_test"));
 }
 
 TEST_CASE("Computed root transform nested artboard", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/computed_root_transform.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/computed_root_transform.riv", &silver);
 
-    auto artboard = file->artboardNamed("nested-artboard-main");
+  auto artboard = file->artboardNamed("nested-artboard-main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("computed_root_transform-nested_artboard"));
+  CHECK(silver.matches("computed_root_transform-nested_artboard"));
 }
 
 TEST_CASE("Computed root transform list", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/computed_root_transform.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/computed_root_transform.riv", &silver);
 
-    auto artboard = file->artboardNamed("list-main");
+  auto artboard = file->artboardNamed("list-main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("computed_root_transform-list"));
+  CHECK(silver.matches("computed_root_transform-list"));
 }
 
 TEST_CASE("Trigger based listeners", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/trigger_based_listeners.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/trigger_based_listeners.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
 
-    silver.addFrame();
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("trigger_based_listeners"));
+  CHECK(silver.matches("trigger_based_listeners"));
 }
 
 TEST_CASE("Custom Property Trigger Binding", "[data binding]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/custom_property_trigger.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/custom_property_trigger.riv", &silver);
 
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    auto machine = artboard->defaultStateMachine();
-    machine->bindViewModelInstance(viewModelInstance);
-    REQUIRE(machine != nullptr);
-    // Advance state machine
-    machine->advanceAndApply(0.0f);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  auto machine = artboard->defaultStateMachine();
+  machine->bindViewModelInstance(viewModelInstance);
+  REQUIRE(machine != nullptr);
+  // Advance state machine
+  machine->advanceAndApply(0.0f);
 
-    auto circle = artboard->find<rive::Shape>("MainCircle");
-    REQUIRE(circle != nullptr);
-    REQUIRE(circle->scaleX() == 1.0f);
-    REQUIRE(circle->scaleY() == 1.0f);
+  auto circle = artboard->find<rive::Shape>("MainCircle");
+  REQUIRE(circle != nullptr);
+  REQUIRE(circle->scaleX() == 1.0f);
+  REQUIRE(circle->scaleY() == 1.0f);
 
-    auto trig = artboard->find<rive::CustomPropertyTrigger>("Trig");
-    REQUIRE(trig != nullptr);
+  auto trig = artboard->find<rive::CustomPropertyTrigger>("Trig");
+  REQUIRE(trig != nullptr);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.16f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    machine->advanceAndApply(0.16f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.16f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        machine->advanceAndApply(0.16f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("custom_property_trigger_bind"));
+  CHECK(silver.matches("custom_property_trigger_bind"));
 }
 
 TEST_CASE("Data binding solos", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
 
-    auto artboard = file->artboardNamed("values-to-solos");
+  auto artboard = file->artboardNamed("values-to-solos");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("data_bind_solo-values-to-solos"));
+  CHECK(silver.matches("data_bind_solo-values-to-solos"));
 }
 
 TEST_CASE("Data binding solos - target to source", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
 
-    auto artboard = file->artboardNamed("solos-to-values");
+  auto artboard = file->artboardNamed("solos-to-values");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("data_bind_solo-solos-to-values"));
+  CHECK(silver.matches("data_bind_solo-solos-to-values"));
 }
 
 TEST_CASE("State machine fire triggers", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file =
-        ReadRiveFile("assets/state_transition_fire_trigger.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/state_transition_fire_trigger.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
 
-    silver.addFrame();
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    artboard->draw(renderer.get());
+  silver.addFrame();
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("state_transition_fire_trigger"));
+  CHECK(silver.matches("state_transition_fire_trigger"));
 }
 
 TEST_CASE("Custom enum properties", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/custom_property_enum.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/custom_property_enum.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(3.0f / 0.048f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.048f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(3.0f / 0.048f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.048f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("custom_property_enum"));
+  CHECK(silver.matches("custom_property_enum"));
 }
 
 TEST_CASE("View model runtime properties", "[data binding]")
 {
 
-    auto file = ReadRiveFile("assets/viewmodel_runtime_file.riv");
+  auto file = ReadRiveFile("assets/viewmodel_runtime_file.riv");
 
-    auto vm = file->viewModelByName("vm");
-    REQUIRE(vm != nullptr);
-    auto instance = vm->createDefaultInstance();
-    REQUIRE(instance != nullptr);
-    // Grab ViewModel name from instance
-    auto viewModelName = instance->viewModelName();
-    REQUIRE(viewModelName == "vm");
-    // Number
-    auto num = instance->propertyNumber("num");
-    REQUIRE(num != nullptr);
-    REQUIRE(num->dataType() == rive::DataType::number);
-    // string
-    auto str = instance->propertyString("str");
-    REQUIRE(str != nullptr);
-    REQUIRE(str->dataType() == rive::DataType::string);
-    // Requesting a property with the same name from cache doesn't return the
-    // wrong object
-    auto strWrong = instance->propertyNumber("str");
-    REQUIRE(strWrong == nullptr);
-    // Boolean
-    auto boo = instance->propertyBoolean("boo");
-    REQUIRE(boo != nullptr);
-    REQUIRE(boo->dataType() == rive::DataType::boolean);
-    // Color
-    auto col = instance->propertyColor("col");
-    REQUIRE(col != nullptr);
-    REQUIRE(col->dataType() == rive::DataType::color);
-    // Trigger
-    auto tri = instance->propertyTrigger("tri");
-    REQUIRE(tri != nullptr);
-    REQUIRE(tri->dataType() == rive::DataType::trigger);
-    // Enum
-    auto enu = instance->propertyEnum("enu");
-    REQUIRE(enu != nullptr);
-    REQUIRE(enu->dataType() == rive::DataType::enumType);
-    // Image
-    auto ima = instance->propertyImage("ima");
-    REQUIRE(ima != nullptr);
-    REQUIRE(ima->dataType() == rive::DataType::assetImage);
-    // Artboard
-    auto art = instance->propertyArtboard("art");
-    REQUIRE(art != nullptr);
-    REQUIRE(art->dataType() == rive::DataType::artboard);
-    // List
-    auto lis = instance->propertyList("lis");
-    REQUIRE(lis != nullptr);
-    REQUIRE(lis->dataType() == rive::DataType::list);
-    // number in nested view model: chi > num
-    auto numChi = instance->propertyNumber("chi/chi-num");
-    REQUIRE(numChi != nullptr);
-    REQUIRE(numChi->dataType() == rive::DataType::number);
+  auto vm = file->viewModelByName("vm");
+  REQUIRE(vm != nullptr);
+  auto instance = vm->createDefaultInstance();
+  REQUIRE(instance != nullptr);
+  // Grab ViewModel name from instance
+  auto viewModelName = instance->viewModelName();
+  REQUIRE(viewModelName == "vm");
+  // Number
+  auto num = instance->propertyNumber("num");
+  REQUIRE(num != nullptr);
+  REQUIRE(num->dataType() == rive::DataType::number);
+  // string
+  auto str = instance->propertyString("str");
+  REQUIRE(str != nullptr);
+  REQUIRE(str->dataType() == rive::DataType::string);
+  // Requesting a property with the same name from cache doesn't return the
+  // wrong object
+  auto strWrong = instance->propertyNumber("str");
+  REQUIRE(strWrong == nullptr);
+  // Boolean
+  auto boo = instance->propertyBoolean("boo");
+  REQUIRE(boo != nullptr);
+  REQUIRE(boo->dataType() == rive::DataType::boolean);
+  // Color
+  auto col = instance->propertyColor("col");
+  REQUIRE(col != nullptr);
+  REQUIRE(col->dataType() == rive::DataType::color);
+  // Trigger
+  auto tri = instance->propertyTrigger("tri");
+  REQUIRE(tri != nullptr);
+  REQUIRE(tri->dataType() == rive::DataType::trigger);
+  // Enum
+  auto enu = instance->propertyEnum("enu");
+  REQUIRE(enu != nullptr);
+  REQUIRE(enu->dataType() == rive::DataType::enumType);
+  // Image
+  auto ima = instance->propertyImage("ima");
+  REQUIRE(ima != nullptr);
+  REQUIRE(ima->dataType() == rive::DataType::assetImage);
+  // Artboard
+  auto art = instance->propertyArtboard("art");
+  REQUIRE(art != nullptr);
+  REQUIRE(art->dataType() == rive::DataType::artboard);
+  // List
+  auto lis = instance->propertyList("lis");
+  REQUIRE(lis != nullptr);
+  REQUIRE(lis->dataType() == rive::DataType::list);
+  // number in nested view model: chi > num
+  auto numChi = instance->propertyNumber("chi/chi-num");
+  REQUIRE(numChi != nullptr);
+  REQUIRE(numChi->dataType() == rive::DataType::number);
 
-    // Enum properties expose the backing enum's name while non-enum properties
-    // leave enumName empty.
-    auto properties = instance->properties();
-    auto findProperty = [&properties](const std::string& name) {
-        return std::find_if(properties.begin(),
-                            properties.end(),
-                            [&name](const rive::PropertyData& data) {
-                                return data.name == name;
-                            });
-    };
-    auto enuData = findProperty("enu");
-    REQUIRE(enuData != properties.end());
-    REQUIRE(enuData->type == rive::DataType::enumType);
-    REQUIRE(enuData->enumName == "Horizontal Align");
+  // Enum properties expose the backing enum's name while non-enum properties
+  // leave enumName empty.
+  auto properties = instance->properties();
+  auto findProperty = [&properties](const std::string& name) {
+    return std::find_if(
+        properties.begin(),
+        properties.end(),
+        [&name](const rive::PropertyData& data) { return data.name == name; });
+  };
+  auto enuData = findProperty("enu");
+  REQUIRE(enuData != properties.end());
+  REQUIRE(enuData->type == rive::DataType::enumType);
+  REQUIRE(enuData->enumName == "Horizontal Align");
 
-    auto numData = findProperty("num");
-    REQUIRE(numData != properties.end());
-    REQUIRE(numData->type == rive::DataType::number);
-    REQUIRE(numData->enumName.empty());
+  auto numData = findProperty("num");
+  REQUIRE(numData != properties.end());
+  REQUIRE(numData->type == rive::DataType::number);
+  REQUIRE(numData->enumName.empty());
 }
 
 TEST_CASE("Trigger fires single change on listener", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/trigger_fires_single_change.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/trigger_fires_single_change.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    silver.addFrame();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  silver.addFrame();
+  artboard->draw(renderer.get());
 
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
-    stateMachine->advanceAndApply(0.1f);
-    stateMachine->advanceAndApply(1.0f);
-    silver.addFrame();
-    artboard->draw(renderer.get());
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
+  stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(1.0f);
+  silver.addFrame();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("trigger_fires_single_change"));
+  CHECK(silver.matches("trigger_fires_single_change"));
 }
 
 TEST_CASE("Convert to number", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/data_converter_to_number.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/data_converter_to_number.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.2f / 0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
     stateMachine->advanceAndApply(0.016f);
-
-    auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.2f / 0.016f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("data_converter_to_number"));
+  CHECK(silver.matches("data_converter_to_number"));
 }
 
 TEST_CASE("List to path", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/list_to_path.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/list_to_path.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    auto listProp =
-        vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  auto listProp = vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
+  silver.addFrame();
+  // Create a square with 4 XY vertices
+
+  auto vertex1 = file->createViewModelInstance("vertex-x-y");
+  auto vertexInstanceListItem1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItem1->viewModelInstance(vertex1);
+  listProp->addItem(vertexInstanceListItem1);
+
+  auto vertex2 = file->createViewModelInstance("vertex-x-y");
+  vertex2->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  auto vertexInstanceListItem2 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItem2->viewModelInstance(vertex2);
+  listProp->addItem(vertexInstanceListItem2);
+
+  auto vertex3 = file->createViewModelInstance("vertex-x-y");
+  vertex3->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  vertex3->propertyValue("y")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  auto vertexInstanceListItem3 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItem3->viewModelInstance(vertex3);
+  listProp->addItem(vertexInstanceListItem3);
+
+  auto vertex4 = file->createViewModelInstance("vertex-x-y");
+  vertex4->propertyValue("y")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  auto vertexInstanceListItem4 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItem4->viewModelInstance(vertex4);
+  listProp->addItem(vertexInstanceListItem4);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Insert a mirrored vertex at index 2
+  auto vertexRD1 = file->createViewModelInstance("vertex-rotation-distance");
+  vertexRD1->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(200);
+  vertexRD1->propertyValue("rotation")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(1.5f);
+  vertexRD1->propertyValue("distance")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(20);
+  auto vertexInstanceListItemRD1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItemRD1->viewModelInstance(vertexRD1);
+  listProp->addItemAt(vertexInstanceListItemRD1, 2);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Insert a detached vertex at index 3
+  auto vertexD1 = file->createViewModelInstance("vertex-detached");
+  vertexD1->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(200);
+  vertexD1->propertyValue("y")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  vertexD1->propertyValue("inRotation")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(1);
+  vertexD1->propertyValue("outRotation")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(2);
+  vertexD1->propertyValue("inDistance")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(10);
+  vertexD1->propertyValue("outDistance")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(30);
+  auto vertexInstanceListItemD1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItemD1->viewModelInstance(vertexD1);
+  listProp->addItemAt(vertexInstanceListItemD1, 3);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Insert a cubic in out vertex at index 4
+  auto vertexIO1 = file->createViewModelInstance("vertex-in-out");
+  vertexIO1->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  vertexIO1->propertyValue("y")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(200);
+  vertexIO1->propertyValue("inX")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(40);
+  vertexIO1->propertyValue("inY")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(20);
+  vertexIO1->propertyValue("outX")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(10);
+  vertexIO1->propertyValue("outY")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(30);
+  auto vertexInstanceListItemIO1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItemIO1->viewModelInstance(vertexIO1);
+  listProp->addItemAt(vertexInstanceListItemIO1, 4);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Insert a non valid vertex at index 4
+  auto vertexN1 = file->createViewModelInstance("non-vertex");
+  auto vertexInstanceListItemN1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItemN1->viewModelInstance(vertexN1);
+  listProp->addItemAt(vertexInstanceListItemN1, 5);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Insert a vertex with some paired values undefined
+  auto vertexI1 = file->createViewModelInstance("vertex-incomplete");
+
+  vertexI1->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(100);
+  vertexI1->propertyValue("y")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(300);
+  vertexI1->propertyValue("inDistance")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(60);
+  vertexI1->propertyValue("inRotation")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(-1);
+  vertexI1->propertyValue("outX")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(30);
+  vertexI1->propertyValue("inX")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(-30);
+  auto vertexInstanceListItemI1 = rive::make_rcp<
+      rive::ViewModelInstanceListItem>();
+  vertexInstanceListItemI1->viewModelInstance(vertexI1);
+  listProp->addItemAt(vertexInstanceListItemI1, 4);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  silver.addFrame();
+  // Update some values to trigger dirt updates
+  vertexI1->propertyValue("inX")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(-30);
+
+  vertex1->propertyValue("x")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(50);
+
+  vertexRD1->propertyValue("rotation")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(1.0f);
+
+  vertexD1->propertyValue("inDistance")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(30);
+
+  vertexIO1->propertyValue("outY")
+      ->as<rive::ViewModelInstanceNumber>()
+      ->propertyValue(40);
+
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+
+  for (int i = 0; i < 60; i++)
+  {
     silver.addFrame();
-    // Create a square with 4 XY vertices
-
-    auto vertex1 = file->createViewModelInstance("vertex-x-y");
-    auto vertexInstanceListItem1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItem1->viewModelInstance(vertex1);
-    listProp->addItem(vertexInstanceListItem1);
-
-    auto vertex2 = file->createViewModelInstance("vertex-x-y");
-    vertex2->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    auto vertexInstanceListItem2 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItem2->viewModelInstance(vertex2);
-    listProp->addItem(vertexInstanceListItem2);
-
-    auto vertex3 = file->createViewModelInstance("vertex-x-y");
-    vertex3->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    vertex3->propertyValue("y")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    auto vertexInstanceListItem3 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItem3->viewModelInstance(vertex3);
-    listProp->addItem(vertexInstanceListItem3);
-
-    auto vertex4 = file->createViewModelInstance("vertex-x-y");
-    vertex4->propertyValue("y")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    auto vertexInstanceListItem4 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItem4->viewModelInstance(vertex4);
-    listProp->addItem(vertexInstanceListItem4);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Insert a mirrored vertex at index 2
-    auto vertexRD1 = file->createViewModelInstance("vertex-rotation-distance");
-    vertexRD1->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(200);
-    vertexRD1->propertyValue("rotation")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(1.5f);
-    vertexRD1->propertyValue("distance")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(20);
-    auto vertexInstanceListItemRD1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItemRD1->viewModelInstance(vertexRD1);
-    listProp->addItemAt(vertexInstanceListItemRD1, 2);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Insert a detached vertex at index 3
-    auto vertexD1 = file->createViewModelInstance("vertex-detached");
-    vertexD1->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(200);
-    vertexD1->propertyValue("y")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    vertexD1->propertyValue("inRotation")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(1);
-    vertexD1->propertyValue("outRotation")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(2);
-    vertexD1->propertyValue("inDistance")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(10);
-    vertexD1->propertyValue("outDistance")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(30);
-    auto vertexInstanceListItemD1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItemD1->viewModelInstance(vertexD1);
-    listProp->addItemAt(vertexInstanceListItemD1, 3);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Insert a cubic in out vertex at index 4
-    auto vertexIO1 = file->createViewModelInstance("vertex-in-out");
-    vertexIO1->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    vertexIO1->propertyValue("y")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(200);
-    vertexIO1->propertyValue("inX")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(40);
-    vertexIO1->propertyValue("inY")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(20);
-    vertexIO1->propertyValue("outX")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(10);
-    vertexIO1->propertyValue("outY")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(30);
-    auto vertexInstanceListItemIO1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItemIO1->viewModelInstance(vertexIO1);
-    listProp->addItemAt(vertexInstanceListItemIO1, 4);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Insert a non valid vertex at index 4
-    auto vertexN1 = file->createViewModelInstance("non-vertex");
-    auto vertexInstanceListItemN1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItemN1->viewModelInstance(vertexN1);
-    listProp->addItemAt(vertexInstanceListItemN1, 5);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Insert a vertex with some paired values undefined
-    auto vertexI1 = file->createViewModelInstance("vertex-incomplete");
-
-    vertexI1->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(100);
-    vertexI1->propertyValue("y")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(300);
-    vertexI1->propertyValue("inDistance")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(60);
     vertexI1->propertyValue("inRotation")
         ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(-1);
-    vertexI1->propertyValue("outX")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(30);
-    vertexI1->propertyValue("inX")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(-30);
-    auto vertexInstanceListItemI1 =
-        rive::make_rcp<rive::ViewModelInstanceListItem>();
-    vertexInstanceListItemI1->viewModelInstance(vertexI1);
-    listProp->addItemAt(vertexInstanceListItemI1, 4);
-
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-
-    silver.addFrame();
-    // Update some values to trigger dirt updates
-    vertexI1->propertyValue("inX")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(-30);
-
-    vertex1->propertyValue("x")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(50);
-
+        ->propertyValue((float)i * 6);
     vertexRD1->propertyValue("rotation")
         ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(1.0f);
-
-    vertexD1->propertyValue("inDistance")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(30);
-
-    vertexIO1->propertyValue("outY")
-        ->as<rive::ViewModelInstanceNumber>()
-        ->propertyValue(40);
-
+        ->propertyValue((float)i * 6);
+    stateMachine->advanceAndApply(0.01f);
     stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    for (int i = 0; i < 60; i++)
-    {
-        silver.addFrame();
-        vertexI1->propertyValue("inRotation")
-            ->as<rive::ViewModelInstanceNumber>()
-            ->propertyValue((float)i * 6);
-        vertexRD1->propertyValue("rotation")
-            ->as<rive::ViewModelInstanceNumber>()
-            ->propertyValue((float)i * 6);
-        stateMachine->advanceAndApply(0.01f);
-        stateMachine->advanceAndApply(0.0f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("list_to_path"));
+  CHECK(silver.matches("list_to_path"));
 }
 
 TEST_CASE("Format text with commas", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/format_number_with_commas.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/format_number_with_commas.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("format_number_with_commas"));
+  CHECK(silver.matches("format_number_with_commas"));
 }
 
 TEST_CASE("Interpolate color and number", "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/time_based_interpolation.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/time_based_interpolation.riv", &silver);
 
-    auto artboard = file->artboardNamed("main");
+  auto artboard = file->artboardNamed("main");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
+  silver.addFrame();
+  artboard->draw(renderer.get());
+
+  int frames = (int)(1.0f / 0.032f);
+  for (int i = 0; i < frames; i++)
+  {
     silver.addFrame();
+    stateMachine->advanceAndApply(0.032f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = (int)(1.0f / 0.032f);
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.032f);
-        artboard->draw(renderer.get());
-    }
+  stateMachine->pointerDown(rive::Vec2D(425.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->pointerUp(rive::Vec2D(425.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
-    stateMachine->pointerDown(rive::Vec2D(425.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->pointerUp(rive::Vec2D(425.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
+  silver.addFrame();
+  artboard->draw(renderer.get());
 
+  for (int i = 0; i < 10; i++)
+  {
     silver.addFrame();
+    stateMachine->advanceAndApply(0.032f);
     artboard->draw(renderer.get());
+  }
 
-    for (int i = 0; i < 10; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.032f);
-        artboard->draw(renderer.get());
-    }
+  // Interrupt interpolation mid way
+  stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+  // Advance and apply twice to take the transition and apply the next state.
+  stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
-    // Interrupt interpolation mid way
-    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
-    // Advance and apply twice to take the transition and apply the next state.
-    stateMachine->advanceAndApply(0.016f);
-    stateMachine->advanceAndApply(0.016f);
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.032f);
+    artboard->draw(renderer.get());
+  }
 
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.032f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("time_based_interpolation"));
+  CHECK(silver.matches("time_based_interpolation"));
 }
 
-TEST_CASE("Bidirectional data binding with source to target precedence",
-          "[data binding]")
+TEST_CASE(
+    "Bidirectional data binding with source to target precedence",
+    "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
 
-    auto artboard = file->artboardNamed("source_first");
+  auto artboard = file->artboardNamed("source_first");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+  auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+  auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
 
-    // On source first these values will overwrite the target values
-    // that are [250,250]
-    xProp->propertyValue(100);
-    yProp->propertyValue(100);
+  // On source first these values will overwrite the target values
+  // that are [250,250]
+  xProp->propertyValue(100);
+  yProp->propertyValue(100);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("bidirectional_precedence-source_first"));
+  CHECK(silver.matches("bidirectional_precedence-source_first"));
 }
 
-TEST_CASE("Bidirectional data binding with target to source precedence",
-          "[data binding]")
+TEST_CASE(
+    "Bidirectional data binding with target to source precedence",
+    "[data binding]")
 {
 
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
 
-    auto artboard = file->artboardNamed("target_first");
+  auto artboard = file->artboardNamed("target_first");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+  auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+  auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
 
-    // On target first these values will be overwritten by the target values
-    // that are [250,250]
-    xProp->propertyValue(100);
-    yProp->propertyValue(100);
+  // On target first these values will be overwritten by the target values
+  // that are [250,250]
+  xProp->propertyValue(100);
+  yProp->propertyValue(100);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
 
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("bidirectional_precedence-target_first"));
+  CHECK(silver.matches("bidirectional_precedence-target_first"));
 }
 
 // End-to-end sanity for a source change on a target-first TwoWay bind: the
@@ -2049,394 +2040,393 @@ TEST_CASE("Bidirectional data binding with target to source precedence",
 // data_bind_container_test.cpp, which fails without the origin gate. This asset
 // has no converter, so it exercises the source→target path through the real
 // apply machinery.)
-TEST_CASE("TwoWay source change reaches target under target-first precedence",
-          "[data binding]")
+TEST_CASE(
+    "TwoWay source change reaches target under target-first precedence",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
-    auto artboard = file->artboardNamed("target_first");
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
+  auto artboard = file->artboardNamed("target_first");
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
-    xProp->propertyValue(100.0f);
-    yProp->propertyValue(100.0f);
+  auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+  auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+  xProp->propertyValue(100.0f);
+  yProp->propertyValue(100.0f);
 
-    stateMachine->bindViewModelInstance(vmi);
-    // Settle the initial sync — target-first precedence makes the authored
-    // target values win and flow back into the source.
-    stateMachine->advanceAndApply(0.0f);
-    for (int i = 0; i < 10; i++)
+  stateMachine->bindViewModelInstance(vmi);
+  // Settle the initial sync — target-first precedence makes the authored
+  // target values win and flow back into the source.
+  stateMachine->advanceAndApply(0.0f);
+  for (int i = 0; i < 10; i++)
+  {
+    stateMachine->advanceAndApply(0.016f);
+  }
+
+  rive::Node* targetNode = nullptr;
+  for (auto* db : artboard->dataBinds())
+  {
+    if (db->target() != nullptr && db->target()->is<rive::Node>())
     {
-        stateMachine->advanceAndApply(0.016f);
+      targetNode = db->target()->as<rive::Node>();
+      break;
     }
+  }
+  REQUIRE(targetNode != nullptr);
 
-    rive::Node* targetNode = nullptr;
-    for (auto* db : artboard->dataBinds())
-    {
-        if (db->target() != nullptr && db->target()->is<rive::Node>())
-        {
-            targetNode = db->target()->as<rive::Node>();
-            break;
-        }
-    }
-    REQUIRE(targetNode != nullptr);
+  // After settling the source mirrors the target (they are two-way bound and
+  // the target won the initial sync).
+  REQUIRE(xProp->propertyValue() == targetNode->x());
+  REQUIRE(yProp->propertyValue() == targetNode->y());
 
-    // After settling the source mirrors the target (they are two-way bound and
-    // the target won the initial sync).
-    REQUIRE(xProp->propertyValue() == targetNode->x());
-    REQUIRE(yProp->propertyValue() == targetNode->y());
+  // Change the SOURCE to clearly distinct values. With the fix this
+  // propagates source→target only; the buggy behavior ran target→source first
+  // and reverted the source to the (stale) target value.
+  xProp->propertyValue(500.0f);
+  yProp->propertyValue(600.0f);
+  for (int i = 0; i < 20; i++)
+  {
+    stateMachine->advanceAndApply(0.016f);
+  }
 
-    // Change the SOURCE to clearly distinct values. With the fix this
-    // propagates source→target only; the buggy behavior ran target→source first
-    // and reverted the source to the (stale) target value.
-    xProp->propertyValue(500.0f);
-    yProp->propertyValue(600.0f);
-    for (int i = 0; i < 20; i++)
-    {
-        stateMachine->advanceAndApply(0.016f);
-    }
-
-    // Source keeps its new value (not clobbered) and reaches the target.
-    CHECK(xProp->propertyValue() == 500.0f);
-    CHECK(yProp->propertyValue() == 600.0f);
-    CHECK(targetNode->x() == 500.0f);
-    CHECK(targetNode->y() == 600.0f);
+  // Source keeps its new value (not clobbered) and reaches the target.
+  CHECK(xProp->propertyValue() == 500.0f);
+  CHECK(yProp->propertyValue() == 600.0f);
+  CHECK(targetNode->x() == 500.0f);
+  CHECK(targetNode->y() == 600.0f);
 }
 
 TEST_CASE("Artboards as conditions", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/databind_artboard.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/databind_artboard.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi =
-        file->createViewModelInstance((int)artboard.get()->viewModelId(), 0);
+  auto vmi = file->createViewModelInstance(
+      (int)artboard.get()->viewModelId(),
+      0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
+  silver.addFrame();
 
-    stateMachine->pointerDown(rive::Vec2D(247, 332));
-    stateMachine->pointerUp(rive::Vec2D(247, 332));
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->pointerDown(rive::Vec2D(247, 332));
+  stateMachine->pointerUp(rive::Vec2D(247, 332));
+  stateMachine->advanceAndApply(0.1f);
 
-    artboard->draw(renderer.get());
+  artboard->draw(renderer.get());
 
-    silver.addFrame();
+  silver.addFrame();
 
-    stateMachine->advanceAndApply(0.1f);
+  stateMachine->advanceAndApply(0.1f);
 
-    artboard->draw(renderer.get());
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("databind_artboard"));
+  CHECK(silver.matches("databind_artboard"));
 }
 
 TEST_CASE("Relative data binding", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/relative_data_binding.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/relative_data_binding.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi =
-        file->createViewModelInstance((int)artboard.get()->viewModelId(), 0);
+  auto vmi = file->createViewModelInstance(
+      (int)artboard.get()->viewModelId(),
+      0);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
-    auto renderer = silver.makeRenderer();
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("relative_data_binding"));
+  CHECK(silver.matches("relative_data_binding"));
 }
 TEST_CASE("Relative data binding view model path", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto renderer = silver.makeRenderer();
-    // First use the default view model instance that is attached to the
-    // artboard
-    {
-        auto vmi =
-            file->createViewModelInstance((int)artboard.get()->viewModelId(),
-                                          0);
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto renderer = silver.makeRenderer();
+  // First use the default view model instance that is attached to the
+  // artboard
+  {
+    auto vmi = file->createViewModelInstance(
+        (int)artboard.get()->viewModelId(),
+        0);
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-    // Next bind it to a different view model type that matches the expected
-    // view model shape
-    {
-        auto vm = file->viewModel("ViewModel1");
-        auto vmi = file->createDefaultViewModelInstance(vm);
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-    // Next bind it to a different view model with the wrong shape
-    {
-        auto vm = file->viewModel("ViewModel2");
-        auto vmi = file->createDefaultViewModelInstance(vm);
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+  }
+  // Next bind it to a different view model type that matches the expected
+  // view model shape
+  {
+    auto vm = file->viewModel("ViewModel1");
+    auto vmi = file->createDefaultViewModelInstance(vm);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+  }
+  // Next bind it to a different view model with the wrong shape
+  {
+    auto vm = file->viewModel("ViewModel2");
+    auto vmi = file->createDefaultViewModelInstance(vm);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    CHECK(silver.matches("relative_data_bind_path"));
+  CHECK(silver.matches("relative_data_bind_path"));
 }
 TEST_CASE("Relative data binding view model state machine listener", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
 
-    auto artboard = file->artboardNamed("listener");
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardNamed("listener");
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto renderer = silver.makeRenderer();
-    // First use the default view model instance that is attached to the
-    // artboard
-    {
-        auto vmi =
-            file->createViewModelInstance((int)artboard.get()->viewModelId(),
-                                          0);
-        auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto renderer = silver.makeRenderer();
+  // First use the default view model instance that is attached to the
+  // artboard
+  {
+    auto vmi = file->createViewModelInstance(
+        (int)artboard.get()->viewModelId(),
+        0);
+    auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        numProp->propertyValue(100);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-    // Next bind it to a different view model with the same shape
-    {
-        auto vm = file->viewModel("SML_VM2");
-        auto vmi = file->createDefaultViewModelInstance(vm);
-        auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    numProp->propertyValue(100);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+  }
+  // Next bind it to a different view model with the same shape
+  {
+    auto vm = file->viewModel("SML_VM2");
+    auto vmi = file->createDefaultViewModelInstance(vm);
+    auto numProp = vmi->propertyValue("num")->as<ViewModelInstanceNumber>();
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        numProp->propertyValue(100);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    numProp->propertyValue(100);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    CHECK(silver.matches("relative_data_bind_path-listener"));
+  CHECK(silver.matches("relative_data_bind_path-listener"));
 }
 
-TEST_CASE("Relative data binding view model state machine fire trigger",
-          "[silver]")
+TEST_CASE(
+    "Relative data binding view model state machine fire trigger",
+    "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
 
-    auto artboard = file->artboardNamed("fire-trigger");
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardNamed("fire-trigger");
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto renderer = silver.makeRenderer();
-    // First use the default view model instance that is attached to the
-    // artboard
-    {
-        auto vmi =
-            file->createViewModelInstance((int)artboard.get()->viewModelId(),
-                                          0);
-        auto resetProp =
-            vmi->propertyValue("reset")->as<ViewModelInstanceTrigger>();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto renderer = silver.makeRenderer();
+  // First use the default view model instance that is attached to the
+  // artboard
+  {
+    auto vmi = file->createViewModelInstance(
+        (int)artboard.get()->viewModelId(),
+        0);
+    auto resetProp = vmi->propertyValue("reset")
+                         ->as<ViewModelInstanceTrigger>();
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        resetProp->trigger();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-    // Next bind it to a different view model with the same shape
-    {
-        auto vm = file->viewModel("SMFT-VM2");
-        auto vmi = file->createDefaultViewModelInstance(vm);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    resetProp->trigger();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+  }
+  // Next bind it to a different view model with the same shape
+  {
+    auto vm = file->viewModel("SMFT-VM2");
+    auto vmi = file->createDefaultViewModelInstance(vm);
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-    }
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+  }
 
-    CHECK(silver.matches("relative_data_bind_path-fire-trigger"));
+  CHECK(silver.matches("relative_data_bind_path-fire-trigger"));
 }
 // The test asset carries Luau bytecode scripts, which only the Luau
 // backend runs.
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Relative data binding view model scripted input", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/relative_data_bind_path.riv", &silver);
 
-    auto artboard = file->artboardNamed("scripted-input");
-    REQUIRE(artboard != nullptr);
+  auto artboard = file->artboardNamed("scripted-input");
+  REQUIRE(artboard != nullptr);
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto renderer = silver.makeRenderer();
-    // First use the default view model instance that is attached to the
-    // artboard
-    {
-        auto vmi =
-            file->createViewModelInstance((int)artboard.get()->viewModelId(),
-                                          0);
-        auto child =
-            vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
-        auto boo = child->referenceViewModelInstance()
-                       ->propertyValue("boo")
-                       ->as<ViewModelInstanceBoolean>();
-        auto paused = child->referenceViewModelInstance()
-                          ->propertyValue("paused")
-                          ->as<ViewModelInstanceBoolean>();
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        paused->propertyValue(false);
-        stateMachine->advanceAndApply(1.0f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        paused->propertyValue(true);
-        boo->propertyValue(false);
-        stateMachine->advanceAndApply(1.0f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-    }
-    // Next bind it to a different view model with the same shape
-    {
-        auto vm = file->viewModel("SI-VM2");
-        auto vmi = file->createDefaultViewModelInstance(vm);
-        auto child =
-            vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
-        auto boo = child->referenceViewModelInstance()
-                       ->propertyValue("boo")
-                       ->as<ViewModelInstanceBoolean>();
-        auto paused = child->referenceViewModelInstance()
-                          ->propertyValue("paused")
-                          ->as<ViewModelInstanceBoolean>();
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto renderer = silver.makeRenderer();
+  // First use the default view model instance that is attached to the
+  // artboard
+  {
+    auto vmi = file->createViewModelInstance(
+        (int)artboard.get()->viewModelId(),
+        0);
+    auto child = vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
+    auto boo = child->referenceViewModelInstance()
+                   ->propertyValue("boo")
+                   ->as<ViewModelInstanceBoolean>();
+    auto paused = child->referenceViewModelInstance()
+                      ->propertyValue("paused")
+                      ->as<ViewModelInstanceBoolean>();
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    paused->propertyValue(false);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    paused->propertyValue(true);
+    boo->propertyValue(false);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+  }
+  // Next bind it to a different view model with the same shape
+  {
+    auto vm = file->viewModel("SI-VM2");
+    auto vmi = file->createDefaultViewModelInstance(vm);
+    auto child = vmi->propertyValue("child")->as<ViewModelInstanceViewModel>();
+    auto boo = child->referenceViewModelInstance()
+                   ->propertyValue("boo")
+                   ->as<ViewModelInstanceBoolean>();
+    auto paused = child->referenceViewModelInstance()
+                      ->propertyValue("paused")
+                      ->as<ViewModelInstanceBoolean>();
 
-        stateMachine->bindViewModelInstance(vmi);
-        stateMachine->advanceAndApply(0.1f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        paused->propertyValue(false);
-        stateMachine->advanceAndApply(1.0f);
-        artboard->draw(renderer.get());
-        silver.addFrame();
-        paused->propertyValue(true);
-        boo->propertyValue(false);
-        stateMachine->advanceAndApply(1.0f);
-        artboard->draw(renderer.get());
-    }
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    paused->propertyValue(false);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    paused->propertyValue(true);
+    boo->propertyValue(false);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+  }
 
-    CHECK(silver.matches("relative_data_bind_path-scripted-input"));
+  CHECK(silver.matches("relative_data_bind_path-scripted-input"));
 }
 #endif
 
 TEST_CASE("Listen to view model value changes in state machines", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/listener_view_model.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/listener_view_model.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
 
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    auto colorProp = vmi->propertyValue("col")->as<ViewModelInstanceColor>();
-    auto triggerProp =
-        vmi->propertyValue("tri")->as<ViewModelInstanceTrigger>();
-    auto numProp = vmi->propertyValue("num1")->as<ViewModelInstanceNumber>();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  auto colorProp = vmi->propertyValue("col")->as<ViewModelInstanceColor>();
+  auto triggerProp = vmi->propertyValue("tri")->as<ViewModelInstanceTrigger>();
+  auto numProp = vmi->propertyValue("num1")->as<ViewModelInstanceNumber>();
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.0f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    triggerProp->trigger();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
-    silver.addFrame();
-    numProp->propertyValue(55);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.0f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  triggerProp->trigger();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
+  silver.addFrame();
+  numProp->propertyValue(55);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("listener_view_model"));
+  CHECK(silver.matches("listener_view_model"));
 }
 
 TEST_CASE("Artboard properties conditions work without binding", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/artboard_width_test.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/artboard_width_test.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.0f);
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.0f);
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("artboard_width_test"));
+  CHECK(silver.matches("artboard_width_test"));
 }
 
 // Regression for the push-notifier TwoWay clobber. A target-property change
@@ -2448,50 +2438,50 @@ TEST_CASE("Artboard properties conditions work without binding", "[silver]")
 // source. The fix marks the target trigger with ComponentDirt::BindingsTarget,
 // which update() ignores. Without it, the CHECKs below read 100 (the clobbering
 // source value) instead of the new target.
-TEST_CASE("TwoWay target change reaches source under source-first precedence",
-          "[data binding]")
+TEST_CASE(
+    "TwoWay target change reaches source under source-first precedence",
+    "[data binding]")
 {
-    auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
-    auto artboard = file->artboardNamed("source_first");
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
+  auto file = ReadRiveFile("assets/bidirectional_precedence.riv");
+  auto artboard = file->artboardNamed("source_first");
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
 
-    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
-    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
-    // Source values differ from the authored target; source-first precedence
-    // makes the source win on the initial sync, so the source value (100) is
-    // what a spurious source→target apply would clobber the target with.
-    xProp->propertyValue(100.0f);
-    yProp->propertyValue(100.0f);
+  auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+  auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+  // Source values differ from the authored target; source-first precedence
+  // makes the source win on the initial sync, so the source value (100) is
+  // what a spurious source→target apply would clobber the target with.
+  xProp->propertyValue(100.0f);
+  yProp->propertyValue(100.0f);
 
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.0f);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.0f);
 
-    // The two TwoWay binds target an (unnamed) node's x/y — reach it through a
-    // bind rather than by name.
-    rive::Node* targetNode = nullptr;
-    for (auto* db : artboard->dataBinds())
+  // The two TwoWay binds target an (unnamed) node's x/y — reach it through a
+  // bind rather than by name.
+  rive::Node* targetNode = nullptr;
+  for (auto* db : artboard->dataBinds())
+  {
+    if (db->target() != nullptr && db->target()->is<rive::Node>())
     {
-        if (db->target() != nullptr && db->target()->is<rive::Node>())
-        {
-            targetNode = db->target()->as<rive::Node>();
-            break;
-        }
+      targetNode = db->target()->as<rive::Node>();
+      break;
     }
-    REQUIRE(targetNode != nullptr);
+  }
+  REQUIRE(targetNode != nullptr);
 
-    // Change the TARGET directly. This is the trigger that regressed: with the
-    // fix it propagates target→source; without it the source→target apply
-    // overwrites these with the source value (100) first.
-    targetNode->x(700.0f);
-    targetNode->y(800.0f);
+  // Change the TARGET directly. This is the trigger that regressed: with the
+  // fix it propagates target→source; without it the source→target apply
+  // overwrites these with the source value (100) first.
+  targetNode->x(700.0f);
+  targetNode->y(800.0f);
 
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
-    CHECK(xProp->propertyValue() == 700.0f);
-    CHECK(yProp->propertyValue() == 800.0f);
+  CHECK(xProp->propertyValue() == 700.0f);
+  CHECK(yProp->propertyValue() == 800.0f);
 }

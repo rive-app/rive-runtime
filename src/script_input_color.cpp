@@ -9,59 +9,59 @@ using namespace rive;
 
 ScriptInputColor::~ScriptInputColor()
 {
-    auto obj = scriptedObject();
-    if (obj != nullptr)
-    {
-        obj->removeProperty(this);
-    }
+  auto obj = scriptedObject();
+  if (obj != nullptr)
+  {
+    obj->removeProperty(this);
+  }
 }
 
 StatusCode ScriptInputColor::import(ImportStack& importStack)
 {
-    auto importer = ScriptInput::ownerImporter(importStack, this);
-    if (importer == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    importer->addInput(this);
+  auto importer = ScriptInput::ownerImporter(importStack, this);
+  if (importer == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
+  importer->addInput(this);
 
-    auto obj = scriptedObject();
-    if (obj && obj->component() != nullptr)
-    {
-        // If the ScriptedObject is a Component, this input is an artboard
-        // child (File::readObjects gave it a slot, see takesArtboardSlot), so
-        // import it as a Component, otherwise, return Ok
-        return Super::import(importStack);
-    }
-    return StatusCode::Ok;
+  auto obj = scriptedObject();
+  if (obj && obj->component() != nullptr)
+  {
+    // If the ScriptedObject is a Component, this input is an artboard
+    // child (File::readObjects gave it a slot, see takesArtboardSlot), so
+    // import it as a Component, otherwise, return Ok
+    return Super::import(importStack);
+  }
+  return StatusCode::Ok;
 }
 
 StatusCode ScriptInputColor::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    auto p = parent();
-    if (p != nullptr)
+  auto p = parent();
+  if (p != nullptr)
+  {
+    auto scriptedObj = ScriptedObject::from(p);
+    if (scriptedObj != nullptr)
     {
-        auto scriptedObj = ScriptedObject::from(p);
-        if (scriptedObj != nullptr)
-        {
-            scriptedObj->addProperty(this);
-        }
+      scriptedObj->addProperty(this);
     }
+  }
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void ScriptInputColor::propertyValueChanged()
 {
-    auto obj = scriptedObject();
-    if (obj != nullptr)
-    {
-        obj->setIntegerInput(name(), propertyValue());
-    }
+  auto obj = scriptedObject();
+  if (obj != nullptr)
+  {
+    obj->setIntegerInput(name(), propertyValue());
+  }
 }

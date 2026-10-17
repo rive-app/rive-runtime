@@ -10,11 +10,11 @@ class DataBindPath;
 class DataBindPathImporter : public ImportStackObject
 {
 private:
-    DataBindPath* m_dataBindPath;
+  DataBindPath* m_dataBindPath;
 
 public:
-    DataBindPathImporter(DataBindPath* object);
-    DataBindPath* claim();
+  DataBindPathImporter(DataBindPath* object);
+  DataBindPath* claim();
 };
 } // namespace rive
 #endif

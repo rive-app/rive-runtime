@@ -45,50 +45,52 @@ namespace rive
 class ArtboardListDrawIndexDependent final : public ViewModelValueDependent
 {
 public:
-    ArtboardListDrawIndexDependent(ArtboardComponentList* list,
-                                   ViewModelInstanceValue* value) :
-        m_list(list), m_value(ref_rcp(value))
-    {
-        value->addDependent(this);
-    }
-    ~ArtboardListDrawIndexDependent() { clear(); }
+  ArtboardListDrawIndexDependent(
+      ArtboardComponentList* list,
+      ViewModelInstanceValue* value)
+      : m_list(list)
+      , m_value(ref_rcp(value))
+  {
+    value->addDependent(this);
+  }
+  ~ArtboardListDrawIndexDependent() { clear(); }
 
-    void addDirt(ComponentDirt value, bool recurse) override
+  void addDirt(ComponentDirt value, bool recurse) override
+  {
+    if (m_list != nullptr)
     {
-        if (m_list != nullptr)
-        {
-            m_list->invalidateOrderedListIndicesCache();
-            m_list->addDirt(ComponentDirt::Components, false);
-        }
+      m_list->invalidateOrderedListIndicesCache();
+      m_list->addDirt(ComponentDirt::Components, false);
     }
-    void relinkDataBind() override {}
+  }
+  void relinkDataBind() override {}
 
-    void clear()
+  void clear()
+  {
+    if (m_value != nullptr)
     {
-        if (m_value != nullptr)
-        {
-            m_value->removeDependent(this);
-            m_value = nullptr;
-        }
+      m_value->removeDependent(this);
+      m_value = nullptr;
     }
+  }
 
 private:
-    ArtboardComponentList* m_list;
-    rcp<ViewModelInstanceValue> m_value;
+  ArtboardComponentList* m_list;
+  rcp<ViewModelInstanceValue> m_value;
 };
 } // namespace rive
 
 static std::vector<const ViewModelInstanceListItem*> sortedItems(
     const std::vector<rcp<ViewModelInstanceListItem>>& items)
 {
-    std::vector<const ViewModelInstanceListItem*> sorted;
-    sorted.reserve(items.size());
-    for (const auto& item : items)
-    {
-        sorted.push_back(item.get());
-    }
-    std::sort(sorted.begin(), sorted.end());
-    return sorted;
+  std::vector<const ViewModelInstanceListItem*> sorted;
+  sorted.reserve(items.size());
+  for (const auto& item : items)
+  {
+    sorted.push_back(item.get());
+  }
+  std::sort(sorted.begin(), sorted.end());
+  return sorted;
 }
 
 // Shared by every list, so a scroll can't mistake one list's version for
@@ -100,115 +102,114 @@ ArtboardComponentList::~ArtboardComponentList() { clear(); }
 
 bool ArtboardComponentList::collapse(bool value)
 {
-    if (!Super::collapse(value))
-    {
-        return false;
-    }
+  if (!Super::collapse(value))
+  {
+    return false;
+  }
 
-    // Semantic-only collapse via the artboard boundary node. Only touches
-    // SemanticData nodes — non-semantic components stay untouched.
-    forEachRealized([&](int, ArtboardInstance* nestedArtboard) {
-        nestedArtboard->collapseSemanticBoundary(value);
-    });
-    return true;
+  // Semantic-only collapse via the artboard boundary node. Only touches
+  // SemanticData nodes — non-semantic components stay untouched.
+  forEachRealized([&](int, ArtboardInstance* nestedArtboard) {
+    nestedArtboard->collapseSemanticBoundary(value);
+  });
+  return true;
 }
 
 void ArtboardComponentList::clear()
 {
-    // Rows being destroyed must not call back into quiet-row bookkeeping.
-    resetQuietRows(0);
-    // Clean up semantic trees before destroying artboards/state machines.
-    for (auto& artboard : m_artboardInstancesMap)
+  // Rows being destroyed must not call back into quiet-row bookkeeping.
+  resetQuietRows(0);
+  // Clean up semantic trees before destroying artboards/state machines.
+  for (auto& artboard : m_artboardInstancesMap)
+  {
+    if (artboard.second != nullptr)
     {
-        if (artboard.second != nullptr)
-        {
-            artboard.second->cleanupSemanticTree();
-        }
+      artboard.second->cleanupSemanticTree();
     }
+  }
 
-    clearDrawIndexListeners();
-    invalidateOrderedListIndicesCache();
-    // Clean up focus trees FIRST to prevent use-after-free when the
-    // FocusManager still holds references to FocusNodes.
-    for (auto& artboard : m_artboardInstancesMap)
+  clearDrawIndexListeners();
+  invalidateOrderedListIndicesCache();
+  // Clean up focus trees FIRST to prevent use-after-free when the
+  // FocusManager still holds references to FocusNodes.
+  for (auto& artboard : m_artboardInstancesMap)
+  {
+    if (artboard.second != nullptr)
     {
-        if (artboard.second != nullptr)
-        {
-            artboard.second->cleanupFocusTree();
-        }
+      artboard.second->cleanupFocusTree();
     }
-    removeListScopeFocusNode();
-    m_listRowFocusNodes.clear();
+  }
+  removeListScopeFocusNode();
+  m_listRowFocusNodes.clear();
 
-    // Destroy state machines BEFORE artboards.
-    // StateMachineInstance owns FocusListenerGroup objects that hold raw
-    // pointers to FocusData (owned by artboards). Destroying artboards first
-    // would cause use-after-free when FocusListenerGroup destructor tries to
-    // unregister from the already-deleted FocusData.
-    for (auto& sm : m_stateMachinesMap)
-    {
-        sm.second.reset();
-    }
-    for (auto& artboard : m_artboardInstancesMap)
-    {
-        artboard.second.reset();
-    }
-    m_stateMachinesMap.clear();
-    m_artboardInstancesByIndex.clear();
-    m_realizedIndices.clear();
-    m_stateMachinesByIndex.clear();
-    m_artboardInstancesMap.clear();
-    m_listItems.clear();
-    m_listHasDuplicateItems = false;
-    m_artboardsMap.clear();
-    // Pooled state machines go before the pooled artboards too, for the same
-    // reason as above.
-    m_stateMachinesPool.clear();
-    m_resourcePool.clear();
-    m_artboardOverridesMap.clear();
+  // Destroy state machines BEFORE artboards.
+  // StateMachineInstance owns FocusListenerGroup objects that hold raw
+  // pointers to FocusData (owned by artboards). Destroying artboards first
+  // would cause use-after-free when FocusListenerGroup destructor tries to
+  // unregister from the already-deleted FocusData.
+  for (auto& sm : m_stateMachinesMap)
+  {
+    sm.second.reset();
+  }
+  for (auto& artboard : m_artboardInstancesMap)
+  {
+    artboard.second.reset();
+  }
+  m_stateMachinesMap.clear();
+  m_artboardInstancesByIndex.clear();
+  m_realizedIndices.clear();
+  m_stateMachinesByIndex.clear();
+  m_artboardInstancesMap.clear();
+  m_listItems.clear();
+  m_listHasDuplicateItems = false;
+  m_artboardsMap.clear();
+  // Pooled state machines go before the pooled artboards too, for the same
+  // reason as above.
+  m_stateMachinesPool.clear();
+  m_resourcePool.clear();
+  m_artboardOverridesMap.clear();
 }
 
 rcp<ViewModelInstanceListItem> ArtboardComponentList::listItem(int index)
 {
-    if (index < m_listItems.size())
-    {
-        return m_listItems[index];
-    }
-    return nullptr;
+  if (index < m_listItems.size())
+  {
+    return m_listItems[index];
+  }
+  return nullptr;
 }
 ArtboardInstance* ArtboardComponentList::artboardInstance(int index)
 {
-    if (index >= 0 && index < m_artboardInstancesByIndex.size())
-    {
-        return m_artboardInstancesByIndex[index];
-    }
-    return nullptr;
+  if (index >= 0 && index < m_artboardInstancesByIndex.size())
+  {
+    return m_artboardInstancesByIndex[index];
+  }
+  return nullptr;
 }
 int ArtboardComponentList::indexOfArtboardInstance(
     ArtboardInstance* instance) const
 {
-    if (instance == nullptr)
-    {
-        return -1;
-    }
-    for (size_t i = 0; i < m_listItems.size(); ++i)
-    {
-        auto itr = m_artboardInstancesMap.find(m_listItems[i]);
-        if (itr != m_artboardInstancesMap.end() &&
-            itr->second.get() == instance)
-        {
-            return static_cast<int>(i);
-        }
-    }
+  if (instance == nullptr)
+  {
     return -1;
+  }
+  for (size_t i = 0; i < m_listItems.size(); ++i)
+  {
+    auto itr = m_artboardInstancesMap.find(m_listItems[i]);
+    if (itr != m_artboardInstancesMap.end() && itr->second.get() == instance)
+    {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
 }
 StateMachineInstance* ArtboardComponentList::stateMachineInstance(int index)
 {
-    if (index >= 0 && index < m_stateMachinesByIndex.size())
-    {
-        return m_stateMachinesByIndex[index];
-    }
-    return nullptr;
+  if (index >= 0 && index < m_stateMachinesByIndex.size())
+  {
+    return m_stateMachinesByIndex[index];
+  }
+  return nullptr;
 }
 
 void ArtboardComponentList::setRowsForItem(
@@ -217,127 +218,128 @@ void ArtboardComponentList::setRowsForItem(
     ArtboardInstance* artboard,
     StateMachineInstance* stateMachine)
 {
-    if (!m_listHasDuplicateItems)
+  if (!m_listHasDuplicateItems)
+  {
+    if (index >= 0 && static_cast<size_t>(index) < m_listItems.size() &&
+        m_listItems[index] == item)
     {
-        if (index >= 0 && static_cast<size_t>(index) < m_listItems.size() &&
-            m_listItems[index] == item)
-        {
-            resetQuietRow(index);
-            m_artboardInstancesByIndex[index] = artboard;
-            m_stateMachinesByIndex[index] = stateMachine;
-            markRealized(index, artboard != nullptr);
-        }
-        return;
+      resetQuietRow(index);
+      m_artboardInstancesByIndex[index] = artboard;
+      m_stateMachinesByIndex[index] = stateMachine;
+      markRealized(index, artboard != nullptr);
     }
-    for (size_t i = 0; i < m_listItems.size(); i++)
+    return;
+  }
+  for (size_t i = 0; i < m_listItems.size(); i++)
+  {
+    if (m_listItems[i] == item)
     {
-        if (m_listItems[i] == item)
-        {
-            resetQuietRow(i);
-            m_artboardInstancesByIndex[i] = artboard;
-            m_stateMachinesByIndex[i] = stateMachine;
-            markRealized(i, artboard != nullptr);
-        }
+      resetQuietRow(i);
+      m_artboardInstancesByIndex[i] = artboard;
+      m_stateMachinesByIndex[i] = stateMachine;
+      markRealized(i, artboard != nullptr);
     }
+  }
 }
 
 #ifdef WITH_RIVE_LAYOUT
 void* ArtboardComponentList::layoutNode(int index)
 {
-    auto artboard = artboardInstance(index);
-    if (artboard != nullptr)
-    {
-        return static_cast<void*>(&artboard->takeLayoutData()->node);
-    }
-    return nullptr;
+  auto artboard = artboardInstance(index);
+  if (artboard != nullptr)
+  {
+    return static_cast<void*>(&artboard->takeLayoutData()->node);
+  }
+  return nullptr;
 }
 
 void ArtboardComponentList::collectLayoutNodes(std::vector<void*>& out)
 {
-    for (int index : m_realizedIndices)
+  for (int index : m_realizedIndices)
+  {
+    if (auto node = layoutNode(index))
     {
-        if (auto node = layoutNode(index))
-        {
-            out.push_back(node);
-        }
+      out.push_back(node);
     }
+  }
 }
 #endif
 
 void ArtboardComponentList::markLayoutNodeDirty(
     bool shouldForceUpdateLayoutBounds)
 {
-    bool parentIsRow = mainAxisIsRow();
-    bool parentIsStack = isStack();
-    forEachRealized([&](int, ArtboardInstance* artboard) {
-        artboard->parentIsRow(parentIsRow);
-        artboard->parentIsStack(parentIsStack);
-    });
+  bool parentIsRow = mainAxisIsRow();
+  bool parentIsStack = isStack();
+  forEachRealized([&](int, ArtboardInstance* artboard) {
+    artboard->parentIsRow(parentIsRow);
+    artboard->parentIsStack(parentIsStack);
+  });
 }
 
 enum class WindowState : uint8_t
 {
-    none,
-    realized,
-    visible
+  none,
+  realized,
+  visible
 };
 
 void ArtboardComponentList::clearVirtualWindow()
 {
-    for (int index : m_windowOrder)
+  for (int index : m_windowOrder)
+  {
+    if (index < (int)m_windowState.size())
     {
-        if (index < (int)m_windowState.size())
-        {
-            m_windowState[index] = (uint8_t)WindowState::none;
-        }
+      m_windowState[index] = (uint8_t)WindowState::none;
     }
-    m_windowOrder.clear();
-    m_windowVisibleCount = 0;
-    invalidateOrderedListIndicesCache();
+  }
+  m_windowOrder.clear();
+  m_windowVisibleCount = 0;
+  invalidateOrderedListIndicesCache();
 }
 
 void ArtboardComponentList::addToVirtualWindow(int index, bool visible)
 {
-    if (index >= (int)m_windowState.size())
-    {
-        m_windowState.resize(std::max((size_t)index + 1, m_listItems.size()),
-                             (uint8_t)WindowState::none);
-    }
-    m_windowState[index] =
-        (uint8_t)(visible ? WindowState::visible : WindowState::realized);
-    m_windowOrder.push_back(index);
-    if (visible)
-    {
-        m_windowVisibleCount++;
-    }
-    invalidateOrderedListIndicesCache();
+  if (index >= (int)m_windowState.size())
+  {
+    m_windowState.resize(
+        std::max((size_t)index + 1, m_listItems.size()),
+        (uint8_t)WindowState::none);
+  }
+  m_windowState[index] = (uint8_t)(visible ? WindowState::visible
+                                           : WindowState::realized);
+  m_windowOrder.push_back(index);
+  if (visible)
+  {
+    m_windowVisibleCount++;
+  }
+  invalidateOrderedListIndicesCache();
 }
 
 bool ArtboardComponentList::isWithinVisibleWindow(int index) const
 {
-    return index >= 0 && index < (int)m_windowState.size() &&
-           m_windowState[index] == (uint8_t)WindowState::visible;
+  return index >= 0 && index < (int)m_windowState.size() &&
+         m_windowState[index] == (uint8_t)WindowState::visible;
 }
 
 void ArtboardComponentList::updateLayoutBounds(bool animate)
 {
 #ifdef WITH_RIVE_LAYOUT
-    // Buffered items are realized but off screen. Writing their measured size
-    // into m_artboardSizes would feed back into the virtualizer, which sums
-    // that same table to pick the visible window - so only visible items
-    // report their size.
-    const bool hasVirtualWindow =
-        virtualizationEnabled() && m_windowVisibleCount > 0;
-    forEachRealized([&](int i, ArtboardInstance* artboard) {
-        artboard->updateLayoutBounds(animate);
-        if (!hasVirtualWindow || isWithinVisibleWindow(i))
-        {
-            auto bounds = artboard->layoutBounds();
-            setItemSize(Vec2D(bounds.width(), bounds.height()), i);
-        }
-    });
+  // Buffered items are realized but off screen. Writing their measured size
+  // into m_artboardSizes would feed back into the virtualizer, which sums
+  // that same table to pick the visible window - so only visible items
+  // report their size.
+  const bool hasVirtualWindow = virtualizationEnabled() &&
+                                m_windowVisibleCount > 0;
+  forEachRealized([&](int i, ArtboardInstance* artboard) {
+    artboard->updateLayoutBounds(animate);
+    if (!hasVirtualWindow || isWithinVisibleWindow(i))
+    {
+      auto bounds = artboard->layoutBounds();
+      setItemSize(Vec2D(bounds.width(), bounds.height()), i);
+    }
+  });
 #endif
-    computeLayoutBounds();
+  computeLayoutBounds();
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -347,189 +349,192 @@ bool ArtboardComponentList::cascadeLayoutStyle(
     float inheritedInterpolationTime,
     LayoutDirection direction)
 {
-    forEachRealized([&](int, ArtboardInstance* artboard) {
-        artboard->cascadeLayoutStyle(inheritedInterpolation,
-                                     inheritedInterpolator,
-                                     inheritedInterpolationTime,
-                                     direction);
-    });
-    return false;
+  forEachRealized([&](int, ArtboardInstance* artboard) {
+    artboard->cascadeLayoutStyle(
+        inheritedInterpolation,
+        inheritedInterpolator,
+        inheritedInterpolationTime,
+        direction);
+  });
+  return false;
 }
 #endif
 
 bool ArtboardComponentList::syncStyleChanges()
 {
-    bool changed = false;
-    forEachRealized([&](int, ArtboardInstance* artboard) {
-        bool artboardChanged = artboard->syncStyleChanges();
-        if (artboardChanged)
-        {
-            changed = true;
-        }
-    });
-    return changed;
+  bool changed = false;
+  forEachRealized([&](int, ArtboardInstance* artboard) {
+    bool artboardChanged = artboard->syncStyleChanges();
+    if (artboardChanged)
+    {
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 Artboard* ArtboardComponentList::findArtboard(
     const rcp<ViewModelInstanceListItem>& listItem) const
 {
-    auto viewModelInstance = listItem->viewModelInstance();
-    if (viewModelInstance == nullptr)
-    {
-        return nullptr;
-    }
-    auto viewModelId = viewModelInstance->viewModelId();
-    // Find artboard in the cached mappings
-    auto artboard = m_artboardsMap.find(viewModelId);
-    if (artboard != m_artboardsMap.end())
-    {
-        return artboard->second;
-    }
-    auto artboards = m_file->artboards();
-    // Check if there is a special rule that maps the view model to a specific
-    // artboard
-    auto listRule = m_artboardMapRules.find(viewModelId);
-    if (listRule != m_artboardMapRules.end())
-    {
-        auto artboardIndex = listRule->second;
-        if (artboardIndex < artboards.size())
-        {
-            auto artboard = artboards[artboardIndex];
-            m_artboardsMap[viewModelId] = artboard;
-            return artboard;
-        }
-    }
-
-    // Search for the first artboard that is bound to this view model
-    for (auto& artboard : artboards)
-    {
-        if (artboard->viewModelId() == viewModelId)
-        {
-            m_artboardsMap[viewModelId] = artboard;
-            return artboard;
-        }
-    }
-
+  auto viewModelInstance = listItem->viewModelInstance();
+  if (viewModelInstance == nullptr)
+  {
     return nullptr;
+  }
+  auto viewModelId = viewModelInstance->viewModelId();
+  // Find artboard in the cached mappings
+  auto artboard = m_artboardsMap.find(viewModelId);
+  if (artboard != m_artboardsMap.end())
+  {
+    return artboard->second;
+  }
+  auto artboards = m_file->artboards();
+  // Check if there is a special rule that maps the view model to a specific
+  // artboard
+  auto listRule = m_artboardMapRules.find(viewModelId);
+  if (listRule != m_artboardMapRules.end())
+  {
+    auto artboardIndex = listRule->second;
+    if (artboardIndex < artboards.size())
+    {
+      auto artboard = artboards[artboardIndex];
+      m_artboardsMap[viewModelId] = artboard;
+      return artboard;
+    }
+  }
+
+  // Search for the first artboard that is bound to this view model
+  for (auto& artboard : artboards)
+  {
+    if (artboard->viewModelId() == viewModelId)
+    {
+      m_artboardsMap[viewModelId] = artboard;
+      return artboard;
+    }
+  }
+
+  return nullptr;
 }
 
 void ArtboardComponentList::disposeListItem(
     const rcp<ViewModelInstanceListItem>& listItem)
 {
-    removeArtboard(listItem);
+  removeArtboard(listItem);
 }
 
 std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
     Component* target,
     rcp<ViewModelInstanceListItem> listItem) const
 {
-    auto artboard = findArtboard(listItem);
-    if (artboard != nullptr)
-    {
-        auto inst = artboard->instance();
-        return inst;
-    }
-    return nullptr;
+  auto artboard = findArtboard(listItem);
+  if (artboard != nullptr)
+  {
+    auto inst = artboard->instance();
+    return inst;
+  }
+  return nullptr;
 }
 
 std::unique_ptr<StateMachineInstance> ArtboardComponentList::
     createStateMachineInstance(Component* target, ArtboardInstance* artboard)
 {
-    if (artboard != nullptr)
-    {
-        const int defaultIndex = artboard->defaultStateMachineIndex();
-        const size_t stateMachineIndex =
-            defaultIndex >= 0 ? static_cast<size_t>(defaultIndex) : 0u;
-        auto stateMachineInstance = artboard->stateMachineAt(stateMachineIndex);
-        linkStateMachineToArtboard(stateMachineInstance.get(), artboard);
-        return stateMachineInstance;
-    }
-    return nullptr;
+  if (artboard != nullptr)
+  {
+    const int defaultIndex = artboard->defaultStateMachineIndex();
+    const size_t stateMachineIndex = defaultIndex >= 0
+                                         ? static_cast<size_t>(defaultIndex)
+                                         : 0u;
+    auto stateMachineInstance = artboard->stateMachineAt(stateMachineIndex);
+    linkStateMachineToArtboard(stateMachineInstance.get(), artboard);
+    return stateMachineInstance;
+  }
+  return nullptr;
 }
 
-void ArtboardComponentList::ensureListScopeFocusNode(FocusManager* focusManager,
-                                                     rcp<FocusNode> hostParent)
+void ArtboardComponentList::ensureListScopeFocusNode(
+    FocusManager* focusManager,
+    rcp<FocusNode> hostParent)
 {
-    if (focusManager == nullptr)
-    {
-        return;
-    }
-    if (m_listScopeFocusNode == nullptr)
-    {
-        m_listScopeFocusNode = FocusNode::makeStructuralScope();
-        m_listScopeFocusNode->name("ArtboardComponentListScope");
-    }
-    // Only called from the full build pass (buildFocusTreeVisit), which is
-    // the ordering authority: always re-append so the scope sits at the
-    // walk's current position
-    focusManager->addChild(std::move(hostParent), m_listScopeFocusNode);
-    syncListRowNodesWithList(focusManager);
+  if (focusManager == nullptr)
+  {
+    return;
+  }
+  if (m_listScopeFocusNode == nullptr)
+  {
+    m_listScopeFocusNode = FocusNode::makeStructuralScope();
+    m_listScopeFocusNode->name("ArtboardComponentListScope");
+  }
+  // Only called from the full build pass (buildFocusTreeVisit), which is
+  // the ordering authority: always re-append so the scope sits at the
+  // walk's current position
+  focusManager->addChild(std::move(hostParent), m_listScopeFocusNode);
+  syncListRowNodesWithList(focusManager);
 }
 
 void ArtboardComponentList::removeListScopeFocusNode()
 {
-    for (size_t r = 0; r < m_listRowFocusNodes.size(); r++)
+  for (size_t r = 0; r < m_listRowFocusNodes.size(); r++)
+  {
+    auto& row = m_listRowFocusNodes[r];
+    if (row == nullptr)
     {
-        auto& row = m_listRowFocusNodes[r];
-        if (row == nullptr)
-        {
-            continue;
-        }
-        if (row->manager() != nullptr)
-        {
-            row->manager()->removeChild(row);
-        }
-        row.reset();
+      continue;
     }
-    m_listRowFocusNodes.clear();
-    if (m_listScopeFocusNode == nullptr)
+    if (row->manager() != nullptr)
     {
-        return;
+      row->manager()->removeChild(row);
     }
-    if (m_listScopeFocusNode->manager() != nullptr)
-    {
-        m_listScopeFocusNode->manager()->removeChild(m_listScopeFocusNode);
-    }
-    m_listScopeFocusNode.reset();
+    row.reset();
+  }
+  m_listRowFocusNodes.clear();
+  if (m_listScopeFocusNode == nullptr)
+  {
+    return;
+  }
+  if (m_listScopeFocusNode->manager() != nullptr)
+  {
+    m_listScopeFocusNode->manager()->removeChild(m_listScopeFocusNode);
+  }
+  m_listScopeFocusNode.reset();
 }
 
 rcp<FocusNode> ArtboardComponentList::makeListRowFocusNode() const
 {
-    // Structural rows: rows with focusable content are descended through;
-    // rows for items with no focusables are skipped entirely instead of
-    // becoming invisible focus stops.
-    auto node = FocusNode::makeStructuralScope();
-    node->name("ArtboardComponentListRow");
-    return node;
+  // Structural rows: rows with focusable content are descended through;
+  // rows for items with no focusables are skipped entirely instead of
+  // becoming invisible focus stops.
+  auto node = FocusNode::makeStructuralScope();
+  node->name("ArtboardComponentListRow");
+  return node;
 }
 
 void ArtboardComponentList::reparentListRowsInScope(FocusManager* fm)
 {
-    if (fm == nullptr || m_listScopeFocusNode == nullptr)
+  if (fm == nullptr || m_listScopeFocusNode == nullptr)
+  {
+    return;
+  }
+  for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
+  {
+    rcp<FocusNode> row = m_listRowFocusNodes[i];
+    if (row == nullptr)
     {
-        return;
+      continue;
     }
-    for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
+    if (row->parent() != nullptr)
     {
-        rcp<FocusNode> row = m_listRowFocusNodes[i];
-        if (row == nullptr)
-        {
-            continue;
-        }
-        if (row->parent() != nullptr)
-        {
-            row->removeFromParent();
-        }
+      row->removeFromParent();
     }
-    for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
+  }
+  for (size_t i = 0; i < m_listRowFocusNodes.size(); i++)
+  {
+    rcp<FocusNode> row = m_listRowFocusNodes[i];
+    if (row == nullptr)
     {
-        rcp<FocusNode> row = m_listRowFocusNodes[i];
-        if (row == nullptr)
-        {
-            continue;
-        }
-        fm->addChild(m_listScopeFocusNode, row, i);
+      continue;
     }
+    fm->addChild(m_listScopeFocusNode, row, i);
+  }
 }
 
 namespace
@@ -541,99 +546,100 @@ namespace
 // host kinds — single nested artboards and component lists
 bool artboardHasFocusContent(Artboard* artboard)
 {
-    if (artboard == nullptr)
-    {
-        return false;
-    }
-    if (artboard->rootFocusDataCount() > 0)
-    {
-        return true;
-    }
-    for (auto* host : artboard->nestedArtboards())
-    {
-        if (host == nullptr)
-        {
-            continue;
-        }
-        if (host->isArtboardDataBound())
-        {
-            return true;
-        }
-        if (artboardHasFocusContent(host->artboardInstance(0)))
-        {
-            return true;
-        }
-    }
-    for (auto* list : artboard->artboardComponentLists())
-    {
-        if (list == nullptr)
-        {
-            continue;
-        }
-        // A component list is bound to a VM list property and always owns a
-        // structural scope (ensureListScopeFocusNode); its items — and their
-        // focusables — can populate at runtime, exactly like a data-bound
-        // nested-artboard host swap. Count the list itself as latent focus
-        // content (symmetric with the isArtboardDataBound() host check above)
-        // so the enclosing item is rebuilt under its row while the inner list
-        // is still empty, keeping tab order correct once it fills.
-        return true;
-    }
+  if (artboard == nullptr)
+  {
     return false;
+  }
+  if (artboard->rootFocusDataCount() > 0)
+  {
+    return true;
+  }
+  for (auto* host : artboard->nestedArtboards())
+  {
+    if (host == nullptr)
+    {
+      continue;
+    }
+    if (host->isArtboardDataBound())
+    {
+      return true;
+    }
+    if (artboardHasFocusContent(host->artboardInstance(0)))
+    {
+      return true;
+    }
+  }
+  for (auto* list : artboard->artboardComponentLists())
+  {
+    if (list == nullptr)
+    {
+      continue;
+    }
+    // A component list is bound to a VM list property and always owns a
+    // structural scope (ensureListScopeFocusNode); its items — and their
+    // focusables — can populate at runtime, exactly like a data-bound
+    // nested-artboard host swap. Count the list itself as latent focus
+    // content (symmetric with the isArtboardDataBound() host check above)
+    // so the enclosing item is rebuilt under its row while the inner list
+    // is still empty, keeping tab order correct once it fills.
+    return true;
+  }
+  return false;
 }
 } // namespace
 
-bool ArtboardComponentList::listItemNeedsBuildUnderRow(FocusManager* parentFM,
-                                                       ArtboardInstance* inst,
-                                                       rcp<FocusNode> row) const
+bool ArtboardComponentList::listItemNeedsBuildUnderRow(
+    FocusManager* parentFM,
+    ArtboardInstance* inst,
+    rcp<FocusNode> row) const
 {
-    if (parentFM == nullptr || inst == nullptr || row == nullptr)
-    {
-        return false;
-    }
-    if (inst->focusManager() != parentFM)
-    {
-        return true;
-    }
-    // If the artboard has focus content but the row is empty, that content is
-    // attached outside the row (setExternalFocusManager builds at the manager
-    // root) and must be rebuilt under the row. Focus content includes
-    // data-bound host scopes at any depth, not just authored FocusData, so a
-    // later swap materializes focus nodes at the row's position.
-    if (row->children().empty() && artboardHasFocusContent(inst))
-    {
-        return true;
-    }
+  if (parentFM == nullptr || inst == nullptr || row == nullptr)
+  {
     return false;
+  }
+  if (inst->focusManager() != parentFM)
+  {
+    return true;
+  }
+  // If the artboard has focus content but the row is empty, that content is
+  // attached outside the row (setExternalFocusManager builds at the manager
+  // root) and must be rebuilt under the row. Focus content includes
+  // data-bound host scopes at any depth, not just authored FocusData, so a
+  // later swap materializes focus nodes at the row's position.
+  if (row->children().empty() && artboardHasFocusContent(inst))
+  {
+    return true;
+  }
+  return false;
 }
 
 void ArtboardComponentList::syncListRowNodesWithList(FocusManager* fm)
 {
-    if (m_listItems.empty())
+  if (m_listItems.empty())
+  {
+    while (!m_listRowFocusNodes.empty())
     {
-        while (!m_listRowFocusNodes.empty())
-        {
-            auto row = m_listRowFocusNodes.back();
-            m_listRowFocusNodes.pop_back();
-            if (row != nullptr && row->manager() != nullptr)
-            {
-                row->manager()->removeChild(row);
-            }
-        }
-        return;
+      auto row = m_listRowFocusNodes.back();
+      m_listRowFocusNodes.pop_back();
+      if (row != nullptr && row->manager() != nullptr)
+      {
+        row->manager()->removeChild(row);
+      }
     }
-    if (fm != nullptr && listRowNodesInPlace())
-    {
-        // The list hasn't changed and its rows already sit under the scope in
-        // order, so matching them to the list (O(n^2)) and re-parenting them
-        // would rebuild the same tree. This runs whenever a virtualized list
-        // realizes rows, so only the realized rows' focus trees get work.
-        buildListRowFocusTrees(fm);
-        return;
-    }
-    std::vector<rcp<ViewModelInstanceListItem>> listCopy = m_listItems;
-    std::vector<rcp<FocusNode>> rowCopy = m_listRowFocusNodes;
-    syncListRowNodesWithList(fm, listCopy, rowCopy);
+    return;
+  }
+  if (fm != nullptr && listRowNodesInPlace())
+  {
+    // The list hasn't changed and its rows already sit under the scope in
+    // order, so matching them to the list (O(n^2)) and re-parenting them
+    // would rebuild the same tree. This runs whenever a virtualized list
+    // realizes rows, so only the realized rows' focus trees get work.
+    buildListRowFocusTrees(fm);
+    return;
+  }
+  std::vector<rcp<ViewModelInstanceListItem>> listCopy = m_listItems;
+  std::vector<rcp<FocusNode>> rowCopy = m_listRowFocusNodes;
+  syncListRowNodesWithList(fm, listCopy, rowCopy);
 }
 
 void ArtboardComponentList::syncListRowNodesWithList(
@@ -641,294 +647,292 @@ void ArtboardComponentList::syncListRowNodesWithList(
     const std::vector<rcp<ViewModelInstanceListItem>>& previousListItems,
     const std::vector<rcp<FocusNode>>& previousRowNodes)
 {
-    if (fm == nullptr || m_listScopeFocusNode == nullptr)
-    {
-        return;
-    }
-    const int n = static_cast<int>(m_listItems.size());
-    if (n == 0)
-    {
-        m_listRowFocusNodes.clear();
-        return;
-    }
+  if (fm == nullptr || m_listScopeFocusNode == nullptr)
+  {
+    return;
+  }
+  const int n = static_cast<int>(m_listItems.size());
+  if (n == 0)
+  {
+    m_listRowFocusNodes.clear();
+    return;
+  }
 
-    std::vector<rcp<FocusNode>> newRows(static_cast<size_t>(n), nullptr);
-    std::vector<rcp<FocusNode>> pr = previousRowNodes;
-    for (int j = 0; j < n; j++)
-    {
-        for (int k = 0; k < static_cast<int>(previousListItems.size()) &&
-                        k < static_cast<int>(pr.size());
-             k++)
-        {
-            if (m_listItems[static_cast<size_t>(j)] ==
-                previousListItems[static_cast<size_t>(k)])
-            {
-                newRows[static_cast<size_t>(j)] = pr[static_cast<size_t>(k)];
-                pr[static_cast<size_t>(k)] = nullptr;
-                break;
-            }
-        }
-    }
-    for (int k = 0; k < static_cast<int>(pr.size()) &&
-                    k < static_cast<int>(previousListItems.size());
+  std::vector<rcp<FocusNode>> newRows(static_cast<size_t>(n), nullptr);
+  std::vector<rcp<FocusNode>> pr = previousRowNodes;
+  for (int j = 0; j < n; j++)
+  {
+    for (int k = 0; k < static_cast<int>(previousListItems.size()) &&
+                    k < static_cast<int>(pr.size());
          k++)
     {
-        rcp<FocusNode> unmapped = pr[static_cast<size_t>(k)];
-        if (unmapped == nullptr)
-        {
-            continue;
-        }
-        bool inNew = false;
-        for (int j = 0; j < n; j++)
-        {
-            if (m_listItems[static_cast<size_t>(j)] ==
-                previousListItems[static_cast<size_t>(k)])
-            {
-                inNew = true;
-                break;
-            }
-        }
-        if (!inNew)
-        {
-            if (unmapped->manager() != nullptr)
-            {
-                unmapped->manager()->removeChild(unmapped);
-            }
-        }
+      if (m_listItems[static_cast<size_t>(j)] ==
+          previousListItems[static_cast<size_t>(k)])
+      {
+        newRows[static_cast<size_t>(j)] = pr[static_cast<size_t>(k)];
+        pr[static_cast<size_t>(k)] = nullptr;
+        break;
+      }
     }
-    m_listRowFocusNodes = std::move(newRows);
-    for (int i = 0; i < n; i++)
+  }
+  for (int k = 0; k < static_cast<int>(pr.size()) &&
+                  k < static_cast<int>(previousListItems.size());
+       k++)
+  {
+    rcp<FocusNode> unmapped = pr[static_cast<size_t>(k)];
+    if (unmapped == nullptr)
     {
-        rcp<FocusNode>& row = m_listRowFocusNodes[static_cast<size_t>(i)];
-        if (row == nullptr)
-        {
-            row = makeListRowFocusNode();
-        }
+      continue;
     }
-    reparentListRowsInScope(fm);
-    buildListRowFocusTrees(fm);
+    bool inNew = false;
+    for (int j = 0; j < n; j++)
+    {
+      if (m_listItems[static_cast<size_t>(j)] ==
+          previousListItems[static_cast<size_t>(k)])
+      {
+        inNew = true;
+        break;
+      }
+    }
+    if (!inNew)
+    {
+      if (unmapped->manager() != nullptr)
+      {
+        unmapped->manager()->removeChild(unmapped);
+      }
+    }
+  }
+  m_listRowFocusNodes = std::move(newRows);
+  for (int i = 0; i < n; i++)
+  {
+    rcp<FocusNode>& row = m_listRowFocusNodes[static_cast<size_t>(i)];
+    if (row == nullptr)
+    {
+      row = makeListRowFocusNode();
+    }
+  }
+  reparentListRowsInScope(fm);
+  buildListRowFocusTrees(fm);
 }
 
 bool ArtboardComponentList::listRowNodesInPlace() const
 {
-    if (m_listScopeFocusNode == nullptr ||
-        m_listRowFocusNodes.size() != m_listItems.size())
+  if (m_listScopeFocusNode == nullptr ||
+      m_listRowFocusNodes.size() != m_listItems.size())
+  {
+    return false;
+  }
+  const auto& children = m_listScopeFocusNode->children();
+  if (children.size() != m_listRowFocusNodes.size())
+  {
+    return false;
+  }
+  for (size_t i = 0; i < children.size(); i++)
+  {
+    if (m_listRowFocusNodes[i] == nullptr ||
+        children[i] != m_listRowFocusNodes[i])
     {
-        return false;
+      return false;
     }
-    const auto& children = m_listScopeFocusNode->children();
-    if (children.size() != m_listRowFocusNodes.size())
-    {
-        return false;
-    }
-    for (size_t i = 0; i < children.size(); i++)
-    {
-        if (m_listRowFocusNodes[i] == nullptr ||
-            children[i] != m_listRowFocusNodes[i])
-        {
-            return false;
-        }
-    }
-    return true;
+  }
+  return true;
 }
 
 void ArtboardComponentList::buildListRowFocusTrees(FocusManager* fm)
 {
-    const int n = static_cast<int>(m_listItems.size());
-    for (int i = 0; i < n; i++)
+  const int n = static_cast<int>(m_listItems.size());
+  for (int i = 0; i < n; i++)
+  {
+    ArtboardInstance* inst = artboardInstance(i);
+    if (inst == nullptr)
     {
-        ArtboardInstance* inst = artboardInstance(i);
-        if (inst == nullptr)
-        {
-            continue;
-        }
-        rcp<FocusNode> row = m_listRowFocusNodes[static_cast<size_t>(i)];
-        if (row == nullptr)
-        {
-            continue;
-        }
-        // Wire the item's state machine to the shared manager first:
-        // setExternalFocusManager rebuilds the item's focus tree at the manager
-        // root, so it must run before building under the row. Same "wire first,
-        // place last" ordering as buildFocusTreeVisit and updateArtboard.
-        auto* smi = stateMachineInstance(i);
-        if (smi != nullptr && smi->focusManager() != fm)
-        {
-            smi->setExternalFocusManager(fm);
-        }
-        if (listItemNeedsBuildUnderRow(fm, inst, row))
-        {
-            if (inst->focusManager() != nullptr)
-            {
-                inst->cleanupFocusTree();
-            }
-            inst->buildFocusTree(fm, row);
-        }
+      continue;
     }
+    rcp<FocusNode> row = m_listRowFocusNodes[static_cast<size_t>(i)];
+    if (row == nullptr)
+    {
+      continue;
+    }
+    // Wire the item's state machine to the shared manager first:
+    // setExternalFocusManager rebuilds the item's focus tree at the manager
+    // root, so it must run before building under the row. Same "wire first,
+    // place last" ordering as buildFocusTreeVisit and updateArtboard.
+    auto* smi = stateMachineInstance(i);
+    if (smi != nullptr && smi->focusManager() != fm)
+    {
+      smi->setExternalFocusManager(fm);
+    }
+    if (listItemNeedsBuildUnderRow(fm, inst, row))
+    {
+      if (inst->focusManager() != nullptr)
+      {
+        inst->cleanupFocusTree();
+      }
+      inst->buildFocusTree(fm, row);
+    }
+  }
 }
 
 void ArtboardComponentList::linkStateMachineToArtboard(
     StateMachineInstance* stateMachineInstance,
     ArtboardInstance* artboardInstance)
 {
-    if (artboardInstance == nullptr || stateMachineInstance == nullptr)
-    {
-        return;
-    }
-    auto dataContext = artboardInstance->dataContext();
-    stateMachineInstance->dataContext(dataContext);
-    stateMachineInstance->updateDataBinds(false);
+  if (artboardInstance == nullptr || stateMachineInstance == nullptr)
+  {
+    return;
+  }
+  auto dataContext = artboardInstance->dataContext();
+  stateMachineInstance->dataContext(dataContext);
+  stateMachineInstance->updateDataBinds(false);
 
-    auto* parentArtboard = this->artboard();
-    if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
-    {
-        auto* parentFM = parentArtboard->focusManager();
-        stateMachineInstance->setExternalFocusManager(parentFM);
-    }
+  auto* parentArtboard = this->artboard();
+  if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
+  {
+    auto* parentFM = parentArtboard->focusManager();
+    stateMachineInstance->setExternalFocusManager(parentFM);
+  }
 
-    // Share parent artboard's semantic manager and build semantic tree
-    // reparented under the enclosing SemanticData.
-    if (parentArtboard != nullptr &&
-        parentArtboard->semanticManager() != nullptr)
-    {
-        auto* parentSM = parentArtboard->semanticManager();
-        auto parentNode = SemanticData::findClosestSemanticNode(this);
-        stateMachineInstance->setExternalSemanticManager(parentSM, parentNode);
-    }
+  // Share parent artboard's semantic manager and build semantic tree
+  // reparented under the enclosing SemanticData.
+  if (parentArtboard != nullptr && parentArtboard->semanticManager() != nullptr)
+  {
+    auto* parentSM = parentArtboard->semanticManager();
+    auto parentNode = SemanticData::findClosestSemanticNode(this);
+    stateMachineInstance->setExternalSemanticManager(parentSM, parentNode);
+  }
 }
 
 bool ArtboardComponentList::listsAreEqual(
     std::vector<rcp<ViewModelInstanceListItem>>* list,
     std::vector<rcp<ViewModelInstanceListItem>>* compared)
 {
-    if (!list || !compared)
+  if (!list || !compared)
+  {
+    return false;
+  }
+  if (list->size() != compared->size())
+  {
+    return false;
+  }
+  size_t index = 0;
+  for (auto& item : *list)
+  {
+    if (item != (*compared)[index])
     {
-        return false;
+      return false;
     }
-    if (list->size() != compared->size())
-    {
-        return false;
-    }
-    size_t index = 0;
-    for (auto& item : *list)
-    {
-        if (item != (*compared)[index])
-        {
-            return false;
-        }
-        ++index;
-    }
-    return true;
+    ++index;
+  }
+  return true;
 }
 
 void ArtboardComponentList::updateList(
     std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
-    if (listsAreEqual(&m_listItems, list))
-    {
-        return;
-    }
-    const std::vector<rcp<ViewModelInstanceListItem>> preListItems =
-        m_listItems;
-    const std::vector<rcp<FocusNode>> preRowNodes = m_listRowFocusNodes;
-    // Laying out a virtualized list below realizes rows, which would sync the
-    // focus rows against the new list with rows still matching the old one;
-    // the sync at the end, against the rows the update started from, covers
-    // those rows too.
-    const bool wasUpdatingList = m_updatingList;
-    m_updatingList = true;
-    m_listItems.clear();
-    m_listItems.assign(list->begin(), list->end());
-    const auto sorted = sortedItems(m_listItems);
-    // Rows that show the same item share its instances, and keeping them in
-    // step takes a scan of every row. Most lists show each item once.
-    m_listHasDuplicateItems =
-        std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end();
-    invalidateOrderedListIndicesCache();
-    m_artboardSizes.clear();
+  if (listsAreEqual(&m_listItems, list))
+  {
+    return;
+  }
+  const std::vector<rcp<ViewModelInstanceListItem>> preListItems = m_listItems;
+  const std::vector<rcp<FocusNode>> preRowNodes = m_listRowFocusNodes;
+  // Laying out a virtualized list below realizes rows, which would sync the
+  // focus rows against the new list with rows still matching the old one;
+  // the sync at the end, against the rows the update started from, covers
+  // those rows too.
+  const bool wasUpdatingList = m_updatingList;
+  m_updatingList = true;
+  m_listItems.clear();
+  m_listItems.assign(list->begin(), list->end());
+  const auto sorted = sortedItems(m_listItems);
+  // Rows that show the same item share its instances, and keeping them in
+  // step takes a scan of every row. Most lists show each item once.
+  m_listHasDuplicateItems = std::adjacent_find(sorted.begin(), sorted.end()) !=
+                            sorted.end();
+  invalidateOrderedListIndicesCache();
+  m_artboardSizes.clear();
 
-    // Clear the index vectors - they'll be rebuilt as artboards are created
-    resetQuietRows(m_listItems.size());
-    m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
-    m_realizedIndices.clear();
-    m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
-    quietUnrealizedRows();
+  // Clear the index vectors - they'll be rebuilt as artboards are created
+  resetQuietRows(m_listItems.size());
+  m_artboardInstancesByIndex.assign(m_listItems.size(), nullptr);
+  m_realizedIndices.clear();
+  m_stateMachinesByIndex.assign(m_listItems.size(), nullptr);
+  quietUnrealizedRows();
 
-    auto p = layoutParent();
-    if (p != nullptr)
-    {
+  auto p = layoutParent();
+  if (p != nullptr)
+  {
 #ifdef WITH_RIVE_LAYOUT
-        p->clearLayoutChildren();
+    p->clearLayoutChildren();
 #endif
-    }
-    // We need to dispose old items after the layout children of the parent have
-    // updated to ensure no bad YGNodes are being hosted from the old data
-    // during clearLayoutChildren.
-    for (const auto& item : preListItems)
+  }
+  // We need to dispose old items after the layout children of the parent have
+  // updated to ensure no bad YGNodes are being hosted from the old data
+  // during clearLayoutChildren.
+  for (const auto& item : preListItems)
+  {
+    if (!std::binary_search(sorted.begin(), sorted.end(), item.get()))
     {
-        if (!std::binary_search(sorted.begin(), sorted.end(), item.get()))
-        {
-            disposeListItem(item);
-        }
+      disposeListItem(item);
     }
-    const bool virtualized = virtualizationEnabled();
-    uint32_t index = 0;
-    for (auto& item : m_listItems)
+  }
+  const bool virtualized = virtualizationEnabled();
+  uint32_t index = 0;
+  for (auto& item : m_listItems)
+  {
+    item->assignListIndex(index);
+    auto artboard = findArtboard(item);
+    if (artboard != nullptr)
     {
-        item->assignListIndex(index);
-        auto artboard = findArtboard(item);
-        if (artboard != nullptr)
-        {
-            m_artboardSizes.push_back(
-                Vec2D(artboard->width(), artboard->height()));
-        }
-        auto itr = m_artboardInstancesMap.find(item);
-        if (itr != m_artboardInstancesMap.end())
-        {
-            // Existing artboard - update index vectors
-            resetQuietRow(index);
-            m_artboardInstancesByIndex[index] = itr->second.get();
-            markRealized(index, itr->second != nullptr);
-            auto smItr = m_stateMachinesMap.find(item);
-            if (smItr != m_stateMachinesMap.end())
-            {
-                m_stateMachinesByIndex[index] = smItr->second.get();
-            }
-        }
-        else if (!virtualized)
-        {
-            createArtboardAt(index, false);
-        }
-        index++;
+      m_artboardSizes.push_back(Vec2D(artboard->width(), artboard->height()));
     }
-    m_itemsVersion = ++s_itemsVersion;
-    computeLayoutBounds();
-    syncLayoutChildren();
-    markLayoutNodeDirty();
-    markWorldTransformDirty();
-    addDirt(ComponentDirt::Components);
-    recomputeListUsesDrawIndexSort();
-    syncDrawIndexListeners();
-    m_updatingList = wasUpdatingList;
-    auto* parentAb = artboard();
-    if (parentAb != nullptr && parentAb->focusManager() != nullptr &&
-        m_listScopeFocusNode != nullptr)
+    auto itr = m_artboardInstancesMap.find(item);
+    if (itr != m_artboardInstancesMap.end())
     {
-        syncListRowNodesWithList(parentAb->focusManager(),
-                                 preListItems,
-                                 preRowNodes);
+      // Existing artboard - update index vectors
+      resetQuietRow(index);
+      m_artboardInstancesByIndex[index] = itr->second.get();
+      markRealized(index, itr->second != nullptr);
+      auto smItr = m_stateMachinesMap.find(item);
+      if (smItr != m_stateMachinesMap.end())
+      {
+        m_stateMachinesByIndex[index] = smItr->second.get();
+      }
     }
+    else if (!virtualized)
+    {
+      createArtboardAt(index, false);
+    }
+    index++;
+  }
+  m_itemsVersion = ++s_itemsVersion;
+  computeLayoutBounds();
+  syncLayoutChildren();
+  markLayoutNodeDirty();
+  markWorldTransformDirty();
+  addDirt(ComponentDirt::Components);
+  recomputeListUsesDrawIndexSort();
+  syncDrawIndexListeners();
+  m_updatingList = wasUpdatingList;
+  auto* parentAb = artboard();
+  if (parentAb != nullptr && parentAb->focusManager() != nullptr &&
+      m_listScopeFocusNode != nullptr)
+  {
+    syncListRowNodesWithList(
+        parentAb->focusManager(),
+        preListItems,
+        preRowNodes);
+  }
 }
 
 void ArtboardComponentList::syncLayoutChildren()
 {
-    auto p = layoutParent();
-    if (p != nullptr)
-    {
+  auto p = layoutParent();
+  if (p != nullptr)
+  {
 #ifdef WITH_RIVE_LAYOUT
-        p->syncLayoutChildren();
+    p->syncLayoutChildren();
 #endif
-    }
+  }
 }
 
 #ifdef TESTING
@@ -939,879 +943,875 @@ bool ArtboardComponentList::sm_verifyQuietRows = true;
 
 static size_t lowestSetBit(uint64_t bits)
 {
-    return static_cast<size_t>(63 - math::clz64(bits & (~bits + 1)));
+  return static_cast<size_t>(63 - math::clz64(bits & (~bits + 1)));
 }
 
 size_t ArtboardComponentList::nextAwakeRow(size_t row) const
 {
-    const size_t count = m_listItems.size();
-    while (row < count)
+  const size_t count = m_listItems.size();
+  while (row < count)
+  {
+    const size_t word = row >> 6;
+    const uint64_t quiet = word < m_quietRows.size() ? m_quietRows[word] : 0;
+    const uint64_t awake = ~quiet & (~uint64_t(0) << (row & 63));
+    if (awake != 0)
     {
-        const size_t word = row >> 6;
-        const uint64_t quiet =
-            word < m_quietRows.size() ? m_quietRows[word] : 0;
-        const uint64_t awake = ~quiet & (~uint64_t(0) << (row & 63));
-        if (awake != 0)
-        {
-            return std::min(count, (word << 6) + lowestSetBit(awake));
-        }
-        row = (word + 1) << 6;
+      return std::min(count, (word << 6) + lowestSetBit(awake));
     }
-    return count;
+    row = (word + 1) << 6;
+  }
+  return count;
 }
 
 bool ArtboardComponentList::isRowQuiet(size_t row) const
 {
-    const size_t word = row >> 6;
-    return word < m_quietRows.size() &&
-           ((m_quietRows[word] >> (row & 63)) & 1) != 0;
+  const size_t word = row >> 6;
+  return word < m_quietRows.size() &&
+         ((m_quietRows[word] >> (row & 63)) & 1) != 0;
 }
 
 AdvancingComponent::QuietState ArtboardComponentList::rowQuietState(size_t row)
 {
-    using QuietState = AdvancingComponent::QuietState;
-    auto artboard = m_artboardInstancesByIndex[row];
-    auto stateMachine = m_stateMachinesByIndex[row];
-    if (artboard == nullptr)
-    {
-        // An unrealized row has no work at all until it is realized, which
-        // resets it (setRowsForItem).
-        return stateMachine == nullptr ? QuietState::quiet : QuietState::busy;
-    }
-    // Pooled machines pair up with pooled artboards by pool order only.
-    if (stateMachine != nullptr && stateMachine->artboard() != artboard)
-    {
-        return QuietState::busy;
-    }
-    auto state = artboard->rowQuietState();
-    if (state != QuietState::quiet || stateMachine == nullptr)
-    {
-        return state;
-    }
-    return stateMachine->rowQuietState();
+  using QuietState = AdvancingComponent::QuietState;
+  auto artboard = m_artboardInstancesByIndex[row];
+  auto stateMachine = m_stateMachinesByIndex[row];
+  if (artboard == nullptr)
+  {
+    // An unrealized row has no work at all until it is realized, which
+    // resets it (setRowsForItem).
+    return stateMachine == nullptr ? QuietState::quiet : QuietState::busy;
+  }
+  // Pooled machines pair up with pooled artboards by pool order only.
+  if (stateMachine != nullptr && stateMachine->artboard() != artboard)
+  {
+    return QuietState::busy;
+  }
+  auto state = artboard->rowQuietState();
+  if (state != QuietState::quiet || stateMachine == nullptr)
+  {
+    return state;
+  }
+  return stateMachine->rowQuietState();
 }
 
 bool ArtboardComponentList::tryQuietRow(size_t row)
 {
-    const size_t word = row >> 6;
-    const uint64_t bit = uint64_t(1) << (row & 63);
-    if (!canQuietRows() || word >= m_quietRows.size() ||
-        (m_neverQuietRows[word] & bit) != 0)
-    {
-        return false;
-    }
-    switch (rowQuietState(row))
-    {
-        case AdvancingComponent::QuietState::never:
-            m_neverQuietRows[word] |= bit;
-            return false;
-        case AdvancingComponent::QuietState::busy:
-            return false;
-        case AdvancingComponent::QuietState::quiet:
-            break;
-    }
-    m_quietRows[word] |= bit;
-    if (auto artboard = m_artboardInstancesByIndex[row])
-    {
-        artboard->quietHostRow(static_cast<uint32_t>(row));
-    }
-    return true;
+  const size_t word = row >> 6;
+  const uint64_t bit = uint64_t(1) << (row & 63);
+  if (!canQuietRows() || word >= m_quietRows.size() ||
+      (m_neverQuietRows[word] & bit) != 0)
+  {
+    return false;
+  }
+  switch (rowQuietState(row))
+  {
+    case AdvancingComponent::QuietState::never:
+      m_neverQuietRows[word] |= bit;
+      return false;
+    case AdvancingComponent::QuietState::busy:
+      return false;
+    case AdvancingComponent::QuietState::quiet:
+      break;
+  }
+  m_quietRows[word] |= bit;
+  if (auto artboard = m_artboardInstancesByIndex[row])
+  {
+    artboard->quietHostRow(static_cast<uint32_t>(row));
+  }
+  return true;
 }
 
 bool ArtboardComponentList::canQuietRows() const
 {
 #ifdef TESTING
-    if (!sm_quietRowsEnabled)
-    {
-        return false;
-    }
+  if (!sm_quietRowsEnabled)
+  {
+    return false;
+  }
 #endif
-    // A row sharing its item's instances with other rows can't be judged on
-    // its own.
-    return !m_listHasDuplicateItems;
+  // A row sharing its item's instances with other rows can't be judged on
+  // its own.
+  return !m_listHasDuplicateItems;
 }
 
 void ArtboardComponentList::quietUnrealizedRows()
 {
-    if (!canQuietRows() || m_quietRows.empty())
-    {
-        return;
-    }
-    std::fill(m_quietRows.begin(), m_quietRows.end(), ~uint64_t(0));
-    if (size_t tail = m_listItems.size() & 63)
-    {
-        m_quietRows.back() = (uint64_t(1) << tail) - 1;
-    }
+  if (!canQuietRows() || m_quietRows.empty())
+  {
+    return;
+  }
+  std::fill(m_quietRows.begin(), m_quietRows.end(), ~uint64_t(0));
+  if (size_t tail = m_listItems.size() & 63)
+  {
+    m_quietRows.back() = (uint64_t(1) << tail) - 1;
+  }
 }
 
 void ArtboardComponentList::resetQuietRow(size_t row)
 {
-    const size_t word = row >> 6;
-    if (word >= m_quietRows.size())
-    {
-        return;
-    }
-    const uint64_t bit = uint64_t(1) << (row & 63);
-    if ((m_quietRows[word] & bit) != 0 &&
-        row < m_artboardInstancesByIndex.size() &&
-        m_artboardInstancesByIndex[row] != nullptr)
-    {
-        m_artboardInstancesByIndex[row]->quietHostRow(Artboard::kNoQuietRow);
-    }
-    m_quietRows[word] &= ~bit;
-    m_neverQuietRows[word] &= ~bit;
+  const size_t word = row >> 6;
+  if (word >= m_quietRows.size())
+  {
+    return;
+  }
+  const uint64_t bit = uint64_t(1) << (row & 63);
+  if ((m_quietRows[word] & bit) != 0 &&
+      row < m_artboardInstancesByIndex.size() &&
+      m_artboardInstancesByIndex[row] != nullptr)
+  {
+    m_artboardInstancesByIndex[row]->quietHostRow(Artboard::kNoQuietRow);
+  }
+  m_quietRows[word] &= ~bit;
+  m_neverQuietRows[word] &= ~bit;
 }
 
 void ArtboardComponentList::resetQuietRows(size_t rowCount)
 {
-    for (size_t word = 0; word < m_quietRows.size(); word++)
+  for (size_t word = 0; word < m_quietRows.size(); word++)
+  {
+    for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
     {
-        for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
-        {
-            const size_t row = (word << 6) + lowestSetBit(quiet);
-            if (row < m_artboardInstancesByIndex.size() &&
-                m_artboardInstancesByIndex[row] != nullptr)
-            {
-                m_artboardInstancesByIndex[row]->quietHostRow(
-                    Artboard::kNoQuietRow);
-            }
-        }
+      const size_t row = (word << 6) + lowestSetBit(quiet);
+      if (row < m_artboardInstancesByIndex.size() &&
+          m_artboardInstancesByIndex[row] != nullptr)
+      {
+        m_artboardInstancesByIndex[row]->quietHostRow(Artboard::kNoQuietRow);
+      }
     }
-    const size_t words = (rowCount + 63) >> 6;
-    m_quietRows.assign(words, 0);
-    m_neverQuietRows.assign(words, 0);
+  }
+  const size_t words = (rowCount + 63) >> 6;
+  m_quietRows.assign(words, 0);
+  m_neverQuietRows.assign(words, 0);
 }
 
 void ArtboardComponentList::hostedRowWoke(Artboard* artboard, uint32_t row)
 {
-    // Rows are reset before their instances change, so the artboard is still
-    // the row's; checked anyway, since waking a row by mistake only costs a
-    // frame of its work.
-    if (row < m_artboardInstancesByIndex.size() &&
-        m_artboardInstancesByIndex[row] == artboard)
+  // Rows are reset before their instances change, so the artboard is still
+  // the row's; checked anyway, since waking a row by mistake only costs a
+  // frame of its work.
+  if (row < m_artboardInstancesByIndex.size() &&
+      m_artboardInstancesByIndex[row] == artboard)
+  {
+    const size_t word = row >> 6;
+    if (word < m_quietRows.size())
     {
-        const size_t word = row >> 6;
-        if (word < m_quietRows.size())
-        {
-            m_quietRows[word] &= ~(uint64_t(1) << (row & 63));
-        }
+      m_quietRows[word] &= ~(uint64_t(1) << (row & 63));
     }
+  }
 }
 
 #ifdef TESTING
-void ArtboardComponentList::verifyQuietRows(RowPass pass,
-                                            float elapsedSeconds,
-                                            AdvanceFlags flags,
-                                            bool advanceNested)
+void ArtboardComponentList::verifyQuietRows(
+    RowPass pass,
+    float elapsedSeconds,
+    AdvanceFlags flags,
+    bool advanceNested)
 {
-    if (!sm_verifyQuietRows)
+  if (!sm_verifyQuietRows)
+  {
+    return;
+  }
+  for (size_t word = 0; word < m_quietRows.size(); word++)
+  {
+    for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
     {
-        return;
-    }
-    for (size_t word = 0; word < m_quietRows.size(); word++)
-    {
-        for (uint64_t quiet = m_quietRows[word]; quiet != 0; quiet &= quiet - 1)
+      const size_t row = (word << 6) + lowestSetBit(quiet);
+      sm_quietRowSkips++;
+      auto artboard = m_artboardInstancesByIndex[row];
+      auto stateMachine = m_stateMachinesByIndex[row];
+      const char* problem = nullptr;
+      if (rowQuietState(row) != AdvancingComponent::QuietState::quiet)
+      {
+        problem = "stopped being quiet but nothing woke it";
+      }
+      else if (artboard == nullptr)
+      {
+        // Unrealized, so there is no work to check.
+      }
+      else if (artboard->quietHostRow() != row)
+      {
+        problem = "lost track of its artboard";
+      }
+      else
+      {
+        auto dirt = Artboard::sm_dirtNotifications;
+        auto updates = DataBindContainer::sm_dataBindUpdates;
+        bool didWork = false;
+        switch (pass)
         {
-            const size_t row = (word << 6) + lowestSetBit(quiet);
-            sm_quietRowSkips++;
-            auto artboard = m_artboardInstancesByIndex[row];
-            auto stateMachine = m_stateMachinesByIndex[row];
-            const char* problem = nullptr;
-            if (rowQuietState(row) != AdvancingComponent::QuietState::quiet)
+          case RowPass::advance:
+            if (advanceNested && stateMachine != nullptr)
             {
-                problem = "stopped being quiet but nothing woke it";
+              didWork = stateMachine->advance(elapsedSeconds, true);
             }
-            else if (artboard == nullptr)
+            didWork = artboard->advanceInternal(elapsedSeconds, flags) ||
+                      didWork;
+            break;
+          case RowPass::settle:
+            if (advanceNested && stateMachine != nullptr)
             {
-                // Unrealized, so there is no work to check.
+              didWork = stateMachine->tryChangeState();
             }
-            else if (artboard->quietHostRow() != row)
-            {
-                problem = "lost track of its artboard";
-            }
-            else
-            {
-                auto dirt = Artboard::sm_dirtNotifications;
-                auto updates = DataBindContainer::sm_dataBindUpdates;
-                bool didWork = false;
-                switch (pass)
-                {
-                    case RowPass::advance:
-                        if (advanceNested && stateMachine != nullptr)
-                        {
-                            didWork =
-                                stateMachine->advance(elapsedSeconds, true);
-                        }
-                        didWork =
-                            artboard->advanceInternal(elapsedSeconds, flags) ||
-                            didWork;
-                        break;
-                    case RowPass::settle:
-                        if (advanceNested && stateMachine != nullptr)
-                        {
-                            didWork = stateMachine->tryChangeState();
-                        }
-                        didWork =
-                            artboard->advanceInternal(elapsedSeconds, flags) ||
-                            didWork;
-                        break;
-                    case RowPass::updateDataBinds:
-                        if (stateMachine != nullptr)
-                        {
-                            stateMachine->updateDataBinds(false);
-                        }
-                        artboard->updateDataBinds();
-                        break;
-                    case RowPass::update:
-                        didWork = artboard->updatePass(false);
-                        break;
-                }
-                if (didWork || dirt != Artboard::sm_dirtNotifications ||
-                    updates != DataBindContainer::sm_dataBindUpdates ||
-                    artboard->hasDirt(ComponentDirt::Components) ||
-                    artboard->quietHostRow() != row ||
-                    (stateMachine != nullptr &&
-                     (stateMachine->needsAdvance() ||
-                      stateMachine->stateChangedCount() != 0)))
-                {
-                    problem = "did work while quiet";
-                }
-            }
-            if (problem != nullptr)
-            {
-                fprintf(stderr,
-                        "Quiet row %zu of list '%s' %s\n",
-                        row,
-                        name().c_str(),
-                        problem);
-                abort();
-            }
-        }
-    }
-}
-#endif
-
-bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
-                                             AdvanceFlags flags)
-{
-    if (artboardCount() == 0)
-    {
-        return false;
-    }
-    if (isCollapsed())
-    {
-        m_inactiveChangeSequence =
-            ViewModelInstanceValue::latestChangeSequence();
-        return false;
-    }
-    bool keepGoing = false;
-    bool advanceNested =
-        (flags & AdvanceFlags::AdvanceNested) == AdvanceFlags::AdvanceNested;
-    bool newFrame = (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
-    auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
-    const size_t count = m_listItems.size();
-    for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
-    {
-        // A row whose work this frame would do nothing sleeps until something
-        // wakes it.
-        if (newFrame && tryQuietRow(row))
-        {
-            continue;
-        }
-        int i = static_cast<int>(row);
-        if (advanceNested)
-        {
-            auto stateMachine = stateMachineInstance(i);
+            didWork = artboard->advanceInternal(elapsedSeconds, flags) ||
+                      didWork;
+            break;
+          case RowPass::updateDataBinds:
             if (stateMachine != nullptr)
             {
-                // If it is not a new frame, we
-                // first validate whether their state has changed. Then and only
-                // then we advance the state machine. This avoids triggering
-                // dirt from advances that make intermediate value changes but
-                // finally settle in the same value
-                if (!newFrame)
-                {
-                    if (stateMachine->tryChangeState())
-                    {
-                        if (stateMachine->advance(elapsedSeconds, newFrame))
-                        {
-                            keepGoing = true;
-                        }
-                    }
-                }
-                else
-                {
-                    if (stateMachine->advance(elapsedSeconds, newFrame))
-                    {
-                        keepGoing = true;
-                    }
-                }
+              stateMachine->updateDataBinds(false);
             }
+            artboard->updateDataBinds();
+            break;
+          case RowPass::update:
+            didWork = artboard->updatePass(false);
+            break;
         }
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
+        if (didWork || dirt != Artboard::sm_dirtNotifications ||
+            updates != DataBindContainer::sm_dataBindUpdates ||
+            artboard->hasDirt(ComponentDirt::Components) ||
+            artboard->quietHostRow() != row ||
+            (stateMachine != nullptr &&
+             (stateMachine->needsAdvance() ||
+              stateMachine->stateChangedCount() != 0)))
         {
-            if (artboard->advanceInternal(elapsedSeconds, advancingFlags))
-            {
-                keepGoing = true;
-            }
-            if (artboard->hasDirt(ComponentDirt::Components))
-            {
-                // The animation(s) caused the artboard to need an update.
-                addDirt(ComponentDirt::Components);
-            }
+          problem = "did work while quiet";
         }
+      }
+      if (problem != nullptr)
+      {
+        fprintf(
+            stderr,
+            "Quiet row %zu of list '%s' %s\n",
+            row,
+            name().c_str(),
+            problem);
+        abort();
+      }
     }
-#ifdef TESTING
-    verifyQuietRows(newFrame ? RowPass::advance : RowPass::settle,
-                    elapsedSeconds,
-                    advancingFlags,
-                    advanceNested);
+  }
+}
 #endif
-    return keepGoing;
+
+bool ArtboardComponentList::advanceComponent(
+    float elapsedSeconds,
+    AdvanceFlags flags)
+{
+  if (artboardCount() == 0)
+  {
+    return false;
+  }
+  if (isCollapsed())
+  {
+    m_inactiveChangeSequence = ViewModelInstanceValue::latestChangeSequence();
+    return false;
+  }
+  bool keepGoing = false;
+  bool advanceNested = (flags & AdvanceFlags::AdvanceNested) ==
+                       AdvanceFlags::AdvanceNested;
+  bool newFrame = (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
+  auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
+  const size_t count = m_listItems.size();
+  for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
+  {
+    // A row whose work this frame would do nothing sleeps until something
+    // wakes it.
+    if (newFrame && tryQuietRow(row))
+    {
+      continue;
+    }
+    int i = static_cast<int>(row);
+    if (advanceNested)
+    {
+      auto stateMachine = stateMachineInstance(i);
+      if (stateMachine != nullptr)
+      {
+        // If it is not a new frame, we
+        // first validate whether their state has changed. Then and only
+        // then we advance the state machine. This avoids triggering
+        // dirt from advances that make intermediate value changes but
+        // finally settle in the same value
+        if (!newFrame)
+        {
+          if (stateMachine->tryChangeState())
+          {
+            if (stateMachine->advance(elapsedSeconds, newFrame))
+            {
+              keepGoing = true;
+            }
+          }
+        }
+        else
+        {
+          if (stateMachine->advance(elapsedSeconds, newFrame))
+          {
+            keepGoing = true;
+          }
+        }
+      }
+    }
+    auto artboard = artboardInstance(i);
+    if (artboard != nullptr)
+    {
+      if (artboard->advanceInternal(elapsedSeconds, advancingFlags))
+      {
+        keepGoing = true;
+      }
+      if (artboard->hasDirt(ComponentDirt::Components))
+      {
+        // The animation(s) caused the artboard to need an update.
+        addDirt(ComponentDirt::Components);
+      }
+    }
+  }
+#ifdef TESTING
+  verifyQuietRows(
+      newFrame ? RowPass::advance : RowPass::settle,
+      elapsedSeconds,
+      advancingFlags,
+      advanceNested);
+#endif
+  return keepGoing;
 }
 
 void ArtboardComponentList::reset() {}
 
 AABB ArtboardComponentList::layoutBounds()
 {
-    return AABB(0, 0, m_layoutSize.x, m_layoutSize.y);
+  return AABB(0, 0, m_layoutSize.x, m_layoutSize.y);
 }
 
 AABB ArtboardComponentList::layoutBoundsForNode(int index)
 {
-    if (virtualizationEnabled())
+  if (virtualizationEnabled())
+  {
+    int count = (int)m_artboardSizes.size();
+    if (count == 0)
     {
-        int count = (int)m_artboardSizes.size();
-        if (count == 0)
-        {
-            return AABB();
-        }
-        int realIndex = index % count;
-        // The scroll's layout places items in virtualized content space,
-        // after any scroll children ahead of this list.
-        auto position =
-            scrollConstraint()->virtualItemPosition(this, realIndex);
-        auto itemSize = m_artboardSizes[realIndex];
-        return AABB(position.x,
-                    position.y,
-                    position.x + itemSize.x,
-                    position.y + itemSize.y);
+      return AABB();
     }
-    else
+    int realIndex = index % count;
+    // The scroll's layout places items in virtualized content space,
+    // after any scroll children ahead of this list.
+    auto position = scrollConstraint()->virtualItemPosition(this, realIndex);
+    auto itemSize = m_artboardSizes[realIndex];
+    return AABB(
+        position.x,
+        position.y,
+        position.x + itemSize.x,
+        position.y + itemSize.y);
+  }
+  else
+  {
+    // A row can have no artboard (e.g. its view model resolves to none).
+    auto artboard = artboardInstance(index);
+    if (artboard != nullptr)
     {
-        // A row can have no artboard (e.g. its view model resolves to none).
-        auto artboard = artboardInstance(index);
-        if (artboard != nullptr)
-        {
-            return artboard->layoutBounds();
-        }
+      return artboard->layoutBounds();
     }
-    return AABB();
+  }
+  return AABB();
 }
 
 void ArtboardComponentList::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {
-    // Only an artboard showing in a row joins the parent's layout. Artboards
-    // in the pools get here too, whenever reusing one resets its properties.
-    if (artboardInstance != nullptr &&
-        std::any_of(m_realizedIndices.begin(),
-                    m_realizedIndices.end(),
-                    [&](int i) {
-                        return m_artboardInstancesByIndex[i] ==
-                               artboardInstance;
-                    }))
-    {
-        this->artboard()->markLayoutDirty(artboardInstance);
-    }
-    markWorldTransformDirty();
+  // Only an artboard showing in a row joins the parent's layout. Artboards
+  // in the pools get here too, whenever reusing one resets its properties.
+  if (artboardInstance != nullptr &&
+      std::any_of(
+          m_realizedIndices.begin(),
+          m_realizedIndices.end(),
+          [&](int i) {
+            return m_artboardInstancesByIndex[i] == artboardInstance;
+          }))
+  {
+    this->artboard()->markLayoutDirty(artboardInstance);
+  }
+  markWorldTransformDirty();
 }
 
 bool ArtboardComponentList::willDraw()
 {
-    return Super::willDraw() && m_listItems.size() > 0;
+  return Super::willDraw() && m_listItems.size() > 0;
 }
 
 void ArtboardComponentList::invalidateOrderedListIndicesCache()
 {
-    m_orderedListIndicesCacheValid = false;
+  m_orderedListIndicesCacheValid = false;
 }
 
 void ArtboardComponentList::recomputeListUsesDrawIndexSort()
 {
-    const bool prevUsesDrawIndexSort = m_listUsesDrawIndexSort;
-    m_listUsesDrawIndexSort = false;
-    for (const auto& item : m_listItems)
+  const bool prevUsesDrawIndexSort = m_listUsesDrawIndexSort;
+  m_listUsesDrawIndexSort = false;
+  for (const auto& item : m_listItems)
+  {
+    auto vmi = item->viewModelInstance().get();
+    if (vmi == nullptr)
     {
-        auto vmi = item->viewModelInstance().get();
-        if (vmi == nullptr)
-        {
-            continue;
-        }
-        auto* vm = vmi->viewModel();
-        if (vm != nullptr && vm->property(SymbolType::drawIndex) != nullptr)
-        {
-            m_listUsesDrawIndexSort = true;
-            if (prevUsesDrawIndexSort != m_listUsesDrawIndexSort)
-            {
-                invalidateOrderedListIndicesCache();
-            }
-            return;
-        }
+      continue;
     }
-    if (prevUsesDrawIndexSort != m_listUsesDrawIndexSort)
+    auto* vm = vmi->viewModel();
+    if (vm != nullptr && vm->property(SymbolType::drawIndex) != nullptr)
     {
+      m_listUsesDrawIndexSort = true;
+      if (prevUsesDrawIndexSort != m_listUsesDrawIndexSort)
+      {
         invalidateOrderedListIndicesCache();
+      }
+      return;
     }
+  }
+  if (prevUsesDrawIndexSort != m_listUsesDrawIndexSort)
+  {
+    invalidateOrderedListIndicesCache();
+  }
 }
 
 float ArtboardComponentList::listItemDrawIndex(int index) const
 {
-    if (index < 0 || static_cast<size_t>(index) >= m_listItems.size())
-    {
-        return 0.0f;
-    }
-    auto* vmi =
-        m_listItems[static_cast<size_t>(index)]->viewModelInstance().get();
-    if (vmi == nullptr)
-    {
-        return 0.0f;
-    }
-    auto* vm = vmi->viewModel();
-    if (vm == nullptr || vm->property(SymbolType::drawIndex) == nullptr)
-    {
-        return 0.0f;
-    }
-    auto* prop = vmi->propertyValue(SymbolType::drawIndex);
-    if (prop != nullptr && prop->is<ViewModelInstanceNumber>())
-    {
-        float v = prop->as<ViewModelInstanceNumber>()->propertyValue();
-        if (!std::isfinite(v))
-        {
-            return 0.0f;
-        }
-        return v;
-    }
+  if (index < 0 || static_cast<size_t>(index) >= m_listItems.size())
+  {
     return 0.0f;
+  }
+  auto*
+      vmi = m_listItems[static_cast<size_t>(index)]->viewModelInstance().get();
+  if (vmi == nullptr)
+  {
+    return 0.0f;
+  }
+  auto* vm = vmi->viewModel();
+  if (vm == nullptr || vm->property(SymbolType::drawIndex) == nullptr)
+  {
+    return 0.0f;
+  }
+  auto* prop = vmi->propertyValue(SymbolType::drawIndex);
+  if (prop != nullptr && prop->is<ViewModelInstanceNumber>())
+  {
+    float v = prop->as<ViewModelInstanceNumber>()->propertyValue();
+    if (!std::isfinite(v))
+    {
+      return 0.0f;
+    }
+    return v;
+  }
+  return 0.0f;
 }
 
 void ArtboardComponentList::clearDrawIndexListeners()
 {
-    m_drawIndexDependents.clear();
+  m_drawIndexDependents.clear();
 }
 
 void ArtboardComponentList::removeDrawIndexListenerForItem(
     const rcp<ViewModelInstanceListItem>& listItem)
 {
-    m_drawIndexDependents.erase(listItem);
+  m_drawIndexDependents.erase(listItem);
 }
 
 void ArtboardComponentList::syncDrawIndexListeners()
 {
-    clearDrawIndexListeners();
-    if (!m_listUsesDrawIndexSort)
+  clearDrawIndexListeners();
+  if (!m_listUsesDrawIndexSort)
+  {
+    return;
+  }
+  for (const auto& item : m_listItems)
+  {
+    auto vmi = item->viewModelInstance().get();
+    if (vmi == nullptr)
     {
-        return;
+      continue;
     }
-    for (const auto& item : m_listItems)
+    auto* prop = vmi->propertyValue(SymbolType::drawIndex);
+    if (prop == nullptr)
     {
-        auto vmi = item->viewModelInstance().get();
-        if (vmi == nullptr)
-        {
-            continue;
-        }
-        auto* prop = vmi->propertyValue(SymbolType::drawIndex);
-        if (prop == nullptr)
-        {
-            continue;
-        }
-        m_drawIndexDependents[item] =
-            std::make_unique<ArtboardListDrawIndexDependent>(this, prop);
+      continue;
     }
+    m_drawIndexDependents[item] = std::make_unique<
+        ArtboardListDrawIndexDependent>(this, prop);
+  }
 }
 
 void ArtboardComponentList::ensureOrderedListIndices()
 {
-    const int count = static_cast<int>(m_listItems.size());
-    if (count == 0)
-    {
-        m_orderedListIndicesCacheValid = false;
-        m_cachedOrderedListIndices.clear();
-        return;
-    }
+  const int count = static_cast<int>(m_listItems.size());
+  if (count == 0)
+  {
+    m_orderedListIndicesCacheValid = false;
+    m_cachedOrderedListIndices.clear();
+    return;
+  }
 
-    if (m_orderedListIndicesCacheValid)
-    {
-        return;
-    }
+  if (m_orderedListIndicesCacheValid)
+  {
+    return;
+  }
 
-    std::vector<int>& cache = m_cachedOrderedListIndices;
-    cache.clear();
-    const bool useVirtualWindow =
-        virtualizationEnabled() && !m_windowOrder.empty();
+  std::vector<int>& cache = m_cachedOrderedListIndices;
+  cache.clear();
+  const bool useVirtualWindow = virtualizationEnabled() &&
+                                !m_windowOrder.empty();
 
-    if (useVirtualWindow)
+  if (useVirtualWindow)
+  {
+    for (int index : m_windowOrder)
     {
-        for (int index : m_windowOrder)
-        {
-            if (index < count)
-            {
-                cache.push_back(index);
-            }
-        }
+      if (index < count)
+      {
+        cache.push_back(index);
+      }
     }
-    else
+  }
+  else
+  {
+    cache.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; i++)
     {
-        cache.reserve(static_cast<size_t>(count));
-        for (int i = 0; i < count; i++)
-        {
-            cache.push_back(i);
-        }
+      cache.push_back(i);
     }
+  }
 
-    if (m_listUsesDrawIndexSort)
-    {
-        std::sort(cache.begin(), cache.end(), [this](int a, int b) {
-            const float da = listItemDrawIndex(a);
-            const float db = listItemDrawIndex(b);
-            if (da != db)
-            {
-                return da < db;
-            }
-            return a < b;
-        });
-    }
+  if (m_listUsesDrawIndexSort)
+  {
+    std::sort(cache.begin(), cache.end(), [this](int a, int b) {
+      const float da = listItemDrawIndex(a);
+      const float db = listItemDrawIndex(b);
+      if (da != db)
+      {
+        return da < db;
+      }
+      return a < b;
+    });
+  }
 
-    m_orderedListIndicesCacheValid = true;
+  m_orderedListIndicesCacheValid = true;
 }
 
 const std::vector<int>& ArtboardComponentList::orderedListIndices()
 {
-    ensureOrderedListIndices();
-    return m_cachedOrderedListIndices;
+  ensureOrderedListIndices();
+  return m_cachedOrderedListIndices;
 }
 
 void ArtboardComponentList::draw(Renderer* renderer)
 {
-    if (needsSaveOperation())
+  if (needsSaveOperation())
+  {
+    renderer->save();
+  }
+  if (virtualizationEnabled())
+  {
+    renderer->transform(
+        parent()->as<WorldTransformComponent>()->worldTransform());
+    if (!m_windowOrder.empty())
     {
+      // We need to render in the correct order so we get the correct
+      // z-index for items in cases where there is overlap
+      for (int i : orderedListIndices())
+      {
+        auto artboard = artboardInstance(i);
+        if (artboard != nullptr)
+        {
+          renderer->save();
+          auto transform = m_artboardTransforms[artboard];
+          renderer->transform(transform);
+          Component::artboard()->drawHosted(artboard, renderer);
+          renderer->restore();
+        }
+      }
+    }
+  }
+  else
+  {
+    renderer->transform(worldTransform());
+    for (int i : orderedListIndices())
+    {
+      auto artboard = artboardInstance(i);
+      if (artboard != nullptr)
+      {
         renderer->save();
-    }
-    if (virtualizationEnabled())
-    {
-        renderer->transform(
-            parent()->as<WorldTransformComponent>()->worldTransform());
-        if (!m_windowOrder.empty())
-        {
-            // We need to render in the correct order so we get the correct
-            // z-index for items in cases where there is overlap
-            for (int i : orderedListIndices())
-            {
-                auto artboard = artboardInstance(i);
-                if (artboard != nullptr)
-                {
-                    renderer->save();
-                    auto transform = m_artboardTransforms[artboard];
-                    renderer->transform(transform);
-                    Component::artboard()->drawHosted(artboard, renderer);
-                    renderer->restore();
-                }
-            }
-        }
-    }
-    else
-    {
-        renderer->transform(worldTransform());
-        for (int i : orderedListIndices())
-        {
-            auto artboard = artboardInstance(i);
-            if (artboard != nullptr)
-            {
-                renderer->save();
-                auto transform = m_artboardTransforms[artboard];
-                renderer->transform(transform);
-                Component::artboard()->drawHosted(artboard, renderer);
-                renderer->restore();
-            }
-        }
-    }
-    if (needsSaveOperation())
-    {
+        auto transform = m_artboardTransforms[artboard];
+        renderer->transform(transform);
+        Component::artboard()->drawHosted(artboard, renderer);
         renderer->restore();
+      }
     }
+  }
+  if (needsSaveOperation())
+  {
+    renderer->restore();
+  }
 }
 
 Core* ArtboardComponentList::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
-bool ArtboardComponentList::hitTestHost(const Vec2D& position,
-                                        bool skipOnUnclipped,
-                                        ArtboardInstance* artboard)
+bool ArtboardComponentList::hitTestHost(
+    const Vec2D& position,
+    bool skipOnUnclipped,
+    ArtboardInstance* artboard)
 {
-    if (artboard == nullptr)
-    {
-        return false;
-    }
-    auto bounds = artboardPosition(artboard);
-    Vec2D offset(bounds.x + position.x, bounds.y + position.y);
-    auto transform = virtualizationEnabled()
-                         ? parent()->as<LayoutComponent>()->worldTransform()
-                         : worldTransform();
-    return parent()->hitTestPoint(transform * offset, skipOnUnclipped, false);
+  if (artboard == nullptr)
+  {
+    return false;
+  }
+  auto bounds = artboardPosition(artboard);
+  Vec2D offset(bounds.x + position.x, bounds.y + position.y);
+  auto transform = virtualizationEnabled()
+                       ? parent()->as<LayoutComponent>()->worldTransform()
+                       : worldTransform();
+  return parent()->hitTestPoint(transform * offset, skipOnUnclipped, false);
 }
 
 Vec2D ArtboardComponentList::hostTransformPoint(
     const Vec2D& vec,
     ArtboardInstance* artboardInstance)
 {
-    auto bounds = artboardPosition(artboardInstance);
-    Vec2D offset(bounds.x + vec.x, bounds.y + vec.y);
-    auto transform = virtualizationEnabled()
-                         ? parent()->as<LayoutComponent>()->worldTransform()
-                         : worldTransform();
-    auto localVec = transform * offset;
-    auto ab = artboard();
-    return ab ? ab->rootTransform(localVec) : localVec;
+  auto bounds = artboardPosition(artboardInstance);
+  Vec2D offset(bounds.x + vec.x, bounds.y + vec.y);
+  auto transform = virtualizationEnabled()
+                       ? parent()->as<LayoutComponent>()->worldTransform()
+                       : worldTransform();
+  auto localVec = transform * offset;
+  auto ab = artboard();
+  return ab ? ab->rootTransform(localVec) : localVec;
 }
 
 Mat2D ArtboardComponentList::worldTransformForArtboard(
     ArtboardInstance* artboardInstance)
 {
-    auto offset = artboardPosition(artboardInstance);
-    // For scroll-into-view calculations, we need the position in content-local
-    // space (without scroll applied). Use the list's layout position combined
-    // with parent's world transform, rather than worldTransform() which may
-    // include scroll constraints.
-    auto* parentLayout = parent() != nullptr && parent()->is<LayoutComponent>()
-                             ? parent()->as<LayoutComponent>()
-                             : nullptr;
-    if (parentLayout != nullptr)
-    {
-        AABB listBounds = layoutBounds();
-        Mat2D transform =
-            parentLayout->worldTransform() *
-            Mat2D::fromTranslate(listBounds.minX, listBounds.minY);
-        return transform * Mat2D::fromTranslate(offset.x, offset.y);
-    }
-    auto transform = virtualizationEnabled()
-                         ? parent()->as<LayoutComponent>()->worldTransform()
-                         : worldTransform();
+  auto offset = artboardPosition(artboardInstance);
+  // For scroll-into-view calculations, we need the position in content-local
+  // space (without scroll applied). Use the list's layout position combined
+  // with parent's world transform, rather than worldTransform() which may
+  // include scroll constraints.
+  auto* parentLayout = parent() != nullptr && parent()->is<LayoutComponent>()
+                           ? parent()->as<LayoutComponent>()
+                           : nullptr;
+  if (parentLayout != nullptr)
+  {
+    AABB listBounds = layoutBounds();
+    Mat2D transform = parentLayout->worldTransform() *
+                      Mat2D::fromTranslate(listBounds.minX, listBounds.minY);
     return transform * Mat2D::fromTranslate(offset.x, offset.y);
+  }
+  auto transform = virtualizationEnabled()
+                       ? parent()->as<LayoutComponent>()->worldTransform()
+                       : worldTransform();
+  return transform * Mat2D::fromTranslate(offset.x, offset.y);
 }
 
 void ArtboardComponentList::update(ComponentDirt value)
 {
-    Super::update(value);
-    if (artboardCount() == 0)
-    {
-        return;
-    }
+  Super::update(value);
+  if (artboardCount() == 0)
+  {
+    return;
+  }
 
-    if (hasDirt(value, ComponentDirt::WorldTransform))
+  if (hasDirt(value, ComponentDirt::WorldTransform))
+  {
+    // Mark semantic bounds dirty for nodes inside each list item
+    // artboard. Their root-space bounds depend on the host's
+    // world transform.
+    forEachRealized([&](int, ArtboardInstance* artboard) {
+      artboard->markSemanticBoundaryTransformDirty();
+    });
+  }
+  if (hasDirt(value, ComponentDirt::RenderOpacity))
+  {
+    forEachRealized([&](int, ArtboardInstance* artboard) {
+      artboard->opacity(renderOpacity());
+    });
+  }
+  if (hasDirt(value, ComponentDirt::Components))
+  {
+    const size_t count = m_listItems.size();
+    for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
     {
-        // Mark semantic bounds dirty for nodes inside each list item
-        // artboard. Their root-space bounds depend on the host's
-        // world transform.
-        forEachRealized([&](int, ArtboardInstance* artboard) {
-            artboard->markSemanticBoundaryTransformDirty();
-        });
+      auto artboard = m_artboardInstancesByIndex[row];
+      if (artboard != nullptr)
+      {
+        artboard->updatePass(false);
+      }
     }
-    if (hasDirt(value, ComponentDirt::RenderOpacity))
-    {
-        forEachRealized([&](int, ArtboardInstance* artboard) {
-            artboard->opacity(renderOpacity());
-        });
-    }
-    if (hasDirt(value, ComponentDirt::Components))
-    {
-        const size_t count = m_listItems.size();
-        for (size_t row = nextAwakeRow(0); row < count;
-             row = nextAwakeRow(row + 1))
-        {
-            auto artboard = m_artboardInstancesByIndex[row];
-            if (artboard != nullptr)
-            {
-                artboard->updatePass(false);
-            }
-        }
 #ifdef TESTING
-        verifyQuietRows(RowPass::update, 0.0f, AdvanceFlags::None, false);
+    verifyQuietRows(RowPass::update, 0.0f, AdvanceFlags::None, false);
 #endif
-    }
+  }
 }
 
 void ArtboardComponentList::updateWorldTransform()
 {
-    updateArtboardsWorldTransform();
-    Super::updateWorldTransform();
+  updateArtboardsWorldTransform();
+  Super::updateWorldTransform();
 }
 
 void ArtboardComponentList::updateArtboardsWorldTransform()
 {
-    auto count = m_listItems.size();
-    if (count == 0)
+  auto count = m_listItems.size();
+  if (count == 0)
+  {
+    return;
+  }
+  // We only update non layout transforms here
+  if (!virtualizationEnabled())
+  {
+    auto useLayout = layoutParent() != nullptr;
+    for (int i = 0; i < count; i++)
     {
-        return;
+      auto artboard = artboardInstance(i);
+      if (artboard != nullptr)
+      {
+        auto bounds = useLayout ? artboard->layoutBounds()
+                                : artboard->worldBounds();
+        auto origin = useLayout ? artboard->origin() : Vec2D();
+        m_artboardTransforms[artboard] = Mat2D::fromTranslate(
+            bounds.left() - origin.x,
+            bounds.top() - origin.y);
+      }
     }
-    // We only update non layout transforms here
-    if (!virtualizationEnabled())
-    {
-        auto useLayout = layoutParent() != nullptr;
-        for (int i = 0; i < count; i++)
-        {
-            auto artboard = artboardInstance(i);
-            if (artboard != nullptr)
-            {
-                auto bounds = useLayout ? artboard->layoutBounds()
-                                        : artboard->worldBounds();
-                auto origin = useLayout ? artboard->origin() : Vec2D();
-                m_artboardTransforms[artboard] =
-                    Mat2D::fromTranslate(bounds.left() - origin.x,
-                                         bounds.top() - origin.y);
-            }
-        }
-    }
+  }
 }
 
 void ArtboardComponentList::updateConstraints()
 {
-    if (layoutConstraints().size() > 0)
+  if (layoutConstraints().size() > 0)
+  {
+    for (auto parentConstraint : layoutConstraints())
     {
-        for (auto parentConstraint : layoutConstraints())
-        {
-            parentConstraint->constrainChild(this);
-        }
+      parentConstraint->constrainChild(this);
     }
-    if (m_listConstraints.size() > 0 && !virtualizationEnabled())
+  }
+  if (m_listConstraints.size() > 0 && !virtualizationEnabled())
+  {
+    for (auto listConstraint : m_listConstraints)
     {
-        for (auto listConstraint : m_listConstraints)
-        {
-            listConstraint->constrainList(this);
-        }
+      listConstraint->constrainList(this);
     }
-    for (auto constraint : constraints())
+  }
+  for (auto constraint : constraints())
+  {
+    auto listConstraint = ListConstraint::from(constraint);
+    if (listConstraint != nullptr)
     {
-        auto listConstraint = ListConstraint::from(constraint);
-        if (listConstraint != nullptr)
-        {
-            continue;
-        }
-        constraint->constrain(this);
+      continue;
     }
+    constraint->constrain(this);
+  }
 }
 
 void ArtboardComponentList::internalDataContext(rcp<DataContext> value)
 {
-    // Reconcile the existing data contexts with the new parent. A row can have
-    // no artboard (nothing bound to its view model) or no state machine (its
-    // artboard has none), and both maps keep those rows as null entries.
-    for (auto& artboard : m_artboardInstancesMap)
+  // Reconcile the existing data contexts with the new parent. A row can have
+  // no artboard (nothing bound to its view model) or no state machine (its
+  // artboard has none), and both maps keep those rows as null entries.
+  for (auto& artboard : m_artboardInstancesMap)
+  {
+    if (artboard.second == nullptr)
     {
-        if (artboard.second == nullptr)
-        {
-            continue;
-        }
-        auto dataContext = artboard.second->dataContext();
-        if (dataContext != nullptr)
-        {
-            dataContext->parent(value);
-            artboard.second->internalDataContext(dataContext);
-        }
+      continue;
     }
-    for (auto& sm : m_stateMachinesMap)
+    auto dataContext = artboard.second->dataContext();
+    if (dataContext != nullptr)
     {
-        if (sm.second == nullptr)
-        {
-            continue;
-        }
-        auto dataContext = sm.second->dataContext();
-        if (dataContext != nullptr)
-        {
-            dataContext->parent(value);
-            sm.second->internalDataContext(dataContext);
-        }
+      dataContext->parent(value);
+      artboard.second->internalDataContext(dataContext);
     }
+  }
+  for (auto& sm : m_stateMachinesMap)
+  {
+    if (sm.second == nullptr)
+    {
+      continue;
+    }
+    auto dataContext = sm.second->dataContext();
+    if (dataContext != nullptr)
+    {
+      dataContext->parent(value);
+      sm.second->internalDataContext(dataContext);
+    }
+  }
 }
 
 void ArtboardComponentList::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
     rcp<DataContext> parent)
 {
-    // At the time this is called, artboards will not yet have been instanced
-    // so its essentially a no-op and the call to bindViewModelInstance on
-    // each artboard is made at the time of artboard instancing
+  // At the time this is called, artboards will not yet have been instanced
+  // so its essentially a no-op and the call to bindViewModelInstance on
+  // each artboard is made at the time of artboard instancing
 }
 
 void ArtboardComponentList::clearDataContext() {}
 void ArtboardComponentList::unbind() { clear(); }
 void ArtboardComponentList::updateDataBinds()
 {
-    // A collapsed list does no bind work at all: not the rows' own binds, not
-    // their state machines, and nothing mounted inside them. collapse() here
-    // is semantic-only, exactly as in NestedArtboard, so nothing in a row is
-    // ever flagged and DataBind::canSkip cannot see that the list is hidden --
-    // without this, a toSource bind in a row publishes an uncomputed value
-    // into the shared view model and every reader picks it up.
-    if (isCollapsed())
+  // A collapsed list does no bind work at all: not the rows' own binds, not
+  // their state machines, and nothing mounted inside them. collapse() here
+  // is semantic-only, exactly as in NestedArtboard, so nothing in a row is
+  // ever flagged and DataBind::canSkip cannot see that the list is hidden --
+  // without this, a toSource bind in a row publishes an uncomputed value
+  // into the shared view model and every reader picks it up.
+  if (isCollapsed())
+  {
+    return;
+  }
+  const size_t count = m_listItems.size();
+  for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
+  {
+    auto stateMachine = m_stateMachinesByIndex[row];
+    if (stateMachine != nullptr)
     {
-        return;
+      stateMachine->updateDataBinds(false);
     }
-    const size_t count = m_listItems.size();
-    for (size_t row = nextAwakeRow(0); row < count; row = nextAwakeRow(row + 1))
+    auto artboard = m_artboardInstancesByIndex[row];
+    if (artboard != nullptr)
     {
-        auto stateMachine = m_stateMachinesByIndex[row];
-        if (stateMachine != nullptr)
-        {
-            stateMachine->updateDataBinds(false);
-        }
-        auto artboard = m_artboardInstancesByIndex[row];
-        if (artboard != nullptr)
-        {
-            artboard->updateDataBinds();
-        }
+      artboard->updateDataBinds();
     }
+  }
 #ifdef TESTING
-    verifyQuietRows(RowPass::updateDataBinds, 0.0f, AdvanceFlags::None, false);
+  verifyQuietRows(RowPass::updateDataBinds, 0.0f, AdvanceFlags::None, false);
 #endif
 }
 
 #ifdef WITH_RIVE_TOOLS
 Vec2D ArtboardComponentList::itemPosition(int index)
 {
-    auto artboard = artboardInstance(index);
-    return artboard == nullptr ? Vec2D() : artboardPosition(artboard);
+  auto artboard = artboardInstance(index);
+  return artboard == nullptr ? Vec2D() : artboardPosition(artboard);
 }
 #endif
 
 Vec2D ArtboardComponentList::artboardPosition(ArtboardInstance* artboard)
 {
-    auto mat = m_artboardTransforms[artboard];
-    return Vec2D(mat[4], mat[5]);
+  auto mat = m_artboardTransforms[artboard];
+  return Vec2D(mat[4], mat[5]);
 }
 
 bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
 {
-    assert(local != nullptr);
-    auto artboard = artboardInstance(index);
-    if (artboard == nullptr)
-    {
-        return false;
-    }
-    Vec2D offset = artboardPosition(artboard);
-    auto transform = virtualizationEnabled()
-                         ? parent()->as<LayoutComponent>()->worldTransform()
-                         : worldTransform();
-    auto artboardTransform =
-        transform * Mat2D::fromTranslate(offset.x, offset.y);
-    Mat2D toMountedArtboard;
-    if (!artboardTransform.invert(&toMountedArtboard))
-    {
-        return false;
-    }
+  assert(local != nullptr);
+  auto artboard = artboardInstance(index);
+  if (artboard == nullptr)
+  {
+    return false;
+  }
+  Vec2D offset = artboardPosition(artboard);
+  auto transform = virtualizationEnabled()
+                       ? parent()->as<LayoutComponent>()->worldTransform()
+                       : worldTransform();
+  auto artboardTransform = transform * Mat2D::fromTranslate(offset.x, offset.y);
+  Mat2D toMountedArtboard;
+  if (!artboardTransform.invert(&toMountedArtboard))
+  {
+    return false;
+  }
 
-    *local = toMountedArtboard * world;
+  *local = toMountedArtboard * world;
 
-    return true;
+  return true;
 }
 
 void ArtboardComponentList::file(File* value) { m_file = value; }
@@ -1819,24 +1819,24 @@ File* ArtboardComponentList::file() const { return m_file; }
 
 Core* ArtboardComponentList::clone() const
 {
-    auto clone =
-        static_cast<ArtboardComponentList*>(ArtboardComponentListBase::clone());
-    clone->file(file());
-    return clone;
+  auto clone = static_cast<ArtboardComponentList*>(
+      ArtboardComponentListBase::clone());
+  clone->file(file());
+  return clone;
 }
 
 void ArtboardComponentList::createArtboardAt(int index, bool forceLayoutSync)
 {
-    auto item = listItem(index);
-    if (item != nullptr)
+  auto item = listItem(index);
+  if (item != nullptr)
+  {
+    auto artboardCopy = createArtboard(this, item);
+    if (artboardCopy != nullptr)
     {
-        auto artboardCopy = createArtboard(this, item);
-        if (artboardCopy != nullptr)
-        {
-            attachArtboardOverride(artboardCopy.get(), item);
-            addArtboardAt(std::move(artboardCopy), index, forceLayoutSync);
-        }
+      attachArtboardOverride(artboardCopy.get(), item);
+      addArtboardAt(std::move(artboardCopy), index, forceLayoutSync);
     }
+  }
 }
 
 void ArtboardComponentList::addArtboardAt(
@@ -1844,415 +1844,415 @@ void ArtboardComponentList::addArtboardAt(
     int index,
     bool forceLayoutSync)
 {
-    auto item = listItem(index);
-    if (item != nullptr)
+  auto item = listItem(index);
+  if (item != nullptr)
+  {
+    auto artboardInstance = artboard.get();
+    m_artboardInstancesMap[item] = std::move(artboard);
+    // In a virtualized list, the rows showing the item get each new
+    // instance right away: hosting it and syncing the layout below look it
+    // up by row. A list can show one item on several rows, and those rows
+    // share its instances.
+    const bool virtualized = virtualizationEnabled();
+    if (virtualized)
     {
-        auto artboardInstance = artboard.get();
-        m_artboardInstancesMap[item] = std::move(artboard);
-        // In a virtualized list, the rows showing the item get each new
-        // instance right away: hosting it and syncing the layout below look it
-        // up by row. A list can show one item on several rows, and those rows
-        // share its instances.
-        const bool virtualized = virtualizationEnabled();
+      setRowsForItem(index, item, artboardInstance, nullptr);
+    }
+    bindArtboard(artboardInstance, item);
+    if (artboardInstance != nullptr)
+    {
+      artboardInstance->host(this);
+      artboardInstance->frameOrigin(false);
+      artboardInstance->parentIsRow(mainAxisIsRow());
+      artboardInstance->parentIsStack(isStack());
+    }
+
+    StateMachineInstance* stateMachineInstance = nullptr;
+    auto artboard = findArtboard(item);
+    if (artboard != nullptr)
+    {
+
+      auto& smPool = m_stateMachinesPool[artboard];
+      if (!smPool.empty())
+      {
+        auto sm = smPool.back().get();
+
+        sm->resetState();
+        applyRecorders(sm, artboard);
+        m_stateMachinesMap[item] = std::move(smPool.back());
         if (virtualized)
         {
-            setRowsForItem(index, item, artboardInstance, nullptr);
+          setRowsForItem(index, item, artboardInstance, sm);
         }
-        bindArtboard(artboardInstance, item);
-        if (artboardInstance != nullptr)
-        {
-            artboardInstance->host(this);
-            artboardInstance->frameOrigin(false);
-            artboardInstance->parentIsRow(mainAxisIsRow());
-            artboardInstance->parentIsStack(isStack());
-        }
-
-        StateMachineInstance* stateMachineInstance = nullptr;
-        auto artboard = findArtboard(item);
-        if (artboard != nullptr)
-        {
-
-            auto& smPool = m_stateMachinesPool[artboard];
-            if (!smPool.empty())
-            {
-                auto sm = smPool.back().get();
-
-                sm->resetState();
-                applyRecorders(sm, artboard);
-                m_stateMachinesMap[item] = std::move(smPool.back());
-                if (virtualized)
-                {
-                    setRowsForItem(index, item, artboardInstance, sm);
-                }
-                linkStateMachineToArtboard(sm, artboardInstance);
-                stateMachineInstance = sm;
-                smPool.pop_back();
-            }
-        }
-        if (stateMachineInstance == nullptr)
-        {
-            auto stateMachineCopy =
-                createStateMachineInstance(this, artboardInstance);
-            stateMachineInstance = stateMachineCopy.get();
-            m_stateMachinesMap[item] = std::move(stateMachineCopy);
-            if (virtualized)
-            {
-                setRowsForItem(index,
-                               item,
-                               artboardInstance,
-                               stateMachineInstance);
-            }
-        }
-
-        if (!virtualized)
-        {
-            // updateList builds a non-virtualized list's rows in order and
-            // gives an item's later rows the instances made for its first.
-            resetQuietRow(index);
-            m_artboardInstancesByIndex[index] = artboardInstance;
-            m_stateMachinesByIndex[index] = stateMachineInstance;
-            markRealized(index, artboardInstance != nullptr);
-        }
-        // After the instance is findable by index, which the sync reads.
-        if (forceLayoutSync)
-        {
-            syncLayoutChildren();
-        }
+        linkStateMachineToArtboard(sm, artboardInstance);
+        stateMachineInstance = sm;
+        smPool.pop_back();
+      }
     }
+    if (stateMachineInstance == nullptr)
+    {
+      auto stateMachineCopy = createStateMachineInstance(
+          this,
+          artboardInstance);
+      stateMachineInstance = stateMachineCopy.get();
+      m_stateMachinesMap[item] = std::move(stateMachineCopy);
+      if (virtualized)
+      {
+        setRowsForItem(index, item, artboardInstance, stateMachineInstance);
+      }
+    }
+
+    if (!virtualized)
+    {
+      // updateList builds a non-virtualized list's rows in order and
+      // gives an item's later rows the instances made for its first.
+      resetQuietRow(index);
+      m_artboardInstancesByIndex[index] = artboardInstance;
+      m_stateMachinesByIndex[index] = stateMachineInstance;
+      markRealized(index, artboardInstance != nullptr);
+    }
+    // After the instance is findable by index, which the sync reads.
+    if (forceLayoutSync)
+    {
+      syncLayoutChildren();
+    }
+  }
 }
 
 void ArtboardComponentList::bindArtboard(
     ArtboardInstance* artboardInstance,
     rcp<ViewModelInstanceListItem> listItem)
 {
-    if (artboardInstance != nullptr)
-    {
-        auto mainArtboard = this->artboard();
-        auto dataContext = mainArtboard->dataContext();
-        rcp<ViewModelInstance> viewModelInstance =
-            listItem->viewModelInstance();
+  if (artboardInstance != nullptr)
+  {
+    auto mainArtboard = this->artboard();
+    auto dataContext = mainArtboard->dataContext();
+    rcp<ViewModelInstance> viewModelInstance = listItem->viewModelInstance();
 
-        // TODO: @hernan added this to make sure data binds are procesed in the
-        // current frame instead of waiting for the next run. But might not be
-        // necessary. Needs more testing.
-        artboardInstance->bindViewModelInstance(viewModelInstance, dataContext);
-        artboardInstance->updateDataBinds();
+    // TODO: @hernan added this to make sure data binds are procesed in the
+    // current frame instead of waiting for the next run. But might not be
+    // necessary. Needs more testing.
+    artboardInstance->bindViewModelInstance(viewModelInstance, dataContext);
+    artboardInstance->updateDataBinds();
 
-        invalidateOrderedListIndicesCache();
-    }
+    invalidateOrderedListIndicesCache();
+  }
 }
 
 void ArtboardComponentList::removeArtboardAt(int index)
 {
-    auto item = listItem(index);
-    // The rows let go of the item's instances before they are destroyed.
-    setRowsForItem(index, item, nullptr, nullptr);
-    removeArtboard(item);
+  auto item = listItem(index);
+  // The rows let go of the item's instances before they are destroyed.
+  setRowsForItem(index, item, nullptr, nullptr);
+  removeArtboard(item);
 }
 
 void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
 {
-    invalidateOrderedListIndicesCache();
-    removeDrawIndexListenerForItem(item);
-    auto itr = m_artboardInstancesMap.find(item);
-    if (itr != m_artboardInstancesMap.end())
+  invalidateOrderedListIndicesCache();
+  removeDrawIndexListenerForItem(item);
+  auto itr = m_artboardInstancesMap.find(item);
+  if (itr != m_artboardInstancesMap.end())
+  {
+    // Clean up semantic tree before destroying the artboard.
+    if (itr->second != nullptr)
     {
-        // Clean up semantic tree before destroying the artboard.
-        if (itr->second != nullptr)
-        {
-            itr->second->cleanupSemanticTree();
-        }
-        // Clean up focus tree before destroying the artboard to prevent
-        // use-after-free when the FocusManager still holds references
-        // to FocusNodes pointing to FocusData in this artboard.
-        if (itr->second != nullptr)
-        {
-            itr->second->cleanupFocusTree();
-        }
-        clearArtboardOverride(itr->second.get());
+      itr->second->cleanupSemanticTree();
     }
-    // Destroy state machines BEFORE artboards to ensure FocusListenerGroup
-    // can unregister from FocusData before the artboard (and its FocusData)
-    // is destroyed. Otherwise we get use-after-free in ~FocusListenerGroup.
-    m_stateMachinesMap.erase(item);
-    m_artboardInstancesMap.erase(item);
+    // Clean up focus tree before destroying the artboard to prevent
+    // use-after-free when the FocusManager still holds references
+    // to FocusNodes pointing to FocusData in this artboard.
+    if (itr->second != nullptr)
+    {
+      itr->second->cleanupFocusTree();
+    }
+    clearArtboardOverride(itr->second.get());
+  }
+  // Destroy state machines BEFORE artboards to ensure FocusListenerGroup
+  // can unregister from FocusData before the artboard (and its FocusData)
+  // is destroyed. Otherwise we get use-after-free in ~FocusListenerGroup.
+  m_stateMachinesMap.erase(item);
+  m_artboardInstancesMap.erase(item);
 }
 
 void ArtboardComponentList::createArtboardRecorders(const Artboard* artboard)
 {
-    if (artboard == nullptr)
-    {
-        return;
-    }
-    auto recorderIt = m_propertyRecordersMap.find(artboard);
-    if (recorderIt == m_propertyRecordersMap.end())
-    {
-        auto propertyRecorder = std::make_unique<PropertyRecorder>();
-        propertyRecorder->recordArtboard(artboard);
-        m_propertyRecordersMap[artboard] = std::move(propertyRecorder);
-        for (auto& nestedArtboard : artboard->nestedArtboards())
-        {
-            if (nestedArtboard == nullptr)
-            {
-                continue;
-            }
-            auto sourceArtboard = nestedArtboard->sourceArtboard();
-            createArtboardRecorders(sourceArtboard);
-        }
-    }
-}
-
-void ArtboardComponentList::applyRecorders(Artboard* artboard,
-                                           const Artboard* sourceArtboard)
-{
-    if (artboard == nullptr)
-    {
-        return;
-    }
-    auto sourcedArtboardIt = m_propertyRecordersMap.find(sourceArtboard);
-    if (sourcedArtboardIt != m_propertyRecordersMap.end())
-    {
-        auto propertyRecorder = sourcedArtboardIt->second.get();
-        if (propertyRecorder != nullptr)
-        {
-            propertyRecorder->apply(artboard);
-        }
-    }
+  if (artboard == nullptr)
+  {
+    return;
+  }
+  auto recorderIt = m_propertyRecordersMap.find(artboard);
+  if (recorderIt == m_propertyRecordersMap.end())
+  {
+    auto propertyRecorder = std::make_unique<PropertyRecorder>();
+    propertyRecorder->recordArtboard(artboard);
+    m_propertyRecordersMap[artboard] = std::move(propertyRecorder);
     for (auto& nestedArtboard : artboard->nestedArtboards())
     {
-        if (nestedArtboard == nullptr)
-        {
-            continue;
-        }
-        auto nestedInstance = nestedArtboard->sourceArtboard();
-        if (nestedInstance == nullptr)
-        {
-            continue;
-        }
-        applyRecorders(nestedInstance, nestedInstance->artboardSource());
+      if (nestedArtboard == nullptr)
+      {
+        continue;
+      }
+      auto sourceArtboard = nestedArtboard->sourceArtboard();
+      createArtboardRecorders(sourceArtboard);
     }
+  }
+}
+
+void ArtboardComponentList::applyRecorders(
+    Artboard* artboard,
+    const Artboard* sourceArtboard)
+{
+  if (artboard == nullptr)
+  {
+    return;
+  }
+  auto sourcedArtboardIt = m_propertyRecordersMap.find(sourceArtboard);
+  if (sourcedArtboardIt != m_propertyRecordersMap.end())
+  {
+    auto propertyRecorder = sourcedArtboardIt->second.get();
+    if (propertyRecorder != nullptr)
+    {
+      propertyRecorder->apply(artboard);
+    }
+  }
+  for (auto& nestedArtboard : artboard->nestedArtboards())
+  {
+    if (nestedArtboard == nullptr)
+    {
+      continue;
+    }
+    auto nestedInstance = nestedArtboard->sourceArtboard();
+    if (nestedInstance == nullptr)
+    {
+      continue;
+    }
+    applyRecorders(nestedInstance, nestedInstance->artboardSource());
+  }
 }
 
 void ArtboardComponentList::applyRecorders(
     StateMachineInstance* stateMachineInstance,
     const Artboard* sourceArtboard)
 {
-    auto it = m_propertyRecordersMap.find(sourceArtboard);
-    if (it == m_propertyRecordersMap.end())
-    {
-        return;
-    }
-    auto propertyRecorder = it->second.get();
-    if (propertyRecorder != nullptr)
-    {
-        propertyRecorder->apply(stateMachineInstance);
-    }
+  auto it = m_propertyRecordersMap.find(sourceArtboard);
+  if (it == m_propertyRecordersMap.end())
+  {
+    return;
+  }
+  auto propertyRecorder = it->second.get();
+  if (propertyRecorder != nullptr)
+  {
+    propertyRecorder->apply(stateMachineInstance);
+  }
 }
 
 void ArtboardComponentList::addVirtualizable(int index)
 {
-    auto listItem = this->listItem(index);
-    if (listItem != nullptr)
+  auto listItem = this->listItem(index);
+  if (listItem != nullptr)
+  {
+    auto artboard = findArtboard(listItem);
+    if (artboard != nullptr)
     {
-        auto artboard = findArtboard(listItem);
-        if (artboard != nullptr)
-        {
-            createArtboardRecorders(artboard);
-            auto& pool = m_resourcePool[artboard];
-            if (pool.empty())
-            {
-                createArtboardAt(index);
-            }
-            else
-            {
-                auto pooledArtboard = pool.back().get();
-                applyRecorders(pooledArtboard, artboard);
-                addArtboardAt(std::move(pool.back()), index);
-                pool.pop_back();
-            }
-            // Add components dirt so we process layout updates in the same
-            // frame that a mounted artboard is added
-            addDirt(ComponentDirt::Components);
-            auto p = layoutParent();
-            if (p != nullptr)
-            {
-                p->markLayoutStyleDirty();
-            }
-        }
+      createArtboardRecorders(artboard);
+      auto& pool = m_resourcePool[artboard];
+      if (pool.empty())
+      {
+        createArtboardAt(index);
+      }
+      else
+      {
+        auto pooledArtboard = pool.back().get();
+        applyRecorders(pooledArtboard, artboard);
+        addArtboardAt(std::move(pool.back()), index);
+        pool.pop_back();
+      }
+      // Add components dirt so we process layout updates in the same
+      // frame that a mounted artboard is added
+      addDirt(ComponentDirt::Components);
+      auto p = layoutParent();
+      if (p != nullptr)
+      {
+        p->markLayoutStyleDirty();
+      }
     }
+  }
 }
 
 void ArtboardComponentList::virtualizableChanged()
 {
-    if (m_updatingList)
+  if (m_updatingList)
+  {
+    return;
+  }
+  auto* parentArtboard = this->artboard();
+  if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
+  {
+    auto* parentFM = parentArtboard->focusManager();
+    if (m_listScopeFocusNode != nullptr)
     {
-        return;
+      syncListRowNodesWithList(parentFM);
     }
-    auto* parentArtboard = this->artboard();
-    if (parentArtboard != nullptr && parentArtboard->focusManager() != nullptr)
-    {
-        auto* parentFM = parentArtboard->focusManager();
-        if (m_listScopeFocusNode != nullptr)
-        {
-            syncListRowNodesWithList(parentFM);
-        }
-    }
+  }
 }
 
 void ArtboardComponentList::removeVirtualizable(int index)
 {
-    auto listItem = this->listItem(index);
-    if (listItem != nullptr)
+  auto listItem = this->listItem(index);
+  if (listItem != nullptr)
+  {
+    // The rows let go of the item's instances before they move to the
+    // pools.
+    setRowsForItem(index, listItem, nullptr, nullptr);
+    auto artboard = findArtboard(listItem);
+    auto artboardInstance = std::move(m_artboardInstancesMap[listItem]);
+    if (artboard != nullptr && artboardInstance != nullptr)
     {
-        // The rows let go of the item's instances before they move to the
-        // pools.
-        setRowsForItem(index, listItem, nullptr, nullptr);
-        auto artboard = findArtboard(listItem);
-        auto artboardInstance = std::move(m_artboardInstancesMap[listItem]);
-        if (artboard != nullptr && artboardInstance != nullptr)
-        {
-            // A pooled instance may be reused anywhere, so it keeps no cell.
-            artboardInstance->virtualGridCell(-1, -1);
-            auto& pool = m_resourcePool[artboard];
-            pool.push_back(std::move(artboardInstance));
-        }
-        auto smInstanceIterator = m_stateMachinesMap.find(listItem);
-        // A row without a state machine has nothing to pool, and a null in
-        // the pool would be reused as one.
-        if (smInstanceIterator != m_stateMachinesMap.end() &&
-            smInstanceIterator->second != nullptr)
-        {
-            auto& smPool = m_stateMachinesPool[artboard];
-            smPool.push_back(std::move(smInstanceIterator->second));
-        }
+      // A pooled instance may be reused anywhere, so it keeps no cell.
+      artboardInstance->virtualGridCell(-1, -1);
+      auto& pool = m_resourcePool[artboard];
+      pool.push_back(std::move(artboardInstance));
     }
-    removeArtboardAt(index);
+    auto smInstanceIterator = m_stateMachinesMap.find(listItem);
+    // A row without a state machine has nothing to pool, and a null in
+    // the pool would be reused as one.
+    if (smInstanceIterator != m_stateMachinesMap.end() &&
+        smInstanceIterator->second != nullptr)
+    {
+      auto& smPool = m_stateMachinesPool[artboard];
+      smPool.push_back(std::move(smInstanceIterator->second));
+    }
+  }
+  removeArtboardAt(index);
 }
 
 void ArtboardComponentList::realizedIndices(std::vector<int>& out)
 {
-    out.insert(out.end(), m_realizedIndices.begin(), m_realizedIndices.end());
+  out.insert(out.end(), m_realizedIndices.begin(), m_realizedIndices.end());
 }
 
 void ArtboardComponentList::markRealized(size_t index, bool realized)
 {
-    auto it = std::lower_bound(m_realizedIndices.begin(),
-                               m_realizedIndices.end(),
-                               (int)index);
-    bool present = it != m_realizedIndices.end() && *it == (int)index;
-    if (realized && !present)
-    {
-        m_realizedIndices.insert(it, (int)index);
-    }
-    else if (!realized && present)
-    {
-        m_realizedIndices.erase(it);
-    }
+  auto it = std::lower_bound(
+      m_realizedIndices.begin(),
+      m_realizedIndices.end(),
+      (int)index);
+  bool present = it != m_realizedIndices.end() && *it == (int)index;
+  if (realized && !present)
+  {
+    m_realizedIndices.insert(it, (int)index);
+  }
+  else if (!realized && present)
+  {
+    m_realizedIndices.erase(it);
+  }
 }
 
 void ArtboardComponentList::setVirtualizableCell(int index, int column, int row)
 {
-    auto artboard = artboardInstance(index);
-    if (artboard != nullptr)
-    {
-        artboard->virtualGridCell(column, row);
-    }
+  auto artboard = artboardInstance(index);
+  if (artboard != nullptr)
+  {
+    artboard->virtualGridCell(column, row);
+  }
 }
 
 void ArtboardComponentList::setVirtualizablePosition(int index, Vec2D position)
 {
-    auto artboard = this->artboardInstance(index);
-    if (artboard != nullptr)
-    {
-        auto useLayout = layoutParent() != nullptr;
-        auto origin = useLayout ? artboard->origin() : Vec2D();
-        m_artboardTransforms[artboard] =
-            Mat2D::fromTranslate(position.x - origin.x, position.y - origin.y);
-    }
+  auto artboard = this->artboardInstance(index);
+  if (artboard != nullptr)
+  {
+    auto useLayout = layoutParent() != nullptr;
+    auto origin = useLayout ? artboard->origin() : Vec2D();
+    m_artboardTransforms[artboard] = Mat2D::fromTranslate(
+        position.x - origin.x,
+        position.y - origin.y);
+  }
 }
 
 bool ArtboardComponentList::virtualizationEnabled()
 {
-    auto virtualizer = scrollConstraint();
-    return virtualizer != nullptr && virtualizer->virtualize();
+  auto virtualizer = scrollConstraint();
+  return virtualizer != nullptr && virtualizer->virtualize();
 }
 
 ScrollConstraint* ArtboardComponentList::scrollConstraint()
 {
-    for (auto parentConstraint : layoutConstraints())
+  for (auto parentConstraint : layoutConstraints())
+  {
+    if (parentConstraint->constraint()->is<ScrollConstraint>())
     {
-        if (parentConstraint->constraint()->is<ScrollConstraint>())
-        {
-            return parentConstraint->constraint()->as<ScrollConstraint>();
-        }
+      return parentConstraint->constraint()->as<ScrollConstraint>();
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 void ArtboardComponentList::computeLayoutBounds()
 {
-    if (virtualizationEnabled())
+  if (virtualizationEnabled())
+  {
+    auto gap = this->gap();
+    bool isHorz = mainAxisIsRow();
+    if (m_layoutSizeVersion != m_itemsVersion || m_layoutSizeGap != gap ||
+        m_layoutSizeIsHorz != isHorz)
     {
-        auto gap = this->gap();
-        bool isHorz = mainAxisIsRow();
-        if (m_layoutSizeVersion != m_itemsVersion || m_layoutSizeGap != gap ||
-            m_layoutSizeIsHorz != isHorz)
+      m_layoutSizeVersion = m_itemsVersion;
+      m_layoutSizeGap = gap;
+      m_layoutSizeIsHorz = isHorz;
+      auto runningWidth = 0.0f;
+      auto runningHeight = 0.0f;
+      for (int i = 0; i < m_artboardSizes.size(); i++)
+      {
+        auto size = m_artboardSizes[i];
+        auto realGap = i == m_artboardSizes.size() - 1 ? 0 : gap;
+        if (isHorz)
         {
-            m_layoutSizeVersion = m_itemsVersion;
-            m_layoutSizeGap = gap;
-            m_layoutSizeIsHorz = isHorz;
-            auto runningWidth = 0.0f;
-            auto runningHeight = 0.0f;
-            for (int i = 0; i < m_artboardSizes.size(); i++)
-            {
-                auto size = m_artboardSizes[i];
-                auto realGap = i == m_artboardSizes.size() - 1 ? 0 : gap;
-                if (isHorz)
-                {
-                    runningWidth += size.x + realGap;
-                    runningHeight = std::max(runningHeight, size.y);
-                }
-                else
-                {
-                    runningWidth = std::max(runningWidth, size.x);
-                    runningHeight += size.y + realGap;
-                }
-            }
-            m_layoutSize = Vec2D(runningWidth, runningHeight);
+          runningWidth += size.x + realGap;
+          runningHeight = std::max(runningHeight, size.y);
         }
-
-        auto scroll = scrollConstraint();
-        if (scroll != nullptr)
+        else
         {
-            scroll->constrainVirtualized(true);
+          runningWidth = std::max(runningWidth, size.x);
+          runningHeight += size.y + realGap;
         }
+      }
+      m_layoutSize = Vec2D(runningWidth, runningHeight);
     }
+
+    auto scroll = scrollConstraint();
+    if (scroll != nullptr)
+    {
+      scroll->constrainVirtualized(true);
+    }
+  }
 }
 
 Vec2D ArtboardComponentList::size() { return m_layoutSize; }
 
 Vec2D ArtboardComponentList::itemSize(int index)
 {
-    return index < m_artboardSizes.size() ? m_artboardSizes[index] : Vec2D();
+  return index < m_artboardSizes.size() ? m_artboardSizes[index] : Vec2D();
 }
 
 void ArtboardComponentList::setItemSize(Vec2D size, int index)
 {
-    if (index < m_artboardSizes.size() && m_artboardSizes[index] != size)
-    {
-        m_artboardSizes[index] = size;
-        m_itemsVersion = ++s_itemsVersion;
-    }
+  if (index < m_artboardSizes.size() && m_artboardSizes[index] != size)
+  {
+    m_artboardSizes[index] = size;
+    m_itemsVersion = ++s_itemsVersion;
+  }
 }
 
 float ArtboardComponentList::gap()
 {
-    auto p = layoutParent();
-    if (p != nullptr)
-    {
-        return mainAxisIsRow() ? p->gapHorizontal() : p->gapVertical();
-    }
-    return 0.0f;
+  auto p = layoutParent();
+  if (p != nullptr)
+  {
+    return mainAxisIsRow() ? p->gapHorizontal() : p->gapVertical();
+  }
+  return 0.0f;
 }
 
 void ArtboardComponentList::attachArtboardOverride(
@@ -2260,130 +2260,131 @@ void ArtboardComponentList::attachArtboardOverride(
     rcp<ViewModelInstanceListItem> listItem)
 {
 
-    auto viewModelInstance = listItem->viewModelInstance();
-    if (viewModelInstance == nullptr)
-    {
-        return;
-    }
-    auto artboards = m_file->artboards();
-    int artboardIndex = -1;
-    for (auto& artboard : artboards)
-    {
-        artboardIndex++;
+  auto viewModelInstance = listItem->viewModelInstance();
+  if (viewModelInstance == nullptr)
+  {
+    return;
+  }
+  auto artboards = m_file->artboards();
+  int artboardIndex = -1;
+  for (auto& artboard : artboards)
+  {
+    artboardIndex++;
 
-        if (artboard->viewModelId() == viewModelInstance->viewModelId())
-        {
-            break;
-        }
-    }
-    if (artboardIndex < 0 && artboardIndex >= artboards.size())
+    if (artboard->viewModelId() == viewModelInstance->viewModelId())
     {
-        return;
+      break;
     }
-    ArtboardComponentListOverride* artboardOverride = nullptr;
-    for (auto& child : children())
+  }
+  if (artboardIndex < 0 && artboardIndex >= artboards.size())
+  {
+    return;
+  }
+  ArtboardComponentListOverride* artboardOverride = nullptr;
+  for (auto& child : children())
+  {
+    if (child->is<ArtboardComponentListOverride>())
     {
-        if (child->is<ArtboardComponentListOverride>())
-        {
-            if (child->as<ArtboardComponentListOverride>()->artboardId() == -1)
-            {
-                artboardOverride = child->as<ArtboardComponentListOverride>();
-            }
-            else if (child->as<ArtboardComponentListOverride>()->artboardId() ==
-                     artboardIndex)
-            {
-                artboardOverride = child->as<ArtboardComponentListOverride>();
-                break;
-            }
-        }
+      if (child->as<ArtboardComponentListOverride>()->artboardId() == -1)
+      {
+        artboardOverride = child->as<ArtboardComponentListOverride>();
+      }
+      else if (
+          child->as<ArtboardComponentListOverride>()->artboardId() ==
+          artboardIndex)
+      {
+        artboardOverride = child->as<ArtboardComponentListOverride>();
+        break;
+      }
     }
-    if (artboardOverride != nullptr)
-    {
-        artboardOverride->addArtboard(instance);
-    }
+  }
+  if (artboardOverride != nullptr)
+  {
+    artboardOverride->addArtboard(instance);
+  }
 }
 
 void ArtboardComponentList::clearArtboardOverride(
     ArtboardInstance* artboardInstance)
 {
-    for (auto& child : children())
+  for (auto& child : children())
+  {
+    if (child->is<ArtboardComponentListOverride>())
     {
-        if (child->is<ArtboardComponentListOverride>())
-        {
-            // Passing the artboard to all overrides in case in the future we
-            // support stacking overrides on top of each other.
-            // Currently all except one will be a no-op.
-            child->as<ArtboardComponentListOverride>()->removeArtboard(
-                artboardInstance);
-        }
+      // Passing the artboard to all overrides in case in the future we
+      // support stacking overrides on top of each other.
+      // Currently all except one will be a no-op.
+      child->as<ArtboardComponentListOverride>()->removeArtboard(
+          artboardInstance);
     }
+  }
 }
 
 bool ArtboardComponentList::mainAxisIsRow()
 {
-    auto p = layoutParent();
-    return p != nullptr ? p->mainAxisIsRow() : true;
+  auto p = layoutParent();
+  return p != nullptr ? p->mainAxisIsRow() : true;
 }
 
 bool ArtboardComponentList::isStack()
 {
-    auto p = layoutParent();
-    return p != nullptr && p->isStackContainer();
+  auto p = layoutParent();
+  return p != nullptr && p->isStackContainer();
 }
 
 LayoutComponent* ArtboardComponentList::layoutParent()
 {
-    auto* direct = parent();
-    if (direct == nullptr)
-    {
-        return nullptr;
-    }
-    if (direct->is<LayoutComponent>())
-    {
-        return direct->as<LayoutComponent>();
-    }
-    if (!joinsLayoutThroughContainer(this))
-    {
-        return nullptr;
-    }
-    for (auto* p = direct; p != nullptr; p = p->parent())
-    {
-        if (p->is<LayoutComponent>())
-        {
-            return p->as<LayoutComponent>();
-        }
-        if (!isTransparentLayoutContainer(p))
-        {
-            return nullptr;
-        }
-    }
+  auto* direct = parent();
+  if (direct == nullptr)
+  {
     return nullptr;
+  }
+  if (direct->is<LayoutComponent>())
+  {
+    return direct->as<LayoutComponent>();
+  }
+  if (!joinsLayoutThroughContainer(this))
+  {
+    return nullptr;
+  }
+  for (auto* p = direct; p != nullptr; p = p->parent())
+  {
+    if (p->is<LayoutComponent>())
+    {
+      return p->as<LayoutComponent>();
+    }
+    if (!isTransparentLayoutContainer(p))
+    {
+      return nullptr;
+    }
+  }
+  return nullptr;
 }
 
 const Mat2D& ArtboardComponentList::listTransform() { return worldTransform(); }
 
 void ArtboardComponentList::listItemTransforms(std::vector<Mat2D*>& transforms)
 {
-    auto count = m_listItems.size();
-    for (int i = 0; i < count; i++)
+  auto count = m_listItems.size();
+  for (int i = 0; i < count; i++)
+  {
+    auto artboard = artboardInstance(i);
+    if (artboard != nullptr)
     {
-        auto artboard = artboardInstance(i);
-        if (artboard != nullptr)
-        {
-            transforms.push_back(&m_artboardTransforms[artboard]);
-        }
+      transforms.push_back(&m_artboardTransforms[artboard]);
     }
+  }
 }
 
 void ArtboardComponentList::addMapRule(ArtboardListMapRule* rule)
 {
-    m_artboardMapRules[rule->viewModelId()] = rule->artboardId();
+  m_artboardMapRules[rule->viewModelId()] = rule->artboardId();
 }
 #ifdef WITH_RIVE_EDITOR
 void ArtboardComponentList::editorPrepareForDestruction()
 {
-    clear();
-    Component::editorPrepareForDestruction();
+  clear();
+  Component::editorPrepareForDestruction();
 }
 
 #endif

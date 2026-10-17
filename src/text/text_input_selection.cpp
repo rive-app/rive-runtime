@@ -9,8 +9,8 @@ Core* TextInputSelection::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 ShapePaintPath* TextInputSelection::localClockwisePath()
 {
 #ifdef WITH_RIVE_TEXT
-    return textInput()->rawTextInput()->selectionPath();
+  return textInput()->rawTextInput()->selectionPath();
 #else
-    return nullptr;
+  return nullptr;
 #endif
 }

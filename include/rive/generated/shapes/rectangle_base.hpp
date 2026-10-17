@@ -11,292 +11,285 @@ namespace rive
 #ifndef WITH_RIVE_EDITOR
 struct RectangleCornerRadiusSidecar
 {
-    bool linkCornerRadius = true;
-    float cornerRadiusTL = 0.0f;
-    float cornerRadiusTR = 0.0f;
-    float cornerRadiusBL = 0.0f;
-    float cornerRadiusBR = 0.0f;
+  bool linkCornerRadius = true;
+  float cornerRadiusTL = 0.0f;
+  float cornerRadiusTR = 0.0f;
+  float cornerRadiusBL = 0.0f;
+  float cornerRadiusBR = 0.0f;
 };
 #endif
 class RectangleBase : public ParametricPath
 {
 protected:
-    typedef ParametricPath Super;
+  typedef ParametricPath Super;
 
 public:
-    static const uint16_t typeKey = 7;
+  static const uint16_t typeKey = 7;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t linkCornerRadiusPropertyKey = 164;
-    static const uint16_t cornerRadiusTLPropertyKey = 31;
-    static const uint16_t cornerRadiusTRPropertyKey = 161;
-    static const uint16_t cornerRadiusBLPropertyKey = 162;
-    static const uint16_t cornerRadiusBRPropertyKey = 163;
+  static const uint16_t linkCornerRadiusPropertyKey = 164;
+  static const uint16_t cornerRadiusTLPropertyKey = 31;
+  static const uint16_t cornerRadiusTRPropertyKey = 161;
+  static const uint16_t cornerRadiusBLPropertyKey = 162;
+  static const uint16_t cornerRadiusBRPropertyKey = 163;
 
 protected:
 #ifdef WITH_RIVE_EDITOR
-    bool m_LinkCornerRadius = true;
+  bool m_LinkCornerRadius = true;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_CornerRadiusTL = 0.0f;
+  float m_CornerRadiusTL = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_CornerRadiusTR = 0.0f;
+  float m_CornerRadiusTR = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_CornerRadiusBL = 0.0f;
+  float m_CornerRadiusBL = 0.0f;
 #endif
 #ifdef WITH_RIVE_EDITOR
-    float m_CornerRadiusBR = 0.0f;
+  float m_CornerRadiusBR = 0.0f;
 #endif
 #ifndef WITH_RIVE_EDITOR
-    Sidecar<RectangleCornerRadiusSidecar> m_cornerRadius;
+  Sidecar<RectangleCornerRadiusSidecar> m_cornerRadius;
 #endif
 public:
 #ifdef WITH_RIVE_EDITOR
-    inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
-    void linkCornerRadius(bool value)
+  inline bool linkCornerRadius() const { return m_LinkCornerRadius; }
+  void linkCornerRadius(bool value)
+  {
+    if (m_LinkCornerRadius == value)
     {
-        if (m_LinkCornerRadius == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(linkCornerRadiusPropertyKey,
-                             &m_LinkCornerRadius,
-                             &value);
-        m_LinkCornerRadius = value;
-        RIVE_EDITOR_CHANGED(linkCornerRadiusChanged());
-        notifyPropertyChanged(linkCornerRadiusPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        linkCornerRadiusPropertyKey,
+        &m_LinkCornerRadius,
+        &value);
+    m_LinkCornerRadius = value;
+    RIVE_EDITOR_CHANGED(linkCornerRadiusChanged());
+    notifyPropertyChanged(linkCornerRadiusPropertyKey);
+  }
 #else
-    inline bool linkCornerRadius() const
+  inline bool linkCornerRadius() const
+  {
+    auto* sidecar = m_cornerRadius.get();
+    return sidecar != nullptr ? sidecar->linkCornerRadius : true;
+  }
+  void linkCornerRadius(bool value)
+  {
+    if (linkCornerRadius() == value)
     {
-        auto* sidecar = m_cornerRadius.get();
-        return sidecar != nullptr ? sidecar->linkCornerRadius : true;
+      return;
     }
-    void linkCornerRadius(bool value)
-    {
-        if (linkCornerRadius() == value)
-        {
-            return;
-        }
-        m_cornerRadius.ensureAllocated()->linkCornerRadius = value;
-        linkCornerRadiusChanged();
-        notifyPropertyChanged(linkCornerRadiusPropertyKey);
-    }
+    m_cornerRadius.ensureAllocated()->linkCornerRadius = value;
+    linkCornerRadiusChanged();
+    notifyPropertyChanged(linkCornerRadiusPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
-    void cornerRadiusTL(float value)
+  inline float cornerRadiusTL() const { return m_CornerRadiusTL; }
+  void cornerRadiusTL(float value)
+  {
+    if (m_CornerRadiusTL == value)
     {
-        if (m_CornerRadiusTL == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusTLPropertyKey,
-                             &m_CornerRadiusTL,
-                             &value);
-        m_CornerRadiusTL = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusTLChanged());
-        notifyPropertyChanged(cornerRadiusTLPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusTLPropertyKey, &m_CornerRadiusTL, &value);
+    m_CornerRadiusTL = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusTLChanged());
+    notifyPropertyChanged(cornerRadiusTLPropertyKey);
+  }
 #else
-    inline float cornerRadiusTL() const
+  inline float cornerRadiusTL() const
+  {
+    auto* sidecar = m_cornerRadius.get();
+    return sidecar != nullptr ? sidecar->cornerRadiusTL : 0.0f;
+  }
+  void cornerRadiusTL(float value)
+  {
+    if (cornerRadiusTL() == value)
     {
-        auto* sidecar = m_cornerRadius.get();
-        return sidecar != nullptr ? sidecar->cornerRadiusTL : 0.0f;
+      return;
     }
-    void cornerRadiusTL(float value)
-    {
-        if (cornerRadiusTL() == value)
-        {
-            return;
-        }
-        m_cornerRadius.ensureAllocated()->cornerRadiusTL = value;
-        cornerRadiusTLChanged();
-        notifyPropertyChanged(cornerRadiusTLPropertyKey);
-    }
+    m_cornerRadius.ensureAllocated()->cornerRadiusTL = value;
+    cornerRadiusTLChanged();
+    notifyPropertyChanged(cornerRadiusTLPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
-    void cornerRadiusTR(float value)
+  inline float cornerRadiusTR() const { return m_CornerRadiusTR; }
+  void cornerRadiusTR(float value)
+  {
+    if (m_CornerRadiusTR == value)
     {
-        if (m_CornerRadiusTR == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusTRPropertyKey,
-                             &m_CornerRadiusTR,
-                             &value);
-        m_CornerRadiusTR = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusTRChanged());
-        notifyPropertyChanged(cornerRadiusTRPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusTRPropertyKey, &m_CornerRadiusTR, &value);
+    m_CornerRadiusTR = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusTRChanged());
+    notifyPropertyChanged(cornerRadiusTRPropertyKey);
+  }
 #else
-    inline float cornerRadiusTR() const
+  inline float cornerRadiusTR() const
+  {
+    auto* sidecar = m_cornerRadius.get();
+    return sidecar != nullptr ? sidecar->cornerRadiusTR : 0.0f;
+  }
+  void cornerRadiusTR(float value)
+  {
+    if (cornerRadiusTR() == value)
     {
-        auto* sidecar = m_cornerRadius.get();
-        return sidecar != nullptr ? sidecar->cornerRadiusTR : 0.0f;
+      return;
     }
-    void cornerRadiusTR(float value)
-    {
-        if (cornerRadiusTR() == value)
-        {
-            return;
-        }
-        m_cornerRadius.ensureAllocated()->cornerRadiusTR = value;
-        cornerRadiusTRChanged();
-        notifyPropertyChanged(cornerRadiusTRPropertyKey);
-    }
+    m_cornerRadius.ensureAllocated()->cornerRadiusTR = value;
+    cornerRadiusTRChanged();
+    notifyPropertyChanged(cornerRadiusTRPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
-    void cornerRadiusBL(float value)
+  inline float cornerRadiusBL() const { return m_CornerRadiusBL; }
+  void cornerRadiusBL(float value)
+  {
+    if (m_CornerRadiusBL == value)
     {
-        if (m_CornerRadiusBL == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusBLPropertyKey,
-                             &m_CornerRadiusBL,
-                             &value);
-        m_CornerRadiusBL = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusBLChanged());
-        notifyPropertyChanged(cornerRadiusBLPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusBLPropertyKey, &m_CornerRadiusBL, &value);
+    m_CornerRadiusBL = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusBLChanged());
+    notifyPropertyChanged(cornerRadiusBLPropertyKey);
+  }
 #else
-    inline float cornerRadiusBL() const
+  inline float cornerRadiusBL() const
+  {
+    auto* sidecar = m_cornerRadius.get();
+    return sidecar != nullptr ? sidecar->cornerRadiusBL : 0.0f;
+  }
+  void cornerRadiusBL(float value)
+  {
+    if (cornerRadiusBL() == value)
     {
-        auto* sidecar = m_cornerRadius.get();
-        return sidecar != nullptr ? sidecar->cornerRadiusBL : 0.0f;
+      return;
     }
-    void cornerRadiusBL(float value)
-    {
-        if (cornerRadiusBL() == value)
-        {
-            return;
-        }
-        m_cornerRadius.ensureAllocated()->cornerRadiusBL = value;
-        cornerRadiusBLChanged();
-        notifyPropertyChanged(cornerRadiusBLPropertyKey);
-    }
+    m_cornerRadius.ensureAllocated()->cornerRadiusBL = value;
+    cornerRadiusBLChanged();
+    notifyPropertyChanged(cornerRadiusBLPropertyKey);
+  }
 #endif
 
 #ifdef WITH_RIVE_EDITOR
-    inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
-    void cornerRadiusBR(float value)
+  inline float cornerRadiusBR() const { return m_CornerRadiusBR; }
+  void cornerRadiusBR(float value)
+  {
+    if (m_CornerRadiusBR == value)
     {
-        if (m_CornerRadiusBR == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(cornerRadiusBRPropertyKey,
-                             &m_CornerRadiusBR,
-                             &value);
-        m_CornerRadiusBR = value;
-        RIVE_EDITOR_CHANGED(cornerRadiusBRChanged());
-        notifyPropertyChanged(cornerRadiusBRPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(cornerRadiusBRPropertyKey, &m_CornerRadiusBR, &value);
+    m_CornerRadiusBR = value;
+    RIVE_EDITOR_CHANGED(cornerRadiusBRChanged());
+    notifyPropertyChanged(cornerRadiusBRPropertyKey);
+  }
 #else
-    inline float cornerRadiusBR() const
+  inline float cornerRadiusBR() const
+  {
+    auto* sidecar = m_cornerRadius.get();
+    return sidecar != nullptr ? sidecar->cornerRadiusBR : 0.0f;
+  }
+  void cornerRadiusBR(float value)
+  {
+    if (cornerRadiusBR() == value)
     {
-        auto* sidecar = m_cornerRadius.get();
-        return sidecar != nullptr ? sidecar->cornerRadiusBR : 0.0f;
+      return;
     }
-    void cornerRadiusBR(float value)
-    {
-        if (cornerRadiusBR() == value)
-        {
-            return;
-        }
-        m_cornerRadius.ensureAllocated()->cornerRadiusBR = value;
-        cornerRadiusBRChanged();
-        notifyPropertyChanged(cornerRadiusBRPropertyKey);
-    }
+    m_cornerRadius.ensureAllocated()->cornerRadiusBR = value;
+    cornerRadiusBRChanged();
+    notifyPropertyChanged(cornerRadiusBRPropertyKey);
+  }
 #endif
 
-    Core* clone() const override;
-    void copy(const RectangleBase& object)
-    {
+  Core* clone() const override;
+  void copy(const RectangleBase& object)
+  {
 #ifdef WITH_RIVE_EDITOR
-        m_LinkCornerRadius = object.m_LinkCornerRadius;
+    m_LinkCornerRadius = object.m_LinkCornerRadius;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_CornerRadiusTL = object.m_CornerRadiusTL;
+    m_CornerRadiusTL = object.m_CornerRadiusTL;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_CornerRadiusTR = object.m_CornerRadiusTR;
+    m_CornerRadiusTR = object.m_CornerRadiusTR;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_CornerRadiusBL = object.m_CornerRadiusBL;
+    m_CornerRadiusBL = object.m_CornerRadiusBL;
 #endif
 #ifdef WITH_RIVE_EDITOR
-        m_CornerRadiusBR = object.m_CornerRadiusBR;
+    m_CornerRadiusBR = object.m_CornerRadiusBR;
 #endif
 #ifndef WITH_RIVE_EDITOR
-        m_cornerRadius = object.m_cornerRadius;
+    m_cornerRadius = object.m_cornerRadius;
 #endif
-        ParametricPath::copy(object);
-    }
+    ParametricPath::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case linkCornerRadiusPropertyKey:
+      case linkCornerRadiusPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_LinkCornerRadius = CoreBoolType::deserialize(reader);
+        m_LinkCornerRadius = CoreBoolType::deserialize(reader);
 #else
-                m_cornerRadius.ensureAllocated()->linkCornerRadius =
-                    CoreBoolType::deserialize(reader);
+        m_cornerRadius.ensureAllocated()
+            ->linkCornerRadius = CoreBoolType::deserialize(reader);
 #endif
-                return true;
-            case cornerRadiusTLPropertyKey:
+        return true;
+      case cornerRadiusTLPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_CornerRadiusTL = CoreDoubleType::deserialize(reader);
+        m_CornerRadiusTL = CoreDoubleType::deserialize(reader);
 #else
-                m_cornerRadius.ensureAllocated()->cornerRadiusTL =
-                    CoreDoubleType::deserialize(reader);
+        m_cornerRadius.ensureAllocated()
+            ->cornerRadiusTL = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case cornerRadiusTRPropertyKey:
+        return true;
+      case cornerRadiusTRPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_CornerRadiusTR = CoreDoubleType::deserialize(reader);
+        m_CornerRadiusTR = CoreDoubleType::deserialize(reader);
 #else
-                m_cornerRadius.ensureAllocated()->cornerRadiusTR =
-                    CoreDoubleType::deserialize(reader);
+        m_cornerRadius.ensureAllocated()
+            ->cornerRadiusTR = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case cornerRadiusBLPropertyKey:
+        return true;
+      case cornerRadiusBLPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_CornerRadiusBL = CoreDoubleType::deserialize(reader);
+        m_CornerRadiusBL = CoreDoubleType::deserialize(reader);
 #else
-                m_cornerRadius.ensureAllocated()->cornerRadiusBL =
-                    CoreDoubleType::deserialize(reader);
+        m_cornerRadius.ensureAllocated()
+            ->cornerRadiusBL = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-            case cornerRadiusBRPropertyKey:
+        return true;
+      case cornerRadiusBRPropertyKey:
 #ifdef WITH_RIVE_EDITOR
-                m_CornerRadiusBR = CoreDoubleType::deserialize(reader);
+        m_CornerRadiusBR = CoreDoubleType::deserialize(reader);
 #else
-                m_cornerRadius.ensureAllocated()->cornerRadiusBR =
-                    CoreDoubleType::deserialize(reader);
+        m_cornerRadius.ensureAllocated()
+            ->cornerRadiusBR = CoreDoubleType::deserialize(reader);
 #endif
-                return true;
-        }
-        return ParametricPath::deserialize(propertyKey, reader);
+        return true;
     }
+    return ParametricPath::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void linkCornerRadiusChanged() {}
-    virtual void cornerRadiusTLChanged() {}
-    virtual void cornerRadiusTRChanged() {}
-    virtual void cornerRadiusBLChanged() {}
-    virtual void cornerRadiusBRChanged() {}
+  virtual void linkCornerRadiusChanged() {}
+  virtual void cornerRadiusTLChanged() {}
+  virtual void cornerRadiusTRChanged() {}
+  virtual void cornerRadiusBLChanged() {}
+  virtual void cornerRadiusBRChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/rectangle_ext.inl"
 #endif

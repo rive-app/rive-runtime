@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NestedBoolBase::clone() const
 {
-    auto cloned = new NestedBool();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NestedBool();
+  cloned->copy(*this);
+  return cloned;
 }

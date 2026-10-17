@@ -9,12 +9,13 @@ class DataBindContextValueAssetImage : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueAssetImage(DataBind* m_dataBind);
-    void apply(Core* component,
-               uint32_t propertyKey,
-               bool isMainDirection,
-               DataBind* dataBind) override;
-    rcp<ImageAsset> fileAsset(DataBind* dataBind);
+  DataBindContextValueAssetImage(DataBind* m_dataBind);
+  void apply(
+      Core* component,
+      uint32_t propertyKey,
+      bool isMainDirection,
+      DataBind* dataBind) override;
+  rcp<ImageAsset> fileAsset(DataBind* dataBind);
 };
 } // namespace rive
 

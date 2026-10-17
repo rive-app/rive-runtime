@@ -40,23 +40,25 @@ ore::Context* wasmModuleOreContext();
 /// The asset shader loads build from until the next call; the host makes
 /// every module from it, the desc only feeds module-side reflection.
 void wasmModuleShaderSource(uint32_t object, const std::string& name);
-rcp<ore::ShaderModule> wasmModuleShaderModule(const ore::ShaderModuleDesc& desc,
-                                              uint32_t entry);
+rcp<ore::ShaderModule> wasmModuleShaderModule(
+    const ore::ShaderModuleDesc& desc,
+    uint32_t entry);
 
 /// Module-side canvas pair over a host canvas handle: a RenderCanvas whose
 /// target owns the handle, and a color view carrying real attachment
 /// metadata for pass validation.
 struct WasmModuleCanvas
 {
-    rcp<gpu::RenderCanvas> canvas;
-    rcp<ore::TextureView> colorView;
+  rcp<gpu::RenderCanvas> canvas;
+  rcp<ore::TextureView> colorView;
 };
 WasmModuleCanvas wasmModuleWrapCanvas(uint32_t canvasHandle);
 /// Recreates the wrapped canvas at a new size through the host; empty on
 /// failure. The canvas handle transfers to the returned wrap.
-WasmModuleCanvas wasmModuleResizeCanvas(const rcp<gpu::RenderCanvas>& canvas,
-                                        uint32_t width,
-                                        uint32_t height);
+WasmModuleCanvas wasmModuleResizeCanvas(
+    const rcp<gpu::RenderCanvas>& canvas,
+    uint32_t width,
+    uint32_t height);
 /// Mints a fresh host image handle over the canvas's presentable image.
 uint32_t wasmModuleCanvasImageHandle(const rcp<gpu::RenderCanvas>& canvas);
 #endif

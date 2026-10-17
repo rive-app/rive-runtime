@@ -8,48 +8,48 @@ namespace rive
 class ListenerInputTypeEventBase : public ListenerInputType
 {
 protected:
-    typedef ListenerInputType Super;
+  typedef ListenerInputType Super;
 
 public:
-    static const uint16_t typeKey = 659;
+  static const uint16_t typeKey = 659;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t eventIdPropertyKey = 962;
+  static const uint16_t eventIdPropertyKey = 962;
 
 protected:
-    Id m_EventId = kEmptyId;
+  Id m_EventId = kEmptyId;
 
 public:
-    inline Id eventId() const { return m_EventId; }
-    void eventId(Id value)
+  inline Id eventId() const { return m_EventId; }
+  void eventId(Id value)
+  {
+    if (m_EventId == value)
     {
-        if (m_EventId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(eventIdPropertyKey, &m_EventId, &value);
-        m_EventId = value;
-        notifyPropertyChanged(eventIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(eventIdPropertyKey, &m_EventId, &value);
+    m_EventId = value;
+    notifyPropertyChanged(eventIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ListenerInputTypeEventBase& object)
-    {
-        m_EventId = object.m_EventId;
-        ListenerInputType::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListenerInputTypeEventBase& object)
+  {
+    m_EventId = object.m_EventId;
+    ListenerInputType::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case eventIdPropertyKey:
-                m_EventId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return ListenerInputType::deserialize(propertyKey, reader);
+      case eventIdPropertyKey:
+        m_EventId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return ListenerInputType::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

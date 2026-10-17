@@ -11,8 +11,9 @@ namespace rive
 class TransitionFocusCondition : public TransitionFocusConditionBase
 {
 public:
-    bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  StateMachineLayerInstance* layerInstance) const override;
+  bool evaluate(
+      const StateMachineInstance* stateMachineInstance,
+      StateMachineLayerInstance* layerInstance) const override;
 };
 } // namespace rive
 

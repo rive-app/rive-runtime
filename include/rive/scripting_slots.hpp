@@ -14,9 +14,10 @@
 namespace rive
 {
 using ScriptingVMSlot = rcp<ScriptingVM>;
-static_assert(sizeof(ScriptingVMSlot) == sizeof(void*) &&
-                  alignof(ScriptingVMSlot) == alignof(void*),
-              "luau vm slot must stay pointer sized");
+static_assert(
+    sizeof(ScriptingVMSlot) == sizeof(void*) &&
+        alignof(ScriptingVMSlot) == alignof(void*),
+    "luau vm slot must stay pointer sized");
 } // namespace rive
 #else
 namespace rive
@@ -30,9 +31,10 @@ namespace rive
 {
 class WasmScriptingVM;
 using WasmVMsSlot = std::vector<std::unique_ptr<WasmScriptingVM>>;
-static_assert(sizeof(WasmVMsSlot) == sizeof(std::vector<void*>) &&
-                  alignof(WasmVMsSlot) == alignof(std::vector<void*>),
-              "wasm vm list slot must match a pointer vector");
+static_assert(
+    sizeof(WasmVMsSlot) == sizeof(std::vector<void*>) &&
+        alignof(WasmVMsSlot) == alignof(std::vector<void*>),
+    "wasm vm list slot must match a pointer vector");
 } // namespace rive
 #else
 namespace rive

@@ -10,16 +10,16 @@ class BindableProperty;
 class BindablePropertyImporter : public ImportStackObject
 {
 private:
-    BindableProperty* m_bindableProperty;
+  BindableProperty* m_bindableProperty;
 
 public:
-    BindablePropertyImporter(BindableProperty* bindableProperty);
-    BindableProperty* bindableProperty()
-    {
-        auto bindableProperty = m_bindableProperty;
-        m_bindableProperty = nullptr;
-        return bindableProperty;
-    }
+  BindablePropertyImporter(BindableProperty* bindableProperty);
+  BindableProperty* bindableProperty()
+  {
+    auto bindableProperty = m_bindableProperty;
+    m_bindableProperty = nullptr;
+    return bindableProperty;
+  }
 };
 } // namespace rive
 #endif

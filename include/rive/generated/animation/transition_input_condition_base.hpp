@@ -8,47 +8,47 @@ namespace rive
 class TransitionInputConditionBase : public TransitionCondition
 {
 protected:
-    typedef TransitionCondition Super;
+  typedef TransitionCondition Super;
 
 public:
-    static const uint16_t typeKey = 67;
+  static const uint16_t typeKey = 67;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t inputIdPropertyKey = 155;
+  static const uint16_t inputIdPropertyKey = 155;
 
 protected:
-    Id m_InputId = kEmptyId;
+  Id m_InputId = kEmptyId;
 
 public:
-    inline Id inputId() const { return m_InputId; }
-    void inputId(Id value)
+  inline Id inputId() const { return m_InputId; }
+  void inputId(Id value)
+  {
+    if (m_InputId == value)
     {
-        if (m_InputId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
-        m_InputId = value;
-        notifyPropertyChanged(inputIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(inputIdPropertyKey, &m_InputId, &value);
+    m_InputId = value;
+    notifyPropertyChanged(inputIdPropertyKey);
+  }
 
-    void copy(const TransitionInputConditionBase& object)
-    {
-        m_InputId = object.m_InputId;
-        TransitionCondition::copy(object);
-    }
+  void copy(const TransitionInputConditionBase& object)
+  {
+    m_InputId = object.m_InputId;
+    TransitionCondition::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case inputIdPropertyKey:
-                m_InputId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return TransitionCondition::deserialize(propertyKey, reader);
+      case inputIdPropertyKey:
+        m_InputId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return TransitionCondition::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

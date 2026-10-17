@@ -10,19 +10,19 @@ class DataConverterStringTemplate;
 class StringTemplateArgument : public StringTemplateArgumentBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
-    void addDataBind(DataBind* dataBind);
-    void stringTemplate(DataConverterStringTemplate* value)
-    {
-        m_stringTemplate = value;
-    }
-    // Appends this argument's value to output, formatted with the
-    // placeholder's spec.
-    virtual void appendValue(std::string& output,
-                             const std::string& spec) const = 0;
+  StatusCode import(ImportStack& importStack) override;
+  void addDataBind(DataBind* dataBind);
+  void stringTemplate(DataConverterStringTemplate* value)
+  {
+    m_stringTemplate = value;
+  }
+  // Appends this argument's value to output, formatted with the
+  // placeholder's spec.
+  virtual void appendValue(std::string& output, const std::string& spec)
+      const = 0;
 
 private:
-    DataConverterStringTemplate* m_stringTemplate = nullptr;
+  DataConverterStringTemplate* m_stringTemplate = nullptr;
 };
 } // namespace rive
 

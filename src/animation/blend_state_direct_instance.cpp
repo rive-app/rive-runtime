@@ -9,55 +9,53 @@ using namespace rive;
 
 BlendStateDirectInstance::BlendStateDirectInstance(
     const BlendStateDirect* blendState,
-    ArtboardInstance* instance) :
-    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(blendState,
-                                                               instance)
+    ArtboardInstance* instance)
+    : BlendStateInstance<BlendStateDirect, BlendAnimationDirect>(
+          blendState,
+          instance)
 {}
 
 void BlendStateDirectInstance::advance(
     float seconds,
     StateMachineInstance* stateMachineInstance)
 {
-    BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(
-        seconds,
-        stateMachineInstance);
+  BlendStateInstance<BlendStateDirect, BlendAnimationDirect>::advance(
+      seconds,
+      stateMachineInstance);
 
-    for (auto& animation : m_AnimationInstances)
+  for (auto& animation : m_AnimationInstances)
+  {
+    if (animation.blendAnimation()->blendSource() ==
+        static_cast<int>(DirectBlendSource::mixValue))
     {
-        if (animation.blendAnimation()->blendSource() ==
-            static_cast<int>(DirectBlendSource::mixValue))
-        {
-            auto value = animation.blendAnimation()->mixValue();
-            animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
-        }
-        else if (animation.blendAnimation()->blendSource() ==
-                 static_cast<int>(DirectBlendSource::dataBindId))
-        {
-            auto bindableProperty =
-                animation.blendAnimation()->bindableProperty();
-            if (bindableProperty == nullptr)
-            {
-                continue;
-            }
-            auto bindableInstance =
-                stateMachineInstance->bindablePropertyInstance(
-                    bindableProperty);
-            if (bindableInstance &&
-                bindableInstance->is<BindablePropertyNumber>())
-            {
-                auto bindableNumber =
-                    bindableInstance->as<BindablePropertyNumber>();
-                auto value = bindableNumber->propertyValue();
-                animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
-            }
-        }
-        else
-        {
-            auto inputInstance = stateMachineInstance->input(
-                animation.blendAnimation()->inputId());
-            auto numberInput = static_cast<const SMINumber*>(inputInstance);
-            auto value = numberInput->value();
-            animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
-        }
+      auto value = animation.blendAnimation()->mixValue();
+      animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
     }
+    else if (
+        animation.blendAnimation()->blendSource() ==
+        static_cast<int>(DirectBlendSource::dataBindId))
+    {
+      auto bindableProperty = animation.blendAnimation()->bindableProperty();
+      if (bindableProperty == nullptr)
+      {
+        continue;
+      }
+      auto bindableInstance = stateMachineInstance->bindablePropertyInstance(
+          bindableProperty);
+      if (bindableInstance && bindableInstance->is<BindablePropertyNumber>())
+      {
+        auto bindableNumber = bindableInstance->as<BindablePropertyNumber>();
+        auto value = bindableNumber->propertyValue();
+        animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
+      }
+    }
+    else
+    {
+      auto inputInstance = stateMachineInstance->input(
+          animation.blendAnimation()->inputId());
+      auto numberInput = static_cast<const SMINumber*>(inputInstance);
+      auto value = numberInput->value();
+      animation.mix(std::min(1.0f, std::max(0.0f, value / 100.0f)));
+    }
+  }
 }

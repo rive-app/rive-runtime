@@ -6,14 +6,14 @@ namespace rive
 class StateMachineTriggerBase : public StateMachineInput
 {
 protected:
-    typedef StateMachineInput Super;
+  typedef StateMachineInput Super;
 
 public:
-    static const uint16_t typeKey = 58;
+  static const uint16_t typeKey = 58;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

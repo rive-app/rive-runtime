@@ -15,8 +15,8 @@ class NestedArtboard;
 
 struct HitInfo
 {
-    IAABB area;                          // input
-    std::vector<NestedArtboard*> mounts; // output
+  IAABB area;                          // input
+  std::vector<NestedArtboard*> mounts; // output
 };
 
 } // namespace rive

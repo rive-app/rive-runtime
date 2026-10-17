@@ -88,14 +88,14 @@ constexpr uint16_t kHLSLStructLayoutVersion = 2;
 // HLSL emission. Frozen on-disk values — never renumber.
 enum class HLSLStructLayoutBaseType : uint8_t
 {
-    Unknown = 0,
-    Bool = 1,
-    Int = 2,
-    UInt = 3,
-    Half = 4,
-    Float = 5,
-    Double = 6,
-    Struct = 7,
+  Unknown = 0,
+  Bool = 1,
+  Int = 2,
+  UInt = 3,
+  Half = 4,
+  Float = 5,
+  Double = 6,
+  Struct = 7,
 };
 
 // Bit flags inside HLSLStructLayoutMember::flags.
@@ -103,48 +103,46 @@ constexpr uint8_t kHLSLStructLayoutMemberFlagArray = 1u << 0;
 
 struct HLSLStructLayoutMember
 {
-    std::string name;
-    uint32_t offset = 0;
-    HLSLStructLayoutBaseType baseType = HLSLStructLayoutBaseType::Unknown;
-    uint8_t numRows = 1;
-    uint8_t numColumns = 1;
-    bool isArray = false;
-    uint32_t arraySize = 0;    // 0 if not array
-    uint32_t arrayStride = 0;  // 0 if not array
-    uint32_t matrixStride = 0; // 0 if not matrix
-    int32_t structIndex = -1;  // -1 unless baseType == Struct
+  std::string name;
+  uint32_t offset = 0;
+  HLSLStructLayoutBaseType baseType = HLSLStructLayoutBaseType::Unknown;
+  uint8_t numRows = 1;
+  uint8_t numColumns = 1;
+  bool isArray = false;
+  uint32_t arraySize = 0;    // 0 if not array
+  uint32_t arrayStride = 0;  // 0 if not array
+  uint32_t matrixStride = 0; // 0 if not matrix
+  int32_t structIndex = -1;  // -1 unless baseType == Struct
 };
 
 struct HLSLStructLayoutStruct
 {
-    std::string name;
-    uint32_t declaredSize = 0;
-    std::vector<HLSLStructLayoutMember> members;
+  std::string name;
+  uint32_t declaredSize = 0;
+  std::vector<HLSLStructLayoutMember> members;
 };
 
 struct HLSLStructLayoutResource
 {
-    std::string name;
-    ResourceKind kind = ResourceKind::UniformBuffer;
-    TextureViewDim textureViewDim = TextureViewDim::Undefined;
-    TextureSampleType textureSampleType = TextureSampleType::Undefined;
-    bool textureMultisampled = false;
-    uint8_t stageMask = 0;    // bitwise-OR of BindingMap::kStage* (VS|FS|CS)
-    int32_t structIndex = -1; // index into HLSLStructLayout::structs for
-                              // UniformBuffer / StorageBuffer* kinds
+  std::string name;
+  ResourceKind kind = ResourceKind::UniformBuffer;
+  TextureViewDim textureViewDim = TextureViewDim::Undefined;
+  TextureSampleType textureSampleType = TextureSampleType::Undefined;
+  bool textureMultisampled = false;
+  uint8_t stageMask = 0;    // bitwise-OR of BindingMap::kStage* (VS|FS|CS)
+  int32_t structIndex = -1; // index into HLSLStructLayout::structs for
+                            // UniformBuffer / StorageBuffer* kinds
 };
 
 class HLSLStructLayout
 {
 public:
-    std::vector<HLSLStructLayoutStruct> structs;
-    std::vector<HLSLStructLayoutResource> resources;
+  std::vector<HLSLStructLayoutStruct> structs;
+  std::vector<HLSLStructLayoutResource> resources;
 
-    // Parse a target=17 sidecar blob. Returns false on bad magic,
-    // unsupported version, truncated input, or out-of-range indices.
-    static bool fromBlob(const uint8_t* data,
-                         size_t size,
-                         HLSLStructLayout* out);
+  // Parse a target=17 sidecar blob. Returns false on bad magic,
+  // unsupported version, truncated input, or out-of-range indices.
+  static bool fromBlob(const uint8_t* data, size_t size, HLSLStructLayout* out);
 };
 
 // Strip `: register(<class><N>[, space<M>])` annotations from
@@ -173,8 +171,9 @@ std::string stripHLSLRegisterAnnotations(const std::string& hlsl);
 // Returns the HLSL type string for a struct member ("float", "float4",
 // "float2x3", "uint", "bool", or the struct's HLSL name for a nested
 // struct member). Empty string on Unknown base type.
-std::string hlslTypeStringForMember(const HLSLStructLayoutMember& member,
-                                    const HLSLStructLayout& layout);
+std::string hlslTypeStringForMember(
+    const HLSLStructLayoutMember& member,
+    const HLSLStructLayout& layout);
 
 // Returns the HLSL type string for a resource ("Texture2D<float4>",
 // "TextureCubeArray<uint4>", "Texture2DMS<float4>", "SamplerState",
@@ -183,7 +182,8 @@ std::string hlslTypeStringForMember(const HLSLStructLayoutMember& member,
 // UniformBuffer kind). The format matches the ShaderType string Unreal
 // uses in `AddTexture` / `AddSampler` / `AddBufferSRV` / `AddBufferUAV`
 // / `AddNestedStruct` / `AddReferencedStruct`.
-std::string hlslTypeStringForResource(const HLSLStructLayoutResource& resource,
-                                      const HLSLStructLayout& layout);
+std::string hlslTypeStringForResource(
+    const HLSLStructLayoutResource& resource,
+    const HLSLStructLayout& layout);
 
 } // namespace rive::ore

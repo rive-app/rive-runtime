@@ -7,23 +7,23 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceBoolean;
-typedef void (*ViewModelBooleanChanged)(ViewModelInstanceBoolean* vmi,
-                                        bool value);
+typedef void (
+    *ViewModelBooleanChanged)(ViewModelInstanceBoolean* vmi, bool value);
 #endif
 class ViewModelInstanceBoolean : public ViewModelInstanceBooleanBase
 {
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 
 public:
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelBooleanChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelBooleanChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelBooleanChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelBooleanChanged m_changedCallback = nullptr;
 #endif
-    void applyValue(DataValueBoolean*);
+  void applyValue(DataValueBoolean*);
 };
 } // namespace rive
 

@@ -17,22 +17,22 @@ namespace rive::cmd
 
 struct CanvasSchedule
 {
-    // Canvas ids in replay group order. Record order when no edge disagrees.
-    std::vector<uint64_t> order;
-    // A dependency cycle (or self sample) was demoted to previous frame
-    // sampling; the demoted edge keeps record order.
-    bool hadCycle = false;
-    // A read landed between two writes of the same canvas; grouped-ranges
-    // replay cannot honor the middle state, so the frame keeps record order.
-    bool multiWriteFallback = false;
+  // Canvas ids in replay group order. Record order when no edge disagrees.
+  std::vector<uint64_t> order;
+  // A dependency cycle (or self sample) was demoted to previous frame
+  // sampling; the demoted edge keeps record order.
+  bool hadCycle = false;
+  // A read landed between two writes of the same canvas; grouped-ranges
+  // replay cannot honor the middle state, so the frame keeps record order.
+  bool multiWriteFallback = false;
 };
 
 // Reads the image handle that leads every draw POD which can sample a canvas.
 inline RenderHandle drawnImageHandle(const uint8_t* pod)
 {
-    RenderHandle h;
-    memcpy(&h, pod, sizeof(h));
-    return h;
+  RenderHandle h;
+  memcpy(&h, pod, sizeof(h));
+  return h;
 }
 
 // Drops each canvas's frames that a later frame on it replaces: readers only
@@ -40,182 +40,182 @@ inline RenderHandle drawnImageHandle(const uint8_t* pod)
 inline std::vector<DeferredSegment> liveSegments(
     const std::vector<DeferredSegment>& segments)
 {
-    std::unordered_map<uint64_t, size_t> lastFrame;
-    for (size_t i = 0; i < segments.size(); i++)
+  std::unordered_map<uint64_t, size_t> lastFrame;
+  for (size_t i = 0; i < segments.size(); i++)
+  {
+    const DeferredSegment& s = segments[i];
+    if (s.target == DeferredSegment::Target::canvas && s.startsFrame)
     {
-        const DeferredSegment& s = segments[i];
-        if (s.target == DeferredSegment::Target::canvas && s.startsFrame)
-        {
-            lastFrame[s.targetId] = i;
-        }
+      lastFrame[s.targetId] = i;
     }
-    std::vector<DeferredSegment> live;
-    live.reserve(segments.size());
-    for (size_t i = 0; i < segments.size(); i++)
+  }
+  std::vector<DeferredSegment> live;
+  live.reserve(segments.size());
+  for (size_t i = 0; i < segments.size(); i++)
+  {
+    const DeferredSegment& s = segments[i];
+    if (s.target == DeferredSegment::Target::canvas)
     {
-        const DeferredSegment& s = segments[i];
-        if (s.target == DeferredSegment::Target::canvas)
-        {
-            auto it = lastFrame.find(s.targetId);
-            if (it != lastFrame.end() && i < it->second)
-            {
-                continue;
-            }
-        }
-        live.push_back(s);
+      auto it = lastFrame.find(s.targetId);
+      if (it != lastFrame.end() && i < it->second)
+      {
+        continue;
+      }
     }
-    return live;
+    live.push_back(s);
+  }
+  return live;
 }
 
 inline CanvasSchedule scheduleCanvases(
     Span<const uint8_t> commands,
     const std::vector<DeferredSegment>& segments)
 {
-    CanvasSchedule result;
+  CanvasSchedule result;
 
-    // Written canvases, grouped; node index doubles as record-order rank.
-    struct Node
+  // Written canvases, grouped; node index doubles as record-order rank.
+  struct Node
+  {
+    uint64_t canvasId;
+    uint32_t firstBegin; // earliest range start, the record-order key
+    uint32_t lastBegin;  // latest range start, for the sandwich test
+  };
+  std::vector<Node> nodes;
+  auto nodeFor = [&](uint64_t id) -> int {
+    for (size_t i = 0; i < nodes.size(); i++)
     {
-        uint64_t canvasId;
-        uint32_t firstBegin; // earliest range start, the record-order key
-        uint32_t lastBegin;  // latest range start, for the sandwich test
-    };
-    std::vector<Node> nodes;
-    auto nodeFor = [&](uint64_t id) -> int {
-        for (size_t i = 0; i < nodes.size(); i++)
-        {
-            if (nodes[i].canvasId == id)
-            {
-                return static_cast<int>(i);
-            }
-        }
-        return -1;
-    };
-    for (const DeferredSegment& s : segments)
-    {
-        if (s.target != DeferredSegment::Target::canvas)
-        {
-            continue;
-        }
-        int n = nodeFor(s.targetId);
-        if (n < 0)
-        {
-            nodes.push_back({s.targetId, s.begin, s.begin});
-        }
-        else
-        {
-            nodes[n].lastBegin = s.begin;
-        }
+      if (nodes[i].canvasId == id)
+      {
+        return static_cast<int>(i);
+      }
     }
-    if (nodes.empty())
+    return -1;
+  };
+  for (const DeferredSegment& s : segments)
+  {
+    if (s.target != DeferredSegment::Target::canvas)
     {
-        return result;
+      continue;
     }
+    int n = nodeFor(s.targetId);
+    if (n < 0)
+    {
+      nodes.push_back({s.targetId, s.begin, s.begin});
+    }
+    else
+    {
+      nodes[n].lastBegin = s.begin;
+    }
+  }
+  if (nodes.empty())
+  {
+    return result;
+  }
 
-    // reader depends on written canvas: edges[reader] holds node indices.
-    std::vector<std::vector<int>> deps(nodes.size());
-    for (const DeferredSegment& s : segments)
+  // reader depends on written canvas: edges[reader] holds node indices.
+  std::vector<std::vector<int>> deps(nodes.size());
+  for (const DeferredSegment& s : segments)
+  {
+    if (s.target != DeferredSegment::Target::canvas)
     {
-        if (s.target != DeferredSegment::Target::canvas)
-        {
-            continue;
-        }
-        int reader = nodeFor(s.targetId);
-        uint32_t pos = s.begin;
-        while (pos < s.end && pos < commands.size())
-        {
-            RenderCmd c = static_cast<RenderCmd>(commands[pos]);
-            if (c > RenderCmd::lastRenderCmd)
-            {
-                break; // corrupt range; the decoder will warn at replay
-            }
-            uint32_t payload = static_cast<uint32_t>(payloadSizeOf(c));
-            // applyLayerMask belongs here as much as the draws do: layer
-            // masking samples a coverage canvas from inside the content canvas
-            // it masks, so leaving it out means that edge never registers and
-            // the schedule only works by accident of record order. So does
-            // canvasSample, which names the canvas a drawPath's paint samples.
-            if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh ||
-                c == RenderCmd::drawImageMeshInstanced ||
-                c == RenderCmd::applyLayerMask || c == RenderCmd::canvasSample)
-            {
-                RenderHandle h = drawnImageHandle(commands.data() + pos + 1);
-                if (h != kInvalidRenderHandle && (h & kCanvasHandleFlag))
-                {
-                    int sampled = nodeFor(h & kCanvasHandleMask);
-                    if (sampled == reader && sampled >= 0)
-                    {
-                        result.hadCycle = true; // self sample: previous frame
-                    }
-                    else if (sampled >= 0)
-                    {
-                        // A read between two writes of the sampled canvas
-                        // has no honorable grouped schedule.
-                        if (nodes[sampled].firstBegin < pos &&
-                            nodes[sampled].lastBegin > pos)
-                        {
-                            result.multiWriteFallback = true;
-                        }
-                        deps[reader].push_back(sampled);
-                    }
-                }
-            }
-            pos += 1 + payload;
-        }
+      continue;
     }
-
-    if (result.multiWriteFallback)
+    int reader = nodeFor(s.targetId);
+    uint32_t pos = s.begin;
+    while (pos < s.end && pos < commands.size())
     {
-        for (const Node& n : nodes)
+      RenderCmd c = static_cast<RenderCmd>(commands[pos]);
+      if (c > RenderCmd::lastRenderCmd)
+      {
+        break; // corrupt range; the decoder will warn at replay
+      }
+      uint32_t payload = static_cast<uint32_t>(payloadSizeOf(c));
+      // applyLayerMask belongs here as much as the draws do: layer
+      // masking samples a coverage canvas from inside the content canvas
+      // it masks, so leaving it out means that edge never registers and
+      // the schedule only works by accident of record order. So does
+      // canvasSample, which names the canvas a drawPath's paint samples.
+      if (c == RenderCmd::drawImage || c == RenderCmd::drawImageMesh ||
+          c == RenderCmd::drawImageMeshInstanced ||
+          c == RenderCmd::applyLayerMask || c == RenderCmd::canvasSample)
+      {
+        RenderHandle h = drawnImageHandle(commands.data() + pos + 1);
+        if (h != kInvalidRenderHandle && (h & kCanvasHandleFlag))
         {
-            result.order.push_back(n.canvasId);
+          int sampled = nodeFor(h & kCanvasHandleMask);
+          if (sampled == reader && sampled >= 0)
+          {
+            result.hadCycle = true; // self sample: previous frame
+          }
+          else if (sampled >= 0)
+          {
+            // A read between two writes of the sampled canvas
+            // has no honorable grouped schedule.
+            if (nodes[sampled].firstBegin < pos &&
+                nodes[sampled].lastBegin > pos)
+            {
+              result.multiWriteFallback = true;
+            }
+            deps[reader].push_back(sampled);
+          }
         }
-        return result;
+      }
+      pos += 1 + payload;
     }
+  }
 
-    // Kahn with record-order preference; a stuck round emits the earliest
-    // recorded remaining node, demoting its unsatisfied edges (cycle case).
-    std::vector<bool> done(nodes.size(), false);
-    while (result.order.size() < nodes.size())
+  if (result.multiWriteFallback)
+  {
+    for (const Node& n : nodes)
     {
-        int pick = -1;
-        for (size_t i = 0; i < nodes.size(); i++)
-        {
-            if (done[i])
-            {
-                continue;
-            }
-            bool ready = true;
-            for (int d : deps[i])
-            {
-                if (!done[d])
-                {
-                    ready = false;
-                    break;
-                }
-            }
-            if (ready)
-            {
-                pick = static_cast<int>(i);
-                break;
-            }
-        }
-        if (pick < 0)
-        {
-            result.hadCycle = true;
-            for (size_t i = 0; i < nodes.size(); i++)
-            {
-                if (!done[i])
-                {
-                    pick = static_cast<int>(i);
-                    break;
-                }
-            }
-        }
-        done[pick] = true;
-        result.order.push_back(nodes[pick].canvasId);
+      result.order.push_back(n.canvasId);
     }
     return result;
+  }
+
+  // Kahn with record-order preference; a stuck round emits the earliest
+  // recorded remaining node, demoting its unsatisfied edges (cycle case).
+  std::vector<bool> done(nodes.size(), false);
+  while (result.order.size() < nodes.size())
+  {
+    int pick = -1;
+    for (size_t i = 0; i < nodes.size(); i++)
+    {
+      if (done[i])
+      {
+        continue;
+      }
+      bool ready = true;
+      for (int d : deps[i])
+      {
+        if (!done[d])
+        {
+          ready = false;
+          break;
+        }
+      }
+      if (ready)
+      {
+        pick = static_cast<int>(i);
+        break;
+      }
+    }
+    if (pick < 0)
+    {
+      result.hadCycle = true;
+      for (size_t i = 0; i < nodes.size(); i++)
+      {
+        if (!done[i])
+        {
+          pick = static_cast<int>(i);
+          break;
+        }
+      }
+    }
+    done[pick] = true;
+    result.order.push_back(nodes[pick].canvasId);
+  }
+  return result;
 }
 
 } // namespace rive::cmd

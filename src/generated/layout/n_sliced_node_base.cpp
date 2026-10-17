@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* NSlicedNodeBase::clone() const
 {
-    auto cloned = new NSlicedNode();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new NSlicedNode();
+  cloned->copy(*this);
+  return cloned;
 }

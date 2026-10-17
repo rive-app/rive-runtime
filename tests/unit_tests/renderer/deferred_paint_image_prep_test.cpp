@@ -28,14 +28,14 @@ namespace
 class ImageSpyRenderer : public NoOpRenderer
 {
 public:
-    std::vector<bool> drawsWithImage;
+  std::vector<bool> drawsWithImage;
 
-    void drawPath(RenderPath*, RenderPaint* paint) override
-    {
-        auto* rivePaint = lite_rtti_cast<RiveRenderPaint*>(paint);
-        drawsWithImage.push_back(rivePaint != nullptr &&
-                                 rivePaint->getImageTexture() != nullptr);
-    }
+  void drawPath(RenderPath*, RenderPaint* paint) override
+  {
+    auto* rivePaint = lite_rtti_cast<RiveRenderPaint*>(paint);
+    drawsWithImage.push_back(
+        rivePaint != nullptr && rivePaint->getImageTexture() != nullptr);
+  }
 };
 
 // Replays through a null render context, so paints and images come back as
@@ -44,90 +44,90 @@ public:
 class LazyImageSink : public deferred_test::TestSink
 {
 public:
-    bool decoded = false;
-    ImageSpyRenderer screen;
+  bool decoded = false;
+  ImageSpyRenderer screen;
 
-    LazyImageSink() : m_rc(RenderContextNULL::MakeContext()) {}
+  LazyImageSink() : m_rc(RenderContextNULL::MakeContext()) {}
 
-    gpu::RenderContext* renderContext() override { return m_rc.get(); }
-    Factory* factory() override { return m_rc.get(); }
-    Renderer* beginScreenFrame(uint64_t) override { return &screen; }
-    RenderImage* prepForeignImage(RenderImage* image) override
-    {
-        return decoded ? image : nullptr;
-    }
+  gpu::RenderContext* renderContext() override { return m_rc.get(); }
+  Factory* factory() override { return m_rc.get(); }
+  Renderer* beginScreenFrame(uint64_t) override { return &screen; }
+  RenderImage* prepForeignImage(RenderImage* image) override
+  {
+    return decoded ? image : nullptr;
+  }
 
 private:
-    std::unique_ptr<gpu::RenderContext> m_rc;
+  std::unique_ptr<gpu::RenderContext> m_rc;
 };
 
 struct PaintImageScene
 {
-    DeferredSession session{rive::ore::ReplayCaps{}};
-    LazyImageSink sink;
-    DeferredReplayer replayer;
-    rcp<RenderImage> image = session.decodeImage(assets::nomoon_png());
-    rcp<RenderPaint> paint = session.makeRenderPaint();
-    rcp<RenderPath> path = session.makeEmptyRenderPath();
+  DeferredSession session{rive::ore::ReplayCaps{}};
+  LazyImageSink sink;
+  DeferredReplayer replayer;
+  rcp<RenderImage> image = session.decodeImage(assets::nomoon_png());
+  rcp<RenderPaint> paint = session.makeRenderPaint();
+  rcp<RenderPath> path = session.makeEmptyRenderPath();
 
-    PaintImageScene()
-    {
-        REQUIRE(image != nullptr);
-        path->moveTo(0, 0);
-        path->lineTo(10, 0);
-        path->lineTo(10, 10);
-        path->close();
-    }
+  PaintImageScene()
+  {
+    REQUIRE(image != nullptr);
+    path->moveTo(0, 0);
+    path->lineTo(10, 0);
+    path->lineTo(10, 10);
+    path->close();
+  }
 
-    // A shape paint re-applies its image every draw; the producer absorbs
-    // the unchanged re-sets.
-    void draw()
-    {
-        paint->modulatedImage(image.get(),
-                              ImageSampler::LinearClamp(),
-                              Mat2D());
-        session.screenRenderer()->drawPath(path.get(), paint.get());
-    }
+  // A shape paint re-applies its image every draw; the producer absorbs
+  // the unchanged re-sets.
+  void draw()
+  {
+    paint->modulatedImage(image.get(), ImageSampler::LinearClamp(), Mat2D());
+    session.screenRenderer()->drawPath(path.get(), paint.get());
+  }
 
-    std::vector<bool> replay()
-    {
-        sink.screen.drawsWithImage.clear();
-        replayer.replayFrame(takeFrame(session), sink);
-        return sink.screen.drawsWithImage;
-    }
+  std::vector<bool> replay()
+  {
+    sink.screen.drawsWithImage.clear();
+    replayer.replayFrame(takeFrame(session), sink);
+    return sink.screen.drawsWithImage;
+  }
 };
 } // namespace
 
-TEST_CASE("a paint takes its image on the first frame the image is ready",
-          "[deferred][paint-image]")
+TEST_CASE(
+    "a paint takes its image on the first frame the image is ready",
+    "[deferred][paint-image]")
 {
-    PaintImageScene scene;
+  PaintImageScene scene;
 
-    scene.draw();
-    CHECK(scene.replay() == std::vector<bool>{false});
-    scene.draw();
-    CHECK(scene.replay() == std::vector<bool>{false});
+  scene.draw();
+  CHECK(scene.replay() == std::vector<bool>{false});
+  scene.draw();
+  CHECK(scene.replay() == std::vector<bool>{false});
 
-    scene.sink.decoded = true;
-    scene.draw();
-    CHECK(scene.replay() == std::vector<bool>{true});
+  scene.sink.decoded = true;
+  scene.draw();
+  CHECK(scene.replay() == std::vector<bool>{true});
 }
 
-TEST_CASE("a draw ahead of a paint version bump gets the image that landed "
-          "between frames",
-          "[deferred][paint-image]")
+TEST_CASE(
+    "a draw ahead of a paint version bump gets the image that landed "
+    "between frames",
+    "[deferred][paint-image]")
 {
-    PaintImageScene scene;
+  PaintImageScene scene;
 
-    scene.draw();
-    CHECK(scene.replay() == std::vector<bool>{false});
+  scene.draw();
+  CHECK(scene.replay() == std::vector<bool>{false});
 
-    // The decode lands between frames, and the next frame draws the paint,
-    // changes it (the first draw pinned the old version, so this mints a new
-    // one), and draws it again. Both draws must carry the image.
-    scene.sink.decoded = true;
-    scene.draw();
-    scene.paint->color(0xff00ff00);
-    scene.draw();
-    CHECK(scene.replay() == std::vector<bool>{true, true});
+  // The decode lands between frames, and the next frame draws the paint,
+  // changes it (the first draw pinned the old version, so this mints a new
+  // one), and draws it again. Both draws must carry the image.
+  scene.sink.decoded = true;
+  scene.draw();
+  scene.paint->color(0xff00ff00);
+  scene.draw();
+  CHECK(scene.replay() == std::vector<bool>{true, true});
 }

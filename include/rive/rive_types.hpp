@@ -65,18 +65,18 @@
 // Annotations to assert unreachable control flow.
 #if defined(__GNUC__) || defined(__clang__)
 #define RIVE_UNREACHABLE                                                       \
-    assert(!(bool)"unreachable reached");                                      \
-    __builtin_unreachable
+  assert(!(bool)"unreachable reached");                                        \
+  __builtin_unreachable
 #elif _MSC_VER
 #define RIVE_UNREACHABLE()                                                     \
-    assert(!(bool)"unreachable reached");                                      \
-    __assume(0)
+  assert(!(bool)"unreachable reached");                                        \
+  __assume(0)
 #else
 #define RIVE_UNREACHABLE()                                                     \
-    do                                                                         \
-    {                                                                          \
-        assert(!(bool)"unreachable reached");                                  \
-    } while (0)
+  do                                                                           \
+  {                                                                            \
+    assert(!(bool)"unreachable reached");                                      \
+  } while (0)
 #endif
 
 #if __cplusplus >= 201703L
@@ -107,7 +107,7 @@
 #endif
 #if defined(__clang__) && __has_attribute(no_thread_safety_analysis)
 #define RIVE_NO_THREAD_SAFETY_ANALYSIS                                         \
-    __attribute__((no_thread_safety_analysis))
+  __attribute__((no_thread_safety_analysis))
 #else
 #define RIVE_NO_THREAD_SAFETY_ANALYSIS
 #endif

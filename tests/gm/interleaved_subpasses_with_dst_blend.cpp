@@ -50,246 +50,254 @@ constexpr static uint32_t WINDOW_SIZE = 1600;
 class InterleavedSubpassesGM : public rivegm::GM
 {
 public:
-    InterleavedSubpassesGM() : GM(WINDOW_SIZE, WINDOW_SIZE) {}
-    ColorInt clearColor() const override { return 0xff000000; }
-    void updateFrameOptions(TestingWindow::FrameOptions* options) const override
-    {
-        // Both GMs here draw text paths complex enough to exceed the default
-        // 256-verb triangulation guard. They exist to exercise interleaved
-        // subpasses against interior triangulation, so lift the cap and keep
-        // them on that path.
-        options->triangulationThresholds.maxVerbs = SIZE_MAX;
-    }
+  InterleavedSubpassesGM() : GM(WINDOW_SIZE, WINDOW_SIZE) {}
+  ColorInt clearColor() const override { return 0xff000000; }
+  void updateFrameOptions(TestingWindow::FrameOptions* options) const override
+  {
+    // Both GMs here draw text paths complex enough to exceed the default
+    // 256-verb triangulation guard. They exist to exercise interleaved
+    // subpasses against interior triangulation, so lift the cap and keep
+    // them on that path.
+    options->triangulationThresholds.maxVerbs = SIZE_MAX;
+  }
 };
 
 class interleaved_subpasses_with_dst_blend_GM : public InterleavedSubpassesGM
 {
 public:
-    void onDraw(rive::Renderer*) override;
+  void onDraw(rive::Renderer*) override;
 };
-GMREGISTER(interleaved_subpasses_with_dst_blend,
-           return new interleaved_subpasses_with_dst_blend_GM)
+GMREGISTER(
+    interleaved_subpasses_with_dst_blend,
+    return new interleaved_subpasses_with_dst_blend_GM)
 void interleaved_subpasses_with_dst_blend_GM::onDraw(rive::Renderer* renderer)
 {
-    gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
-    gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
-    if (renderContext != nullptr)
-    {
-        preserveRenderTargetFrameDesc = renderContext->frameDescriptor();
-        preserveRenderTargetFrameDesc.loadAction =
-            gpu::LoadAction::preserveRenderTarget;
-    }
+  gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
+  gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
+  if (renderContext != nullptr)
+  {
+    preserveRenderTargetFrameDesc = renderContext->frameDescriptor();
+    preserveRenderTargetFrameDesc
+        .loadAction = gpu::LoadAction::preserveRenderTarget;
+  }
 
-    // Disable KHR_blend_equation_advanced, which is necessary for this to
-    // repro.
+  // Disable KHR_blend_equation_advanced, which is necessary for this to
+  // repro.
 #ifndef RIVE_TOOLS_NO_GL
-    bool hadBlendAdvancedCoherentKHR = false;
-    bool hadBlendAdvancedKHR = false;
-    if (renderContext != nullptr)
+  bool hadBlendAdvancedCoherentKHR = false;
+  bool hadBlendAdvancedKHR = false;
+  if (renderContext != nullptr)
+  {
+    if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                               ->renderContextGLImpl())
     {
-        if (gpu::RenderContextGLImpl* glImpl =
-                TestingWindow::Get()->renderContextGLImpl())
-        {
-            TestingWindow::Get()->flushPLSContext();
-            hadBlendAdvancedCoherentKHR =
-                glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(false);
-            hadBlendAdvancedKHR =
-                glImpl->testingOnly_setBlendAdvancedKHRSupported(false);
-            renderContext->beginFrame(preserveRenderTargetFrameDesc);
-        }
+      TestingWindow::Get()->flushPLSContext();
+      hadBlendAdvancedCoherentKHR =
+          glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(false);
+      hadBlendAdvancedKHR = glImpl->testingOnly_setBlendAdvancedKHRSupported(
+          false);
+      renderContext->beginFrame(preserveRenderTargetFrameDesc);
     }
+  }
 #endif
 
-    {
-        AutoRestore ar(renderer, true);
+  {
+    AutoRestore ar(renderer, true);
 
-        auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
+    auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
 
-        // Make sure the paint is slightly transparent so the path doesn't turn
-        // into an opaque prepass. Its subpasses need to interleave with the
-        // advanced blend draw.
-        Paint white;
-        white->color(0xeeffffff);
+    // Make sure the paint is slightly transparent so the path doesn't turn
+    // into an opaque prepass. Its subpasses need to interleave with the
+    // advanced blend draw.
+    Paint white;
+    white->color(0xeeffffff);
 
-        RawText text(TestingWindow::Get()->factory());
-        text.maxWidth(800);
-        text.sizing(TextSizing::fixed);
-        text.append("abcdefghijklmnopqrstuvwxyz@",
-                    ref_rcp(white.get()),
-                    roboto,
-                    150);
+    RawText text(TestingWindow::Get()->factory());
+    text.maxWidth(800);
+    text.sizing(TextSizing::fixed);
+    text.append(
+        "abcdefghijklmnopqrstuvwxyz@",
+        ref_rcp(white.get()),
+        roboto,
+        150);
 
-        renderer->transform(
-            Mat2D(1.539983f, 0, 0, 1.539983f, 292.155853f, 600));
-        text.render(renderer);
-    }
+    renderer->transform(Mat2D(1.539983f, 0, 0, 1.539983f, 292.155853f, 600));
+    text.render(renderer);
+  }
 
-    {
-        // Drawing a non-intersecting path with a blend mode is what triggers
-        // the issue.
-        auto renderPath =
-            PathBuilder(FillRule::clockwise).addOval({0, 0, 1, 1}).detach();
+  {
+    // Drawing a non-intersecting path with a blend mode is what triggers
+    // the issue.
+    auto renderPath = PathBuilder(FillRule::clockwise)
+                          .addOval({0, 0, 1, 1})
+                          .detach();
 
-        Paint renderPaint;
-        renderPaint->color(0xfff3da93);
-        renderPaint->blendMode(BlendMode::lighten);
+    Paint renderPaint;
+    renderPaint->color(0xfff3da93);
+    renderPaint->blendMode(BlendMode::lighten);
 
-        AutoRestore ar(renderer, true);
-        renderer->transform(Mat2D(800, 0, 0, 300, 100, 100));
-        renderer->drawPath(renderPath.get(), renderPaint.get());
-    }
+    AutoRestore ar(renderer, true);
+    renderer->transform(Mat2D(800, 0, 0, 300, 100, 100));
+    renderer->drawPath(renderPath.get(), renderPaint.get());
+  }
 
-    // Restore KHR_blend_equation_advanced.
-    if (renderContext != nullptr)
-    {
+  // Restore KHR_blend_equation_advanced.
+  if (renderContext != nullptr)
+  {
 #ifndef RIVE_TOOLS_NO_GL
-        if (gpu::RenderContextGLImpl* glImpl =
-                TestingWindow::Get()->renderContextGLImpl())
-        {
-            TestingWindow::Get()->flushPLSContext();
-            glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(
-                hadBlendAdvancedCoherentKHR);
-            glImpl->testingOnly_setBlendAdvancedKHRSupported(
-                hadBlendAdvancedKHR);
-            renderContext->beginFrame(preserveRenderTargetFrameDesc);
-        }
-#endif
+    if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                               ->renderContextGLImpl())
+    {
+      TestingWindow::Get()->flushPLSContext();
+      glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(
+          hadBlendAdvancedCoherentKHR);
+      glImpl->testingOnly_setBlendAdvancedKHRSupported(hadBlendAdvancedKHR);
+      renderContext->beginFrame(preserveRenderTargetFrameDesc);
     }
+#endif
+  }
 }
 
 class interleaved_subpasses_with_dst_blend2_GM : public InterleavedSubpassesGM
 {
 public:
-    void onDraw(rive::Renderer*) override;
+  void onDraw(rive::Renderer*) override;
 };
-GMREGISTER(interleaved_subpasses_with_dst_blend2,
-           return new interleaved_subpasses_with_dst_blend2_GM)
+GMREGISTER(
+    interleaved_subpasses_with_dst_blend2,
+    return new interleaved_subpasses_with_dst_blend2_GM)
 void interleaved_subpasses_with_dst_blend2_GM::onDraw(rive::Renderer* renderer)
 {
-    gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
-    gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
-    if (renderContext != nullptr)
-    {
-        preserveRenderTargetFrameDesc = renderContext->frameDescriptor();
-        preserveRenderTargetFrameDesc.loadAction =
-            gpu::LoadAction::preserveRenderTarget;
-    }
+  gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
+  gpu::RenderContext::FrameDescriptor preserveRenderTargetFrameDesc;
+  if (renderContext != nullptr)
+  {
+    preserveRenderTargetFrameDesc = renderContext->frameDescriptor();
+    preserveRenderTargetFrameDesc
+        .loadAction = gpu::LoadAction::preserveRenderTarget;
+  }
 
-    // Disable KHR_blend_equation_advanced, which is necessary for this to
-    // repro.
+  // Disable KHR_blend_equation_advanced, which is necessary for this to
+  // repro.
 #ifndef RIVE_TOOLS_NO_GL
-    bool hadBlendAdvancedCoherentKHR = false;
-    bool hadBlendAdvancedKHR = false;
-    if (renderContext != nullptr)
+  bool hadBlendAdvancedCoherentKHR = false;
+  bool hadBlendAdvancedKHR = false;
+  if (renderContext != nullptr)
+  {
+    if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                               ->renderContextGLImpl())
     {
-        if (gpu::RenderContextGLImpl* glImpl =
-                TestingWindow::Get()->renderContextGLImpl())
-        {
-            TestingWindow::Get()->flushPLSContext();
-            hadBlendAdvancedCoherentKHR =
-                glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(false);
-            hadBlendAdvancedKHR =
-                glImpl->testingOnly_setBlendAdvancedKHRSupported(false);
-            renderContext->beginFrame(preserveRenderTargetFrameDesc);
-        }
+      TestingWindow::Get()->flushPLSContext();
+      hadBlendAdvancedCoherentKHR =
+          glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(false);
+      hadBlendAdvancedKHR = glImpl->testingOnly_setBlendAdvancedKHRSupported(
+          false);
+      renderContext->beginFrame(preserveRenderTargetFrameDesc);
     }
+  }
 #endif
 
-    {
-        AutoRestore ar(renderer, true);
+  {
+    AutoRestore ar(renderer, true);
 
-        Paint paint;
-        paint->color(0xe0da93f3);
-        paint->feather(30.000000);
-        paint->blendMode(BlendMode::srcOver);
+    Paint paint;
+    paint->color(0xe0da93f3);
+    paint->feather(30.000000);
+    paint->blendMode(BlendMode::srcOver);
 
-        auto renderPath =
-            PathBuilder(FillRule::clockwise)
-                .addRect({0.099000f, -74.448006f, 656.115417f, 0.198000f})
-                .detach();
-        renderer->transform(Mat2D(1.506361f,
-                                  0.000000f,
-                                  0.000000f,
-                                  1.506361f,
-                                  303.258057f,
-                                  1075.497070f));
+    auto renderPath = PathBuilder(FillRule::clockwise)
+                          .addRect(
+                              {0.099000f, -74.448006f, 656.115417f, 0.198000f})
+                          .detach();
+    renderer->transform(Mat2D(
+        1.506361f,
+        0.000000f,
+        0.000000f,
+        1.506361f,
+        303.258057f,
+        1075.497070f));
 
-        renderer->drawPath(renderPath.get(), paint.get());
+    renderer->drawPath(renderPath.get(), paint.get());
 
-        paint->color(0x93e0daf3);
-        paint->feather(0);
+    paint->color(0x93e0daf3);
+    paint->feather(0);
 
-        renderer->translate(-12, -12);
-        renderer->drawPath(renderPath.get(), paint.get());
-    }
+    renderer->translate(-12, -12);
+    renderer->drawPath(renderPath.get(), paint.get());
+  }
 
-    {
-        AutoRestore ar(renderer, true);
+  {
+    AutoRestore ar(renderer, true);
 
-        auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
+    auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
 
-        // Make sure the paint is slightly transparent so the path doesn't turn
-        // into an opaque prepass. Its subpasses need to interleave with the
-        // advanced blend draw.
-        Paint white;
-        white->color(0xeeffffff);
+    // Make sure the paint is slightly transparent so the path doesn't turn
+    // into an opaque prepass. Its subpasses need to interleave with the
+    // advanced blend draw.
+    Paint white;
+    white->color(0xeeffffff);
 
-        RawText text(TestingWindow::Get()->factory());
-        text.maxWidth(800);
-        text.sizing(TextSizing::fixed);
-        text.append("abcdefghijklmnopqrstuvwxyz@",
-                    ref_rcp(white.get()),
-                    roboto,
-                    75);
+    RawText text(TestingWindow::Get()->factory());
+    text.maxWidth(800);
+    text.sizing(TextSizing::fixed);
+    text.append(
+        "abcdefghijklmnopqrstuvwxyz@",
+        ref_rcp(white.get()),
+        roboto,
+        75);
 
-        renderer->transform(Mat2D(1.506361f,
-                                  0.000000f,
-                                  0.000000f,
-                                  1.506361f,
-                                  153.994843f,
-                                  1209.160156f));
-        text.render(renderer);
-    }
+    renderer->transform(Mat2D(
+        1.506361f,
+        0.000000f,
+        0.000000f,
+        1.506361f,
+        153.994843f,
+        1209.160156f));
+    text.render(renderer);
+  }
 
-    {
-        AutoRestore ar(renderer, true);
+  {
+    AutoRestore ar(renderer, true);
 
-        Paint paint;
-        paint->color(0xfff3da93);
-        paint->feather(30.000000);
-        paint->blendMode(BlendMode::lighten);
+    Paint paint;
+    paint->color(0xfff3da93);
+    paint->feather(30.000000);
+    paint->blendMode(BlendMode::lighten);
 
-        auto renderPath =
-            PathBuilder(FillRule::clockwise)
-                .addOval({-35.099998f, -48.600010f, 35.099998f, 48.600010f})
-                .detach();
+    auto renderPath = PathBuilder(FillRule::clockwise)
+                          .addOval(
+                              {-35.099998f,
+                               -48.600010f,
+                               35.099998f,
+                               48.600010f})
+                          .detach();
 
-        renderer->transform(Mat2D(4.071247f,
-                                  0.000000f,
-                                  0.000000f,
-                                  4.071247f,
-                                  1159.308716f,
-                                  537.785034f));
+    renderer->transform(Mat2D(
+        4.071247f,
+        0.000000f,
+        0.000000f,
+        4.071247f,
+        1159.308716f,
+        537.785034f));
 
-        renderer->drawPath(renderPath.get(), paint.get());
-    }
+    renderer->drawPath(renderPath.get(), paint.get());
+  }
 
-    // Restore KHR_blend_equation_advanced.
-    if (renderContext != nullptr)
-    {
+  // Restore KHR_blend_equation_advanced.
+  if (renderContext != nullptr)
+  {
 #ifndef RIVE_TOOLS_NO_GL
-        if (gpu::RenderContextGLImpl* glImpl =
-                TestingWindow::Get()->renderContextGLImpl())
-        {
-            TestingWindow::Get()->flushPLSContext();
-            glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(
-                hadBlendAdvancedCoherentKHR);
-            glImpl->testingOnly_setBlendAdvancedKHRSupported(
-                hadBlendAdvancedKHR);
-            renderContext->beginFrame(preserveRenderTargetFrameDesc);
-        }
-#endif
+    if (gpu::RenderContextGLImpl* glImpl = TestingWindow::Get()
+                                               ->renderContextGLImpl())
+    {
+      TestingWindow::Get()->flushPLSContext();
+      glImpl->testingOnly_setBlendAdvancedCoherentKHRSupported(
+          hadBlendAdvancedCoherentKHR);
+      glImpl->testingOnly_setBlendAdvancedKHRSupported(hadBlendAdvancedKHR);
+      renderContext->beginFrame(preserveRenderTargetFrameDesc);
     }
+#endif
+  }
 }
 
 #endif // WITH_RIVE_TEXT

@@ -6,41 +6,40 @@ using namespace rive;
 
 DataValue* DataConverterStringPad::convert(DataValue* input, DataBind* dataBind)
 {
-    if (input->is<DataValueString>())
+  if (input->is<DataValueString>())
+  {
+    auto inputValue = input->as<DataValueString>()->value();
+    auto inputLength = inputValue.size();
+    if (inputLength < length() && text() != "")
     {
-        auto inputValue = input->as<DataValueString>()->value();
-        auto inputLength = inputValue.size();
-        if (inputLength < length() && text() != "")
-        {
-            auto padPattern = text();
-            auto padLength = padPattern.size();
-            inputValue.reserve(length());
-            std::string padText{""};
-            size_t padTextSize = length() - inputLength;
-            padText.reserve(padTextSize);
-            while (inputLength < length())
-            {
-                auto maxLength =
-                    (padTextSize > padLength) ? padLength : padTextSize;
-                padText.append(padPattern, 0, maxLength);
-                inputLength += maxLength;
-            }
-            if (padType() == 1)
-            {
-                inputValue.append(padText, 0, padTextSize);
-            }
-            else
-            {
-                inputValue.insert(0, padText, 0, padTextSize);
-            }
-        }
-        m_output.value(inputValue);
+      auto padPattern = text();
+      auto padLength = padPattern.size();
+      inputValue.reserve(length());
+      std::string padText{""};
+      size_t padTextSize = length() - inputLength;
+      padText.reserve(padTextSize);
+      while (inputLength < length())
+      {
+        auto maxLength = (padTextSize > padLength) ? padLength : padTextSize;
+        padText.append(padPattern, 0, maxLength);
+        inputLength += maxLength;
+      }
+      if (padType() == 1)
+      {
+        inputValue.append(padText, 0, padTextSize);
+      }
+      else
+      {
+        inputValue.insert(0, padText, 0, padTextSize);
+      }
     }
-    else
-    {
-        m_output.value(DataValueString::defaultValue);
-    }
-    return &m_output;
+    m_output.value(inputValue);
+  }
+  else
+  {
+    m_output.value(DataValueString::defaultValue);
+  }
+  return &m_output;
 }
 
 void DataConverterStringPad::lengthChanged() { markConverterDirty(); }

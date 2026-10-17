@@ -11,13 +11,13 @@ class DataEnumValue;
 class EnumImporter : public ImportStackObject
 {
 private:
-    DataEnum* m_DataEnum;
+  DataEnum* m_DataEnum;
 
 public:
-    EnumImporter(DataEnum* dataEnum);
-    void addValue(DataEnumValue* object);
-    StatusCode resolve() override;
-    const DataEnum* dataEnum() const { return m_DataEnum; }
+  EnumImporter(DataEnum* dataEnum);
+  void addValue(DataEnumValue* object);
+  StatusCode resolve() override;
+  const DataEnum* dataEnum() const { return m_DataEnum; }
 };
 } // namespace rive
 #endif

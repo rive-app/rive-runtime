@@ -12,22 +12,22 @@ namespace rive
 class ScriptModuleAsset : public ScriptModuleAssetBase
 {
 public:
-    enum class Language : uint32_t
-    {
-        luau = 0,
-        animaScript = 1,
-    };
+  enum class Language : uint32_t
+  {
+    luau = 0,
+    animaScript = 1,
+  };
 
-    // What every writer names the AnimaScript module asset.
-    static constexpr const char* animaScriptName = "scripts_as";
+  // What every writer names the AnimaScript module asset.
+  static constexpr const char* animaScriptName = "scripts_as";
 
-    bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
-    std::string fileExtension() const override { return "wasm"; }
+  bool decode(SimpleArray<uint8_t>& data, Factory* factory) override;
+  std::string fileExtension() const override { return "wasm"; }
 
-    Span<const uint8_t> module() const { return m_module; }
+  Span<const uint8_t> module() const { return m_module; }
 
 private:
-    SimpleArray<uint8_t> m_module;
+  SimpleArray<uint8_t> m_module;
 };
 } // namespace rive
 

@@ -7,9 +7,9 @@ namespace rive
 class TextInputSelectedText : public TextInputSelectedTextBase
 {
 public:
-    Core* hitTest(HitInfo*, const Mat2D&) override;
-    ShapePaintPath* localClockwisePath() override;
-    StatusCode onAddedClean(CoreContext* context) override;
+  Core* hitTest(HitInfo*, const Mat2D&) override;
+  ShapePaintPath* localClockwisePath() override;
+  StatusCode onAddedClean(CoreContext* context) override;
 };
 } // namespace rive
 

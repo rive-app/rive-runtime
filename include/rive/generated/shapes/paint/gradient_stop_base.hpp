@@ -9,72 +9,72 @@ namespace rive
 class GradientStopBase : public Component, public ColorChannelsBase
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 19;
+  static const uint16_t typeKey = 19;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t colorValuePropertyKey = 38;
-    static const uint16_t positionPropertyKey = 39;
+  static const uint16_t colorValuePropertyKey = 38;
+  static const uint16_t positionPropertyKey = 39;
 
 protected:
-    int m_ColorValue = 0xFFFFFFFF;
-    float m_Position = 0.0f;
+  int m_ColorValue = 0xFFFFFFFF;
+  float m_Position = 0.0f;
 
 public:
-    inline int colorValue() const override { return m_ColorValue; }
-    void colorValue(int value) override
+  inline int colorValue() const override { return m_ColorValue; }
+  void colorValue(int value) override
+  {
+    if (m_ColorValue == value)
     {
-        if (m_ColorValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(colorValuePropertyKey, &m_ColorValue, &value);
-        m_ColorValue = value;
-        RIVE_EDITOR_CHANGED(colorValueChanged());
-        notifyPropertyChanged(colorValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(colorValuePropertyKey, &m_ColorValue, &value);
+    m_ColorValue = value;
+    RIVE_EDITOR_CHANGED(colorValueChanged());
+    notifyPropertyChanged(colorValuePropertyKey);
+  }
 
-    inline float position() const { return m_Position; }
-    void position(float value)
+  inline float position() const { return m_Position; }
+  void position(float value)
+  {
+    if (m_Position == value)
     {
-        if (m_Position == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(positionPropertyKey, &m_Position, &value);
-        m_Position = value;
-        RIVE_EDITOR_CHANGED(positionChanged());
-        notifyPropertyChanged(positionPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(positionPropertyKey, &m_Position, &value);
+    m_Position = value;
+    RIVE_EDITOR_CHANGED(positionChanged());
+    notifyPropertyChanged(positionPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const GradientStopBase& object)
-    {
-        m_ColorValue = object.m_ColorValue;
-        m_Position = object.m_Position;
-        Component::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const GradientStopBase& object)
+  {
+    m_ColorValue = object.m_ColorValue;
+    m_Position = object.m_Position;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case colorValuePropertyKey:
-                m_ColorValue = CoreColorType::deserialize(reader);
-                return true;
-            case positionPropertyKey:
-                m_Position = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case colorValuePropertyKey:
+        m_ColorValue = CoreColorType::deserialize(reader);
+        return true;
+      case positionPropertyKey:
+        m_Position = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void colorValueChanged() {}
-    virtual void positionChanged() {}
+  virtual void colorValueChanged() {}
+  virtual void positionChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/paint/gradient_stop_ext.inl"
 #endif

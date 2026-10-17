@@ -24,74 +24,71 @@ public:
 #ifdef WITH_RIVE_LAYOUT
 
 #ifdef WITH_RIVE_TOOLS
-    std::unordered_set<LayoutData*> children;
+  std::unordered_set<LayoutData*> children;
 #ifdef DEBUG
-    LayoutData() { count++; }
+  LayoutData() { count++; }
 #endif
-    ~LayoutData()
-    {
+  ~LayoutData()
+  {
 #ifdef DEBUG
-        count--;
+    count--;
 #endif
-        clearChildren();
-    }
-    void clearChildren()
+    clearChildren();
+  }
+  void clearChildren()
+  {
+    for (auto child : children)
     {
-        for (auto child : children)
-        {
-            child->unref();
-        }
-        children.clear();
+      child->unref();
     }
+    children.clear();
+  }
 #ifdef DEBUG
-    static uint32_t count;
+  static uint32_t count;
 #endif
 #endif
 
-    YGNode node;
+  YGNode node;
 
-    /// The Yoga style lives inside the node itself; this is the single source
-    /// of truth appliers write into. Go through here rather than reaching for
-    /// node.getStyle() so callers don't depend on YGNode's accessor shape.
-    YGStyle& style() { return node.getStyle(); }
-    const YGStyle& style() const { return node.getStyle(); }
+  /// The Yoga style lives inside the node itself; this is the single source
+  /// of truth appliers write into. Go through here rather than reaching for
+  /// node.getStyle() so callers don't depend on YGNode's accessor shape.
+  YGStyle& style() { return node.getStyle(); }
+  const YGStyle& style() const { return node.getStyle(); }
 
-    /// Objects contributing to this item's style. Lazy, so an item with none
-    /// pays one null pointer. Unsorted — apply order comes from the phase
-    /// methods, not from list order, which follows file order.
-    LazyVector<LayoutStyleApplier*> appliers;
+  /// Objects contributing to this item's style. Lazy, so an item with none
+  /// pays one null pointer. Unsorted — apply order comes from the phase
+  /// methods, not from list order, which follows file order.
+  LazyVector<LayoutStyleApplier*> appliers;
 
-    /// No matching remove: runtime objects live for the artboard's lifetime.
-    void addApplier(LayoutStyleApplier* applier)
+  /// No matching remove: runtime objects live for the artboard's lifetime.
+  void addApplier(LayoutStyleApplier* applier) { appliers.pushUnique(applier); }
+
+  /// Runs every applier phase by phase, so apply order can't depend on child
+  /// order.
+  void applyLayoutStyles(YGStyle& style, const LayoutSyncContext& context)
+  {
+    if (appliers.empty())
     {
-        appliers.pushUnique(applier);
+      return;
     }
-
-    /// Runs every applier phase by phase, so apply order can't depend on child
-    /// order.
-    void applyLayoutStyles(YGStyle& style, const LayoutSyncContext& context)
+    for (auto* applier : appliers)
     {
-        if (appliers.empty())
-        {
-            return;
-        }
-        for (auto* applier : appliers)
-        {
-            applier->applyBaseStyle(style, context);
-        }
-        for (auto* applier : appliers)
-        {
-            applier->applyContainerStyle(style, context);
-        }
-        for (auto* applier : appliers)
-        {
-            applier->applyItemStyle(style, context);
-        }
-        for (auto* applier : appliers)
-        {
-            applier->applyPlacementStyle(style, context);
-        }
+      applier->applyBaseStyle(style, context);
     }
+    for (auto* applier : appliers)
+    {
+      applier->applyContainerStyle(style, context);
+    }
+    for (auto* applier : appliers)
+    {
+      applier->applyItemStyle(style, context);
+    }
+    for (auto* applier : appliers)
+    {
+      applier->applyPlacementStyle(style, context);
+    }
+  }
 #endif
 };
 

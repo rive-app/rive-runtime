@@ -9,26 +9,26 @@ namespace rive
 class CubicValueInterpolatorBase : public CubicInterpolator
 {
 protected:
-    typedef CubicInterpolator Super;
+  typedef CubicInterpolator Super;
 
 public:
-    static const uint16_t typeKey = 138;
+  static const uint16_t typeKey = 138;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const CubicValueInterpolatorBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        CubicInterpolator::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const CubicValueInterpolatorBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    CubicInterpolator::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return CubicInterpolator::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return CubicInterpolator::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/animation/cubic_value_interpolator_ext.inl"
 #endif

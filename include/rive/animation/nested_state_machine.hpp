@@ -14,63 +14,64 @@ class StateMachineInstance;
 class NestedStateMachine : public NestedStateMachineBase
 {
 private:
-    std::unique_ptr<StateMachineInstance> m_StateMachineInstance;
-    std::vector<NestedInput*> m_nestedInputs;
+  std::unique_ptr<StateMachineInstance> m_StateMachineInstance;
+  std::vector<NestedInput*> m_nestedInputs;
 
 public:
-    NestedStateMachine();
-    ~NestedStateMachine() override;
-    bool advance(float elapsedSeconds, bool newFrame) override;
-    void initializeAnimation(ArtboardInstance*) override;
-    // For hosts whose animation references are persistent IDs rather than
-    // runtime indexes. Retains the normal nested focus/input setup.
-    void initializeAnimation(ArtboardInstance*,
-                             std::unique_ptr<StateMachineInstance>);
-    StateMachineInstance* stateMachineInstance();
+  NestedStateMachine();
+  ~NestedStateMachine() override;
+  bool advance(float elapsedSeconds, bool newFrame) override;
+  void initializeAnimation(ArtboardInstance*) override;
+  // For hosts whose animation references are persistent IDs rather than
+  // runtime indexes. Retains the normal nested focus/input setup.
+  void initializeAnimation(
+      ArtboardInstance*,
+      std::unique_ptr<StateMachineInstance>);
+  StateMachineInstance* stateMachineInstance();
 
-    HitResult pointerMove(Vec2D position,
-                          float timeStamp = 0,
-                          int pointerId = 0);
-    HitResult pointerDown(Vec2D position,
-                          int pointerId = 0,
-                          PointerButton button = PointerButton::primary);
-    HitResult pointerUp(Vec2D position,
-                        int pointerId = 0,
-                        PointerButton button = PointerButton::primary);
-    HitResult pointerExit(Vec2D position, int pointerId = 0);
-    HitResult pointerScroll(Vec2D position,
-                            const ScrollEvent& event,
-                            float timeStamp = 0,
-                            int pointerId = 0);
-    bool wantsScroll(Vec2D position, const ScrollEvent& event);
-    bool hasScrollLatch();
-    bool hasScrollTargetAt(Vec2D position);
-    bool scrollOccludedAt(Vec2D position);
-    void cancelScroll();
-    bool listensToButtonAt(Vec2D position, PointerButton button);
-    HitResult dragStart(Vec2D position,
-                        float timeStamp = 0,
-                        int pointerId = 0,
-                        PointerButton button = PointerButton::primary);
-    HitResult dragEnd(Vec2D position,
-                      float timeStamp = 0,
-                      int pointerId = 0,
-                      PointerButton button = PointerButton::primary);
-    bool tryChangeState();
-    bool hitTest(Vec2D position) const;
-    bool hitTestBounded(Vec2D position) const;
+  HitResult pointerMove(Vec2D position, float timeStamp = 0, int pointerId = 0);
+  HitResult pointerDown(
+      Vec2D position,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  HitResult pointerUp(
+      Vec2D position,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  HitResult pointerExit(Vec2D position, int pointerId = 0);
+  HitResult pointerScroll(
+      Vec2D position,
+      const ScrollEvent& event,
+      float timeStamp = 0,
+      int pointerId = 0);
+  bool wantsScroll(Vec2D position, const ScrollEvent& event);
+  bool hasScrollLatch();
+  bool hasScrollTargetAt(Vec2D position);
+  bool scrollOccludedAt(Vec2D position);
+  void cancelScroll();
+  bool listensToButtonAt(Vec2D position, PointerButton button);
+  HitResult dragStart(
+      Vec2D position,
+      float timeStamp = 0,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  HitResult dragEnd(
+      Vec2D position,
+      float timeStamp = 0,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  bool tryChangeState();
+  bool hitTest(Vec2D position) const;
+  bool hitTestBounded(Vec2D position) const;
 
-    void addNestedInput(NestedInput* input);
-    size_t inputCount() { return m_nestedInputs.size(); }
-    NestedInput* input(size_t index);
-    NestedInput* input(std::string name);
-    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
-    void dataContext(rcp<DataContext> dataContext);
-    void releaseDependencies() override
-    {
-        m_StateMachineInstance.reset(nullptr);
-    }
-    void clearDataContext();
+  void addNestedInput(NestedInput* input);
+  size_t inputCount() { return m_nestedInputs.size(); }
+  NestedInput* input(size_t index);
+  NestedInput* input(std::string name);
+  void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
+  void dataContext(rcp<DataContext> dataContext);
+  void releaseDependencies() override { m_StateMachineInstance.reset(nullptr); }
+  void clearDataContext();
 };
 } // namespace rive
 

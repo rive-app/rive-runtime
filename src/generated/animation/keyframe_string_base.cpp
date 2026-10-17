@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* KeyFrameStringBase::clone() const
 {
-    auto cloned = new KeyFrameString();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new KeyFrameString();
+  cloned->copy(*this);
+  return cloned;
 }

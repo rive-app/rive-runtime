@@ -6,14 +6,14 @@ using namespace rive;
 
 void ViewModelInstanceAssetBlobRuntime::value(BlobAsset* blob)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceAssetBlob>()->value(blob);
+  m_viewModelInstanceValue->as<ViewModelInstanceAssetBlob>()->value(blob);
 }
 
 #ifdef TESTING
 BlobAsset* ViewModelInstanceAssetBlobRuntime::testing_value()
 {
-    return m_viewModelInstanceValue->as<ViewModelInstanceAssetBlob>()
-        ->asset()
-        .get();
+  return m_viewModelInstanceValue->as<ViewModelInstanceAssetBlob>()
+      ->asset()
+      .get();
 }
 #endif

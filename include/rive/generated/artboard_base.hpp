@@ -12,115 +12,115 @@ namespace rive
 class ArtboardBase : public LayoutComponent
 {
 protected:
-    typedef LayoutComponent Super;
+  typedef LayoutComponent Super;
 
 public:
-    static const uint16_t typeKey = 1;
+  static const uint16_t typeKey = 1;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t originXPropertyKey = 11;
-    static const uint16_t originYPropertyKey = 12;
-    static const uint16_t defaultStateMachineIdPropertyKey = 236;
-    static const uint16_t viewModelIdPropertyKey = 583;
+  static const uint16_t originXPropertyKey = 11;
+  static const uint16_t originYPropertyKey = 12;
+  static const uint16_t defaultStateMachineIdPropertyKey = 236;
+  static const uint16_t viewModelIdPropertyKey = 583;
 
 protected:
-    float m_OriginX = 0.0f;
-    float m_OriginY = 0.0f;
-    Id m_DefaultStateMachineId = kEmptyId;
-    Id m_ViewModelId = kEmptyId;
+  float m_OriginX = 0.0f;
+  float m_OriginY = 0.0f;
+  Id m_DefaultStateMachineId = kEmptyId;
+  Id m_ViewModelId = kEmptyId;
 
 public:
-    inline float originX() const { return m_OriginX; }
-    void originX(float value)
+  inline float originX() const { return m_OriginX; }
+  void originX(float value)
+  {
+    if (m_OriginX == value)
     {
-        if (m_OriginX == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
-        m_OriginX = value;
-        RIVE_EDITOR_CHANGED(originXChanged());
-        notifyPropertyChanged(originXPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originXPropertyKey, &m_OriginX, &value);
+    m_OriginX = value;
+    RIVE_EDITOR_CHANGED(originXChanged());
+    notifyPropertyChanged(originXPropertyKey);
+  }
 
-    inline float originY() const { return m_OriginY; }
-    void originY(float value)
+  inline float originY() const { return m_OriginY; }
+  void originY(float value)
+  {
+    if (m_OriginY == value)
     {
-        if (m_OriginY == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
-        m_OriginY = value;
-        RIVE_EDITOR_CHANGED(originYChanged());
-        notifyPropertyChanged(originYPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(originYPropertyKey, &m_OriginY, &value);
+    m_OriginY = value;
+    RIVE_EDITOR_CHANGED(originYChanged());
+    notifyPropertyChanged(originYPropertyKey);
+  }
 
-    inline Id defaultStateMachineId() const { return m_DefaultStateMachineId; }
-    void defaultStateMachineId(Id value)
+  inline Id defaultStateMachineId() const { return m_DefaultStateMachineId; }
+  void defaultStateMachineId(Id value)
+  {
+    if (m_DefaultStateMachineId == value)
     {
-        if (m_DefaultStateMachineId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(defaultStateMachineIdPropertyKey,
-                             &m_DefaultStateMachineId,
-                             &value);
-        m_DefaultStateMachineId = value;
-        notifyPropertyChanged(defaultStateMachineIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(
+        defaultStateMachineIdPropertyKey,
+        &m_DefaultStateMachineId,
+        &value);
+    m_DefaultStateMachineId = value;
+    notifyPropertyChanged(defaultStateMachineIdPropertyKey);
+  }
 
-    inline Id viewModelId() const { return m_ViewModelId; }
-    void viewModelId(Id value)
+  inline Id viewModelId() const { return m_ViewModelId; }
+  void viewModelId(Id value)
+  {
+    if (m_ViewModelId == value)
     {
-        if (m_ViewModelId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
-        m_ViewModelId = value;
-        RIVE_EDITOR_CHANGED(viewModelIdChanged());
-        notifyPropertyChanged(viewModelIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(viewModelIdPropertyKey, &m_ViewModelId, &value);
+    m_ViewModelId = value;
+    RIVE_EDITOR_CHANGED(viewModelIdChanged());
+    notifyPropertyChanged(viewModelIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const ArtboardBase& object)
-    {
-        m_OriginX = object.m_OriginX;
-        m_OriginY = object.m_OriginY;
-        m_DefaultStateMachineId = object.m_DefaultStateMachineId;
-        m_ViewModelId = object.m_ViewModelId;
-        RIVE_EDITOR_COPY(object);
-        LayoutComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ArtboardBase& object)
+  {
+    m_OriginX = object.m_OriginX;
+    m_OriginY = object.m_OriginY;
+    m_DefaultStateMachineId = object.m_DefaultStateMachineId;
+    m_ViewModelId = object.m_ViewModelId;
+    RIVE_EDITOR_COPY(object);
+    LayoutComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case originXPropertyKey:
-                m_OriginX = CoreDoubleType::deserialize(reader);
-                return true;
-            case originYPropertyKey:
-                m_OriginY = CoreDoubleType::deserialize(reader);
-                return true;
-            case defaultStateMachineIdPropertyKey:
-                m_DefaultStateMachineId =
-                    CoreIdType::runtimeDeserialize(reader);
-                return true;
-            case viewModelIdPropertyKey:
-                m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return LayoutComponent::deserialize(propertyKey, reader);
+      case originXPropertyKey:
+        m_OriginX = CoreDoubleType::deserialize(reader);
+        return true;
+      case originYPropertyKey:
+        m_OriginY = CoreDoubleType::deserialize(reader);
+        return true;
+      case defaultStateMachineIdPropertyKey:
+        m_DefaultStateMachineId = CoreIdType::runtimeDeserialize(reader);
+        return true;
+      case viewModelIdPropertyKey:
+        m_ViewModelId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return LayoutComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void originXChanged() {}
-    virtual void originYChanged() {}
-    virtual void viewModelIdChanged() {}
+  virtual void originXChanged() {}
+  virtual void originYChanged() {}
+  virtual void viewModelIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/artboard_ext.inl"
 #endif

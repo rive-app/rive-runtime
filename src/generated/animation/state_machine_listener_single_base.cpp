@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* StateMachineListenerSingleBase::clone() const
 {
-    auto cloned = new StateMachineListenerSingle();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new StateMachineListenerSingle();
+  cloned->copy(*this);
+  return cloned;
 }

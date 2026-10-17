@@ -22,937 +22,986 @@ static BindingMap::Entry makeEntry(
     uint8_t stageMask = BindingMap::kStageVertex | BindingMap::kStageFragment,
     uint8_t backendSpace = 0)
 {
-    BindingMap::Entry e{};
-    e.group = group;
-    e.binding = binding;
-    e.kind = kind;
-    e.stageMask = stageMask;
-    e.backendSpace = backendSpace;
-    e.backendSlot[0] = slotVs;
-    e.backendSlot[1] = slotFs;
-    e.backendSlot[2] = slotCs;
-    return e;
+  BindingMap::Entry e{};
+  e.group = group;
+  e.binding = binding;
+  e.kind = kind;
+  e.stageMask = stageMask;
+  e.backendSpace = backendSpace;
+  e.backendSlot[0] = slotVs;
+  e.backendSlot[1] = slotFs;
+  e.backendSlot[2] = slotCs;
+  return e;
 }
 
 TEST_CASE("BindingMap lookup after finalize", "[ore_binding_map]")
 {
-    BindingMap m;
-    // Push out-of-order to verify finalize sorts.
-    m.push(makeEntry(1, 2, ResourceKind::SampledTexture, 5, 5));
-    m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1));
-    m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    m.finalize();
+  BindingMap m;
+  // Push out-of-order to verify finalize sorts.
+  m.push(makeEntry(1, 2, ResourceKind::SampledTexture, 5, 5));
+  m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1));
+  m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  m.finalize();
 
-    REQUIRE(m.size() == 3);
-    CHECK(m.at(0).group == 0);
-    CHECK(m.at(0).binding == 0);
-    CHECK(m.at(1).group == 0);
-    CHECK(m.at(1).binding == 1);
-    CHECK(m.at(2).group == 1);
-    CHECK(m.at(2).binding == 2);
+  REQUIRE(m.size() == 3);
+  CHECK(m.at(0).group == 0);
+  CHECK(m.at(0).binding == 0);
+  CHECK(m.at(1).group == 0);
+  CHECK(m.at(1).binding == 1);
+  CHECK(m.at(2).group == 1);
+  CHECK(m.at(2).binding == 2);
 
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
-          0);
-    CHECK(m.lookup(0, 1, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
-          1);
-    CHECK(m.lookup(1, 2, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
-          5);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) == 0);
+  CHECK(
+      m.lookup(0, 1, ResourceKind::UniformBuffer, BindingMap::Stage::VS) == 1);
+  CHECK(
+      m.lookup(1, 2, ResourceKind::SampledTexture, BindingMap::Stage::VS) == 5);
 
-    // Missing pair returns kAbsent.
-    CHECK(m.lookup(9, 9, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
-          BindingMap::kAbsent);
-    // Wrong kind returns kAbsent.
-    CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::VS) ==
-          BindingMap::kAbsent);
+  // Missing pair returns kAbsent.
+  CHECK(
+      m.lookup(9, 9, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
+  // Wrong kind returns kAbsent.
+  CHECK(
+      m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
 }
 
 TEST_CASE("BindingMap stage visibility", "[ore_binding_map]")
 {
-    BindingMap m;
-    // VS-only: FS lookup must return kAbsent even though an FS slot is set.
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     /*slotVs*/ 3,
-                     /*slotFs*/ BindingMap::kAbsent,
-                     /*slotCs*/ BindingMap::kAbsent,
-                     /*stageMask*/ BindingMap::kStageVertex));
-    m.finalize();
+  BindingMap m;
+  // VS-only: FS lookup must return kAbsent even though an FS slot is set.
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      /*slotVs*/ 3,
+      /*slotFs*/ BindingMap::kAbsent,
+      /*slotCs*/ BindingMap::kAbsent,
+      /*stageMask*/ BindingMap::kStageVertex));
+  m.finalize();
 
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
-          3);
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
-          BindingMap::kAbsent);
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::CS) ==
-          BindingMap::kAbsent);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) == 3);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
+      BindingMap::kAbsent);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::CS) ==
+      BindingMap::kAbsent);
 }
 
 TEST_CASE("BindingMap FS-only entry hides VS / CS", "[ore_binding_map]")
 {
-    // The FS-only case is the one the post-review sweep specifically
-    // surfaced (every flatten backend's makeBindGroup hard-coded
-    // `Stage::VS` and dropped FS-only sampled textures from the bind).
-    // A correctly-tagged FS-only entry should answer kAbsent for any
-    // VS or CS lookup regardless of whether the per-stage slot field
-    // happens to be populated.
-    BindingMap m;
-    m.push(makeEntry(2,
-                     0,
-                     ResourceKind::SampledTexture,
-                     /*slotVs*/ BindingMap::kAbsent,
-                     /*slotFs*/ 4,
-                     /*slotCs*/ BindingMap::kAbsent,
-                     /*stageMask*/ BindingMap::kStageFragment));
-    m.finalize();
+  // The FS-only case is the one the post-review sweep specifically
+  // surfaced (every flatten backend's makeBindGroup hard-coded
+  // `Stage::VS` and dropped FS-only sampled textures from the bind).
+  // A correctly-tagged FS-only entry should answer kAbsent for any
+  // VS or CS lookup regardless of whether the per-stage slot field
+  // happens to be populated.
+  BindingMap m;
+  m.push(makeEntry(
+      2,
+      0,
+      ResourceKind::SampledTexture,
+      /*slotVs*/ BindingMap::kAbsent,
+      /*slotFs*/ 4,
+      /*slotCs*/ BindingMap::kAbsent,
+      /*stageMask*/ BindingMap::kStageFragment));
+  m.finalize();
 
-    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
-          4);
-    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
-          BindingMap::kAbsent);
-    CHECK(m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) ==
-          BindingMap::kAbsent);
+  CHECK(
+      m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) == 4);
+  CHECK(
+      m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
+  CHECK(
+      m.lookup(2, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) ==
+      BindingMap::kAbsent);
 }
 
 TEST_CASE("BindingMap empty stageMask hides every stage", "[ore_binding_map]")
 {
-    // Pathological case: an entry that exists in the map (group/binding
-    // present) but advertises no stages. Every per-stage lookup must
-    // answer kAbsent, even if the per-stage slot field is populated.
-    // This protects against a future allocator bug that forgets to set
-    // stageMask while still emitting the slot.
-    BindingMap m;
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     /*slotVs*/ 9,
-                     /*slotFs*/ 9,
-                     /*slotCs*/ 9,
-                     /*stageMask*/ 0));
-    m.finalize();
+  // Pathological case: an entry that exists in the map (group/binding
+  // present) but advertises no stages. Every per-stage lookup must
+  // answer kAbsent, even if the per-stage slot field is populated.
+  // This protects against a future allocator bug that forgets to set
+  // stageMask while still emitting the slot.
+  BindingMap m;
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      /*slotVs*/ 9,
+      /*slotFs*/ 9,
+      /*slotCs*/ 9,
+      /*stageMask*/ 0));
+  m.finalize();
 
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
-          BindingMap::kAbsent);
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
-          BindingMap::kAbsent);
-    CHECK(m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::CS) ==
-          BindingMap::kAbsent);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
+      BindingMap::kAbsent);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::CS) ==
+      BindingMap::kAbsent);
 }
 
-TEST_CASE("BindingMap sampler / comparison-sampler kind collapse",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap sampler / comparison-sampler kind collapse",
+    "[ore_binding_map]")
 {
-    // Documented in `BindingMap::lookup` (ore_binding_map.hpp): the
-    // runtime bind API has a single "sampler" category, so a query for
-    // either `Sampler` or `ComparisonSampler` must match an entry of
-    // either kind. Without this collapse, a shadow sampler (declared
-    // as `sampler_comparison` in WGSL → `ComparisonSampler` in the map)
-    // would be invisible to the runtime's `Sampler` lookup and the
-    // bind would fail.
-    {
-        BindingMap m;
-        m.push(makeEntry(0,
-                         0,
-                         ResourceKind::ComparisonSampler,
-                         /*slotVs*/ 7,
-                         /*slotFs*/ 7));
-        m.finalize();
+  // Documented in `BindingMap::lookup` (ore_binding_map.hpp): the
+  // runtime bind API has a single "sampler" category, so a query for
+  // either `Sampler` or `ComparisonSampler` must match an entry of
+  // either kind. Without this collapse, a shadow sampler (declared
+  // as `sampler_comparison` in WGSL → `ComparisonSampler` in the map)
+  // would be invisible to the runtime's `Sampler` lookup and the
+  // bind would fail.
+  {
+    BindingMap m;
+    m.push(makeEntry(
+        0,
+        0,
+        ResourceKind::ComparisonSampler,
+        /*slotVs*/ 7,
+        /*slotFs*/ 7));
+    m.finalize();
 
-        // Query as ComparisonSampler — direct match.
-        CHECK(m.lookup(0,
-                       0,
-                       ResourceKind::ComparisonSampler,
-                       BindingMap::Stage::FS) == 7);
-        // Query as Sampler — must collapse and return the same slot.
-        CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) ==
-              7);
-        // Non-sampler kind must NOT collapse.
-        CHECK(m.lookup(0,
-                       0,
-                       ResourceKind::SampledTexture,
-                       BindingMap::Stage::FS) == BindingMap::kAbsent);
-        CHECK(m.lookup(0,
-                       0,
-                       ResourceKind::UniformBuffer,
-                       BindingMap::Stage::FS) == BindingMap::kAbsent);
-    }
-    {
-        // Reverse: entry kind = Sampler, query as ComparisonSampler must
-        // also collapse. The runtime's bind-API category is symmetric.
-        BindingMap m;
-        m.push(makeEntry(0,
-                         0,
-                         ResourceKind::Sampler,
-                         /*slotVs*/ 2,
-                         /*slotFs*/ 2));
-        m.finalize();
+    // Query as ComparisonSampler — direct match.
+    CHECK(
+        m.lookup(
+            0,
+            0,
+            ResourceKind::ComparisonSampler,
+            BindingMap::Stage::FS) == 7);
+    // Query as Sampler — must collapse and return the same slot.
+    CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) == 7);
+    // Non-sampler kind must NOT collapse.
+    CHECK(
+        m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
+        BindingMap::kAbsent);
+    CHECK(
+        m.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
+        BindingMap::kAbsent);
+  }
+  {
+    // Reverse: entry kind = Sampler, query as ComparisonSampler must
+    // also collapse. The runtime's bind-API category is symmetric.
+    BindingMap m;
+    m.push(makeEntry(
+        0,
+        0,
+        ResourceKind::Sampler,
+        /*slotVs*/ 2,
+        /*slotFs*/ 2));
+    m.finalize();
 
-        CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) ==
-              2);
-        CHECK(m.lookup(0,
-                       0,
-                       ResourceKind::ComparisonSampler,
-                       BindingMap::Stage::FS) == 2);
-    }
+    CHECK(m.lookup(0, 0, ResourceKind::Sampler, BindingMap::Stage::FS) == 2);
+    CHECK(
+        m.lookup(
+            0,
+            0,
+            ResourceKind::ComparisonSampler,
+            BindingMap::Stage::FS) == 2);
+  }
 }
 
 TEST_CASE("BindingMap per-stage slots can disagree", "[ore_binding_map]")
 {
-    // Per-stage backend counters mean a single (group, binding) can carry
-    // distinct slot values for VS vs FS (Metal and D3D11 use a truly
-    // per-stage allocator). The lookup API must return the correct stage's
-    // slot, not collapse them. Today's v1 allocator stamps the same slot
-    // to all stages; this test locks the lookup contract so the v2
-    // allocator landing doesn't need a contemporaneous lookup-API change.
-    BindingMap m;
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::SampledTexture,
-                     /*slotVs*/ 1,
-                     /*slotFs*/ 4,
-                     /*slotCs*/ 9,
-                     /*stageMask*/ BindingMap::kStageVertex |
-                         BindingMap::kStageFragment |
-                         BindingMap::kStageCompute));
-    m.finalize();
+  // Per-stage backend counters mean a single (group, binding) can carry
+  // distinct slot values for VS vs FS (Metal and D3D11 use a truly
+  // per-stage allocator). The lookup API must return the correct stage's
+  // slot, not collapse them. Today's v1 allocator stamps the same slot
+  // to all stages; this test locks the lookup contract so the v2
+  // allocator landing doesn't need a contemporaneous lookup-API change.
+  BindingMap m;
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::SampledTexture,
+      /*slotVs*/ 1,
+      /*slotFs*/ 4,
+      /*slotCs*/ 9,
+      /*stageMask*/ BindingMap::kStageVertex | BindingMap::kStageFragment |
+          BindingMap::kStageCompute));
+  m.finalize();
 
-    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
-          1);
-    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
-          4);
-    CHECK(m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) ==
-          9);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::VS) == 1);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::FS) == 4);
+  CHECK(
+      m.lookup(0, 0, ResourceKind::SampledTexture, BindingMap::Stage::CS) == 9);
 }
 
 TEST_CASE("BindingMap toBlob / fromBlob round-trip", "[ore_binding_map]")
 {
-    BindingMap original;
-    BindingMap::Entry sized =
-        makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
-    sized.minBindingSize = 192;
-    original.push(sized);
-    original.push(makeEntry(0,
-                            7,
-                            ResourceKind::UniformBuffer,
-                            1,
-                            1,
-                            /*slotCs*/ BindingMap::kAbsent,
-                            /*stageMask*/ BindingMap::kStageVertex |
-                                BindingMap::kStageFragment,
-                            /*backendSpace*/ 0));
-    original.push(makeEntry(2,
-                            0,
-                            ResourceKind::SampledTexture,
-                            5,
-                            5,
-                            /*slotCs*/ BindingMap::kAbsent,
-                            /*stageMask*/ BindingMap::kStageFragment,
-                            /*backendSpace*/ 2));
-    original.finalize();
+  BindingMap original;
+  BindingMap::Entry sized = makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
+  sized.minBindingSize = 192;
+  original.push(sized);
+  original.push(makeEntry(
+      0,
+      7,
+      ResourceKind::UniformBuffer,
+      1,
+      1,
+      /*slotCs*/ BindingMap::kAbsent,
+      /*stageMask*/ BindingMap::kStageVertex | BindingMap::kStageFragment,
+      /*backendSpace*/ 0));
+  original.push(makeEntry(
+      2,
+      0,
+      ResourceKind::SampledTexture,
+      5,
+      5,
+      /*slotCs*/ BindingMap::kAbsent,
+      /*stageMask*/ BindingMap::kStageFragment,
+      /*backendSpace*/ 2));
+  original.finalize();
 
-    std::vector<uint8_t> blob = original.toBlob();
-    // Header: 12 bytes. Each entry: 18 bytes. No layout ids computed here,
-    // so no group rows. Total: 12 + 3*18 = 66.
-    REQUIRE(blob.size() == 66);
-    CHECK(blob[0] == BindingMap::kBlobVersion);
-    CHECK(blob[1] == BindingMap::kAllocatorVersion);
-    // entry_size = 18 (little-endian).
-    CHECK(blob[2] == 18);
-    CHECK(blob[3] == 0);
-    // entry_count = 3.
-    CHECK(blob[4] == 3);
-    CHECK(blob[5] == 0);
-    CHECK(blob[6] == 0);
-    CHECK(blob[7] == 0);
-    // group_size = 9, group_count = 0.
-    CHECK(blob[8] == 9);
-    CHECK(blob[9] == 0);
-    CHECK(blob[10] == 0);
-    CHECK(blob[11] == 0);
+  std::vector<uint8_t> blob = original.toBlob();
+  // Header: 12 bytes. Each entry: 18 bytes. No layout ids computed here,
+  // so no group rows. Total: 12 + 3*18 = 66.
+  REQUIRE(blob.size() == 66);
+  CHECK(blob[0] == BindingMap::kBlobVersion);
+  CHECK(blob[1] == BindingMap::kAllocatorVersion);
+  // entry_size = 18 (little-endian).
+  CHECK(blob[2] == 18);
+  CHECK(blob[3] == 0);
+  // entry_count = 3.
+  CHECK(blob[4] == 3);
+  CHECK(blob[5] == 0);
+  CHECK(blob[6] == 0);
+  CHECK(blob[7] == 0);
+  // group_size = 9, group_count = 0.
+  CHECK(blob[8] == 9);
+  CHECK(blob[9] == 0);
+  CHECK(blob[10] == 0);
+  CHECK(blob[11] == 0);
 
-    BindingMap restored;
-    REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
-    REQUIRE(restored.size() == 3);
+  BindingMap restored;
+  REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
+  REQUIRE(restored.size() == 3);
 
-    // Round-trip preserves every field.
-    for (size_t i = 0; i < original.size(); ++i)
-    {
-        const auto& a = original.at(i);
-        const auto& b = restored.at(i);
-        CHECK(a.group == b.group);
-        CHECK(a.binding == b.binding);
-        CHECK(a.kind == b.kind);
-        CHECK(a.stageMask == b.stageMask);
-        CHECK(a.backendSpace == b.backendSpace);
-        CHECK(a.backendSlot[0] == b.backendSlot[0]);
-        CHECK(a.backendSlot[1] == b.backendSlot[1]);
-        CHECK(a.backendSlot[2] == b.backendSlot[2]);
-        CHECK(a.minBindingSize == b.minBindingSize);
-    }
+  // Round-trip preserves every field.
+  for (size_t i = 0; i < original.size(); ++i)
+  {
+    const auto& a = original.at(i);
+    const auto& b = restored.at(i);
+    CHECK(a.group == b.group);
+    CHECK(a.binding == b.binding);
+    CHECK(a.kind == b.kind);
+    CHECK(a.stageMask == b.stageMask);
+    CHECK(a.backendSpace == b.backendSpace);
+    CHECK(a.backendSlot[0] == b.backendSlot[0]);
+    CHECK(a.backendSlot[1] == b.backendSlot[1]);
+    CHECK(a.backendSlot[2] == b.backendSlot[2]);
+    CHECK(a.minBindingSize == b.minBindingSize);
+  }
 }
 
 TEST_CASE("BindingMap rejects bad blob version", "[ore_binding_map]")
 {
-    BindingMap source;
-    source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    source.finalize();
-    std::vector<uint8_t> blob = source.toBlob();
+  BindingMap source;
+  source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  source.finalize();
+  std::vector<uint8_t> blob = source.toBlob();
 
-    BindingMap out;
+  BindingMap out;
 
-    // Null / too small.
-    CHECK_FALSE(BindingMap::fromBlob(nullptr, 0, &out));
-    CHECK_FALSE(BindingMap::fromBlob(blob.data(), 4, &out));
+  // Null / too small.
+  CHECK_FALSE(BindingMap::fromBlob(nullptr, 0, &out));
+  CHECK_FALSE(BindingMap::fromBlob(blob.data(), 4, &out));
 
-    // Bad blob version, fail loud rather than fall back.
-    std::vector<uint8_t> badBlobVer = blob;
-    badBlobVer[0] = BindingMap::kBlobVersion + 1;
-    CHECK_FALSE(
-        BindingMap::fromBlob(badBlobVer.data(), badBlobVer.size(), &out));
+  // Bad blob version, fail loud rather than fall back.
+  std::vector<uint8_t> badBlobVer = blob;
+  badBlobVer[0] = BindingMap::kBlobVersion + 1;
+  CHECK_FALSE(BindingMap::fromBlob(badBlobVer.data(), badBlobVer.size(), &out));
 
-    // Bad allocator version → fail loud.
-    std::vector<uint8_t> badAllocVer = blob;
-    badAllocVer[1] = BindingMap::kAllocatorVersion + 1;
-    CHECK_FALSE(
-        BindingMap::fromBlob(badAllocVer.data(), badAllocVer.size(), &out));
+  // Bad allocator version → fail loud.
+  std::vector<uint8_t> badAllocVer = blob;
+  badAllocVer[1] = BindingMap::kAllocatorVersion + 1;
+  CHECK_FALSE(
+      BindingMap::fromBlob(badAllocVer.data(), badAllocVer.size(), &out));
 }
 
 TEST_CASE("BindingMap rejects truncated blob", "[ore_binding_map]")
 {
-    BindingMap source;
-    source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    source.push(makeEntry(1, 0, ResourceKind::SampledTexture, 0, 0));
-    source.finalize();
-    std::vector<uint8_t> blob = source.toBlob();
+  BindingMap source;
+  source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  source.push(makeEntry(1, 0, ResourceKind::SampledTexture, 0, 0));
+  source.finalize();
+  std::vector<uint8_t> blob = source.toBlob();
 
-    BindingMap out;
-    REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &out));
+  BindingMap out;
+  REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &out));
 
-    // Drop the last byte → size mismatch → fail.
-    CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size() - 1, &out));
+  // Drop the last byte → size mismatch → fail.
+  CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size() - 1, &out));
 }
 
-TEST_CASE("BindingMap forward-compat: larger entry_size parses OK",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap forward-compat: larger entry_size parses OK",
+    "[ore_binding_map]")
 {
-    BindingMap source;
-    source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    source.finalize();
-    std::vector<uint8_t> blob = source.toBlob();
+  BindingMap source;
+  source.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  source.finalize();
+  std::vector<uint8_t> blob = source.toBlob();
 
-    // Read the writer's entry_size out of the real blob so the test stays
-    // meaningful as the wire format grows. Synthesize a "future" blob
-    // that's `kExtraTrailing` bytes longer per entry; the reader should
-    // accept it by skipping the unknown tail.
-    const uint16_t currentEntrySize =
-        static_cast<uint16_t>(blob[2]) | (static_cast<uint16_t>(blob[3]) << 8);
-    constexpr uint16_t kExtraTrailing = 4;
-    const uint16_t futureEntrySize = currentEntrySize + kExtraTrailing;
+  // Read the writer's entry_size out of the real blob so the test stays
+  // meaningful as the wire format grows. Synthesize a "future" blob
+  // that's `kExtraTrailing` bytes longer per entry; the reader should
+  // accept it by skipping the unknown tail.
+  const uint16_t currentEntrySize = static_cast<uint16_t>(blob[2]) |
+                                    (static_cast<uint16_t>(blob[3]) << 8);
+  constexpr uint16_t kExtraTrailing = 4;
+  const uint16_t futureEntrySize = currentEntrySize + kExtraTrailing;
 
-    constexpr size_t kHeader = 12;
-    std::vector<uint8_t> futureBlob(kHeader + 1 * futureEntrySize);
-    futureBlob[0] = BindingMap::kBlobVersion;
-    futureBlob[1] = BindingMap::kAllocatorVersion;
-    futureBlob[2] = static_cast<uint8_t>(futureEntrySize & 0xFF);
-    futureBlob[3] = static_cast<uint8_t>((futureEntrySize >> 8) & 0xFF);
-    futureBlob[4] = 1; // entry_count LE
-    futureBlob[8] = 9; // group_size LE, group_count stays 0
-    // Copy the current entry verbatim, then append unknown trailing bytes.
-    std::memcpy(futureBlob.data() + kHeader,
-                blob.data() + kHeader,
-                currentEntrySize);
-    for (uint16_t i = 0; i < kExtraTrailing; ++i)
-        futureBlob[kHeader + currentEntrySize + i] = 0xFF;
+  constexpr size_t kHeader = 12;
+  std::vector<uint8_t> futureBlob(kHeader + 1 * futureEntrySize);
+  futureBlob[0] = BindingMap::kBlobVersion;
+  futureBlob[1] = BindingMap::kAllocatorVersion;
+  futureBlob[2] = static_cast<uint8_t>(futureEntrySize & 0xFF);
+  futureBlob[3] = static_cast<uint8_t>((futureEntrySize >> 8) & 0xFF);
+  futureBlob[4] = 1; // entry_count LE
+  futureBlob[8] = 9; // group_size LE, group_count stays 0
+  // Copy the current entry verbatim, then append unknown trailing bytes.
+  std::memcpy(
+      futureBlob.data() + kHeader,
+      blob.data() + kHeader,
+      currentEntrySize);
+  for (uint16_t i = 0; i < kExtraTrailing; ++i)
+    futureBlob[kHeader + currentEntrySize + i] = 0xFF;
 
-    BindingMap out;
-    REQUIRE(BindingMap::fromBlob(futureBlob.data(), futureBlob.size(), &out));
-    REQUIRE(out.size() == 1);
-    CHECK(out.at(0).group == 0);
-    CHECK(out.at(0).binding == 0);
-    CHECK(out.at(0).kind == ResourceKind::UniformBuffer);
+  BindingMap out;
+  REQUIRE(BindingMap::fromBlob(futureBlob.data(), futureBlob.size(), &out));
+  REQUIRE(out.size() == 1);
+  CHECK(out.at(0).group == 0);
+  CHECK(out.at(0).binding == 0);
+  CHECK(out.at(0).kind == ResourceKind::UniformBuffer);
 }
 
-TEST_CASE("BindingMap forward-compat: smaller entry_size rejected",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap forward-compat: smaller entry_size rejected",
+    "[ore_binding_map]")
 {
-    // A blob claiming entry_size below the reader's known prefix would
-    // mean the writer omitted a field the reader needs — reject loudly
-    // rather than misinterpret.
-    std::vector<uint8_t> blob(12);
-    blob[0] = BindingMap::kBlobVersion;
-    blob[1] = BindingMap::kAllocatorVersion;
-    blob[2] = 10; // entry_size = 10, below the oldest accepted layout (14)
-    blob[3] = 0;
-    blob[4] = 0; // entry_count = 0 (so no actual payload needed)
-    blob[5] = 0;
-    blob[6] = 0;
-    blob[7] = 0;
-    blob[8] = 9; // group_size
-    blob[9] = 0;
-    blob[10] = 0; // group_count = 0
-    blob[11] = 0;
+  // A blob claiming entry_size below the reader's known prefix would
+  // mean the writer omitted a field the reader needs — reject loudly
+  // rather than misinterpret.
+  std::vector<uint8_t> blob(12);
+  blob[0] = BindingMap::kBlobVersion;
+  blob[1] = BindingMap::kAllocatorVersion;
+  blob[2] = 10; // entry_size = 10, below the oldest accepted layout (14)
+  blob[3] = 0;
+  blob[4] = 0; // entry_count = 0 (so no actual payload needed)
+  blob[5] = 0;
+  blob[6] = 0;
+  blob[7] = 0;
+  blob[8] = 9; // group_size
+  blob[9] = 0;
+  blob[10] = 0; // group_count = 0
+  blob[11] = 0;
 
-    BindingMap out;
-    CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size(), &out));
+  BindingMap out;
+  CHECK_FALSE(BindingMap::fromBlob(blob.data(), blob.size(), &out));
 }
 
-TEST_CASE("BindingMap layout ids round-trip and are structural",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap layout ids round-trip and are structural",
+    "[ore_binding_map]")
 {
-    auto build = [](uint8_t binding) {
-        BindingMap m;
-        m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-        m.push(makeEntry(1, binding, ResourceKind::SampledTexture, 3, 3));
-        m.finalize();
-        m.computeLayoutIds();
-        return m;
-    };
+  auto build = [](uint8_t binding) {
+    BindingMap m;
+    m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+    m.push(makeEntry(1, binding, ResourceKind::SampledTexture, 3, 3));
+    m.finalize();
+    m.computeLayoutIds();
+    return m;
+  };
 
-    BindingMap a = build(1);
-    REQUIRE(a.groupLayoutCount() == 2);
-    CHECK(a.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
-    CHECK(a.layoutIdForGroup(1) != BindingMap::kNoLayoutId);
-    CHECK(a.layoutIdForGroup(0) != a.layoutIdForGroup(1));
-    // A group the map never mentions has no baked identity.
-    CHECK(a.layoutIdForGroup(2) == BindingMap::kNoLayoutId);
+  BindingMap a = build(1);
+  REQUIRE(a.groupLayoutCount() == 2);
+  CHECK(a.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
+  CHECK(a.layoutIdForGroup(1) != BindingMap::kNoLayoutId);
+  CHECK(a.layoutIdForGroup(0) != a.layoutIdForGroup(1));
+  // A group the map never mentions has no baked identity.
+  CHECK(a.layoutIdForGroup(2) == BindingMap::kNoLayoutId);
 
-    // Independently built but identical, so the ids must match. This is
-    // what lets two shaders share one layout.
-    BindingMap same = build(1);
-    CHECK(same.layoutIdForGroup(0) == a.layoutIdForGroup(0));
-    CHECK(same.layoutIdForGroup(1) == a.layoutIdForGroup(1));
+  // Independently built but identical, so the ids must match. This is
+  // what lets two shaders share one layout.
+  BindingMap same = build(1);
+  CHECK(same.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+  CHECK(same.layoutIdForGroup(1) == a.layoutIdForGroup(1));
 
-    // Differing reflection must not collide.
-    BindingMap other = build(2);
-    CHECK(other.layoutIdForGroup(1) != a.layoutIdForGroup(1));
-    // Group 0 is untouched by the change, so it still shares.
-    CHECK(other.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+  // Differing reflection must not collide.
+  BindingMap other = build(2);
+  CHECK(other.layoutIdForGroup(1) != a.layoutIdForGroup(1));
+  // Group 0 is untouched by the change, so it still shares.
+  CHECK(other.layoutIdForGroup(0) == a.layoutIdForGroup(0));
 
-    std::vector<uint8_t> blob = a.toBlob();
-    BindingMap restored;
-    REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
-    CHECK(restored.layoutIdForGroup(0) == a.layoutIdForGroup(0));
-    CHECK(restored.layoutIdForGroup(1) == a.layoutIdForGroup(1));
+  std::vector<uint8_t> blob = a.toBlob();
+  BindingMap restored;
+  REQUIRE(BindingMap::fromBlob(blob.data(), blob.size(), &restored));
+  CHECK(restored.layoutIdForGroup(0) == a.layoutIdForGroup(0));
+  CHECK(restored.layoutIdForGroup(1) == a.layoutIdForGroup(1));
 }
 
-TEST_CASE("BindingMap legacy 14 byte entries parse with no minimum",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap legacy 14 byte entries parse with no minimum",
+    "[ore_binding_map]")
 {
-    BindingMap::Entry sized =
-        makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1);
-    sized.minBindingSize = 208;
-    BindingMap source;
-    source.push(sized);
-    source.finalize();
-    std::vector<uint8_t> blob = source.toBlob();
+  BindingMap::Entry sized = makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 1);
+  sized.minBindingSize = 208;
+  BindingMap source;
+  source.push(sized);
+  source.finalize();
+  std::vector<uint8_t> blob = source.toBlob();
 
-    // Rewrite the blob the way a pre-minBindingSize baker laid it out.
-    constexpr size_t kHeader = 12;
-    constexpr uint16_t kLegacyEntrySize = 14;
-    std::vector<uint8_t> legacy(kHeader + kLegacyEntrySize);
-    std::memcpy(legacy.data(), blob.data(), kHeader + kLegacyEntrySize);
-    legacy[2] = kLegacyEntrySize;
-    legacy[3] = 0;
+  // Rewrite the blob the way a pre-minBindingSize baker laid it out.
+  constexpr size_t kHeader = 12;
+  constexpr uint16_t kLegacyEntrySize = 14;
+  std::vector<uint8_t> legacy(kHeader + kLegacyEntrySize);
+  std::memcpy(legacy.data(), blob.data(), kHeader + kLegacyEntrySize);
+  legacy[2] = kLegacyEntrySize;
+  legacy[3] = 0;
 
-    BindingMap out;
-    REQUIRE(BindingMap::fromBlob(legacy.data(), legacy.size(), &out));
-    REQUIRE(out.size() == 1);
-    CHECK(out.at(0).binding == 1);
-    CHECK(out.at(0).minBindingSize == 0);
+  BindingMap out;
+  REQUIRE(BindingMap::fromBlob(legacy.data(), legacy.size(), &out));
+  REQUIRE(out.size() == 1);
+  CHECK(out.at(0).binding == 1);
+  CHECK(out.at(0).minBindingSize == 0);
 }
 
-TEST_CASE("BindingMap layout ids cover the uniform block size",
-          "[ore_binding_map]")
+TEST_CASE(
+    "BindingMap layout ids cover the uniform block size",
+    "[ore_binding_map]")
 {
-    auto build = [](uint32_t minBindingSize) {
-        BindingMap m;
-        BindingMap::Entry e =
-            makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
-        e.minBindingSize = minBindingSize;
-        m.push(e);
-        m.finalize();
-        m.computeLayoutIds();
-        return m;
-    };
-    CHECK(build(160).layoutIdForGroup(0) == build(160).layoutIdForGroup(0));
-    CHECK(build(160).layoutIdForGroup(0) != build(192).layoutIdForGroup(0));
+  auto build = [](uint32_t minBindingSize) {
+    BindingMap m;
+    BindingMap::Entry e = makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0);
+    e.minBindingSize = minBindingSize;
+    m.push(e);
+    m.finalize();
+    m.computeLayoutIds();
+    return m;
+  };
+  CHECK(build(160).layoutIdForGroup(0) == build(160).layoutIdForGroup(0));
+  CHECK(build(160).layoutIdForGroup(0) != build(192).layoutIdForGroup(0));
 }
 
-TEST_CASE("replaceStage keeps the larger uniform block size",
-          "[ore_binding_map]")
+TEST_CASE(
+    "replaceStage keeps the larger uniform block size",
+    "[ore_binding_map]")
 {
-    BindingMap::Entry vs = makeEntry(0,
-                                     0,
-                                     ResourceKind::UniformBuffer,
-                                     0,
-                                     BindingMap::kAbsent,
-                                     BindingMap::kAbsent,
-                                     BindingMap::kStageVertex);
-    vs.minBindingSize = 160;
-    BindingMap vertex;
-    vertex.push(vs);
-    vertex.finalize();
+  BindingMap::Entry vs = makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kAbsent,
+      BindingMap::kStageVertex);
+  vs.minBindingSize = 160;
+  BindingMap vertex;
+  vertex.push(vs);
+  vertex.finalize();
 
-    BindingMap::Entry fs = makeEntry(0,
-                                     0,
-                                     ResourceKind::UniformBuffer,
-                                     BindingMap::kAbsent,
-                                     0,
-                                     BindingMap::kAbsent,
-                                     BindingMap::kStageFragment);
-    fs.minBindingSize = 192;
-    BindingMap fragment;
-    fragment.push(fs);
-    fragment.finalize();
+  BindingMap::Entry fs = makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment);
+  fs.minBindingSize = 192;
+  BindingMap fragment;
+  fragment.push(fs);
+  fragment.finalize();
 
-    vertex.replaceStage(fragment, BindingMap::Stage::FS);
-    REQUIRE(vertex.size() == 1);
-    CHECK(vertex.at(0).minBindingSize == 192);
+  vertex.replaceStage(fragment, BindingMap::Stage::FS);
+  REQUIRE(vertex.size() == 1);
+  CHECK(vertex.at(0).minBindingSize == 192);
 }
 
-TEST_CASE("validateStagesAgree rejects differing uniform block sizes",
-          "[ore_binding_map]")
+TEST_CASE(
+    "validateStagesAgree rejects differing uniform block sizes",
+    "[ore_binding_map]")
 {
-    auto build = [](uint32_t minBindingSize, uint8_t stage) {
-        BindingMap m;
-        BindingMap::Entry e = makeEntry(0,
-                                        0,
-                                        ResourceKind::UniformBuffer,
-                                        0,
-                                        0,
-                                        BindingMap::kAbsent,
-                                        stage);
-        e.minBindingSize = minBindingSize;
-        m.push(e);
-        m.finalize();
-        return m;
-    };
-    std::string err;
-    CHECK(validateStagesAgree(build(192, BindingMap::kStageVertex),
-                              build(192, BindingMap::kStageFragment),
-                              &err));
-    // A stage that never reflected a size does not disagree.
-    CHECK(validateStagesAgree(build(0, BindingMap::kStageVertex),
-                              build(192, BindingMap::kStageFragment),
-                              &err));
-    CHECK_FALSE(validateStagesAgree(build(160, BindingMap::kStageVertex),
-                                    build(192, BindingMap::kStageFragment),
-                                    &err));
-    CHECK(err.find("uniform block size") != std::string::npos);
+  auto build = [](uint32_t minBindingSize, uint8_t stage) {
+    BindingMap m;
+    BindingMap::Entry e = makeEntry(
+        0,
+        0,
+        ResourceKind::UniformBuffer,
+        0,
+        0,
+        BindingMap::kAbsent,
+        stage);
+    e.minBindingSize = minBindingSize;
+    m.push(e);
+    m.finalize();
+    return m;
+  };
+  std::string err;
+  CHECK(validateStagesAgree(
+      build(192, BindingMap::kStageVertex),
+      build(192, BindingMap::kStageFragment),
+      &err));
+  // A stage that never reflected a size does not disagree.
+  CHECK(validateStagesAgree(
+      build(0, BindingMap::kStageVertex),
+      build(192, BindingMap::kStageFragment),
+      &err));
+  CHECK_FALSE(validateStagesAgree(
+      build(160, BindingMap::kStageVertex),
+      build(192, BindingMap::kStageFragment),
+      &err));
+  CHECK(err.find("uniform block size") != std::string::npos);
 }
 
 namespace
 {
 struct TestLayout : public BindGroupLayout
 {
-    TestLayout(uint32_t group, std::vector<BindGroupLayoutEntry> entries)
-    {
-        m_groupIndex = group;
-        m_entries = std::move(entries);
-    }
+  TestLayout(uint32_t group, std::vector<BindGroupLayoutEntry> entries)
+  {
+    m_groupIndex = group;
+    m_entries = std::move(entries);
+  }
 };
 
 struct TestBuffer : public Buffer
 {
-    explicit TestBuffer(uint32_t size) : Buffer(size, BufferUsage::uniform) {}
-    void update(const void*, uint32_t, uint32_t) override {}
+  explicit TestBuffer(uint32_t size) : Buffer(size, BufferUsage::uniform) {}
+  void update(const void*, uint32_t, uint32_t) override {}
 };
 
 BindGroupLayoutEntry uboEntry(uint32_t binding, uint32_t minBindingSize)
 {
-    BindGroupLayoutEntry e;
-    e.binding = binding;
-    e.kind = BindingKind::uniformBuffer;
-    e.minBindingSize = minBindingSize;
-    return e;
+  BindGroupLayoutEntry e;
+  e.binding = binding;
+  e.kind = BindingKind::uniformBuffer;
+  e.minBindingSize = minBindingSize;
+  return e;
 }
 } // namespace
 
-TEST_CASE("validateBindGroupDesc rejects a UBO shorter than the block",
-          "[ore_binding_map]")
+TEST_CASE(
+    "validateBindGroupDesc rejects a UBO shorter than the block",
+    "[ore_binding_map]")
 {
-    TestLayout layout(0, {uboEntry(0, 208), uboEntry(1, 192)});
-    TestBuffer camera(208);
-    TestBuffer model(160);
-    TestBuffer models(1024);
+  TestLayout layout(0, {uboEntry(0, 208), uboEntry(1, 192)});
+  TestBuffer camera(208);
+  TestBuffer model(160);
+  TestBuffer models(1024);
 
-    BindGroupDesc::UBOEntry ubos[2] = {};
-    ubos[0].slot = 0;
-    ubos[0].buffer = &camera;
-    ubos[1].slot = 1;
-    ubos[1].buffer = &model;
-    BindGroupDesc desc;
-    desc.layout = &layout;
-    desc.ubos = ubos;
-    desc.uboCount = 2;
+  BindGroupDesc::UBOEntry ubos[2] = {};
+  ubos[0].slot = 0;
+  ubos[0].buffer = &camera;
+  ubos[1].slot = 1;
+  ubos[1].buffer = &model;
+  BindGroupDesc desc;
+  desc.layout = &layout;
+  desc.ubos = ubos;
+  desc.uboCount = 2;
 
-    std::string err;
-    // The whole 160 byte buffer is bound against a 192 byte block.
-    CHECK_FALSE(validateBindGroupDesc(desc, &err));
-    CHECK(err.find("@binding(1)") != std::string::npos);
-    CHECK(err.find("160") != std::string::npos);
-    CHECK(err.find("192") != std::string::npos);
+  std::string err;
+  // The whole 160 byte buffer is bound against a 192 byte block.
+  CHECK_FALSE(validateBindGroupDesc(desc, &err));
+  CHECK(err.find("@binding(1)") != std::string::npos);
+  CHECK(err.find("160") != std::string::npos);
+  CHECK(err.find("192") != std::string::npos);
 
-    // A big enough buffer passes, whole or as an explicit range.
-    ubos[1].buffer = &models;
-    CHECK(validateBindGroupDesc(desc, &err));
-    ubos[1].offset = 256;
-    ubos[1].size = 192;
-    CHECK(validateBindGroupDesc(desc, &err));
+  // A big enough buffer passes, whole or as an explicit range.
+  ubos[1].buffer = &models;
+  CHECK(validateBindGroupDesc(desc, &err));
+  ubos[1].offset = 256;
+  ubos[1].size = 192;
+  CHECK(validateBindGroupDesc(desc, &err));
 
-    // An explicit range shorter than the block fails even in a big buffer.
-    ubos[1].size = 160;
-    CHECK_FALSE(validateBindGroupDesc(desc, &err));
-    CHECK(err.find("160") != std::string::npos);
+  // An explicit range shorter than the block fails even in a big buffer.
+  ubos[1].size = 160;
+  CHECK_FALSE(validateBindGroupDesc(desc, &err));
+  CHECK(err.find("160") != std::string::npos);
 
-    // A range past the end of the buffer fails before the size check.
-    ubos[1].offset = 1024;
-    ubos[1].size = 192;
-    CHECK_FALSE(validateBindGroupDesc(desc, &err));
-    CHECK(err.find("exceeds") != std::string::npos);
+  // A range past the end of the buffer fails before the size check.
+  ubos[1].offset = 1024;
+  ubos[1].size = 192;
+  CHECK_FALSE(validateBindGroupDesc(desc, &err));
+  CHECK(err.find("exceeds") != std::string::npos);
 
-    // No reflected minimum means no check, so old bakes keep working.
-    TestLayout unsized(0, {uboEntry(1, 0)});
-    desc.layout = &unsized;
-    ubos[1].offset = 0;
-    ubos[1].size = 0;
-    ubos[1].buffer = &model;
-    desc.ubos = &ubos[1];
-    desc.uboCount = 1;
-    CHECK(validateBindGroupDesc(desc, &err));
+  // No reflected minimum means no check, so old bakes keep working.
+  TestLayout unsized(0, {uboEntry(1, 0)});
+  desc.layout = &unsized;
+  ubos[1].offset = 0;
+  ubos[1].size = 0;
+  ubos[1].buffer = &model;
+  desc.ubos = &ubos[1];
+  desc.uboCount = 1;
+  CHECK(validateBindGroupDesc(desc, &err));
 }
 
 TEST_CASE("ResourceKind numeric values are frozen", "[ore_binding_map]")
 {
-    // Never renumber. Locks the on-disk RSTB schema.
-    CHECK(static_cast<uint8_t>(ResourceKind::UniformBuffer) == 0);
-    CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRO) == 1);
-    CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRW) == 2);
-    CHECK(static_cast<uint8_t>(ResourceKind::SampledTexture) == 3);
-    CHECK(static_cast<uint8_t>(ResourceKind::StorageTexture) == 4);
-    CHECK(static_cast<uint8_t>(ResourceKind::Sampler) == 5);
-    CHECK(static_cast<uint8_t>(ResourceKind::ComparisonSampler) == 6);
+  // Never renumber. Locks the on-disk RSTB schema.
+  CHECK(static_cast<uint8_t>(ResourceKind::UniformBuffer) == 0);
+  CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRO) == 1);
+  CHECK(static_cast<uint8_t>(ResourceKind::StorageBufferRW) == 2);
+  CHECK(static_cast<uint8_t>(ResourceKind::SampledTexture) == 3);
+  CHECK(static_cast<uint8_t>(ResourceKind::StorageTexture) == 4);
+  CHECK(static_cast<uint8_t>(ResourceKind::Sampler) == 5);
+  CHECK(static_cast<uint8_t>(ResourceKind::ComparisonSampler) == 6);
 }
 
 TEST_CASE("lookupBackendSlot helper", "[ore_binding_map]")
 {
-    BindingMap m;
-    m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 7, 7));
-    m.finalize();
-    CHECK(lookupBackendSlot(m,
-                            0,
-                            0,
-                            ResourceKind::UniformBuffer,
-                            BindingMap::Stage::VS) == 7);
-    CHECK(lookupBackendSlot(m,
-                            0,
-                            0,
-                            ResourceKind::UniformBuffer,
-                            BindingMap::Stage::FS) == 7);
+  BindingMap m;
+  m.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 7, 7));
+  m.finalize();
+  CHECK(
+      lookupBackendSlot(
+          m,
+          0,
+          0,
+          ResourceKind::UniformBuffer,
+          BindingMap::Stage::VS) == 7);
+  CHECK(
+      lookupBackendSlot(
+          m,
+          0,
+          0,
+          ResourceKind::UniformBuffer,
+          BindingMap::Stage::FS) == 7);
 }
 
-TEST_CASE("replaceStage takes the fragment stage from the other map",
-          "[ore_binding_map]")
+TEST_CASE(
+    "replaceStage takes the fragment stage from the other map",
+    "[ore_binding_map]")
 {
-    // Vertex file: a UBO both stages read, plus a vertex-only texture.
-    BindingMap vertex;
-    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    vertex.push(makeEntry(0,
-                          1,
-                          ResourceKind::SampledTexture,
-                          0,
-                          BindingMap::kAbsent,
-                          BindingMap::kAbsent,
-                          BindingMap::kStageVertex));
-    vertex.finalize();
+  // Vertex file: a UBO both stages read, plus a vertex-only texture.
+  BindingMap vertex;
+  vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  vertex.push(makeEntry(
+      0,
+      1,
+      ResourceKind::SampledTexture,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kAbsent,
+      BindingMap::kStageVertex));
+  vertex.finalize();
 
-    // Fragment file: the same UBO at a slot of its own, plus a texture the
-    // vertex file never saw.
-    BindingMap fragment;
-    fragment.push(makeEntry(0,
-                            0,
-                            ResourceKind::UniformBuffer,
-                            BindingMap::kAbsent,
-                            3,
-                            BindingMap::kAbsent,
-                            BindingMap::kStageFragment));
-    fragment.push(makeEntry(0,
-                            2,
-                            ResourceKind::SampledTexture,
-                            BindingMap::kAbsent,
-                            4,
-                            BindingMap::kAbsent,
-                            BindingMap::kStageFragment));
-    fragment.finalize();
+  // Fragment file: the same UBO at a slot of its own, plus a texture the
+  // vertex file never saw.
+  BindingMap fragment;
+  fragment.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      BindingMap::kAbsent,
+      3,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  fragment.push(makeEntry(
+      0,
+      2,
+      ResourceKind::SampledTexture,
+      BindingMap::kAbsent,
+      4,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  fragment.finalize();
 
-    BindingMap merged = vertex;
-    merged.replaceStage(fragment, BindingMap::Stage::FS);
+  BindingMap merged = vertex;
+  merged.replaceStage(fragment, BindingMap::Stage::FS);
 
-    REQUIRE(merged.size() == 3);
-    // Shared UBO: vertex slot from the vertex file, fragment slot from the
-    // fragment file.
-    CHECK(merged.lookup(0,
-                        0,
-                        ResourceKind::UniformBuffer,
-                        BindingMap::Stage::VS) == 0);
-    CHECK(merged.lookup(0,
-                        0,
-                        ResourceKind::UniformBuffer,
-                        BindingMap::Stage::FS) == 3);
-    // Vertex-only texture keeps its slot and stays invisible to fragment.
-    CHECK(merged.lookup(0,
-                        1,
-                        ResourceKind::SampledTexture,
-                        BindingMap::Stage::VS) == 0);
-    CHECK(merged.lookup(0,
-                        1,
-                        ResourceKind::SampledTexture,
-                        BindingMap::Stage::FS) == BindingMap::kAbsent);
-    // The fragment file's own texture is in the map at all, which is what
-    // the layout needs to declare it.
-    CHECK(merged.lookup(0,
-                        2,
-                        ResourceKind::SampledTexture,
-                        BindingMap::Stage::FS) == 4);
-    CHECK(merged.lookup(0,
-                        2,
-                        ResourceKind::SampledTexture,
-                        BindingMap::Stage::VS) == BindingMap::kAbsent);
+  REQUIRE(merged.size() == 3);
+  // Shared UBO: vertex slot from the vertex file, fragment slot from the
+  // fragment file.
+  CHECK(
+      merged.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::VS) ==
+      0);
+  CHECK(
+      merged.lookup(0, 0, ResourceKind::UniformBuffer, BindingMap::Stage::FS) ==
+      3);
+  // Vertex-only texture keeps its slot and stays invisible to fragment.
+  CHECK(
+      merged
+          .lookup(0, 1, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+      0);
+  CHECK(
+      merged
+          .lookup(0, 1, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
+      BindingMap::kAbsent);
+  // The fragment file's own texture is in the map at all, which is what
+  // the layout needs to declare it.
+  CHECK(
+      merged
+          .lookup(0, 2, ResourceKind::SampledTexture, BindingMap::Stage::FS) ==
+      4);
+  CHECK(
+      merged
+          .lookup(0, 2, ResourceKind::SampledTexture, BindingMap::Stage::VS) ==
+      BindingMap::kAbsent);
 }
 
-TEST_CASE("replaceStage drops rows the new stage no longer claims",
-          "[ore_binding_map]")
+TEST_CASE(
+    "replaceStage drops rows the new stage no longer claims",
+    "[ore_binding_map]")
 {
-    // The vertex file declares a fragment-only sampler. Once the fragment
-    // comes from elsewhere, nothing reads it.
-    BindingMap vertex;
-    vertex.push(makeEntry(0,
-                          0,
-                          ResourceKind::Sampler,
-                          BindingMap::kAbsent,
-                          0,
-                          BindingMap::kAbsent,
-                          BindingMap::kStageFragment));
-    vertex.finalize();
-    CHECK(vertex.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
+  // The vertex file declares a fragment-only sampler. Once the fragment
+  // comes from elsewhere, nothing reads it.
+  BindingMap vertex;
+  vertex.push(makeEntry(
+      0,
+      0,
+      ResourceKind::Sampler,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  vertex.finalize();
+  CHECK(vertex.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
 
-    BindingMap fragment;
-    fragment.finalize();
+  BindingMap fragment;
+  fragment.finalize();
 
-    BindingMap merged = vertex;
-    merged.replaceStage(fragment, BindingMap::Stage::FS);
-    CHECK(merged.size() == 0);
+  BindingMap merged = vertex;
+  merged.replaceStage(fragment, BindingMap::Stage::FS);
+  CHECK(merged.size() == 0);
 }
 
 TEST_CASE("replaceStage clears baked layout ids", "[ore_binding_map]")
 {
-    BindingMap vertex;
-    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    vertex.finalize();
-    vertex.computeLayoutIds();
-    REQUIRE(vertex.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
+  BindingMap vertex;
+  vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  vertex.finalize();
+  vertex.computeLayoutIds();
+  REQUIRE(vertex.layoutIdForGroup(0) != BindingMap::kNoLayoutId);
 
-    BindingMap fragment;
-    fragment.push(makeEntry(0,
-                            0,
-                            ResourceKind::UniformBuffer,
-                            BindingMap::kAbsent,
-                            2,
-                            BindingMap::kAbsent,
-                            BindingMap::kStageFragment));
-    fragment.finalize();
+  BindingMap fragment;
+  fragment.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      BindingMap::kAbsent,
+      2,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  fragment.finalize();
 
-    BindingMap merged = vertex;
-    merged.replaceStage(fragment, BindingMap::Stage::FS);
-    // The id described the pre-merge map; interning against it would hand
-    // back a layout with the wrong fragment slots.
-    CHECK(merged.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
+  BindingMap merged = vertex;
+  merged.replaceStage(fragment, BindingMap::Stage::FS);
+  // The id described the pre-merge map; interning against it would hand
+  // back a layout with the wrong fragment slots.
+  CHECK(merged.layoutIdForGroup(0) == BindingMap::kNoLayoutId);
 }
 
 // Two bindings the two files each numbered from zero. Metal and D3D11 give
 // each stage its own namespace and bind both; Vulkan, D3D12 and GL cannot.
 static BindingMap collidingMergedMap()
 {
-    BindingMap m;
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     0,
-                     BindingMap::kAbsent,
-                     BindingMap::kAbsent,
-                     BindingMap::kStageVertex));
-    m.push(makeEntry(1,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     BindingMap::kAbsent,
-                     0,
-                     BindingMap::kAbsent,
-                     BindingMap::kStageFragment));
-    m.finalize();
-    return m;
+  BindingMap m;
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kAbsent,
+      BindingMap::kStageVertex));
+  m.push(makeEntry(
+      1,
+      0,
+      ResourceKind::UniformBuffer,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  m.finalize();
+  return m;
 }
 
 // The layouts a pipeline would take for each group `map` binds, as the slot
 // check reads them.
 struct SplitLayouts
 {
-    cmd::DeferredOreContext ctx{nullptr};
-    std::vector<rcp<BindGroupLayout>> owned;
-    std::vector<BindGroupLayout*> layouts;
+  cmd::DeferredOreContext ctx{nullptr};
+  std::vector<rcp<BindGroupLayout>> owned;
+  std::vector<BindGroupLayout*> layouts;
 
-    explicit SplitLayouts(const BindingMap& map)
+  explicit SplitLayouts(const BindingMap& map)
+  {
+    for (uint32_t g = 0; g < 2; ++g)
     {
-        for (uint32_t g = 0; g < 2; ++g)
-        {
-            owned.push_back(makeBindGroupLayoutFromBindingMap(ctx, map, g));
-            layouts.push_back(owned.back().get());
-        }
+      owned.push_back(makeBindGroupLayoutFromBindingMap(ctx, map, g));
+      layouts.push_back(owned.back().get());
     }
+  }
 
-    bool check(bool apart, NativeSlotScope scope, std::string* error)
-    {
-        return validateSplitStageSlots(apart,
-                                       layouts.data(),
-                                       static_cast<uint32_t>(layouts.size()),
-                                       scope,
-                                       error);
-    }
+  bool check(bool apart, NativeSlotScope scope, std::string* error)
+  {
+    return validateSplitStageSlots(
+        apart,
+        layouts.data(),
+        static_cast<uint32_t>(layouts.size()),
+        scope,
+        error);
+  }
 };
 
-TEST_CASE("split-stage slot collisions are rejected per scope",
-          "[ore_binding_map]")
+TEST_CASE(
+    "split-stage slot collisions are rejected per scope",
+    "[ore_binding_map]")
 {
-    SplitLayouts merged(collidingMergedMap());
-    std::string error;
+  SplitLayouts merged(collidingMergedMap());
+  std::string error;
 
-    CHECK(merged.check(true, NativeSlotScope::perStage, &error));
-    CHECK(merged.check(false, NativeSlotScope::perKind, &error));
+  CHECK(merged.check(true, NativeSlotScope::perStage, &error));
+  CHECK(merged.check(false, NativeSlotScope::perKind, &error));
 
-    CHECK(!merged.check(true, NativeSlotScope::perKind, &error));
-    CHECK(error.find("@binding(0)") != std::string::npos);
+  CHECK(!merged.check(true, NativeSlotScope::perKind, &error));
+  CHECK(error.find("@binding(0)") != std::string::npos);
 
-    // Vulkan numbers within a descriptor set, so bindings in different
-    // groups reusing slot 0 are fine there.
-    CHECK(merged.check(true, NativeSlotScope::perGroup, &error));
+  // Vulkan numbers within a descriptor set, so bindings in different
+  // groups reusing slot 0 are fine there.
+  CHECK(merged.check(true, NativeSlotScope::perGroup, &error));
 }
 
-TEST_CASE("split-stage files must agree on what a binding is",
-          "[ore_binding_map]")
+TEST_CASE(
+    "split-stage files must agree on what a binding is",
+    "[ore_binding_map]")
 {
-    BindingMap vertex;
-    vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
-    vertex.finalize();
+  BindingMap vertex;
+  vertex.push(makeEntry(0, 0, ResourceKind::UniformBuffer, 0, 0));
+  vertex.finalize();
 
-    // Same slot, declared a texture by the other file. The merge keeps one
-    // kind, so whichever stage loses samples what the winner bound.
-    BindingMap fragment;
-    fragment.push(makeEntry(0,
-                            0,
-                            ResourceKind::SampledTexture,
-                            BindingMap::kAbsent,
-                            0,
-                            BindingMap::kAbsent,
-                            BindingMap::kStageFragment));
-    fragment.finalize();
+  // Same slot, declared a texture by the other file. The merge keeps one
+  // kind, so whichever stage loses samples what the winner bound.
+  BindingMap fragment;
+  fragment.push(makeEntry(
+      0,
+      0,
+      ResourceKind::SampledTexture,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  fragment.finalize();
 
-    std::string error;
-    CHECK(!validateStagesAgree(vertex, fragment, &error));
-    CHECK(error.find("@binding(0)") != std::string::npos);
-    CHECK(error.find("kind") != std::string::npos);
+  std::string error;
+  CHECK(!validateStagesAgree(vertex, fragment, &error));
+  CHECK(error.find("@binding(0)") != std::string::npos);
+  CHECK(error.find("kind") != std::string::npos);
 
-    // A binding only one file declares is not a disagreement.
-    BindingMap fragmentElsewhere;
-    fragmentElsewhere.push(makeEntry(1,
-                                     0,
-                                     ResourceKind::SampledTexture,
-                                     BindingMap::kAbsent,
-                                     0,
-                                     BindingMap::kAbsent,
-                                     BindingMap::kStageFragment));
-    fragmentElsewhere.finalize();
-    CHECK(validateStagesAgree(vertex, fragmentElsewhere, &error));
+  // A binding only one file declares is not a disagreement.
+  BindingMap fragmentElsewhere;
+  fragmentElsewhere.push(makeEntry(
+      1,
+      0,
+      ResourceKind::SampledTexture,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  fragmentElsewhere.finalize();
+  CHECK(validateStagesAgree(vertex, fragmentElsewhere, &error));
 }
 
-TEST_CASE("split-stage files must agree on a texture's shape",
-          "[ore_binding_map]")
+TEST_CASE(
+    "split-stage files must agree on a texture's shape",
+    "[ore_binding_map]")
 {
-    auto textureEntry = [](TextureViewDim dim, uint16_t slotVs) {
-        BindingMap::Entry e =
-            makeEntry(0, 0, ResourceKind::SampledTexture, slotVs, 0);
-        e.textureViewDim = dim;
-        return e;
-    };
+  auto textureEntry = [](TextureViewDim dim, uint16_t slotVs) {
+    BindingMap::Entry
+        e = makeEntry(0, 0, ResourceKind::SampledTexture, slotVs, 0);
+    e.textureViewDim = dim;
+    return e;
+  };
 
-    BindingMap vertex;
-    vertex.push(textureEntry(TextureViewDim::D2, 0));
-    vertex.finalize();
+  BindingMap vertex;
+  vertex.push(textureEntry(TextureViewDim::D2, 0));
+  vertex.finalize();
 
-    BindingMap fragment;
-    fragment.push(textureEntry(TextureViewDim::Cube, BindingMap::kAbsent));
-    fragment.finalize();
+  BindingMap fragment;
+  fragment.push(textureEntry(TextureViewDim::Cube, BindingMap::kAbsent));
+  fragment.finalize();
 
-    std::string error;
-    CHECK(!validateStagesAgree(vertex, fragment, &error));
-    CHECK(error.find("dimension") != std::string::npos);
+  std::string error;
+  CHECK(!validateStagesAgree(vertex, fragment, &error));
+  CHECK(error.find("dimension") != std::string::npos);
 
-    // Undefined on one side is a reflection gap, not a conflict.
-    BindingMap unreflected;
-    unreflected.push(
-        textureEntry(TextureViewDim::Undefined, BindingMap::kAbsent));
-    unreflected.finalize();
-    CHECK(validateStagesAgree(vertex, unreflected, &error));
+  // Undefined on one side is a reflection gap, not a conflict.
+  BindingMap unreflected;
+  unreflected.push(
+      textureEntry(TextureViewDim::Undefined, BindingMap::kAbsent));
+  unreflected.finalize();
+  CHECK(validateStagesAgree(vertex, unreflected, &error));
 }
 
 // The vertex file declares two UBOs and the fragment file only the second,
 // so each numbers that shared UBO differently. Nothing collides — one
 // binding simply cannot be at two slots at once on a stage-shared backend.
-TEST_CASE("a shared binding numbered differently by each file is rejected",
-          "[ore_binding_map]")
+TEST_CASE(
+    "a shared binding numbered differently by each file is rejected",
+    "[ore_binding_map]")
 {
-    BindingMap m;
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     0,
-                     BindingMap::kAbsent,
-                     BindingMap::kAbsent,
-                     BindingMap::kStageVertex));
-    m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 0));
-    m.finalize();
+  BindingMap m;
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kAbsent,
+      BindingMap::kStageVertex));
+  m.push(makeEntry(0, 1, ResourceKind::UniformBuffer, 1, 0));
+  m.finalize();
 
-    SplitLayouts layouts(m);
-    std::string error;
-    CHECK(layouts.check(true, NativeSlotScope::perStage, &error));
+  SplitLayouts layouts(m);
+  std::string error;
+  CHECK(layouts.check(true, NativeSlotScope::perStage, &error));
 
-    CHECK(!layouts.check(true, NativeSlotScope::perKind, &error));
-    CHECK(error.find("@binding(1)") != std::string::npos);
-    CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
+  CHECK(!layouts.check(true, NativeSlotScope::perKind, &error));
+  CHECK(error.find("@binding(1)") != std::string::npos);
+  CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
 }
 
-TEST_CASE("split-stage bindings of different kinds do not collide",
-          "[ore_binding_map]")
+TEST_CASE(
+    "split-stage bindings of different kinds do not collide",
+    "[ore_binding_map]")
 {
-    BindingMap m;
-    m.push(makeEntry(0,
-                     0,
-                     ResourceKind::UniformBuffer,
-                     0,
-                     BindingMap::kAbsent,
-                     BindingMap::kAbsent,
-                     BindingMap::kStageVertex));
-    m.push(makeEntry(0,
-                     1,
-                     ResourceKind::SampledTexture,
-                     BindingMap::kAbsent,
-                     0,
-                     BindingMap::kAbsent,
-                     BindingMap::kStageFragment));
-    m.finalize();
+  BindingMap m;
+  m.push(makeEntry(
+      0,
+      0,
+      ResourceKind::UniformBuffer,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kAbsent,
+      BindingMap::kStageVertex));
+  m.push(makeEntry(
+      0,
+      1,
+      ResourceKind::SampledTexture,
+      BindingMap::kAbsent,
+      0,
+      BindingMap::kAbsent,
+      BindingMap::kStageFragment));
+  m.finalize();
 
-    SplitLayouts layouts(m);
-    std::string error;
-    CHECK(layouts.check(true, NativeSlotScope::perKind, &error));
-    // Same descriptor-set binding number, which Vulkan cannot express.
-    CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
+  SplitLayouts layouts(m);
+  std::string error;
+  CHECK(layouts.check(true, NativeSlotScope::perKind, &error));
+  // Same descriptor-set binding number, which Vulkan cannot express.
+  CHECK(!layouts.check(true, NativeSlotScope::perGroup, &error));
 }
 
 } // namespace rive::ore

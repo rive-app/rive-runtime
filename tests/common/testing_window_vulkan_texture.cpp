@@ -10,7 +10,7 @@
 
 TestingWindow* TestingWindow::MakeVulkanTexture(const BackendParams&)
 {
-    return nullptr;
+  return nullptr;
 }
 
 #else
@@ -28,319 +28,317 @@ namespace rive::gpu
 class TestingWindowVulkanTexture : public TestingWindow
 {
 public:
-    TestingWindowVulkanTexture(const BackendParams& backendParams) :
-        m_backendParams(backendParams)
-    {
-        using namespace rive_vkb;
+  TestingWindowVulkanTexture(const BackendParams& backendParams)
+      : m_backendParams(backendParams)
+  {
+    using namespace rive_vkb;
 
-        m_instance = VulkanInstance::Create(VulkanInstance::Options{
-            .appName = "Rive Unit Tests",
-            .idealAPIVersion =
-                m_backendParams.core ? VK_API_VERSION_1_1 : VK_API_VERSION_1_3,
+    m_instance = VulkanInstance::Create(VulkanInstance::Options{
+        .appName = "Rive Unit Tests",
+        .idealAPIVersion = m_backendParams.core ? VK_API_VERSION_1_1
+                                                : VK_API_VERSION_1_3,
 #ifndef NDEBUG
-            .desiredValidationType =
-                m_backendParams.disableValidationLayers
-                    ? VulkanValidationType::none
-                    : (m_backendParams.wantVulkanSynchronizationValidation
-                           ? VulkanValidationType::synchronization
-                           : VulkanValidationType::core),
-            .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
+        .desiredValidationType =
+            m_backendParams.disableValidationLayers
+                ? VulkanValidationType::none
+                : (m_backendParams.wantVulkanSynchronizationValidation
+                       ? VulkanValidationType::synchronization
+                       : VulkanValidationType::core),
+        .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
 #endif
+    });
+    assert(m_instance != nullptr);
+
+    m_device = VulkanDevice::Create(
+        *m_instance,
+        VulkanDevice::Options{
+            .coreFeaturesOnly = m_backendParams.core,
+            .gpuNameFilter = m_backendParams.gpuNameFilter.c_str(),
+            .headless = true,
         });
-        assert(m_instance != nullptr);
+    assert(m_device != nullptr);
 
-        m_device = VulkanDevice::Create(
-            *m_instance,
-            VulkanDevice::Options{
-                .coreFeaturesOnly = m_backendParams.core,
-                .gpuNameFilter = m_backendParams.gpuNameFilter.c_str(),
-                .headless = true,
-            });
-        assert(m_device != nullptr);
+    m_renderContext = RenderContextVulkanImpl::MakeContext(
+        m_instance->vkInstance(),
+        m_device->vkPhysicalDevice(),
+        m_device->vkDevice(),
+        m_device->vulkanFeatures(),
+        m_instance->getVkGetInstanceProcAddrPtr(),
+        {
+            .forceAtomicMode = backendParams.atomic,
+            .shaderCompilationMode = backendParams.shaderCompilationMode,
+        });
 
-        m_renderContext = RenderContextVulkanImpl::MakeContext(
-            m_instance->vkInstance(),
-            m_device->vkPhysicalDevice(),
+    // Enable canvas pre-pass support
+    // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
+    // for canvas rendering.
+    VkQueue graphicsQueue;
+    auto impl = m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+    auto vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
+        impl->vulkanContext()->GetDeviceProcAddr(
             m_device->vkDevice(),
-            m_device->vulkanFeatures(),
-            m_instance->getVkGetInstanceProcAddrPtr(),
-            {
-                .forceAtomicMode = backendParams.atomic,
-                .shaderCompilationMode = backendParams.shaderCompilationMode,
-            });
+            "vkGetDeviceQueue"));
+    vkGetDeviceQueue(
+        m_device->vkDevice(),
+        m_device->graphicsQueueFamilyIndex(),
+        0,
+        &graphicsQueue);
+    impl->setCanvasQueue(graphicsQueue, m_device->graphicsQueueFamilyIndex());
+  }
 
-        // Enable canvas pre-pass support
-        // (makeCommandBuffer/commitCommandBuffer) by providing a command queue
-        // for canvas rendering.
-        VkQueue graphicsQueue;
-        auto impl =
-            m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
-        auto vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
-            impl->vulkanContext()->GetDeviceProcAddr(m_device->vkDevice(),
-                                                     "vkGetDeviceQueue"));
-        vkGetDeviceQueue(m_device->vkDevice(),
-                         m_device->graphicsQueueFamilyIndex(),
-                         0,
-                         &graphicsQueue);
-        impl->setCanvasQueue(graphicsQueue,
-                             m_device->graphicsQueueFamilyIndex());
-    }
+  ~TestingWindowVulkanTexture()
+  {
+    // Destroy the offscreen frame syncrhonizer  first because it
+    // synchronizes for in-flight command buffers.
+    m_frameSynchronizer = nullptr;
 
-    ~TestingWindowVulkanTexture()
+    m_renderContext.reset();
+    m_renderTarget.reset();
+  }
+
+  rive::Factory* factory() override { return m_renderContext.get(); }
+
+  rive::gpu::RenderContext* renderContext() const override
+  {
+    return m_renderContext.get();
+  }
+
+  rive::gpu::RenderTarget* renderTarget() const override
+  {
+    return m_renderTarget.get();
+  }
+
+  // An srgb view would not match the unorm format Ore reports.
+  OreTarget oreTarget() const override
+  {
+    return {!m_backendParams.srgb, !m_backendParams.core};
+  }
+
+  rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+      uint32_t width,
+      uint32_t height,
+      bool riveRenderable) const override
+  {
+    return rive_tests::OffscreenRenderTarget::MakeVulkan(
+        vk(),
+        width,
+        height,
+        riveRenderable);
+  }
+
+  std::unique_ptr<rive::Renderer> beginFrame(
+      const FrameOptions& options) override
+  {
+    if (m_frameSynchronizer == nullptr ||
+        m_frameSynchronizer->width() != m_width ||
+        m_frameSynchronizer->height() != m_height)
     {
-        // Destroy the offscreen frame syncrhonizer  first because it
-        // synchronizes for in-flight command buffers.
-        m_frameSynchronizer = nullptr;
+      VkFormat imageFormat = m_backendParams.srgb   ? VK_FORMAT_R8G8B8A8_SRGB
+                             : m_backendParams.core ? VK_FORMAT_R8G8B8A8_UNORM
+                                                    : VK_FORMAT_B8G8R8A8_UNORM;
+      // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT or
+      // VK_IMAGE_USAGE_STORAGE_BIT so we can test our (more complex)
+      // codepaths that make us work without it.
+      // The GMs that use offscreen "riveRenderable" render targets ensure
+      // we still cover the simpler direct rendering cases.
+      VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                     VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+      uint64_t currentFrameNumber = m_frameSynchronizer != nullptr
+                                        ? m_frameSynchronizer
+                                              ->currentFrameNumber()
+                                        : 0;
 
-        m_renderContext.reset();
-        m_renderTarget.reset();
+      m_frameSynchronizer = rive_vkb::VulkanHeadlessFrameSynchronizer::Create(
+          *m_instance,
+          *m_device,
+          ref_rcp(vk()),
+          rive_vkb::VulkanHeadlessFrameSynchronizer::Options{
+              .width = m_width,
+              .height = m_height,
+              .imageFormat = imageFormat,
+              .imageUsageFlags = usageFlags,
+              .initialFrameNumber = currentFrameNumber,
+          });
+      assert(m_frameSynchronizer != nullptr);
+
+      m_renderTarget = impl()->makeRenderTarget(
+          m_width,
+          m_height,
+          m_frameSynchronizer->imageFormat(),
+          m_frameSynchronizer->imageUsageFlags());
     }
 
-    rive::Factory* factory() override { return m_renderContext.get(); }
+    FrameMode mode = frameMode(options);
+    rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
+        .renderTargetWidth = m_width,
+        .renderTargetHeight = m_height,
+        .loadAction = options.doClear
+                          ? rive::gpu::LoadAction::clear
+                          : rive::gpu::LoadAction::preserveRenderTarget,
+        .clearColor = options.clearColor,
+        .msaaSampleCount = mode.msaaSampleCount,
+        .disableRasterOrdering = mode.disableRasterOrdering,
+        .triangulationThresholds = options.triangulationThresholds,
+        .wireframe = options.wireframe,
+        .fillsDisabled = options.fillsDisabled,
+        .strokesDisabled = options.strokesDisabled,
+        .clockwiseFillOverride = mode.clockwiseFillOverride,
+        .inkbleedOverride = mode.inkbleed,
+        .synthesizedFailureType = options.synthesizedFailureType,
+    };
+    m_renderContext->beginFrame(frameDescriptor);
+    return std::make_unique<RiveRenderer>(m_renderContext.get());
+  }
 
-    rive::gpu::RenderContext* renderContext() const override
+  FrameMode frameMode(const FrameOptions& options) const final
+  {
+    return {
+        m_backendParams.msaaSampleCount,
+        options.disableRasterOrdering,
+        m_backendParams.clockwise || options.clockwiseFillOverride,
+        m_backendParams.inkbleed};
+  }
+
+  void flushPLSContext(RenderTarget* offscreenRenderTarget) final
+  {
+    if (!m_frameSynchronizer->isFrameStarted())
     {
-        return m_renderContext.get();
+      VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
+
+      m_renderTarget->setTargetImageView(
+          m_frameSynchronizer->vkImageView(),
+          m_frameSynchronizer->vkImage(),
+          m_frameSynchronizer->lastAccess());
     }
 
-    rive::gpu::RenderTarget* renderTarget() const override
+    m_renderContext->flush({
+        .renderTarget = offscreenRenderTarget != nullptr ? offscreenRenderTarget
+                                                         : m_renderTarget.get(),
+        .externalCommandBuffer = m_frameSynchronizer->currentCommandBuffer(),
+        .currentFrameNumber = m_frameSynchronizer->currentFrameNumber(),
+        .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
+    });
+  }
+
+  void endFrame(std::vector<uint8_t>* pixelData) override
+  {
+    flushPLSContext(nullptr);
+    auto lastAccess = m_renderTarget->targetLastAccess();
+    if (pixelData != nullptr)
     {
-        return m_renderTarget.get();
+      m_frameSynchronizer->queueImageCopy(&lastAccess);
     }
 
-    // An srgb view would not match the unorm format Ore reports.
-    OreTarget oreTarget() const override
+    VK_ABORT_ON_FAIL(m_frameSynchronizer->endFrame(lastAccess));
+
+    if (pixelData != nullptr)
     {
-        return {!m_backendParams.srgb, !m_backendParams.core};
+      VK_ABORT_ON_FAIL(
+          m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData));
     }
-
-    rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
-        uint32_t width,
-        uint32_t height,
-        bool riveRenderable) const override
-    {
-        return rive_tests::OffscreenRenderTarget::MakeVulkan(vk(),
-                                                             width,
-                                                             height,
-                                                             riveRenderable);
-    }
-
-    std::unique_ptr<rive::Renderer> beginFrame(
-        const FrameOptions& options) override
-    {
-        if (m_frameSynchronizer == nullptr ||
-            m_frameSynchronizer->width() != m_width ||
-            m_frameSynchronizer->height() != m_height)
-        {
-            VkFormat imageFormat =
-                m_backendParams.srgb   ? VK_FORMAT_R8G8B8A8_SRGB
-                : m_backendParams.core ? VK_FORMAT_R8G8B8A8_UNORM
-                                       : VK_FORMAT_B8G8R8A8_UNORM;
-            // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT or
-            // VK_IMAGE_USAGE_STORAGE_BIT so we can test our (more complex)
-            // codepaths that make us work without it.
-            // The GMs that use offscreen "riveRenderable" render targets ensure
-            // we still cover the simpler direct rendering cases.
-            VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-            uint64_t currentFrameNumber =
-                m_frameSynchronizer != nullptr
-                    ? m_frameSynchronizer->currentFrameNumber()
-                    : 0;
-
-            m_frameSynchronizer =
-                rive_vkb::VulkanHeadlessFrameSynchronizer::Create(
-                    *m_instance,
-                    *m_device,
-                    ref_rcp(vk()),
-                    rive_vkb::VulkanHeadlessFrameSynchronizer::Options{
-                        .width = m_width,
-                        .height = m_height,
-                        .imageFormat = imageFormat,
-                        .imageUsageFlags = usageFlags,
-                        .initialFrameNumber = currentFrameNumber,
-                    });
-            assert(m_frameSynchronizer != nullptr);
-
-            m_renderTarget = impl()->makeRenderTarget(
-                m_width,
-                m_height,
-                m_frameSynchronizer->imageFormat(),
-                m_frameSynchronizer->imageUsageFlags());
-        }
-
-        FrameMode mode = frameMode(options);
-        rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
-            .renderTargetWidth = m_width,
-            .renderTargetHeight = m_height,
-            .loadAction = options.doClear
-                              ? rive::gpu::LoadAction::clear
-                              : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = options.clearColor,
-            .msaaSampleCount = mode.msaaSampleCount,
-            .disableRasterOrdering = mode.disableRasterOrdering,
-            .triangulationThresholds = options.triangulationThresholds,
-            .wireframe = options.wireframe,
-            .fillsDisabled = options.fillsDisabled,
-            .strokesDisabled = options.strokesDisabled,
-            .clockwiseFillOverride = mode.clockwiseFillOverride,
-            .inkbleedOverride = mode.inkbleed,
-            .synthesizedFailureType = options.synthesizedFailureType,
-        };
-        m_renderContext->beginFrame(frameDescriptor);
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
-    }
-
-    FrameMode frameMode(const FrameOptions& options) const final
-    {
-        return {m_backendParams.msaaSampleCount,
-                options.disableRasterOrdering,
-                m_backendParams.clockwise || options.clockwiseFillOverride,
-                m_backendParams.inkbleed};
-    }
-
-    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
-    {
-        if (!m_frameSynchronizer->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
-
-            m_renderTarget->setTargetImageView(
-                m_frameSynchronizer->vkImageView(),
-                m_frameSynchronizer->vkImage(),
-                m_frameSynchronizer->lastAccess());
-        }
-
-        m_renderContext->flush({
-            .renderTarget = offscreenRenderTarget != nullptr
-                                ? offscreenRenderTarget
-                                : m_renderTarget.get(),
-            .externalCommandBuffer =
-                m_frameSynchronizer->currentCommandBuffer(),
-            .currentFrameNumber = m_frameSynchronizer->currentFrameNumber(),
-            .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
-        });
-    }
-
-    void endFrame(std::vector<uint8_t>* pixelData) override
-    {
-        flushPLSContext(nullptr);
-        auto lastAccess = m_renderTarget->targetLastAccess();
-        if (pixelData != nullptr)
-        {
-            m_frameSynchronizer->queueImageCopy(&lastAccess);
-        }
-
-        VK_ABORT_ON_FAIL(m_frameSynchronizer->endFrame(lastAccess));
-
-        if (pixelData != nullptr)
-        {
-            VK_ABORT_ON_FAIL(
-                m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData));
-        }
-    }
+  }
 
 private:
-    RenderContextVulkanImpl* impl() const
+  RenderContextVulkanImpl* impl() const
+  {
+    return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+  }
+
+  VulkanContext* vk() const { return impl()->vulkanContext(); }
+
+  void* vulkanGraphicsQueue() const override
+  {
+    if (!vk() || !m_device)
+      return VK_NULL_HANDLE;
+    // graphicsQueue() is protected on VulkanFrameSynchronizer, so retrieve
+    // the queue via vkGetDeviceQueue using the known family index.
+    auto pfnGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
+        vk()->GetDeviceProcAddr(vk()->device, "vkGetDeviceQueue"));
+    if (!pfnGetDeviceQueue)
+      return VK_NULL_HANDLE;
+    VkQueue queue = VK_NULL_HANDLE;
+    pfnGetDeviceQueue(
+        vk()->device,
+        m_device->graphicsQueueFamilyIndex(),
+        0,
+        &queue);
+    return queue;
+  }
+  uint32_t vulkanGraphicsQueueFamilyIndex() const override
+  {
+    return m_device ? m_device->graphicsQueueFamilyIndex() : 0;
+  }
+  void* vulkanGetInstanceProcAddr() const override
+  {
+    return m_instance ? reinterpret_cast<void*>(
+                            m_instance->getVkGetInstanceProcAddrPtr())
+                      : nullptr;
+  }
+
+  void* getCurrentCommandBuffer() const override
+  {
+    // Per the base-class contract: return nullptr when no CB is open.
+    // The handle exposed by VulkanFrameSynchronizer is allocated up front
+    // but is only in the recording state between
+    // waitForFenceAndBeginFrame() and endFrame(). Handing it out before
+    // that causes Ore to record into an unbegun CB
+    // (VUID-vkCmdBeginRenderPass-commandBuffer-recording on validation, GPU
+    // ring timeout on RADV, heap corruption on nvidia). Matches
+    // testing_window_android_vulkan.cpp.
+    if (m_frameSynchronizer == nullptr ||
+        !m_frameSynchronizer->isFrameStarted())
+      return nullptr;
+    return m_frameSynchronizer->currentCommandBuffer();
+  }
+
+  void* getOreContext() const override
+  {
+    return m_renderContext->getOreContext();
+  }
+
+  void beginOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
+    if (!m_frameSynchronizer->isFrameStarted())
     {
-        return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+      VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
+
+      m_renderTarget->setTargetImageView(
+          m_frameSynchronizer->vkImageView(),
+          m_frameSynchronizer->vkImage(),
+          m_frameSynchronizer->lastAccess());
     }
 
-    VulkanContext* vk() const { return impl()->vulkanContext(); }
+    oreContext->beginFrame(
+        {.externalCommandBuffer = m_frameSynchronizer->currentCommandBuffer(),
+         .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
+         .currentFrameNumber = m_frameSynchronizer->currentFrameNumber()});
+  }
 
-    void* vulkanGraphicsQueue() const override
-    {
-        if (!vk() || !m_device)
-            return VK_NULL_HANDLE;
-        // graphicsQueue() is protected on VulkanFrameSynchronizer, so retrieve
-        // the queue via vkGetDeviceQueue using the known family index.
-        auto pfnGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
-            vk()->GetDeviceProcAddr(vk()->device, "vkGetDeviceQueue"));
-        if (!pfnGetDeviceQueue)
-            return VK_NULL_HANDLE;
-        VkQueue queue = VK_NULL_HANDLE;
-        pfnGetDeviceQueue(vk()->device,
-                          m_device->graphicsQueueFamilyIndex(),
-                          0,
-                          &queue);
-        return queue;
-    }
-    uint32_t vulkanGraphicsQueueFamilyIndex() const override
-    {
-        return m_device ? m_device->graphicsQueueFamilyIndex() : 0;
-    }
-    void* vulkanGetInstanceProcAddr() const override
-    {
-        return m_instance ? reinterpret_cast<void*>(
-                                m_instance->getVkGetInstanceProcAddrPtr())
-                          : nullptr;
-    }
+  // The Ore frame runs inside the screen frame, which endFrame() submits.
+  void endOreFrame() override
+  {
+    auto oreContext = static_cast<rive::ore::Context*>(
+        m_renderContext->getOreContext());
+    oreContext->endFrame();
+  }
 
-    void* getCurrentCommandBuffer() const override
-    {
-        // Per the base-class contract: return nullptr when no CB is open.
-        // The handle exposed by VulkanFrameSynchronizer is allocated up front
-        // but is only in the recording state between
-        // waitForFenceAndBeginFrame() and endFrame(). Handing it out before
-        // that causes Ore to record into an unbegun CB
-        // (VUID-vkCmdBeginRenderPass-commandBuffer-recording on validation, GPU
-        // ring timeout on RADV, heap corruption on nvidia). Matches
-        // testing_window_android_vulkan.cpp.
-        if (m_frameSynchronizer == nullptr ||
-            !m_frameSynchronizer->isFrameStarted())
-            return nullptr;
-        return m_frameSynchronizer->currentCommandBuffer();
-    }
-
-    void* getOreContext() const override
-    {
-        return m_renderContext->getOreContext();
-    }
-
-    void beginOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
-        if (!m_frameSynchronizer->isFrameStarted())
-        {
-            VK_ABORT_ON_FAIL(m_frameSynchronizer->beginFrame());
-
-            m_renderTarget->setTargetImageView(
-                m_frameSynchronizer->vkImageView(),
-                m_frameSynchronizer->vkImage(),
-                m_frameSynchronizer->lastAccess());
-        }
-
-        oreContext->beginFrame(
-            {.externalCommandBuffer =
-                 m_frameSynchronizer->currentCommandBuffer(),
-             .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
-             .currentFrameNumber = m_frameSynchronizer->currentFrameNumber()});
-    }
-
-    // The Ore frame runs inside the screen frame, which endFrame() submits.
-    void endOreFrame() override
-    {
-        auto oreContext =
-            static_cast<rive::ore::Context*>(m_renderContext->getOreContext());
-        oreContext->endFrame();
-    }
-
-    const BackendParams m_backendParams;
-    std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
-    std::unique_ptr<rive_vkb::VulkanDevice> m_device;
-    std::unique_ptr<RenderContext> m_renderContext;
-    std::unique_ptr<rive_vkb::VulkanHeadlessFrameSynchronizer>
-        m_frameSynchronizer;
-    rcp<RenderTargetVulkanImpl> m_renderTarget;
+  const BackendParams m_backendParams;
+  std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
+  std::unique_ptr<rive_vkb::VulkanDevice> m_device;
+  std::unique_ptr<RenderContext> m_renderContext;
+  std::unique_ptr<rive_vkb::VulkanHeadlessFrameSynchronizer>
+      m_frameSynchronizer;
+  rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 }; // namespace rive::gpu
 
 TestingWindow* TestingWindow::MakeVulkanTexture(
     const BackendParams& backendParams)
 {
-    return new rive::gpu::TestingWindowVulkanTexture(backendParams);
+  return new rive::gpu::TestingWindowVulkanTexture(backendParams);
 }
 
 #endif

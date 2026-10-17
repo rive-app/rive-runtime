@@ -14,26 +14,27 @@ namespace rive
 // Function-local so registrations from static constructors are safe.
 static std::vector<PrelinkedAotModule>& prelinkedRegistry()
 {
-    static std::vector<PrelinkedAotModule> registry;
-    return registry;
+  static std::vector<PrelinkedAotModule> registry;
+  return registry;
 }
 
 void registerPrelinkedAotModule(const PrelinkedAotModule& module)
 {
-    prelinkedRegistry().push_back(module);
+  prelinkedRegistry().push_back(module);
 }
 
-const PrelinkedAotModule* findPrelinkedAotModule(uint64_t moduleKey,
-                                                 size_t wasmSize)
+const PrelinkedAotModule* findPrelinkedAotModule(
+    uint64_t moduleKey,
+    size_t wasmSize)
 {
-    for (const PrelinkedAotModule& module : prelinkedRegistry())
+  for (const PrelinkedAotModule& module : prelinkedRegistry())
+  {
+    if (module.moduleKey == moduleKey && module.wasmSize == wasmSize)
     {
-        if (module.moduleKey == moduleKey && module.wasmSize == wasmSize)
-        {
-            return &module;
-        }
+      return &module;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 } // namespace rive

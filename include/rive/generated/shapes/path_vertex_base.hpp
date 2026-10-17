@@ -6,12 +6,12 @@ namespace rive
 class PathVertexBase : public Vertex
 {
 protected:
-    typedef Vertex Super;
+  typedef Vertex Super;
 
 public:
-    static const uint16_t typeKey = 14;
+  static const uint16_t typeKey = 14;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 };
 } // namespace rive
 

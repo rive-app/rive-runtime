@@ -9,10 +9,10 @@ class ViewModelInstanceListItem;
 class DataBindListItemConsumer
 {
 public:
-    static DataBindListItemConsumer* from(Core* component);
+  static DataBindListItemConsumer* from(Core* component);
 
-    virtual void updateList(
-        std::vector<rcp<ViewModelInstanceListItem>>* list) = 0;
+  virtual void updateList(
+      std::vector<rcp<ViewModelInstanceListItem>>* list) = 0;
 };
 } // namespace rive
 

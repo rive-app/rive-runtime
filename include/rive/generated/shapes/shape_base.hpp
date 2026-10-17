@@ -7,34 +7,34 @@ namespace rive
 class ShapeBase : public Drawable
 {
 protected:
-    typedef Drawable Super;
+  typedef Drawable Super;
 
 public:
-    static const uint16_t typeKey = 3;
+  static const uint16_t typeKey = 3;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t lengthPropertyKey = 781;
+  static const uint16_t lengthPropertyKey = 781;
 
 protected:
 public:
-    virtual void setLength(float value) = 0;
-    virtual float length() = 0;
-    void length(float value)
+  virtual void setLength(float value) = 0;
+  virtual float length() = 0;
+  void length(float value)
+  {
+    if (length() == value)
     {
-        if (length() == value)
-        {
-            return;
-        }
-        setLength(value);
-        lengthChanged();
-        notifyPropertyChanged(lengthPropertyKey);
+      return;
     }
+    setLength(value);
+    lengthChanged();
+    notifyPropertyChanged(lengthPropertyKey);
+  }
 
-    Core* clone() const override;
+  Core* clone() const override;
 
 protected:
-    virtual void lengthChanged() {}
+  virtual void lengthChanged() {}
 };
 } // namespace rive
 

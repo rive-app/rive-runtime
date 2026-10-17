@@ -11,39 +11,39 @@ namespace rive
 class ListenerInputTypeViewModelBase : public ListenerInputType
 {
 protected:
-    typedef ListenerInputType Super;
+  typedef ListenerInputType Super;
 
 public:
-    static const uint16_t typeKey = 660;
+  static const uint16_t typeKey = 660;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t viewModelPathIdsPropertyKey = 963;
+  static const uint16_t viewModelPathIdsPropertyKey = 963;
 
 public:
-    virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;
-    virtual void copyViewModelPathIds(
-        const ListenerInputTypeViewModelBase& object) = 0;
+  virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;
+  virtual void copyViewModelPathIds(
+      const ListenerInputTypeViewModelBase& object) = 0;
 
-    Core* clone() const override;
-    void copy(const ListenerInputTypeViewModelBase& object)
-    {
-        copyViewModelPathIds(object);
-        RIVE_EDITOR_COPY(object);
-        ListenerInputType::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const ListenerInputTypeViewModelBase& object)
+  {
+    copyViewModelPathIds(object);
+    RIVE_EDITOR_COPY(object);
+    ListenerInputType::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case viewModelPathIdsPropertyKey:
-                decodeViewModelPathIds(CoreBytesType::deserialize(reader));
-                return true;
-        }
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return ListenerInputType::deserialize(propertyKey, reader);
+      case viewModelPathIdsPropertyKey:
+        decodeViewModelPathIds(CoreBytesType::deserialize(reader));
+        return true;
     }
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return ListenerInputType::deserialize(propertyKey, reader);
+  }
 
 protected:
 #ifdef WITH_RIVE_EDITOR

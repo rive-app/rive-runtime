@@ -57,67 +57,68 @@ static constexpr auto ImageDrawInstanceBaseAttributes = std::array{
     },
 };
 
-static_assert(std::size(ImageDrawInstanceBaseAttributes) ==
-              ImageDrawInstanceBase::AttributeCount);
-static_assert(std::size(ImageDrawInstanceBaseAttributes) ==
-              IMAGE_COMMON_ATTRIB_COUNT);
+static_assert(
+    std::size(ImageDrawInstanceBaseAttributes) ==
+    ImageDrawInstanceBase::AttributeCount);
+static_assert(
+    std::size(ImageDrawInstanceBaseAttributes) == IMAGE_COMMON_ATTRIB_COUNT);
 
 static constexpr auto ImageRectInstanceAttributes = std::apply(
     [](auto... baseAttribs) {
-        constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
-        return std::array{
-            baseAttribs..., // ImageDrawInstanceBase attributes come first
-            VertexAttribute{
-                // m_imageMatrix
-                VertexElementFormat::float4,
-                BaseIndex + 0,
-                16 * sizeof(float),
-                GLSL_a_imageRectImageMatrix,
-            },
-            VertexAttribute{
-                // m_gradientMatrix
-                VertexElementFormat::float4,
-                BaseIndex + 1,
-                20 * sizeof(float),
-                GLSL_a_imageRectGradientMatrix,
-            },
-            VertexAttribute{
-                // packed: m_imageTranslate and m_gradientTranslate
-                VertexElementFormat::float4,
-                BaseIndex + 2,
-                24 * sizeof(float),
-                GLSL_a_imageRectImageAndGradientTranslates,
-            },
-            VertexAttribute{// packed: m_gradTextureHorizontalSpan,
-                            // m_gradTextureY, m_gradientType
-                            VertexElementFormat::float4,
-                            BaseIndex + 3,
-                            28 * sizeof(float),
-                            GLSL_a_imageRectPackedGradientData},
-        };
+      constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
+      return std::array{
+          baseAttribs..., // ImageDrawInstanceBase attributes come first
+          VertexAttribute{
+              // m_imageMatrix
+              VertexElementFormat::float4,
+              BaseIndex + 0,
+              16 * sizeof(float),
+              GLSL_a_imageRectImageMatrix,
+          },
+          VertexAttribute{
+              // m_gradientMatrix
+              VertexElementFormat::float4,
+              BaseIndex + 1,
+              20 * sizeof(float),
+              GLSL_a_imageRectGradientMatrix,
+          },
+          VertexAttribute{
+              // packed: m_imageTranslate and m_gradientTranslate
+              VertexElementFormat::float4,
+              BaseIndex + 2,
+              24 * sizeof(float),
+              GLSL_a_imageRectImageAndGradientTranslates,
+          },
+          VertexAttribute{// packed: m_gradTextureHorizontalSpan,
+                          // m_gradTextureY, m_gradientType
+                          VertexElementFormat::float4,
+                          BaseIndex + 3,
+                          28 * sizeof(float),
+                          GLSL_a_imageRectPackedGradientData},
+      };
     },
     ImageDrawInstanceBaseAttributes);
 
-static_assert(std::size(ImageRectInstanceAttributes) ==
-              IMAGE_RECT_ATTRIB_COUNT);
+static_assert(
+    std::size(ImageRectInstanceAttributes) == IMAGE_RECT_ATTRIB_COUNT);
 
 static constexpr auto ImageMeshInstanceAttributes = std::apply(
     [](auto... baseAttribs) {
-        constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
-        return std::array{
-            baseAttribs..., // ImageDrawInstanceBase attributes come first
-            VertexAttribute{
-                // packed: m_uvTranslate (x,y), m_uvScale (x,y)
-                VertexElementFormat::float4,
-                BaseIndex + 0,
-                16 * sizeof(float),
-                GLSL_a_imageMeshUVTransform,
-            },
-        };
+      constexpr auto BaseIndex = ImageDrawInstanceBase::LastAttribIdx + 1;
+      return std::array{
+          baseAttribs..., // ImageDrawInstanceBase attributes come first
+          VertexAttribute{
+              // packed: m_uvTranslate (x,y), m_uvScale (x,y)
+              VertexElementFormat::float4,
+              BaseIndex + 0,
+              16 * sizeof(float),
+              GLSL_a_imageMeshUVTransform,
+          },
+      };
     },
     ImageDrawInstanceBaseAttributes);
 
-static_assert(std::size(ImageMeshInstanceAttributes) ==
-              IMAGE_MESH_ATTRIB_COUNT);
+static_assert(
+    std::size(ImageMeshInstanceAttributes) == IMAGE_MESH_ATTRIB_COUNT);
 
 } // namespace rive::gpu

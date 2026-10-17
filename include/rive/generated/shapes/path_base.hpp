@@ -8,69 +8,69 @@ namespace rive
 class PathBase : public Node
 {
 protected:
-    typedef Node Super;
+  typedef Node Super;
 
 public:
-    static const uint16_t typeKey = 12;
+  static const uint16_t typeKey = 12;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t pathFlagsPropertyKey = 128;
-    static const uint16_t isHolePropertyKey = 770;
+  static const uint16_t pathFlagsPropertyKey = 128;
+  static const uint16_t isHolePropertyKey = 770;
 
 protected:
-    uint32_t m_PathFlags = 0;
-    bool m_IsHole = false;
+  uint32_t m_PathFlags = 0;
+  bool m_IsHole = false;
 
 public:
-    inline uint32_t pathFlags() const { return m_PathFlags; }
-    void pathFlags(uint32_t value)
+  inline uint32_t pathFlags() const { return m_PathFlags; }
+  void pathFlags(uint32_t value)
+  {
+    if (m_PathFlags == value)
     {
-        if (m_PathFlags == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(pathFlagsPropertyKey, &m_PathFlags, &value);
-        m_PathFlags = value;
-        notifyPropertyChanged(pathFlagsPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(pathFlagsPropertyKey, &m_PathFlags, &value);
+    m_PathFlags = value;
+    notifyPropertyChanged(pathFlagsPropertyKey);
+  }
 
-    inline bool isHole() const { return m_IsHole; }
-    void isHole(bool value)
+  inline bool isHole() const { return m_IsHole; }
+  void isHole(bool value)
+  {
+    if (m_IsHole == value)
     {
-        if (m_IsHole == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(isHolePropertyKey, &m_IsHole, &value);
-        m_IsHole = value;
-        RIVE_EDITOR_CHANGED(isHoleChanged());
-        notifyPropertyChanged(isHolePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(isHolePropertyKey, &m_IsHole, &value);
+    m_IsHole = value;
+    RIVE_EDITOR_CHANGED(isHoleChanged());
+    notifyPropertyChanged(isHolePropertyKey);
+  }
 
-    void copy(const PathBase& object)
-    {
-        m_PathFlags = object.m_PathFlags;
-        m_IsHole = object.m_IsHole;
-        Node::copy(object);
-    }
+  void copy(const PathBase& object)
+  {
+    m_PathFlags = object.m_PathFlags;
+    m_IsHole = object.m_IsHole;
+    Node::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case pathFlagsPropertyKey:
-                m_PathFlags = CoreUintType::deserialize(reader);
-                return true;
-            case isHolePropertyKey:
-                m_IsHole = CoreBoolType::deserialize(reader);
-                return true;
-        }
-        return Node::deserialize(propertyKey, reader);
+      case pathFlagsPropertyKey:
+        m_PathFlags = CoreUintType::deserialize(reader);
+        return true;
+      case isHolePropertyKey:
+        m_IsHole = CoreBoolType::deserialize(reader);
+        return true;
     }
+    return Node::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void isHoleChanged() {}
+  virtual void isHoleChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/shapes/path_ext.inl"
 #endif

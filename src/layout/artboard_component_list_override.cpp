@@ -7,78 +7,78 @@ using namespace rive;
 
 void ArtboardComponentListOverride::addArtboard(ArtboardInstance* artboard)
 {
-    m_artboards.push_back(artboard);
-    m_styleOverrider.updateWidthOverride(artboard);
-    m_styleOverrider.updateHeightOverride(artboard);
+  m_artboards.push_back(artboard);
+  m_styleOverrider.updateWidthOverride(artboard);
+  m_styleOverrider.updateHeightOverride(artboard);
 }
 
 void ArtboardComponentListOverride::removeArtboard(ArtboardInstance* artboard)
 {
-    m_artboards.erase(
-        std::remove(m_artboards.begin(), m_artboards.end(), artboard),
-        m_artboards.end());
+  m_artboards.erase(
+      std::remove(m_artboards.begin(), m_artboards.end(), artboard),
+      m_artboards.end());
 }
 
 bool ArtboardComponentListOverride::isRow()
 {
-    return parent()->is<ArtboardComponentList>()
-               ? parent()->as<ArtboardComponentList>()->mainAxisIsRow()
-               : true;
+  return parent()->is<ArtboardComponentList>()
+             ? parent()->as<ArtboardComponentList>()->mainAxisIsRow()
+             : true;
 }
 
 bool ArtboardComponentListOverride::isStack()
 {
-    return parent()->is<ArtboardComponentList>() &&
-           parent()->as<ArtboardComponentList>()->isStack();
+  return parent()->is<ArtboardComponentList>() &&
+         parent()->as<ArtboardComponentList>()->isStack();
 }
 
 void ArtboardComponentListOverride::updateWidthOverride()
 {
-    for (auto& artboardInstance : m_artboards)
-    {
-        m_styleOverrider.updateWidthOverride(artboardInstance);
-    }
+  for (auto& artboardInstance : m_artboards)
+  {
+    m_styleOverrider.updateWidthOverride(artboardInstance);
+  }
 }
 
 void ArtboardComponentListOverride::updateHeightOverride()
 {
-    for (auto& artboardInstance : m_artboards)
-    {
-        m_styleOverrider.updateHeightOverride(artboardInstance);
-    }
+  for (auto& artboardInstance : m_artboards)
+  {
+    m_styleOverrider.updateHeightOverride(artboardInstance);
+  }
 }
 
 void ArtboardComponentListOverride::instanceWidthChanged()
 {
-    updateWidthOverride();
+  updateWidthOverride();
 }
 void ArtboardComponentListOverride::instanceHeightChanged()
 {
-    updateHeightOverride();
+  updateHeightOverride();
 }
 void ArtboardComponentListOverride::instanceWidthUnitsValueChanged()
 {
-    updateWidthOverride();
+  updateWidthOverride();
 }
 void ArtboardComponentListOverride::instanceHeightUnitsValueChanged()
 {
-    updateHeightOverride();
+  updateHeightOverride();
 }
 void ArtboardComponentListOverride::instanceWidthScaleTypeChanged()
 {
-    updateWidthOverride();
+  updateWidthOverride();
 }
 void ArtboardComponentListOverride::instanceHeightScaleTypeChanged()
 {
-    updateHeightOverride();
+  updateHeightOverride();
 }
 
 void ArtboardComponentListOverride::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {
-    if (artboard() != nullptr)
-    {
-        artboard()->markLayoutDirty(artboardInstance);
-        artboard()->markLayoutStyleDirty();
-    }
+  if (artboard() != nullptr)
+  {
+    artboard()->markLayoutDirty(artboardInstance);
+    artboard()->markLayoutStyleDirty();
+  }
 }

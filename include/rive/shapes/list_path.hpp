@@ -15,83 +15,85 @@ class VertexListener;
 class VertexPropertyListenerSingle : public PropertySymbolDependentSingle
 {
 public:
-    VertexPropertyListenerSingle(Core* vertex,
-                                 VertexListener* vertexListener,
-                                 ViewModelInstanceValue* instanceValue,
-                                 uint16_t propertyKey,
-                                 float multiplier);
-    void writeValue() override;
+  VertexPropertyListenerSingle(
+      Core* vertex,
+      VertexListener* vertexListener,
+      ViewModelInstanceValue* instanceValue,
+      uint16_t propertyKey,
+      float multiplier);
+  void writeValue() override;
 
 protected:
-    float m_multiplier = 1;
+  float m_multiplier = 1;
 };
 
 class VertexPropertyListenerMulti : public PropertySymbolDependentMulti
 {
 public:
-    VertexPropertyListenerMulti(Core* vertex,
-                                VertexListener* vertexListener,
-                                ViewModelInstanceValue* instanceValue,
-                                std::vector<uint16_t> propertyKeys,
-                                float multiplier);
+  VertexPropertyListenerMulti(
+      Core* vertex,
+      VertexListener* vertexListener,
+      ViewModelInstanceValue* instanceValue,
+      std::vector<uint16_t> propertyKeys,
+      float multiplier);
 
-    void writeValue() override;
+  void writeValue() override;
 
 private:
-    float m_multiplier = 1;
+  float m_multiplier = 1;
 };
 
 class VertexPropertyListenerPoint : public PropertySymbolDependent
 {
 public:
-    ~VertexPropertyListenerPoint();
-    VertexPropertyListenerPoint(Core* vertex,
-                                VertexListener* vertexListener,
-                                ViewModelInstanceValue* xValue,
-                                ViewModelInstanceValue* yValue,
-                                uint16_t distKey,
-                                uint16_t rotKey);
-    void writeValue() override;
+  ~VertexPropertyListenerPoint();
+  VertexPropertyListenerPoint(
+      Core* vertex,
+      VertexListener* vertexListener,
+      ViewModelInstanceValue* xValue,
+      ViewModelInstanceValue* yValue,
+      uint16_t distKey,
+      uint16_t rotKey);
+  void writeValue() override;
 
 private:
-    ViewModelInstanceValue* m_yValue;
-    uint16_t m_distKey;
-    uint16_t m_rotKey;
+  ViewModelInstanceValue* m_yValue;
+  uint16_t m_distKey;
+  uint16_t m_rotKey;
 };
 
 class VertexListener : public CoreObjectListener
 {
 public:
-    VertexListener(Vertex* vertex, rcp<ViewModelInstance> instance, Path* path);
+  VertexListener(Vertex* vertex, rcp<ViewModelInstance> instance, Path* path);
 
-    Vertex* vertex() { return m_core->as<Vertex>(); }
-    void markDirty() override { m_path->markPathDirty(); }
+  Vertex* vertex() { return m_core->as<Vertex>(); }
+  void markDirty() override { m_path->markPathDirty(); }
 
 private:
-    Path* m_path = nullptr;
-    void createPropertyListener(SymbolType symbolType);
-    void createInPointPropertyListener();
-    void createOutPointPropertyListener();
-    PropertySymbolDependent* createSinglePropertyListener(
-        SymbolType symbolType);
-    PropertySymbolDependent* createDistancePropertyListener();
-    PropertySymbolDependent* createRotationPropertyListener();
+  Path* m_path = nullptr;
+  void createPropertyListener(SymbolType symbolType);
+  void createInPointPropertyListener();
+  void createOutPointPropertyListener();
+  PropertySymbolDependent* createSinglePropertyListener(SymbolType symbolType);
+  PropertySymbolDependent* createDistancePropertyListener();
+  PropertySymbolDependent* createRotationPropertyListener();
 
 protected:
-    void createProperties() override;
+  void createProperties() override;
 };
 
 class ListPath : public ListPathBase, public DataBindListItemConsumer
 {
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
+  void editorPrepareForDestruction() override;
 #endif
-    ~ListPath();
-    void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
+  ~ListPath();
+  void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
 
 private:
-    std::vector<VertexListener*> m_vertexListeners;
+  std::vector<VertexListener*> m_vertexListeners;
 };
 } // namespace rive
 

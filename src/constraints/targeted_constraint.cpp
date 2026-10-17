@@ -6,48 +6,48 @@ using namespace rive;
 
 bool TargetedConstraint::validate(CoreContext* context)
 {
-    if (!Super::validate(context))
-    {
-        return false;
-    }
-    auto coreObject = context->resolve(targetId());
-    // If core object is not null and is not a TransformComponent it should
-    // always be invalid
-    if (coreObject != nullptr && !coreObject->is<TransformComponent>())
-    {
-        return false;
-    }
-    return !requiresTarget() || coreObject != nullptr;
+  if (!Super::validate(context))
+  {
+    return false;
+  }
+  auto coreObject = context->resolve(targetId());
+  // If core object is not null and is not a TransformComponent it should
+  // always be invalid
+  if (coreObject != nullptr && !coreObject->is<TransformComponent>())
+  {
+    return false;
+  }
+  return !requiresTarget() || coreObject != nullptr;
 }
 
 StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
-    auto coreObject = context->resolve(targetId());
-    if (requiresTarget() && coreObject == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
+  StatusCode code = Super::onAddedDirty(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
+  auto coreObject = context->resolve(targetId());
+  if (requiresTarget() && coreObject == nullptr)
+  {
+    return StatusCode::MissingObject;
+  }
 
 #ifdef WITH_RIVE_EDITOR
-    setTargetForEditor(static_cast<TransformComponent*>(coreObject));
+  setTargetForEditor(static_cast<TransformComponent*>(coreObject));
 #else
-    m_Target = static_cast<TransformComponent*>(coreObject);
+  m_Target = static_cast<TransformComponent*>(coreObject);
 #endif
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void TargetedConstraint::buildDependencies()
 {
-    // Targeted constraints must have their constrained component (parent)
-    // update after the target.
-    if (auto* t = target())
-    {
-        t->addDependent(parent());
-    }
+  // Targeted constraints must have their constrained component (parent)
+  // update after the target.
+  if (auto* t = target())
+  {
+    t->addDependent(parent());
+  }
 }

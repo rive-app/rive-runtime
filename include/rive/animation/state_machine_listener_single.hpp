@@ -8,24 +8,24 @@ class StateMachineListenerSingle : public StateMachineListenerSingleBase,
                                    public DataBindPathReferencer
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
-    bool hasListener(ListenerType listenerType) const override
-    {
-        return listenerTypeValue() == (int)listenerType;
-    }
-    bool hasListener(ListenerType listenerType,
-                     PointerButton button) const override
-    {
-        return button == PointerButton::primary && hasListener(listenerType);
-    }
-    bool listensToButton(PointerButton button) const override
-    {
-        return button == PointerButton::primary && hasPointerListeners();
-    }
-    void decodeViewModelPathIds(Span<const uint8_t> value) override;
-    void copyViewModelPathIds(
-        const StateMachineListenerSingleBase& object) override;
-    std::vector<uint32_t> viewModelPathIdsBuffer() const;
+  StatusCode import(ImportStack& importStack) override;
+  bool hasListener(ListenerType listenerType) const override
+  {
+    return listenerTypeValue() == (int)listenerType;
+  }
+  bool hasListener(ListenerType listenerType, PointerButton button)
+      const override
+  {
+    return button == PointerButton::primary && hasListener(listenerType);
+  }
+  bool listensToButton(PointerButton button) const override
+  {
+    return button == PointerButton::primary && hasPointerListeners();
+  }
+  void decodeViewModelPathIds(Span<const uint8_t> value) override;
+  void copyViewModelPathIds(
+      const StateMachineListenerSingleBase& object) override;
+  std::vector<uint32_t> viewModelPathIdsBuffer() const;
 };
 } // namespace rive
 

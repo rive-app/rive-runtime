@@ -6,14 +6,14 @@ namespace rive
 class TranslationConstraintBase : public TransformComponentConstraintY
 {
 protected:
-    typedef TransformComponentConstraintY Super;
+  typedef TransformComponentConstraintY Super;
 
 public:
-    static const uint16_t typeKey = 87;
+  static const uint16_t typeKey = 87;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+  Core* clone() const override;
 };
 } // namespace rive
 

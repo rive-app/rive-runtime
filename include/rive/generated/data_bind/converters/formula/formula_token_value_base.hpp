@@ -7,54 +7,52 @@ namespace rive
 class FormulaTokenValueBase : public FormulaToken
 {
 protected:
-    typedef FormulaToken Super;
+  typedef FormulaToken Super;
 
 public:
-    static const uint16_t typeKey = 543;
+  static const uint16_t typeKey = 543;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t operationValuePropertyKey = 777;
+  static const uint16_t operationValuePropertyKey = 777;
 
 protected:
-    float m_OperationValue = 1.0f;
+  float m_OperationValue = 1.0f;
 
 public:
-    inline float operationValue() const { return m_OperationValue; }
-    void operationValue(float value)
+  inline float operationValue() const { return m_OperationValue; }
+  void operationValue(float value)
+  {
+    if (m_OperationValue == value)
     {
-        if (m_OperationValue == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(operationValuePropertyKey,
-                             &m_OperationValue,
-                             &value);
-        m_OperationValue = value;
-        RIVE_EDITOR_CHANGED(operationValueChanged());
-        notifyPropertyChanged(operationValuePropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(operationValuePropertyKey, &m_OperationValue, &value);
+    m_OperationValue = value;
+    RIVE_EDITOR_CHANGED(operationValueChanged());
+    notifyPropertyChanged(operationValuePropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const FormulaTokenValueBase& object)
-    {
-        m_OperationValue = object.m_OperationValue;
-        FormulaToken::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FormulaTokenValueBase& object)
+  {
+    m_OperationValue = object.m_OperationValue;
+    FormulaToken::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case operationValuePropertyKey:
-                m_OperationValue = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return FormulaToken::deserialize(propertyKey, reader);
+      case operationValuePropertyKey:
+        m_OperationValue = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return FormulaToken::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void operationValueChanged() {}
+  virtual void operationValueChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/data_bind/converters/formula/formula_token_value_ext.inl"
 #endif

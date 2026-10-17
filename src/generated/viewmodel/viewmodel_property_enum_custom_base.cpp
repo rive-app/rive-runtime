@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* ViewModelPropertyEnumCustomBase::clone() const
 {
-    auto cloned = new ViewModelPropertyEnumCustom();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new ViewModelPropertyEnumCustom();
+  cloned->copy(*this);
+  return cloned;
 }

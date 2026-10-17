@@ -10,10 +10,10 @@ AudioAsset::~AudioAsset() {}
 bool AudioAsset::decode(SimpleArray<uint8_t>& bytes, Factory* factory)
 {
 #ifdef WITH_RIVE_AUDIO
-    // Steal the bytes.
-    m_audioSource = AudioSource::MakeAudioSource((std::move(bytes)));
+  // Steal the bytes.
+  m_audioSource = AudioSource::MakeAudioSource((std::move(bytes)));
 #endif
-    return true;
+  return true;
 }
 
 std::string AudioAsset::fileExtension() const { return "wav"; }

@@ -6,15 +6,15 @@ namespace rive
 {
 enum class NSlicerTileModeType : int
 {
-    STRETCH = 0,
-    REPEAT = 1,
-    HIDDEN = 2,
+  STRETCH = 0,
+  REPEAT = 1,
+  HIDDEN = 2,
 };
 
 class NSlicerTileMode : public NSlicerTileModeBase
 {
 public:
-    StatusCode onAddedDirty(CoreContext* context) override;
+  StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 

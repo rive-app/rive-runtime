@@ -5,7 +5,7 @@ using namespace rive;
 
 Core* TransitionPropertyArtboardComparatorBase::clone() const
 {
-    auto cloned = new TransitionPropertyArtboardComparator();
-    cloned->copy(*this);
-    return cloned;
+  auto cloned = new TransitionPropertyArtboardComparator();
+  cloned->copy(*this);
+  return cloned;
 }

@@ -8,52 +8,52 @@ namespace rive
 class DrawRulesBase : public ContainerComponent
 {
 protected:
-    typedef ContainerComponent Super;
+  typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 49;
+  static const uint16_t typeKey = 49;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t drawTargetIdPropertyKey = 121;
+  static const uint16_t drawTargetIdPropertyKey = 121;
 
 protected:
-    Id m_DrawTargetId = kEmptyId;
+  Id m_DrawTargetId = kEmptyId;
 
 public:
-    inline Id drawTargetId() const { return m_DrawTargetId; }
-    void drawTargetId(Id value)
+  inline Id drawTargetId() const { return m_DrawTargetId; }
+  void drawTargetId(Id value)
+  {
+    if (m_DrawTargetId == value)
     {
-        if (m_DrawTargetId == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(drawTargetIdPropertyKey, &m_DrawTargetId, &value);
-        m_DrawTargetId = value;
-        RIVE_EDITOR_CHANGED(drawTargetIdChanged());
-        notifyPropertyChanged(drawTargetIdPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(drawTargetIdPropertyKey, &m_DrawTargetId, &value);
+    m_DrawTargetId = value;
+    RIVE_EDITOR_CHANGED(drawTargetIdChanged());
+    notifyPropertyChanged(drawTargetIdPropertyKey);
+  }
 
-    Core* clone() const override;
-    void copy(const DrawRulesBase& object)
-    {
-        m_DrawTargetId = object.m_DrawTargetId;
-        ContainerComponent::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const DrawRulesBase& object)
+  {
+    m_DrawTargetId = object.m_DrawTargetId;
+    ContainerComponent::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case drawTargetIdPropertyKey:
-                m_DrawTargetId = CoreIdType::runtimeDeserialize(reader);
-                return true;
-        }
-        return ContainerComponent::deserialize(propertyKey, reader);
+      case drawTargetIdPropertyKey:
+        m_DrawTargetId = CoreIdType::runtimeDeserialize(reader);
+        return true;
     }
+    return ContainerComponent::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void drawTargetIdChanged() {}
+  virtual void drawTargetIdChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/draw_rules_ext.inl"
 #endif

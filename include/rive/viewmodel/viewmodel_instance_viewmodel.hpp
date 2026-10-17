@@ -16,54 +16,53 @@ class ViewModelInstanceViewModel : public ViewModelInstanceViewModelBase,
                                    public DataBindViewModelConsumer
 {
 private:
-    rcp<ViewModelInstance> m_referenceViewModelInstance = nullptr;
-    ViewModelInstance* m_parentViewModelInstance = nullptr;
+  rcp<ViewModelInstance> m_referenceViewModelInstance = nullptr;
+  ViewModelInstance* m_parentViewModelInstance = nullptr;
 
 public:
 #ifdef WITH_RIVE_EDITOR
-    void editorPrepareForDestruction() override;
+  void editorPrepareForDestruction() override;
 #endif
-    void referenceViewModelInstance(rcp<ViewModelInstance> value)
+  void referenceViewModelInstance(rcp<ViewModelInstance> value)
+  {
+    if (m_referenceViewModelInstance && m_parentViewModelInstance)
     {
-        if (m_referenceViewModelInstance && m_parentViewModelInstance)
-        {
-            m_referenceViewModelInstance->removeParent(
-                m_parentViewModelInstance);
-        }
-        m_referenceViewModelInstance = value;
-        if (m_referenceViewModelInstance && m_parentViewModelInstance)
-        {
-            m_referenceViewModelInstance->addParent(m_parentViewModelInstance);
-        }
-        propertyValueChanged();
-    };
-    rcp<ViewModelInstance> referenceViewModelInstance()
-    {
-        return m_referenceViewModelInstance;
+      m_referenceViewModelInstance->removeParent(m_parentViewModelInstance);
     }
-    void parentViewModelInstance(ViewModelInstance* parent)
+    m_referenceViewModelInstance = value;
+    if (m_referenceViewModelInstance && m_parentViewModelInstance)
     {
-        m_parentViewModelInstance = parent;
+      m_referenceViewModelInstance->addParent(m_parentViewModelInstance);
     }
-    ViewModelInstance* parentViewModelInstance()
-    {
-        return m_parentViewModelInstance;
-    }
-    void setRoot(rcp<ViewModelInstance> value) override;
-    void updateViewModel(ViewModelInstance*) override;
-    void applyValue(DataValueViewModel*);
-    StatusCode import(ImportStack& importStack) override;
-    Core* clone() const override;
+    propertyValueChanged();
+  };
+  rcp<ViewModelInstance> referenceViewModelInstance()
+  {
+    return m_referenceViewModelInstance;
+  }
+  void parentViewModelInstance(ViewModelInstance* parent)
+  {
+    m_parentViewModelInstance = parent;
+  }
+  ViewModelInstance* parentViewModelInstance()
+  {
+    return m_parentViewModelInstance;
+  }
+  void setRoot(rcp<ViewModelInstance> value) override;
+  void updateViewModel(ViewModelInstance*) override;
+  void applyValue(DataValueViewModel*);
+  StatusCode import(ImportStack& importStack) override;
+  Core* clone() const override;
 #ifdef WITH_RIVE_TOOLS
-    void onChanged(ViewModelViewModelChanged callback)
-    {
-        m_changedCallback = callback;
-    }
-    ViewModelViewModelChanged m_changedCallback = nullptr;
+  void onChanged(ViewModelViewModelChanged callback)
+  {
+    m_changedCallback = callback;
+  }
+  ViewModelViewModelChanged m_changedCallback = nullptr;
 #endif
 
 protected:
-    void propertyValueChanged() override;
+  void propertyValueChanged() override;
 };
 } // namespace rive
 

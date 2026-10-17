@@ -21,202 +21,202 @@ using namespace rive;
 // options.
 static bool isSoloSetMember(Component* child)
 {
-    return !(child->is<Constraint>() || child->is<ClippingShape>() ||
-             child->is<LayerMask>() || child->is<FocusData>() ||
-             child->is<SemanticData>());
+  return !(
+      child->is<Constraint>() || child->is<ClippingShape>() ||
+      child->is<LayerMask>() || child->is<FocusData>() ||
+      child->is<SemanticData>());
 }
 
 Component* Solo::activeComponent()
 {
-    auto* ab = artboard();
-    Core* active = ab != nullptr ? ab->resolve(activeComponentId()) : nullptr;
-    // The active id refers to one of our children; match by pointer so we get
-    // it typed as a Component.
-    for (Component* child : children())
+  auto* ab = artboard();
+  Core* active = ab != nullptr ? ab->resolve(activeComponentId()) : nullptr;
+  // The active id refers to one of our children; match by pointer so we get
+  // it typed as a Component.
+  for (Component* child : children())
+  {
+    if (child == active)
     {
-        if (child == active)
-        {
-            return child;
-        }
+      return child;
     }
-    return nullptr;
+  }
+  return nullptr;
 }
 
 #ifdef WITH_RIVE_LAYOUT
 void Solo::recollectOwningLayout()
 {
-    // We are not a LayoutComponent, so walk up for the layout that owns the
-    // slot our active child occupies.
-    for (Component* p = parent(); p != nullptr; p = p->parent())
+  // We are not a LayoutComponent, so walk up for the layout that owns the
+  // slot our active child occupies.
+  for (Component* p = parent(); p != nullptr; p = p->parent())
+  {
+    if (p->is<LayoutComponent>())
     {
-        if (p->is<LayoutComponent>())
-        {
-            p->as<LayoutComponent>()->syncLayoutChildren();
-            return;
-        }
+      p->as<LayoutComponent>()->syncLayoutChildren();
+      return;
     }
+  }
 }
 #endif
 
 void Solo::propagateCollapse(bool collapse)
 {
-    Core* active =
-        collapse ? nullptr : artboard()->resolve(activeComponentId());
-    for (Component* child : children())
+  Core* active = collapse ? nullptr : artboard()->resolve(activeComponentId());
+  for (Component* child : children())
+  {
+    // For components that aren't part of the solo set, simply pass on the
+    // collapse value of the solo itself.
+    if (!isSoloSetMember(child))
     {
-        // For components that aren't part of the solo set, simply pass on the
-        // collapse value of the solo itself.
-        if (!isSoloSetMember(child))
-        {
-            child->collapse(collapse);
-            continue;
-        }
-
-        // This child is part of the solo set so only make it active if it's the
-        // currently marked solo object.
-        child->collapse(child != active);
+      child->collapse(collapse);
+      continue;
     }
+
+    // This child is part of the solo set so only make it active if it's the
+    // currently marked solo object.
+    child->collapse(child != active);
+  }
 }
 
 bool Solo::collapse(bool value)
 {
-    // Intentionally using Component instead of Super as we don't want to call
-    // collapse on the Container logic which just propagates blindly to
-    // children.
-    if (!Component::collapse(value))
-    {
-        return false;
-    }
-    propagateCollapse(value);
-    return true;
+  // Intentionally using Component instead of Super as we don't want to call
+  // collapse on the Container logic which just propagates blindly to
+  // children.
+  if (!Component::collapse(value))
+  {
+    return false;
+  }
+  propagateCollapse(value);
+  return true;
 }
 
 void Solo::activeComponentIdChanged()
 {
-    propagateCollapse(isCollapsed());
+  propagateCollapse(isCollapsed());
 #ifdef WITH_RIVE_LAYOUT
-    // Only the active child is exposed to layout, so a swap changes the owning
-    // layout's child set.
-    recollectOwningLayout();
+  // Only the active child is exposed to layout, so a swap changes the owning
+  // layout's child set.
+  recollectOwningLayout();
 #endif
 }
 
 StatusCode Solo::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
 #ifdef WITH_RIVE_EDITOR
-    // Coop-apply runs Pass 4 onAddedClean before a renderer is attached;
-    // `propagateCollapse` fires `onDirty` on every child, which in
-    // subclasses like Image/Mesh allocates render buffers via the
-    // factory — so skip during hydration (post-validation edits re-fire
-    // it via activeComponentIdChanged). Runtime .riv imports are marked
-    // validated at read time and need it now or inactive Solo children
-    // render un-collapsed.
-    if (hasValidated())
+  // Coop-apply runs Pass 4 onAddedClean before a renderer is attached;
+  // `propagateCollapse` fires `onDirty` on every child, which in
+  // subclasses like Image/Mesh allocates render buffers via the
+  // factory — so skip during hydration (post-validation edits re-fire
+  // it via activeComponentIdChanged). Runtime .riv imports are marked
+  // validated at read time and need it now or inactive Solo children
+  // render un-collapsed.
+  if (hasValidated())
 #endif
-    {
-        propagateCollapse(isCollapsed());
+  {
+    propagateCollapse(isCollapsed());
 #ifdef WITH_RIVE_LAYOUT
-        // Parent chain + active child are resolved now; make sure the owning
-        // layout has collected the active child.
-        recollectOwningLayout();
+    // Parent chain + active child are resolved now; make sure the owning
+    // layout has collected the active child.
+    recollectOwningLayout();
 #endif
-    }
-    return StatusCode::Ok;
+  }
+  return StatusCode::Ok;
 }
 
 void Solo::updateByIndex(size_t index)
 {
-    // The number of solo options is always <= children().size(), so any index
-    // that big can never match. Bail early to avoid an O(n) walk every frame
-    // for out-of-range indices (the data-binding path casts rounded floats to
-    // size_t without clamping, so negative values arrive as huge indices).
-    if (!artboard() || index >= children().size())
+  // The number of solo options is always <= children().size(), so any index
+  // that big can never match. Bail early to avoid an O(n) walk every frame
+  // for out-of-range indices (the data-binding path casts rounded floats to
+  // size_t without clamping, so negative values arrive as huge indices).
+  if (!artboard() || index >= children().size())
+  {
+    return;
+  }
+  // The index refers to the Nth solo option, skipping property-like children
+  // (constraints, clipping shapes, focus/semantic data) so it matches the
+  // ordering exposed by getActiveChildIndex.
+  size_t soloIndex = 0;
+  for (auto& child : children())
+  {
+    if (!isSoloSetMember(child))
     {
-        return;
+      continue;
     }
-    // The index refers to the Nth solo option, skipping property-like children
-    // (constraints, clipping shapes, focus/semantic data) so it matches the
-    // ordering exposed by getActiveChildIndex.
-    size_t soloIndex = 0;
-    for (auto& child : children())
+    if (soloIndex == index)
     {
-        if (!isSoloSetMember(child))
-        {
-            continue;
-        }
-        if (soloIndex == index)
-        {
-            activeComponentId(artboard()->idOf(child));
-            return;
-        }
-        soloIndex++;
+      activeComponentId(artboard()->idOf(child));
+      return;
     }
+    soloIndex++;
+  }
 }
 
 void Solo::updateByName(const std::string& name)
 {
-    if (!artboard())
+  if (!artboard())
+  {
+    return;
+  }
+  for (auto& child : children())
+  {
+    if (!isSoloSetMember(child))
     {
-        return;
+      continue;
     }
-    for (auto& child : children())
+    if (child->name() == name)
     {
-        if (!isSoloSetMember(child))
-        {
-            continue;
-        }
-        if (child->name() == name)
-        {
 
-            int globalIndex = artboard()->idOf(child);
-            activeComponentId(globalIndex);
-            break;
-        }
+      int globalIndex = artboard()->idOf(child);
+      activeComponentId(globalIndex);
+      break;
     }
+  }
 }
 
 int Solo::getActiveChildIndex()
 {
-    if (!artboard())
-    {
-        return -1;
-    }
-    Core* active = artboard()->resolve(activeComponentId());
-    if (active)
-    {
-        int index = 0;
-        for (auto& child : children())
-        {
-            if (!isSoloSetMember(child))
-            {
-                continue;
-            }
-            if (child == active)
-            {
-                return index;
-            }
-            index++;
-        }
-    }
+  if (!artboard())
+  {
     return -1;
+  }
+  Core* active = artboard()->resolve(activeComponentId());
+  if (active)
+  {
+    int index = 0;
+    for (auto& child : children())
+    {
+      if (!isSoloSetMember(child))
+      {
+        continue;
+      }
+      if (child == active)
+      {
+        return index;
+      }
+      index++;
+    }
+  }
+  return -1;
 }
 
 std::string Solo::getActiveChildName()
 {
-    if (!artboard())
-    {
-        return "";
-    }
-    Core* active = artboard()->resolve(activeComponentId());
-    if (active && active->is<Component>())
-    {
-        return active->as<Component>()->name();
-    }
+  if (!artboard())
+  {
     return "";
+  }
+  Core* active = artboard()->resolve(activeComponentId());
+  if (active && active->is<Component>())
+  {
+    return active->as<Component>()->name();
+  }
+  return "";
 }

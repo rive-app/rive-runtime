@@ -9,49 +9,49 @@ using namespace rive;
 
 Core* NestedArtboardLayout::clone() const
 {
-    NestedArtboardLayout* nestedArtboard =
-        static_cast<NestedArtboardLayout*>(NestedArtboardLayoutBase::clone());
-    cloneReferencesInto(nestedArtboard);
-    return nestedArtboard;
+  NestedArtboardLayout* nestedArtboard = static_cast<NestedArtboardLayout*>(
+      NestedArtboardLayoutBase::clone());
+  cloneReferencesInto(nestedArtboard);
+  return nestedArtboard;
 }
 
 AABB NestedArtboardLayout::layoutBounds()
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (artboardInstance() != nullptr)
-    {
-        return artboardInstance()->layoutBounds();
-    }
+  if (artboardInstance() != nullptr)
+  {
+    return artboardInstance()->layoutBounds();
+  }
 #endif
-    return AABB();
+  return AABB();
 }
 
 #ifdef WITH_RIVE_LAYOUT
 void* NestedArtboardLayout::layoutNode(int index)
 {
-    if (artboardInstance() == nullptr)
-    {
-        return nullptr;
-    }
-    return static_cast<void*>(&artboardInstance()->takeLayoutData()->node);
+  if (artboardInstance() == nullptr)
+  {
+    return nullptr;
+  }
+  return static_cast<void*>(&artboardInstance()->takeLayoutData()->node);
 }
 #endif
 
 void NestedArtboardLayout::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {
-    if (artboard() != nullptr)
-    {
-        artboard()->markLayoutDirty(this->artboardInstance());
-        artboard()->markLayoutStyleDirty();
-    }
+  if (artboard() != nullptr)
+  {
+    artboard()->markLayoutDirty(this->artboardInstance());
+    artboard()->markLayoutStyleDirty();
+  }
 }
 
 void NestedArtboardLayout::markLayoutNodeDirty(
     bool shouldForceUpdateLayoutBounds)
 {
-    updateWidthOverride();
-    updateHeightOverride();
+  updateWidthOverride();
+  updateHeightOverride();
 }
 
 // Where the layout put us, less the mounted artboard's own origin, applied in
@@ -67,67 +67,67 @@ void NestedArtboardLayout::markLayoutNodeDirty(
 // do not constrain a nested artboard are unaffected.
 void NestedArtboardLayout::applyLayoutPlacement()
 {
-    auto artboard = artboardInstance();
-    if (artboard == nullptr)
-    {
-        return;
-    }
-    auto base =
-        Vec2D(artboard->layoutX(), artboard->layoutY()) - artboard->origin();
-    auto* parentComponent = parent();
-    if (parentComponent != nullptr && parentComponent->is<Artboard>())
-    {
-        base += parentComponent->as<Artboard>()->origin();
-    }
-    if (m_ParentTransformComponent != nullptr)
-    {
-        // Rotate/scale into the parent's frame; its translation cancels.
-        const Mat2D& p = m_ParentTransformComponent->worldTransform();
-        m_WorldTransform[4] += p[0] * base.x + p[2] * base.y;
-        m_WorldTransform[5] += p[1] * base.x + p[3] * base.y;
-    }
-    else
-    {
-        m_WorldTransform[4] += base.x;
-        m_WorldTransform[5] += base.y;
-    }
+  auto artboard = artboardInstance();
+  if (artboard == nullptr)
+  {
+    return;
+  }
+  auto base = Vec2D(artboard->layoutX(), artboard->layoutY()) -
+              artboard->origin();
+  auto* parentComponent = parent();
+  if (parentComponent != nullptr && parentComponent->is<Artboard>())
+  {
+    base += parentComponent->as<Artboard>()->origin();
+  }
+  if (m_ParentTransformComponent != nullptr)
+  {
+    // Rotate/scale into the parent's frame; its translation cancels.
+    const Mat2D& p = m_ParentTransformComponent->worldTransform();
+    m_WorldTransform[4] += p[0] * base.x + p[2] * base.y;
+    m_WorldTransform[5] += p[1] * base.x + p[3] * base.y;
+  }
+  else
+  {
+    m_WorldTransform[4] += base.x;
+    m_WorldTransform[5] += base.y;
+  }
 }
 
 void NestedArtboardLayout::updateConstraints()
 {
-    if (layoutConstraints().size() > 0)
+  if (layoutConstraints().size() > 0)
+  {
+    for (auto parentConstraint : layoutConstraints())
     {
-        for (auto parentConstraint : layoutConstraints())
-        {
-            parentConstraint->constrainChild(this);
-        }
+      parentConstraint->constrainChild(this);
     }
-    Super::updateConstraints();
-    applyLayoutPlacement();
+  }
+  Super::updateConstraints();
+  applyLayoutPlacement();
 }
 
 StatusCode NestedArtboardLayout::onAddedClean(CoreContext* context)
 {
-    StatusCode code = Super::onAddedClean(context);
-    if (code != StatusCode::Ok)
-    {
-        return code;
-    }
+  StatusCode code = Super::onAddedClean(context);
+  if (code != StatusCode::Ok)
+  {
+    return code;
+  }
 
-    updateWidthOverride();
-    updateHeightOverride();
+  updateWidthOverride();
+  updateHeightOverride();
 
-    return StatusCode::Ok;
+  return StatusCode::Ok;
 }
 
 void NestedArtboardLayout::updateLayoutBounds(bool animate)
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (artboardInstance() == nullptr)
-    {
-        return;
-    }
-    artboardInstance()->updateLayoutBounds(animate);
+  if (artboardInstance() == nullptr)
+  {
+    return;
+  }
+  artboardInstance()->updateLayoutBounds(animate);
 #endif
 }
 
@@ -138,47 +138,48 @@ bool NestedArtboardLayout::cascadeLayoutStyle(
     float inheritedInterpolationTime,
     LayoutDirection direction)
 {
-    if (artboardInstance() != nullptr)
-    {
-        artboardInstance()->cascadeLayoutStyle(inheritedInterpolation,
-                                               inheritedInterpolator,
-                                               inheritedInterpolationTime,
-                                               direction);
-    }
-    return false;
+  if (artboardInstance() != nullptr)
+  {
+    artboardInstance()->cascadeLayoutStyle(
+        inheritedInterpolation,
+        inheritedInterpolator,
+        inheritedInterpolationTime,
+        direction);
+  }
+  return false;
 }
 #endif
 
 void NestedArtboardLayout::updateWidthOverride()
 {
-    if (artboardInstance() == nullptr)
-    {
-        return;
-    }
-    m_styleOverrider.updateWidthOverride(artboardInstance());
+  if (artboardInstance() == nullptr)
+  {
+    return;
+  }
+  m_styleOverrider.updateWidthOverride(artboardInstance());
 }
 
 void NestedArtboardLayout::updateHeightOverride()
 {
-    if (artboardInstance() == nullptr)
-    {
-        return;
-    }
-    m_styleOverrider.updateHeightOverride(artboardInstance());
+  if (artboardInstance() == nullptr)
+  {
+    return;
+  }
+  m_styleOverrider.updateHeightOverride(artboardInstance());
 }
 
 // The layout that collected us, which may sit above a container. Asking
 // parent() reported row/not-stack for a Solo and sized the wrong axis.
 bool NestedArtboardLayout::isRow()
 {
-    auto* layout = owningLayout(parent());
-    return layout != nullptr ? layout->mainAxisIsRow() : true;
+  auto* layout = owningLayout(parent());
+  return layout != nullptr ? layout->mainAxisIsRow() : true;
 }
 
 bool NestedArtboardLayout::isStack()
 {
-    auto* layout = owningLayout(parent());
-    return layout != nullptr && layout->isStackContainer();
+  auto* layout = owningLayout(parent());
+  return layout != nullptr && layout->isStackContainer();
 }
 
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
@@ -187,69 +188,69 @@ void NestedArtboardLayout::instanceHeightChanged() { updateHeightOverride(); }
 
 void NestedArtboardLayout::instanceWidthUnitsValueChanged()
 {
-    updateWidthOverride();
+  updateWidthOverride();
 }
 
 void NestedArtboardLayout::instanceHeightUnitsValueChanged()
 {
-    updateHeightOverride();
+  updateHeightOverride();
 }
 
 void NestedArtboardLayout::instanceWidthScaleTypeChanged()
 {
-    updateWidthOverride();
+  updateWidthOverride();
 }
 
 void NestedArtboardLayout::instanceHeightScaleTypeChanged()
 {
-    updateHeightOverride();
+  updateHeightOverride();
 }
 
 bool NestedArtboardLayout::syncStyleChanges()
 {
-    if (m_referencedArtboard == nullptr)
-    {
-        return false;
-    }
-    return m_referencedArtboard->syncStyleChanges();
+  if (m_referencedArtboard == nullptr)
+  {
+    return false;
+  }
+  return m_referencedArtboard->syncStyleChanges();
 }
 
 void NestedArtboardLayout::referencedArtboard(Artboard* artboard)
 {
 #ifdef WITH_RIVE_EDITOR
-    if (!editorArena())
-    {
-        NestedArtboard::referencedArtboard(artboard);
-        return;
-    }
-    // Editor hydration also assigns non-owned definitions. Their authored
-    // layout must not receive an instance's sizing overrides.
-    if (!artboard->isInstance())
-    {
-        NestedArtboard::referencedArtboard(artboard);
-        return;
-    }
-#ifdef WITH_RIVE_LAYOUT
-    // Direct mounts (including editor-native clones) also replace the owned
-    // instance. Detach Yoga's borrowed node before nest() destroys it. The
-    // artboard host only rebuilds the root, which may not be our owner when
-    // a LayoutComponent sits between this instance and the artboard.
-    auto* layout = owningLayout(parent());
-    // Hydration may mount definitions before the owning component is valid.
-    if (layout != nullptr && layout->artboard() == nullptr)
-        layout = nullptr;
-    if (layout != nullptr)
-        layout->clearLayoutChildren();
-#endif
+  if (!editorArena())
+  {
     NestedArtboard::referencedArtboard(artboard);
-    updateWidthOverride();
-    updateHeightOverride();
+    return;
+  }
+  // Editor hydration also assigns non-owned definitions. Their authored
+  // layout must not receive an instance's sizing overrides.
+  if (!artboard->isInstance())
+  {
+    NestedArtboard::referencedArtboard(artboard);
+    return;
+  }
 #ifdef WITH_RIVE_LAYOUT
-    if (layout != nullptr)
-        layout->syncLayoutChildren();
+  // Direct mounts (including editor-native clones) also replace the owned
+  // instance. Detach Yoga's borrowed node before nest() destroys it. The
+  // artboard host only rebuilds the root, which may not be our owner when
+  // a LayoutComponent sits between this instance and the artboard.
+  auto* layout = owningLayout(parent());
+  // Hydration may mount definitions before the owning component is valid.
+  if (layout != nullptr && layout->artboard() == nullptr)
+    layout = nullptr;
+  if (layout != nullptr)
+    layout->clearLayoutChildren();
+#endif
+  NestedArtboard::referencedArtboard(artboard);
+  updateWidthOverride();
+  updateHeightOverride();
+#ifdef WITH_RIVE_LAYOUT
+  if (layout != nullptr)
+    layout->syncLayoutChildren();
 #endif
 #else
-    NestedArtboard::referencedArtboard(artboard);
+  NestedArtboard::referencedArtboard(artboard);
 #endif
 }
 
@@ -257,21 +258,21 @@ void NestedArtboardLayout::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
 #ifdef WITH_RIVE_LAYOUT
-    // Re-collect on the layout that owns our node, not on parent(), or a
-    // container between the two leaves the swap unsynced.
-    auto* layout = owningLayout(parent());
-    if (layout != nullptr)
-    {
-        layout->clearLayoutChildren();
-    }
+  // Re-collect on the layout that owns our node, not on parent(), or a
+  // container between the two leaves the swap unsynced.
+  auto* layout = owningLayout(parent());
+  if (layout != nullptr)
+  {
+    layout->clearLayoutChildren();
+  }
 #endif
-    NestedArtboard::updateArtboard(viewModelInstanceArtboard);
-    updateWidthOverride();
-    updateHeightOverride();
+  NestedArtboard::updateArtboard(viewModelInstanceArtboard);
+  updateWidthOverride();
+  updateHeightOverride();
 #ifdef WITH_RIVE_LAYOUT
-    if (layout != nullptr)
-    {
-        layout->syncLayoutChildren();
-    }
+  if (layout != nullptr)
+  {
+    layout->syncLayoutChildren();
+  }
 #endif
 }

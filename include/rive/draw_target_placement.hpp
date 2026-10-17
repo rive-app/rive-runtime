@@ -4,8 +4,8 @@ namespace rive
 {
 enum class DrawTargetPlacement : unsigned char
 {
-    before = 0,
-    after = 1
+  before = 0,
+  after = 1
 };
 }
 #endif

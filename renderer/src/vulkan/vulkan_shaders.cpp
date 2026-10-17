@@ -126,360 +126,393 @@ namespace embedded
 } // namespace embedded
 
 // Draw setup shaders.
-rive::Span<const uint32_t> color_ramp_vert =
-    rive::make_span(embedded::color_ramp_vert);
-rive::Span<const uint32_t> color_ramp_frag =
-    rive::make_span(embedded::color_ramp_frag);
-rive::Span<const uint32_t> tessellate_vert =
-    rive::make_span(embedded::tessellate_vert);
-rive::Span<const uint32_t> tessellate_frag =
-    rive::make_span(embedded::tessellate_frag);
-rive::Span<const uint32_t> render_atlas_vert =
-    rive::make_span(embedded::render_atlas_vert);
-rive::Span<const uint32_t> render_atlas_fill_frag =
-    rive::make_span(embedded::render_atlas_fill_frag);
-rive::Span<const uint32_t> render_atlas_stroke_frag =
-    rive::make_span(embedded::render_atlas_stroke_frag);
+rive::Span<const uint32_t> color_ramp_vert = rive::make_span(
+    embedded::color_ramp_vert);
+rive::Span<const uint32_t> color_ramp_frag = rive::make_span(
+    embedded::color_ramp_frag);
+rive::Span<const uint32_t> tessellate_vert = rive::make_span(
+    embedded::tessellate_vert);
+rive::Span<const uint32_t> tessellate_frag = rive::make_span(
+    embedded::tessellate_frag);
+rive::Span<const uint32_t> render_atlas_vert = rive::make_span(
+    embedded::render_atlas_vert);
+rive::Span<const uint32_t> render_atlas_fill_frag = rive::make_span(
+    embedded::render_atlas_fill_frag);
+rive::Span<const uint32_t> render_atlas_stroke_frag = rive::make_span(
+    embedded::render_atlas_stroke_frag);
 
 // InterlockMode::rasterOrdering shaders.
-rive::Span<const uint32_t> draw_path_vert =
-    rive::make_span(embedded::draw_path_vert);
-rive::Span<const uint32_t> draw_path_frag =
-    rive::make_span(embedded::draw_path_frag);
-rive::Span<const uint32_t> draw_interior_triangles_vert =
-    rive::make_span(embedded::draw_interior_triangles_vert);
-rive::Span<const uint32_t> draw_interior_triangles_frag =
-    rive::make_span(embedded::draw_interior_triangles_frag);
-rive::Span<const uint32_t> draw_atlas_blit_vert =
-    rive::make_span(embedded::draw_atlas_blit_vert);
-rive::Span<const uint32_t> draw_atlas_blit_frag =
-    rive::make_span(embedded::draw_atlas_blit_frag);
-rive::Span<const uint32_t> draw_image_mesh_vert =
-    rive::make_span(embedded::draw_image_mesh_vert);
-rive::Span<const uint32_t> draw_image_mesh_frag =
-    rive::make_span(embedded::draw_image_mesh_frag);
+rive::Span<const uint32_t> draw_path_vert = rive::make_span(
+    embedded::draw_path_vert);
+rive::Span<const uint32_t> draw_path_frag = rive::make_span(
+    embedded::draw_path_frag);
+rive::Span<const uint32_t> draw_interior_triangles_vert = rive::make_span(
+    embedded::draw_interior_triangles_vert);
+rive::Span<const uint32_t> draw_interior_triangles_frag = rive::make_span(
+    embedded::draw_interior_triangles_frag);
+rive::Span<const uint32_t> draw_atlas_blit_vert = rive::make_span(
+    embedded::draw_atlas_blit_vert);
+rive::Span<const uint32_t> draw_atlas_blit_frag = rive::make_span(
+    embedded::draw_atlas_blit_frag);
+rive::Span<const uint32_t> draw_image_mesh_vert = rive::make_span(
+    embedded::draw_image_mesh_vert);
+rive::Span<const uint32_t> draw_image_mesh_frag = rive::make_span(
+    embedded::draw_image_mesh_frag);
 
 #ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::atomics shaders.
-rive::Span<const uint32_t> atomic_draw_path_vert =
-    rive::make_span(embedded::atomic_draw_path_vert);
-rive::Span<const uint32_t> atomic_draw_path_frag =
-    rive::make_span(embedded::atomic_draw_path_frag);
-rive::Span<const uint32_t> atomic_draw_path_fixedcolor_frag =
-    rive::make_span(embedded::atomic_draw_path_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_draw_interior_triangles_vert =
-    rive::make_span(embedded::atomic_draw_interior_triangles_vert);
-rive::Span<const uint32_t> atomic_draw_interior_triangles_frag =
-    rive::make_span(embedded::atomic_draw_interior_triangles_frag);
-rive::Span<const uint32_t> atomic_draw_interior_triangles_fixedcolor_frag =
-    rive::make_span(embedded::atomic_draw_interior_triangles_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_draw_atlas_blit_vert =
-    rive::make_span(embedded::atomic_draw_atlas_blit_vert);
-rive::Span<const uint32_t> atomic_draw_atlas_blit_frag =
-    rive::make_span(embedded::atomic_draw_atlas_blit_frag);
-rive::Span<const uint32_t> atomic_draw_atlas_blit_fixedcolor_frag =
-    rive::make_span(embedded::atomic_draw_atlas_blit_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_draw_image_rect_vert =
-    rive::make_span(embedded::atomic_draw_image_rect_vert);
-rive::Span<const uint32_t> atomic_draw_image_rect_frag =
-    rive::make_span(embedded::atomic_draw_image_rect_frag);
-rive::Span<const uint32_t> atomic_draw_image_rect_fixedcolor_frag =
-    rive::make_span(embedded::atomic_draw_image_rect_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_draw_image_mesh_vert =
-    rive::make_span(embedded::atomic_draw_image_mesh_vert);
-rive::Span<const uint32_t> atomic_draw_image_mesh_frag =
-    rive::make_span(embedded::atomic_draw_image_mesh_frag);
-rive::Span<const uint32_t> atomic_draw_image_mesh_fixedcolor_frag =
-    rive::make_span(embedded::atomic_draw_image_mesh_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_resolve_vert =
-    rive::make_span(embedded::atomic_resolve_vert);
-rive::Span<const uint32_t> atomic_resolve_frag =
-    rive::make_span(embedded::atomic_resolve_frag);
-rive::Span<const uint32_t> atomic_resolve_fixedcolor_frag =
-    rive::make_span(embedded::atomic_resolve_fixedcolor_frag);
-rive::Span<const uint32_t> atomic_resolve_coalesced_vert =
-    rive::make_span(embedded::atomic_resolve_coalesced_vert);
-rive::Span<const uint32_t> atomic_resolve_coalesced_frag =
-    rive::make_span(embedded::atomic_resolve_coalesced_frag);
+rive::Span<const uint32_t> atomic_draw_path_vert = rive::make_span(
+    embedded::atomic_draw_path_vert);
+rive::Span<const uint32_t> atomic_draw_path_frag = rive::make_span(
+    embedded::atomic_draw_path_frag);
+rive::Span<const uint32_t> atomic_draw_path_fixedcolor_frag = rive::make_span(
+    embedded::atomic_draw_path_fixedcolor_frag);
+rive::Span<const uint32_t>
+    atomic_draw_interior_triangles_vert = rive::make_span(
+        embedded::atomic_draw_interior_triangles_vert);
+rive::Span<const uint32_t>
+    atomic_draw_interior_triangles_frag = rive::make_span(
+        embedded::atomic_draw_interior_triangles_frag);
+rive::Span<const uint32_t>
+    atomic_draw_interior_triangles_fixedcolor_frag = rive::make_span(
+        embedded::atomic_draw_interior_triangles_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_draw_atlas_blit_vert = rive::make_span(
+    embedded::atomic_draw_atlas_blit_vert);
+rive::Span<const uint32_t> atomic_draw_atlas_blit_frag = rive::make_span(
+    embedded::atomic_draw_atlas_blit_frag);
+rive::Span<const uint32_t>
+    atomic_draw_atlas_blit_fixedcolor_frag = rive::make_span(
+        embedded::atomic_draw_atlas_blit_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_draw_image_rect_vert = rive::make_span(
+    embedded::atomic_draw_image_rect_vert);
+rive::Span<const uint32_t> atomic_draw_image_rect_frag = rive::make_span(
+    embedded::atomic_draw_image_rect_frag);
+rive::Span<const uint32_t>
+    atomic_draw_image_rect_fixedcolor_frag = rive::make_span(
+        embedded::atomic_draw_image_rect_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_draw_image_mesh_vert = rive::make_span(
+    embedded::atomic_draw_image_mesh_vert);
+rive::Span<const uint32_t> atomic_draw_image_mesh_frag = rive::make_span(
+    embedded::atomic_draw_image_mesh_frag);
+rive::Span<const uint32_t>
+    atomic_draw_image_mesh_fixedcolor_frag = rive::make_span(
+        embedded::atomic_draw_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_resolve_vert = rive::make_span(
+    embedded::atomic_resolve_vert);
+rive::Span<const uint32_t> atomic_resolve_frag = rive::make_span(
+    embedded::atomic_resolve_frag);
+rive::Span<const uint32_t> atomic_resolve_fixedcolor_frag = rive::make_span(
+    embedded::atomic_resolve_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_resolve_coalesced_vert = rive::make_span(
+    embedded::atomic_resolve_coalesced_vert);
+rive::Span<const uint32_t> atomic_resolve_coalesced_frag = rive::make_span(
+    embedded::atomic_resolve_coalesced_frag);
 #endif
 
 #ifndef RIVE_ANDROID
 // InterlockMode::clockwise shaders.
-rive::Span<const uint32_t> draw_clockwise_path_vert =
-    rive::make_span(embedded::draw_clockwise_path_vert);
-rive::Span<const uint32_t> draw_clockwise_path_frag =
-    rive::make_span(embedded::draw_clockwise_path_frag);
-rive::Span<const uint32_t> draw_clockwise_path_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_path_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_clip_frag =
-    rive::make_span(embedded::draw_clockwise_clip_frag);
-rive::Span<const uint32_t> draw_clockwise_clip_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_clip_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_interior_triangles_vert =
-    rive::make_span(embedded::draw_clockwise_interior_triangles_vert);
-rive::Span<const uint32_t> draw_clockwise_interior_triangles_frag =
-    rive::make_span(embedded::draw_clockwise_interior_triangles_frag);
-rive::Span<const uint32_t> draw_clockwise_interior_triangles_fixedcolor_frag =
-    rive::make_span(
+rive::Span<const uint32_t> draw_clockwise_path_vert = rive::make_span(
+    embedded::draw_clockwise_path_vert);
+rive::Span<const uint32_t> draw_clockwise_path_frag = rive::make_span(
+    embedded::draw_clockwise_path_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_path_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_path_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_clip_frag = rive::make_span(
+    embedded::draw_clockwise_clip_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_clip_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_clip_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_interior_triangles_vert = rive::make_span(
+        embedded::draw_clockwise_interior_triangles_vert);
+rive::Span<const uint32_t>
+    draw_clockwise_interior_triangles_frag = rive::make_span(
+        embedded::draw_clockwise_interior_triangles_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_interior_triangles_fixedcolor_frag = rive::make_span(
         embedded::draw_clockwise_interior_triangles_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_clip_interior_triangles_frag =
-    rive::make_span(embedded::draw_clockwise_clip_interior_triangles_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_clip_interior_triangles_frag = rive::make_span(
+        embedded::draw_clockwise_clip_interior_triangles_frag);
 rive::Span<const uint32_t>
     draw_clockwise_clip_interior_triangles_fixedcolor_frag = rive::make_span(
         embedded::draw_clockwise_clip_interior_triangles_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atlas_blit_vert =
-    rive::make_span(embedded::draw_clockwise_atlas_blit_vert);
-rive::Span<const uint32_t> draw_clockwise_atlas_blit_frag =
-    rive::make_span(embedded::draw_clockwise_atlas_blit_frag);
-rive::Span<const uint32_t> draw_clockwise_atlas_blit_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_atlas_blit_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_image_mesh_vert =
-    rive::make_span(embedded::draw_clockwise_image_mesh_vert);
-rive::Span<const uint32_t> draw_clockwise_image_mesh_frag =
-    rive::make_span(embedded::draw_clockwise_image_mesh_frag);
-rive::Span<const uint32_t> draw_clockwise_image_mesh_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_atlas_blit_vert = rive::make_span(
+    embedded::draw_clockwise_atlas_blit_vert);
+rive::Span<const uint32_t> draw_clockwise_atlas_blit_frag = rive::make_span(
+    embedded::draw_clockwise_atlas_blit_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atlas_blit_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_atlas_blit_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_image_mesh_vert = rive::make_span(
+    embedded::draw_clockwise_image_mesh_vert);
+rive::Span<const uint32_t> draw_clockwise_image_mesh_frag = rive::make_span(
+    embedded::draw_clockwise_image_mesh_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_image_mesh_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_image_mesh_fixedcolor_frag);
 #endif
 
 #ifdef WITH_VULKAN_ATOMICS
 // InterlockMode::clockwiseAtomic shaders.
-rive::Span<const uint32_t> draw_clockwise_atomic_path_vert =
-    rive::make_span(embedded::draw_clockwise_atomic_path_vert);
-rive::Span<const uint32_t> draw_clockwise_atomic_path_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_path_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_path_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_path_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_clip_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_clip_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_clip_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_clip_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_borrowed_coverage_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_borrowed_coverage_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_vert =
-    rive::make_span(embedded::draw_clockwise_atomic_interior_triangles_vert);
-rive::Span<const uint32_t> draw_clockwise_atomic_interior_triangles_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_interior_triangles_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_path_vert = rive::make_span(
+    embedded::draw_clockwise_atomic_path_vert);
+rive::Span<const uint32_t> draw_clockwise_atomic_path_frag = rive::make_span(
+    embedded::draw_clockwise_atomic_path_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_path_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_path_fixedcolor_frag);
+rive::Span<const uint32_t> draw_clockwise_atomic_clip_frag = rive::make_span(
+    embedded::draw_clockwise_atomic_clip_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_clip_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_clip_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_borrowed_coverage_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_borrowed_coverage_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_interior_triangles_vert = rive::make_span(
+        embedded::draw_clockwise_atomic_interior_triangles_vert);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_interior_triangles_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_interior_triangles_frag);
 rive::Span<const uint32_t>
     draw_clockwise_atomic_interior_triangles_fixedcolor_frag = rive::make_span(
         embedded::draw_clockwise_atomic_interior_triangles_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_clip_interior_triangles_frag =
-    rive::make_span(
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_clip_interior_triangles_frag = rive::make_span(
         embedded::draw_clockwise_atomic_clip_interior_triangles_frag);
 rive::Span<const uint32_t>
-    draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag =
-        rive::make_span(
+    draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag = rive::
+        make_span(
             embedded::
                 draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag);
 rive::Span<const uint32_t>
-    draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
-        rive::make_span(
+    draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag = rive::
+        make_span(
             embedded::
                 draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag);
-rive::Span<const uint32_t> clear_clockwise_atomic_clip_vert =
-    rive::make_span(embedded::clear_clockwise_atomic_clip_vert);
-rive::Span<const uint32_t> clear_clockwise_atomic_clip_frag =
-    rive::make_span(embedded::clear_clockwise_atomic_clip_frag);
-rive::Span<const uint32_t> clear_clockwise_atomic_clip_fixedcolor_frag =
-    rive::make_span(embedded::clear_clockwise_atomic_clip_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_vert =
-    rive::make_span(embedded::draw_clockwise_atomic_atlas_blit_vert);
-rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_atlas_blit_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_atlas_blit_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_atlas_blit_fixedcolor_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_vert =
-    rive::make_span(embedded::draw_clockwise_atomic_image_mesh_vert);
-rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_image_mesh_frag);
-rive::Span<const uint32_t> draw_clockwise_atomic_image_mesh_fixedcolor_frag =
-    rive::make_span(embedded::draw_clockwise_atomic_image_mesh_fixedcolor_frag);
-rive::Span<const uint32_t> init_clockwise_atomic_workaround_frag =
-    rive::make_span(embedded::init_clockwise_atomic_workaround_frag);
-rive::Span<const uint32_t> init_clockwise_atomic_workaround_fixedcolor_frag =
-    rive::make_span(embedded::init_clockwise_atomic_workaround_fixedcolor_frag);
+rive::Span<const uint32_t> clear_clockwise_atomic_clip_vert = rive::make_span(
+    embedded::clear_clockwise_atomic_clip_vert);
+rive::Span<const uint32_t> clear_clockwise_atomic_clip_frag = rive::make_span(
+    embedded::clear_clockwise_atomic_clip_frag);
+rive::Span<const uint32_t>
+    clear_clockwise_atomic_clip_fixedcolor_frag = rive::make_span(
+        embedded::clear_clockwise_atomic_clip_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_atlas_blit_vert = rive::make_span(
+        embedded::draw_clockwise_atomic_atlas_blit_vert);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_atlas_blit_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_atlas_blit_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_atlas_blit_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_atlas_blit_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_image_mesh_vert = rive::make_span(
+        embedded::draw_clockwise_atomic_image_mesh_vert);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_image_mesh_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_image_mesh_frag);
+rive::Span<const uint32_t>
+    draw_clockwise_atomic_image_mesh_fixedcolor_frag = rive::make_span(
+        embedded::draw_clockwise_atomic_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t>
+    init_clockwise_atomic_workaround_frag = rive::make_span(
+        embedded::init_clockwise_atomic_workaround_frag);
+rive::Span<const uint32_t>
+    init_clockwise_atomic_workaround_fixedcolor_frag = rive::make_span(
+        embedded::init_clockwise_atomic_workaround_fixedcolor_frag);
 #endif
 
 // InterlockMode::depthStencil shaders.
-rive::Span<const uint32_t> draw_depthstencil_path_vert =
-    rive::make_span(embedded::draw_depthstencil_path_vert);
-rive::Span<const uint32_t> draw_depthstencil_path_noclipdistance_vert =
-    rive::make_span(embedded::draw_depthstencil_path_noclipdistance_vert);
-rive::Span<const uint32_t> draw_depthstencil_path_frag =
-    rive::make_span(embedded::draw_depthstencil_path_frag);
-rive::Span<const uint32_t> draw_depthstencil_path_fixedcolor_frag =
-    rive::make_span(embedded::draw_depthstencil_path_fixedcolor_frag);
-rive::Span<const uint32_t> draw_depthstencil_path_msaa_frag =
-    rive::make_span(embedded::draw_depthstencil_path_msaa_frag);
-rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_vert =
-    rive::make_span(embedded::draw_depthstencil_triangles_nocolor_vert);
-rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_frag =
-    rive::make_span(embedded::draw_depthstencil_triangles_nocolor_frag);
-rive::Span<const uint32_t> draw_depthstencil_triangles_nocolor_fixedcolor_frag =
-    rive::make_span(
+rive::Span<const uint32_t> draw_depthstencil_path_vert = rive::make_span(
+    embedded::draw_depthstencil_path_vert);
+rive::Span<const uint32_t>
+    draw_depthstencil_path_noclipdistance_vert = rive::make_span(
+        embedded::draw_depthstencil_path_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_path_frag = rive::make_span(
+    embedded::draw_depthstencil_path_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_path_fixedcolor_frag = rive::make_span(
+        embedded::draw_depthstencil_path_fixedcolor_frag);
+rive::Span<const uint32_t> draw_depthstencil_path_msaa_frag = rive::make_span(
+    embedded::draw_depthstencil_path_msaa_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_triangles_nocolor_vert = rive::make_span(
+        embedded::draw_depthstencil_triangles_nocolor_vert);
+rive::Span<const uint32_t>
+    draw_depthstencil_triangles_nocolor_frag = rive::make_span(
+        embedded::draw_depthstencil_triangles_nocolor_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_triangles_nocolor_fixedcolor_frag = rive::make_span(
         embedded::draw_depthstencil_triangles_nocolor_fixedcolor_frag);
-rive::Span<const uint32_t> draw_depthstencil_atlas_blit_vert =
-    rive::make_span(embedded::draw_depthstencil_atlas_blit_vert);
-rive::Span<const uint32_t> draw_depthstencil_atlas_blit_noclipdistance_vert =
-    rive::make_span(embedded::draw_depthstencil_atlas_blit_noclipdistance_vert);
-rive::Span<const uint32_t> draw_depthstencil_atlas_blit_frag =
-    rive::make_span(embedded::draw_depthstencil_atlas_blit_frag);
-rive::Span<const uint32_t> draw_depthstencil_atlas_blit_fixedcolor_frag =
-    rive::make_span(embedded::draw_depthstencil_atlas_blit_fixedcolor_frag);
-rive::Span<const uint32_t> draw_depthstencil_atlas_blit_msaa_frag =
-    rive::make_span(embedded::draw_depthstencil_atlas_blit_msaa_frag);
-rive::Span<const uint32_t> draw_depthstencil_image_mesh_vert =
-    rive::make_span(embedded::draw_depthstencil_image_mesh_vert);
-rive::Span<const uint32_t> draw_depthstencil_image_mesh_noclipdistance_vert =
-    rive::make_span(embedded::draw_depthstencil_image_mesh_noclipdistance_vert);
-rive::Span<const uint32_t> draw_depthstencil_image_mesh_frag =
-    rive::make_span(embedded::draw_depthstencil_image_mesh_frag);
-rive::Span<const uint32_t> draw_depthstencil_image_mesh_fixedcolor_frag =
-    rive::make_span(embedded::draw_depthstencil_image_mesh_fixedcolor_frag);
-rive::Span<const uint32_t> draw_depthstencil_image_mesh_msaa_frag =
-    rive::make_span(embedded::draw_depthstencil_image_mesh_msaa_frag);
-rive::Span<const uint32_t> draw_fullscreen_quad_vert =
-    rive::make_span(embedded::draw_fullscreen_quad_vert);
-rive::Span<const uint32_t> draw_input_attachment_frag =
-    rive::make_span(embedded::draw_input_attachment_frag);
-rive::Span<const uint32_t> draw_msaa_color_seed_attachment_frag =
-    rive::make_span(embedded::draw_msaa_color_seed_attachment_frag);
-rive::Span<const uint32_t> draw_msaa_resolve_frag =
-    rive::make_span(embedded::draw_msaa_resolve_frag);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_vert = rive::make_span(
+    embedded::draw_depthstencil_atlas_blit_vert);
+rive::Span<const uint32_t>
+    draw_depthstencil_atlas_blit_noclipdistance_vert = rive::make_span(
+        embedded::draw_depthstencil_atlas_blit_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_atlas_blit_frag = rive::make_span(
+    embedded::draw_depthstencil_atlas_blit_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_atlas_blit_fixedcolor_frag = rive::make_span(
+        embedded::draw_depthstencil_atlas_blit_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_atlas_blit_msaa_frag = rive::make_span(
+        embedded::draw_depthstencil_atlas_blit_msaa_frag);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_vert = rive::make_span(
+    embedded::draw_depthstencil_image_mesh_vert);
+rive::Span<const uint32_t>
+    draw_depthstencil_image_mesh_noclipdistance_vert = rive::make_span(
+        embedded::draw_depthstencil_image_mesh_noclipdistance_vert);
+rive::Span<const uint32_t> draw_depthstencil_image_mesh_frag = rive::make_span(
+    embedded::draw_depthstencil_image_mesh_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_image_mesh_fixedcolor_frag = rive::make_span(
+        embedded::draw_depthstencil_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t>
+    draw_depthstencil_image_mesh_msaa_frag = rive::make_span(
+        embedded::draw_depthstencil_image_mesh_msaa_frag);
+rive::Span<const uint32_t> draw_fullscreen_quad_vert = rive::make_span(
+    embedded::draw_fullscreen_quad_vert);
+rive::Span<const uint32_t> draw_input_attachment_frag = rive::make_span(
+    embedded::draw_input_attachment_frag);
+rive::Span<const uint32_t>
+    draw_msaa_color_seed_attachment_frag = rive::make_span(
+        embedded::draw_msaa_color_seed_attachment_frag);
+rive::Span<const uint32_t> draw_msaa_resolve_frag = rive::make_span(
+    embedded::draw_msaa_resolve_frag);
 
 void hotload_shaders(rive::Span<const uint32_t> spirvData)
 {
-    size_t spirvIndex = 0;
-    auto readNextBytecodeSpan = [spirvData,
-                                 &spirvIndex]() -> rive::Span<const uint32_t> {
-        size_t insnCount = spirvData[spirvIndex++];
-        const uint32_t* insnData = spirvData.data() + spirvIndex;
-        spirvIndex += insnCount;
-        return rive::make_span(insnData, insnCount);
-    };
+  size_t spirvIndex = 0;
+  auto readNextBytecodeSpan = [spirvData,
+                               &spirvIndex]() -> rive::Span<const uint32_t> {
+    size_t insnCount = spirvData[spirvIndex++];
+    const uint32_t* insnData = spirvData.data() + spirvIndex;
+    spirvIndex += insnCount;
+    return rive::make_span(insnData, insnCount);
+  };
 
-    spirv::color_ramp_vert = readNextBytecodeSpan();
-    spirv::color_ramp_frag = readNextBytecodeSpan();
-    spirv::tessellate_vert = readNextBytecodeSpan();
-    spirv::tessellate_frag = readNextBytecodeSpan();
-    spirv::render_atlas_vert = readNextBytecodeSpan();
-    spirv::render_atlas_fill_frag = readNextBytecodeSpan();
-    spirv::render_atlas_stroke_frag = readNextBytecodeSpan();
-    spirv::draw_path_vert = readNextBytecodeSpan();
-    spirv::draw_path_frag = readNextBytecodeSpan();
-    spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::draw_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_image_mesh_frag = readNextBytecodeSpan();
+  spirv::color_ramp_vert = readNextBytecodeSpan();
+  spirv::color_ramp_frag = readNextBytecodeSpan();
+  spirv::tessellate_vert = readNextBytecodeSpan();
+  spirv::tessellate_frag = readNextBytecodeSpan();
+  spirv::render_atlas_vert = readNextBytecodeSpan();
+  spirv::render_atlas_fill_frag = readNextBytecodeSpan();
+  spirv::render_atlas_stroke_frag = readNextBytecodeSpan();
+  spirv::draw_path_vert = readNextBytecodeSpan();
+  spirv::draw_path_frag = readNextBytecodeSpan();
+  spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
+  spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
+  spirv::draw_atlas_blit_vert = readNextBytecodeSpan();
+  spirv::draw_atlas_blit_frag = readNextBytecodeSpan();
+  spirv::draw_image_mesh_vert = readNextBytecodeSpan();
+  spirv::draw_image_mesh_frag = readNextBytecodeSpan();
 
 #ifdef WITH_VULKAN_ATOMICS
-    spirv::atomic_draw_path_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_path_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_resolve_vert = readNextBytecodeSpan();
-    spirv::atomic_resolve_frag = readNextBytecodeSpan();
-    spirv::atomic_resolve_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_resolve_coalesced_vert = readNextBytecodeSpan();
-    spirv::atomic_resolve_coalesced_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_path_vert = readNextBytecodeSpan();
+  spirv::atomic_draw_path_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_interior_triangles_vert = readNextBytecodeSpan();
+  spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
+  spirv::
+      atomic_draw_interior_triangles_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_atlas_blit_vert = readNextBytecodeSpan();
+  spirv::atomic_draw_atlas_blit_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
+  spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_image_mesh_vert = readNextBytecodeSpan();
+  spirv::atomic_draw_image_mesh_frag = readNextBytecodeSpan();
+  spirv::atomic_draw_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_resolve_vert = readNextBytecodeSpan();
+  spirv::atomic_resolve_frag = readNextBytecodeSpan();
+  spirv::atomic_resolve_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::atomic_resolve_coalesced_vert = readNextBytecodeSpan();
+  spirv::atomic_resolve_coalesced_frag = readNextBytecodeSpan();
 #endif
 
 #ifndef RIVE_ANDROID
-    spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_clip_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_clip_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_clip_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_clip_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_path_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_clip_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_clip_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_interior_triangles_fixedcolor_frag =
+      readNextBytecodeSpan();
+  spirv::draw_clockwise_clip_interior_triangles_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_clip_interior_triangles_fixedcolor_frag =
+      readNextBytecodeSpan();
+  spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
 #endif
 
 #ifdef WITH_VULKAN_ATOMICS
-    spirv::draw_clockwise_atomic_path_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_path_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_clip_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_borrowed_coverage_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_interior_triangles_vert =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_interior_triangles_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_clip_interior_triangles_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
-        readNextBytecodeSpan();
-    spirv::clear_clockwise_atomic_clip_vert = readNextBytecodeSpan();
-    spirv::clear_clockwise_atomic_clip_frag = readNextBytecodeSpan();
-    spirv::clear_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_atlas_blit_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_image_mesh_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atomic_image_mesh_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::init_clockwise_atomic_workaround_frag = readNextBytecodeSpan();
-    spirv::init_clockwise_atomic_workaround_fixedcolor_frag =
-        readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_path_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_path_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_path_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_clip_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_borrowed_coverage_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_interior_triangles_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_interior_triangles_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_interior_triangles_fixedcolor_frag =
+      readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_clip_interior_triangles_frag =
+      readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_clip_interior_triangles_fixedcolor_frag =
+      readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_borrowed_coverage_interior_triangles_frag =
+      readNextBytecodeSpan();
+  spirv::clear_clockwise_atomic_clip_vert = readNextBytecodeSpan();
+  spirv::clear_clockwise_atomic_clip_frag = readNextBytecodeSpan();
+  spirv::clear_clockwise_atomic_clip_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_atlas_blit_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_atlas_blit_frag = readNextBytecodeSpan();
+  spirv::
+      draw_clockwise_atomic_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_image_mesh_vert = readNextBytecodeSpan();
+  spirv::draw_clockwise_atomic_image_mesh_frag = readNextBytecodeSpan();
+  spirv::
+      draw_clockwise_atomic_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::init_clockwise_atomic_workaround_frag = readNextBytecodeSpan();
+  spirv::
+      init_clockwise_atomic_workaround_fixedcolor_frag = readNextBytecodeSpan();
 #endif
 
-    spirv::draw_depthstencil_path_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_path_noclipdistance_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_path_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_path_msaa_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_triangles_nocolor_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_triangles_nocolor_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_triangles_nocolor_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_depthstencil_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_atlas_blit_noclipdistance_vert =
-        readNextBytecodeSpan();
-    spirv::draw_depthstencil_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_atlas_blit_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_depthstencil_atlas_blit_msaa_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_depthstencil_image_mesh_noclipdistance_vert =
-        readNextBytecodeSpan();
-    spirv::draw_depthstencil_image_mesh_frag = readNextBytecodeSpan();
-    spirv::draw_depthstencil_image_mesh_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::draw_depthstencil_image_mesh_msaa_frag = readNextBytecodeSpan();
-    spirv::draw_fullscreen_quad_vert = readNextBytecodeSpan();
-    spirv::draw_input_attachment_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_color_seed_attachment_frag = readNextBytecodeSpan();
-    spirv::draw_msaa_resolve_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_path_vert = readNextBytecodeSpan();
+  spirv::draw_depthstencil_path_noclipdistance_vert = readNextBytecodeSpan();
+  spirv::draw_depthstencil_path_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_path_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_path_msaa_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_triangles_nocolor_vert = readNextBytecodeSpan();
+  spirv::draw_depthstencil_triangles_nocolor_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_triangles_nocolor_fixedcolor_frag =
+      readNextBytecodeSpan();
+  spirv::draw_depthstencil_atlas_blit_vert = readNextBytecodeSpan();
+  spirv::
+      draw_depthstencil_atlas_blit_noclipdistance_vert = readNextBytecodeSpan();
+  spirv::draw_depthstencil_atlas_blit_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_atlas_blit_msaa_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_image_mesh_vert = readNextBytecodeSpan();
+  spirv::
+      draw_depthstencil_image_mesh_noclipdistance_vert = readNextBytecodeSpan();
+  spirv::draw_depthstencil_image_mesh_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+  spirv::draw_depthstencil_image_mesh_msaa_frag = readNextBytecodeSpan();
+  spirv::draw_fullscreen_quad_vert = readNextBytecodeSpan();
+  spirv::draw_input_attachment_frag = readNextBytecodeSpan();
+  spirv::draw_msaa_color_seed_attachment_frag = readNextBytecodeSpan();
+  spirv::draw_msaa_resolve_frag = readNextBytecodeSpan();
 }
 } // namespace rive::gpu::spirv

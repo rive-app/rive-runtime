@@ -19,36 +19,36 @@ using namespace rive;
 
 AdvancingComponent* AdvancingComponent::from(Core* component)
 {
-    switch (component->coreType())
-    {
-        case NestedArtboardLeaf::typeKey:
-        case NestedArtboardLayout::typeKey:
-        case NestedArtboard::typeKey:
-            return component->as<NestedArtboard>();
-        case LayoutComponent::typeKey:
-            return component->as<LayoutComponent>();
-        case LayoutParticipantBase::typeKey:
-            return component->as<LayoutParticipant>();
-        case Artboard::typeKey:
-            return component->as<Artboard>();
-        case ArtboardComponentListBase::typeKey:
-            return component->as<ArtboardComponentList>();
-        case ScrollConstraint::typeKey:
-            return component->as<ScrollConstraint>();
-        case TextInputBase::typeKey:
-            return component->as<TextInput>();
-        case ScriptedDataConverter::typeKey:
-            return component->as<ScriptedDataConverter>();
-        case ScriptedDrawable::typeKey:
-            return component->as<ScriptedDrawable>();
-        case ScriptedLayout::typeKey:
-            return component->as<ScriptedLayout>();
-        case ScriptedTransition::typeKey:
-            return component->as<ScriptedTransition>();
-        case ScriptedPathEffect::typeKey:
-            return component->as<ScriptedPathEffect>();
-        case PaintImageBase::typeKey:
-            return component->as<PaintImage>();
-    }
-    return nullptr;
+  switch (component->coreType())
+  {
+    case NestedArtboardLeaf::typeKey:
+    case NestedArtboardLayout::typeKey:
+    case NestedArtboard::typeKey:
+      return component->as<NestedArtboard>();
+    case LayoutComponent::typeKey:
+      return component->as<LayoutComponent>();
+    case LayoutParticipantBase::typeKey:
+      return component->as<LayoutParticipant>();
+    case Artboard::typeKey:
+      return component->as<Artboard>();
+    case ArtboardComponentListBase::typeKey:
+      return component->as<ArtboardComponentList>();
+    case ScrollConstraint::typeKey:
+      return component->as<ScrollConstraint>();
+    case TextInputBase::typeKey:
+      return component->as<TextInput>();
+    case ScriptedDataConverter::typeKey:
+      return component->as<ScriptedDataConverter>();
+    case ScriptedDrawable::typeKey:
+      return component->as<ScriptedDrawable>();
+    case ScriptedLayout::typeKey:
+      return component->as<ScriptedLayout>();
+    case ScriptedTransition::typeKey:
+      return component->as<ScriptedTransition>();
+    case ScriptedPathEffect::typeKey:
+      return component->as<ScriptedPathEffect>();
+    case PaintImageBase::typeKey:
+      return component->as<PaintImage>();
+  }
+  return nullptr;
 }

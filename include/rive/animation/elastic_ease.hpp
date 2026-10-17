@@ -6,20 +6,20 @@ namespace rive
 class ElasticEase
 {
 public:
-    ElasticEase(float amplitude, float period);
-    float easeOut(float factor) const;
-    float easeIn(float factor) const;
-    float easeInOut(float factor) const;
+  ElasticEase(float amplitude, float period);
+  float easeOut(float factor) const;
+  float easeIn(float factor) const;
+  float easeInOut(float factor) const;
 
 #ifndef TESTING
 private:
 #endif
-    float computeActualAmplitude(float time) const;
-    float m_amplitude;
-    float m_period;
+  float computeActualAmplitude(float time) const;
+  float m_amplitude;
+  float m_period;
 
-    // Computed phase shift for starting the sin function at 0 at factor 0.
-    float m_s;
+  // Computed phase shift for starting the sin function at 0 at factor 0.
+  float m_s;
 };
 } // namespace rive
 

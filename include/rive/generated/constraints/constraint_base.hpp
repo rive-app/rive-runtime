@@ -7,51 +7,51 @@ namespace rive
 class ConstraintBase : public Component
 {
 protected:
-    typedef Component Super;
+  typedef Component Super;
 
 public:
-    static const uint16_t typeKey = 79;
+  static const uint16_t typeKey = 79;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t strengthPropertyKey = 172;
+  static const uint16_t strengthPropertyKey = 172;
 
 protected:
-    float m_Strength = 1.0f;
+  float m_Strength = 1.0f;
 
 public:
-    inline float strength() const { return m_Strength; }
-    void strength(float value)
+  inline float strength() const { return m_Strength; }
+  void strength(float value)
+  {
+    if (m_Strength == value)
     {
-        if (m_Strength == value)
-        {
-            return;
-        }
-        RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
-        m_Strength = value;
-        RIVE_EDITOR_CHANGED(strengthChanged());
-        notifyPropertyChanged(strengthPropertyKey);
+      return;
     }
+    RIVE_EDITOR_CHANGING(strengthPropertyKey, &m_Strength, &value);
+    m_Strength = value;
+    RIVE_EDITOR_CHANGED(strengthChanged());
+    notifyPropertyChanged(strengthPropertyKey);
+  }
 
-    void copy(const ConstraintBase& object)
-    {
-        m_Strength = object.m_Strength;
-        Component::copy(object);
-    }
+  void copy(const ConstraintBase& object)
+  {
+    m_Strength = object.m_Strength;
+    Component::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    switch (propertyKey)
     {
-        switch (propertyKey)
-        {
-            case strengthPropertyKey:
-                m_Strength = CoreDoubleType::deserialize(reader);
-                return true;
-        }
-        return Component::deserialize(propertyKey, reader);
+      case strengthPropertyKey:
+        m_Strength = CoreDoubleType::deserialize(reader);
+        return true;
     }
+    return Component::deserialize(propertyKey, reader);
+  }
 
 protected:
-    virtual void strengthChanged() {}
+  virtual void strengthChanged() {}
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/constraints/constraint_ext.inl"
 #endif

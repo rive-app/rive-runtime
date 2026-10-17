@@ -5,13 +5,13 @@ using namespace rive;
 
 std::string CoreStringType::deserialize(BinaryReader& reader)
 {
-    return reader.readString();
+  return reader.readString();
 }
 
 #ifdef WITH_RIVE_TOOLS
 std::string CoreStringType::deserializeRev(BinaryReader& reader)
 {
-    size_t length = reader.lengthInBytes();
-    return reader.readString(length);
+  size_t length = reader.lengthInBytes();
+  return reader.readString(length);
 }
 #endif

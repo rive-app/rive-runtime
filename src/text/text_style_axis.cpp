@@ -6,28 +6,28 @@ using namespace rive;
 
 StatusCode TextStyleAxis::onAddedDirty(CoreContext* context)
 {
-    StatusCode code = Super::onAddedDirty(context);
+  StatusCode code = Super::onAddedDirty(context);
 #ifndef WITH_RIVE_EDITOR
-    // Runtime-only; editor build registers via editorParentChanged.
-    if (code == StatusCode::Ok)
+  // Runtime-only; editor build registers via editorParentChanged.
+  if (code == StatusCode::Ok)
+  {
+    if (!parent()->is<TextStyle>())
     {
-        if (!parent()->is<TextStyle>())
-        {
-            return StatusCode::InvalidObject;
-        }
-        auto style = parent()->as<TextStyle>();
-        style->addVariation(this);
+      return StatusCode::InvalidObject;
     }
+    auto style = parent()->as<TextStyle>();
+    style->addVariation(this);
+  }
 #endif
-    return code;
+  return code;
 }
 
 void TextStyleAxis::tagChanged()
 {
-    parent()->addDirt(ComponentDirt::TextShape);
+  parent()->addDirt(ComponentDirt::TextShape);
 }
 
 void TextStyleAxis::axisValueChanged()
 {
-    parent()->addDirt(ComponentDirt::TextShape);
+  parent()->addDirt(ComponentDirt::TextShape);
 }

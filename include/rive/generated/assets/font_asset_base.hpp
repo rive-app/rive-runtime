@@ -9,26 +9,26 @@ namespace rive
 class FontAssetBase : public FileAsset
 {
 protected:
-    typedef FileAsset Super;
+  typedef FileAsset Super;
 
 public:
-    static const uint16_t typeKey = 141;
+  static const uint16_t typeKey = 141;
 
-    uint16_t coreType() const override { return typeKey; }
+  uint16_t coreType() const override { return typeKey; }
 
 public:
-    Core* clone() const override;
-    void copy(const FontAssetBase& object)
-    {
-        RIVE_EDITOR_COPY(object);
-        FileAsset::copy(object);
-    }
+  Core* clone() const override;
+  void copy(const FontAssetBase& object)
+  {
+    RIVE_EDITOR_COPY(object);
+    FileAsset::copy(object);
+  }
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
-        return FileAsset::deserialize(propertyKey, reader);
-    }
+  bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+  {
+    RIVE_EDITOR_DESERIALIZE(propertyKey, reader);
+    return FileAsset::deserialize(propertyKey, reader);
+  }
 #ifdef WITH_RIVE_EDITOR
 #include "editor_native/generated/assets/font_asset_ext.inl"
 #endif

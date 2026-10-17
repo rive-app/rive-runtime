@@ -57,394 +57,403 @@ class TextureRenderTarget;
 class TestingWindow
 {
 public:
-    enum class Backend
-    {
-        gl,
-        d3d,
-        d3d12,
-        metal,
-        vk,
+  enum class Backend
+  {
+    gl,
+    d3d,
+    d3d12,
+    metal,
+    vk,
 
-        // Vulkan on Metal, aka MoltenVK.
-        // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
-        // VK_ICD_FILENAMES is not set.)
-        moltenvk,
+    // Vulkan on Metal, aka MoltenVK.
+    // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
+    // VK_ICD_FILENAMES is not set.)
+    moltenvk,
 
-        // Swiftshader, Google's CPU implementation of Vulkan.
-        // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not
-        // set.)
-        swiftshader,
+    // Swiftshader, Google's CPU implementation of Vulkan.
+    // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not
+    // set.)
+    swiftshader,
 
-        angle,
-        dawn,
-        wgpu,
-        external,
-        coregraphics,
-        skia,
-        canvas2d,
-        svg,
-        null,
-        invalid,
-    };
+    angle,
+    dawn,
+    wgpu,
+    external,
+    coregraphics,
+    skia,
+    canvas2d,
+    svg,
+    null,
+    invalid,
+  };
 
-    enum class Target
-    {
-        host,
-        android,
-        ios,
-        iossim,
-        unreal,
-        unreal_android,
-        webbrowser,
-        webserver,
-        webbrowserandroid,
-        webserverandroid,
-        console,
-    };
+  enum class Target
+  {
+    host,
+    android,
+    ios,
+    iossim,
+    unreal,
+    unreal_android,
+    webbrowser,
+    webserver,
+    webbrowserandroid,
+    webserverandroid,
+    console,
+  };
 
-    enum class ANGLERenderer
-    {
-        metal,
-        d3d11,
-        vk,
-        gles,
-        gl,
-    };
+  enum class ANGLERenderer
+  {
+    metal,
+    d3d11,
+    vk,
+    gles,
+    gl,
+  };
 
-    struct BackendParams
-    {
-        bool atomic = false;
-        bool core = false;
-        bool srgb = false;
-        bool clockwise = false;
-        bool inkbleed = false; // (Does nothing unless msaaSampleCount == 1.)
-        bool disableValidationLayers = false;
-        bool disableDebugCallbacks = false;
-        bool wantVulkanSynchronizationValidation = false;
+  struct BackendParams
+  {
+    bool atomic = false;
+    bool core = false;
+    bool srgb = false;
+    bool clockwise = false;
+    bool inkbleed = false; // (Does nothing unless msaaSampleCount == 1.)
+    bool disableValidationLayers = false;
+    bool disableDebugCallbacks = false;
+    bool wantVulkanSynchronizationValidation = false;
 
-        //  0 => non-depthStencil mode (if supported; else 4x MSAA)
-        //  1 => depthStencil w/o MSAA
-        // >1 => depthStencil with MSAA
-        uint32_t msaaSampleCount = 0;
+    //  0 => non-depthStencil mode (if supported; else 4x MSAA)
+    //  1 => depthStencil w/o MSAA
+    // >1 => depthStencil with MSAA
+    uint32_t msaaSampleCount = 0;
 
-        rive::gpu::ShaderCompilationMode shaderCompilationMode =
-            rive::gpu::ShaderCompilationMode::standard;
+    rive::gpu::ShaderCompilationMode
+        shaderCompilationMode = rive::gpu::ShaderCompilationMode::standard;
 
-        ANGLERenderer angleRenderer =
+    ANGLERenderer angleRenderer =
 #ifdef __APPLE__
-            ANGLERenderer::metal;
+        ANGLERenderer::metal;
 #elif defined(_WIN32)
-            ANGLERenderer::d3d11;
+        ANGLERenderer::d3d11;
 #else
-            ANGLERenderer::vk;
+        ANGLERenderer::vk;
 #endif
-        std::string gpuNameFilter;
+    std::string gpuNameFilter;
 
-        // How a window presents: fifo waits for vblank, relaxed tears when
-        // late, mailbox and immediate run uncapped. Only the Artemis window
-        // reads this today, and it falls back to fifo when the surface lacks
-        // the mode.
-        enum class PresentMode
-        {
-            fifo,
-            fifoRelaxed,
-            mailbox,
-            immediate,
-        };
-        PresentMode presentMode = PresentMode::fifo;
-
-        // The display refresh a window asks for where the platform lets it
-        // choose; others keep their default.
-        enum class Refresh
-        {
-            fixed60,
-            fixed120,
-            variable,
-        };
-        Refresh refresh = Refresh::fixed60;
-    };
-
-    enum class Visibility
+    // How a window presents: fifo waits for vblank, relaxed tears when
+    // late, mailbox and immediate run uncapped. Only the Artemis window
+    // reads this today, and it falls back to fifo when the surface lacks
+    // the mode.
+    enum class PresentMode
     {
-        headless,
-        window,
-        fullscreen,
+      fifo,
+      fifoRelaxed,
+      mailbox,
+      immediate,
     };
+    PresentMode presentMode = PresentMode::fifo;
 
-    enum class InputEvent
+    // The display refresh a window asks for where the platform lets it
+    // choose; others keep their default.
+    enum class Refresh
     {
-        KeyPress,
-        MouseDown,
-        MouseUp,
-        MouseMove,
-        GamepadConnected,
-        GamepadDisconnected,
-        GamepadChange,
+      fixed60,
+      fixed120,
+      variable,
     };
+    Refresh refresh = Refresh::fixed60;
+  };
 
-    // Aligns with GLFW's mouse button enum
-    enum MouseButton : int
+  enum class Visibility
+  {
+    headless,
+    window,
+    fullscreen,
+  };
+
+  enum class InputEvent
+  {
+    KeyPress,
+    MouseDown,
+    MouseUp,
+    MouseMove,
+    GamepadConnected,
+    GamepadDisconnected,
+    GamepadChange,
+  };
+
+  // Aligns with GLFW's mouse button enum
+  enum MouseButton : int
+  {
+    Left,
+    Right,
+    Middle,
+    // can support more buttons
+  };
+
+  struct InputEventData
+  {
+    InputEventData() : InputEventData(InputEvent::KeyPress, '\0') {}
+
+    InputEventData(InputEvent type, float posX, float posY) : eventType(type)
     {
-        Left,
-        Right,
-        Middle,
-        // can support more buttons
-    };
-
-    struct InputEventData
-    {
-        InputEventData() : InputEventData(InputEvent::KeyPress, '\0') {}
-
-        InputEventData(InputEvent type, float posX, float posY) :
-            eventType(type)
-        {
-            metadata = {.posX = posX, .posY = posY};
-        }
-
-        InputEventData(InputEvent type, char c) : eventType(type)
-        {
-            metadata = {.key = c};
-        }
-
-        // A gamepad arriving, with its standard layout button and axis counts.
-        InputEventData(InputEvent type,
-                       uint32_t deviceId,
-                       uint8_t buttonCount,
-                       uint8_t axisCount) :
-            eventType(type)
-        {
-            metadata.pad = {.deviceId = deviceId,
-                            .buttonCount = buttonCount,
-                            .axisCount = axisCount};
-        }
-
-        // One standard layout button or axis changing value.
-        InputEventData(InputEvent type,
-                       uint32_t deviceId,
-                       bool isAxis,
-                       uint8_t index,
-                       float value) :
-            eventType(type)
-        {
-            metadata.pad = {.deviceId = deviceId,
-                            .isAxis = isAxis,
-                            .index = index,
-                            .value = value};
-        }
-
-        InputEvent eventType;
-
-        union
-        {
-            struct
-            {
-                // Move & down/up mouse press events all have coords
-                float posX;
-                float posY;
-            };
-
-            char key;
-            struct
-            {
-                uint32_t deviceId;
-                bool isAxis;
-                uint8_t index;
-                uint8_t buttonCount;
-                uint8_t axisCount;
-                float value;
-            } pad;
-        } metadata;
-    };
-
-    static const char* BackendName(Backend);
-
-    static Backend TryParseBackend(const char* name, BackendParams*);
-    static Backend ParseBackend(const char* name, BackendParams*);
-    static TestingWindow* Init(Backend,
-                               const BackendParams&,
-                               Visibility,
-                               void* platformWindow = nullptr);
-    static TestingWindow* Get();
-    static void Set(TestingWindow* inWindow);
-    static void Destroy();
-    static Backend backend() { return s_Backend; }
-    static Target target() { return s_Target; }
-    static void SetTarget(Target target) { s_Target = target; }
-    static bool isUnreal()
-    {
-        return s_Target == Target::unreal || s_Target == Target::unreal_android;
+      metadata = {.posX = posX, .posY = posY};
     }
 
-    uint32_t width() const { return m_width; }
-    uint32_t height() const { return m_height; }
-
-    virtual rive::Factory* factory() = 0;
-    virtual void resize(int width, int height)
+    InputEventData(InputEvent type, char c) : eventType(type)
     {
-        m_width = width;
-        m_height = height;
+      metadata = {.key = c};
     }
 
-    // This is called by the gm testing after each GM runs
-    virtual void onceAfterGM() {}
-
-    struct FrameOptions
+    // A gamepad arriving, with its standard layout button and axis counts.
+    InputEventData(
+        InputEvent type,
+        uint32_t deviceId,
+        uint8_t buttonCount,
+        uint8_t axisCount)
+        : eventType(type)
     {
-        const char* name;
-        uint32_t clearColor;
-        bool doClear = true;
-        bool forceMSAA = false;
-        bool disableRasterOrdering = false;
-        bool wireframe = false;
-        bool fillsDisabled = false;
-        bool strokesDisabled = false;
-        bool clockwiseFillOverride = false;
-        uint32_t maxCanvasAtlasSize = 0;
-        rive::gpu::TriangulationThresholds triangulationThresholds;
+      metadata.pad = {
+          .deviceId = deviceId,
+          .buttonCount = buttonCount,
+          .axisCount = axisCount};
+    }
+
+    // One standard layout button or axis changing value.
+    InputEventData(
+        InputEvent type,
+        uint32_t deviceId,
+        bool isAxis,
+        uint8_t index,
+        float value)
+        : eventType(type)
+    {
+      metadata.pad = {
+          .deviceId = deviceId,
+          .isAxis = isAxis,
+          .index = index,
+          .value = value};
+    }
+
+    InputEvent eventType;
+
+    union
+    {
+      struct
+      {
+        // Move & down/up mouse press events all have coords
+        float posX;
+        float posY;
+      };
+
+      char key;
+      struct
+      {
+        uint32_t deviceId;
+        bool isAxis;
+        uint8_t index;
+        uint8_t buttonCount;
+        uint8_t axisCount;
+        float value;
+      } pad;
+    } metadata;
+  };
+
+  static const char* BackendName(Backend);
+
+  static Backend TryParseBackend(const char* name, BackendParams*);
+  static Backend ParseBackend(const char* name, BackendParams*);
+  static TestingWindow* Init(
+      Backend,
+      const BackendParams&,
+      Visibility,
+      void* platformWindow = nullptr);
+  static TestingWindow* Get();
+  static void Set(TestingWindow* inWindow);
+  static void Destroy();
+  static Backend backend() { return s_Backend; }
+  static Target target() { return s_Target; }
+  static void SetTarget(Target target) { s_Target = target; }
+  static bool isUnreal()
+  {
+    return s_Target == Target::unreal || s_Target == Target::unreal_android;
+  }
+
+  uint32_t width() const { return m_width; }
+  uint32_t height() const { return m_height; }
+
+  virtual rive::Factory* factory() = 0;
+  virtual void resize(int width, int height)
+  {
+    m_width = width;
+    m_height = height;
+  }
+
+  // This is called by the gm testing after each GM runs
+  virtual void onceAfterGM() {}
+
+  struct FrameOptions
+  {
+    const char* name;
+    uint32_t clearColor;
+    bool doClear = true;
+    bool forceMSAA = false;
+    bool disableRasterOrdering = false;
+    bool wireframe = false;
+    bool fillsDisabled = false;
+    bool strokesDisabled = false;
+    bool clockwiseFillOverride = false;
+    uint32_t maxCanvasAtlasSize = 0;
+    rive::gpu::TriangulationThresholds triangulationThresholds;
 #ifdef WITH_RIVE_TOOLS
-        rive::gpu::SynthesizedFailureType synthesizedFailureType =
-            rive::gpu::SynthesizedFailureType::none;
-        rive::gpu::ShaderCompilationMode shaderCompilationMode =
-            rive::gpu::ShaderCompilationMode::standard;
+    rive::gpu::SynthesizedFailureType
+        synthesizedFailureType = rive::gpu::SynthesizedFailureType::none;
+    rive::gpu::ShaderCompilationMode
+        shaderCompilationMode = rive::gpu::ShaderCompilationMode::standard;
 #endif
-    };
-    virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
-    virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
+  };
+  virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
+  virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
 
-    // The descriptor fields that pick a frame's interlock mode.
-    struct FrameMode
-    {
-        uint32_t msaaSampleCount = 0;
-        bool disableRasterOrdering = false;
-        bool clockwiseFillOverride = false;
-        bool inkbleed = false;
-    };
-    // Windows that add backend settings resolve them here, so a replayed
-    // canvas opens in the same mode as the screen.
-    virtual FrameMode frameMode(const FrameOptions& options) const
-    {
-        return {options.forceMSAA ? 4u : 0u,
-                options.disableRasterOrdering,
-                options.clockwiseFillOverride};
-    }
-    // Override to open a replayed canvas differently from the screen.
-    virtual FrameMode canvasFrameMode(const FrameOptions& options) const
-    {
-        return frameMode(options);
-    }
+  // The descriptor fields that pick a frame's interlock mode.
+  struct FrameMode
+  {
+    uint32_t msaaSampleCount = 0;
+    bool disableRasterOrdering = false;
+    bool clockwiseFillOverride = false;
+    bool inkbleed = false;
+  };
+  // Windows that add backend settings resolve them here, so a replayed
+  // canvas opens in the same mode as the screen.
+  virtual FrameMode frameMode(const FrameOptions& options) const
+  {
+    return {
+        options.forceMSAA ? 4u : 0u,
+        options.disableRasterOrdering,
+        options.clockwiseFillOverride};
+  }
+  // Override to open a replayed canvas differently from the screen.
+  virtual FrameMode canvasFrameMode(const FrameOptions& options) const
+  {
+    return frameMode(options);
+  }
 
-    // For testing directly on RenderContext.
-    virtual rive::gpu::RenderContext* renderContext() const { return nullptr; }
-    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
-    {
-        return nullptr;
-    }
-    virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
+  // For testing directly on RenderContext.
+  virtual rive::gpu::RenderContext* renderContext() const { return nullptr; }
+  virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
+  {
+    return nullptr;
+  }
+  virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
 
-    // Creates a new render target, for testing offscreen rendering.
-    // If riveRenderable is false, the texture will lack features required by
-    // Rive for rendering directly to it (e.g., input attachment, UAV, etc.),
-    // which will exercise indirect rendering fallbacks.
-    virtual rive::rcp<rive_tests::OffscreenRenderTarget>
-    makeOffscreenRenderTarget(uint32_t width,
-                              uint32_t height,
-                              bool riveRenderable) const
-    {
-        return nullptr;
-    }
+  // Creates a new render target, for testing offscreen rendering.
+  // If riveRenderable is false, the texture will lack features required by
+  // Rive for rendering directly to it (e.g., input attachment, UAV, etc.),
+  // which will exercise indirect rendering fallbacks.
+  virtual rive::rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+      uint32_t width,
+      uint32_t height,
+      bool riveRenderable) const
+  {
+    return nullptr;
+  }
 
-    // For testing render pass breaks. Caller must call
-    // renderContext()->beginFrame() again.
-    virtual void flushPLSContext(
-        rive::gpu::RenderTarget* offscreenRenderTarget = nullptr)
-    {}
+  // For testing render pass breaks. Caller must call
+  // renderContext()->beginFrame() again.
+  virtual void flushPLSContext(
+      rive::gpu::RenderTarget* offscreenRenderTarget = nullptr)
+  {}
 
-    virtual bool consumeInputEvent(InputEventData& eventData) { return false; }
-    virtual InputEventData waitForInputEvent()
-    {
-        fprintf(stderr, "TestingWindow::waitForInputEvent not implemented.");
-        abort();
-    }
+  virtual bool consumeInputEvent(InputEventData& eventData) { return false; }
+  virtual InputEventData waitForInputEvent()
+  {
+    fprintf(stderr, "TestingWindow::waitForInputEvent not implemented.");
+    abort();
+  }
 
-    virtual bool shouldQuit() const { return false; }
+  virtual bool shouldQuit() const { return false; }
 
-    virtual void hotloadShaders() {}
+  virtual void hotloadShaders() {}
 
 #if defined(__APPLE__)
-    // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
-    // this cross-platform header (same pattern as externalCommandBuffer).
-    virtual void* metalQueue() const { return nullptr; }
+  // Returns the Metal command queue as void* to avoid <Metal/Metal.h> in
+  // this cross-platform header (same pattern as externalCommandBuffer).
+  virtual void* metalQueue() const { return nullptr; }
 #endif
 
 #ifdef RIVE_VULKAN
-    // Vulkan accessors for ORE VK backend initialization in GMs.
-    virtual void* vulkanGraphicsQueue() const { return nullptr; }
-    virtual uint32_t vulkanGraphicsQueueFamilyIndex() const { return 0; }
-    virtual void* vulkanGetInstanceProcAddr() const { return nullptr; }
+  // Vulkan accessors for ORE VK backend initialization in GMs.
+  virtual void* vulkanGraphicsQueue() const { return nullptr; }
+  virtual uint32_t vulkanGraphicsQueueFamilyIndex() const { return 0; }
+  virtual void* vulkanGetInstanceProcAddr() const { return nullptr; }
 #endif
 
-    // Returns the host's currently-recording command buffer (as
-    // void*) Returns nullptr on backends that don't use command buffers / lists
-    virtual void* getCurrentCommandBuffer() const { return nullptr; }
+  // Returns the host's currently-recording command buffer (as
+  // void*) Returns nullptr on backends that don't use command buffers / lists
+  virtual void* getCurrentCommandBuffer() const { return nullptr; }
 
-    // Host-managed ore::Context, or nullptr. Player wires into the file's
-    // ScriptingContext for GPUCanvas content.
-    virtual void* getOreContext() const { return nullptr; }
+  // Host-managed ore::Context, or nullptr. Player wires into the file's
+  // ScriptingContext for GPUCanvas content.
+  virtual void* getOreContext() const { return nullptr; }
 
-    // Per-frame ORE driving; no-op on non-ORE harnesses.
-    virtual void beginOreFrame() {}
-    virtual void endOreFrame() {}
+  // Per-frame ORE driving; no-op on non-ORE harnesses.
+  virtual void beginOreFrame() {}
+  virtual void endOreFrame() {}
 
-    // Whether scripts may draw into renderTarget() under Rive's content, and
-    // its format, answered without touching it so the recording thread can
-    // declare it.
-    struct OreTarget
-    {
-        bool exposed = false;
-        bool bgra = false;
-    };
-    virtual OreTarget oreTarget() const { return {}; }
+  // Whether scripts may draw into renderTarget() under Rive's content, and
+  // its format, answered without touching it so the recording thread can
+  // declare it.
+  struct OreTarget
+  {
+    bool exposed = false;
+    bool bgra = false;
+  };
+  virtual OreTarget oreTarget() const { return {}; }
 
-    // Whether beginFrame through endFrame may run off the thread that made the
-    // window. A current GL context or GLFW event polling in endFrame says no.
-    virtual bool supportsRenderThread() const { return false; }
+  // Whether beginFrame through endFrame may run off the thread that made the
+  // window. A current GL context or GLFW event polling in endFrame says no.
+  virtual bool supportsRenderThread() const { return false; }
 
-    virtual ~TestingWindow() {}
+  virtual ~TestingWindow() {}
 
-    static TestingWindow* MakeEGL(Backend,
-                                  const BackendParams&,
-                                  void* platformWindow);
+  static TestingWindow* MakeEGL(
+      Backend,
+      const BackendParams&,
+      void* platformWindow);
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
-    static TestingWindow* MakeMetalTexture(const BackendParams&);
+  static TestingWindow* MakeMetalTexture(const BackendParams&);
 #endif
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
-    static TestingWindow* MakeMetalLayer(const BackendParams&,
-                                         void* platformWindow);
+  static TestingWindow* MakeMetalLayer(
+      const BackendParams&,
+      void* platformWindow);
 #endif
-    static TestingWindow* MakeCoreGraphics();
-    static TestingWindow* MakeFiddleContext(Backend,
-                                            const BackendParams&,
-                                            Visibility,
-                                            void* platformWindow);
-    static TestingWindow* MakeVulkanTexture(const BackendParams&);
-    static TestingWindow* MakeAndroidVulkan(const BackendParams&,
-                                            void* platformWindow);
-    // Hook for platforms without rive_vk_bootstrap; default returns nullptr.
-    // Platform packages override in their own TU + define
-    // RIVE_PLATFORM_TESTING_WINDOW.
-    static TestingWindow* MakePlatformVulkan(const BackendParams&);
-    static TestingWindow* MakeWGPU(const BackendParams&);
-    static TestingWindow* MakeSVG();
-    static TestingWindow* MakeSkia();
-    static TestingWindow* MakeCanvas2D();
-    static TestingWindow* MakeNULL();
+  static TestingWindow* MakeCoreGraphics();
+  static TestingWindow* MakeFiddleContext(
+      Backend,
+      const BackendParams&,
+      Visibility,
+      void* platformWindow);
+  static TestingWindow* MakeVulkanTexture(const BackendParams&);
+  static TestingWindow* MakeAndroidVulkan(
+      const BackendParams&,
+      void* platformWindow);
+  // Hook for platforms without rive_vk_bootstrap; default returns nullptr.
+  // Platform packages override in their own TU + define
+  // RIVE_PLATFORM_TESTING_WINDOW.
+  static TestingWindow* MakePlatformVulkan(const BackendParams&);
+  static TestingWindow* MakeWGPU(const BackendParams&);
+  static TestingWindow* MakeSVG();
+  static TestingWindow* MakeSkia();
+  static TestingWindow* MakeCanvas2D();
+  static TestingWindow* MakeNULL();
 
 protected:
-    uint32_t m_width = 0;
-    uint32_t m_height = 0;
+  uint32_t m_width = 0;
+  uint32_t m_height = 0;
 
-    static Backend s_Backend;
-    static Target s_Target;
+  static Backend s_Backend;
+  static Target s_Target;
 };
 
 #endif

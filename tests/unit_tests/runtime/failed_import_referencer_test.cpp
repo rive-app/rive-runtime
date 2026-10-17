@@ -30,25 +30,26 @@
 // The Sentry crash itself. A NestedArtboard ahead of every Artboard has no
 // ArtboardImporter to attach to, so Component::import fails it -- but it has
 // already registered as an ArtboardReferencer by then.
-TEST_CASE("a nested artboard that fails to import does not outlive itself",
-          "[file][malformed]")
+TEST_CASE(
+    "a nested artboard that fails to import does not outlive itself",
+    "[file][malformed]")
 {
-    RivBytes riv;
-    riv.object(rive::BackboardBase::typeKey);
-    riv.end();
-    // No artboard is open yet, so this one cannot import.
-    riv.object(rive::NestedArtboardBase::typeKey);
-    riv.propUint(rive::NestedArtboardBase::artboardIdPropertyKey, 0);
-    riv.end();
-    writeArtboardObject(riv);
+  RivBytes riv;
+  riv.object(rive::BackboardBase::typeKey);
+  riv.end();
+  // No artboard is open yet, so this one cannot import.
+  riv.object(rive::NestedArtboardBase::typeKey);
+  riv.propUint(rive::NestedArtboardBase::artboardIdPropertyKey, 0);
+  riv.end();
+  writeArtboardObject(riv);
 
-    rive::ImportResult result;
-    auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    // The artboard that follows the dropped object still loads.
-    REQUIRE(file->artboard() != nullptr);
-    CHECK(file->artboard()->name() == "A");
+  rive::ImportResult result;
+  auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
+  // The artboard that follows the dropped object still loads.
+  REQUIRE(file->artboard() != nullptr);
+  CHECK(file->artboard()->name() == "A");
 }
 
 // The same hazard reached through a different list, so it stays covered even
@@ -56,27 +57,28 @@ TEST_CASE("a nested artboard that fails to import does not outlive itself",
 // no DataConverterGroup open fails after joining
 // m_DataConverterGroupItemReferencers, and resolve() writes a converter into
 // every entry of that list.
-TEST_CASE("a converter group item that fails to import does not outlive "
-          "itself",
-          "[file][malformed]")
+TEST_CASE(
+    "a converter group item that fails to import does not outlive "
+    "itself",
+    "[file][malformed]")
 {
-    RivBytes riv;
-    riv.object(rive::BackboardBase::typeKey);
-    riv.end();
-    // Lands in the importer's converter list, so the group item below gets
-    // far enough to be written to rather than skipped on a bounds check.
-    riv.object(rive::DataConverterRounderBase::typeKey);
-    riv.end();
-    // No group is open, so this one cannot import.
-    riv.object(rive::DataConverterGroupItemBase::typeKey);
-    riv.propUint(rive::DataConverterGroupItemBase::converterIdPropertyKey, 0);
-    riv.end();
-    writeArtboardObject(riv);
+  RivBytes riv;
+  riv.object(rive::BackboardBase::typeKey);
+  riv.end();
+  // Lands in the importer's converter list, so the group item below gets
+  // far enough to be written to rather than skipped on a bounds check.
+  riv.object(rive::DataConverterRounderBase::typeKey);
+  riv.end();
+  // No group is open, so this one cannot import.
+  riv.object(rive::DataConverterGroupItemBase::typeKey);
+  riv.propUint(rive::DataConverterGroupItemBase::converterIdPropertyKey, 0);
+  riv.end();
+  writeArtboardObject(riv);
 
-    rive::ImportResult result;
-    auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
-    REQUIRE(result == rive::ImportResult::success);
-    REQUIRE(file != nullptr);
-    REQUIRE(file->artboard() != nullptr);
-    CHECK(file->artboard()->name() == "A");
+  rive::ImportResult result;
+  auto file = rive::File::import(riv.bytes(), &gNoOpFactory, &result);
+  REQUIRE(result == rive::ImportResult::success);
+  REQUIRE(file != nullptr);
+  REQUIRE(file->artboard() != nullptr);
+  CHECK(file->artboard()->name() == "A");
 }

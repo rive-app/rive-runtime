@@ -26,67 +26,70 @@ class SMITrigger;
 class Scene : public KeyedCallbackReporter, public CallbackContext
 {
 protected:
-    Scene(ArtboardInstance*);
+  Scene(ArtboardInstance*);
 
 public:
-    ~Scene() override {}
+  ~Scene() override {}
 
-    Scene(Scene const& lhs) : m_artboardInstance(lhs.m_artboardInstance) {}
+  Scene(Scene const& lhs) : m_artboardInstance(lhs.m_artboardInstance) {}
 
-    float width() const;
-    float height() const;
-    AABB bounds() const { return {0, 0, this->width(), this->height()}; }
+  float width() const;
+  float height() const;
+  AABB bounds() const { return {0, 0, this->width(), this->height()}; }
 
-    virtual std::string name() const = 0;
+  virtual std::string name() const = 0;
 
-    // Returns onShot if this has no looping (e.g. a statemachine)
-    virtual Loop loop() const = 0;
-    // Returns true iff the Scene is known to not be fully opaque
-    virtual bool isTranslucent() const = 0;
-    // returns -1 for continuous
-    virtual float durationSeconds() const = 0;
+  // Returns onShot if this has no looping (e.g. a statemachine)
+  virtual Loop loop() const = 0;
+  // Returns true iff the Scene is known to not be fully opaque
+  virtual bool isTranslucent() const = 0;
+  // returns -1 for continuous
+  virtual float durationSeconds() const = 0;
 
-    // returns true if draw() should be called
-    virtual bool advanceAndApply(float elapsedSeconds) = 0;
+  // returns true if draw() should be called
+  virtual bool advanceAndApply(float elapsedSeconds) = 0;
 
-    void draw(Renderer*);
+  void draw(Renderer*);
 
-    virtual void bindViewModelInstance(
-        rcp<ViewModelInstance> viewModelInstance);
+  virtual void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
 
-    virtual HitResult pointerDown(
-        Vec2D,
-        int pointerId = 0,
-        PointerButton button = PointerButton::primary);
-    virtual HitResult pointerMove(Vec2D position,
-                                  float timeStamp = 0,
-                                  int pointerId = 0);
-    virtual HitResult pointerUp(Vec2D,
-                                int pointerId = 0,
-                                PointerButton button = PointerButton::primary);
-    virtual HitResult pointerExit(Vec2D, int pointerId = 0);
-    /// Indirect scroll input -- a wheel, or a trackpad gesture the platform
-    /// already classified as a scroll. Direct touch scrolling stays on the
-    /// pointer path.
-    virtual HitResult pointerScroll(Vec2D position,
-                                    const ScrollEvent& event,
-                                    float timeStamp = 0,
-                                    int pointerId = 0);
+  virtual HitResult pointerDown(
+      Vec2D,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  virtual HitResult pointerMove(
+      Vec2D position,
+      float timeStamp = 0,
+      int pointerId = 0);
+  virtual HitResult pointerUp(
+      Vec2D,
+      int pointerId = 0,
+      PointerButton button = PointerButton::primary);
+  virtual HitResult pointerExit(Vec2D, int pointerId = 0);
+  /// Indirect scroll input -- a wheel, or a trackpad gesture the platform
+  /// already classified as a scroll. Direct touch scrolling stays on the
+  /// pointer path.
+  virtual HitResult pointerScroll(
+      Vec2D position,
+      const ScrollEvent& event,
+      float timeStamp = 0,
+      int pointerId = 0);
 
-    virtual size_t inputCount() const;
-    virtual SMIInput* input(size_t index) const;
-    virtual SMIBool* getBool(const std::string&) const;
-    virtual SMINumber* getNumber(const std::string&) const;
-    virtual SMITrigger* getTrigger(const std::string&) const;
+  virtual size_t inputCount() const;
+  virtual SMIInput* input(size_t index) const;
+  virtual SMIBool* getBool(const std::string&) const;
+  virtual SMINumber* getNumber(const std::string&) const;
+  virtual SMITrigger* getTrigger(const std::string&) const;
 
-    /// Report which time based events have elapsed on a timeline within this
-    /// state machine.
-    void reportKeyedCallback(uint32_t objectId,
-                             uint32_t propertyKey,
-                             float elapsedSeconds) override;
+  /// Report which time based events have elapsed on a timeline within this
+  /// state machine.
+  void reportKeyedCallback(
+      uint32_t objectId,
+      uint32_t propertyKey,
+      float elapsedSeconds) override;
 
 protected:
-    ArtboardInstance* m_artboardInstance;
+  ArtboardInstance* m_artboardInstance;
 };
 
 } // namespace rive

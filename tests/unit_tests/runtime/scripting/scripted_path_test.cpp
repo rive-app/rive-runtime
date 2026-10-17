@@ -11,463 +11,469 @@ using namespace rive;
 
 TEST_CASE("path contours returns first contour", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local contour = path:contours()\n"
-                     "return contour ~= nil\n");
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local contour = path:contours()\n"
+                   "return contour ~= nil\n");
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -1));
 }
 
 TEST_CASE("contour measure has length", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local contour = path:contours()\n"
-                     "return contour.length\n");
-    lua_State* L = vm.state();
-    float length = (float)lua_tonumber(L, -1);
-    CHECK(length > 0.0f);
-    CHECK(length < 100.0f); // Should be around 30 for a 10x10 rectangle
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local contour = path:contours()\n"
+                   "return contour.length\n");
+  lua_State* L = vm.state();
+  float length = (float)lua_tonumber(L, -1);
+  CHECK(length > 0.0f);
+  CHECK(length < 100.0f); // Should be around 30 for a 10x10 rectangle
 }
 
 TEST_CASE("contour measure isClosed", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local contour = path:contours()\n"
-                     "return contour.isClosed\n");
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local contour = path:contours()\n"
+                   "return contour.isClosed\n");
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -1));
 }
 
 TEST_CASE("contour measure isClosed false for open path", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local contour = path:contours()\n"
-                     "return contour.isClosed\n");
-    lua_State* L = vm.state();
-    CHECK(!lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local contour = path:contours()\n"
+                   "return contour.isClosed\n");
+  lua_State* L = vm.state();
+  CHECK(!lua_toboolean(L, -1));
 }
 
 TEST_CASE("contour measure positionAndTangent", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "local contour = path:contours()\n"
-                     "local pos, tan = contour:positionAndTangent(0)\n"
-                     "return pos.x, pos.y, tan.x, tan.y\n",
-                     4);
-    lua_State* L = vm.state();
-    float posX = (float)lua_tonumber(L, -4);
-    float posY = (float)lua_tonumber(L, -3);
-    float tanX = (float)lua_tonumber(L, -2);
-    float tanY = (float)lua_tonumber(L, -1);
-    CHECK(posX == Approx(0.0f));
-    CHECK(posY == Approx(0.0f));
-    CHECK(tanX > 0.0f); // Tangent should point along the line
-    CHECK(tanY == Approx(0.0f));
+  ScriptingTest vm(
+      "local path: Path = Path.new()\n"
+      "path:moveTo(Vector.xy(0, 0))\n"
+      "path:lineTo(Vector.xy(10, 0))\n"
+      "local contour = path:contours()\n"
+      "local pos, tan = contour:positionAndTangent(0)\n"
+      "return pos.x, pos.y, tan.x, tan.y\n",
+      4);
+  lua_State* L = vm.state();
+  float posX = (float)lua_tonumber(L, -4);
+  float posY = (float)lua_tonumber(L, -3);
+  float tanX = (float)lua_tonumber(L, -2);
+  float tanY = (float)lua_tonumber(L, -1);
+  CHECK(posX == Approx(0.0f));
+  CHECK(posY == Approx(0.0f));
+  CHECK(tanX > 0.0f); // Tangent should point along the line
+  CHECK(tanY == Approx(0.0f));
 }
 
 TEST_CASE("contour measure warp", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "local contour = path:contours()\n"
-                     "local result = contour:warp(Vector.xy(5, 2))\n"
-                     "return result.x, result.y\n",
-                     2);
-    lua_State* L = vm.state();
-    float x = (float)lua_tonumber(L, -2);
-    float y = (float)lua_tonumber(L, -1);
-    CHECK(x == Approx(5.0f));
-    CHECK(y == Approx(2.0f)); // Offset perpendicular to path
+  ScriptingTest vm(
+      "local path: Path = Path.new()\n"
+      "path:moveTo(Vector.xy(0, 0))\n"
+      "path:lineTo(Vector.xy(10, 0))\n"
+      "local contour = path:contours()\n"
+      "local result = contour:warp(Vector.xy(5, 2))\n"
+      "return result.x, result.y\n",
+      2);
+  lua_State* L = vm.state();
+  float x = (float)lua_tonumber(L, -2);
+  float y = (float)lua_tonumber(L, -1);
+  CHECK(x == Approx(5.0f));
+  CHECK(y == Approx(2.0f)); // Offset perpendicular to path
 }
 
 TEST_CASE("contour measure extract", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local contour = path:contours()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "contour:extract(0, 10, destPath, true)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    // The extracted path should have some content
-    CHECK(destPath->rawPath.verbs().count() > 0);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local contour = path:contours()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "contour:extract(0, 10, destPath, true)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  // The extracted path should have some content
+  CHECK(destPath->rawPath.verbs().count() > 0);
 }
 
-TEST_CASE("contour measure extract defaults to startWithMove true",
-          "[scripting]")
+TEST_CASE(
+    "contour measure extract defaults to startWithMove true",
+    "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local contour = path:contours()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "contour:extract(0, 10, destPath)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    CHECK(destPath->rawPath.verbs().count() > 0);
-    // When startWithMove is not provided, it should default to true
-    // So the first verb should be a move
-    CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local contour = path:contours()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "contour:extract(0, 10, destPath)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  CHECK(destPath->rawPath.verbs().count() > 0);
+  // When startWithMove is not provided, it should default to true
+  // So the first verb should be a move
+  CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
 }
 
 TEST_CASE("contour measure extract with startWithMove false", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local contour = path:contours()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "destPath:moveTo(Vector.xy(100, 100))\n"
-                     "contour:extract(0, 10, destPath, false)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    CHECK(destPath->rawPath.verbs().count() > 1);
-    // When startWithMove is false and path already has a move,
-    // the extracted segment should continue without adding another move
-    // So we should have the initial move, then the extracted geometry
-    CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
-    // The second verb should be a line (from the extracted segment)
-    CHECK(destPath->rawPath.verbs()[1] == PathVerb::line);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local contour = path:contours()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "destPath:moveTo(Vector.xy(100, 100))\n"
+                   "contour:extract(0, 10, destPath, false)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  CHECK(destPath->rawPath.verbs().count() > 1);
+  // When startWithMove is false and path already has a move,
+  // the extracted segment should continue without adding another move
+  // So we should have the initial move, then the extracted geometry
+  CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
+  // The second verb should be a line (from the extracted segment)
+  CHECK(destPath->rawPath.verbs()[1] == PathVerb::line);
 }
 
 TEST_CASE("contour measure next iterates contours", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:close()\n"
-                     "path:moveTo(Vector.xy(20, 20))\n"
-                     "path:lineTo(Vector.xy(30, 20))\n"
-                     "path:close()\n"
-                     "local contour1 = path:contours()\n"
-                     "local contour2 = contour1.next\n"
-                     "return contour1 ~= nil, contour2 ~= nil\n",
-                     2);
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -2)); // First contour exists
-    CHECK(lua_toboolean(L, -1)); // Second contour exists
+  ScriptingTest vm(
+      "local path: Path = Path.new()\n"
+      "path:moveTo(Vector.xy(0, 0))\n"
+      "path:lineTo(Vector.xy(10, 0))\n"
+      "path:close()\n"
+      "path:moveTo(Vector.xy(20, 20))\n"
+      "path:lineTo(Vector.xy(30, 20))\n"
+      "path:close()\n"
+      "local contour1 = path:contours()\n"
+      "local contour2 = contour1.next\n"
+      "return contour1 ~= nil, contour2 ~= nil\n",
+      2);
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -2)); // First contour exists
+  CHECK(lua_toboolean(L, -1)); // Second contour exists
 }
 
 TEST_CASE("contour measure next returns nil when done", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:close()\n"
-                     "local contour1 = path:contours()\n"
-                     "local contour2 = contour1.next\n"
-                     "return contour2 == nil\n");
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:close()\n"
+                   "local contour1 = path:contours()\n"
+                   "local contour2 = contour1.next\n"
+                   "return contour2 == nil\n");
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -1));
 }
 
 TEST_CASE("path measure returns PathMeasure", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local measure = path:measure()\n"
-                     "return measure ~= nil\n");
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local measure = path:measure()\n"
+                   "return measure ~= nil\n");
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -1));
 }
 
 TEST_CASE("path measure has length", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local measure = path:measure()\n"
-                     "return measure.length\n");
-    lua_State* L = vm.state();
-    float length = (float)lua_tonumber(L, -1);
-    CHECK(length > 0.0f);
-    CHECK(length < 100.0f);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local measure = path:measure()\n"
+                   "return measure.length\n");
+  lua_State* L = vm.state();
+  float length = (float)lua_tonumber(L, -1);
+  CHECK(length > 0.0f);
+  CHECK(length < 100.0f);
 }
 
 TEST_CASE("path measure isClosed for single closed contour", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "path:close()\n"
-                     "local measure = path:measure()\n"
-                     "return measure.isClosed\n");
-    lua_State* L = vm.state();
-    CHECK(lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "path:close()\n"
+                   "local measure = path:measure()\n"
+                   "return measure.isClosed\n");
+  lua_State* L = vm.state();
+  CHECK(lua_toboolean(L, -1));
 }
 
 TEST_CASE("path measure isClosed false for multiple contours", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:close()\n"
-                     "path:moveTo(Vector.xy(20, 20))\n"
-                     "path:lineTo(Vector.xy(30, 20))\n"
-                     "path:close()\n"
-                     "local measure = path:measure()\n"
-                     "return measure.isClosed\n");
-    lua_State* L = vm.state();
-    CHECK(!lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:close()\n"
+                   "path:moveTo(Vector.xy(20, 20))\n"
+                   "path:lineTo(Vector.xy(30, 20))\n"
+                   "path:close()\n"
+                   "local measure = path:measure()\n"
+                   "return measure.isClosed\n");
+  lua_State* L = vm.state();
+  CHECK(!lua_toboolean(L, -1));
 }
 
 TEST_CASE("path measure isClosed false for open path", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local measure = path:measure()\n"
-                     "return measure.isClosed\n");
-    lua_State* L = vm.state();
-    CHECK(!lua_toboolean(L, -1));
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local measure = path:measure()\n"
+                   "return measure.isClosed\n");
+  lua_State* L = vm.state();
+  CHECK(!lua_toboolean(L, -1));
 }
 
 TEST_CASE("path measure positionAndTangent", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "local measure = path:measure()\n"
-                     "local pos, tan = measure:positionAndTangent(0)\n"
-                     "return pos.x, pos.y, tan.x, tan.y\n",
-                     4);
-    lua_State* L = vm.state();
-    float posX = (float)lua_tonumber(L, -4);
-    float posY = (float)lua_tonumber(L, -3);
-    float tanX = (float)lua_tonumber(L, -2);
-    float tanY = (float)lua_tonumber(L, -1);
-    CHECK(posX == Approx(0.0f));
-    CHECK(posY == Approx(0.0f));
-    CHECK(tanX > 0.0f);
-    CHECK(tanY == Approx(0.0f));
+  ScriptingTest vm(
+      "local path: Path = Path.new()\n"
+      "path:moveTo(Vector.xy(0, 0))\n"
+      "path:lineTo(Vector.xy(10, 0))\n"
+      "local measure = path:measure()\n"
+      "local pos, tan = measure:positionAndTangent(0)\n"
+      "return pos.x, pos.y, tan.x, tan.y\n",
+      4);
+  lua_State* L = vm.state();
+  float posX = (float)lua_tonumber(L, -4);
+  float posY = (float)lua_tonumber(L, -3);
+  float tanX = (float)lua_tonumber(L, -2);
+  float tanY = (float)lua_tonumber(L, -1);
+  CHECK(posX == Approx(0.0f));
+  CHECK(posY == Approx(0.0f));
+  CHECK(tanX > 0.0f);
+  CHECK(tanY == Approx(0.0f));
 }
 
 TEST_CASE("path measure warp", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "local measure = path:measure()\n"
-                     "local result = measure:warp(Vector.xy(5, 2))\n"
-                     "return result.x, result.y\n",
-                     2);
-    lua_State* L = vm.state();
-    float x = (float)lua_tonumber(L, -2);
-    float y = (float)lua_tonumber(L, -1);
-    CHECK(x == Approx(5.0f));
-    CHECK(y == Approx(2.0f));
+  ScriptingTest vm(
+      "local path: Path = Path.new()\n"
+      "path:moveTo(Vector.xy(0, 0))\n"
+      "path:lineTo(Vector.xy(10, 0))\n"
+      "local measure = path:measure()\n"
+      "local result = measure:warp(Vector.xy(5, 2))\n"
+      "return result.x, result.y\n",
+      2);
+  lua_State* L = vm.state();
+  float x = (float)lua_tonumber(L, -2);
+  float y = (float)lua_tonumber(L, -1);
+  CHECK(x == Approx(5.0f));
+  CHECK(y == Approx(2.0f));
 }
 
 TEST_CASE("path measure extract", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local measure = path:measure()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "measure:extract(0, 10, destPath, true)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    CHECK(destPath->rawPath.verbs().count() > 0);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local measure = path:measure()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "measure:extract(0, 10, destPath, true)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  CHECK(destPath->rawPath.verbs().count() > 0);
 }
 
 TEST_CASE("path measure extract defaults to startWithMove true", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local measure = path:measure()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "measure:extract(0, 10, destPath)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    CHECK(destPath->rawPath.verbs().count() > 0);
-    // When startWithMove is not provided, it should default to true
-    // So the first verb should be a move
-    CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local measure = path:measure()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "measure:extract(0, 10, destPath)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  CHECK(destPath->rawPath.verbs().count() > 0);
+  // When startWithMove is not provided, it should default to true
+  // So the first verb should be a move
+  CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
 }
 
 TEST_CASE("path measure extract with startWithMove false", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:lineTo(Vector.xy(10, 10))\n"
-                     "local measure = path:measure()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "destPath:moveTo(Vector.xy(100, 100))\n"
-                     "measure:extract(0, 10, destPath, false)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    CHECK(destPath->rawPath.verbs().count() > 1);
-    // When startWithMove is false and path already has a move,
-    // the extracted segment should continue without adding another move
-    // So we should have the initial move, then the extracted geometry
-    CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
-    // The second verb should be a line (from the extracted segment)
-    CHECK(destPath->rawPath.verbs()[1] == PathVerb::line);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:lineTo(Vector.xy(10, 10))\n"
+                   "local measure = path:measure()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "destPath:moveTo(Vector.xy(100, 100))\n"
+                   "measure:extract(0, 10, destPath, false)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  CHECK(destPath->rawPath.verbs().count() > 1);
+  // When startWithMove is false and path already has a move,
+  // the extracted segment should continue without adding another move
+  // So we should have the initial move, then the extracted geometry
+  CHECK(destPath->rawPath.verbs()[0] == PathVerb::move);
+  // The second verb should be a line (from the extracted segment)
+  CHECK(destPath->rawPath.verbs()[1] == PathVerb::line);
 }
 
 TEST_CASE("path measure extract across multiple contours", "[scripting]")
 {
-    ScriptingTest vm("local path: Path = Path.new()\n"
-                     "path:moveTo(Vector.xy(0, 0))\n"
-                     "path:lineTo(Vector.xy(10, 0))\n"
-                     "path:close()\n"
-                     "path:moveTo(Vector.xy(20, 0))\n"
-                     "path:lineTo(Vector.xy(30, 0))\n"
-                     "path:close()\n"
-                     "local measure = path:measure()\n"
-                     "local destPath: Path = Path.new()\n"
-                     "measure:extract(5, 25, destPath, true)\n"
-                     "return destPath\n");
-    lua_State* L = vm.state();
-    auto destPath = lua_torive<ScriptedPath>(L, -1);
-    CHECK(destPath != nullptr);
-    // Should extract from both contours
-    CHECK(destPath->rawPath.verbs().count() > 0);
+  ScriptingTest vm("local path: Path = Path.new()\n"
+                   "path:moveTo(Vector.xy(0, 0))\n"
+                   "path:lineTo(Vector.xy(10, 0))\n"
+                   "path:close()\n"
+                   "path:moveTo(Vector.xy(20, 0))\n"
+                   "path:lineTo(Vector.xy(30, 0))\n"
+                   "path:close()\n"
+                   "local measure = path:measure()\n"
+                   "local destPath: Path = Path.new()\n"
+                   "measure:extract(5, 25, destPath, true)\n"
+                   "return destPath\n");
+  lua_State* L = vm.state();
+  auto destPath = lua_torive<ScriptedPath>(L, -1);
+  CHECK(destPath != nullptr);
+  // Should extract from both contours
+  CHECK(destPath->rawPath.verbs().count() > 0);
 }
 
 TEST_CASE("path drawing examples", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/script_paths_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/script_paths_test.riv", &silver);
 
-    auto artboard = file->artboardNamed("PathsScript");
+  auto artboard = file->artboardNamed("PathsScript");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("script_paths"));
+  CHECK(silver.matches("script_paths"));
 }
 
 TEST_CASE("path effects examples", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/script_path_effects_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/script_path_effects_test.riv", &silver);
 
-    auto artboard = file->artboardNamed("PathEffects");
+  auto artboard = file->artboardNamed("PathEffects");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("script_path_effects"));
+  CHECK(silver.matches("script_path_effects"));
 }
 
 TEST_CASE("paths with opacity applied", "[silver]")
 {
-    rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/script_paths_opacity_test.riv", &silver);
+  rive::SerializingFactory silver;
+  auto file = ReadRiveFile("assets/script_paths_opacity_test.riv", &silver);
 
-    auto artboard = file->artboardNamed("Artboard");
+  auto artboard = file->artboardNamed("Artboard");
 
-    silver.frameSize(artboard->width(), artboard->height());
+  silver.frameSize(artboard->width(), artboard->height());
 
-    REQUIRE(artboard != nullptr);
-    auto stateMachine = artboard->stateMachineAt(0);
-    stateMachine->advanceAndApply(0.1f);
+  REQUIRE(artboard != nullptr);
+  auto stateMachine = artboard->stateMachineAt(0);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto renderer = silver.makeRenderer();
+  auto renderer = silver.makeRenderer();
+  artboard->draw(renderer.get());
+
+  int frames = 60;
+  for (int i = 0; i < frames; i++)
+  {
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
+  }
 
-    int frames = 60;
-    for (int i = 0; i < frames; i++)
-    {
-        silver.addFrame();
-        stateMachine->advanceAndApply(0.016f);
-        artboard->draw(renderer.get());
-    }
-
-    CHECK(silver.matches("script_path_opacity"));
+  CHECK(silver.matches("script_path_opacity"));
 }
 
 TEST_CASE("Access paint and path data", "[silver]")
 {
-    SerializingFactory silver;
-    auto file = ReadRiveFile("assets/scripted_as_path.riv", &silver);
+  SerializingFactory silver;
+  auto file = ReadRiveFile("assets/scripted_as_path.riv", &silver);
 
-    auto artboard = file->artboardDefault();
-    silver.frameSize(artboard->width(), artboard->height());
+  auto artboard = file->artboardDefault();
+  silver.frameSize(artboard->width(), artboard->height());
 
-    auto stateMachine = artboard->stateMachineAt(0);
+  auto stateMachine = artboard->stateMachineAt(0);
 
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
-    auto renderer = silver.makeRenderer();
-    stateMachine->advanceAndApply(0.016f);
-    artboard->draw(renderer.get());
+  stateMachine->bindViewModelInstance(vmi);
+  auto renderer = silver.makeRenderer();
+  stateMachine->advanceAndApply(0.016f);
+  artboard->draw(renderer.get());
 
-    CHECK(silver.matches("scripted_as_path"));
+  CHECK(silver.matches("scripted_as_path"));
 }

@@ -22,261 +22,259 @@ class BackgroundShaderCompiler;
 class RenderTargetMetal : public RenderTarget
 {
 public:
-    ~RenderTargetMetal() override {}
+  ~RenderTargetMetal() override {}
 
-    MTLPixelFormat pixelFormat() const { return m_pixelFormat; }
+  MTLPixelFormat pixelFormat() const { return m_pixelFormat; }
 
-    bool compatibleWith(id<MTLTexture> texture) const
-    {
-        assert(texture.usage & MTLTextureUsageRenderTarget);
-        return width() == texture.width && height() == texture.height &&
-               m_pixelFormat == texture.pixelFormat;
-    }
+  bool compatibleWith(id<MTLTexture> texture) const
+  {
+    assert(texture.usage & MTLTextureUsageRenderTarget);
+    return width() == texture.width && height() == texture.height &&
+           m_pixelFormat == texture.pixelFormat;
+  }
 
-    void setTargetTexture(id<MTLTexture> texture);
-    id<MTLTexture> targetTexture() const { return m_targetTexture; }
+  void setTargetTexture(id<MTLTexture> texture);
+  id<MTLTexture> targetTexture() const { return m_targetTexture; }
 
 private:
-    friend class RenderContextMetalImpl;
+  friend class RenderContextMetalImpl;
 
-    RenderTargetMetal(id<MTLDevice>,
-                      MTLPixelFormat,
-                      uint32_t width,
-                      uint32_t height,
-                      const PlatformFeatures&);
+  RenderTargetMetal(
+      id<MTLDevice>,
+      MTLPixelFormat,
+      uint32_t width,
+      uint32_t height,
+      const PlatformFeatures&);
 
-    // Lazily-allocated buffers for atomic mode. Unlike the memoryless textures,
-    // these buffers have actual physical storage that gets allocated the first
-    // time they're accessed.
-    id<MTLBuffer> colorAtomicBuffer()
-    {
-        return m_colorAtomicBuffer != nil
-                   ? m_colorAtomicBuffer
-                   : m_colorAtomicBuffer = makeAtomicBuffer();
-    }
-    id<MTLBuffer> coverageAtomicBuffer()
-    {
-        return m_coverageAtomicBuffer != nil
-                   ? m_coverageAtomicBuffer
-                   : m_coverageAtomicBuffer = makeAtomicBuffer();
-    }
-    id<MTLBuffer> clipAtomicBuffer()
-    {
-        return m_clipAtomicBuffer != nil
-                   ? m_clipAtomicBuffer
-                   : m_clipAtomicBuffer = makeAtomicBuffer();
-    }
-    id<MTLBuffer> makeAtomicBuffer()
-    {
-        return [m_gpu newBufferWithLength:height() * width() * sizeof(uint32_t)
-                                  options:MTLResourceStorageModePrivate];
-    }
+  // Lazily-allocated buffers for atomic mode. Unlike the memoryless textures,
+  // these buffers have actual physical storage that gets allocated the first
+  // time they're accessed.
+  id<MTLBuffer> colorAtomicBuffer()
+  {
+    return m_colorAtomicBuffer != nil
+               ? m_colorAtomicBuffer
+               : m_colorAtomicBuffer = makeAtomicBuffer();
+  }
+  id<MTLBuffer> coverageAtomicBuffer()
+  {
+    return m_coverageAtomicBuffer != nil
+               ? m_coverageAtomicBuffer
+               : m_coverageAtomicBuffer = makeAtomicBuffer();
+  }
+  id<MTLBuffer> clipAtomicBuffer()
+  {
+    return m_clipAtomicBuffer != nil ? m_clipAtomicBuffer
+                                     : m_clipAtomicBuffer = makeAtomicBuffer();
+  }
+  id<MTLBuffer> makeAtomicBuffer()
+  {
+    return [m_gpu newBufferWithLength:height() * width() * sizeof(uint32_t)
+                              options:MTLResourceStorageModePrivate];
+  }
 
-    const id<MTLDevice> m_gpu;
-    const MTLPixelFormat m_pixelFormat;
+  const id<MTLDevice> m_gpu;
+  const MTLPixelFormat m_pixelFormat;
 
-    id<MTLTexture> m_targetTexture = nil;
+  id<MTLTexture> m_targetTexture = nil;
 
-    id<MTLTexture> m_coverageMemorylessTexture = nil;
-    id<MTLTexture> m_clipMemorylessTexture = nil;
-    id<MTLTexture> m_scratchColorMemorylessTexture = nil;
+  id<MTLTexture> m_coverageMemorylessTexture = nil;
+  id<MTLTexture> m_clipMemorylessTexture = nil;
+  id<MTLTexture> m_scratchColorMemorylessTexture = nil;
 
-    id<MTLBuffer> m_colorAtomicBuffer = nil;
-    id<MTLBuffer> m_coverageAtomicBuffer = nil;
-    id<MTLBuffer> m_clipAtomicBuffer = nil;
+  id<MTLBuffer> m_colorAtomicBuffer = nil;
+  id<MTLBuffer> m_coverageAtomicBuffer = nil;
+  id<MTLBuffer> m_clipAtomicBuffer = nil;
 };
 
 // Metal backend implementation of RenderContextImpl.
 class RenderContextMetalImpl : public RenderContextHelperImpl
 {
 public:
-    struct ContextOptions
-    {
-        // Wait for shaders to compile inline with rendering (causing jank),
-        // instead of compiling asynchronously in a background thread.
-        // (Primarily for testing.)
-        ShaderCompilationMode shaderCompilationMode =
-            ShaderCompilationMode::standard;
+  struct ContextOptions
+  {
+    // Wait for shaders to compile inline with rendering (causing jank),
+    // instead of compiling asynchronously in a background thread.
+    // (Primarily for testing.)
+    ShaderCompilationMode
+        shaderCompilationMode = ShaderCompilationMode::standard;
 
-        // (macOS only -- ignored on iOS). Override
-        // m_platformFeatures.supportsRasterOrdering to false, forcing us to
-        // always render in atomic mode.
-        bool disableFramebufferReads = false;
+    // (macOS only -- ignored on iOS). Override
+    // m_platformFeatures.supportsRasterOrdering to false, forcing us to
+    // always render in atomic mode.
+    bool disableFramebufferReads = false;
 
 #ifdef WITH_RIVE_TOOLS
-        SynthesizedFailureType synthesizedFailureType =
-            SynthesizedFailureType::none;
+    SynthesizedFailureType
+        synthesizedFailureType = SynthesizedFailureType::none;
 #endif
-    };
+  };
 
-    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice>,
-                                                      const ContextOptions&);
+  static std::unique_ptr<RenderContext> MakeContext(
+      id<MTLDevice>, const ContextOptions&);
 
-    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice> gpu)
-    {
-        return MakeContext(gpu, ContextOptions());
-    }
+  static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice> gpu)
+  {
+    return MakeContext(gpu, ContextOptions());
+  }
 
-    ~RenderContextMetalImpl() override;
+  ~RenderContextMetalImpl() override;
 
-    id<MTLDevice> gpu() const { return m_gpu; }
+  id<MTLDevice> gpu() const { return m_gpu; }
 
-    // Set the command queue used by makeCommandBuffer(). Must be called
-    // before any ScriptedCanvas flush if canvas support is needed.
-    void setCommandQueue(id<MTLCommandQueue> queue) { m_commandQueue = queue; }
+  // Set the command queue used by makeCommandBuffer(). Must be called
+  // before any ScriptedCanvas flush if canvas support is needed.
+  void setCommandQueue(id<MTLCommandQueue> queue) { m_commandQueue = queue; }
 
-    void* makeCommandBuffer() override;
-    void commitCommandBuffer(void* commandBuffer) override;
+  void* makeCommandBuffer() override;
+  void commitCommandBuffer(void* commandBuffer) override;
 
-    rcp<RenderTargetMetal> makeRenderTarget(MTLPixelFormat,
-                                            uint32_t width,
-                                            uint32_t height);
+  rcp<RenderTargetMetal> makeRenderTarget(
+      MTLPixelFormat, uint32_t width, uint32_t height);
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
-                                       RenderBufferFlags,
-                                       size_t) override;
+  rcp<RenderBuffer> makeRenderBuffer(
+      RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<Texture> makeImageTexture(uint32_t width,
-                                  uint32_t height,
-                                  uint32_t mipLevelCount,
-                                  GPUTextureFormat format,
-                                  const uint8_t imageData[],
-                                  uint8_t blockWidth = 1,
-                                  uint8_t blockHeight = 1,
-                                  bool srgb = false,
-                                  bool generateRemainingMips = false) override;
+  rcp<Texture> makeImageTexture(
+      uint32_t width,
+      uint32_t height,
+      uint32_t mipLevelCount,
+      GPUTextureFormat format,
+      const uint8_t imageData[],
+      uint8_t blockWidth = 1,
+      uint8_t blockHeight = 1,
+      bool srgb = false,
+      bool generateRemainingMips = false) override;
 
-    // Wrap an externally-owned MTLTexture as a Rive Texture for sampling.
-    // No upload, no allocation; the wrapper retains the MTLTexture via ARC.
-    rcp<Texture> adoptImageTexture(id<MTLTexture> texture,
-                                   uint32_t width,
-                                   uint32_t height);
+  // Wrap an externally-owned MTLTexture as a Rive Texture for sampling.
+  // No upload, no allocation; the wrapper retains the MTLTexture via ARC.
+  rcp<Texture> adoptImageTexture(
+      id<MTLTexture> texture, uint32_t width, uint32_t height);
 
 #ifdef RIVE_CANVAS
-    void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
+  void ensureCanvasBacking(gpu::RenderCanvas* canvas) override;
 
-    std::unique_ptr<rive::ore::Context> makeOreContext() override;
+  std::unique_ptr<rive::ore::Context> makeOreContext() override;
 #endif
 
-    // Atomic mode requires a barrier between overlapping draws. We have to
-    // implement this barrier in various different ways, depending on which
-    // hardware we're on.
-    enum class AtomicBarrierType
-    {
-        // The hardware supports a normal fragment-fragment memory barrier. (Not
-        // supported on Apple-Silicon).
-        memoryBarrier,
+  // Atomic mode requires a barrier between overlapping draws. We have to
+  // implement this barrier in various different ways, depending on which
+  // hardware we're on.
+  enum class AtomicBarrierType
+  {
+    // The hardware supports a normal fragment-fragment memory barrier. (Not
+    // supported on Apple-Silicon).
+    memoryBarrier,
 
-        // Apple Silicon is very fast at raster ordering, and doesn't support
-        // fragment-fragment memory barriers anyway, so on this hardware we just
-        // use raster order groups in atomic mode.
-        rasterOrderGroup,
+    // Apple Silicon is very fast at raster ordering, and doesn't support
+    // fragment-fragment memory barriers anyway, so on this hardware we just
+    // use raster order groups in atomic mode.
+    rasterOrderGroup,
 
-        // On very old hardware that can't support barriers, we just take a
-        // sledge hammer and break the entire render pass between overlapping
-        // draws.
-        // TODO: Is there a lighter way to accomplish this?
-        renderPassBreak,
-    };
+    // On very old hardware that can't support barriers, we just take a
+    // sledge hammer and break the entire render pass between overlapping
+    // draws.
+    // TODO: Is there a lighter way to accomplish this?
+    renderPassBreak,
+  };
 
-    struct MetalFeatures
-    {
-        AtomicBarrierType atomicBarrierType =
-            AtomicBarrierType::renderPassBreak;
-    };
+  struct MetalFeatures
+  {
+    AtomicBarrierType atomicBarrierType = AtomicBarrierType::renderPassBreak;
+  };
 
-    const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
+  const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
 
 protected:
-    RenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
+  RenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
 
-    std::unique_ptr<BufferRing> makeUniformBufferRing(
-        size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeStorageBufferRing(
-        size_t capacityInBytes, StorageBufferStructure) override;
-    std::unique_ptr<BufferRing> makeVertexBufferRing(
-        size_t capacityInBytes) override;
+  std::unique_ptr<BufferRing> makeUniformBufferRing(
+      size_t capacityInBytes) override;
+  std::unique_ptr<BufferRing> makeStorageBufferRing(
+      size_t capacityInBytes, StorageBufferStructure) override;
+  std::unique_ptr<BufferRing> makeVertexBufferRing(
+      size_t capacityInBytes) override;
 
 private:
-    // Renders paths to the main render target.
-    class DrawPipeline;
+  // Renders paths to the main render target.
+  class DrawPipeline;
 
-    void resizeGradientTexture(uint32_t width, uint32_t height) override;
-    void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
+  void resizeGradientTexture(uint32_t width, uint32_t height) override;
+  void resizeTessellationTexture(uint32_t width, uint32_t height) override;
+  void resizeFeatherAtlasTexture(uint32_t width, uint32_t height) override;
 
-    // Obtains an exclusive lock on the next buffer ring index, potentially
-    // blocking until the GPU has finished rendering with it. This ensures it is
-    // safe for the CPU to begin modifying the next buffers in our rings.
-    void prepareToFlush(uint64_t nextFrameNumber,
-                        uint64_t safeFrameNumber) override;
+  // Obtains an exclusive lock on the next buffer ring index, potentially
+  // blocking until the GPU has finished rendering with it. This ensures it is
+  // safe for the CPU to begin modifying the next buffers in our rings.
+  void prepareToFlush(
+      uint64_t nextFrameNumber, uint64_t safeFrameNumber) override;
 
-    // Creates a MTLRenderCommandEncoder and sets the common state for PLS
-    // draws.
-    id<MTLRenderCommandEncoder> makeRenderPassForDraws(
-        const gpu::FlushDescriptor&,
-        MTLRenderPassDescriptor*,
-        id<MTLCommandBuffer>,
-        gpu::ShaderMiscFlags baselineMiscFlags);
+  // Creates a MTLRenderCommandEncoder and sets the common state for PLS
+  // draws.
+  id<MTLRenderCommandEncoder> makeRenderPassForDraws(
+      const gpu::FlushDescriptor&,
+      MTLRenderPassDescriptor*,
+      id<MTLCommandBuffer>,
+      gpu::ShaderMiscFlags baselineMiscFlags);
 
-    // Returns the specific DrawPipeline for the given feature set, if it has
-    // been compiled. If it has not finished compiling yet, this method may
-    // return a (potentially slower) DrawPipeline that can draw a superset of
-    // the given features.
-    const DrawPipeline* findCompatibleDrawPipeline(gpu::DrawType,
-                                                   gpu::ShaderFeatures,
-                                                   const gpu::FlushDescriptor&,
-                                                   gpu::ShaderMiscFlags);
+  // Returns the specific DrawPipeline for the given feature set, if it has
+  // been compiled. If it has not finished compiling yet, this method may
+  // return a (potentially slower) DrawPipeline that can draw a superset of
+  // the given features.
+  const DrawPipeline* findCompatibleDrawPipeline(
+      gpu::DrawType,
+      gpu::ShaderFeatures,
+      const gpu::FlushDescriptor&,
+      gpu::ShaderMiscFlags);
 
-    void flush(const FlushDescriptor&) override;
+  void flush(const FlushDescriptor&) override;
 
-    void postFlush(const RenderContext::FlushResources&) override;
+  void postFlush(const RenderContext::FlushResources&) override;
 
-    const ContextOptions m_contextOptions;
-    const id<MTLDevice> m_gpu;
-    id<MTLCommandQueue> m_commandQueue = nil;
+  const ContextOptions m_contextOptions;
+  const id<MTLDevice> m_gpu;
+  id<MTLCommandQueue> m_commandQueue = nil;
 
-    MetalFeatures m_metalFeatures;
-    std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
-    id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in
-                                            // a static library.
+  MetalFeatures m_metalFeatures;
+  std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
+  id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in
+                                          // a static library.
 
-    // Renders color ramps to the gradient texture.
-    class ColorRampPipeline;
-    std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;
-    id<MTLTexture> m_gradientTexture = nullptr;
+  // Renders color ramps to the gradient texture.
+  class ColorRampPipeline;
+  std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;
+  id<MTLTexture> m_gradientTexture = nullptr;
 
-    // Gaussian integral table for feathering.
-    id<MTLTexture> m_gaussianIntegralTexture = nullptr;
+  // Gaussian integral table for feathering.
+  id<MTLTexture> m_gaussianIntegralTexture = nullptr;
 
-    // Renders tessellated vertices to the tessellation texture.
-    class TessellatePipeline;
-    std::unique_ptr<TessellatePipeline> m_tessPipeline;
-    id<MTLBuffer> m_tessSpanIndexBuffer = nullptr;
-    id<MTLTexture> m_tessVertexTexture = nullptr;
+  // Renders tessellated vertices to the tessellation texture.
+  class TessellatePipeline;
+  std::unique_ptr<TessellatePipeline> m_tessPipeline;
+  id<MTLBuffer> m_tessSpanIndexBuffer = nullptr;
+  id<MTLTexture> m_tessVertexTexture = nullptr;
 
-    // Atlas rendering.
-    class FeatherAtlasPipeline;
-    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasFillPipeline;
-    std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasStrokePipeline;
-    id<MTLTexture> m_featherAtlasTexture = nullptr;
+  // Atlas rendering.
+  class FeatherAtlasPipeline;
+  std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasFillPipeline;
+  std::unique_ptr<FeatherAtlasPipeline> m_featherAtlasStrokePipeline;
+  id<MTLTexture> m_featherAtlasTexture = nullptr;
 
-    id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
+  id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
-    std::unordered_map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
+  std::unordered_map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
 
-    // Vertex/index buffers for drawing path patches.
-    id<MTLBuffer> m_pathPatchVertexBuffer;
-    id<MTLBuffer> m_pathPatchIndexBuffer;
+  // Vertex/index buffers for drawing path patches.
+  id<MTLBuffer> m_pathPatchVertexBuffer;
+  id<MTLBuffer> m_pathPatchIndexBuffer;
 
-    // Vertex/index buffers for drawing image rects.
-    // (gpu::InterlockMode::atomics only.)
-    id<MTLBuffer> m_imageRectVertexBuffer;
-    id<MTLBuffer> m_imageRectIndexBuffer;
+  // Vertex/index buffers for drawing image rects.
+  // (gpu::InterlockMode::atomics only.)
+  id<MTLBuffer> m_imageRectVertexBuffer;
+  id<MTLBuffer> m_imageRectIndexBuffer;
 
-    // Locks buffer contents until the GPU has finished rendering with them.
-    // Prevents the CPU from overriding data before the GPU is done with it.
-    std::mutex m_bufferRingLocks[kBufferRingSize];
-    int m_bufferRingIdx = 0;
+  // Locks buffer contents until the GPU has finished rendering with them.
+  // Prevents the CPU from overriding data before the GPU is done with it.
+  std::mutex m_bufferRingLocks[kBufferRingSize];
+  int m_bufferRingIdx = 0;
 };
 } // namespace rive::gpu

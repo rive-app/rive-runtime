@@ -6,55 +6,55 @@ namespace rive
 /// Data types used for converters.
 enum class DataType : uint8_t
 {
-    /// None.
-    none = 0,
+  /// None.
+  none = 0,
 
-    /// String.
-    string = 1,
+  /// String.
+  string = 1,
 
-    /// Number.
-    number = 2,
+  /// Number.
+  number = 2,
 
-    /// Bool.
-    boolean = 3,
+  /// Bool.
+  boolean = 3,
 
-    /// Color.
-    color = 4,
+  /// Color.
+  color = 4,
 
-    /// List.
-    list = 5,
+  /// List.
+  list = 5,
 
-    /// Enum.
-    enumType = 6,
+  /// Enum.
+  enumType = 6,
 
-    /// Trigger.
-    trigger = 7,
+  /// Trigger.
+  trigger = 7,
 
-    /// View Model.
-    viewModel = 8,
+  /// View Model.
+  viewModel = 8,
 
-    /// Integer.
-    integer = 9,
+  /// Integer.
+  integer = 9,
 
-    /// Symbol list index.
-    symbolListIndex = 10,
+  /// Symbol list index.
+  symbolListIndex = 10,
 
-    /// Asset Image.
-    assetImage = 11,
+  /// Asset Image.
+  assetImage = 11,
 
-    /// Artboard.
-    artboard = 12,
+  /// Artboard.
+  artboard = 12,
 
-    /// Asset Font.
-    assetFont = 13,
+  /// Asset Font.
+  assetFont = 13,
 
-    /// Asset Blob.
-    assetBlob = 14,
+  /// Asset Blob.
+  assetBlob = 14,
 
-    /// Special case, this type is used to indicate it uses the input type.
-    input = 99,
+  /// Special case, this type is used to indicate it uses the input type.
+  input = 99,
 
-    any = 100
+  any = 100
 };
 } // namespace rive
 #endif

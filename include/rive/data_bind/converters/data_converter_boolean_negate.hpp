@@ -10,12 +10,12 @@ namespace rive
 class DataConverterBooleanNegate : public DataConverterBooleanNegateBase
 {
 public:
-    DataType outputType() override { return DataType::boolean; };
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+  DataType outputType() override { return DataType::boolean; };
+  DataValue* convert(DataValue* value, DataBind* dataBind) override;
+  DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 
 private:
-    DataValueBoolean m_output;
+  DataValueBoolean m_output;
 };
 } // namespace rive
 

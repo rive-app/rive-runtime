@@ -21,27 +21,101 @@ using namespace rive;
 
 TEST_CASE("audio engine initializes", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
-    REQUIRE(engine != nullptr);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  REQUIRE(engine != nullptr);
 }
 
 static std::vector<uint8_t> loadFile(const char* filename)
 {
-    FILE* fp = fopen(filename, "rb");
-    REQUIRE(fp != nullptr);
+  FILE* fp = fopen(filename, "rb");
+  REQUIRE(fp != nullptr);
 
-    fseek(fp, 0, SEEK_END);
-    const size_t length = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    std::vector<uint8_t> bytes(length);
-    REQUIRE(fread(bytes.data(), 1, length, fp) == length);
-    fclose(fp);
+  fseek(fp, 0, SEEK_END);
+  const size_t length = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+  std::vector<uint8_t> bytes(length);
+  REQUIRE(fread(bytes.data(), 1, length, fp) == length);
+  fclose(fp);
 
-    return bytes;
+  return bytes;
 }
 
 TEST_CASE("audio source can be opened", "[audio]")
 {
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  REQUIRE(engine != nullptr);
+  auto file = loadFile("assets/audio/what.wav");
+  auto span = Span<uint8_t>(file);
+  rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+  REQUIRE(audioSource->channels() == 2);
+  REQUIRE(audioSource->sampleRate() == 44100);
+
+  // Try some different sample rates.
+  {
+    auto reader = audioSource->makeReader(2, 44100);
+    REQUIRE(reader != nullptr);
+    REQUIRE(reader->lengthInFrames() == 9688);
+  }
+  {
+    auto reader = audioSource->makeReader(1, 48000);
+    REQUIRE(reader != nullptr);
+    REQUIRE(reader->lengthInFrames() == 10544);
+  }
+  {
+    auto reader = audioSource->makeReader(2, 32000);
+    REQUIRE(reader != nullptr);
+    REQUIRE(reader->lengthInFrames() == 7029);
+  }
+
+  float channels[2] = {0, 0};
+  engine->initLevelMonitor();
+  engine->levels(Span<float>(&channels[0], 2));
+  REQUIRE(channels[0] == 0);
+  REQUIRE(channels[1] == 0);
+
+  auto sound = engine->play(audioSource, 0, 0, 0);
+  float frames[512 * 2] = {};
+  engine->readAudioFrames(frames, 512);
+  engine->levels(Span<float>(&channels[0], 2));
+  REQUIRE(channels[0] != 0);
+  REQUIRE(channels[1] != 0);
+
+  engine->readAudioFrames(frames, 512);
+  REQUIRE(engine->level(0) != 0);
+  REQUIRE(engine->level(1) != 0);
+}
+
+TEST_CASE("file with audio loads correctly", "[text]")
+{
+  auto file = ReadRiveFile("assets/sound.riv");
+  auto artboard = file->artboard();
+  REQUIRE(artboard != nullptr);
+
+  auto audioEvents = artboard->find<AudioEvent>();
+  REQUIRE(audioEvents.size() == 1);
+
+  auto audioEvent = audioEvents[0];
+  REQUIRE(audioEvent->asset() != nullptr);
+  REQUIRE(audioEvent->asset()->hasAudioSource());
+
+  // auto textObjects = artboard->find<rive::Text>();
+  // REQUIRE(textObjects.size() == 5);
+
+  // auto styleObjects = artboard->find<rive::TextStyle>();
+  // REQUIRE(styleObjects.size() == 13);
+
+  // auto runObjects = artboard->find<rive::TextValueRun>();
+  // REQUIRE(runObjects.size() == 22);
+
+  // artboard->advance(0.0f);
+  // rive::NoOpRenderer renderer;
+  // artboard->draw(&renderer);
+}
+
+TEST_CASE("audio sound can outlive engine", "[audio]")
+{
+  rcp<AudioSound> sound;
+  {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
     REQUIRE(engine != nullptr);
     auto file = loadFile("assets/audio/what.wav");
@@ -50,148 +124,74 @@ TEST_CASE("audio source can be opened", "[audio]")
     REQUIRE(audioSource->channels() == 2);
     REQUIRE(audioSource->sampleRate() == 44100);
 
-    // Try some different sample rates.
-    {
-        auto reader = audioSource->makeReader(2, 44100);
-        REQUIRE(reader != nullptr);
-        REQUIRE(reader->lengthInFrames() == 9688);
-    }
-    {
-        auto reader = audioSource->makeReader(1, 48000);
-        REQUIRE(reader != nullptr);
-        REQUIRE(reader->lengthInFrames() == 10544);
-    }
-    {
-        auto reader = audioSource->makeReader(2, 32000);
-        REQUIRE(reader != nullptr);
-        REQUIRE(reader->lengthInFrames() == 7029);
-    }
-
-    float channels[2] = {0, 0};
-    engine->initLevelMonitor();
-    engine->levels(Span<float>(&channels[0], 2));
-    REQUIRE(channels[0] == 0);
-    REQUIRE(channels[1] == 0);
-
-    auto sound = engine->play(audioSource, 0, 0, 0);
+    sound = engine->play(audioSource, 0, 0, 0);
     float frames[512 * 2] = {};
     engine->readAudioFrames(frames, 512);
-    engine->levels(Span<float>(&channels[0], 2));
-    REQUIRE(channels[0] != 0);
-    REQUIRE(channels[1] != 0);
-
-    engine->readAudioFrames(frames, 512);
-    REQUIRE(engine->level(0) != 0);
-    REQUIRE(engine->level(1) != 0);
-}
-
-TEST_CASE("file with audio loads correctly", "[text]")
-{
-    auto file = ReadRiveFile("assets/sound.riv");
-    auto artboard = file->artboard();
-    REQUIRE(artboard != nullptr);
-
-    auto audioEvents = artboard->find<AudioEvent>();
-    REQUIRE(audioEvents.size() == 1);
-
-    auto audioEvent = audioEvents[0];
-    REQUIRE(audioEvent->asset() != nullptr);
-    REQUIRE(audioEvent->asset()->hasAudioSource());
-
-    // auto textObjects = artboard->find<rive::Text>();
-    // REQUIRE(textObjects.size() == 5);
-
-    // auto styleObjects = artboard->find<rive::TextStyle>();
-    // REQUIRE(styleObjects.size() == 13);
-
-    // auto runObjects = artboard->find<rive::TextValueRun>();
-    // REQUIRE(runObjects.size() == 22);
-
-    // artboard->advance(0.0f);
-    // rive::NoOpRenderer renderer;
-    // artboard->draw(&renderer);
-}
-
-TEST_CASE("audio sound can outlive engine", "[audio]")
-{
-    rcp<AudioSound> sound;
-    {
-        rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
-        REQUIRE(engine != nullptr);
-        auto file = loadFile("assets/audio/what.wav");
-        auto span = Span<uint8_t>(file);
-        rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
-        REQUIRE(audioSource->channels() == 2);
-        REQUIRE(audioSource->sampleRate() == 44100);
-
-        sound = engine->play(audioSource, 0, 0, 0);
-        float frames[512 * 2] = {};
-        engine->readAudioFrames(frames, 512);
-    }
-    sound->stop();
+  }
+  sound->stop();
 }
 
 TEST_CASE("many audio sounds can outlive engine", "[audio]")
 {
-    std::vector<rcp<AudioSound>> sounds;
-    {
-        rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
-        REQUIRE(engine != nullptr);
-        auto file = loadFile("assets/audio/what.wav");
-        auto span = Span<uint8_t>(file);
-        rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
-        REQUIRE(audioSource->channels() == 2);
-        REQUIRE(audioSource->sampleRate() == 44100);
+  std::vector<rcp<AudioSound>> sounds;
+  {
+    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+    REQUIRE(engine != nullptr);
+    auto file = loadFile("assets/audio/what.wav");
+    auto span = Span<uint8_t>(file);
+    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+    REQUIRE(audioSource->channels() == 2);
+    REQUIRE(audioSource->sampleRate() == 44100);
 
-        for (int i = 0; i < 20; i++)
-        {
-            sounds.emplace_back(engine->play(audioSource, 0, 0, 0));
-        }
-        float frames[512 * 2] = {};
-        engine->readAudioFrames(frames, 512);
-    }
-    for (auto sound : sounds)
+    for (int i = 0; i < 20; i++)
     {
-        sound->stop();
+      sounds.emplace_back(engine->play(audioSource, 0, 0, 0));
     }
+    float frames[512 * 2] = {};
+    engine->readAudioFrames(frames, 512);
+  }
+  for (auto sound : sounds)
+  {
+    sound->stop();
+  }
 }
 
 TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/sound.riv");
-    auto artboard = file->artboardDefault();
-    artboard->audioEngine(engine);
-    auto artboard2 = file->artboardDefault();
-    artboard2->audioEngine(engine);
+  auto file = ReadRiveFile("assets/sound.riv");
+  auto artboard = file->artboardDefault();
+  artboard->audioEngine(engine);
+  auto artboard2 = file->artboardDefault();
+  artboard2->audioEngine(engine);
 
-    REQUIRE(artboard != nullptr);
+  REQUIRE(artboard != nullptr);
 
-    auto audioEvents = artboard->find<AudioEvent>();
-    REQUIRE(audioEvents.size() == 1);
+  auto audioEvents = artboard->find<AudioEvent>();
+  REQUIRE(audioEvents.size() == 1);
 
-    auto audioEvent = audioEvents[0];
-    REQUIRE(audioEvent->asset() != nullptr);
-    REQUIRE(audioEvent->asset()->hasAudioSource());
+  auto audioEvent = audioEvents[0];
+  REQUIRE(audioEvent->asset() != nullptr);
+  REQUIRE(audioEvent->asset()->hasAudioSource());
 
-    audioEvent->play();
-    audioEvent->play();
-    REQUIRE(engine->playingSoundCount() == 2);
-    auto audioEvent2 = artboard2->find<AudioEvent>()[0];
-    audioEvent2->play();
-    REQUIRE(engine->playingSoundCount() == 3);
-    audioEvent->play();
-    REQUIRE(engine->playingSoundCount() == 4);
+  audioEvent->play();
+  audioEvent->play();
+  REQUIRE(engine->playingSoundCount() == 2);
+  auto audioEvent2 = artboard2->find<AudioEvent>()[0];
+  audioEvent2->play();
+  REQUIRE(engine->playingSoundCount() == 3);
+  audioEvent->play();
+  REQUIRE(engine->playingSoundCount() == 4);
 
-    // The three playing sounds owned by the first artboard should now stop.
-    artboard = nullptr;
+  // The three playing sounds owned by the first artboard should now stop.
+  artboard = nullptr;
 
-    REQUIRE(engine->playingSoundCount() == 1);
+  REQUIRE(engine->playingSoundCount() == 1);
 
-    // The last one belonging to artboard2 should now stop too.
-    artboard2 = nullptr;
-    REQUIRE(engine->playingSoundCount() == 0);
+  // The last one belonging to artboard2 should now stop too.
+  artboard2 = nullptr;
+  REQUIRE(engine->playingSoundCount() == 0);
 }
 
 // An artboard with no engine of its own still starts its sounds on the
@@ -200,147 +200,145 @@ TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
 // the process renders next. Artboard::audioEngine only pushes down the tree at
 // the moment it is called, so artboards instantiated later -- list items from
 // ArtboardComponentList::createArtboard -- still reach teardown with none.
-TEST_CASE("audio sounds stop when the artboard has no engine assigned",
-          "[audio]")
+TEST_CASE(
+    "audio sounds stop when the artboard has no engine assigned",
+    "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
-    REQUIRE(AudioEngine::RuntimeEngine(false) == engine);
+  rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
+  REQUIRE(AudioEngine::RuntimeEngine(false) == engine);
 
-    auto file = ReadRiveFile("assets/sound.riv");
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
-    // Deliberately no artboard->audioEngine(engine) here.
+  auto file = ReadRiveFile("assets/sound.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  // Deliberately no artboard->audioEngine(engine) here.
 
-    auto audioEvent = artboard->find<AudioEvent>()[0];
-    REQUIRE(audioEvent->asset() != nullptr);
-    REQUIRE(audioEvent->asset()->hasAudioSource());
+  auto audioEvent = artboard->find<AudioEvent>()[0];
+  REQUIRE(audioEvent->asset() != nullptr);
+  REQUIRE(audioEvent->asset()->hasAudioSource());
 
-    audioEvent->play();
-    audioEvent->play();
-    REQUIRE(engine->playingSoundCount() == 2);
+  audioEvent->play();
+  audioEvent->play();
+  REQUIRE(engine->playingSoundCount() == 2);
 
-    artboard = nullptr;
-    REQUIRE(engine->playingSoundCount() == 0);
+  artboard = nullptr;
+  REQUIRE(engine->playingSoundCount() == 0);
 }
 
 TEST_CASE("Artboard has audio", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/sound2.riv");
-    auto artboard = file->artboardNamed("child");
-    artboard->audioEngine(engine);
+  auto file = ReadRiveFile("assets/sound2.riv");
+  auto artboard = file->artboardNamed("child");
+  artboard->audioEngine(engine);
 
-    REQUIRE(artboard != nullptr);
+  REQUIRE(artboard != nullptr);
 
-    auto audioEvents = artboard->find<AudioEvent>();
-    REQUIRE(audioEvents.size() == 1);
-    REQUIRE(artboard->hasAudio() == true);
+  auto audioEvents = artboard->find<AudioEvent>();
+  REQUIRE(audioEvents.size() == 1);
+  REQUIRE(artboard->hasAudio() == true);
 }
 
 TEST_CASE("Artboard has audio in nested artboard", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/sound2.riv");
-    auto artboard = file->artboardNamed("grand-parent");
-    artboard->audioEngine(engine);
+  auto file = ReadRiveFile("assets/sound2.riv");
+  auto artboard = file->artboardNamed("grand-parent");
+  artboard->audioEngine(engine);
 
-    REQUIRE(artboard != nullptr);
+  REQUIRE(artboard != nullptr);
 
-    auto audioEvents = artboard->find<AudioEvent>();
-    REQUIRE(audioEvents.size() == 0);
-    REQUIRE(artboard->hasAudio() == true);
+  auto audioEvents = artboard->find<AudioEvent>();
+  REQUIRE(audioEvents.size() == 0);
+  REQUIRE(artboard->hasAudio() == true);
 }
 
 TEST_CASE("Artboard does not have audio", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/sound2.riv");
-    auto artboard = file->artboardNamed("no-audio");
-    artboard->audioEngine(engine);
+  auto file = ReadRiveFile("assets/sound2.riv");
+  auto artboard = file->artboardNamed("no-audio");
+  artboard->audioEngine(engine);
 
-    REQUIRE(artboard != nullptr);
+  REQUIRE(artboard != nullptr);
 
-    auto audioEvents = artboard->find<AudioEvent>();
-    REQUIRE(audioEvents.size() == 0);
-    REQUIRE(artboard->hasAudio() == false);
+  auto audioEvents = artboard->find<AudioEvent>();
+  REQUIRE(audioEvents.size() == 0);
+  REQUIRE(artboard->hasAudio() == false);
 }
 
 // List items are created after the engine is set, when the list's view model
 // fills in, so they have to pick it up from their host.
 TEST_CASE("List items use their host's audio engine", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/component_list_1.riv");
-    auto artboard = file->artboard("Main")->instance();
-    REQUIRE(artboard != nullptr);
-    artboard->audioEngine(engine);
+  auto file = ReadRiveFile("assets/component_list_1.riv");
+  auto artboard = file->artboard("Main")->instance();
+  REQUIRE(artboard != nullptr);
+  artboard->audioEngine(engine);
 
-    auto list = artboard->find<ArtboardComponentList>("List");
-    REQUIRE(list != nullptr);
-    REQUIRE(list->artboardCount() == 0);
+  auto list = artboard->find<ArtboardComponentList>("List");
+  REQUIRE(list != nullptr);
+  REQUIRE(list->artboardCount() == 0);
 
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboard.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
-    artboard->advance(0.0f);
+  auto viewModelInstance = file->createDefaultViewModelInstance(artboard.get());
+  REQUIRE(viewModelInstance != nullptr);
+  artboard->bindViewModelInstance(viewModelInstance);
+  artboard->advance(0.0f);
 
-    REQUIRE(list->artboardCount() > 0);
-    for (int i = 0; i < (int)list->artboardCount(); i++)
-    {
-        auto item = list->artboardInstance(i);
-        REQUIRE(item != nullptr);
-        CHECK(item->audioEngine() == engine);
-    }
+  REQUIRE(list->artboardCount() > 0);
+  for (int i = 0; i < (int)list->artboardCount(); i++)
+  {
+    auto item = list->artboardInstance(i);
+    REQUIRE(item != nullptr);
+    CHECK(item->audioEngine() == engine);
+  }
 }
 
 // Same for a nested artboard swapped in by data binding after the engine is
 // set.
 TEST_CASE("Swapped nested artboards use their host's audio engine", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
-    auto artboard = file->artboardDefault();
-    REQUIRE(artboard != nullptr);
-    artboard->audioEngine(engine);
+  auto file = ReadRiveFile("assets/data_binding_artboards_test.riv");
+  auto artboard = file->artboardDefault();
+  REQUIRE(artboard != nullptr);
+  artboard->audioEngine(engine);
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    int viewModelId = artboard.get()->viewModelId();
-    auto vmi = viewModelId == -1
-                   ? file->createViewModelInstance(artboard.get())
-                   : file->createViewModelInstance(viewModelId, 0);
-    stateMachine->bindViewModelInstance(vmi);
-    stateMachine->advanceAndApply(0.1f);
+  auto stateMachine = artboard->stateMachineAt(0);
+  int viewModelId = artboard.get()->viewModelId();
+  auto vmi = viewModelId == -1 ? file->createViewModelInstance(artboard.get())
+                               : file->createViewModelInstance(viewModelId, 0);
+  stateMachine->bindViewModelInstance(vmi);
+  stateMachine->advanceAndApply(0.1f);
 
-    auto nestedArtboards = artboard->find<NestedArtboard>();
-    std::vector<ArtboardInstance*> before;
-    for (auto nested : nestedArtboards)
+  auto nestedArtboards = artboard->find<NestedArtboard>();
+  std::vector<ArtboardInstance*> before;
+  for (auto nested : nestedArtboards)
+  {
+    before.push_back(nested->artboardInstance());
+  }
+
+  auto vmiArtboard = vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+  vmiArtboard->asset(file->bindableArtboardNamed("ch1"));
+  stateMachine->advanceAndApply(0.1f);
+
+  bool swapped = false;
+  for (size_t i = 0; i < nestedArtboards.size(); i++)
+  {
+    auto instance = nestedArtboards[i]->artboardInstance();
+    if (instance == nullptr)
     {
-        before.push_back(nested->artboardInstance());
+      continue;
     }
-
-    auto vmiArtboard =
-        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
-    vmiArtboard->asset(file->bindableArtboardNamed("ch1"));
-    stateMachine->advanceAndApply(0.1f);
-
-    bool swapped = false;
-    for (size_t i = 0; i < nestedArtboards.size(); i++)
-    {
-        auto instance = nestedArtboards[i]->artboardInstance();
-        if (instance == nullptr)
-        {
-            continue;
-        }
-        swapped = swapped || instance != before[i];
-        CHECK(instance->audioEngine() == engine);
-    }
-    REQUIRE(swapped);
+    swapped = swapped || instance != before[i];
+    CHECK(instance->audioEngine() == engine);
+  }
+  REQUIRE(swapped);
 }
 
 // Scripted audio drives a Luau VM; the wasm backend covers audio through
@@ -348,85 +346,85 @@ TEST_CASE("Swapped nested artboards use their host's audio engine", "[audio]")
 #ifdef WITH_RIVE_SCRIPTING_LUAU
 TEST_CASE("Scripted audio plays", "[audio]")
 {
-    rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
+  rcp<AudioEngine> engine = AudioEngine::MakeAndStore(2, 44100);
 
-    auto file = ReadRiveFile("assets/audio_script.riv");
-    auto artboard = file->artboardDefault();
-    artboard->audioEngine(engine);
-    auto vm = file->scriptingVM();
-    auto context = vm->context();
-    context->isPlaying(true);
+  auto file = ReadRiveFile("assets/audio_script.riv");
+  auto artboard = file->artboardDefault();
+  artboard->audioEngine(engine);
+  auto vm = file->scriptingVM();
+  auto context = vm->context();
+  context->isPlaying(true);
 
-    auto stateMachine = artboard->stateMachineAt(0);
-    auto vmi = file->createDefaultViewModelInstance(artboard.get());
+  auto stateMachine = artboard->stateMachineAt(0);
+  auto vmi = file->createDefaultViewModelInstance(artboard.get());
 
-    stateMachine->bindViewModelInstance(vmi);
+  stateMachine->bindViewModelInstance(vmi);
 
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
-    REQUIRE(engine->playingSoundCount() == 0);
+  REQUIRE(engine->playingSoundCount() == 0);
 
-    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
-    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+  stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+  stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
 
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->advanceAndApply(0.016f);
 
-    REQUIRE(artboard != nullptr);
+  REQUIRE(artboard != nullptr);
 
-    REQUIRE(engine->playingSoundCount() == 1);
+  REQUIRE(engine->playingSoundCount() == 1);
 
-    auto sound = engine->playingSoundsHead();
-    REQUIRE(sound->volume() == 1.0f);
+  auto sound = engine->playingSoundsHead();
+  REQUIRE(sound->volume() == 1.0f);
 
-    stateMachine->pointerDown(rive::Vec2D(200.0f, 200.0f));
-    stateMachine->pointerUp(rive::Vec2D(200.0f, 200.0f));
-    stateMachine->advanceAndApply(0.016f);
+  stateMachine->pointerDown(rive::Vec2D(200.0f, 200.0f));
+  stateMachine->pointerUp(rive::Vec2D(200.0f, 200.0f));
+  stateMachine->advanceAndApply(0.016f);
 
-    REQUIRE(sound->volume() == 0.1f);
+  REQUIRE(sound->volume() == 0.1f);
 }
 #endif
 
 TEST_CASE("audio source duration from file", "[audio]")
 {
-    auto file = loadFile("assets/audio/what.wav");
-    auto span = Span<uint8_t>(file);
-    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
-    REQUIRE(audioSource->channels() == 2);
-    REQUIRE(audioSource->sampleRate() == 44100);
+  auto file = loadFile("assets/audio/what.wav");
+  auto span = Span<uint8_t>(file);
+  rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+  REQUIRE(audioSource->channels() == 2);
+  REQUIRE(audioSource->sampleRate() == 44100);
 
-    float duration = audioSource->duration();
-    // 9688 frames at 44100 Hz
-    REQUIRE(duration == Approx(9688.0f / 44100.0f));
+  float duration = audioSource->duration();
+  // 9688 frames at 44100 Hz
+  REQUIRE(duration == Approx(9688.0f / 44100.0f));
 
-    // Verify caching: second call returns same value without re-decoding.
-    REQUIRE(audioSource->duration() == duration);
+  // Verify caching: second call returns same value without re-decoding.
+  REQUIRE(audioSource->duration() == duration);
 }
 
 TEST_CASE("audio source duration from buffered samples", "[audio]")
 {
-    const uint32_t numChannels = 2;
-    const uint32_t sampleRate = 48000;
-    const uint32_t numFrames = 48000; // 1 second worth of frames
-    std::vector<float> samples(numFrames * numChannels, 0.0f);
-    auto span = Span<float>(samples.data(), samples.size());
-    rcp<AudioSource> audioSource =
-        rcp<AudioSource>(new AudioSource(span, numChannels, sampleRate));
-    REQUIRE(audioSource->isBuffered());
-    REQUIRE(audioSource->duration() == Approx(1.0f));
+  const uint32_t numChannels = 2;
+  const uint32_t sampleRate = 48000;
+  const uint32_t numFrames = 48000; // 1 second worth of frames
+  std::vector<float> samples(numFrames * numChannels, 0.0f);
+  auto span = Span<float>(samples.data(), samples.size());
+  rcp<AudioSource> audioSource = rcp<AudioSource>(
+      new AudioSource(span, numChannels, sampleRate));
+  REQUIRE(audioSource->isBuffered());
+  REQUIRE(audioSource->duration() == Approx(1.0f));
 }
 
 #ifndef MA_NO_MP3
 TEST_CASE("audio source duration mp3", "[audio]")
 {
-    auto file = loadFile("assets/audio/song.mp3");
-    auto span = Span<uint8_t>(file);
-    rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
+  auto file = loadFile("assets/audio/song.mp3");
+  auto span = Span<uint8_t>(file);
+  rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
 
-    float duration = audioSource->duration();
-    // Duration should be positive for a valid mp3.
-    REQUIRE(duration > 0.0f);
-    // Cached value should match.
-    REQUIRE(audioSource->duration() == duration);
+  float duration = audioSource->duration();
+  // Duration should be positive for a valid mp3.
+  REQUIRE(duration > 0.0f);
+  // Cached value should match.
+  REQUIRE(audioSource->duration() == duration);
 }
 #endif
 

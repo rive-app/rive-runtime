@@ -37,23 +37,23 @@ namespace rive::cmd
 class NoOreRecorder
 {
 public:
-    explicit NoOreRecorder(const ore::ReplayCaps& caps) : m_caps(caps) {}
-    void bindCaps(const ore::ReplayCaps& caps) { m_caps = caps; }
-    const ore::ReplayCaps& caps() const { return m_caps; }
-    const ore::cmd::OreCommandBuffer& stream() const { return m_stream; }
-    const std::vector<rcp<gpu::GPUResource>>& realResources() const
-    {
-        return m_realResources;
-    }
-    uint32_t drawnTargetSize() const { return 0; }
-    void setTarget(const ore::Context::TargetDesc&) {}
-    void drainPendingDestroys() {}
-    void resetFrame() {}
+  explicit NoOreRecorder(const ore::ReplayCaps& caps) : m_caps(caps) {}
+  void bindCaps(const ore::ReplayCaps& caps) { m_caps = caps; }
+  const ore::ReplayCaps& caps() const { return m_caps; }
+  const ore::cmd::OreCommandBuffer& stream() const { return m_stream; }
+  const std::vector<rcp<gpu::GPUResource>>& realResources() const
+  {
+    return m_realResources;
+  }
+  uint32_t drawnTargetSize() const { return 0; }
+  void setTarget(const ore::Context::TargetDesc&) {}
+  void drainPendingDestroys() {}
+  void resetFrame() {}
 
 private:
-    ore::ReplayCaps m_caps;
-    ore::cmd::OreCommandBuffer m_stream;
-    std::vector<rcp<gpu::GPUResource>> m_realResources;
+  ore::ReplayCaps m_caps;
+  ore::cmd::OreCommandBuffer m_stream;
+  std::vector<rcp<gpu::GPUResource>> m_realResources;
 };
 #endif
 
@@ -62,19 +62,19 @@ private:
 // before any screen segment.
 struct DeferredSegment
 {
-    enum class Target : uint8_t
-    {
-        canvas, // offscreen, runs first
-        screen, // main target, runs last
-    };
-    Target target;
-    // Canvas id for a canvas run, screen target id for a screen one. A session
-    // serves several screen targets, so a screen run names the one it feeds.
-    uint64_t targetId;
-    uint32_t begin;
-    uint32_t end;
-    // Opened by beginCanvasContent. Replay keeps a canvas's last frame only.
-    bool startsFrame = false;
+  enum class Target : uint8_t
+  {
+    canvas, // offscreen, runs first
+    screen, // main target, runs last
+  };
+  Target target;
+  // Canvas id for a canvas run, screen target id for a screen one. A session
+  // serves several screen targets, so a screen run names the one it feeds.
+  uint64_t targetId;
+  uint32_t begin;
+  uint32_t end;
+  // Opened by beginCanvasContent. Replay keeps a canvas's last frame only.
+  bool startsFrame = false;
 };
 
 // A host that keeps a raw session pointer across frames. The session tells it
@@ -82,8 +82,8 @@ struct DeferredSegment
 class DeferredSessionAttachment
 {
 public:
-    virtual ~DeferredSessionAttachment() = default;
-    virtual void deferredSessionDestroyed() = 0;
+  virtual ~DeferredSessionAttachment() = default;
+  virtual void deferredSessionDestroyed() = 0;
 };
 
 class DeferredSession : public DeferredFactory,
@@ -91,597 +91,600 @@ class DeferredSession : public DeferredFactory,
                         public DeferredRouteHost
 {
 public:
-    // Capability only construction: recording holds no device, so a host can
-    // record on a thread or process the real context never visits. Web has no
-    // caps at creation and late binds them via bindReplayCaps.
-    explicit DeferredSession(const ore::ReplayCaps& caps) : m_ore(caps)
+  // Capability only construction: recording holds no device, so a host can
+  // record on a thread or process the real context never visits. Web has no
+  // caps at creation and late binds them via bindReplayCaps.
+  explicit DeferredSession(const ore::ReplayCaps& caps) : m_ore(caps)
+  {
+    wireOreCanvases();
+  }
+  ~DeferredSession()
+  {
+    // Moved out so a host that detaches on the notice cannot edit the
+    // list under the walk.
+    auto attachments = std::move(m_attachments);
+    for (auto* attachment : attachments)
     {
-        wireOreCanvases();
+      attachment->deferredSessionDestroyed();
     }
-    ~DeferredSession()
-    {
-        // Moved out so a host that detaches on the notice cannot edit the
-        // list under the walk.
-        auto attachments = std::move(m_attachments);
-        for (auto* attachment : attachments)
-        {
-            attachment->deferredSessionDestroyed();
-        }
-        // Canvases outliving the session let their backing go on their own.
-        m_canvasRetirer->close();
-    }
+    // Canvases outliving the session let their backing go on their own.
+    m_canvasRetirer->close();
+  }
 
-    // ---- Attachments ----
-    // A host registers so teardown reaches its raw pointer; one that dies
-    // first detaches.
-    void attach(DeferredSessionAttachment* attachment)
+  // ---- Attachments ----
+  // A host registers so teardown reaches its raw pointer; one that dies
+  // first detaches.
+  void attach(DeferredSessionAttachment* attachment)
+  {
+    if (std::find(m_attachments.begin(), m_attachments.end(), attachment) ==
+        m_attachments.end())
     {
-        if (std::find(m_attachments.begin(), m_attachments.end(), attachment) ==
-            m_attachments.end())
-        {
-            m_attachments.push_back(attachment);
-        }
+      m_attachments.push_back(attachment);
     }
-    void detach(DeferredSessionAttachment* attachment)
+  }
+  void detach(DeferredSessionAttachment* attachment)
+  {
+    auto it = std::find(m_attachments.begin(), m_attachments.end(), attachment);
+    if (it != m_attachments.end())
     {
-        auto it =
-            std::find(m_attachments.begin(), m_attachments.end(), attachment);
-        if (it != m_attachments.end())
-        {
-            m_attachments.erase(it);
-        }
+      m_attachments.erase(it);
     }
-    size_t attachmentCount() const { return m_attachments.size(); }
+  }
+  size_t attachmentCount() const { return m_attachments.size(); }
 
 #ifdef RIVE_DEFERRED_ORE
-    using OreRecorder = ore::cmd::DeferredOreContext;
+  using OreRecorder = ore::cmd::DeferredOreContext;
 #else
-    using OreRecorder = NoOreRecorder;
+  using OreRecorder = NoOreRecorder;
 #endif
-    OreRecorder& oreContext() { return m_ore; }
-    void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
+  OreRecorder& oreContext() { return m_ore; }
+  void bindReplayCaps(const ore::ReplayCaps& caps) { m_ore.bindCaps(caps); }
 
-    // Cross session image sharing lives here, not in an id space: the
-    // registry carries a real rcp<RenderImage> through the frame snapshot, so
-    // any number of sessions can name the same image without a shared table
-    // to resolve it against, and re-registering per frame keeps the retained
-    // set bounded. Everything else a render context decodes is already shared
-    // because one session records it all.
-    ForeignImageRegistry& canvases() { return m_canvases; }
+  // Cross session image sharing lives here, not in an id space: the
+  // registry carries a real rcp<RenderImage> through the frame snapshot, so
+  // any number of sessions can name the same image without a shared table
+  // to resolve it against, and re-registering per frame keeps the retained
+  // set bounded. Everything else a render context decodes is already shared
+  // because one session records it all.
+  ForeignImageRegistry& canvases() { return m_canvases; }
 
 #ifdef RIVE_DEFERRED_ORE
-    // Hosts that import through this session get the recording ore context
-    // automatically.
-    rive::ore::Context* ore() override { return &m_ore; }
+  // Hosts that import through this session get the recording ore context
+  // automatically.
+  rive::ore::Context* ore() override { return &m_ore; }
 #endif
 
-    // The context this session records for. Scripts imported through the
-    // session talk to it directly for GPU state while their canvas work
-    // records, so it has to be the real thing, not the session. Web has none
-    // while the file imports, so the host binds the attaching texture's one
-    // here alongside bindRealOre and a script that deferred its canvas backing
-    // reads it again when the real size arrives.
-    void bindRenderContext(Factory* renderContext)
-    {
-        m_renderContext = renderContext;
-    }
-    Factory* renderContext() override { return m_renderContext; }
+  // The context this session records for. Scripts imported through the
+  // session talk to it directly for GPU state while their canvas work
+  // records, so it has to be the real thing, not the session. Web has none
+  // while the file imports, so the host binds the attaching texture's one
+  // here alongside bindRealOre and a script that deferred its canvas backing
+  // reads it again when the real size arrives.
+  void bindRenderContext(Factory* renderContext)
+  {
+    m_renderContext = renderContext;
+  }
+  Factory* renderContext() override { return m_renderContext; }
 
-    // Forwarded to the bound context, because that is the device this stream
-    // will replay against and only it knows whether the mask op exists there.
-    // Unbound (web, mid-import) keeps the optimistic default.
-    //
-    // Through Factory's virtual, deliberately, and not the static_cast to
-    // gpu::RenderContext that makeContentCanvas gets away with: that one only
-    // null-tests the result, while this dereferences it, and a Canvas-2D build
-    // binds something here that is not a render context at all.
-    bool supportsLayerMask() const override
-    {
-        return m_renderContext == nullptr ||
-               m_renderContext->supportsLayerMask();
-    }
-    cmd::DeferredCanvasHost* deferredCanvasHost() override { return this; }
+  // Forwarded to the bound context, because that is the device this stream
+  // will replay against and only it knows whether the mask op exists there.
+  // Unbound (web, mid-import) keeps the optimistic default.
+  //
+  // Through Factory's virtual, deliberately, and not the static_cast to
+  // gpu::RenderContext that makeContentCanvas gets away with: that one only
+  // null-tests the result, while this dereferences it, and a Canvas-2D build
+  // binds something here that is not a render context at all.
+  bool supportsLayerMask() const override
+  {
+    return m_renderContext == nullptr || m_renderContext->supportsLayerMask();
+  }
+  cmd::DeferredCanvasHost* deferredCanvasHost() override { return this; }
 
-    // Recording: the stream only names the canvas, and whoever replays
-    // resolves it against its own device.
-    rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas* canvas) override
-    {
-        return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
-                                 : nullptr;
-    }
-
-    // The canvas needs no pixels here; whoever replays allocates them on the
-    // context it replays against, so this only mints the identity the stream
-    // refers to. That minting lives behind RIVE_CANVAS, so a build without it
-    // reports "no canvas available" and the caller draws vectors instead.
-    rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width,
-                                             uint32_t height) override
-    {
-#ifdef RIVE_CANVAS
-        auto* rc = static_cast<gpu::RenderContext*>(m_renderContext);
-        return rc != nullptr ? make_rcp<DeferredRenderCanvas>(m_canvasRetirer,
-                                                              width,
-                                                              height)
+  // Recording: the stream only names the canvas, and whoever replays
+  // resolves it against its own device.
+  rcp<RenderImage> contentCanvasImage(gpu::RenderCanvas* canvas) override
+  {
+    return canvas != nullptr ? ref_rcp<RenderImage>(canvas->renderImage())
                              : nullptr;
+  }
+
+  // The canvas needs no pixels here; whoever replays allocates them on the
+  // context it replays against, so this only mints the identity the stream
+  // refers to. That minting lives behind RIVE_CANVAS, so a build without it
+  // reports "no canvas available" and the caller draws vectors instead.
+  rcp<gpu::RenderCanvas> makeContentCanvas(uint32_t width, uint32_t height)
+      override
+  {
+#ifdef RIVE_CANVAS
+    auto* rc = static_cast<gpu::RenderContext*>(m_renderContext);
+    return rc != nullptr
+               ? make_rcp<DeferredRenderCanvas>(m_canvasRetirer, width, height)
+               : nullptr;
 #else
-        (void)width;
-        (void)height;
-        return nullptr;
+    (void)width;
+    (void)height;
+    return nullptr;
 #endif
-    }
+  }
 
-    // Routed so a screen draw issued while a canvas range is open lands in a
-    // screen range, not the canvas's.
-    std::unique_ptr<Renderer> makeScreenRenderer(uint64_t target = 0)
-    {
-        return std::make_unique<DeferredRenderer>(&commandBuffer(),
-                                                  &m_canvases,
-                                                  this,
-                                                  screenTarget(target));
-    }
+  // Routed so a screen draw issued while a canvas range is open lands in a
+  // screen range, not the canvas's.
+  std::unique_ptr<Renderer> makeScreenRenderer(uint64_t target = 0)
+  {
+    return std::make_unique<DeferredRenderer>(
+        &commandBuffer(),
+        &m_canvases,
+        this,
+        screenTarget(target));
+  }
 
-    // Stable screen recorder for FFI hosts that hold a raw pointer across
-    // frames, one per render target this session drives.
-    Renderer* screenRenderer(uint64_t target = 0)
+  // Stable screen recorder for FFI hosts that hold a raw pointer across
+  // frames, one per render target this session drives.
+  Renderer* screenRenderer(uint64_t target = 0)
+  {
+    commandBuffer().checkRecordingThread();
+    auto& recorder = m_screenRenderers[target];
+    if (recorder == nullptr)
     {
-        commandBuffer().checkRecordingThread();
-        auto& recorder = m_screenRenderers[target];
-        if (recorder == nullptr)
-        {
-            recorder = makeScreenRenderer(target);
-        }
-        return recorder.get();
+      recorder = makeScreenRenderer(target);
     }
+    return recorder.get();
+  }
 
-    // ---- Render targets ----
-    // A host claims an id for its lifetime; ids are reused so a long lived
-    // context churning textures does not grow the recorder map forever. The
-    // first claim is 0, which is what a single host session records today.
-    uint64_t acquireScreenTarget()
+  // ---- Render targets ----
+  // A host claims an id for its lifetime; ids are reused so a long lived
+  // context churning textures does not grow the recorder map forever. The
+  // first claim is 0, which is what a single host session records today.
+  uint64_t acquireScreenTarget()
+  {
+    if (!m_freeScreenTargets.empty())
     {
-        if (!m_freeScreenTargets.empty())
-        {
-            uint64_t id = m_freeScreenTargets.back();
-            m_freeScreenTargets.pop_back();
-            return id;
-        }
-        return m_nextScreenTarget++;
+      uint64_t id = m_freeScreenTargets.back();
+      m_freeScreenTargets.pop_back();
+      return id;
     }
-    // The host is gone, so its recorder is too. Callers drain first, and a
-    // queued frame holds bytes rather than the recorder.
-    void releaseScreenTarget(uint64_t target)
-    {
-        m_screenRenderers.erase(target);
-        m_freeScreenTargets.push_back(target);
-    }
-    // Hosts holding an id right now. Sizes anything that has to scale with the
-    // targets sharing this session, such as the consumer's queue bound.
-    size_t attachedTargetCount() const
-    {
-        return static_cast<size_t>(m_nextScreenTarget) -
-               m_freeScreenTargets.size();
-    }
+    return m_nextScreenTarget++;
+  }
+  // The host is gone, so its recorder is too. Callers drain first, and a
+  // queued frame holds bytes rather than the recorder.
+  void releaseScreenTarget(uint64_t target)
+  {
+    m_screenRenderers.erase(target);
+    m_freeScreenTargets.push_back(target);
+  }
+  // Hosts holding an id right now. Sizes anything that has to scale with the
+  // targets sharing this session, such as the consumer's queue bound.
+  size_t attachedTargetCount() const
+  {
+    return static_cast<size_t>(m_nextScreenTarget) - m_freeScreenTargets.size();
+  }
 
-    // ---- Frame boundary ----
-    // A session serves every target its render context drives, so the frame
-    // is a session-wide window: it opens when the first target starts
-    // recording and closes when the last one finishes. Ending the window per
-    // host would reset the stream underneath a target still recording.
-    void beginTargetFrame(uint64_t target)
+  // ---- Frame boundary ----
+  // A session serves every target its render context drives, so the frame
+  // is a session-wide window: it opens when the first target starts
+  // recording and closes when the last one finishes. Ending the window per
+  // host would reset the stream underneath a target still recording.
+  void beginTargetFrame(uint64_t target)
+  {
+    if (std::find(m_openTargets.begin(), m_openTargets.end(), target) ==
+        m_openTargets.end())
     {
-        if (std::find(m_openTargets.begin(), m_openTargets.end(), target) ==
-            m_openTargets.end())
-        {
-            m_openTargets.push_back(target);
-        }
+      m_openTargets.push_back(target);
     }
-    // True once this closes the last open target, meaning the caller may take
-    // the frame. A target that never opened one closes nothing.
-    bool endTargetFrame(uint64_t target)
+  }
+  // True once this closes the last open target, meaning the caller may take
+  // the frame. A target that never opened one closes nothing.
+  bool endTargetFrame(uint64_t target)
+  {
+    auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
+    if (it == m_openTargets.end())
     {
-        auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
-        if (it == m_openTargets.end())
-        {
-            return m_openTargets.empty();
-        }
-        m_openTargets.erase(it);
-        return m_openTargets.empty();
+      return m_openTargets.empty();
     }
-    // A host that stops recording without finishing, such as one paused
-    // mid frame, must not pin the window shut for everyone else. What it drew
-    // in that frame goes too, so the frame that closes the window never
-    // carries it to another target's replay.
-    void abandonTargetFrame(uint64_t target)
+    m_openTargets.erase(it);
+    return m_openTargets.empty();
+  }
+  // A host that stops recording without finishing, such as one paused
+  // mid frame, must not pin the window shut for everyone else. What it drew
+  // in that frame goes too, so the frame that closes the window never
+  // carries it to another target's replay.
+  void abandonTargetFrame(uint64_t target)
+  {
+    auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
+    if (it != m_openTargets.end())
     {
-        auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
-        if (it != m_openTargets.end())
-        {
-            m_openTargets.erase(it);
-            dropScreenSegments(target);
-        }
+      m_openTargets.erase(it);
+      dropScreenSegments(target);
     }
-    // A host leaving the session: its frame never replays, whether still open
-    // or finished while another target holds the window open. Its target id
-    // is about to be released, and the next host to claim it would replay
-    // what is left.
-    void discardTargetFrame(uint64_t target)
+  }
+  // A host leaving the session: its frame never replays, whether still open
+  // or finished while another target holds the window open. Its target id
+  // is about to be released, and the next host to claim it would replay
+  // what is left.
+  void discardTargetFrame(uint64_t target)
+  {
+    auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
+    if (it != m_openTargets.end())
     {
-        auto it = std::find(m_openTargets.begin(), m_openTargets.end(), target);
-        if (it != m_openTargets.end())
-        {
-            m_openTargets.erase(it);
-        }
-        dropScreenSegments(target);
+      m_openTargets.erase(it);
     }
-    // For a host that detaches off the recording thread: whatever it left
-    // open is never going to close, so drop it all here first.
-    void abandonOpenTargetFrames()
+    dropScreenSegments(target);
+  }
+  // For a host that detaches off the recording thread: whatever it left
+  // open is never going to close, so drop it all here first.
+  void abandonOpenTargetFrames()
+  {
+    for (uint64_t target : m_openTargets)
     {
-        for (uint64_t target : m_openTargets)
-        {
-            dropScreenSegments(target);
-        }
-        m_openTargets.clear();
+      dropScreenSegments(target);
     }
-    size_t openTargetCount() const { return m_openTargets.size(); }
+    m_openTargets.clear();
+  }
+  size_t openTargetCount() const { return m_openTargets.size(); }
 
-    // ---- DeferredRouteHost ----
-    // Splits the stream into per target scheduler ranges as the issuing
-    // renderer changes.
-    void routeTo(uint64_t target) override
+  // ---- DeferredRouteHost ----
+  // Splits the stream into per target scheduler ranges as the issuing
+  // renderer changes.
+  void routeTo(uint64_t target) override
+  {
+    if (m_activeRouted && target == m_activeTarget)
     {
-        if (m_activeRouted && target == m_activeTarget)
-        {
-            return;
-        }
-        closeActiveRange();
-        m_activeTarget = target;
-        m_activeRouted = true;
-        m_activeBegin = streamSize();
-        if (isScreenTarget(target))
-        {
-            m_openScreen = screenTargetId(target);
-            m_hasOpenScreen = true;
-            return;
-        }
-        RenderHandle id = static_cast<RenderHandle>(target);
-        commandBuffer().append(
-            static_cast<uint8_t>(RenderCmd::canvasContentBegin),
-            CanvasContentPOD{id | kCanvasHandleFlag, m_canvasClear[target]});
-        m_activeStartsFrame = false;
+      return;
     }
+    closeActiveRange();
+    m_activeTarget = target;
+    m_activeRouted = true;
+    m_activeBegin = streamSize();
+    if (isScreenTarget(target))
+    {
+      m_openScreen = screenTargetId(target);
+      m_hasOpenScreen = true;
+      return;
+    }
+    RenderHandle id = static_cast<RenderHandle>(target);
+    commandBuffer().append(
+        static_cast<uint8_t>(RenderCmd::canvasContentBegin),
+        CanvasContentPOD{id | kCanvasHandleFlag, m_canvasClear[target]});
+    m_activeStartsFrame = false;
+  }
 
-    // Snapshots call this too since an errored script can leave a range open.
-    void closeOpenRange()
-    {
-        closeActiveRange();
-        reopenUnroutedRange();
-    }
+  // Snapshots call this too since an errored script can leave a range open.
+  void closeOpenRange()
+  {
+    closeActiveRange();
+    reopenUnroutedRange();
+  }
 
-    // ---- DeferredCanvasHost ----
-    // A canvas may record as several interleaved ranges; replay groups them
-    // back into one real canvas frame.
-    Renderer* beginCanvasContent(gpu::RenderCanvas* canvas,
-                                 uint32_t clearColor) override
+  // ---- DeferredCanvasHost ----
+  // A canvas may record as several interleaved ranges; replay groups them
+  // back into one real canvas frame.
+  Renderer* beginCanvasContent(gpu::RenderCanvas* canvas, uint32_t clearColor)
+      override
+  {
+    RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
+                      kCanvasHandleMask;
+    assert(
+        std::find(m_canvasStack.begin(), m_canvasStack.end(), id) ==
+            m_canvasStack.end() &&
+        "a canvas frame cannot open inside itself");
+    m_contentCanvases[id] = ref_rcp(canvas);
+    m_canvasClear[id] = clearColor;
+    auto& recorder = m_canvasRenderers[id];
+    if (recorder == nullptr)
     {
-        RenderHandle id =
-            m_canvases.imageDrawId(canvas->renderImage()) & kCanvasHandleMask;
-        assert(std::find(m_canvasStack.begin(), m_canvasStack.end(), id) ==
-                   m_canvasStack.end() &&
-               "a canvas frame cannot open inside itself");
-        m_contentCanvases[id] = ref_rcp(canvas);
-        m_canvasClear[id] = clearColor;
-        auto& recorder = m_canvasRenderers[id];
-        if (recorder == nullptr)
-        {
-            recorder = std::make_unique<DeferredRenderer>(&commandBuffer(),
-                                                          &m_canvases,
-                                                          this,
-                                                          id);
-        }
-        else
-        {
-            // Each frame starts at identity, as live.
-            recorder->resetTransform();
-        }
-        // Stacked, not a single slot: a canvas bracket can open inside another
-        // one -- a layer mask nested in a masked subtree, or any mask inside a
-        // bitmap-cached artboard -- and the inner end has to resume the outer
-        // canvas rather than jumping back to the screen, which would credit the
-        // rest of the outer content to the wrong target.
-        m_canvasStack.push_back(id);
-        // Open the range now so a clear-only frame still clears at replay.
-        if (m_activeRouted && m_activeTarget == id)
-        {
-            closeActiveRange(); // a new frame never extends an old range
-            m_activeRouted = false;
-        }
-        routeTo(id);
-        m_activeStartsFrame = true;
-        return recorder.get();
+      recorder = std::make_unique<DeferredRenderer>(
+          &commandBuffer(),
+          &m_canvases,
+          this,
+          id);
     }
-    void endCanvasContent(gpu::RenderCanvas*) override
+    else
     {
-        if (!m_canvasStack.empty())
-        {
-            m_canvasStack.pop_back();
-        }
-        if (!m_canvasStack.empty())
-        {
-            // Resume the canvas this one interrupted.
-            routeTo(m_canvasStack.back());
-            return;
-        }
-        // Back to the screen whose recording the canvas interrupted, so the
-        // bytes that follow are not credited to a target that drew nothing.
-        if (m_hasOpenScreen)
-        {
-            routeTo(screenTarget(m_openScreen));
-            return;
-        }
-        closeActiveRange();
-        reopenUnroutedRange();
+      // Each frame starts at identity, as live.
+      recorder->resetTransform();
     }
+    // Stacked, not a single slot: a canvas bracket can open inside another
+    // one -- a layer mask nested in a masked subtree, or any mask inside a
+    // bitmap-cached artboard -- and the inner end has to resume the outer
+    // canvas rather than jumping back to the screen, which would credit the
+    // rest of the outer content to the wrong target.
+    m_canvasStack.push_back(id);
+    // Open the range now so a clear-only frame still clears at replay.
+    if (m_activeRouted && m_activeTarget == id)
+    {
+      closeActiveRange(); // a new frame never extends an old range
+      m_activeRouted = false;
+    }
+    routeTo(id);
+    m_activeStartsFrame = true;
+    return recorder.get();
+  }
+  void endCanvasContent(gpu::RenderCanvas*) override
+  {
+    if (!m_canvasStack.empty())
+    {
+      m_canvasStack.pop_back();
+    }
+    if (!m_canvasStack.empty())
+    {
+      // Resume the canvas this one interrupted.
+      routeTo(m_canvasStack.back());
+      return;
+    }
+    // Back to the screen whose recording the canvas interrupted, so the
+    // bytes that follow are not credited to a target that drew nothing.
+    if (m_hasOpenScreen)
+    {
+      routeTo(screenTarget(m_openScreen));
+      return;
+    }
+    closeActiveRange();
+    reopenUnroutedRange();
+  }
 
-    // Destroys enter the stream only at a frame boundary, so an idle session
-    // strands them. Drains them now and returns a copy of just those bytes;
-    // they stay in the stream too, a second replay is a generation no-op.
-    struct PendingDestroyBytes
-    {
-        std::vector<uint8_t> commands, oreCommands;
-        bool empty() const { return commands.empty() && oreCommands.empty(); }
+  // Destroys enter the stream only at a frame boundary, so an idle session
+  // strands them. Drains them now and returns a copy of just those bytes;
+  // they stay in the stream too, a second replay is a generation no-op.
+  struct PendingDestroyBytes
+  {
+    std::vector<uint8_t> commands, oreCommands;
+    bool empty() const { return commands.empty() && oreCommands.empty(); }
+  };
+  PendingDestroyBytes takePendingDestroys()
+  {
+    auto tail = [](Span<const uint8_t> bytes, size_t begin) {
+      return std::vector<uint8_t>(
+          bytes.data() + begin,
+          bytes.data() + bytes.size());
     };
-    PendingDestroyBytes takePendingDestroys()
-    {
-        auto tail = [](Span<const uint8_t> bytes, size_t begin) {
-            return std::vector<uint8_t>(bytes.data() + begin,
-                                        bytes.data() + bytes.size());
-        };
-        const size_t begin = commandBuffer().commandBytes().size();
-        const size_t oreBegin = m_ore.stream().commandBytes().size();
-        commandBuffer().drainDestroys();
-        m_ore.drainPendingDestroys();
-        // An idle session has no replay in flight to hand these to.
-        m_canvasRetirer->take();
-        return {tail(commandBuffer().commandBytes(), begin),
-                tail(m_ore.stream().commandBytes(), oreBegin)};
-    }
+    const size_t begin = commandBuffer().commandBytes().size();
+    const size_t oreBegin = m_ore.stream().commandBytes().size();
+    commandBuffer().drainDestroys();
+    m_ore.drainPendingDestroys();
+    // An idle session has no replay in flight to hand these to.
+    m_canvasRetirer->take();
+    return {
+        tail(commandBuffer().commandBytes(), begin),
+        tail(m_ore.stream().commandBytes(), oreBegin)};
+  }
 
-    // Replay bindings are per frame so the retained set stays bounded; each
-    // frame's draws re-register what they reference.
-    void resetFrame()
+  // Replay bindings are per frame so the retained set stays bounded; each
+  // frame's draws re-register what they reference.
+  void resetFrame()
+  {
+    DeferredFactory::resetFrame();
+    m_ore.resetFrame();
+    // A snapshot already carried these to its frame; an inline replay,
+    // done on this thread, drops what is left here.
+    m_canvasRetirer->take();
+    m_canvases.reset();
+    m_contentCanvases.clear();
+    m_canvasRenderers.clear();
+    m_canvasClear.clear();
+    m_activeTarget = kScreenTarget;
+    m_activeRouted = false;
+    m_activeBegin = 0;
+    m_openScreen = 0;
+    m_hasOpenScreen = false;
+    // A host that stopped mid frame must not leave brackets pinned open
+    // into the next one.
+    m_canvasStack.clear();
+    m_hasOreMarker = false;
+    m_segments.clear();
+    // Screen recorders are kept across frames (FFI hosts hold a raw
+    // pointer), so their CTM shadow is ours to clear. Canvas recorders are
+    // rebuilt above and start at identity already.
+    for (auto& entry : m_screenRenderers)
     {
-        DeferredFactory::resetFrame();
-        m_ore.resetFrame();
-        // A snapshot already carried these to its frame; an inline replay,
-        // done on this thread, drops what is left here.
-        m_canvasRetirer->take();
-        m_canvases.reset();
-        m_contentCanvases.clear();
-        m_canvasRenderers.clear();
-        m_canvasClear.clear();
-        m_activeTarget = kScreenTarget;
-        m_activeRouted = false;
-        m_activeBegin = 0;
-        m_openScreen = 0;
-        m_hasOpenScreen = false;
-        // A host that stopped mid frame must not leave brackets pinned open
-        // into the next one.
-        m_canvasStack.clear();
-        m_hasOreMarker = false;
-        m_segments.clear();
-        // Screen recorders are kept across frames (FFI hosts hold a raw
-        // pointer), so their CTM shadow is ours to clear. Canvas recorders are
-        // rebuilt above and start at identity already.
-        for (auto& entry : m_screenRenderers)
-        {
-            static_cast<DeferredRenderer*>(entry.second.get())
-                ->resetTransform();
-        }
+      static_cast<DeferredRenderer*>(entry.second.get())->resetTransform();
     }
+  }
 
-    // Physical bytes this session's producer streams hold. Computed on
-    // demand so recording pays nothing; the frame boundary drains it, so it
-    // only means anything read before a snapshot.
-    uint64_t streamBytes() const
-    {
-        return commandBuffer().commandBytes().size() +
-               commandBuffer().blobBytes().size() +
-               m_ore.stream().commandBytes().size() +
-               m_ore.stream().blobBytes().size();
-    }
+  // Physical bytes this session's producer streams hold. Computed on
+  // demand so recording pays nothing; the frame boundary drains it, so it
+  // only means anything read before a snapshot.
+  uint64_t streamBytes() const
+  {
+    return commandBuffer().commandBytes().size() +
+           commandBuffer().blobBytes().size() +
+           m_ore.stream().commandBytes().size() +
+           m_ore.stream().blobBytes().size();
+  }
 
-    // Nothing recorded: the host keeps its last presented frame up. Pending
-    // ore content counts, since one shot content like a canvas wrap never
-    // re-records and must not park behind the gate.
-    bool recordedThisFrame() const
-    {
-        return m_hasOreMarker || !commandBuffer().empty() ||
-               !m_ore.stream().empty();
-    }
+  // Nothing recorded: the host keeps its last presented frame up. Pending
+  // ore content counts, since one shot content like a canvas wrap never
+  // re-records and must not park behind the gate.
+  bool recordedThisFrame() const
+  {
+    return m_hasOreMarker || !commandBuffer().empty() ||
+           !m_ore.stream().empty();
+  }
 
-    // Closed segments in record order, canvas and screen alike.
-    const std::vector<DeferredSegment>& recordedSegments() const
+  // Closed segments in record order, canvas and screen alike.
+  const std::vector<DeferredSegment>& recordedSegments() const
+  {
+    return m_segments;
+  }
+  // Full scheduler input: the closed segments plus the range still open.
+  std::vector<DeferredSegment> schedulerSegments() const
+  {
+    std::vector<DeferredSegment> all = m_segments;
+    if (m_activeRouted && isScreenTarget(m_activeTarget) &&
+        streamSize() > m_activeBegin)
     {
-        return m_segments;
+      all.push_back(
+          {DeferredSegment::Target::screen,
+           screenTargetId(m_activeTarget),
+           m_activeBegin,
+           streamSize()});
     }
-    // Full scheduler input: the closed segments plus the range still open.
-    std::vector<DeferredSegment> schedulerSegments() const
-    {
-        std::vector<DeferredSegment> all = m_segments;
-        if (m_activeRouted && isScreenTarget(m_activeTarget) &&
-            streamSize() > m_activeBegin)
-        {
-            all.push_back({DeferredSegment::Target::screen,
-                           screenTargetId(m_activeTarget),
-                           m_activeBegin,
-                           streamSize()});
-        }
-        return all;
-    }
+    return all;
+  }
 
-    // Ore replays via segment scheduling; the frame only needs to know Ore
-    // content exists so an otherwise empty frame still replays.
-    void recordOreReplayMarker() { m_hasOreMarker = true; }
+  // Ore replays via segment scheduling; the frame only needs to know Ore
+  // content exists so an otherwise empty frame still replays.
+  void recordOreReplayMarker() { m_hasOreMarker = true; }
 
-    // Render thread lookups for the replay hooks.
-    gpu::RenderCanvas* contentCanvasAt(RenderHandle id) const
-    {
-        auto it = m_contentCanvases.find(id);
-        return it == m_contentCanvases.end() ? nullptr : it->second.get();
-    }
-    RenderImage* canvasImageAt(RenderHandle id) const
-    {
-        return m_canvases.imageAt(id);
-    }
-    // Retained content canvas bindings for the consumer snapshot.
-    const std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>>&
-    contentCanvases() const
-    {
-        return m_contentCanvases;
-    }
-    // Backings of canvases that died since the last frame, for the frame to
-    // drop once it has replayed.
-    std::vector<RetiredCanvasBacking> takeRetiredCanvasBackings()
-    {
-        return m_canvasRetirer->take();
-    }
+  // Render thread lookups for the replay hooks.
+  gpu::RenderCanvas* contentCanvasAt(RenderHandle id) const
+  {
+    auto it = m_contentCanvases.find(id);
+    return it == m_contentCanvases.end() ? nullptr : it->second.get();
+  }
+  RenderImage* canvasImageAt(RenderHandle id) const
+  {
+    return m_canvases.imageAt(id);
+  }
+  // Retained content canvas bindings for the consumer snapshot.
+  const std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>>&
+  contentCanvases() const
+  {
+    return m_contentCanvases;
+  }
+  // Backings of canvases that died since the last frame, for the frame to
+  // drop once it has replayed.
+  std::vector<RetiredCanvasBacking> takeRetiredCanvasBackings()
+  {
+    return m_canvasRetirer->take();
+  }
 
 private:
-    void wireOreCanvases()
-    {
+  void wireOreCanvases()
+  {
 #ifdef RIVE_DEFERRED_ORE
-        // Register wrapped canvases under the shared 2D id space so the
-        // consumer can perform the real wrap at replay.
-        m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
-            RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
-                              kCanvasHandleMask;
-            m_contentCanvases[id] = ref_rcp(canvas);
-            return id;
-        };
-        // Lets view() on a canvas backed image resolve its canvas id off the
-        // registry.
-        m_ore.canvasRegistry = &m_canvases;
+    // Register wrapped canvases under the shared 2D id space so the
+    // consumer can perform the real wrap at replay.
+    m_ore.canvasIdProvider = [this](gpu::RenderCanvas* canvas) -> uint32_t {
+      RenderHandle id = m_canvases.imageDrawId(canvas->renderImage()) &
+                        kCanvasHandleMask;
+      m_contentCanvases[id] = ref_rcp(canvas);
+      return id;
+    };
+    // Lets view() on a canvas backed image resolve its canvas id off the
+    // registry.
+    m_ore.canvasRegistry = &m_canvases;
 #endif
-        // The 2D stream shares the ore stream's single writer contract.
-        commandBuffer().bindRecordingThread();
-        // Lets a paint's modulatedImage resolve a foreign/canvas image off the
-        // same registry (mirrors how DeferredRenderer resolves drawImage).
-        m_canvasRegistry = &m_canvases;
-    }
+    // The 2D stream shares the ore stream's single writer contract.
+    commandBuffer().bindRecordingThread();
+    // Lets a paint's modulatedImage resolve a foreign/canvas image off the
+    // same registry (mirrors how DeferredRenderer resolves drawImage).
+    m_canvasRegistry = &m_canvases;
+  }
 
-    uint32_t streamSize() const
+  uint32_t streamSize() const
+  {
+    return static_cast<uint32_t>(commandBuffer().commandBytes().size());
+  }
+
+  // Reopen the range no target has claimed. Bytes appended outside any
+  // renderer - resource creates, drained destroys - belong to no target:
+  // they replay from the whole stream in the create and destroy passes, so
+  // crediting them to a screen would open that target's frame in a frame
+  // where only other targets drew.
+  void reopenUnroutedRange()
+  {
+    m_activeTarget = screenTarget(m_openScreen);
+    m_activeRouted = m_hasOpenScreen;
+    m_activeBegin = streamSize();
+  }
+
+  // Unroutes a screen target's draws from this frame, the range still open
+  // included. The bytes stay in the stream, where only segments reach a
+  // target; creates and destroys among them replay from the whole stream.
+  void dropScreenSegments(uint64_t target)
+  {
+    if (m_activeRouted && m_activeTarget == screenTarget(target))
     {
-        return static_cast<uint32_t>(commandBuffer().commandBytes().size());
+      m_activeRouted = false;
     }
-
-    // Reopen the range no target has claimed. Bytes appended outside any
-    // renderer - resource creates, drained destroys - belong to no target:
-    // they replay from the whole stream in the create and destroy passes, so
-    // crediting them to a screen would open that target's frame in a frame
-    // where only other targets drew.
-    void reopenUnroutedRange()
+    if (m_hasOpenScreen && m_openScreen == target)
     {
-        m_activeTarget = screenTarget(m_openScreen);
-        m_activeRouted = m_hasOpenScreen;
-        m_activeBegin = streamSize();
+      m_hasOpenScreen = false;
     }
+    m_segments.erase(
+        std::remove_if(
+            m_segments.begin(),
+            m_segments.end(),
+            [target](const DeferredSegment& segment) {
+              return segment.target == DeferredSegment::Target::screen &&
+                     segment.targetId == target;
+            }),
+        m_segments.end());
+  }
 
-    // Unroutes a screen target's draws from this frame, the range still open
-    // included. The bytes stay in the stream, where only segments reach a
-    // target; creates and destroys among them replay from the whole stream.
-    void dropScreenSegments(uint64_t target)
+  // Push the open range as a segment, closing a canvas one's bracket first.
+  // An empty screen range is dropped: replaying it would open its target's
+  // frame to draw nothing.
+  void closeActiveRange()
+  {
+    if (!m_activeRouted)
     {
-        if (m_activeRouted && m_activeTarget == screenTarget(target))
-        {
-            m_activeRouted = false;
-        }
-        if (m_hasOpenScreen && m_openScreen == target)
-        {
-            m_hasOpenScreen = false;
-        }
-        m_segments.erase(
-            std::remove_if(m_segments.begin(),
-                           m_segments.end(),
-                           [target](const DeferredSegment& segment) {
-                               return segment.target ==
-                                          DeferredSegment::Target::screen &&
-                                      segment.targetId == target;
-                           }),
-            m_segments.end());
+      return;
     }
-
-    // Push the open range as a segment, closing a canvas one's bracket first.
-    // An empty screen range is dropped: replaying it would open its target's
-    // frame to draw nothing.
-    void closeActiveRange()
+    if (isScreenTarget(m_activeTarget))
     {
-        if (!m_activeRouted)
-        {
-            return;
-        }
-        if (isScreenTarget(m_activeTarget))
-        {
-            if (streamSize() > m_activeBegin)
-            {
-                m_segments.push_back({DeferredSegment::Target::screen,
-                                      screenTargetId(m_activeTarget),
-                                      m_activeBegin,
-                                      streamSize()});
-            }
-            return;
-        }
-        RenderHandle id = static_cast<RenderHandle>(m_activeTarget);
-        commandBuffer().append(
-            static_cast<uint8_t>(RenderCmd::canvasContentEnd),
-            ResIdPOD{id | kCanvasHandleFlag});
-        // Push order of m_segments defines record order across both streams.
-        m_segments.push_back({DeferredSegment::Target::canvas,
-                              m_activeTarget,
-                              m_activeBegin,
-                              streamSize(),
-                              m_activeStartsFrame});
+      if (streamSize() > m_activeBegin)
+      {
+        m_segments.push_back(
+            {DeferredSegment::Target::screen,
+             screenTargetId(m_activeTarget),
+             m_activeBegin,
+             streamSize()});
+      }
+      return;
     }
+    RenderHandle id = static_cast<RenderHandle>(m_activeTarget);
+    commandBuffer().append(
+        static_cast<uint8_t>(RenderCmd::canvasContentEnd),
+        ResIdPOD{id | kCanvasHandleFlag});
+    // Push order of m_segments defines record order across both streams.
+    m_segments.push_back(
+        {DeferredSegment::Target::canvas,
+         m_activeTarget,
+         m_activeBegin,
+         streamSize(),
+         m_activeStartsFrame});
+  }
 
-    OreRecorder m_ore;
-    // Set on texture attach, read by the producer's scripts. Written and read
-    // on different threads in the worker build, exactly as m_ore's real
-    // binding already is.
-    Factory* m_renderContext = nullptr;
-    ForeignImageRegistry m_canvases;
-    // Canvas id to real canvas, retained so it lives to replay. Per frame.
-    std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>> m_contentCanvases;
-    rcp<CanvasRetirer> m_canvasRetirer = make_rcp<CanvasRetirer>();
-    // Alive until resetFrame so scripted renderers stay valid across
-    // interleaved canvas frames.
-    std::unordered_map<uint64_t, std::unique_ptr<DeferredRenderer>>
-        m_canvasRenderers;
-    // Latest beginCanvasContent's clear; a frame's first range records it.
-    std::unordered_map<uint64_t, uint32_t> m_canvasClear;
-    // Deliberately outlives resetFrame, unlike m_canvasRenderers: FFI hosts
-    // take these raw and keep drawing through them frame after frame.
-    std::unordered_map<uint64_t, std::unique_ptr<Renderer>> m_screenRenderers;
-    bool m_hasOreMarker = false;
-    // Scheduler segments recorded this frame, in script issue order.
-    std::vector<DeferredSegment> m_segments;
-    uint64_t m_activeTarget = kScreenTarget; // target of the open range
-    // False while the open range belongs to no target, which is how a frame
-    // starts and where creates outside any renderer land.
-    bool m_activeRouted = false;
-    uint32_t m_activeBegin = 0; // open range's start offset
-    // Screen target a closing canvas range hands the stream back to, unset
-    // until a screen actually records.
-    uint64_t m_openScreen = 0;
-    bool m_hasOpenScreen = false;
-    // Canvas content brackets currently open, innermost last.
-    std::vector<uint64_t> m_canvasStack;
-    bool m_activeStartsFrame = false;
-    // Render targets attached to this session, and the ones still recording
-    // this frame.
-    uint64_t m_nextScreenTarget = 0;
-    std::vector<uint64_t> m_freeScreenTargets;
-    std::vector<uint64_t> m_openTargets;
-    std::vector<DeferredSessionAttachment*> m_attachments;
+  OreRecorder m_ore;
+  // Set on texture attach, read by the producer's scripts. Written and read
+  // on different threads in the worker build, exactly as m_ore's real
+  // binding already is.
+  Factory* m_renderContext = nullptr;
+  ForeignImageRegistry m_canvases;
+  // Canvas id to real canvas, retained so it lives to replay. Per frame.
+  std::unordered_map<RenderHandle, rcp<gpu::RenderCanvas>> m_contentCanvases;
+  rcp<CanvasRetirer> m_canvasRetirer = make_rcp<CanvasRetirer>();
+  // Alive until resetFrame so scripted renderers stay valid across
+  // interleaved canvas frames.
+  std::unordered_map<uint64_t, std::unique_ptr<DeferredRenderer>>
+      m_canvasRenderers;
+  // Latest beginCanvasContent's clear; a frame's first range records it.
+  std::unordered_map<uint64_t, uint32_t> m_canvasClear;
+  // Deliberately outlives resetFrame, unlike m_canvasRenderers: FFI hosts
+  // take these raw and keep drawing through them frame after frame.
+  std::unordered_map<uint64_t, std::unique_ptr<Renderer>> m_screenRenderers;
+  bool m_hasOreMarker = false;
+  // Scheduler segments recorded this frame, in script issue order.
+  std::vector<DeferredSegment> m_segments;
+  uint64_t m_activeTarget = kScreenTarget; // target of the open range
+  // False while the open range belongs to no target, which is how a frame
+  // starts and where creates outside any renderer land.
+  bool m_activeRouted = false;
+  uint32_t m_activeBegin = 0; // open range's start offset
+  // Screen target a closing canvas range hands the stream back to, unset
+  // until a screen actually records.
+  uint64_t m_openScreen = 0;
+  bool m_hasOpenScreen = false;
+  // Canvas content brackets currently open, innermost last.
+  std::vector<uint64_t> m_canvasStack;
+  bool m_activeStartsFrame = false;
+  // Render targets attached to this session, and the ones still recording
+  // this frame.
+  uint64_t m_nextScreenTarget = 0;
+  std::vector<uint64_t> m_freeScreenTargets;
+  std::vector<uint64_t> m_openTargets;
+  std::vector<DeferredSessionAttachment*> m_attachments;
 };
 
 } // namespace rive::cmd

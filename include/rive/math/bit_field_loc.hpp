@@ -13,15 +13,15 @@ namespace rive
 class BitFieldLoc
 {
 public:
-    BitFieldLoc(uint32_t start, uint32_t end);
+  BitFieldLoc(uint32_t start, uint32_t end);
 
-    uint32_t read(uint32_t bits);
-    uint32_t write(uint32_t bits, uint32_t value);
+  uint32_t read(uint32_t bits);
+  uint32_t write(uint32_t bits, uint32_t value);
 
 private:
-    uint32_t m_start;
-    uint32_t m_count;
-    uint32_t m_mask;
+  uint32_t m_start;
+  uint32_t m_count;
+  uint32_t m_mask;
 };
 } // namespace rive
 

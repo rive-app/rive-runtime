@@ -14,91 +14,96 @@ constexpr int SIZE = 1600;
 // with clockwise fill, both as paths and as clips.
 static void draw_test(Renderer* renderer, bool asClip)
 {
-    PathBuilder checkerboard;
-    checkerboard.fillRule(FillRule::clockwise);
-    constexpr static int GRID_COUNT = 50;
-    constexpr static float CELL_SIZE = (float)SIZE / GRID_COUNT;
-    for (int y = 0; y < GRID_COUNT; y += 1)
+  PathBuilder checkerboard;
+  checkerboard.fillRule(FillRule::clockwise);
+  constexpr static int GRID_COUNT = 50;
+  constexpr static float CELL_SIZE = (float)SIZE / GRID_COUNT;
+  for (int y = 0; y < GRID_COUNT; y += 1)
+  {
+    checkerboard.addRect(
+        AABB(0, y * CELL_SIZE, SIZE, (y + 1) * CELL_SIZE),
+        (y & 1) ? rivegm::PathDirection::cw : rivegm::PathDirection::ccw);
+  }
+  for (int x = 0; x < GRID_COUNT; x += 1)
+  {
+    checkerboard.addRect(
+        AABB(x * CELL_SIZE, 0, (x + 1) * CELL_SIZE, SIZE),
+        (x & 1) ? rivegm::PathDirection::cw : rivegm::PathDirection::ccw);
+  }
+  renderer->clipPath(checkerboard.detach());
+
+  for (bool negativeDeterminant : {false, true})
+  {
+    AutoRestore ar(renderer, true);
+    if (negativeDeterminant)
     {
-        checkerboard.addRect(AABB(0, y * CELL_SIZE, SIZE, (y + 1) * CELL_SIZE),
-                             (y & 1) ? rivegm::PathDirection::cw
-                                     : rivegm::PathDirection::ccw);
+      renderer->translate(SIZE - 7, 207);
+      renderer->scale(-1, 1);
     }
-    for (int x = 0; x < GRID_COUNT; x += 1)
+    else
     {
-        checkerboard.addRect(AABB(x * CELL_SIZE, 0, (x + 1) * CELL_SIZE, SIZE),
-                             (x & 1) ? rivegm::PathDirection::cw
-                                     : rivegm::PathDirection::ccw);
+      renderer->translate(29, -100);
     }
-    renderer->clipPath(checkerboard.detach());
 
-    for (bool negativeDeterminant : {false, true})
+    Path path;
+    path->fillRule(FillRule::clockwise);
+    // Add a negative rectangle.
+    path->addRect(SIZE, 0, -SIZE, SIZE);
+
+    // The first path will be completely erased by the negative rectangle.
+    // It will only show if we draw it over itself twice.
+    for (float x : {SIZE / 2.f, .0f, SIZE / 2.f})
     {
-        AutoRestore ar(renderer, true);
-        if (negativeDeterminant)
-        {
-            renderer->translate(SIZE - 7, 207);
-            renderer->scale(-1, 1);
-        }
-        else
-        {
-            renderer->translate(29, -100);
-        }
-
-        Path path;
-        path->fillRule(FillRule::clockwise);
-        // Add a negative rectangle.
-        path->addRect(SIZE, 0, -SIZE, SIZE);
-
-        // The first path will be completely erased by the negative rectangle.
-        // It will only show if we draw it over itself twice.
-        for (float x : {SIZE / 2.f, .0f, SIZE / 2.f})
-        {
-            path->moveTo(x + 50, SIZE / 2.5f);
-            path->cubicTo(x + 50,
-                          0,
-                          x + SIZE / 2.f - 50,
-                          0,
-                          x + SIZE / 2.f - 50,
-                          SIZE / 2.5f);
-            path->cubicTo(x + SIZE / 2.f - 50,
-                          SIZE,
-                          x + 50,
-                          SIZE,
-                          x + 50,
-                          SIZE / 2.5f);
-        }
-
-        Paint paint;
-        if (asClip)
-        {
-            paint->color(negativeDeterminant ? 0xd0900000 : 0xffff0000);
-            renderer->clipPath(path.get());
-            renderer->drawPath(PathBuilder::Rect({0, 0, SIZE, SIZE}).get(),
-                               paint.get());
-        }
-        else
-        {
-            paint->color(negativeDeterminant ? 0xc0700070 : 0xffff00ff);
-            renderer->drawPath(path.get(), paint.get());
-        }
+      path->moveTo(x + 50, SIZE / 2.5f);
+      path->cubicTo(
+          x + 50,
+          0,
+          x + SIZE / 2.f - 50,
+          0,
+          x + SIZE / 2.f - 50,
+          SIZE / 2.5f);
+      path->cubicTo(
+          x + SIZE / 2.f - 50,
+          SIZE,
+          x + 50,
+          SIZE,
+          x + 50,
+          SIZE / 2.5f);
     }
+
+    Paint paint;
+    if (asClip)
+    {
+      paint->color(negativeDeterminant ? 0xd0900000 : 0xffff0000);
+      renderer->clipPath(path.get());
+      renderer->drawPath(
+          PathBuilder::Rect({0, 0, SIZE, SIZE}).get(),
+          paint.get());
+    }
+    else
+    {
+      paint->color(negativeDeterminant ? 0xc0700070 : 0xffff00ff);
+      renderer->drawPath(path.get(), paint.get());
+    }
+  }
 }
 
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(negative_interior_triangles,
-                               0xff00ffff,
-                               SIZE,
-                               SIZE,
-                               renderer)
+DEF_SIMPLE_GM_WITH_CLEAR_COLOR(
+    negative_interior_triangles,
+    0xff00ffff,
+    SIZE,
+    SIZE,
+    renderer)
 {
-    draw_test(renderer, /*asClip=*/false);
+  draw_test(renderer, /*asClip=*/false);
 }
 
-DEF_SIMPLE_GM_WITH_CLEAR_COLOR(negative_interior_triangles_as_clip,
-                               0xff00ffff,
-                               SIZE,
-                               SIZE,
-                               renderer)
+DEF_SIMPLE_GM_WITH_CLEAR_COLOR(
+    negative_interior_triangles_as_clip,
+    0xff00ffff,
+    SIZE,
+    SIZE,
+    renderer)
 {
-    draw_test(renderer, /*asClip=*/true);
+  draw_test(renderer, /*asClip=*/true);
 }

@@ -7,7 +7,7 @@ namespace rive
 class DataEnumValue : public DataEnumValueBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
+  StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive
 
